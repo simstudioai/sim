@@ -1,4 +1,3 @@
-import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   buildTaskMembers,
   mapTask,
@@ -9,6 +8,7 @@ import {
   rocketlaneHeaders,
   TASK_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneRemoveTaskFollowersTool: ToolConfig<

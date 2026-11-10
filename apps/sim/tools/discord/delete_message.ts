@@ -1,8 +1,8 @@
-import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type {
   DiscordDeleteMessageParams,
   DiscordDeleteMessageResponse,
 } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const discordDeleteMessageTool: ToolConfig<

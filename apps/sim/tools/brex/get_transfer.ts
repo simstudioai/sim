@@ -1,7 +1,7 @@
-import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexGetTransferParams, BrexGetTransferResponse } from '@/tools/brex/types'
 import { BREX_MONEY_PROPERTIES } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brexGetTransferTool: ToolConfig<BrexGetTransferParams, BrexGetTransferResponse> = {

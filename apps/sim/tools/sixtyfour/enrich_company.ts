@@ -1,4 +1,4 @@
-import { SIXTYFOUR_CREDENTIAL_OAUTH } from '@/tools/sixtyfour/credential'
+import { SIXTYFOUR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SixtyfourEnrichCompanyParams,
   SixtyfourEnrichCompanyResponse,

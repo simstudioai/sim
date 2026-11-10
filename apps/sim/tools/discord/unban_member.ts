@@ -1,5 +1,5 @@
-import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type { DiscordUnbanMemberParams, DiscordUnbanMemberResponse } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const discordUnbanMemberTool: ToolConfig<

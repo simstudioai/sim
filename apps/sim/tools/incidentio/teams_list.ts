@@ -1,9 +1,9 @@
-import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import {
   INCIDENTIO_TEAM_OUTPUT_PROPERTIES,
   type IncidentioTeamsListParams,
   type IncidentioTeamsListResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const teamsListTool: ToolConfig<IncidentioTeamsListParams, IncidentioTeamsListResponse> = {

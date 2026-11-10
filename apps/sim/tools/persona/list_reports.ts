@@ -1,4 +1,3 @@
-import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/persona/credential'
 import type { PersonaListReportsParams, PersonaListReportsResponse } from '@/tools/persona/types'
 import {
   asResourceList,
@@ -9,6 +8,7 @@ import {
   parsePersonaResponse,
   REPORT_OUTPUT_PROPERTIES,
 } from '@/tools/persona/utils'
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const personaListReportsTool: ToolConfig<

@@ -1,10 +1,10 @@
-import { MEM0_CREDENTIAL_OAUTH } from '@/tools/mem0/credential'
 import {
   ADD_MEMORY_OUTPUT_PROPERTIES,
   type Mem0AddMemoriesParams,
   type Mem0AddMemoriesResponse,
 } from '@/tools/mem0/types'
 import { parseMem0Messages } from '@/tools/mem0/utils'
+import { MEM0_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 function rebuildMem0Messages(

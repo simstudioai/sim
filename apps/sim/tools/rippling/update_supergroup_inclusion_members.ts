@@ -1,5 +1,5 @@
-import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/rippling/credential'
 import type { RipplingUpdateSupergroupInclusionMembersParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingUpdateSupergroupInclusionMembersTool: ToolConfig<RipplingUpdateSupergroupInclusionMembersParams> =

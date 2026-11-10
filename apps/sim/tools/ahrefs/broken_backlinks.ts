@@ -1,8 +1,8 @@
-import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/ahrefs/credential'
 import type {
   AhrefsBrokenBacklinksParams,
   AhrefsBrokenBacklinksResponse,
 } from '@/tools/ahrefs/types'
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const SELECT_FIELDS = 'url_from,url_to,http_code_target,anchor,domain_rating_source'

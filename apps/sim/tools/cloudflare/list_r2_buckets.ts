@@ -1,5 +1,4 @@
 import { toRecord } from '@sim/utils/object'
-import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import { R2_BUCKET_OUTPUTS, RESULT_INFO_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareListR2BucketsParams,
@@ -12,6 +11,7 @@ import {
   mapCloudflareFields,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 

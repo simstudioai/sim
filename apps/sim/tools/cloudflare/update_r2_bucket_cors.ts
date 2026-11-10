@@ -1,4 +1,3 @@
-import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareUpdateR2BucketCorsParams,
   CloudflareUpdateR2BucketCorsResponse,
@@ -9,6 +8,7 @@ import {
   parseJsonArrayParam,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 

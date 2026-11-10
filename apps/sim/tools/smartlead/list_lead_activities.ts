@@ -1,6 +1,6 @@
 import { toRecord } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/smartlead/credential'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SmartleadBaseParams, SmartleadPaginatedRowsResponse } from '@/tools/smartlead/types'
 import {
   opaqueRows,

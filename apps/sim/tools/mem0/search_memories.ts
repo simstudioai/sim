@@ -1,8 +1,8 @@
 import { isRecordLike } from '@sim/utils/object'
-import { MEM0_CREDENTIAL_OAUTH } from '@/tools/mem0/credential'
 import type { Mem0Response, Mem0SearchMemoriesParams } from '@/tools/mem0/types'
 import { SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/mem0/types'
 import type { JsonRecord } from '@/tools/mem0/utils'
+import { MEM0_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const getSearchResults = (data: unknown): JsonRecord[] => {

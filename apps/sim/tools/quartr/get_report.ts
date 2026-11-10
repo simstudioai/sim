@@ -1,4 +1,3 @@
-import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/quartr/credential'
 import {
   QUARTR_DOCUMENT_OUTPUT_PROPERTIES,
   type QuartrDocumentDto,
@@ -7,6 +6,7 @@ import {
   type QuartrSingleDto,
 } from '@/tools/quartr/types'
 import { buildQuartrUrl, mapQuartrDocument, parseQuartrResponse } from '@/tools/quartr/utils'
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const quartrGetReportTool: ToolConfig<QuartrGetReportParams, QuartrGetDocumentFileResponse> =

@@ -1,4 +1,4 @@
-import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/sportmonks/credential'
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   buildSportmonksHeaders,
   handleSportmonksError,

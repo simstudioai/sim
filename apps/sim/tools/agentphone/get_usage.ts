@@ -1,5 +1,5 @@
-import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/agentphone/credential'
 import type { AgentPhoneGetUsageParams, AgentPhoneGetUsageResult } from '@/tools/agentphone/types'
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentphoneGetUsageTool: ToolConfig<

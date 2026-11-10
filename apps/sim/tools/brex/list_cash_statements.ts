@@ -1,4 +1,3 @@
-import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexListCashStatementsParams, BrexListStatementsResponse } from '@/tools/brex/types'
 import { BREX_MONEY_PROPERTIES } from '@/tools/brex/types'
 import {
@@ -7,6 +6,7 @@ import {
   buildBrexHeaders,
   parseBrexJson,
 } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brexListCashStatementsTool: ToolConfig<

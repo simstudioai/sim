@@ -1,5 +1,5 @@
-import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/ahrefs/credential'
 import type { AhrefsBatchAnalysisParams, AhrefsBatchAnalysisResponse } from '@/tools/ahrefs/types'
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const SELECT_FIELDS =

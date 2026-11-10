@@ -1,8 +1,8 @@
-import { FIREFLIES_CREDENTIAL_OAUTH } from '@/tools/fireflies/credential'
 import type {
   FirefliesListTranscriptsParams,
   FirefliesListTranscriptsResponse,
 } from '@/tools/fireflies/types'
+import { FIREFLIES_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const firefliesListTranscriptsTool: ToolConfig<

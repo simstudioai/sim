@@ -1,5 +1,5 @@
+import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
-import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/uptimerobot/credential'
 import {
   buildMonitorBody,
   MONITOR_OUTPUT_PROPERTIES,

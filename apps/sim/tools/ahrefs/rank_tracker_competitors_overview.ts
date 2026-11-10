@@ -1,8 +1,8 @@
-import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/ahrefs/credential'
 import type {
   AhrefsRankTrackerCompetitorsOverviewParams,
   AhrefsRankTrackerCompetitorsOverviewResponse,
 } from '@/tools/ahrefs/types'
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const SELECT_FIELDS = 'keyword,volume,keyword_difficulty,serp_features,competitors_list'

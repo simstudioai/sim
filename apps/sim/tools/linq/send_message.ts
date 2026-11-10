@@ -1,4 +1,3 @@
-import { LINQ_CREDENTIAL_OAUTH } from '@/tools/linq/credential'
 import type { LinqSendMessageParams, LinqSendMessageResult } from '@/tools/linq/types'
 import {
   buildMessageContent,
@@ -6,6 +5,7 @@ import {
   LINQ_API_BASE,
   linqHeaders,
 } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const linqSendMessageTool: ToolConfig<LinqSendMessageParams, LinqSendMessageResult> = {

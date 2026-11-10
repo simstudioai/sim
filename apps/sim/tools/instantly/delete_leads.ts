@@ -1,5 +1,4 @@
 import { toRecord } from '@sim/utils/object'
-import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/instantly/credential'
 import type {
   InstantlyDeleteLeadsParams,
   InstantlyDeleteLeadsResponse,
@@ -11,6 +10,7 @@ import {
   instantlyUrl,
   parseInstantlyResponse,
 } from '@/tools/instantly/utils'
+import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteLeadsTool: ToolConfig<InstantlyDeleteLeadsParams, InstantlyDeleteLeadsResponse> =

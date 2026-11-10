@@ -1,4 +1,3 @@
-import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityCollectionResponse,
   AffinityNoteCollectionParams,
@@ -11,6 +10,7 @@ import {
   transformCollection,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityListNoteRepliesTool: ToolConfig<

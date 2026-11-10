@@ -1,4 +1,3 @@
-import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/quartr/credential'
 import {
   QUARTR_SUMMARY_SOURCE_OUTPUT_PROPERTIES,
   type QuartrGetEventSummaryParams,
@@ -12,6 +11,7 @@ import {
   mapQuartrSummarySource,
   parseQuartrResponse,
 } from '@/tools/quartr/utils'
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const quartrGetEventSummaryTool: ToolConfig<

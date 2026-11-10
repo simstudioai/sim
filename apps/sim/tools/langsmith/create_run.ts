@@ -1,11 +1,11 @@
 import { filterUndefined } from '@sim/utils/object'
-import { LANGSMITH_CREDENTIAL_OAUTH } from '@/tools/langsmith/credential'
 import type { LangsmithCreateRunParams, LangsmithCreateRunResponse } from '@/tools/langsmith/types'
 import {
   LANGSMITH_API_BASE,
   normalizeLangsmithRunPayload,
   truncateLangsmithErrorText,
 } from '@/tools/langsmith/utils'
+import { LANGSMITH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const langsmithCreateRunTool: ToolConfig<

@@ -1,4 +1,3 @@
-import { OTTER_CREDENTIAL_OAUTH } from '@/tools/otter/credential'
 import type { OtterGetConversationParams, OtterGetConversationResponse } from '@/tools/otter/types'
 import {
   mapOtterConversationDetail,
@@ -11,6 +10,7 @@ import {
   readOtterDataObject,
   readOtterRetrievedAt,
 } from '@/tools/otter/utils'
+import { OTTER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 

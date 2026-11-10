@@ -1,5 +1,5 @@
-import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/sendgrid/credential'
 import type { RemoveContactsFromListParams } from '@/tools/sendgrid/types'
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 export const sendGridRemoveContactsFromListTool: ToolConfig<

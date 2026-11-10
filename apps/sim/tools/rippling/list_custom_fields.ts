@@ -1,6 +1,6 @@
-import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/rippling/credential'
 import type { RipplingListCustomFieldsParams } from '@/tools/rippling/types'
 import { CUSTOM_FIELD_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingListCustomFieldsTool: ToolConfig<RipplingListCustomFieldsParams> = {

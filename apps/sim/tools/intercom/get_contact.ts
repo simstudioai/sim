@@ -1,9 +1,9 @@
-import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/intercom/credential'
 import {
   buildIntercomUrl,
   handleIntercomError,
   INTERCOM_CONTACT_OUTPUT_PROPERTIES,
 } from '@/tools/intercom/types'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface IntercomGetContactParams {

@@ -1,5 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/square/credential'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CustomerDeleteResponse, DeleteCustomerParams } from '@/tools/square/types'
 import { SQUARE_BASE_URL, squareHeaders } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'

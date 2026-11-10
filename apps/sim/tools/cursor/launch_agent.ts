@@ -1,9 +1,9 @@
-import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/cursor/credential'
 import {
   applyProjectedCursorPromptModelInput,
   selectCursorPromptModelInput,
 } from '@/tools/cursor/model-input'
 import type { LaunchAgentParams, LaunchAgentResponse } from '@/tools/cursor/types'
+import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const launchAgentBase = {

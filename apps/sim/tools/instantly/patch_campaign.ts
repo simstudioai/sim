@@ -1,4 +1,3 @@
-import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/instantly/credential'
 import type {
   InstantlyCampaignResponse,
   InstantlyPatchCampaignParams,
@@ -12,6 +11,7 @@ import {
   mapCampaign,
   parseInstantlyResponse,
 } from '@/tools/instantly/utils'
+import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const patchCampaignTool: ToolConfig<

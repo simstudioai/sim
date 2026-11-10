@@ -1,5 +1,5 @@
-import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/cursor/credential'
 import type { StopAgentParams, StopAgentResponse } from '@/tools/cursor/types'
+import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const stopAgentBase = {

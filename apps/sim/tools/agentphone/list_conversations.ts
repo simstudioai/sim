@@ -1,9 +1,9 @@
-import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/agentphone/credential'
 import type {
   AgentPhoneConversationSummary,
   AgentPhoneListConversationsParams,
   AgentPhoneListConversationsResult,
 } from '@/tools/agentphone/types'
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentphoneListConversationsTool: ToolConfig<

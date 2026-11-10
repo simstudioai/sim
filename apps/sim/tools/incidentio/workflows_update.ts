@@ -1,4 +1,3 @@
-import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type { WorkflowsUpdateParams, WorkflowsUpdateResponse } from '@/tools/incidentio/types'
 import { INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES } from '@/tools/incidentio/types'
 import {
@@ -6,6 +5,7 @@ import {
   parseIncidentioJsonParam,
   parseRequiredIncidentioJsonParam,
 } from '@/tools/incidentio/utils'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const workflowsUpdateTool: ToolConfig<WorkflowsUpdateParams, WorkflowsUpdateResponse> = {

@@ -1,5 +1,5 @@
-import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexMatchReceiptParams, BrexUploadReceiptResponse } from '@/tools/brex/types'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const brexMatchReceiptTool: InternalToolConfig<

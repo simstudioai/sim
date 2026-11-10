@@ -1,5 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/square/credential'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CustomerListResponse, SearchCustomersParams } from '@/tools/square/types'
 import {
   CUSTOMER_OUTPUT,

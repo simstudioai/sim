@@ -1,8 +1,8 @@
-import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type {
   IncidentioIncidentAlertsListParams,
   IncidentioIncidentAlertsListResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 /** incident.io requires a page size on this endpoint, so fall back to its documented default. */

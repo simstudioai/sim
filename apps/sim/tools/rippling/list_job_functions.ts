@@ -1,6 +1,6 @@
-import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/rippling/credential'
 import type { RipplingListJobFunctionsParams } from '@/tools/rippling/types'
 import { JOB_FUNCTION_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingListJobFunctionsTool: ToolConfig<RipplingListJobFunctionsParams> = {

@@ -1,9 +1,9 @@
-import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import {
   INCIDENTIO_PAGINATION_OUTPUT_PROPERTIES,
   type IncidentioUsersListParams,
   type IncidentioUsersListResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const usersListTool: ToolConfig<IncidentioUsersListParams, IncidentioUsersListResponse> = {

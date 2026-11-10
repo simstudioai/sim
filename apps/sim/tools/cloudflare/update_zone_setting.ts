@@ -1,5 +1,4 @@
 import { isRecordLike } from '@sim/utils/object'
-import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import { mapZoneSetting } from '@/tools/cloudflare/get_zone_settings'
 import type {
   CloudflareRawZoneSetting,
@@ -7,6 +6,7 @@ import type {
   CloudflareUpdateZoneSettingResponse,
 } from '@/tools/cloudflare/types'
 import { readCloudflareResponse } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 

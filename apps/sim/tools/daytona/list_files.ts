@@ -1,6 +1,6 @@
-import { DAYTONA_CREDENTIAL_OAUTH } from '@/tools/daytona/credential'
 import type { DaytonaListFilesParams, DaytonaListFilesResponse } from '@/tools/daytona/types'
 import { daytonaToolboxUrl, extractDaytonaError } from '@/tools/daytona/utils'
+import { DAYTONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const daytonaListFilesTool: ToolConfig<DaytonaListFilesParams, DaytonaListFilesResponse> = {

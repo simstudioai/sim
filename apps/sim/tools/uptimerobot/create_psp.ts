@@ -1,5 +1,5 @@
+import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
-import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/uptimerobot/credential'
 import {
   PSP_OUTPUT_PROPERTIES,
   type UptimeRobotCreatePspParams,

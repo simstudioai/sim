@@ -1,5 +1,5 @@
-import { APIFY_CREDENTIAL_OAUTH } from '@/tools/apify/credential'
 import type { GetDatasetItemsParams, GetDatasetItemsResult } from '@/tools/apify/types'
+import { APIFY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apifyGetDatasetItemsTool: ToolConfig<GetDatasetItemsParams, GetDatasetItemsResult> = {

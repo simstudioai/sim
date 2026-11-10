@@ -1,4 +1,3 @@
-import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/persona/credential'
 import type { PersonaInquiryResponse, PersonaUpdateInquiryParams } from '@/tools/persona/types'
 import {
   asResource,
@@ -10,6 +9,7 @@ import {
   parsePersonaResponse,
   parseStringArrayParam,
 } from '@/tools/persona/utils'
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const personaUpdateInquiryTool: ToolConfig<

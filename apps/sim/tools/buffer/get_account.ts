@@ -1,4 +1,3 @@
-import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/buffer/credential'
 import { bufferInputDescription, bufferSelection, parseBufferInput } from '@/tools/buffer/schema'
 import {
   ACCOUNT_OUTPUT_PROPERTIES,
@@ -9,6 +8,7 @@ import {
   mapBufferAccount,
   parseBufferGraphQLResponse,
 } from '@/tools/buffer/types'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const GET_ACCOUNT_QUERY = `query GetAccount($organizationFilter: OrganizationFilterInput) {

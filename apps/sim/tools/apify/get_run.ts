@@ -1,5 +1,5 @@
-import { APIFY_CREDENTIAL_OAUTH } from '@/tools/apify/credential'
 import type { ApifyRun, GetRunParams, GetRunResult } from '@/tools/apify/types'
+import { APIFY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apifyGetRunTool: ToolConfig<GetRunParams, GetRunResult> = {

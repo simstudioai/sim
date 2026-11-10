@@ -1,8 +1,8 @@
-import { GAMMA_CREDENTIAL_OAUTH } from '@/tools/gamma/credential'
 import type {
   GammaGenerateFromTemplateParams,
   GammaGenerateFromTemplateResponse,
 } from '@/tools/gamma/types'
+import { GAMMA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const generateFromTemplateTool: ToolConfig<

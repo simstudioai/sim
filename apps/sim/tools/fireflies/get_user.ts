@@ -1,5 +1,5 @@
-import { FIREFLIES_CREDENTIAL_OAUTH } from '@/tools/fireflies/credential'
 import type { FirefliesGetUserParams, FirefliesGetUserResponse } from '@/tools/fireflies/types'
+import { FIREFLIES_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const firefliesGetUserTool: ToolConfig<FirefliesGetUserParams, FirefliesGetUserResponse> = {

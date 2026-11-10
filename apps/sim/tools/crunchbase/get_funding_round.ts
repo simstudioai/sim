@@ -1,4 +1,3 @@
-import { CRUNCHBASE_CREDENTIAL_OAUTH } from '@/tools/crunchbase/credential'
 import type { CrunchbaseEntityParams, CrunchbaseEntityResponse } from '@/tools/crunchbase/types'
 import {
   buildEntityUrl,
@@ -7,6 +6,7 @@ import {
   transformEntityResponse,
 } from '@/tools/crunchbase/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { CRUNCHBASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const crunchbaseGetFundingRoundTool: ToolConfig<

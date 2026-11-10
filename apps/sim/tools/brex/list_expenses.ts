@@ -1,4 +1,3 @@
-import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexListExpensesParams, BrexListExpensesResponse } from '@/tools/brex/types'
 import { BREX_EXPENSE_ITEM_PROPERTIES } from '@/tools/brex/types'
 import {
@@ -9,6 +8,7 @@ import {
   parseBrexJson,
   toBrexDateTime,
 } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const EXPAND_FIELDS = [

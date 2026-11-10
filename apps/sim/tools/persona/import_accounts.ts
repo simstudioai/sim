@@ -1,9 +1,9 @@
-import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/persona/credential'
 import type {
   PersonaImportAccountsParams,
   PersonaImportAccountsResponse,
 } from '@/tools/persona/types'
 import { IMPORTER_OUTPUT_PROPERTIES } from '@/tools/persona/utils'
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const personaImportAccountsTool: InternalToolConfig<

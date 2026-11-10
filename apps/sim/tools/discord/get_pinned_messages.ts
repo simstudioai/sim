@@ -1,9 +1,9 @@
-import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type {
   DiscordGetPinnedMessagesParams,
   DiscordGetPinnedMessagesResponse,
   DiscordMessage,
 } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const discordGetPinnedMessagesTool: ToolConfig<

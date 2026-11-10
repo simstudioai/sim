@@ -1,5 +1,4 @@
 import { toArray } from '@sim/utils/object'
-import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/buffer/credential'
 import { bufferInputDescription, bufferSelection, parseBufferInput } from '@/tools/buffer/schema'
 import {
   BUFFER_API_URL,
@@ -10,6 +9,7 @@ import {
   mapBufferChannel,
   parseBufferGraphQLResponse,
 } from '@/tools/buffer/types'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const GET_CHANNELS_QUERY = `

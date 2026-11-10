@@ -1,5 +1,5 @@
-import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type { DiscordSendMessageParams, DiscordSendMessageResponse } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const discordSendMessageTool: InternalToolConfig<

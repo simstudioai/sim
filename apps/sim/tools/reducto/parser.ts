@@ -1,11 +1,11 @@
 import { toError } from '@sim/utils/errors'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file'
-import { REDUCTO_CREDENTIAL_OAUTH } from '@/tools/reducto/credential'
 import type {
   ReductoParserInput,
   ReductoParserOutput,
   ReductoParserV2Input,
 } from '@/tools/reducto/types'
+import { REDUCTO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const reductoParserTool: InternalToolConfig<ReductoParserInput, ReductoParserOutput> = {

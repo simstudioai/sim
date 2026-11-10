@@ -1,9 +1,9 @@
-import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/agentphone/credential'
 import type {
   AgentPhoneGetCallTranscriptParams,
   AgentPhoneGetCallTranscriptResult,
   AgentPhoneTranscriptEntry,
 } from '@/tools/agentphone/types'
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentphoneGetCallTranscriptTool: ToolConfig<

@@ -1,9 +1,9 @@
-import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/sendgrid/credential'
 import type {
   CreateTemplateVersionParams,
   SendGridTemplateVersionRequest,
   TemplateVersionResult,
 } from '@/tools/sendgrid/types'
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const INACTIVE_VALUES: unknown[] = [false, 'false', 0, '0']

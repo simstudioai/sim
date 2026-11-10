@@ -1,10 +1,10 @@
-import { HUGGINGFACE_CREDENTIAL_OAUTH } from '@/tools/huggingface/credential'
 import type {
   HuggingFaceChatParams,
   HuggingFaceChatResponse,
   HuggingFaceMessage,
   HuggingFaceRequestBody,
 } from '@/tools/huggingface/types'
+import { HUGGINGFACE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse> = {

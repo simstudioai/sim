@@ -1,5 +1,4 @@
 import { isRecordLike } from '@sim/utils/object'
-import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import { ZONE_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareCreateZoneParams,
@@ -10,6 +9,7 @@ import {
   mapCloudflareFields,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createZoneTool: ToolConfig<CloudflareCreateZoneParams, CloudflareCreateZoneResponse> =

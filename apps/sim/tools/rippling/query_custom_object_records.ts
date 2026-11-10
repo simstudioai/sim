@@ -1,6 +1,6 @@
-import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/rippling/credential'
 import type { RipplingQueryCustomObjectRecordsParams } from '@/tools/rippling/types'
 import { CUSTOM_OBJECT_RECORD_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingQueryCustomObjectRecordsTool: ToolConfig<RipplingQueryCustomObjectRecordsParams> =

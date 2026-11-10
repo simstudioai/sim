@@ -1,4 +1,3 @@
-import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import {
   CALENDAR_EVENT_OUTPUT_PROPERTIES,
   type CirclebackCalendarEventListResponse,
@@ -10,6 +9,7 @@ import {
   parseNextCursor,
   throwCirclebackError,
 } from '@/tools/circleback/utils'
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listCalendarEventsTool: ToolConfig<

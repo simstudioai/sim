@@ -1,10 +1,10 @@
-import { RB2B_CREDENTIAL_OAUTH } from '@/tools/rb2b/credential'
 import {
   RB2B_ACTIVITY_RESULT_OUTPUT_PROPERTIES,
   type Rb2bEmailActivityParams,
   type Rb2bEmailActivityResponse,
 } from '@/tools/rb2b/types'
 import { RB2B_API_BASE, rb2bHeaders } from '@/tools/rb2b/utils'
+import { RB2B_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rb2bEmailToActivityTool: ToolConfig<

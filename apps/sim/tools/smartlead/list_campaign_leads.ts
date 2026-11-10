@@ -1,5 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/smartlead/credential'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SmartleadCampaignIdParams,
   SmartleadListCampaignLeadsResponse,

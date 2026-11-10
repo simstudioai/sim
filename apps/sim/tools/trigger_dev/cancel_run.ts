@@ -1,4 +1,4 @@
-import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/trigger_dev/credential'
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TriggerDevRunActionResponse, TriggerDevRunIdParams } from '@/tools/trigger_dev/types'
 import { buildTriggerDevHeaders, TRIGGER_DEV_API_BASE } from '@/tools/trigger_dev/utils'
 import type { ToolConfig } from '@/tools/types'

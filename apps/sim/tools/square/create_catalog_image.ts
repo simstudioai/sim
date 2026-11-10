@@ -1,4 +1,4 @@
-import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/square/credential'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   defineSquareKeyedSite,
   resolveSquareIdempotencyKey,

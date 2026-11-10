@@ -1,4 +1,3 @@
-import { CRUNCHBASE_CREDENTIAL_OAUTH } from '@/tools/crunchbase/credential'
 import type { CrunchbaseProperties } from '@/tools/crunchbase/types'
 import {
   assertCollection,
@@ -13,6 +12,7 @@ import {
   readJson,
 } from '@/tools/crunchbase/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { CRUNCHBASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface CrunchbaseGetEntityCardParams {

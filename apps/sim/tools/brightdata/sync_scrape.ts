@@ -1,8 +1,8 @@
-import { BRIGHTDATA_CREDENTIAL_OAUTH } from '@/tools/brightdata/credential'
 import type {
   BrightDataSyncScrapeParams,
   BrightDataSyncScrapeResponse,
 } from '@/tools/brightdata/types'
+import { BRIGHTDATA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brightDataSyncScrapeTool: ToolConfig<

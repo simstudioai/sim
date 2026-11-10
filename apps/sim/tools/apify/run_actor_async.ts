@@ -1,7 +1,7 @@
 import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
-import { APIFY_CREDENTIAL_OAUTH } from '@/tools/apify/credential'
 import type { ApifyRun, RunActorParams, RunActorResult } from '@/tools/apify/types'
+import { APIFY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const POLL_INTERVAL_MS = 5000

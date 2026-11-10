@@ -1,5 +1,5 @@
-import { DUB_CREDENTIAL_OAUTH } from '@/tools/dub/credential'
 import type { DubBulkUpdateLinksParams, DubBulkUpdateLinksResponse } from '@/tools/dub/types'
+import { DUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const bulkUpdateLinksTool: ToolConfig<DubBulkUpdateLinksParams, DubBulkUpdateLinksResponse> =

@@ -1,5 +1,5 @@
-import { ELEVENLABS_CREDENTIAL_OAUTH } from '@/tools/elevenlabs/credential'
 import type { ElevenLabsTtsParams, ElevenLabsTtsResponse } from '@/tools/elevenlabs/types'
+import { ELEVENLABS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const elevenLabsTtsTool: InternalToolConfig<ElevenLabsTtsParams, ElevenLabsTtsResponse> = {

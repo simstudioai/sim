@@ -1,82 +1,97 @@
 import { describe, expect, it } from 'vitest'
 import { hostSteeringParams } from '@/scripts/saved-credential-contract'
+import type { ToolConfig } from '@/tools/types'
 
 const required = { type: 'string', required: true }
 const optional = { type: 'string', required: false }
 
+/** A request tool with the given params and URL builder. */
+function requestTool(
+  params: Record<string, { type: string; required?: boolean }>,
+  url: (params: Record<string, unknown>) => string
+): ToolConfig {
+  return {
+    id: 'probe_fixture',
+    name: 'Probe fixture',
+    description: 'Fixture for the host-steering probe',
+    version: '1.0.0',
+    params: Object.fromEntries(
+      Object.entries(params).map(([name, param]) => [
+        name,
+        { ...param, required: param.required ?? false, visibility: 'user-only' },
+      ])
+    ),
+    request: { url, method: 'GET', headers: () => ({}) },
+  } as ToolConfig
+}
+
 describe('hostSteeringParams', () => {
   it('finds an unvalidated host param that becomes the request origin', () => {
-    const tool = {
-      params: { apiKey: required, indexHost: required, id: required },
-      request: {
-        url: (p: Record<string, string>) => `https://${p.indexHost}/vectors/${p.id}`,
-      },
-    }
+    const tool = requestTool(
+      { apiKey: required, indexHost: required, id: required },
+      (p: Record<string, unknown>) => `https://${p.indexHost}/vectors/${p.id}`
+    )
 
     expect(hostSteeringParams(tool)).toEqual({ params: ['indexHost'], probed: true })
   })
 
   it('finds a param holding a whole base URL', () => {
-    const tool = {
-      params: { baseUrl: optional, id: required },
-      request: {
-        url: (p: Record<string, string>) =>
-          `${p.baseUrl ?? 'https://api.example.com'}/items/${p.id}`,
-      },
-    }
+    const tool = requestTool(
+      { baseUrl: optional, id: required },
+      (p: Record<string, unknown>) => `${p.baseUrl ?? 'https://api.example.com'}/items/${p.id}`
+    )
 
     expect(hostSteeringParams(tool).params).toEqual(['baseUrl'])
   })
 
   it('ignores params that only reach the path or query', () => {
-    const tool = {
-      params: { domain: required, companyId: required },
-      request: {
-        url: (p: Record<string, string>) =>
-          `https://api.example.com/companies/${p.companyId}?domain=${encodeURIComponent(p.domain)}`,
-      },
-    }
+    const tool = requestTool(
+      { domain: required, companyId: required },
+      (p: Record<string, unknown>) =>
+        `https://api.example.com/companies/${p.companyId}?domain=${encodeURIComponent(p.domain)}`
+    )
 
     expect(hostSteeringParams(tool)).toEqual({ params: [], probed: true })
   })
 
   it('falls back to destination-like names when no placeholder builds the URL', () => {
-    const tool = {
-      params: { serverUrl: required, query: required },
-      request: {
-        url: () => {
-          throw new Error('validated elsewhere')
-        },
-      },
-    }
+    const tool = requestTool({ serverUrl: required, query: required }, () => {
+      throw new Error('validated elsewhere')
+    })
 
     expect(hostSteeringParams(tool)).toEqual({ params: ['serverUrl'], probed: false })
   })
 
   it('defeats a host suffix check that does not parse the host', () => {
-    const tool = {
-      params: { indexHost: optional, id: required },
-      request: {
-        url: (p: Record<string, string>) => {
-          const host = p.indexHost ?? 'default.svc.pinecone.io'
-          if (!host.endsWith('.pinecone.io')) throw new Error('not a Pinecone host')
-          return `https://${host}/vectors/${p.id}`
-        },
-      },
-    }
+    const tool = requestTool(
+      { indexHost: optional, id: required },
+      (p: Record<string, unknown>) => {
+        const host = p.indexHost ?? 'default.svc.pinecone.io'
+        if (!host.endsWith('.pinecone.io')) throw new Error('not a Pinecone host')
+        return `https://${host}/vectors/${p.id}`
+      }
+    )
 
     expect(hostSteeringParams(tool).params).toEqual(['indexHost'])
   })
 
   it('finds a host behind an optional switch', () => {
-    const tool = {
-      params: { useCustom: { type: 'boolean' }, customUrl: optional, id: required },
-      request: {
-        url: (p: Record<string, unknown>) =>
-          `${p.useCustom ? String(p.customUrl) : 'https://api.example.com'}/items/${p.id}`,
-      },
-    }
+    const tool = requestTool(
+      { useCustom: { type: 'boolean' }, customUrl: optional, id: required },
+      (p: Record<string, unknown>) =>
+        `${p.useCustom ? String(p.customUrl) : 'https://api.example.com'}/items/${p.id}`
+    )
 
     expect(hostSteeringParams(tool).params).toEqual(['customUrl'])
+  })
+
+  it('finds a host validated against a vendor allowlist that still picks the tenant', () => {
+    const tool = requestTool({ host: required, id: required }, (p) => {
+      const host = String(p.host)
+      if (!/^[a-z0-9-]+\.cloud\.databricks\.com$/.test(host)) throw new Error('not allowlisted')
+      return `https://${host}/api/2.0/jobs/${p.id}`
+    })
+
+    expect(hostSteeringParams(tool).params).toEqual(['host'])
   })
 })

@@ -1,6 +1,6 @@
-import { DAYTONA_CREDENTIAL_OAUTH } from '@/tools/daytona/credential'
 import type { DaytonaDownloadFileParams, DaytonaDownloadFileResponse } from '@/tools/daytona/types'
 import { daytonaToolboxUrl, extractDaytonaError } from '@/tools/daytona/utils'
+import { DAYTONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const MAX_DOWNLOAD_SIZE_BYTES = 100 * 1024 * 1024

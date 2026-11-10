@@ -1,6 +1,6 @@
-import { LANGSMITH_CREDENTIAL_OAUTH } from '@/tools/langsmith/credential'
 import type { LangsmithGetRunParams, LangsmithGetRunResponse } from '@/tools/langsmith/types'
 import { LANGSMITH_API_BASE, truncateLangsmithErrorText } from '@/tools/langsmith/utils'
+import { LANGSMITH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const langsmithGetRunTool: ToolConfig<LangsmithGetRunParams, LangsmithGetRunResponse> = {

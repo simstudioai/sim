@@ -1,4 +1,3 @@
-import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import {
   type CirclebackTaggedMeetingsResponse,
   type CirclebackTagMeetingsParams,
@@ -11,6 +10,7 @@ import {
   throwCirclebackError,
   toStringList,
 } from '@/tools/circleback/utils'
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const addTagToMeetingsTool: ToolConfig<

@@ -1,7 +1,7 @@
-import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type { WorkflowsShowParams, WorkflowsShowResponse } from '@/tools/incidentio/types'
 import { INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES } from '@/tools/incidentio/types'
 import { mapIncidentioWorkflow } from '@/tools/incidentio/utils'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const workflowsShowTool: ToolConfig<WorkflowsShowParams, WorkflowsShowResponse> = {

@@ -1,4 +1,3 @@
-import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapPagination,
   mapTimeEntryCategory,
@@ -11,6 +10,7 @@ import {
   rocketlaneHeaders,
   TIME_ENTRY_CATEGORY_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneListTimeEntryCategoriesTool: ToolConfig<

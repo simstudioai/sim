@@ -1,4 +1,3 @@
-import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import {
   ACTION_ITEM_OUTPUT_PROPERTIES,
   type CirclebackActionItemResponse,
@@ -10,6 +9,7 @@ import {
   mapActionItem,
   throwCirclebackError,
 } from '@/tools/circleback/utils'
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 

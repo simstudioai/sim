@@ -1,5 +1,5 @@
-import { DUB_CREDENTIAL_OAUTH } from '@/tools/dub/credential'
 import type { DubCreateLinkParams, DubCreateLinkResponse } from '@/tools/dub/types'
+import { DUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createLinkTool: ToolConfig<DubCreateLinkParams, DubCreateLinkResponse> = {

@@ -1,5 +1,5 @@
-import { ELEVENLABS_CREDENTIAL_OAUTH } from '@/tools/elevenlabs/credential'
 import type { ElevenLabsGetVoiceParams, ElevenLabsGetVoiceResponse } from '@/tools/elevenlabs/types'
+import { ELEVENLABS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const elevenLabsGetVoiceTool: ToolConfig<

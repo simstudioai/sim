@@ -1,4 +1,3 @@
-import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexListSpendLimitsParams, BrexListSpendLimitsResponse } from '@/tools/brex/types'
 import { BREX_SPEND_LIMIT_PERIOD_BALANCE_PROPERTIES } from '@/tools/brex/types'
 import {
@@ -8,6 +7,7 @@ import {
   buildBrexHeaders,
   parseBrexJson,
 } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brexListSpendLimitsTool: ToolConfig<

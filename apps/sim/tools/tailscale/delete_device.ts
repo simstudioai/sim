@@ -1,4 +1,4 @@
-import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/tailscale/credential'
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TailscaleDeleteDeviceResponse, TailscaleDeviceParams } from '@/tools/tailscale/types'
 import { assertTailscaleResponse } from '@/tools/tailscale/utils'
 import type { ToolConfig } from '@/tools/types'

@@ -1,6 +1,6 @@
-import { LUMA_CREDENTIAL_OAUTH } from '@/tools/luma/credential'
 import type { LumaGetGuestParams, LumaGetGuestResponse } from '@/tools/luma/types'
 import { LUMA_GUEST_OUTPUT_PROPERTIES, resolveGuestCheckedInAt } from '@/tools/luma/types'
+import { LUMA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getGuestTool: ToolConfig<LumaGetGuestParams, LumaGetGuestResponse> = {

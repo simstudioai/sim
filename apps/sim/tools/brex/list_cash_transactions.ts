@@ -1,4 +1,3 @@
-import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type {
   BrexListCashTransactionsParams,
   BrexListCashTransactionsResponse,
@@ -11,6 +10,7 @@ import {
   parseBrexJson,
   toBrexDateTime,
 } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brexListCashTransactionsTool: ToolConfig<

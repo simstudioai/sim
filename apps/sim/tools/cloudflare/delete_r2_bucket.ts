@@ -1,9 +1,9 @@
-import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareDeleteR2BucketParams,
   CloudflareDeleteR2BucketResponse,
 } from '@/tools/cloudflare/types'
 import { cloudflareErrorMessage, cloudflareHeaders } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 

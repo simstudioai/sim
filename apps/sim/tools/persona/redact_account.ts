@@ -1,4 +1,3 @@
-import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/persona/credential'
 import type { PersonaAccountResponse, PersonaRedactAccountParams } from '@/tools/persona/types'
 import {
   ACCOUNT_OUTPUT_PROPERTIES,
@@ -8,6 +7,7 @@ import {
   PERSONA_API_BASE,
   parsePersonaResponse,
 } from '@/tools/persona/utils'
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const personaRedactAccountTool: ToolConfig<

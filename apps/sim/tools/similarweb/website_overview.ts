@@ -1,4 +1,4 @@
-import { SIMILARWEB_CREDENTIAL_OAUTH } from '@/tools/similarweb/credential'
+import { SIMILARWEB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SimilarwebWebsiteOverviewParams,
   SimilarwebWebsiteOverviewResponse,

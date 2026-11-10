@@ -1,11 +1,11 @@
 import { generateId } from '@sim/utils/id'
 import { filterUndefined } from '@sim/utils/object'
-import { LANGSMITH_CREDENTIAL_OAUTH } from '@/tools/langsmith/credential'
 import type {
   LangsmithCreateFeedbackParams,
   LangsmithCreateFeedbackResponse,
 } from '@/tools/langsmith/types'
 import { LANGSMITH_API_BASE, truncateLangsmithErrorText } from '@/tools/langsmith/utils'
+import { LANGSMITH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const langsmithCreateFeedbackTool: ToolConfig<

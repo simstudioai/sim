@@ -1,7 +1,7 @@
 import { filterUndefined } from '@sim/utils/object'
-import { FLINT_CREDENTIAL_OAUTH } from '@/tools/flint/credential'
 import type { FlintCreateTaskParams, FlintCreateTaskResponse } from '@/tools/flint/types'
 import { FLINT_API_BASE_URL, flintBaseParamFields, flintHeaders } from '@/tools/flint/utils'
+import { FLINT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const flintCreateTaskTool: ToolConfig<FlintCreateTaskParams, FlintCreateTaskResponse> = {

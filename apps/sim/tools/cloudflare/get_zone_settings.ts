@@ -1,4 +1,3 @@
-import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareGetZoneSettingsParams,
   CloudflareGetZoneSettingsResponse,
@@ -6,6 +5,7 @@ import type {
 } from '@/tools/cloudflare/types'
 import { DEFAULT_ZONE_SETTING_IDS, MAX_ZONE_SETTING_IDS } from '@/tools/cloudflare/utils'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 

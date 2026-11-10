@@ -1,10 +1,10 @@
 import { omit } from '@sim/utils/object'
-import { DUB_CREDENTIAL_OAUTH } from '@/tools/dub/credential'
 import type {
   DubGetQrCodeParams,
   DubGetQrCodeResponse,
   DubGetQrCodeV2Response,
 } from '@/tools/dub/types'
+import { DUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolFileData } from '@/tools/types'
 
 async function transformDownloadResponse(response: Response) {

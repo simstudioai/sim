@@ -1,5 +1,5 @@
-import { LUMA_CREDENTIAL_OAUTH } from '@/tools/luma/credential'
 import type { LumaLookupEventParams, LumaLookupEventResponse } from '@/tools/luma/types'
+import { LUMA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const lookupEventTool: ToolConfig<LumaLookupEventParams, LumaLookupEventResponse> = {

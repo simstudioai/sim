@@ -1,4 +1,3 @@
-import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityCollectionResponse,
   AffinityListRemindersParams,
@@ -6,6 +5,7 @@ import type {
 import { REMINDER_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import { affinityHeaders, buildAffinityUrl, transformCollection } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityListRemindersTool: ToolConfig<

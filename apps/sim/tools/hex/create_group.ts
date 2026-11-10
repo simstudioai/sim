@@ -1,5 +1,5 @@
-import { HEX_CREDENTIAL_OAUTH } from '@/tools/hex/credential'
 import type { HexCreateGroupParams, HexCreateGroupResponse } from '@/tools/hex/types'
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createGroupTool: ToolConfig<HexCreateGroupParams, HexCreateGroupResponse> = {

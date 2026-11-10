@@ -1,5 +1,5 @@
-import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/apollo/credential'
 import type { ApolloAccountCreateParams, ApolloAccountCreateResponse } from '@/tools/apollo/types'
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apolloAccountCreateTool: ToolConfig<

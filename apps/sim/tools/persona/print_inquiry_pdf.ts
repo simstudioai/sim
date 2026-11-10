@@ -1,4 +1,3 @@
-import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/persona/credential'
 import type {
   PersonaPrintInquiryPdfParams,
   PersonaPrintInquiryPdfResponse,
@@ -8,6 +7,7 @@ import {
   PERSONA_API_BASE,
   PERSONA_API_VERSION,
 } from '@/tools/persona/utils'
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const personaPrintInquiryPdfTool: ToolConfig<

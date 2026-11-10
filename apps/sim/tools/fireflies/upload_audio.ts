@@ -1,8 +1,8 @@
-import { FIREFLIES_CREDENTIAL_OAUTH } from '@/tools/fireflies/credential'
 import type {
   FirefliesUploadAudioParams,
   FirefliesUploadAudioResponse,
 } from '@/tools/fireflies/types'
+import { FIREFLIES_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const firefliesUploadAudioTool: InternalToolConfig<

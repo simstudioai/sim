@@ -1,4 +1,3 @@
-import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/buffer/credential'
 import { bufferOutputProperties, bufferSelection } from '@/tools/buffer/schema'
 import {
   BUFFER_API_URL,
@@ -8,6 +7,7 @@ import {
   mapBufferChannel,
   parseBufferGraphQLResponse,
 } from '@/tools/buffer/types'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const bufferGetChannelTool: ToolConfig<BufferGetChannelParams, BufferChannelResponse> = {

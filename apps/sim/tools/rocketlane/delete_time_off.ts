@@ -1,4 +1,3 @@
-import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   ROCKETLANE_API_BASE,
   type RocketlaneTimeOffDeleteParams,
@@ -6,6 +5,7 @@ import {
   rocketlaneError,
   rocketlaneHeaders,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneDeleteTimeOffTool: ToolConfig<

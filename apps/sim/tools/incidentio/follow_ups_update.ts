@@ -1,9 +1,9 @@
-import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import {
   INCIDENTIO_FOLLOW_UP_RECORD_OUTPUT_PROPERTIES,
   type IncidentioFollowUpsUpdateParams,
   type IncidentioFollowUpsUpdateResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const followUpsUpdateTool: ToolConfig<

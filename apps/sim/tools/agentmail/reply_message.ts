@@ -1,5 +1,5 @@
-import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/agentmail/credential'
 import type { ReplyMessageParams, ReplyMessageResult } from '@/tools/agentmail/types'
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentmailReplyMessageTool: ToolConfig<ReplyMessageParams, ReplyMessageResult> = {

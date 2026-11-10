@@ -1,11 +1,11 @@
 import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
-import { QUIVER_CREDENTIAL_OAUTH } from '@/tools/quiver/credential'
 import { QUIVER_SVG_V2_OUTPUTS } from '@/tools/quiver/outputs'
 import type {
   QuiverImageToSvgParams,
   QuiverSvgResponse,
   QuiverSvgV2Response,
 } from '@/tools/quiver/types'
+import { QUIVER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const quiverImageToSvgTool = {

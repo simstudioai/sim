@@ -1,4 +1,3 @@
-import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import {
   type CirclebackGetTranscriptParams,
   type CirclebackTranscriptResponse,
@@ -9,6 +8,7 @@ import {
   circlebackHeaders,
   throwCirclebackError,
 } from '@/tools/circleback/utils'
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 

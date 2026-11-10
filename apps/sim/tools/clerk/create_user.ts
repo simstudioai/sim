@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { CLERK_CREDENTIAL_OAUTH } from '@/tools/clerk/credential'
 import type {
   ClerkApiError,
   ClerkCreateUserParams,
@@ -8,6 +7,7 @@ import type {
   ClerkPhoneNumber,
   ClerkUser,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkCreateUser')

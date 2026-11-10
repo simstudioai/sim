@@ -1,4 +1,3 @@
-import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityEntityResponse, AffinityGetListParams } from '@/tools/affinity/types'
 import { LIST_WITH_TYPE_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import {
@@ -8,6 +7,7 @@ import {
   transformEntity,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityGetListTool: ToolConfig<

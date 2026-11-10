@@ -1,4 +1,3 @@
-import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import { RESULT_INFO_OUTPUTS, ZONE_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareListZonesParams,
@@ -10,6 +9,7 @@ import {
   mapCloudflareFields,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listZonesTool: ToolConfig<CloudflareListZonesParams, CloudflareListZonesResponse> = {

@@ -1,4 +1,3 @@
-import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareListManagedRulesetOverridesParams,
   CloudflareListManagedRulesetOverridesResponse,
@@ -9,6 +8,7 @@ import {
   cloudflareHeaders,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 

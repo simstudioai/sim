@@ -1,4 +1,3 @@
-import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexListTitlesResponse, BrexNameFilterParams } from '@/tools/brex/types'
 import {
   appendBrexPagination,
@@ -6,6 +5,7 @@ import {
   buildBrexHeaders,
   parseBrexJson,
 } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brexListTitlesTool: ToolConfig<BrexNameFilterParams, BrexListTitlesResponse> = {

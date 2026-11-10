@@ -1,4 +1,3 @@
-import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import {
   type BrexDeliveryContextParams,
   brexIdempotencyHeader,
@@ -7,6 +6,7 @@ import {
 import type { BrexCreateBudgetParams, BrexCreateBudgetResponse } from '@/tools/brex/types'
 import { BREX_MONEY_PROPERTIES } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson, splitBrexIdList } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const DELIVERY = defineBrexKeyedSite(

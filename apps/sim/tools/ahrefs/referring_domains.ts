@@ -1,8 +1,8 @@
-import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/ahrefs/credential'
 import type {
   AhrefsReferringDomainsParams,
   AhrefsReferringDomainsResponse,
 } from '@/tools/ahrefs/types'
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const SELECT_FIELDS = 'domain,domain_rating,links_to_target,dofollow_links,first_seen,last_seen'

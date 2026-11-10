@@ -1,4 +1,3 @@
-import { OTTER_CREDENTIAL_OAUTH } from '@/tools/otter/credential'
 import type {
   OtterListChannelMembersParams,
   OtterListChannelMembersResponse,
@@ -13,6 +12,7 @@ import {
   readOtterDataList,
   readOtterRetrievedAt,
 } from '@/tools/otter/utils'
+import { OTTER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 

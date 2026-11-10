@@ -1,4 +1,4 @@
-import { PROFOUND_CREDENTIAL_OAUTH } from '@/tools/profound/credential'
+import { PROFOUND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ProfoundListOptimizationsParams, ProfoundListOptimizationsResponse } from './types'
 

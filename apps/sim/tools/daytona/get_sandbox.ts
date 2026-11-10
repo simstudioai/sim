@@ -1,4 +1,3 @@
-import { DAYTONA_CREDENTIAL_OAUTH } from '@/tools/daytona/credential'
 import type { DaytonaGetSandboxParams, DaytonaSandboxResponse } from '@/tools/daytona/types'
 import {
   DAYTONA_API_BASE_URL,
@@ -7,6 +6,7 @@ import {
   extractDaytonaError,
   mapDaytonaSandbox,
 } from '@/tools/daytona/utils'
+import { DAYTONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const daytonaGetSandboxTool: ToolConfig<DaytonaGetSandboxParams, DaytonaSandboxResponse> = {

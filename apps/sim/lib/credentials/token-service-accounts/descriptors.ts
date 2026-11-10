@@ -1368,10 +1368,10 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     tokenNoun: 'API key',
     connectNoun: 'API key',
     fields: [
-      { id: 'apiToken', label: 'API key', placeholder: 'Enter your Cursor API key', secret: true },
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Cursor API key', secret: true },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/cursor',
-    helpText: 'Create a user API key in the Cursor dashboard under Integrations.',
+    helpText: 'Create an API key in the Cursor dashboard under API Keys.',
   },
   [DUB_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: DUB_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -1396,7 +1396,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     tokenNoun: 'API key',
     connectNoun: 'API key',
     fields: [
-      { id: 'apiToken', label: 'API key', placeholder: 'Enter your Extend API key', secret: true },
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Extend API key', secret: true },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/extend',
   },
@@ -1409,7 +1409,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'API key',
-        placeholder: 'Enter your Fireflies API key',
+        placeholder: 'Paste your Fireflies API key',
         secret: true,
       },
     ],
@@ -1424,7 +1424,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'Access token',
-        placeholder: 'Enter your Intercom access token',
+        placeholder: 'Paste your Intercom access token',
         secret: true,
       },
     ],
@@ -1437,7 +1437,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     tokenNoun: 'API key',
     connectNoun: 'API key',
     fields: [
-      { id: 'apiToken', label: 'API key', placeholder: 'Enter your Pulse API key', secret: true },
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Pulse API key', secret: true },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/pulse',
     helpText: 'Get your key from the Pulse Platform at platform.runpulse.com.',
@@ -1451,7 +1451,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'API key',
-        placeholder: 'Enter your QuiverAI API key',
+        placeholder: 'Paste your QuiverAI API key',
         secret: true,
       },
     ],
@@ -1463,7 +1463,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     tokenNoun: 'API key',
     connectNoun: 'API key',
     fields: [
-      { id: 'apiToken', label: 'API key', placeholder: 'Enter your Reducto API key', secret: true },
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Reducto API key', secret: true },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/reducto',
   },

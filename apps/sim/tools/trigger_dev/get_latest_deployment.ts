@@ -1,4 +1,4 @@
-import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/trigger_dev/credential'
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TriggerDevBaseParams, TriggerDevDeploymentResponse } from '@/tools/trigger_dev/types'
 import {
   buildTriggerDevHeaders,

@@ -1,5 +1,5 @@
-import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type { DiscordBanMemberParams, DiscordBanMemberResponse } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const discordBanMemberTool: ToolConfig<DiscordBanMemberParams, DiscordBanMemberResponse> = {

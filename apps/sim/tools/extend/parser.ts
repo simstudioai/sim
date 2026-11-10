@@ -1,11 +1,11 @@
 import { toError } from '@sim/utils/errors'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file'
-import { EXTEND_CREDENTIAL_OAUTH } from '@/tools/extend/credential'
 import type {
   ExtendParserInput,
   ExtendParserOutput,
   ExtendParserV2Input,
 } from '@/tools/extend/types'
+import { EXTEND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const extendParserTool: InternalToolConfig<ExtendParserInput, ExtendParserOutput> = {

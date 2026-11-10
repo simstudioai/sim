@@ -1,4 +1,3 @@
-import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityCreateListParams, AffinityEntityResponse } from '@/tools/affinity/types'
 import { LIST_WITH_TYPE_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import {
@@ -9,6 +8,7 @@ import {
   transformEntity,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 /** Entity kinds a list can hold. A list's type is fixed at creation. */

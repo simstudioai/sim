@@ -1,5 +1,5 @@
-import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/sendgrid/credential'
 import type { ListTemplatesParams, SendGridTemplate, TemplatesResult } from '@/tools/sendgrid/types'
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendGridListTemplatesTool: ToolConfig<ListTemplatesParams, TemplatesResult> = {

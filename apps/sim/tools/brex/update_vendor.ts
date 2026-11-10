@@ -1,4 +1,3 @@
-import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import {
   type BrexDeliveryContextParams,
   brexIdempotencyHeader,
@@ -6,6 +5,7 @@ import {
 } from '@/tools/brex/idempotency'
 import type { BrexUpdateVendorParams, BrexUpdateVendorResponse } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 /**

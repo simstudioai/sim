@@ -1,6 +1,8 @@
+import { truncate } from '@sim/utils/string'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   fetchProvider,
+  isTransientProviderStatus,
   TokenServiceAccountValidationError,
   throwForProviderResponse,
 } from '@/lib/credentials/token-service-accounts/errors'
@@ -46,12 +48,6 @@ interface TokenCheck {
 
 const MAX_CHECK_RESPONSE_BYTES = 64 * 1024
 
-/**
- * Validator for a service whose token is accepted or rejected by one
- * authenticated request: 2xx accepts, a non-transient 4xx rejects the token,
- * anything else is the provider being unavailable. Redirects are refused, so a
- * token is never forwarded to another host.
- */
 function readJsonBody(response: Response, serviceLabel: string): Promise<unknown> {
   return readResponseJsonWithLimit(response, {
     maxBytes: MAX_CHECK_RESPONSE_BYTES,
@@ -59,6 +55,12 @@ function readJsonBody(response: Response, serviceLabel: string): Promise<unknown
   })
 }
 
+/**
+ * Validator for a service whose token is accepted or rejected by one
+ * authenticated request: 2xx accepts, a non-transient 4xx rejects the token,
+ * anything else is the provider being unavailable. Redirects are refused, so a
+ * token is never forwarded to another host.
+ */
 export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValidator {
   return async (fields): Promise<TokenServiceAccountValidationResult> => {
     const { url, method = 'GET', headers, body } = check.request(fields)
@@ -77,6 +79,15 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
       if (check.rejectsKey(errorBody)) {
         throw new TokenServiceAccountValidationError('invalid_credentials', 400, { step: 'verify' })
       }
+      const callerError =
+        response.status >= 400 &&
+        response.status < 500 &&
+        !isTransientProviderStatus(response.status)
+      throw new TokenServiceAccountValidationError(
+        callerError ? 'invalid_credentials' : 'provider_unavailable',
+        response.status,
+        { step: 'verify', body: truncate(JSON.stringify(errorBody) ?? '', 500) }
+      )
     }
     if (!scopedForbidden) {
       await throwForProviderResponse(response, 'verify')

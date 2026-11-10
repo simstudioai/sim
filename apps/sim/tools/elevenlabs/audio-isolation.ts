@@ -1,4 +1,3 @@
-import { ELEVENLABS_CREDENTIAL_OAUTH } from '@/tools/elevenlabs/credential'
 import {
   applyProjectedElevenLabsAudioFileNameModelInput,
   selectElevenLabsAudioFileNameModelInput,
@@ -7,6 +6,7 @@ import type {
   ElevenLabsAudioIsolationParams,
   ElevenLabsAudioResponse,
 } from '@/tools/elevenlabs/types'
+import { ELEVENLABS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const elevenLabsAudioIsolationTool: InternalToolConfig<

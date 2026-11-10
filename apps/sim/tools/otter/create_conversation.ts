@@ -1,11 +1,11 @@
 import { toStringOrNull } from '@sim/utils/coerce'
 import { toRecord } from '@sim/utils/object'
-import { OTTER_CREDENTIAL_OAUTH } from '@/tools/otter/credential'
 import type {
   OtterCreateConversationParams,
   OtterCreateConversationResponse,
 } from '@/tools/otter/types'
 import { OTTER_API_BASE, otterHeaders } from '@/tools/otter/utils'
+import { OTTER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const otterCreateConversationTool: ToolConfig<

@@ -1,4 +1,3 @@
-import { OTTER_CREDENTIAL_OAUTH } from '@/tools/otter/credential'
 import type { OtterGetWorkspaceParams, OtterGetWorkspaceResponse } from '@/tools/otter/types'
 import {
   mapOtterWorkspace,
@@ -9,6 +8,7 @@ import {
   readOtterDataObject,
   readOtterRetrievedAt,
 } from '@/tools/otter/utils'
+import { OTTER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const otterGetWorkspaceTool: ToolConfig<OtterGetWorkspaceParams, OtterGetWorkspaceResponse> =

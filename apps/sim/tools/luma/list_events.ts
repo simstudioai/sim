@@ -1,6 +1,6 @@
-import { LUMA_CREDENTIAL_OAUTH } from '@/tools/luma/credential'
 import type { LumaListEventsParams, LumaListEventsResponse } from '@/tools/luma/types'
 import { LUMA_EVENT_OUTPUT_PROPERTIES } from '@/tools/luma/types'
+import { LUMA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listEventsTool: ToolConfig<LumaListEventsParams, LumaListEventsResponse> = {

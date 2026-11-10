@@ -1,5 +1,5 @@
-import { QUIVER_CREDENTIAL_OAUTH } from '@/tools/quiver/credential'
 import type { QuiverListModelsParams, QuiverListModelsResponse } from '@/tools/quiver/types'
+import { QUIVER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const quiverListModelsTool: ToolConfig<QuiverListModelsParams, QuiverListModelsResponse> = {

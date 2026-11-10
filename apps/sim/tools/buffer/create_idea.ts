@@ -1,5 +1,4 @@
 import { toRecord } from '@sim/utils/object'
-import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/buffer/credential'
 import { bufferInputDescription, parseBufferInput } from '@/tools/buffer/schema'
 import {
   BUFFER_API_URL,
@@ -11,6 +10,7 @@ import {
   mapBufferIdea,
   parseBufferGraphQLResponse,
 } from '@/tools/buffer/types'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const CREATE_IDEA_MUTATION = `

@@ -1,6 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
-import { MEM0_CREDENTIAL_OAUTH } from '@/tools/mem0/credential'
 import { MEMORY_OUTPUT_PROPERTIES, type Mem0GetMemoriesParams } from '@/tools/mem0/types'
+import { MEM0_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const getMemoriesFromResponse = (data: unknown): unknown[] => {

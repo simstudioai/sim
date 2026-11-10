@@ -1,9 +1,9 @@
-import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/launchdarkly/credential'
 import type {
   LaunchDarklyUpdateFlagParams,
   LaunchDarklyUpdateFlagResponse,
 } from '@/tools/launchdarkly/types'
 import { FLAG_OUTPUT_PROPERTIES } from '@/tools/launchdarkly/types'
+import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const launchDarklyUpdateFlagTool: ToolConfig<

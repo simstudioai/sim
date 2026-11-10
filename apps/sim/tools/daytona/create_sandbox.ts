@@ -1,4 +1,3 @@
-import { DAYTONA_CREDENTIAL_OAUTH } from '@/tools/daytona/credential'
 import type { DaytonaCreateSandboxParams, DaytonaSandboxResponse } from '@/tools/daytona/types'
 import {
   DAYTONA_API_BASE_URL,
@@ -8,6 +7,7 @@ import {
   toOptionalBoolean,
   toOptionalNumber,
 } from '@/tools/daytona/utils'
+import { DAYTONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import { transformTable } from '@/tools/shared/table'
 import type { ToolConfig } from '@/tools/types'
 

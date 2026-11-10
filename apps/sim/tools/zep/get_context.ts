@@ -1,5 +1,5 @@
+import { ZEP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
-import { ZEP_CREDENTIAL_OAUTH } from '@/tools/zep/credential'
 import type { ZepResponse } from '@/tools/zep/types'
 
 export const zepGetContextTool: ToolConfig<any, ZepResponse> = {

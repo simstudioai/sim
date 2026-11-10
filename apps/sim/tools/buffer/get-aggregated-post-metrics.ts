@@ -1,4 +1,3 @@
-import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/buffer/credential'
 import {
   bufferInputDescription,
   bufferOutputProperties,
@@ -14,6 +13,7 @@ import {
   bufferStringList,
   parseBufferGraphQLResponse,
 } from '@/tools/buffer/types'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const bufferGetAggregatedPostMetricsTool: ToolConfig<

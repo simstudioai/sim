@@ -1,5 +1,4 @@
 import { isRecordLike } from '@sim/utils/object'
-import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareDeleteWorkerRouteParams,
   CloudflareDeleteWorkerRouteResponse,
@@ -10,6 +9,7 @@ import {
   mapCloudflareFields,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 

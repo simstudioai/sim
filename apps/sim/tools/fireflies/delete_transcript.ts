@@ -1,8 +1,8 @@
-import { FIREFLIES_CREDENTIAL_OAUTH } from '@/tools/fireflies/credential'
 import type {
   FirefliesDeleteTranscriptParams,
   FirefliesDeleteTranscriptResponse,
 } from '@/tools/fireflies/types'
+import { FIREFLIES_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const firefliesDeleteTranscriptTool: ToolConfig<

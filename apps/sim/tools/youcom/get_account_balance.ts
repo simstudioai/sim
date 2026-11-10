@@ -1,6 +1,6 @@
 import { toRecordOrNull } from '@sim/utils/object'
+import { YOUCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
-import { YOUCOM_CREDENTIAL_OAUTH } from '@/tools/youcom/credential'
 import type {
   YouComGetAccountBalanceParams,
   YouComGetAccountBalanceResponse,

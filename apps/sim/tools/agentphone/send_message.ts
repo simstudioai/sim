@@ -1,8 +1,8 @@
-import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/agentphone/credential'
 import type {
   AgentPhoneSendMessageParams,
   AgentPhoneSendMessageResult,
 } from '@/tools/agentphone/types'
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentphoneSendMessageTool: ToolConfig<

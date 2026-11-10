@@ -1,4 +1,4 @@
-import { TAVILY_CREDENTIAL_OAUTH } from '@/tools/tavily/credential'
+import { TAVILY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TavilySearchParams, TavilySearchResponse } from '@/tools/tavily/types'
 import {
   TAVILY_IMAGE_OUTPUT_PROPERTIES,

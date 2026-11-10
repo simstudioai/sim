@@ -1,3 +1,6 @@
+import { prepareToolRequestUrl } from '@/tools/request-transport'
+import { type ExecutableToolConfig, isInternalToolConfig } from '@/tools/types'
+
 /**
  * Finds the params of a request tool that steer the host its request goes to.
  *
@@ -11,11 +14,6 @@
 interface ProbeableParam {
   type?: unknown
   required?: unknown
-}
-
-interface ProbeableTool {
-  params?: Record<string, ProbeableParam>
-  request?: { url?: unknown }
 }
 
 export interface HostSteeringResult {
@@ -66,15 +64,26 @@ function placeholderFor(param: ProbeableParam, text: string): unknown {
   }
 }
 
-export function hostSteeringParams(tool: ProbeableTool): HostSteeringResult {
-  const url = tool.request?.url
-  if (typeof url !== 'function') return { params: [], probed: true }
-  const params = Object.entries(tool.params ?? {})
+/** Same-shaped variants of a placeholder (another id, another tenant host). */
+function alternateValues(value: unknown): string[] {
+  const text = typeof value === 'string' ? value : 'x'
+  return [
+    ...STRING_PLACEHOLDERS.filter((candidate) => candidate !== text),
+    text.replace(/0/g, '1'),
+    text.replace(/^([a-z]+)/i, '$1alt'),
+  ]
+}
+
+export function hostSteeringParams(tool: ExecutableToolConfig): HostSteeringResult {
+  // An internal operation calls the vendor from server code with a fixed host.
+  if (isInternalToolConfig(tool)) return { params: [], probed: true }
+  const params: [string, ProbeableParam][] = Object.entries(tool.params ?? {})
   const stringParams = params.filter(([, param]) => param.type === 'string').map(([name]) => name)
 
+  // The URL the shared transport would request, so the probe sees exactly what runs.
   const hostOf = (values: Record<string, unknown>): string | null => {
     try {
-      return new URL(String(url(values))).host
+      return new URL(prepareToolRequestUrl(tool, values)).host
     } catch {
       return null
     }
@@ -116,9 +125,16 @@ export function hostSteeringParams(tool: ProbeableTool): HostSteeringResult {
         `https://${PROBE_HOST}#.${baseHost}`,
       ]
       for (const name of stringParams) {
-        if (probes.some((probe) => hostOf({ ...context, [name]: probe })?.includes(PROBE_HOST))) {
-          steering.add(name)
-        }
+        const landsProbe = probes.some((probe) =>
+          hostOf({ ...context, [name]: probe })?.includes(PROBE_HOST)
+        )
+        // A host validated against a vendor allowlist still steers if two accepted
+        // values reach different hosts (another tenant's workspace on the vendor).
+        const movesHost = alternateValues(context[name]).some((value) => {
+          const host = hostOf({ ...context, [name]: value })
+          return host !== null && host !== baseHost
+        })
+        if (landsProbe || movesHost) steering.add(name)
       }
     }
   }

@@ -1,4 +1,3 @@
-import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/persona/credential'
 import type {
   PersonaGetVerificationParams,
   PersonaVerificationResponse,
@@ -11,6 +10,7 @@ import {
   parsePersonaResponse,
   VERIFICATION_OUTPUT_PROPERTIES,
 } from '@/tools/persona/utils'
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const personaGetVerificationTool: ToolConfig<

@@ -1,6 +1,6 @@
-import { LINQ_CREDENTIAL_OAUTH } from '@/tools/linq/credential'
 import type { LinqChatResult, LinqGetChatParams } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const linqGetChatTool: ToolConfig<LinqGetChatParams, LinqChatResult> = {

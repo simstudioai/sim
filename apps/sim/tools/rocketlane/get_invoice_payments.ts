@@ -1,4 +1,3 @@
-import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   INVOICE_PAYMENT_OUTPUT_PROPERTIES,
   mapInvoicePayment,
@@ -10,6 +9,7 @@ import {
   rocketlaneError,
   rocketlaneHeaders,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneGetInvoicePaymentsTool: ToolConfig<

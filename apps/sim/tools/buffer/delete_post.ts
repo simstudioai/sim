@@ -1,5 +1,4 @@
 import { toRecord } from '@sim/utils/object'
-import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/buffer/credential'
 import {
   BUFFER_API_URL,
   type BufferDeletePostParams,
@@ -7,6 +6,7 @@ import {
   bufferHeaders,
   parseBufferGraphQLResponse,
 } from '@/tools/buffer/types'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const DELETE_POST_MUTATION = `

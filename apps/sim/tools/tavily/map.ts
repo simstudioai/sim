@@ -1,4 +1,4 @@
-import { TAVILY_CREDENTIAL_OAUTH } from '@/tools/tavily/credential'
+import { TAVILY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { MapResponse, TavilyMapParams } from '@/tools/tavily/types'
 import { TAVILY_MAP_RESULT_OUTPUT_PROPERTIES } from '@/tools/tavily/types'
 import type { ToolConfig } from '@/tools/types'

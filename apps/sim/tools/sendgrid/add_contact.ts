@@ -1,10 +1,10 @@
-import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/sendgrid/credential'
 import type {
   AddContactParams,
   ContactResult,
   SendGridContactObject,
   SendGridContactRequest,
 } from '@/tools/sendgrid/types'
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendGridAddContactTool: ToolConfig<AddContactParams, ContactResult> = {

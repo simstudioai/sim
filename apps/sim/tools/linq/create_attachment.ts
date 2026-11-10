@@ -1,6 +1,6 @@
 import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
-import { LINQ_CREDENTIAL_OAUTH } from '@/tools/linq/credential'
 import type { LinqCreateAttachmentParams, LinqCreateAttachmentResult } from '@/tools/linq/types'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const linqCreateAttachmentTool: InternalToolConfig<

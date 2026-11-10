@@ -84,86 +84,88 @@ import {
   YOUTUBE_SERVICE_ACCOUNT_PROVIDER_ID,
   ZEP_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/token-service-accounts/descriptors'
-import { validateAffinityServiceAccount } from '@/lib/credentials/token-service-accounts/validators/affinity'
-import { validateAgentMailServiceAccount } from '@/lib/credentials/token-service-accounts/validators/agentmail'
-import { validateAgentPhoneServiceAccount } from '@/lib/credentials/token-service-accounts/validators/agentphone'
-import { validateAhrefsServiceAccount } from '@/lib/credentials/token-service-accounts/validators/ahrefs'
 import { validateAirtableServiceAccount } from '@/lib/credentials/token-service-accounts/validators/airtable'
-import { validateApifyServiceAccount } from '@/lib/credentials/token-service-accounts/validators/apify'
-import { validateApolloServiceAccount } from '@/lib/credentials/token-service-accounts/validators/apollo'
 import { validateAsanaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/asana'
 import { validateAttioServiceAccount } from '@/lib/credentials/token-service-accounts/validators/attio'
-import { validateBrexServiceAccount } from '@/lib/credentials/token-service-accounts/validators/brex'
-import { validateBrightDataServiceAccount } from '@/lib/credentials/token-service-accounts/validators/brightdata'
-import { validateBrowserUseServiceAccount } from '@/lib/credentials/token-service-accounts/validators/browser-use'
-import { validateBufferServiceAccount } from '@/lib/credentials/token-service-accounts/validators/buffer'
 import { validateCalcomServiceAccount } from '@/lib/credentials/token-service-accounts/validators/calcom'
-import { validateCirclebackServiceAccount } from '@/lib/credentials/token-service-accounts/validators/circleback'
 import { validateClaudePlatformServiceAccount } from '@/lib/credentials/token-service-accounts/validators/claude-platform'
-import { validateClerkServiceAccount } from '@/lib/credentials/token-service-accounts/validators/clerk'
 import { validateClickupServiceAccount } from '@/lib/credentials/token-service-accounts/validators/clickup'
-import { validateCloudflareServiceAccount } from '@/lib/credentials/token-service-accounts/validators/cloudflare'
 import { validateCodaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/coda'
-import { validateCrunchbaseServiceAccount } from '@/lib/credentials/token-service-accounts/validators/crunchbase'
-import { validateCursorServiceAccount } from '@/lib/credentials/token-service-accounts/validators/cursor'
-import { validateDaytonaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/daytona'
-import { validateDiscordServiceAccount } from '@/lib/credentials/token-service-accounts/validators/discord'
-import { validateDubServiceAccount } from '@/lib/credentials/token-service-accounts/validators/dub'
-import { validateElevenLabsServiceAccount } from '@/lib/credentials/token-service-accounts/validators/elevenlabs'
-import { validateEnrichServiceAccount } from '@/lib/credentials/token-service-accounts/validators/enrich'
-import { validateExtendServiceAccount } from '@/lib/credentials/token-service-accounts/validators/extend'
-import { validateFirefliesServiceAccount } from '@/lib/credentials/token-service-accounts/validators/fireflies'
-import { validateFlintServiceAccount } from '@/lib/credentials/token-service-accounts/validators/flint'
 import { validateFlowServiceAccount } from '@/lib/credentials/token-service-accounts/validators/flow'
-import { validateGammaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/gamma'
 import { validateGaugeServiceAccount } from '@/lib/credentials/token-service-accounts/validators/gauge'
 import { validateHarmonicServiceAccount } from '@/lib/credentials/token-service-accounts/validators/harmonic'
-import { validateHexServiceAccount } from '@/lib/credentials/token-service-accounts/validators/hex'
 import { validateHiggsfieldServiceAccount } from '@/lib/credentials/token-service-accounts/validators/higgsfield'
 import { validateHubspotServiceAccount } from '@/lib/credentials/token-service-accounts/validators/hubspot'
-import { validateHuggingfaceServiceAccount } from '@/lib/credentials/token-service-accounts/validators/huggingface'
-import { validateIncidentioServiceAccount } from '@/lib/credentials/token-service-accounts/validators/incidentio'
-import { validateInstantlyServiceAccount } from '@/lib/credentials/token-service-accounts/validators/instantly'
-import { validateIntercomServiceAccount } from '@/lib/credentials/token-service-accounts/validators/intercom'
-import { validateLangsmithServiceAccount } from '@/lib/credentials/token-service-accounts/validators/langsmith'
-import { validateLaunchdarklyServiceAccount } from '@/lib/credentials/token-service-accounts/validators/launchdarkly'
 import { validateLinearServiceAccount } from '@/lib/credentials/token-service-accounts/validators/linear'
-import { validateLinqServiceAccount } from '@/lib/credentials/token-service-accounts/validators/linq'
-import { validateLoopsServiceAccount } from '@/lib/credentials/token-service-accounts/validators/loops'
-import { validateLumaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/luma'
-import { validateMailchimpServiceAccount } from '@/lib/credentials/token-service-accounts/validators/mailchimp'
-import { validateMem0ServiceAccount } from '@/lib/credentials/token-service-accounts/validators/mem0'
 import { validateMondayServiceAccount } from '@/lib/credentials/token-service-accounts/validators/monday'
 import { validateNotionServiceAccount } from '@/lib/credentials/token-service-accounts/validators/notion'
-import { validateOtterServiceAccount } from '@/lib/credentials/token-service-accounts/validators/otter'
-import { validatePersonaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/persona'
 import { validatePipedriveServiceAccount } from '@/lib/credentials/token-service-accounts/validators/pipedrive'
-import { validateProfoundServiceAccount } from '@/lib/credentials/token-service-accounts/validators/profound'
-import { validatePulseServiceAccount } from '@/lib/credentials/token-service-accounts/validators/pulse'
-import { validateQuartrServiceAccount } from '@/lib/credentials/token-service-accounts/validators/quartr'
-import { validateQuiverServiceAccount } from '@/lib/credentials/token-service-accounts/validators/quiver'
-import { validateRB2BServiceAccount } from '@/lib/credentials/token-service-accounts/validators/rb2b'
-import { validateReductoServiceAccount } from '@/lib/credentials/token-service-accounts/validators/reducto'
-import { validateRipplingServiceAccount } from '@/lib/credentials/token-service-accounts/validators/rippling'
-import { validateRocketlaneServiceAccount } from '@/lib/credentials/token-service-accounts/validators/rocketlane'
-import { validateSendGridServiceAccount } from '@/lib/credentials/token-service-accounts/validators/sendgrid'
 import { validateShopifyServiceAccount } from '@/lib/credentials/token-service-accounts/validators/shopify'
-import { validateSimilarwebServiceAccount } from '@/lib/credentials/token-service-accounts/validators/similarweb'
-import { validateSixtyfourServiceAccount } from '@/lib/credentials/token-service-accounts/validators/sixtyfour'
-import { validateSmartleadServiceAccount } from '@/lib/credentials/token-service-accounts/validators/smartlead'
 import { validateSnowflakeServiceAccount } from '@/lib/credentials/token-service-accounts/validators/snowflake'
-import { validateSportmonksServiceAccount } from '@/lib/credentials/token-service-accounts/validators/sportmonks'
-import { validateSquareServiceAccount } from '@/lib/credentials/token-service-accounts/validators/square'
-import { validateTailscaleServiceAccount } from '@/lib/credentials/token-service-accounts/validators/tailscale'
-import { validateTavilyServiceAccount } from '@/lib/credentials/token-service-accounts/validators/tavily'
+import {
+  validateAffinityServiceAccount,
+  validateAgentMailServiceAccount,
+  validateAgentPhoneServiceAccount,
+  validateAhrefsServiceAccount,
+  validateApifyServiceAccount,
+  validateApolloServiceAccount,
+  validateBrexServiceAccount,
+  validateBrightDataServiceAccount,
+  validateBrowserUseServiceAccount,
+  validateBufferServiceAccount,
+  validateCirclebackServiceAccount,
+  validateClerkServiceAccount,
+  validateCloudflareServiceAccount,
+  validateCrunchbaseServiceAccount,
+  validateCursorServiceAccount,
+  validateDaytonaServiceAccount,
+  validateDiscordServiceAccount,
+  validateDubServiceAccount,
+  validateElevenLabsServiceAccount,
+  validateEnrichServiceAccount,
+  validateExtendServiceAccount,
+  validateFirefliesServiceAccount,
+  validateFlintServiceAccount,
+  validateGammaServiceAccount,
+  validateHexServiceAccount,
+  validateHuggingfaceServiceAccount,
+  validateIncidentioServiceAccount,
+  validateInstantlyServiceAccount,
+  validateIntercomServiceAccount,
+  validateLangsmithServiceAccount,
+  validateLaunchdarklyServiceAccount,
+  validateLinqServiceAccount,
+  validateLoopsServiceAccount,
+  validateLumaServiceAccount,
+  validateMailchimpServiceAccount,
+  validateMem0ServiceAccount,
+  validateOtterServiceAccount,
+  validatePersonaServiceAccount,
+  validateProfoundServiceAccount,
+  validatePulseServiceAccount,
+  validateQuartrServiceAccount,
+  validateQuiverServiceAccount,
+  validateRB2BServiceAccount,
+  validateReductoServiceAccount,
+  validateRipplingServiceAccount,
+  validateRocketlaneServiceAccount,
+  validateSendGridServiceAccount,
+  validateSimilarwebServiceAccount,
+  validateSixtyfourServiceAccount,
+  validateSmartleadServiceAccount,
+  validateSportmonksServiceAccount,
+  validateSquareServiceAccount,
+  validateTailscaleServiceAccount,
+  validateTavilyServiceAccount,
+  validateTriggerDevServiceAccount,
+  validateUptimeRobotServiceAccount,
+  validateYouComServiceAccount,
+  validateYouTubeServiceAccount,
+  validateZepServiceAccount,
+} from '@/lib/credentials/token-service-accounts/validators/token-checks'
 import { validateTrelloServiceAccount } from '@/lib/credentials/token-service-accounts/validators/trello'
-import { validateTriggerDevServiceAccount } from '@/lib/credentials/token-service-accounts/validators/trigger-dev'
-import { validateUptimeRobotServiceAccount } from '@/lib/credentials/token-service-accounts/validators/uptimerobot'
 import { validateWealthboxServiceAccount } from '@/lib/credentials/token-service-accounts/validators/wealthbox'
 import { validateWebflowServiceAccount } from '@/lib/credentials/token-service-accounts/validators/webflow'
-import { validateYouComServiceAccount } from '@/lib/credentials/token-service-accounts/validators/youcom'
-import { validateYouTubeServiceAccount } from '@/lib/credentials/token-service-accounts/validators/youtube'
-import { validateZepServiceAccount } from '@/lib/credentials/token-service-accounts/validators/zep'
 
 /** Raw fields a token service-account validator receives (already trimmed). */
 export interface TokenServiceAccountFields {

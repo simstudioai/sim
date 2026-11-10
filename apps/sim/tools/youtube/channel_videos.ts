@@ -1,5 +1,5 @@
+import { YOUTUBE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
-import { YOUTUBE_CREDENTIAL_OAUTH } from '@/tools/youtube/credential'
 import type {
   YouTubeChannelVideosParams,
   YouTubeChannelVideosResponse,

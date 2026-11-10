@@ -1,9 +1,9 @@
-import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/cursor/credential'
 import type {
   DownloadArtifactParams,
   DownloadArtifactResponse,
   DownloadArtifactV2Response,
 } from '@/tools/cursor/types'
+import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 const downloadArtifactBase = {

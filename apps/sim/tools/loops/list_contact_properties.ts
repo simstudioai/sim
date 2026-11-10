@@ -1,8 +1,8 @@
-import { LOOPS_CREDENTIAL_OAUTH } from '@/tools/loops/credential'
 import type {
   LoopsListContactPropertiesParams,
   LoopsListContactPropertiesResponse,
 } from '@/tools/loops/types'
+import { LOOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const loopsListContactPropertiesTool: ToolConfig<

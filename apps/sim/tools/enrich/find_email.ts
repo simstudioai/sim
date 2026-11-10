@@ -1,5 +1,5 @@
-import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/enrich/credential'
 import type { EnrichFindEmailParams, EnrichFindEmailResponse } from '@/tools/enrich/types'
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const findEmailTool: ToolConfig<EnrichFindEmailParams, EnrichFindEmailResponse> = {

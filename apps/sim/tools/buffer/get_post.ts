@@ -1,4 +1,3 @@
-import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/buffer/credential'
 import {
   BUFFER_API_URL,
   BUFFER_POST_SELECTION,
@@ -9,6 +8,7 @@ import {
   POST_OUTPUT_PROPERTIES,
   parseBufferGraphQLResponse,
 } from '@/tools/buffer/types'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const GET_POST_QUERY = `

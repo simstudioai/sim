@@ -1,8 +1,8 @@
-import { BRIGHTDATA_CREDENTIAL_OAUTH } from '@/tools/brightdata/credential'
 import type {
   BrightDataCancelSnapshotParams,
   BrightDataCancelSnapshotResponse,
 } from '@/tools/brightdata/types'
+import { BRIGHTDATA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brightDataCancelSnapshotTool: ToolConfig<

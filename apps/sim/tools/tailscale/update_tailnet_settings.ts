@@ -1,5 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
-import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/tailscale/credential'
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import { TAILNET_SETTINGS_OUTPUT } from '@/tools/tailscale/outputs'
 import type {
   TailscaleTailnetSettings,

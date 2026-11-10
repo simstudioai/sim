@@ -1,5 +1,5 @@
-import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type { CustomFieldsListParams, CustomFieldsListResponse } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const customFieldsListTool: ToolConfig<CustomFieldsListParams, CustomFieldsListResponse> = {

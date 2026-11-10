@@ -1,10 +1,10 @@
-import { RB2B_CREDENTIAL_OAUTH } from '@/tools/rb2b/credential'
 import {
   RB2B_COMPANY_RESULT_OUTPUT_PROPERTIES,
   type Rb2bIpToCompanyParams,
   type Rb2bIpToCompanyResponse,
 } from '@/tools/rb2b/types'
 import { RB2B_API_BASE, rb2bHeaders } from '@/tools/rb2b/utils'
+import { RB2B_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rb2bIpToCompanyTool: ToolConfig<Rb2bIpToCompanyParams, Rb2bIpToCompanyResponse> = {

@@ -1,9 +1,9 @@
-import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflarePurgeCacheParams,
   CloudflarePurgeCacheResponse,
 } from '@/tools/cloudflare/types'
 import { parseCsvParam, parseJsonArrayParam } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 

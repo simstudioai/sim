@@ -1,5 +1,5 @@
-import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type { DiscordListRolesParams, DiscordListRolesResponse } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const discordListRolesTool: ToolConfig<DiscordListRolesParams, DiscordListRolesResponse> = {

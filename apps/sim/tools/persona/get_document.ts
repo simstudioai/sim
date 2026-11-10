@@ -1,4 +1,3 @@
-import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/persona/credential'
 import type { PersonaDocumentResponse, PersonaGetDocumentParams } from '@/tools/persona/types'
 import {
   asResource,
@@ -8,6 +7,7 @@ import {
   PERSONA_API_BASE,
   parsePersonaResponse,
 } from '@/tools/persona/utils'
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const personaGetDocumentTool: ToolConfig<PersonaGetDocumentParams, PersonaDocumentResponse> =

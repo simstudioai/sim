@@ -1,4 +1,3 @@
-import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapTask,
   ROCKETLANE_API_BASE,
@@ -8,6 +7,7 @@ import {
   rocketlaneHeaders,
   TASK_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneMoveTaskToPhaseTool: ToolConfig<

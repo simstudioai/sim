@@ -1,9 +1,9 @@
-import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/launchdarkly/credential'
 import type {
   LaunchDarklyListSegmentsParams,
   LaunchDarklyListSegmentsResponse,
 } from '@/tools/launchdarkly/types'
 import { SEGMENT_OUTPUT_PROPERTIES } from '@/tools/launchdarkly/types'
+import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const launchDarklyListSegmentsTool: ToolConfig<

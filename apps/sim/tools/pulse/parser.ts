@@ -1,7 +1,7 @@
 import { toError } from '@sim/utils/errors'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file'
-import { PULSE_CREDENTIAL_OAUTH } from '@/tools/pulse/credential'
 import type { PulseParserInput, PulseParserOutput, PulseParserV2Input } from '@/tools/pulse/types'
+import { PULSE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const pulseParserTool: InternalToolConfig<PulseParserInput, PulseParserOutput> = {

@@ -1,4 +1,3 @@
-import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/buffer/credential'
 import { bufferInputDescription } from '@/tools/buffer/schema'
 import {
   type BufferEditPostParams,
@@ -6,6 +5,7 @@ import {
   bufferStringList,
   POST_OUTPUT_PROPERTIES,
 } from '@/tools/buffer/types'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const bufferEditPostTool: InternalToolConfig<BufferEditPostParams, BufferPostResponse> = {

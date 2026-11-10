@@ -1,5 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/square/credential'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { GetInvoiceParams, InvoiceResponse } from '@/tools/square/types'
 import {
   INVOICE_METADATA_OUTPUT_PROPERTIES,

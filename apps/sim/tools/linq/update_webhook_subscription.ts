@@ -1,4 +1,3 @@
-import { LINQ_CREDENTIAL_OAUTH } from '@/tools/linq/credential'
 import type {
   LinqUpdateWebhookSubscriptionParams,
   LinqWebhookSubscriptionResult,
@@ -9,6 +8,7 @@ import {
   linqHeaders,
   mapWebhookSubscription,
 } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const linqUpdateWebhookSubscriptionTool: ToolConfig<

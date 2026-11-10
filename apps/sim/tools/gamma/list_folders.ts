@@ -1,5 +1,5 @@
-import { GAMMA_CREDENTIAL_OAUTH } from '@/tools/gamma/credential'
 import type { GammaListFoldersParams, GammaListFoldersResponse } from '@/tools/gamma/types'
+import { GAMMA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listFoldersTool: ToolConfig<GammaListFoldersParams, GammaListFoldersResponse> = {

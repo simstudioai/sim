@@ -1,4 +1,3 @@
-import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import type {
   CirclebackCompanyListResponse,
   CirclebackListCompaniesParams,
@@ -11,6 +10,7 @@ import {
   throwCirclebackError,
   toIdList,
 } from '@/tools/circleback/utils'
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listCompaniesTool: ToolConfig<

@@ -1,13 +1,16 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   AWS_CREDENTIAL_OPERATION_TOOL_IDS,
   getInternalToolOperationHandler,
   getRegisteredInternalToolOperationIds,
   isInternalToolOperationRegistered,
 } from '@/lib/internal/tool-operations/registry.server'
-import toolMetadata from '@/tools/generated/tool-metadata'
+import { getToolMetadata } from '@/tools/metadata'
 import { AWS_SESSION_SIGNED_TOOL_IDS } from '@/tools/shared/saved-credentials'
 import { getToolIds } from '@/tools/tool-ids'
+
+// The AWS routing check reads real tool policies.
+vi.unmock('@/tools/metadata')
 
 /**
  * Registration is checked against the generated tool ids rather than the
@@ -45,9 +48,9 @@ describe('internal tool operation registry', () => {
    * run time with AWS's signature error.
    */
   it('routes every AWS-credential tool through a path that resolves the credential', () => {
-    const awsTools = Object.entries(toolMetadata)
-      .filter(([, metadata]) => metadata.oauth?.provider === 'aws')
-      .map(([toolId]) => toolId)
+    const awsTools = getToolIds().filter(
+      (toolId) => getToolMetadata(toolId)?.oauth?.provider === 'aws'
+    )
 
     expect(awsTools.length).toBeGreaterThan(0)
     for (const toolId of awsTools) {

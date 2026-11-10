@@ -1,9 +1,9 @@
-import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/launchdarkly/credential'
 import type {
   LaunchDarklyGetAuditLogParams,
   LaunchDarklyGetAuditLogResponse,
 } from '@/tools/launchdarkly/types'
 import { AUDIT_LOG_ENTRY_OUTPUT_PROPERTIES } from '@/tools/launchdarkly/types'
+import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const launchDarklyGetAuditLogTool: ToolConfig<

@@ -1,5 +1,5 @@
-import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/agentmail/credential'
 import type { UpdateMessageParams, UpdateMessageResult } from '@/tools/agentmail/types'
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentmailUpdateMessageTool: ToolConfig<UpdateMessageParams, UpdateMessageResult> = {

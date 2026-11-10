@@ -1,4 +1,3 @@
-import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type {
   IncidentioIncidentsListParams,
   IncidentioIncidentsListResponse,
@@ -7,6 +6,7 @@ import {
   INCIDENTIO_INCIDENT_OUTPUT_PROPERTIES,
   INCIDENTIO_PAGINATION_OUTPUT_PROPERTIES,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const incidentsListTool: ToolConfig<

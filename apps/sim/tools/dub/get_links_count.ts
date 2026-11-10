@@ -1,5 +1,5 @@
-import { DUB_CREDENTIAL_OAUTH } from '@/tools/dub/credential'
 import type { DubGetLinksCountParams, DubGetLinksCountResponse } from '@/tools/dub/types'
+import { DUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getLinksCountTool: ToolConfig<DubGetLinksCountParams, DubGetLinksCountResponse> = {

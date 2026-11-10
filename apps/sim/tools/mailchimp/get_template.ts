@@ -1,6 +1,6 @@
-import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/mailchimp/credential'
 import type { MailchimpTemplate } from '@/tools/mailchimp/types'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface MailchimpGetTemplateParams {

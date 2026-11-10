@@ -1,8 +1,8 @@
-import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/ahrefs/credential'
 import type {
   AhrefsKeywordsHistoryParams,
   AhrefsKeywordsHistoryResponse,
 } from '@/tools/ahrefs/types'
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const SELECT_FIELDS = 'date,top3,top4_10,top11_20,top21_50,top51_plus'

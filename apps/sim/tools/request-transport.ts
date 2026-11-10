@@ -248,6 +248,18 @@ function assertExternalRequestUrl(url: string): void {
   assertNoDotPathSegments(url)
 }
 
+/**
+ * The URL {@link prepareToolRequest} would request for these params, without
+ * formatting headers or body — for checks that only need the destination.
+ */
+export function prepareToolRequestUrl(tool: ToolConfig, params: Record<string, unknown>): string {
+  const requestInput = projectToolModelInputParams(tool, params, undefined)
+  const url =
+    typeof tool.request.url === 'function' ? tool.request.url(requestInput) : tool.request.url
+  assertExternalRequestUrl(url)
+  return url
+}
+
 /** Materializes one external HTTP request after enforcing the model-input boundary. */
 export function prepareToolRequest(
   tool: ToolConfig,
