@@ -608,6 +608,12 @@ import {
   calendlyListWebhooksTool,
 } from '@/tools/calendly'
 import {
+  capturekitAnalyzeWebsiteTool,
+  capturekitExtractContentTool,
+  capturekitFetchHtmlTool,
+  capturekitScreenshotTool,
+} from '@/tools/capturekit'
+import {
   cbinsightsChatTool,
   cbinsightsGetCommercialMaturityHistoryTool,
   cbinsightsGetExitProbabilityHistoryTool,
@@ -8543,6 +8549,10 @@ export const tools: Record<string, ExecutableToolConfig> = {
   calendly_list_webhooks: calendlyListWebhooksTool,
   calendly_create_webhook: calendlyCreateWebhookTool,
   calendly_delete_webhook: calendlyDeleteWebhookTool,
+  capturekit_screenshot: capturekitScreenshotTool,
+  capturekit_extract_content: capturekitExtractContentTool,
+  capturekit_fetch_html: capturekitFetchHtmlTool,
+  capturekit_analyze_website: capturekitAnalyzeWebsiteTool,
   cbinsights_chat: cbinsightsChatTool,
   cbinsights_get_commercial_maturity_history: cbinsightsGetCommercialMaturityHistoryTool,
   cbinsights_get_exit_probability_history: cbinsightsGetExitProbabilityHistoryTool,

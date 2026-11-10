@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-06",
+  "updatedAt": "2026-11-10",
   "integrations": [
     {
       "type": "onepassword",
@@ -4253,6 +4253,42 @@
       "integrationType": "productivity",
       "tags": ["scheduling", "calendar", "meeting"],
       "updatedAt": "2026-10-14"
+    },
+    {
+      "type": "capturekit",
+      "slug": "capturekit",
+      "name": "CaptureKit",
+      "description": "Capture screenshots and extract content from web pages",
+      "longDescription": "Capture any web page as a PNG, JPEG, WebP image or a PDF, by viewport, full page or CSS selector on 17+ emulated devices; extract a page's metadata, links and Markdown; fetch raw HTML; and get an AI summary of what a website offers.",
+      "bgColor": "#FFFFFF",
+      "iconName": "CaptureKitIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/capturekit",
+      "operations": [
+        {
+          "name": "Take Screenshot",
+          "description": "Capture a public web page as a PNG, JPEG, WebP image or a PDF, by viewport, full page or CSS selector, and store it as a file."
+        },
+        {
+          "name": "Extract Content",
+          "description": "Render a web page and get its title, description, favicon, Open Graph image, internal, external and social links, and optionally its Markdown."
+        },
+        {
+          "name": "Fetch HTML",
+          "description": "Fetch the raw HTML of a public page over plain HTTP, without a browser."
+        },
+        {
+          "name": "Analyze Website",
+          "description": "Read a website and get an AI summary of its value proposition, business type, key features, categories, use cases, audience and contact details."
+        }
+      ],
+      "operationCount": 4,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "search",
+      "tags": ["web-scraping", "monitoring", "automation"],
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "cbinsights",
