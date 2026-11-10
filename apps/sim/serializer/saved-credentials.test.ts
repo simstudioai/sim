@@ -3,60 +3,113 @@ import { blocksMock } from '@sim/testing/mocks/blocks.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as blocks from '@/blocks'
-import { AppConfigBlock } from '@/blocks/blocks/appconfig'
-import { AthenaBlock } from '@/blocks/blocks/athena'
-import { CloudFormationBlock } from '@/blocks/blocks/cloudformation'
-import { CloudTrailBlock } from '@/blocks/blocks/cloudtrail'
-import { CloudWatchBlock } from '@/blocks/blocks/cloudwatch'
-import { CodePipelineBlock } from '@/blocks/blocks/codepipeline'
-import { DatabricksBlock } from '@/blocks/blocks/databricks'
-import { DynamoDBBlock } from '@/blocks/blocks/dynamodb'
-import { EC2Block } from '@/blocks/blocks/ec2'
-import { IAMBlock } from '@/blocks/blocks/iam'
-import { IdentityCenterBlock } from '@/blocks/blocks/identity_center'
-import { LambdaBlock } from '@/blocks/blocks/lambda'
-import { RDSBlock } from '@/blocks/blocks/rds'
-import { S3Block } from '@/blocks/blocks/s3'
-import { SecretsManagerBlock } from '@/blocks/blocks/secrets_manager'
-import { SESBlock } from '@/blocks/blocks/ses'
-import { SQSBlock } from '@/blocks/blocks/sqs'
-import { SSMBlock } from '@/blocks/blocks/ssm'
-import { STSBlock } from '@/blocks/blocks/sts'
-import { TextractBlock, TextractV2Block } from '@/blocks/blocks/textract'
+import { AppConfigBlock, AppConfigV2Block } from '@/blocks/blocks/appconfig'
+import { AthenaBlock, AthenaV2Block } from '@/blocks/blocks/athena'
+import { CloudFormationBlock, CloudFormationV2Block } from '@/blocks/blocks/cloudformation'
+import { CloudTrailBlock, CloudTrailV2Block } from '@/blocks/blocks/cloudtrail'
+import { CloudWatchBlock, CloudWatchV2Block } from '@/blocks/blocks/cloudwatch'
+import { CodePipelineBlock, CodePipelineV2Block } from '@/blocks/blocks/codepipeline'
+import { DatabricksBlock, DatabricksV2Block } from '@/blocks/blocks/databricks'
+import { DynamoDBBlock, DynamoDBV2Block } from '@/blocks/blocks/dynamodb'
+import { EC2Block, EC2V2Block } from '@/blocks/blocks/ec2'
+import { IAMBlock, IAMV2Block } from '@/blocks/blocks/iam'
+import { IdentityCenterBlock, IdentityCenterV2Block } from '@/blocks/blocks/identity_center'
+import { LambdaBlock, LambdaV2Block } from '@/blocks/blocks/lambda'
+import { RDSBlock, RDSV2Block } from '@/blocks/blocks/rds'
+import { S3Block, S3V2Block } from '@/blocks/blocks/s3'
+import { SecretsManagerBlock, SecretsManagerV2Block } from '@/blocks/blocks/secrets_manager'
+import { SESBlock, SESV2Block } from '@/blocks/blocks/ses'
+import { SQSBlock, SQSV2Block } from '@/blocks/blocks/sqs'
+import { SSMBlock, SSMV2Block } from '@/blocks/blocks/ssm'
+import { STSBlock, STSV2Block } from '@/blocks/blocks/sts'
+import { TextractBlock, TextractV2Block, TextractV3Block } from '@/blocks/blocks/textract'
 import type { BlockConfig } from '@/blocks/types'
 import { Serializer } from '@/serializer'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 vi.mock('@/blocks', () => blocksMock)
+// Required-field validation reads the tools' real param declarations.
+vi.unmock('@/tools/metadata')
 
 /**
- * Blocks that accept a saved credential while keeping their inline secret
- * fields. The contract every one of them must keep: a block saved before the
- * credential option existed — inline secrets, no credential — serializes and
- * validates exactly as it always did.
+ * Each legacy block that takes inline secrets, and the credential-only version
+ * that succeeds it. Legacy blocks keep running exactly as they always did; the
+ * successor takes only a saved credential.
  */
-const HYBRID_BLOCKS: Array<{ block: BlockConfig; secretIds: [string, string] }> = [
-  { block: AppConfigBlock, secretIds: ['accessKeyId', 'secretAccessKey'] },
-  { block: AthenaBlock, secretIds: ['awsAccessKeyId', 'awsSecretAccessKey'] },
-  { block: CloudFormationBlock, secretIds: ['awsAccessKeyId', 'awsSecretAccessKey'] },
-  { block: CloudTrailBlock, secretIds: ['awsAccessKeyId', 'awsSecretAccessKey'] },
-  { block: CloudWatchBlock, secretIds: ['awsAccessKeyId', 'awsSecretAccessKey'] },
-  { block: CodePipelineBlock, secretIds: ['awsAccessKeyId', 'awsSecretAccessKey'] },
-  { block: DynamoDBBlock, secretIds: ['accessKeyId', 'secretAccessKey'] },
-  { block: EC2Block, secretIds: ['awsAccessKeyId', 'awsSecretAccessKey'] },
-  { block: IAMBlock, secretIds: ['accessKeyId', 'secretAccessKey'] },
-  { block: IdentityCenterBlock, secretIds: ['accessKeyId', 'secretAccessKey'] },
-  { block: LambdaBlock, secretIds: ['awsAccessKeyId', 'awsSecretAccessKey'] },
-  { block: RDSBlock, secretIds: ['accessKeyId', 'secretAccessKey'] },
-  { block: S3Block, secretIds: ['accessKeyId', 'secretAccessKey'] },
-  { block: SecretsManagerBlock, secretIds: ['accessKeyId', 'secretAccessKey'] },
-  { block: SESBlock, secretIds: ['accessKeyId', 'secretAccessKey'] },
-  { block: SQSBlock, secretIds: ['accessKeyId', 'secretAccessKey'] },
-  { block: SSMBlock, secretIds: ['accessKeyId', 'secretAccessKey'] },
-  { block: STSBlock, secretIds: ['accessKeyId', 'secretAccessKey'] },
-  { block: TextractBlock, secretIds: ['accessKeyId', 'secretAccessKey'] },
-  { block: TextractV2Block, secretIds: ['accessKeyId', 'secretAccessKey'] },
-  { block: DatabricksBlock, secretIds: ['host', 'apiKey'] },
+const VERSIONS: Array<{
+  legacy: BlockConfig
+  successor: BlockConfig
+  secretIds: [string, string]
+}> = [
+  {
+    legacy: AppConfigBlock,
+    successor: AppConfigV2Block,
+    secretIds: ['accessKeyId', 'secretAccessKey'],
+  },
+  {
+    legacy: AthenaBlock,
+    successor: AthenaV2Block,
+    secretIds: ['awsAccessKeyId', 'awsSecretAccessKey'],
+  },
+  {
+    legacy: CloudFormationBlock,
+    successor: CloudFormationV2Block,
+    secretIds: ['awsAccessKeyId', 'awsSecretAccessKey'],
+  },
+  {
+    legacy: CloudTrailBlock,
+    successor: CloudTrailV2Block,
+    secretIds: ['awsAccessKeyId', 'awsSecretAccessKey'],
+  },
+  {
+    legacy: CloudWatchBlock,
+    successor: CloudWatchV2Block,
+    secretIds: ['awsAccessKeyId', 'awsSecretAccessKey'],
+  },
+  {
+    legacy: CodePipelineBlock,
+    successor: CodePipelineV2Block,
+    secretIds: ['awsAccessKeyId', 'awsSecretAccessKey'],
+  },
+  { legacy: DatabricksBlock, successor: DatabricksV2Block, secretIds: ['host', 'apiKey'] },
+  {
+    legacy: DynamoDBBlock,
+    successor: DynamoDBV2Block,
+    secretIds: ['accessKeyId', 'secretAccessKey'],
+  },
+  { legacy: EC2Block, successor: EC2V2Block, secretIds: ['awsAccessKeyId', 'awsSecretAccessKey'] },
+  { legacy: IAMBlock, successor: IAMV2Block, secretIds: ['accessKeyId', 'secretAccessKey'] },
+  {
+    legacy: IdentityCenterBlock,
+    successor: IdentityCenterV2Block,
+    secretIds: ['accessKeyId', 'secretAccessKey'],
+  },
+  {
+    legacy: LambdaBlock,
+    successor: LambdaV2Block,
+    secretIds: ['awsAccessKeyId', 'awsSecretAccessKey'],
+  },
+  { legacy: RDSBlock, successor: RDSV2Block, secretIds: ['accessKeyId', 'secretAccessKey'] },
+  { legacy: S3Block, successor: S3V2Block, secretIds: ['accessKeyId', 'secretAccessKey'] },
+  {
+    legacy: SecretsManagerBlock,
+    successor: SecretsManagerV2Block,
+    secretIds: ['accessKeyId', 'secretAccessKey'],
+  },
+  { legacy: SESBlock, successor: SESV2Block, secretIds: ['accessKeyId', 'secretAccessKey'] },
+  { legacy: SQSBlock, successor: SQSV2Block, secretIds: ['accessKeyId', 'secretAccessKey'] },
+  { legacy: SSMBlock, successor: SSMV2Block, secretIds: ['accessKeyId', 'secretAccessKey'] },
+  { legacy: STSBlock, successor: STSV2Block, secretIds: ['accessKeyId', 'secretAccessKey'] },
+  {
+    legacy: TextractBlock,
+    successor: TextractV3Block,
+    secretIds: ['accessKeyId', 'secretAccessKey'],
+  },
+  {
+    legacy: TextractV2Block,
+    successor: TextractV3Block,
+    secretIds: ['accessKeyId', 'secretAccessKey'],
+  },
 ]
 
 function firstOperation(config: BlockConfig): string | undefined {
@@ -66,7 +119,7 @@ function firstOperation(config: BlockConfig): string | undefined {
   return options?.[0]?.id
 }
 
-function secretTitles(config: BlockConfig, ids: readonly string[]): string[] {
+function fieldTitles(config: BlockConfig, ids: readonly string[]): string[] {
   return config.subBlocks
     .filter((subBlock) => ids.includes(subBlock.id))
     .map((subBlock) => subBlock.title ?? subBlock.id)
@@ -98,14 +151,14 @@ function missingRequiredFields(block: BlockState): string {
   }
 }
 
-describe.each(HYBRID_BLOCKS)('$block.type saved-credential hybrid', ({ block, secretIds }) => {
+describe.each(VERSIONS)('$legacy.type legacy block', ({ legacy, secretIds }) => {
   beforeEach(() => {
-    vi.spyOn(blocks, 'getBlock').mockReturnValue(block)
+    vi.spyOn(blocks, 'getBlock').mockReturnValue(legacy)
   })
 
-  it('serializes a block saved with inline secrets exactly as before', () => {
+  it('serializes its inline secrets exactly as before', () => {
     const params = serialize(
-      buildBlock(block, { [secretIds[0]]: 'inline-one', [secretIds[1]]: 'inline-two' })
+      buildBlock(legacy, { [secretIds[0]]: 'inline-one', [secretIds[1]]: 'inline-two' })
     )
 
     expect(params[secretIds[0]]).toBe('inline-one')
@@ -113,21 +166,33 @@ describe.each(HYBRID_BLOCKS)('$block.type saved-credential hybrid', ({ block, se
     expect(params.oauthCredential).toBeUndefined()
   })
 
-  it('still requires the inline secrets when no saved credential is selected', () => {
-    const message = missingRequiredFields(buildBlock(block, {}))
+  it('still requires its inline secrets', () => {
+    const message = missingRequiredFields(buildBlock(legacy, {}))
 
-    for (const title of secretTitles(block, secretIds)) expect(message).toContain(title)
+    for (const title of fieldTitles(legacy, secretIds)) expect(message).toContain(title)
+  })
+})
+
+describe.each(VERSIONS)('$successor.type credential-only block', ({ successor, secretIds }) => {
+  beforeEach(() => {
+    vi.spyOn(blocks, 'getBlock').mockReturnValue(successor)
   })
 
-  it('stops requiring the inline secrets once a saved credential is selected', () => {
-    const message = missingRequiredFields(buildBlock(block, { credential: 'cred-1' }))
+  it('requires a saved credential', () => {
+    const message = missingRequiredFields(buildBlock(successor, {}))
 
-    for (const title of secretTitles(block, secretIds)) expect(message).not.toContain(title)
+    expect(message).toContain(fieldTitles(successor, ['credential'])[0])
   })
 
-  it('uses the saved credential instead of stale inline secrets', () => {
+  it('passes validation with only a saved credential', () => {
+    const message = missingRequiredFields(buildBlock(successor, { credential: 'cred-1' }))
+
+    for (const id of secretIds) expect(message).not.toContain(id)
+  })
+
+  it('sends the saved credential and never inline secrets left in its state', () => {
     const params = serialize(
-      buildBlock(block, {
+      buildBlock(successor, {
         credential: 'cred-1',
         [secretIds[0]]: 'stale-one',
         [secretIds[1]]: 'stale-two',
@@ -137,5 +202,18 @@ describe.each(HYBRID_BLOCKS)('$block.type saved-credential hybrid', ({ block, se
     expect(params.oauthCredential).toBe('cred-1')
     expect(params[secretIds[0]]).toBeUndefined()
     expect(params[secretIds[1]]).toBeUndefined()
+  })
+
+  it('builds tool params without asking for inline secrets', () => {
+    const params = serialize(buildBlock(successor, { credential: 'cred-1' }))
+
+    expect(() => {
+      try {
+        successor.tools.config?.params?.(params)
+      } catch (error) {
+        // Operation fields left empty here may fail; a missing secret must not.
+        if (/access key|secret|token|host/i.test(getErrorMessage(error, ''))) throw error
+      }
+    }).not.toThrow()
   })
 })

@@ -137,6 +137,12 @@ export interface OAuthConfig {
   credentialKind?: 'oauth' | 'service-account'
   /** Retry one rejected internal operation after re-authorizing its saved credential. */
   retryOnUnauthorized?: boolean
+  /**
+   * Inline params a saved credential supplies instead, on a tool that accepts
+   * either (`required: false`). A block that offers only the credential has no
+   * field for them, so required-field validation does not ask for them.
+   */
+  credentialSuppliedParams?: readonly string[]
   /** Token-response fields that must replace any caller-supplied tool parameter of the same name. */
   authoritativeParams?: readonly (
     | 'apiDomain'

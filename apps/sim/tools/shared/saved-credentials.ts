@@ -10,6 +10,13 @@ export const AWS_CREDENTIAL_OAUTH = {
   required: false,
   provider: 'aws',
   credentialKind: 'service-account',
+  /** Both key-param spellings AWS tools use. */
+  credentialSuppliedParams: [
+    'accessKeyId',
+    'secretAccessKey',
+    'awsAccessKeyId',
+    'awsSecretAccessKey',
+  ],
 } as const satisfies OAuthConfig
 
 /**
@@ -22,6 +29,7 @@ export const DATABRICKS_CREDENTIAL_OAUTH = {
   required: false,
   provider: 'databricks',
   credentialKind: 'service-account',
+  credentialSuppliedParams: ['host', 'apiKey'],
   /** The saved connection's workspace host always replaces a caller-supplied one. */
   authoritativeParams: ['domain'],
 } as const satisfies OAuthConfig

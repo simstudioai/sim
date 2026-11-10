@@ -2,15 +2,16 @@ import { CodePipelineIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
-  AWS_CREDENTIAL_SUBBLOCKS,
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
   parseOptionalNumberInput,
-  withoutSavedCredential,
+  withSavedCredential,
 } from '@/blocks/utils'
 
 export const CodePipelineBlock: BlockConfig = {
   type: 'codepipeline',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'codepipeline_v2' },
   name: 'CodePipeline',
   description: 'Run, monitor, and approve AWS CodePipeline pipelines',
   authMode: AuthMode.ApiKey,
@@ -109,14 +110,12 @@ export const CodePipelineBlock: BlockConfig = {
       placeholder: 'us-east-1',
       required: true,
     },
-    ...AWS_CREDENTIAL_SUBBLOCKS,
     {
       id: 'awsAccessKeyId',
       title: 'AWS Access Key ID',
       type: 'short-input',
       placeholder: 'AKIA...',
       password: true,
-      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -125,7 +124,6 @@ export const CodePipelineBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Your secret access key',
       password: true,
-      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -567,10 +565,6 @@ export const CodePipelineBlock: BlockConfig = {
   inputs: {
     operation: { type: 'string', description: 'CodePipeline operation to perform' },
     awsRegion: { type: 'string', description: 'AWS region' },
-    oauthCredential: {
-      type: 'string',
-      description: 'Saved AWS credential (optional; replaces the access keys)',
-    },
     awsAccessKeyId: { type: 'string', description: 'AWS access key ID' },
     awsSecretAccessKey: { type: 'string', description: 'AWS secret access key' },
     pipelineName: { type: 'string', description: 'Pipeline name' },
@@ -839,3 +833,19 @@ export const CodePipelineBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const CodePipelineV2Block: BlockConfig = {
+  ...CodePipelineBlock,
+  type: 'codepipeline_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Start, stop, and monitor pipeline executions, retry failed stages, and approve or reject manual approval actions.',
+  ...withSavedCredential(CodePipelineBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

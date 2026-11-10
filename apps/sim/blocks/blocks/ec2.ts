@@ -1,7 +1,7 @@
 import { EC2Icon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { AWS_CREDENTIAL_SUBBLOCKS, withoutSavedCredential } from '@/blocks/utils'
+import { withSavedCredential } from '@/blocks/utils'
 
 const INSTANCE_ACTIONS = [
   'start_instances',
@@ -61,6 +61,8 @@ function toTagParam(value: unknown): unknown {
 
 export const EC2Block: BlockConfig = {
   type: 'ec2',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'ec2_v2' },
   name: 'Amazon EC2',
   description: 'Manage EC2 instances, Elastic IPs, VPC networking, and EBS',
   longDescription:
@@ -206,14 +208,12 @@ export const EC2Block: BlockConfig = {
       placeholder: 'us-east-1',
       required: true,
     },
-    ...AWS_CREDENTIAL_SUBBLOCKS,
     {
       id: 'awsAccessKeyId',
       title: 'AWS Access Key ID',
       type: 'short-input',
       placeholder: 'Enter your AWS access key ID',
       password: true,
-      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -222,7 +222,6 @@ export const EC2Block: BlockConfig = {
       type: 'short-input',
       placeholder: 'Enter your AWS secret access key',
       password: true,
-      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -690,10 +689,6 @@ Return ONLY the JSON array, no explanation.`,
   inputs: {
     operation: { type: 'string', description: 'EC2 operation to perform' },
     awsRegion: { type: 'string', description: 'AWS region' },
-    oauthCredential: {
-      type: 'string',
-      description: 'Saved AWS credential (optional; replaces the access keys)',
-    },
     awsAccessKeyId: { type: 'string', description: 'AWS access key ID' },
     awsSecretAccessKey: { type: 'string', description: 'AWS secret access key' },
     instanceIds: { type: 'string', description: 'Comma-separated instance IDs' },
@@ -1029,3 +1024,19 @@ export const EC2BlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const EC2V2Block: BlockConfig = {
+  ...EC2Block,
+  type: 'ec2_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Integrate Amazon EC2 into workflows. Describe and control instances, manage Elastic IP addresses, inspect VPCs, subnets, route tables, NAT and internet gateways, security groups, and network interfaces, add and revoke security group ingress rules, inspect network ACLs, VPC endpoints, and peering connections, work with EBS volumes and snapshots, list AMIs and key pairs, and tag resources. The AWS credential’s identity needs the matching ec2:* IAM permissions.',
+  ...withSavedCredential(EC2Block, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

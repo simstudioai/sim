@@ -1,7 +1,7 @@
 import { SSMIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { AWS_CREDENTIAL_SUBBLOCKS, withoutSavedCredential } from '@/blocks/utils'
+import { withSavedCredential } from '@/blocks/utils'
 
 /** Operations whose SSM API caps `MaxResults` at 50. */
 const STANDARD_PAGE_OPERATIONS = [
@@ -45,6 +45,8 @@ function toParsedJson(value: unknown): unknown {
 
 export const SSMBlock: BlockConfig = {
   type: 'ssm',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'ssm_v2' },
   name: 'AWS Systems Manager',
   description: 'Run commands, manage parameters, and audit managed nodes',
   longDescription:
@@ -165,14 +167,12 @@ export const SSMBlock: BlockConfig = {
       placeholder: 'us-east-1',
       required: true,
     },
-    ...AWS_CREDENTIAL_SUBBLOCKS,
     {
       id: 'accessKeyId',
       title: 'AWS Access Key ID',
       type: 'short-input',
       placeholder: 'AKIA...',
       password: true,
-      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -181,7 +181,6 @@ export const SSMBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Your secret access key',
       password: true,
-      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -970,10 +969,6 @@ export const SSMBlock: BlockConfig = {
   inputs: {
     operation: { type: 'string', description: 'Systems Manager operation to perform' },
     region: { type: 'string', description: 'AWS region' },
-    oauthCredential: {
-      type: 'string',
-      description: 'Saved AWS credential (optional; replaces the access keys)',
-    },
     accessKeyId: { type: 'string', description: 'AWS access key ID' },
     secretAccessKey: { type: 'string', description: 'AWS secret access key' },
     documentName: { type: 'string', description: 'SSM document or runbook name' },
@@ -1359,3 +1354,17 @@ export const SSMBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const SSMV2Block: BlockConfig = {
+  ...SSMBlock,
+  type: 'ssm_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(SSMBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

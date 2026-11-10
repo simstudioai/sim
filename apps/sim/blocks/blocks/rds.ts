@@ -2,12 +2,13 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { RDSIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { AWS_CREDENTIAL_SUBBLOCKS, withoutSavedCredential } from '@/blocks/utils'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const RDSBlock: BlockConfig = {
   type: 'rds',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'rds_v2' },
   name: 'Amazon RDS',
-  authMode: AuthMode.ApiKey,
   description: 'Connect to Amazon RDS via Data API',
   longDescription:
     'Integrate Amazon RDS Aurora Serverless into the workflow using the Data API. Can query, insert, update, delete, and execute raw SQL without managing database connections.',
@@ -71,14 +72,12 @@ export const RDSBlock: BlockConfig = {
       placeholder: 'us-east-1',
       required: true,
     },
-    ...AWS_CREDENTIAL_SUBBLOCKS,
     {
       id: 'accessKeyId',
       title: 'AWS Access Key ID',
       type: 'short-input',
       placeholder: 'AKIA...',
       password: true,
-      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -87,7 +86,6 @@ export const RDSBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Your secret access key',
       password: true,
-      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -479,10 +477,6 @@ Return ONLY the JSON object.`,
   inputs: {
     operation: { type: 'string', description: 'Database operation to perform' },
     region: { type: 'string', description: 'AWS region' },
-    oauthCredential: {
-      type: 'string',
-      description: 'Saved AWS credential (optional; replaces the access keys)',
-    },
     accessKeyId: { type: 'string', description: 'AWS access key ID' },
     secretAccessKey: { type: 'string', description: 'AWS secret access key' },
     resourceArn: { type: 'string', description: 'Aurora DB cluster ARN' },
@@ -623,3 +617,17 @@ export const RDSBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const RDSV2Block: BlockConfig = {
+  ...RDSBlock,
+  type: 'rds_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(RDSBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

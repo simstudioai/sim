@@ -1,7 +1,7 @@
 import { DatabricksIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { DATABRICKS_CREDENTIAL_SUBBLOCKS, withoutSavedCredential } from '@/blocks/utils'
+import { withSavedCredential } from '@/blocks/utils'
 
 /** A run is parameterized either at the job level or per notebook, never both. */
 const DATABRICKS_RUN_PARAMS_FIELD = ['jobParameters', 'notebookParams'] as const
@@ -49,6 +49,8 @@ const GENIE_PAGED_OPERATIONS = [
 
 export const DatabricksBlock: BlockConfig = {
   type: 'databricks',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'databricks_v2' },
   name: 'Databricks',
   description: 'Run SQL, manage jobs, and ask Genie agents on Databricks',
   authMode: AuthMode.ApiKey,
@@ -1979,13 +1981,11 @@ Return ONLY the numeric timestamp in milliseconds - no explanations, no extra te
       },
     },
 
-    ...DATABRICKS_CREDENTIAL_SUBBLOCKS,
     {
       id: 'host',
       title: 'Workspace Host',
       type: 'short-input',
       placeholder: 'dbc-abc123.cloud.databricks.com',
-      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -1994,7 +1994,6 @@ Return ONLY the numeric timestamp in milliseconds - no explanations, no extra te
       type: 'short-input',
       placeholder: 'Enter your Databricks Personal Access Token',
       password: true,
-      condition: withoutSavedCredential(),
       required: true,
     },
   ],
@@ -2398,10 +2397,6 @@ Return ONLY the numeric timestamp in milliseconds - no explanations, no extra te
     only: { type: 'json', description: 'Task keys to run; omit to run every task' },
 
     operation: { type: 'string', description: 'Operation to perform' },
-    oauthCredential: {
-      type: 'string',
-      description: 'Saved Databricks connection (optional; replaces the host and token)',
-    },
     host: { type: 'string', description: 'Databricks workspace host URL' },
     apiKey: { type: 'string', description: 'Databricks Personal Access Token' },
     warehouseId: { type: 'string', description: 'SQL warehouse ID' },
@@ -2795,3 +2790,17 @@ export const DatabricksBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const DatabricksV2Block: BlockConfig = {
+  ...DatabricksBlock,
+  type: 'databricks_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(DatabricksBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'databricks',
+    title: 'Databricks Connection',
+  }),
+}

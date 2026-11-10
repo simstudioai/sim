@@ -1,7 +1,7 @@
 import { AthenaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { AWS_CREDENTIAL_SUBBLOCKS, withoutSavedCredential } from '@/blocks/utils'
+import { withSavedCredential } from '@/blocks/utils'
 
 /**
  * Normalizes a switch value that may arrive as a boolean or as the strings 'true' / 'false'.
@@ -15,8 +15,9 @@ function parseBoolean(value: unknown): boolean | undefined {
 
 export const AthenaBlock: BlockConfig = {
   type: 'athena',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'athena_v2' },
   name: 'Athena',
-  authMode: AuthMode.ApiKey,
   description: 'Run SQL queries on data in Amazon S3 using AWS Athena',
   longDescription:
     'Execute SQL queries against data in S3, check query status and runtime statistics, retrieve results, manage named queries and prepared statements, and inspect data catalogs, databases, tables, and workgroups. Requires AWS access key and secret access key.',
@@ -172,14 +173,12 @@ export const AthenaBlock: BlockConfig = {
       placeholder: 'us-east-1',
       required: true,
     },
-    ...AWS_CREDENTIAL_SUBBLOCKS,
     {
       id: 'awsAccessKeyId',
       title: 'AWS Access Key ID',
       type: 'short-input',
       placeholder: 'AKIA...',
       password: true,
-      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -188,7 +187,6 @@ export const AthenaBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Your secret access key',
       password: true,
-      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -976,10 +974,6 @@ Return ONLY a JSON array of strings — no explanations, no markdown code blocks
   inputs: {
     operation: { type: 'string', description: 'Athena operation to perform' },
     awsRegion: { type: 'string', description: 'AWS region' },
-    oauthCredential: {
-      type: 'string',
-      description: 'Saved AWS credential (optional; replaces the access keys)',
-    },
     awsAccessKeyId: { type: 'string', description: 'AWS access key ID' },
     awsSecretAccessKey: { type: 'string', description: 'AWS secret access key' },
     queryString: { type: 'string', description: 'SQL query string' },
@@ -1404,3 +1398,19 @@ export const AthenaBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const AthenaV2Block: BlockConfig = {
+  ...AthenaBlock,
+  type: 'athena_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Execute SQL queries against data in S3, check query status and runtime statistics, retrieve results, manage named queries and prepared statements, and inspect data catalogs, databases, tables, and workgroups.',
+  ...withSavedCredential(AthenaBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

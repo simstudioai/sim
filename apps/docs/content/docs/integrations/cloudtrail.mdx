@@ -2,7 +2,7 @@
 title: CloudTrail
 description: Audit who did what in AWS with CloudTrail event history and Lake queries
 integration:
-  type: "cloudtrail"
+  type: "cloudtrail_v2"
   color: "linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
 ---
 
@@ -60,7 +60,7 @@ CloudTrail Lake closed to new customers on May 31, 2026. Existing customers can 
 
 ## Use the block [#usage-instructions]
 
-Integrate AWS CloudTrail into workflows. Look up the last 90 days of management and Insights events by user, event name, resource, or access key; inspect trail configuration, logging status, and event selectors; and run SQL queries against CloudTrail Lake event data stores. This block never changes trail or event data store configuration, and never starts or stops logging. Starting and cancelling a Lake query are the only actions that are not reads, and AWS bills Lake queries on the data they scan. Requires AWS access key and secret access key.
+Integrate AWS CloudTrail into workflows. Look up the last 90 days of management and Insights events by user, event name, resource, or access key; inspect trail configuration, logging status, and event selectors; and run SQL queries against CloudTrail Lake event data stores. This block never changes trail or event data store configuration, and never starts or stops logging. Starting and cancelling a Lake query are the only actions that are not reads, and AWS bills Lake queries on the data they scan.
 
 ## Actions
 

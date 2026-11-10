@@ -1051,6 +1051,15 @@ function findMapperBodyRanges(scannable: string): [number, number][] {
       if (argsEnd === -1) continue
 
       const afterArgs = scannable.slice(argsEnd, configEnd)
+      // An expression body that delegates to a builder: `(params) => buildParams(params)`.
+      const callMatch = /^\s*=>\s*[A-Za-z_$][\w$]*\s*\(/.exec(afterArgs)
+      if (callMatch) {
+        const callOpen = argsEnd + callMatch[0].length - 1
+        const callEnd = findMatchingClose(scannable, callOpen, '(', ')')
+        if (callEnd === -1) continue
+        ranges.push([argsEnd + callMatch[0].search(/[A-Za-z_$]/), callEnd])
+        break
+      }
       const bodyMatch = /^\s*(?::[^=({]*)?(?:=>\s*)?([({])/.exec(afterArgs)
       if (!bodyMatch) continue
       const open = bodyMatch[1] as '(' | '{'
@@ -1138,51 +1147,95 @@ function collectShorthandPropertyNames(body: string, into: Set<string>): void {
  * Scanning runs on the blanked copy, so a commented-out or string-embedded mapper cannot
  * contribute names.
  */
-export function extractMapperWrittenParamIds(blockContent: string): string[] {
+export function extractMapperWrittenParamIds(blockContent: string, fileContent?: string): string[] {
   const scannable = blankStringsAndComments(blockContent)
   if (scannable === null) return []
   const ids = new Set<string>()
 
   for (const [start, end] of findMapperBodyRanges(scannable)) {
-    const body = scannable.slice(start, end)
-
-    const assignmentRegex = /(?:^|[^.\w$])[A-Za-z_$][\w$]*\.([A-Za-z_$][\w$]*)\s*=(?!=)/g
-    let match: RegExpExecArray | null
-    while ((match = assignmentRegex.exec(body)) !== null) ids.add(match[1])
-
-    const keyRegex = /(?:^|[^?.\w$])([A-Za-z_$][\w$]*)\s*:/g
-    while ((match = keyRegex.exec(body)) !== null) ids.add(match[1])
-
-    /**
-     * Quoted keys survive blanking only as their delimiters, so the name is read back from
-     * the original content at the same index — `blankStringsAndComments` is length-preserving.
-     */
-    const quotedKeyRegex = /(['"])[^'"\n]*\1\s*:/g
-    while ((match = quotedKeyRegex.exec(body)) !== null) {
-      const keyStart = start + match.index
-      const original = blockContent.slice(keyStart, keyStart + match[0].length)
-      const name = /(['"])([A-Za-z_$][\w$]*)\1/.exec(original)?.[2]
-      if (name) ids.add(name)
-    }
-
-    /**
-     * A computed write (`result['file'] = …`) supplies a param exactly as `result.file = …`
-     * does. Like the quoted keys above, the name only survives blanking as its delimiters and
-     * is read back from the original content at the matched index.
-     */
-    const bracketAssignmentRegex =
-      /(?:^|[^.\w$])[A-Za-z_$][\w$]*\s*\[\s*(['"])[^'"\n]*\1\s*\]\s*=(?!=)/g
-    while ((match = bracketAssignmentRegex.exec(body)) !== null) {
-      const matchStart = start + match.index
-      const original = blockContent.slice(matchStart, matchStart + match[0].length)
-      const name = /\[\s*(['"])([A-Za-z_$][\w$]*)\1\s*\]/.exec(original)?.[2]
-      if (name) ids.add(name)
-    }
-
-    collectShorthandPropertyNames(body, ids)
+    collectWrittenParamIds(blockContent, scannable, start, end, ids)
+    if (fileContent) collectDelegatedParamIds(scannable.slice(start, end), fileContent, ids)
   }
 
   return [...ids]
+}
+
+/**
+ * A mapper that delegates to a builder declared in the same file
+ * (`params: (params) => s3ToolParams(params)`) writes whatever that builder
+ * writes, so the builder's body is scanned too. One level deep, which is as far
+ * as the delegation pattern goes.
+ */
+function collectDelegatedParamIds(mapperBody: string, fileContent: string, ids: Set<string>) {
+  const scannableFile = blankStringsAndComments(fileContent)
+  if (scannableFile === null) return
+  const calleeRegex = /(?:^|[^.\w$])([A-Za-z_$][\w$]*)\s*\(/g
+  const callees = new Set<string>()
+  let match: RegExpExecArray | null
+  while ((match = calleeRegex.exec(mapperBody)) !== null) callees.add(match[1])
+
+  for (const callee of callees) {
+    const declaration = new RegExp(`\\bfunction\\s+${callee}\\s*\\(`).exec(scannableFile)
+    if (!declaration) continue
+    const argsEnd = findMatchingClose(
+      scannableFile,
+      declaration.index + declaration[0].length - 1,
+      '(',
+      ')'
+    )
+    if (argsEnd === -1) continue
+    const bodyStart = scannableFile.indexOf('{', argsEnd)
+    if (bodyStart === -1) continue
+    const bodyEnd = findMatchingClose(scannableFile, bodyStart)
+    if (bodyEnd === -1) continue
+    collectWrittenParamIds(fileContent, scannableFile, bodyStart, bodyEnd, ids)
+  }
+}
+
+/** Adds the param names one mapper body writes, read from its blanked copy. */
+function collectWrittenParamIds(
+  original: string,
+  scannable: string,
+  start: number,
+  end: number,
+  ids: Set<string>
+) {
+  const body = scannable.slice(start, end)
+
+  const assignmentRegex = /(?:^|[^.\w$])[A-Za-z_$][\w$]*\.([A-Za-z_$][\w$]*)\s*=(?!=)/g
+  let match: RegExpExecArray | null
+  while ((match = assignmentRegex.exec(body)) !== null) ids.add(match[1])
+
+  const keyRegex = /(?:^|[^?.\w$])([A-Za-z_$][\w$]*)\s*:/g
+  while ((match = keyRegex.exec(body)) !== null) ids.add(match[1])
+
+  /**
+   * Quoted keys survive blanking only as their delimiters, so the name is read back from
+   * the original content at the same index — `blankStringsAndComments` is length-preserving.
+   */
+  const quotedKeyRegex = /(['"])[^'"\n]*\1\s*:/g
+  while ((match = quotedKeyRegex.exec(body)) !== null) {
+    const keyStart = start + match.index
+    const text = original.slice(keyStart, keyStart + match[0].length)
+    const name = /(['"])([A-Za-z_$][\w$]*)\1/.exec(text)?.[2]
+    if (name) ids.add(name)
+  }
+
+  /**
+   * A computed write (`result['file'] = …`) supplies a param exactly as `result.file = …`
+   * does. Like the quoted keys above, the name only survives blanking as its delimiters and
+   * is read back from the original content at the matched index.
+   */
+  const bracketAssignmentRegex =
+    /(?:^|[^.\w$])[A-Za-z_$][\w$]*\s*\[\s*(['"])[^'"\n]*\1\s*\]\s*=(?!=)/g
+  while ((match = bracketAssignmentRegex.exec(body)) !== null) {
+    const matchStart = start + match.index
+    const text = original.slice(matchStart, matchStart + match[0].length)
+    const name = /\[\s*(['"])([A-Za-z_$][\w$]*)\1\s*\]/.exec(text)?.[2]
+    if (name) ids.add(name)
+  }
+
+  collectShorthandPropertyNames(body, ids)
 }
 
 /** What {@link extractBlockSuppliedParamIds} could and could not read off a block. */
@@ -1218,7 +1271,8 @@ export interface BlockSuppliedParams {
  */
 export function extractBlockSuppliedParamIds(
   blockContent: string,
-  blockName = 'block'
+  blockName = 'block',
+  fileContent?: string
 ): BlockSuppliedParams {
   /**
    * A source the blanking scanner cannot get through — it ends inside an unterminated string,
@@ -1235,7 +1289,7 @@ export function extractBlockSuppliedParamIds(
     }
   }
 
-  const mapperIds = extractMapperWrittenParamIds(blockContent)
+  const mapperIds = extractMapperWrittenParamIds(blockContent, fileContent)
 
   try {
     const settableIds = extractUserSettableParamIds(blockContent, blockName)
@@ -2354,7 +2408,8 @@ function extractBlockConfigFromContent(
       if (declaration) {
         baseConfig = extractBlockConfigFromContent(
           declaration.content,
-          spreadBase.replace(/Block$/, '')
+          spreadBase.replace(/Block$/, ''),
+          fileContent
         )
       }
     }
@@ -2426,7 +2481,7 @@ function extractBlockConfigFromContent(
           ? baseOperations
           : extractSpreadSubBlocksOperations(blockContent, fileContent)
     const triggerIds = extractTriggersAvailable(blockContent, fileContent)
-    const supplied = extractBlockSuppliedParamIds(blockContent, blockName)
+    const supplied = extractBlockSuppliedParamIds(blockContent, blockName, fileContent)
     /**
      * `null` on the base means the base's own scan failed, which is not the same as a block
      * with no base at all (`undefined`) — the fields the base contributes are unknown, so
@@ -2495,12 +2550,11 @@ function extractBlockConfigFromContent(
       null
     // Tags live on the block's `<BlockName>BlockMeta` export. For spread-inheriting
     // blocks (e.g. `ConfluenceV2Block` extending `ConfluenceBlock`), also try the
-    // spread base's meta so V2 variants inherit tags.
+    // spread base's tags (its own meta, or its base's) so V2+ variants inherit them.
     const tags =
       (fileContent ? extractTagsFromBlockMeta(fileContent, blockName) : null) ||
-      (fileContent && spreadBase
-        ? extractTagsFromBlockMeta(fileContent, spreadBase.replace(/Block$/, ''))
-        : null)
+      baseConfig?.tags ||
+      null
 
     return {
       type: blockType,

@@ -4,8 +4,9 @@ import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isOllamaConfigured } from '@/lib/core/config/env-flags'
 import { getScopesForService } from '@/lib/oauth/utils'
+import type { SelectorKey } from '@/lib/selectors/manifest'
 import { containsReference } from '@/lib/workflows/sanitization/references'
-import type { SubBlockConfig } from '@/blocks/types'
+import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import {
   findProviderFromModel,
   getBaseModelProviders,
@@ -49,83 +50,116 @@ export const SERVICE_ACCOUNT_SUBBLOCKS: SubBlockConfig[] = [
   },
 ]
 
-/**
- * Value keys a saved credential can sit under: the picker by subblock id
- * (editor, raw values) and its canonical param (serializer and agent
- * tool-input, after canonicalization). The picker is deliberately the group's
- * only member — an advanced ID input would make "is a credential selected"
- * depend on the canonical mode, which these conditions cannot see, so a stale
- * value in the inactive member could hide the inline fields while the run used
- * neither.
- */
-const SAVED_CREDENTIAL_VALUE_KEYS = ['credential', 'oauthCredential'] as const
+/** The inline secret fields (subblock and input ids) each saved-credential service replaces. */
+const INLINE_SECRET_FIELDS = {
+  aws: ['accessKeyId', 'secretAccessKey', 'awsAccessKeyId', 'awsSecretAccessKey'],
+  databricks: ['host', 'apiKey'],
+} as const satisfies Record<string, readonly string[]>
 
-/** Whether a block's values select a saved credential. */
-export function hasSavedCredential(values?: Record<string, unknown>): boolean {
-  return SAVED_CREDENTIAL_VALUE_KEYS.some((key) => {
-    const value = values?.[key]
-    return typeof value === 'string' && value.trim().length > 0
-  })
+/** The saved-credential picker; {@link withSavedCredential} completes the standard fields. */
+interface SavedCredentialPicker {
+  id: 'credential'
+  type: 'oauth-input'
+  serviceId: keyof typeof INLINE_SECRET_FIELDS
+  title: string
 }
 
-type SubBlockConditionShape = Extract<NonNullable<SubBlockConfig['condition']>, { field: string }>
+interface SavedCredentialOptions {
+  /** Selectors that authenticate from the replaced fields, mapped to their saved-credential twins. */
+  selectorKeys?: Partial<Record<SelectorKey, SelectorKey>>
+  /** Replaces the tool params builder when the legacy one validates the replaced fields. */
+  params?: NonNullable<BlockConfig['tools']['config']>['params']
+}
 
 /**
- * Condition for an inline secret field on a block that also accepts a saved
- * credential: shown, and so validated, only while no saved credential is
- * selected. A block that has never had a credential — every block saved before
- * the credential option existed — always shows its inline fields exactly as
- * before. `base` keeps a field's existing gate.
+ * The fields of a credential-only successor to a block that takes inline
+ * secrets. The legacy block keeps its own definition and keeps running; the
+ * successor spreads it, then these fields swap its secret fields for a
+ * required saved-credential picker in the same place. Fields that depended on
+ * a replaced secret depend on the credential instead.
  */
-export function withoutSavedCredential(base?: SubBlockConditionShape) {
-  return (values?: Record<string, unknown>): SubBlockConditionShape => {
-    // No field ever holds this value, so `value` never matches and `not` always does.
-    if (hasSavedCredential(values)) return { field: 'credential', value: NEVER_MATCHING_VALUE }
-    if (base) return base
-    // The catalog evaluates this with no values; publish "required while no credential is selected".
-    if (!values) return { field: 'credential', value: '' }
-    return { field: 'credential', value: NEVER_MATCHING_VALUE, not: true }
+export function withSavedCredential(
+  legacy: BlockConfig,
+  picker: SavedCredentialPicker,
+  options: SavedCredentialOptions = {}
+): Pick<BlockConfig, 'subBlocks' | 'inputs' | 'tools'> {
+  const replaced = new Set<string>(INLINE_SECRET_FIELDS[picker.serviceId])
+  const at = legacy.subBlocks.findIndex((subBlock) => replaced.has(subBlock.id))
+  if (at === -1) {
+    throw new Error(`Block "${legacy.type}" has none of the fields a saved credential replaces`)
+  }
+
+  const subBlocks = legacy.subBlocks
+    .filter((subBlock) => !replaced.has(subBlock.id))
+    .map((subBlock) => dependOnCredential(subBlock, replaced, options.selectorKeys))
+  subBlocks.splice(
+    at,
+    0,
+    {
+      ...picker,
+      credentialKind: 'service-account',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
+      placeholder: `Select a ${picker.title.toLowerCase()}`,
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: picker.title,
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
+      required: true,
+    }
+  )
+
+  const inputs = Object.fromEntries(
+    Object.entries(legacy.inputs).filter(([key]) => !replaced.has(key))
+  )
+  const config = legacy.tools.config
+
+  return {
+    subBlocks,
+    inputs: { oauthCredential: { type: 'string', description: `${picker.title} ID` }, ...inputs },
+    tools:
+      options.params && config
+        ? { ...legacy.tools, config: { ...config, params: options.params } }
+        : legacy.tools,
   }
 }
 
-const NEVER_MATCHING_VALUE = '__no_field_holds_this_value__'
+function dependOnCredential(
+  subBlock: SubBlockConfig,
+  replaced: ReadonlySet<string>,
+  selectorKeys: SavedCredentialOptions['selectorKeys']
+): SubBlockConfig {
+  const { dependsOn } = subBlock
+  if (!dependsOn) return subBlock
+  const fields = Array.isArray(dependsOn)
+    ? dependsOn
+    : [...(dependsOn.all ?? []), ...(dependsOn.any ?? [])]
+  if (!fields.some((field) => replaced.has(field))) return subBlock
 
-/**
- * The optional saved-credential picker for a block whose inline secret fields
- * stay available. Leaving it empty keeps the inline fields, so existing blocks
- * run unchanged.
- */
-function savedCredentialSubBlocks(input: {
-  serviceId: string
-  title: string
-  inlineFallback: string
-}): SubBlockConfig[] {
-  return [
-    {
-      id: 'credential',
-      title: input.title,
-      type: 'oauth-input',
-      serviceId: input.serviceId,
-      credentialKind: 'service-account',
-      canonicalParamId: 'oauthCredential',
-      placeholder: `Select a saved ${input.title.toLowerCase()}, or ${input.inlineFallback}`,
-    },
-  ]
+  const selectorKey = subBlock.selectorKey && selectorKeys?.[subBlock.selectorKey]
+  if (subBlock.selectorKey && !selectorKey) {
+    throw new Error(`Selector "${subBlock.selectorKey}" needs a saved-credential twin`)
+  }
+  const swap = (list: string[]) =>
+    list.some((field) => replaced.has(field))
+      ? ['credential', ...list.filter((field) => !replaced.has(field) && field !== 'credential')]
+      : list
+  return {
+    ...subBlock,
+    ...(selectorKey ? { selectorKey } : {}),
+    dependsOn: Array.isArray(dependsOn)
+      ? swap(dependsOn)
+      : {
+          ...(dependsOn.all ? { all: swap(dependsOn.all) } : {}),
+          ...(dependsOn.any ? { any: swap(dependsOn.any) } : {}),
+        },
+  }
 }
-
-/** Optional saved AWS credential for every AWS block. */
-export const AWS_CREDENTIAL_SUBBLOCKS = savedCredentialSubBlocks({
-  serviceId: 'aws',
-  title: 'AWS Credential',
-  inlineFallback: 'enter access keys below',
-})
-
-/** Optional saved Databricks connection for the Databricks block. */
-export const DATABRICKS_CREDENTIAL_SUBBLOCKS = savedCredentialSubBlocks({
-  serviceId: 'databricks',
-  title: 'Databricks Connection',
-  inlineFallback: 'enter a host and token below',
-})
 
 /**
  * Returns model options for combobox subblocks, combining all provider sources.

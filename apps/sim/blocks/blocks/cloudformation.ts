@@ -2,12 +2,13 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { CloudFormationIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { AWS_CREDENTIAL_SUBBLOCKS, withoutSavedCredential } from '@/blocks/utils'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const CloudFormationBlock: BlockConfig = {
   type: 'cloudformation',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'cloudformation_v2' },
   name: 'CloudFormation',
-  authMode: AuthMode.ApiKey,
   description: 'Manage and inspect AWS CloudFormation stacks, resources, and drift',
   longDescription:
     'Create, update, and delete stacks, preview changes with change sets, describe stacks, list resources, detect drift, view stack events, and retrieve or validate templates. Requires AWS access key and secret access key.',
@@ -104,14 +105,12 @@ export const CloudFormationBlock: BlockConfig = {
       placeholder: 'us-east-1',
       required: true,
     },
-    ...AWS_CREDENTIAL_SUBBLOCKS,
     {
       id: 'awsAccessKeyId',
       title: 'AWS Access Key ID',
       type: 'short-input',
       placeholder: 'AKIA...',
       password: true,
-      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -120,7 +119,6 @@ export const CloudFormationBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Your secret access key',
       password: true,
-      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -624,10 +622,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
   inputs: {
     operation: { type: 'string', description: 'CloudFormation operation to perform' },
     awsRegion: { type: 'string', description: 'AWS region' },
-    oauthCredential: {
-      type: 'string',
-      description: 'Saved AWS credential (optional; replaces the access keys)',
-    },
     awsAccessKeyId: { type: 'string', description: 'AWS access key ID' },
     awsSecretAccessKey: { type: 'string', description: 'AWS secret access key' },
     stackName: { type: 'string', description: 'Stack name or ID' },
@@ -890,3 +884,19 @@ export const CloudFormationBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const CloudFormationV2Block: BlockConfig = {
+  ...CloudFormationBlock,
+  type: 'cloudformation_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Create, update, and delete stacks, preview changes with change sets, describe stacks, list resources, detect drift, view stack events, and retrieve or validate templates.',
+  ...withSavedCredential(CloudFormationBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

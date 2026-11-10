@@ -51,6 +51,17 @@ export function awsClientCredentials(
 }
 
 /**
+ * Runs `operation` inside a resolved session, so clients built during it sign
+ * with the session token. For callers outside a tool handler, such as selectors.
+ */
+export function runWithAwsSession<Result>(
+  session: AwsSessionCredentials,
+  operation: () => Promise<Result>
+): Promise<Result> {
+  return sessionStorage.run(session, operation)
+}
+
+/**
  * Resolves an executor-authorized AWS credential for the run's owner scope.
  * Also used directly by AWS tools that sign their own HTTP requests.
  */
@@ -100,6 +111,6 @@ export function withAwsCredential<Result>(
       accessKeyId: session.accessKeyId,
       secretAccessKey: session.secretAccessKey,
     }
-    return sessionStorage.run(session, () => handler({ ...request, input }))
+    return runWithAwsSession(session, () => handler({ ...request, input }))
   }
 }

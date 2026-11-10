@@ -1,7 +1,7 @@
 import { CloudTrailIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { AWS_CREDENTIAL_SUBBLOCKS, withoutSavedCredential } from '@/blocks/utils'
+import { withSavedCredential } from '@/blocks/utils'
 
 /** Operations that accept an opaque AWS pagination token. */
 const PAGINATED_OPERATIONS = [
@@ -28,6 +28,8 @@ function parseBoundedInt(value: unknown): number | undefined {
 
 export const CloudTrailBlock: BlockConfig = {
   type: 'cloudtrail',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'cloudtrail_v2' },
   name: 'CloudTrail',
   description: 'Audit who did what in AWS with CloudTrail event history and Lake queries',
   longDescription:
@@ -121,14 +123,12 @@ export const CloudTrailBlock: BlockConfig = {
       placeholder: 'us-east-1',
       required: true,
     },
-    ...AWS_CREDENTIAL_SUBBLOCKS,
     {
       id: 'awsAccessKeyId',
       title: 'AWS Access Key ID',
       type: 'short-input',
       placeholder: 'AKIA...',
       password: true,
-      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -137,7 +137,6 @@ export const CloudTrailBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Your secret access key',
       password: true,
-      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -588,10 +587,6 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
   inputs: {
     operation: { type: 'string', description: 'CloudTrail operation to perform' },
     awsRegion: { type: 'string', description: 'AWS region' },
-    oauthCredential: {
-      type: 'string',
-      description: 'Saved AWS credential (optional; replaces the access keys)',
-    },
     awsAccessKeyId: { type: 'string', description: 'AWS access key ID' },
     awsSecretAccessKey: { type: 'string', description: 'AWS secret access key' },
     attributeKey: { type: 'string', description: 'Lookup attribute to filter events on' },
@@ -869,3 +864,19 @@ export const CloudTrailBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const CloudTrailV2Block: BlockConfig = {
+  ...CloudTrailBlock,
+  type: 'cloudtrail_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Integrate AWS CloudTrail into workflows. Look up the last 90 days of management and Insights events by user, event name, resource, or access key; inspect trail configuration, logging status, and event selectors; and run SQL queries against CloudTrail Lake event data stores. This block never changes trail or event data store configuration, and never starts or stops logging. Starting and cancelling a Lake query are the only actions that are not reads, and AWS bills Lake queries on the data they scan.',
+  ...withSavedCredential(CloudTrailBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

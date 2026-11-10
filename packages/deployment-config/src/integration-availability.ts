@@ -29,47 +29,18 @@ const deploymentGatedIntegrationTypes = new Set(
 const integrationTypesByOAuthServiceId = new Map<string, readonly string[]>()
 /** Search authorization shares GitHub's integration policy while its workflow tools retain PAT auth. */
 integrationTypesByOAuthServiceId.set('github-repositories', ['github_v2'])
-/**
- * Stored credentials for api-key blocks, available without a deployment OAuth
- * client. One saved AWS credential serves every AWS block.
- */
-const tokenCredentialIntegrationTypes = new Map<string, readonly string[]>([
-  ['coda', ['coda']],
-  ['gauge', ['gauge']],
-  ['higgsfield', ['higgsfield']],
-  ['flow', ['flow']],
-  ['claude-platform', ['managed_agent']],
-  [
-    'aws',
-    [
-      'appconfig',
-      'athena',
-      'cloudformation',
-      'cloudtrail',
-      'cloudwatch',
-      'codepipeline',
-      'dynamodb',
-      'ec2',
-      'iam',
-      'identity_center',
-      'lambda',
-      'rds',
-      's3',
-      'secrets_manager',
-      'ses',
-      'sqs',
-      'ssm',
-      'sts',
-      'textract',
-      'textract_v2',
-    ],
-  ],
-  ['databricks', ['databricks']],
+/** Stored API-token credentials for api-key blocks are available without a deployment OAuth client. */
+const tokenCredentialIntegrationTypes = new Map([
+  ['coda', 'coda'],
+  ['gauge', 'gauge'],
+  ['higgsfield', 'higgsfield'],
+  ['flow', 'flow'],
+  ['claude-platform', 'managed_agent'],
 ])
-for (const [serviceId, integrationTypes] of tokenCredentialIntegrationTypes) {
-  integrationTypesByOAuthServiceId.set(serviceId, integrationTypes)
+for (const [serviceId, integrationType] of tokenCredentialIntegrationTypes) {
+  integrationTypesByOAuthServiceId.set(serviceId, [integrationType])
 }
-const tokenCredentialTypes = new Set([...tokenCredentialIntegrationTypes.values()].flat())
+const tokenCredentialTypes = new Set(tokenCredentialIntegrationTypes.values())
 const previewServiceAccountProvidersByIntegrationType = new Map<string, string>()
 for (const integration of INTEGRATION_METADATA) {
   if (integration.authType !== 'oauth' || !integration.oauthServiceId) continue

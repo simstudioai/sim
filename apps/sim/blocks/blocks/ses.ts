@@ -1,10 +1,12 @@
 import { SESIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { AWS_CREDENTIAL_SUBBLOCKS, withoutSavedCredential } from '@/blocks/utils'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const SESBlock: BlockConfig = {
   type: 'ses',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'ses_v2' },
   name: 'AWS SES',
   description: 'Send emails and manage templates with AWS Simple Email Service',
   longDescription:
@@ -140,14 +142,12 @@ export const SESBlock: BlockConfig = {
       placeholder: 'us-east-1',
       required: true,
     },
-    ...AWS_CREDENTIAL_SUBBLOCKS,
     {
       id: 'accessKeyId',
       title: 'AWS Access Key ID',
       type: 'short-input',
       placeholder: 'AKIA...',
       password: true,
-      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -156,7 +156,6 @@ export const SESBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Your secret access key',
       password: true,
-      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -762,10 +761,6 @@ export const SESBlock: BlockConfig = {
   inputs: {
     operation: { type: 'string', description: 'SES operation to perform' },
     region: { type: 'string', description: 'AWS region' },
-    oauthCredential: {
-      type: 'string',
-      description: 'Saved AWS credential (optional; replaces the access keys)',
-    },
     accessKeyId: { type: 'string', description: 'AWS access key ID' },
     secretAccessKey: { type: 'string', description: 'AWS secret access key' },
     fromAddress: { type: 'string', description: 'Verified sender email address' },
@@ -1139,3 +1134,17 @@ export const SESBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const SESV2Block: BlockConfig = {
+  ...SESBlock,
+  type: 'ses_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(SESBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

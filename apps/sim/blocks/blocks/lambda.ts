@@ -2,7 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { LambdaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { AWS_CREDENTIAL_SUBBLOCKS, withoutSavedCredential } from '@/blocks/utils'
+import { withSavedCredential } from '@/blocks/utils'
 
 type ParamKind = 'string' | 'number' | 'boolean' | 'json' | 'array' | 'jsonArray'
 
@@ -404,6 +404,8 @@ function parseJson(value: unknown, name: string): unknown {
 
 export const LambdaBlock: BlockConfig = {
   type: 'lambda',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'lambda_v2' },
   name: 'Lambda',
   description: 'Invoke, deploy, and manage AWS Lambda functions',
   longDescription:
@@ -630,14 +632,12 @@ export const LambdaBlock: BlockConfig = {
       placeholder: 'us-east-1',
       required: true,
     },
-    ...AWS_CREDENTIAL_SUBBLOCKS,
     {
       id: 'awsAccessKeyId',
       title: 'AWS Access Key ID',
       type: 'short-input',
       placeholder: 'AKIA...',
       password: true,
-      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -646,7 +646,6 @@ export const LambdaBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Your secret access key',
       password: true,
-      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -1916,10 +1915,6 @@ export const LambdaBlock: BlockConfig = {
   inputs: {
     operation: { type: 'string', description: 'Lambda operation to perform' },
     awsRegion: { type: 'string', description: 'AWS region' },
-    oauthCredential: {
-      type: 'string',
-      description: 'Saved AWS credential (optional; replaces the access keys)',
-    },
     awsAccessKeyId: { type: 'string', description: 'AWS access key ID' },
     awsSecretAccessKey: { type: 'string', description: 'AWS secret access key' },
     functionName: { type: 'string', description: 'Function Name' },
@@ -2300,3 +2295,19 @@ export const LambdaBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const LambdaV2Block: BlockConfig = {
+  ...LambdaBlock,
+  type: 'lambda_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Invoke functions and read their response payload, create and update functions from Amazon S3 packages or container images, publish versions and aliases, wire up event source mappings, manage concurrency, function URLs, layers, permissions, and tags.',
+  ...withSavedCredential(LambdaBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

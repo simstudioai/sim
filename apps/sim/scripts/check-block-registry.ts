@@ -43,7 +43,7 @@ import ts from '@typescript/typescript6'
 import { SUBBLOCK_ID_MIGRATIONS } from '@/lib/workflows/migrations/subblock-migrations'
 import { getAllBlocks, getBlock, getBlockMeta, getBlockRegistry } from '@/blocks/registry'
 import { readBlockRegistryAtRef } from '@/scripts/block-registry-snapshot'
-import { getToolParams } from '@/tools/metadata'
+import { getToolMetadata } from '@/tools/metadata'
 
 const baseRef = process.argv[2] || 'HEAD~1'
 
@@ -136,8 +136,13 @@ function checkCanonicalIdContract(): CheckResult {
     }
 
     for (const toolId of access) {
-      const toolParams = getToolParams(toolId)
+      const tool = getToolMetadata(toolId)
+      const toolParams = tool?.params
       if (!toolParams) continue
+      // A credential-only block supplies these through its saved-credential picker.
+      const credentialSupplied = subBlockKeys.has('oauthCredential')
+        ? new Set(tool?.oauth?.credentialSuppliedParams)
+        : new Set<string>()
 
       for (const [paramId, paramConfig] of Object.entries(toolParams)) {
         if (!paramConfig || typeof paramConfig !== 'object') continue
@@ -145,7 +150,7 @@ function checkCanonicalIdContract(): CheckResult {
         const userOnly = (paramConfig as { visibility?: string }).visibility === 'user-only'
         if (!required || !userOnly) continue
 
-        if (!subBlockKeys.has(paramId)) {
+        if (!subBlockKeys.has(paramId) && !credentialSupplied.has(paramId)) {
           errors.push(
             `Block "${block.type}" → tool "${toolId}": required user-only param "${paramId}" has no subBlock with id or canonicalParamId === "${paramId}".\n` +
               '  → Rename a subBlock id or canonicalParamId to match the tool param id,\n' +
