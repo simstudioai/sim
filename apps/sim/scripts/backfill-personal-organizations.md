@@ -10,9 +10,14 @@ admin, the Admin API or SCIM removed it, or it left). The release that introduce
 1. **Migrations** `0455_personal_organizations` (adds `organization.kind`, default `team`),
    `0456_personal_organization_team_settings` and `0457_personal_organization_team_only_tables`
    (refuse team configuration, and organization rows that could not follow a person into a team,
-   on personal organizations) and `0458_personal_organization_single_owner` (a personal
-   organization has exactly one member, its owner). All are additive; the previous release keeps
-   working against them. The migrator (`packages/db/scripts/migrate.ts`) runs DDL under a short
+   on personal organizations), `0458_personal_organization_single_owner` (a personal
+   organization has exactly one member, its owner) and `0459_personal_chats_rehomed_workspace`
+   (adds the nullable `workspace.personal_chats_rehomed_at`, no default and no backfill). All are
+   additive; the previous release keeps working against them. 0459 is catalog-only and the
+   previous release neither reads nor writes the column. This release stamps it on the workspace
+   a retiring personal organization's chats move into (joining a team, or the rollback below) and
+   leaves every stamped workspace out of team attaches (joins, Team re-home, Enterprise claim and
+   issuance, Pro to Team, consolidation), so those private chats never reach a team. The migrator (`packages/db/scripts/migrate.ts`) runs DDL under a short
    `lock_timeout`, so installing a trigger fails fast instead of queueing traffic behind its lock;
    rerun on a timeout.
 2. **Every process on the new release, fully rolled out**: the app, background workers and
@@ -134,6 +139,12 @@ batch the revert over hours.
 5. **Verify**: `SELECT count(*) FROM organization WHERE kind = 'personal'` equals the number of
    organizations deliberately kept, and the first verification query above counts every account
    whose personal organization was reverted.
-6. **Roll the release back** right away. Migrations 0455 to 0458 stay: they are additive, and with
-   no personal organizations left their triggers never fire. The previous release ignores the
+6. **Roll the release back** right away. Migrations 0455 to 0459 stay: they are additive, and with
+   no personal organizations left their triggers never fire. Keep `personal_chats_rehomed_at`
+   too, never clear or drop it: the previous release ignores the stamp, so while it runs a
+   stamped workspace (one the revert or a team join moved chats into) can be attached to a team
+   like any other, with those chats; the next roll forward honors the stamps again. Watch for
+   such joins in the rollback window and move the workspace back out by hand if one happens:
+   `SELECT id, organization_id FROM workspace WHERE personal_chats_rehomed_at IS NOT NULL AND
+   organization_id IS NOT NULL`. The previous release ignores the
    flag and the secret; turn both off before rolling forward again.
