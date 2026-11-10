@@ -86,13 +86,12 @@ export function SamplePanels({
           value={item.value}
           label={item.label}
           id={item.id ?? `${selectorId}-${item.value}`}
+          // One keyboard entry per sample: the code region, which takes focus when it overflows.
           tabIndex={-1}
           {...(presentation === 'select' ? { role: 'region', 'aria-labelledby': selectorId } : {})}
           className='[&>div]:pt-0'
         >
-          <CodeContent label={`${label}: ${item.label}`} tabIndex={0}>
-            {item.panel}
-          </CodeContent>
+          <CodeContent label={`${label}: ${item.label}`}>{item.panel}</CodeContent>
         </Tab>
       ))}
     </Tabs>
