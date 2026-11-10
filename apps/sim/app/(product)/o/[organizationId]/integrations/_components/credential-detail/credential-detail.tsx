@@ -13,6 +13,7 @@ import {
   type CredentialAccessActions,
 } from '@/app/(product)/o/[organizationId]/integrations/_components/credential-access/credential-access'
 import styles from '@/app/(product)/o/[organizationId]/integrations/_components/credential-detail/credential-detail.module.css'
+import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import type { IntegrationPerson } from '@/platform/lib/integrations/center-model'
 import type { IntegrationCredential } from '@/platform/lib/integrations/credential-model'
 import { credentialDetailParams } from '@/platform/lib/integrations/credential-navigation'
@@ -35,6 +36,16 @@ interface CredentialDetailProps {
   onReplace?: () => void
   /** The Permissions tab's content, where the account has tool policies. */
   permissions?: ReactNode
+  /** The sites one grant reaches, such as an Atlassian account's Jira and Confluence sites. */
+  sites?: readonly { name: string; url: string }[]
+}
+
+function siteHost(url: string) {
+  try {
+    return new URL(url).host
+  } catch {
+    return url
+  }
 }
 
 export function CredentialDetail({
@@ -49,6 +60,7 @@ export function CredentialDetail({
   fields,
   onReplace,
   permissions,
+  sites,
 }: CredentialDetailProps) {
   const [view, setView] = useQueryStates(credentialDetailParams)
   const [saved, setSaved] = useState({
@@ -62,6 +74,30 @@ export function CredentialDetail({
   const manageable = credential.role === 'admin' && credential.scope.kind !== 'organization-managed'
   const editable = manageable && Boolean(onSaveDetails)
   const dirty = displayName !== saved.displayName || description !== saved.description
+  // A rename elsewhere (another tab, a teammate) re-seeds the form unless it holds an unsaved edit.
+  const [seen, setSeen] = useState({
+    displayName: credential.displayName,
+    description: credential.description,
+  })
+  if (seen.displayName !== credential.displayName || seen.description !== credential.description) {
+    const latest = { displayName: credential.displayName, description: credential.description }
+    setSeen(latest)
+    if (!dirty && !saving) {
+      setSaved(latest)
+      setDisplayName(latest.displayName)
+      setDescription(latest.description)
+    }
+  }
+  function discard() {
+    setDisplayName(saved.displayName)
+    setDescription(saved.description)
+    setError(undefined)
+  }
+  useSettingsUnsavedGuard({
+    isDirty: editable && dirty,
+    navigationBlocked: saving,
+    onDiscard: discard,
+  })
   return (
     <>
       <DirectoryHeading
@@ -165,6 +201,13 @@ export function CredentialDetail({
                     viewOnly
                   />
                 )}
+                {sites && sites.length > 0 && (
+                  <TextAreaField
+                    label='Sites'
+                    value={sites.map((site) => `${site.name} (${siteHost(site.url)})`).join('\n')}
+                    viewOnly
+                  />
+                )}
                 {fields}
                 {credential.scope.kind === 'organization-managed' && (
                   <p className={styles.managed} data-type='T060'>
@@ -173,16 +216,7 @@ export function CredentialDetail({
                 )}
                 {editable && dirty && (
                   <div className={styles.actions}>
-                    <Button
-                      variant='quiet'
-                      size='compact'
-                      disabled={saving}
-                      onClick={() => {
-                        setDisplayName(saved.displayName)
-                        setDescription(saved.description)
-                        setError(undefined)
-                      }}
-                    >
+                    <Button variant='quiet' size='compact' disabled={saving} onClick={discard}>
                       Cancel
                     </Button>
                     <Button size='compact' submit disabled={saving || !displayName.trim()}>
