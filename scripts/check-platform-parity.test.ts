@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { auditLedger, liveTestTitles } from './check-platform-parity'
+import { auditLedger, hideSwitches, liveTestTitles } from './check-platform-parity'
 
 /** A parameterized Playwright title as its source spells it. */
 const TEMPLATE_TITLE = ['a saved ', '{from} lands on ', '{to}'].join('$')
@@ -134,6 +134,68 @@ describe('auditLedger', () => {
         ])
       )[0]
     ).toContain('failed in this run')
+  })
+})
+
+describe('rows not yet Done', () => {
+  const ledger = (rows: string) => `${HEADER}${rows}`
+  const inputs = {
+    testFiles: new Set<string>(),
+    liveTitles: ['a role change persists'],
+    e2eTitles: ['the one-line field submits on Enter'],
+    hidden: { sections: new Set(['Needs your attention']), tabs: new Set(['Dashboard']) },
+  }
+
+  it('refuses a check they cite that no live spec or e2e script declares', () => {
+    for (const proof of [
+      'Proved by "a role change persists"',
+      '"the one-line field submits on Enter" in `scripts/org-redesign-e2e/checks/search.ts`',
+      'Reads "Role" as legacy did; "Not run" when it never ran. Usage ("Used by") stays out',
+    ])
+      expect(
+        auditLedger({ ...inputs, ledger: ledger(`| Role | x | Unverified | ${proof} |\n`) })
+      ).toEqual([])
+    for (const proof of [
+      'Proved by "the field grows on Shift+Enter"',
+      '"the field grows" in `scripts/org-redesign-e2e/checks/search.ts`',
+      '"the field grows" reads the row',
+    ])
+      expect(
+        auditLedger({ ...inputs, ledger: ledger(`| Role | x | Unverified | ${proof} |\n`) })[0]
+      ).toContain('cites a check that does not exist')
+    expect(
+      auditLedger({
+        ...inputs,
+        ledger: ledger('| Role | x | Declined | Removed by "no such test" |\n'),
+      })
+    ).toEqual([])
+  })
+
+  it('refuses a Hidden row whose cited switch does not hide it', () => {
+    const row = (capability: string, proof: string) =>
+      auditLedger({ ...inputs, ledger: ledger(`| ${capability} | x | Hidden | ${proof} |\n`) })
+    expect(row('Needs your attention', '`HIDDEN_SECTIONS` hides it')).toEqual([])
+    expect(row('Dashboard tab in live navigation', '`hidden` in `WORKSPACE_TABS`')).toEqual([])
+    expect(row('Activity chart', '`HIDDEN_SECTIONS` hides it')[0]).toContain(
+      'cites HIDDEN_SECTIONS, which does not hide it'
+    )
+    expect(row('Issues tab in live navigation', '`hidden` in `WORKSPACE_TABS`')[0]).toContain(
+      'no hidden tab is labelled so'
+    )
+  })
+
+  it('reads the hide switches from their declarations', () => {
+    const tabs = `const WORKSPACE_TABS = [
+      { section: 'issues', label: 'Issues', hidden: true },
+      { section: 'logs', label: 'Logs' },
+      { section: 'tests', label: 'Tests', hidden: false },
+    ]`
+    expect(hideSwitches("const HIDDEN_SECTIONS = new Set(['Needs your attention'])", tabs)).toEqual(
+      {
+        sections: new Set(['Needs your attention']),
+        tabs: new Set(['Issues']),
+      }
+    )
   })
 })
 
