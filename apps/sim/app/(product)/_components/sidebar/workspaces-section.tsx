@@ -82,8 +82,6 @@ export function WorkspacesSection({
     ]
   }
 
-  const addLabel = canCreate ? 'Add workspace' : (policy?.reason ?? CREATE_UNAVAILABLE)
-
   return (
     <>
       <Disclosure
@@ -98,13 +96,12 @@ export function WorkspacesSection({
               order={workspaceOrder}
               onChange={setWorkspaceOrder}
             />
-            {create && (
+            {create && canCreate && (
               <IconButton
                 tooltip
                 size='compact'
-                label={addLabel}
+                label='Add workspace'
                 icon='I074'
-                disabled={!canCreate}
                 onClick={() => actions.requestLeave(() => setCreating(true))}
               />
             )}

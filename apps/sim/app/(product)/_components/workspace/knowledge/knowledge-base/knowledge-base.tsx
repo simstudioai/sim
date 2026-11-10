@@ -619,15 +619,17 @@ export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBasePro
           New connector
         </Button>
       )}
-      <Button
-        variant='secondary'
-        size='compact'
-        icon='I117'
-        disabled={!canEdit}
-        onClick={() => setUploading(true)}
-      >
-        New documents
-      </Button>
+      {(canEdit || access.isLoading) && (
+        <Button
+          variant='secondary'
+          size='compact'
+          icon='I117'
+          disabled={!canEdit}
+          onClick={() => setUploading(true)}
+        >
+          New documents
+        </Button>
+      )}
     </ControlBar>
   )
 

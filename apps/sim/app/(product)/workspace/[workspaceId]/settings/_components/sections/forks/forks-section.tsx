@@ -239,17 +239,18 @@ export default function ForksSection({ workspaceId }: WorkspaceSettingsSectionPr
                   description={query ? undefined : 'Create a fork to get started.'}
                 />
               )}
-              <SettingsRow label='New fork'>
-                <Button
-                  variant='primary'
-                  size='compact'
-                  icon='I074'
-                  disabled={!canMutate}
-                  onClick={() => setForking(true)}
-                >
-                  Create fork
-                </Button>
-              </SettingsRow>
+              {canMutate && (
+                <SettingsRow label='New fork'>
+                  <Button
+                    variant='primary'
+                    size='compact'
+                    icon='I074'
+                    onClick={() => setForking(true)}
+                  >
+                    Create fork
+                  </Button>
+                </SettingsRow>
+              )}
             </SettingsSection>
             <SettingsSection title='Synced workflows'>
               {/* Only this workspace's own value: a previous workspace's placeholder would write another lineage's policy. */}
