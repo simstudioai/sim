@@ -75,7 +75,7 @@ describe('native computer authorization', () => {
   it('rejects non-session principals before protected loading', async () => {
     await expect(
       authorizeComputerUse.execute({
-        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1', access: 'write' },
         input,
       })
     ).rejects.toThrow()

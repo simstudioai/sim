@@ -75,6 +75,8 @@ export const FORBIDDEN_DETAIL_CODES = [
   'INTEGRATION_NOT_ALLOWED',
   /** The OAuth access token was not granted the scope this operation needs. */
   'INSUFFICIENT_SCOPE',
+  /** The API key is read-only and the operation changes state; use a full-access key. */
+  'READ_ONLY_API_KEY',
   /** The organization's identity provider owns this membership, so Sim will not change it. */
   'SCIM_MANAGED_MEMBERSHIP',
 ] as const

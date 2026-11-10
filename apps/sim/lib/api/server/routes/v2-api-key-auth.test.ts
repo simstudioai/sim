@@ -54,6 +54,7 @@ describe('v2 API key authentication', () => {
         userId: 'user-1',
         workspaceId: null,
         type: 'personal',
+        access: 'write',
         expiresAt: null,
         userBanned: false,
       },
@@ -85,6 +86,7 @@ describe('v2 API key authentication', () => {
         userId: 'user-1',
         workspaceId: null,
         type: 'personal',
+        access: 'write',
         expiresAt: new Date('2027-01-01T00:00:00.000Z'),
         userBanned: false,
       },
@@ -102,6 +104,7 @@ describe('v2 API key authentication', () => {
         userId: 'creator-1',
         workspaceId: 'workspace-1',
         type: 'workspace',
+        access: 'write',
         expiresAt: null,
         userBanned: false,
       },
@@ -134,6 +137,7 @@ describe('v2 API key authentication', () => {
         userId: 'creator-1',
         workspaceId: 'workspace-1',
         type: 'workspace',
+        access: 'write',
         expiresAt: null,
         userBanned: true,
       },
@@ -170,6 +174,7 @@ describe('v2 API key authentication', () => {
         userId: 'user-1',
         workspaceId: null,
         type: 'personal',
+        access: 'write',
         expiresAt: null,
         userBanned: true,
       },
@@ -184,6 +189,7 @@ describe('v2 API key authentication', () => {
         userId: 'user-1',
         workspaceId: null,
         type: 'personal',
+        access: 'write',
         expiresAt: new Date(Date.now() - 1),
         userBanned: false,
       },
@@ -289,6 +295,7 @@ describe('v2 bearer token authentication', () => {
         userId: 'user-1',
         workspaceId: null,
         type: 'personal',
+        access: 'write',
         expiresAt: null,
         userBanned: false,
       },
@@ -344,7 +351,7 @@ describe('v2 bearer token authentication', () => {
     await expect(
       authenticateV2ApiKey({ apiKey: null, bearer: 'sim_oat_unused' })
     ).resolves.toMatchObject({
-      principal: { kind: 'personal_api_key', keyId: 'auth-disabled' },
+      principal: { kind: 'personal_api_key', keyId: 'auth-disabled', access: 'write' },
       keyType: 'personal',
     })
     expect(dbChainMockFns.limit).not.toHaveBeenCalled()

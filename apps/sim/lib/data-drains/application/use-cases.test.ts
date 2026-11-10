@@ -118,8 +118,8 @@ beforeEach(() => {
 
 describe('organization data drain application boundary', () => {
   it.each<Principal>([
-    { kind: 'workspace_api_key', workspaceId: 'org', keyId: 'key' },
-    { kind: 'personal_api_key', userId: 'actor', keyId: 'key' },
+    { kind: 'workspace_api_key', workspaceId: 'org', keyId: 'key', access: 'write' },
+    { kind: 'personal_api_key', userId: 'actor', keyId: 'key', access: 'write' },
     { ...principal, organizationId: 'elsewhere' },
     { ...principal, audience: 'sim:knowledge' },
     { ...principal, expiresAt: new Date(0) },

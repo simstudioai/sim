@@ -22,6 +22,11 @@ export const v2MetaSchema = z
       .describe(
         'ISO 8601 timestamp when the calling credential expires, or null when it does not.'
       ),
+    scopes: z
+      .array(z.enum(['api:read', 'api:write', 'search:read']))
+      .describe(
+        'API scopes the calling credential holds. A read-only API key holds only api:read: it is refused every operation that changes state and every operation that declares no API scope, so api:read alone does not authorize those. A full-access key holds api:read and api:write; an OAuth access token holds what it was granted.'
+      ),
   })
   .meta({
     id: 'V2Meta',

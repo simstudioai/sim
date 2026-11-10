@@ -16,6 +16,7 @@ describe('resolveStartBlockRunIdentity', () => {
         kind: 'personal_api_key',
         userId: 'user-1',
         keyId: 'key-1',
+        access: 'write',
       })
     ).resolves.toEqual({
       subject: {
@@ -75,6 +76,7 @@ describe('resolveStartBlockRunIdentity', () => {
         kind: 'workspace_api_key',
         workspaceId: 'workspace-1',
         keyId: 'key-1',
+        access: 'write',
       })
     ).resolves.toEqual({ subject: null })
     expect(mockGetUserEmailById).not.toHaveBeenCalled()

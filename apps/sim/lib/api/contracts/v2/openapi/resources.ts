@@ -1922,7 +1922,7 @@ const declaredRoutes = [
       operationId: 'getApiMeta',
       summary: 'Get API status',
       description:
-        'Get the calling credential’s type and expiry. Requires a valid API key or OAuth access token. `v2Enabled` is true whenever this endpoint is served; the response does not enumerate resource permissions.',
+        'Get the calling credential’s type, expiry, and API scopes. Requires a valid API key or OAuth access token. `v2Enabled` is true whenever this endpoint is served; the response does not enumerate resource permissions.',
       errors: META_ERRORS,
       success: { description: 'Availability and lifecycle facts about the calling credential.' },
     }),
@@ -1932,8 +1932,17 @@ const declaredRoutes = [
         v2GetMetaContract.response.schema,
         'GetApiMetaResponse',
         'API status response',
-        'API availability, credential type, and expiry for the caller.',
-        [{ data: { v2Enabled: true, keyType: 'personal', expiresAt: null } }]
+        'API availability, credential type, expiry, and scopes for the caller.',
+        [
+          {
+            data: {
+              v2Enabled: true,
+              keyType: 'personal',
+              expiresAt: null,
+              scopes: ['api:read', 'api:write'],
+            },
+          },
+        ]
       ),
     }
   ),

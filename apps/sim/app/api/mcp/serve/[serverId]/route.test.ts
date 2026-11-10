@@ -80,6 +80,7 @@ const PERSONAL_API_KEY_PRINCIPAL = {
   kind: 'personal_api_key',
   userId: 'user-1',
   keyId: 'personal-key-1',
+  access: 'write',
 } as const
 
 const OAUTH_WRITE_PRINCIPAL = {

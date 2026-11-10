@@ -496,6 +496,7 @@ describe('Agent memory through PostgreSQL, storage, and provider transports', ()
           kind: 'workspace_api_key',
           workspaceId: scope.workspaceId,
           keyId: 'harness-key',
+          access: 'write',
         },
         input: { key, assertedWorkspaceId: scope.workspaceId },
       })

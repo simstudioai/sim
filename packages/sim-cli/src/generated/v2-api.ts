@@ -6630,6 +6630,7 @@ type GetMetaResponseRef0 = {
   v2Enabled: boolean
   keyType: 'personal' | 'workspace' | 'oauth_access_token'
   expiresAt: string | null
+  scopes: Array<'api:read' | 'api:write' | 'search:read'>
 }
 
 export type GetMetaResponse = {

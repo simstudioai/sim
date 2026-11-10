@@ -50,7 +50,12 @@ const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
 const CREDENTIAL_ID = '7c9e6679-7425-40de-944b-e07fc1f90ae7'
 
 const auth = {
-  principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' },
+  principal: {
+    kind: 'personal_api_key' as const,
+    userId: 'user-1',
+    keyId: 'key-1',
+    access: 'write' as const,
+  },
   rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,

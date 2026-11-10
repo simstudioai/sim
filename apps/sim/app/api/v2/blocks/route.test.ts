@@ -24,7 +24,12 @@ import { cursorSortKey, encodeOffsetCursor } from '@/app/api/v2/lib/response'
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
 
 const auth = {
-  principal: { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_ID, keyId: 'key-1' },
+  principal: {
+    kind: 'workspace_api_key' as const,
+    workspaceId: WORKSPACE_ID,
+    keyId: 'key-1',
+    access: 'write' as const,
+  },
   rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,

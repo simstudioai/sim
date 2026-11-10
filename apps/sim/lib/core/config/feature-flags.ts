@@ -77,6 +77,11 @@ const FEATURE_FLAGS = {
       'Enable the organization People directory, org chart, profile imports, and directory sync. Supports organization rollout; disabled by default.',
     fallback: 'PEOPLE',
   },
+  'api-key-read-only': {
+    description:
+      'Allow creating read-only API keys. Turn on only after every pod runs a release that enforces key access, since older pods treat a read-only key as full access. Enforcement of existing read-only keys never depends on this flag. Global; disabled by default.',
+    fallback: 'API_KEY_READ_ONLY',
+  },
   'mothership-model-selector': {
     description:
       'Show the Mothership model selector, model-specific effort levels, and Fast for supported ' +

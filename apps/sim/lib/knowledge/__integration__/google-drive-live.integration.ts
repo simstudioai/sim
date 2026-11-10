@@ -92,11 +92,13 @@ describe.skipIf(!keyPath || !folderId || !ownerEmail)(
       kind: 'personal_api_key',
       userId: ids.bobId,
       keyId: 'live-drive',
+      access: 'write',
     })
     const workspaceKey = (): Principal => ({
       kind: 'workspace_api_key',
       workspaceId: ids.workspaceId,
       keyId: 'live-drive',
+      access: 'write',
     })
 
     async function search(principal: Principal) {
