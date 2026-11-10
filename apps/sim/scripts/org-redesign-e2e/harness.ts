@@ -489,6 +489,29 @@ interface OpenOptions {
   realtime?: boolean
 }
 
+/**
+ * Makes the page's document loads (`goto`, `reload`, and a history step that loads a document) wait
+ * until the app has hydrated, as the Platform checks' `test` does, so a check's first click reaches
+ * React rather than server-rendered markup with no handler. A load on another origin is not
+ * waited on, and neither is one that asks only for the commit: that check times the paint itself.
+ */
+function waitForHydrationOnLoad(page: Page): Page {
+  const hydrate = async <T>(response: T, waitUntil?: string) => {
+    if (waitUntil !== 'commit' && new URL(page.url()).origin === origin)
+      await waitUntilHydrated(page)
+    return response
+  }
+  const goto = page.goto.bind(page)
+  const reload = page.reload.bind(page)
+  const goBack = page.goBack.bind(page)
+  const goForward = page.goForward.bind(page)
+  page.goto = async (address, options) => hydrate(await goto(address, options), options?.waitUntil)
+  page.reload = async (options) => hydrate(await reload(options), options?.waitUntil)
+  page.goBack = async (options) => hydrate(await goBack(options), options?.waitUntil)
+  page.goForward = async (options) => hydrate(await goForward(options), options?.waitUntil)
+  return page
+}
+
 async function open(persona: Persona | null, options: OpenOptions = {}): Promise<Session> {
   const scope = checkScope.getStore()
   if (scope?.cancelled) throw new Error('The check timed out; it may not open another session')
@@ -538,7 +561,7 @@ async function open(persona: Persona | null, options: OpenOptions = {}): Promise
   })
   if (persona) await context.addCookies([await sessionCookie(persona)])
   if (!options.realtime) await context.route('**/api/auth/socket-token', () => {})
-  const session = new Session(context, await context.newPage())
+  const session = new Session(context, waitForHydrationOnLoad(await context.newPage()))
   scope?.sessions.add(session)
   return session
 }
