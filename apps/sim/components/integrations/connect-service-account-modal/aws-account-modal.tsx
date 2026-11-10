@@ -18,6 +18,7 @@ import {
   useSavedConnectionSubmit,
 } from '@/components/integrations/connect-service-account-modal/keyless-connection'
 import { resourceScopeFromOwner, resourceScopeKey } from '@/lib/core/resource-scope'
+import { buildAwsTrustPolicy } from '@/lib/credentials/config-service-accounts/descriptors'
 import { AWS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import { withBrandIcon } from '@/blocks/brand-icon'
 
@@ -35,42 +36,10 @@ interface AwsAccountModalProps {
 type AwsAuthType = 'oidc_role' | 'access_keys' | 'assume_role'
 
 const ROLE_ARN_PLACEHOLDER = 'arn:aws:iam::123456789012:role/sim-workflows'
-const ACCOUNT_ID_FROM_ROLE_ARN = /^arn:aws[\w-]*:iam::(\d{12}):role\//
-
 const AUTH_TYPE_HINTS: Record<AwsAuthType, string> = {
   oidc_role: 'No keys are stored. Sim signs a short-lived token that your role trusts.',
   assume_role: 'Sim uses the keys only to assume the role, then works with temporary credentials.',
   access_keys: 'Sim signs requests with these long-lived keys.',
-}
-
-/** The trust policy a customer attaches to the role so it trusts exactly this credential. */
-function buildTrustPolicy(issuer: string, audience: string, subject: string, roleArn: string) {
-  const issuerHostPath = issuer.replace(/^https:\/\//, '')
-  const trimmedArn = roleArn.trim()
-  const accountId = ACCOUNT_ID_FROM_ROLE_ARN.exec(trimmedArn)?.[1] ?? '<AWS_ACCOUNT_ID>'
-  const partition = trimmedArn.startsWith('arn:aws-') ? trimmedArn.split(':')[1] : 'aws'
-  return JSON.stringify(
-    {
-      Version: '2012-10-17',
-      Statement: [
-        {
-          Effect: 'Allow',
-          Principal: {
-            Federated: `arn:${partition}:iam::${accountId}:oidc-provider/${issuerHostPath}`,
-          },
-          Action: 'sts:AssumeRoleWithWebIdentity',
-          Condition: {
-            StringEquals: {
-              [`${issuerHostPath}:aud`]: audience,
-              [`${issuerHostPath}:sub`]: subject,
-            },
-          },
-        },
-      ],
-    },
-    null,
-    2
-  )
 }
 
 /** Saved AWS identities share the standard credential create/reconnect lifecycle. */
@@ -145,14 +114,7 @@ function AwsAccountForm({
   }
 
   const trustPolicy =
-    authType === 'oidc_role' && keyless.trust
-      ? buildTrustPolicy(
-          keyless.trust.issuer,
-          keyless.trust.audience,
-          keyless.trust.subject,
-          roleArn
-        )
-      : null
+    authType === 'oidc_role' && keyless.trust ? buildAwsTrustPolicy(keyless.trust, roleArn) : null
   const action = credentialId ? 'Reconnect' : 'Add'
   const authOptions = [
     ...(keyless.available

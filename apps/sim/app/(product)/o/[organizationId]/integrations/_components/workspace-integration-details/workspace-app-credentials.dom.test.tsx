@@ -4,7 +4,8 @@
  * An app whose saved credential is a pasted token (Fireflies, Apollo, Intercom…) connects from its
  * workspace page. Failure modes: the page filters the token method out, so the app cannot be
  * connected here; and the dialog submits something other than the descriptor's fields, so the
- * server's token verification never sees the key.
+ * server's token verification never sees the key. An AWS app lists its AWS setup, and a saved AWS
+ * credential reconnects in place rather than through OAuth, with no secret prefilled.
  */
 import { act } from 'react'
 import { flushMacrotask } from '@sim/testing/helpers/async'
@@ -172,4 +173,71 @@ it("offers a token app's connect method and submits the descriptor's fields", as
       apiToken: 'ff-secret',
     },
   ])
+})
+
+/** S3 as the catalog projects it: its one method is the AWS configuration, keyless included. */
+const S3: WorkspaceAppDetail = {
+  ...FIREFLIES,
+  id: 's3',
+  type: 's3_v2',
+  slug: 's3',
+  name: 'S3',
+  credentialProviders: ['aws-service-account'],
+  connections: [
+    {
+      id: 'aws-service-account',
+      kind: 'service_account',
+      label: 'Add AWS credential',
+      providerId: 'aws-service-account',
+      setup: 'fields',
+    },
+  ],
+}
+
+const AWS_CREDENTIAL = {
+  id: 'cred-aws',
+  workspaceId: WORKSPACE.id,
+  type: 'service_account' as const,
+  displayName: 'Prod role',
+  description: 'Reads the reports bucket',
+  unredacted: false,
+  providerId: 'aws-service-account',
+  accountId: null,
+  envKey: null,
+  envOwnerUserId: null,
+  createdBy: 'viewer',
+  createdAt: '2026-11-10T00:00:00.000Z',
+  updatedAt: '2026-11-10T00:00:00.000Z',
+}
+
+it('offers the AWS setup on an AWS app and reconnects its saved credential in place', async () => {
+  function AwsPage() {
+    page = useWorkspaceAppCredentials(
+      { app: S3, workspace: WORKSPACE, credentials: [AWS_CREDENTIAL] },
+      AWS_CREDENTIAL.id
+    )
+    return <WorkspaceAppDialogs app={S3} workspaceId={WORKSPACE.id} dialogs={page.dialogs} />
+  }
+  act(() =>
+    root.render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AwsPage />
+      </QueryClientProvider>
+    )
+  )
+  await settle()
+
+  expect(page?.methods.map((method) => method.label)).toEqual(['Add AWS credential'])
+  const connected = page?.credentials?.find((credential) => credential.id === AWS_CREDENTIAL.id)
+  expect(connected?.canReconnect).toBe(true)
+  if (!connected) throw new Error('The AWS credential is not listed')
+  act(() => page?.reconnect(connected))
+  await settle()
+
+  const dialog = document.body.querySelector('dialog[open]')
+  expect(dialog?.textContent).toContain('Reconnect AWS credential')
+  expect(fieldIn(dialog as Element, 'Secret access key').value).toBe('')
+  expect(
+    [...(dialog?.querySelectorAll('input') ?? [])].some((input) => input.value === 'Prod role')
+  ).toBe(true)
 })

@@ -18,6 +18,7 @@ import {
   useSavedConnectionSubmit,
 } from '@/components/integrations/connect-service-account-modal/keyless-connection'
 import { resourceScopeFromOwner, resourceScopeKey } from '@/lib/core/resource-scope'
+import { buildDatabricksFederationCommand } from '@/lib/credentials/config-service-accounts/descriptors'
 import { DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import { withBrandIcon } from '@/blocks/brand-icon'
 
@@ -40,12 +41,6 @@ const AUTH_TYPE_HINTS: Record<DatabricksAuthType, string> = {
   service_principal:
     'Sim exchanges the OAuth secret for a short-lived workspace token on each run.',
   personal_access_token: 'Sim sends this token on every request.',
-}
-
-/** The account-level CLI command that makes the service principal trust this credential. */
-function buildFederationPolicyCommand(issuer: string, audience: string, subject: string) {
-  const policy = JSON.stringify({ oidc_policy: { issuer, audiences: [audience], subject } })
-  return `databricks account service-principal-federation-policy create <SERVICE_PRINCIPAL_NUMERIC_ID> --json '${policy}'`
 }
 
 /** Saved Databricks connections share the standard credential create/reconnect lifecycle. */
@@ -121,11 +116,7 @@ function DatabricksAccountForm({
 
   const federationCommand =
     authType === 'oidc_federation' && keyless.trust
-      ? buildFederationPolicyCommand(
-          keyless.trust.issuer,
-          keyless.trust.audience,
-          keyless.trust.subject
-        )
+      ? buildDatabricksFederationCommand(keyless.trust)
       : null
   const action = credentialId ? 'Reconnect' : 'Add'
   const authOptions = [
