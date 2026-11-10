@@ -7,7 +7,7 @@ import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { validateDatabricksWorkspaceHost } from '@/lib/core/security/input-validation'
 import { parseServiceAccountConfig } from '@/lib/credentials/service-account-config'
 import {
-  isTransientProviderStatus,
+  providerFailureCode,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
 import { WORKLOAD_IDENTITY_AUDIENCES } from '@/lib/credentials/workload-identity/audiences'
@@ -318,10 +318,8 @@ export async function resolveDatabricksCredentialToken(
   } catch (error) {
     if (!(error instanceof DatabricksCredentialError)) throw error
     // Report in the shared service-account codes: an outage is not a bad credential.
-    const unavailable =
-      error.status !== undefined && (error.status >= 500 || isTransientProviderStatus(error.status))
     throw new TokenServiceAccountValidationError(
-      unavailable ? 'provider_unavailable' : 'invalid_credentials',
+      error.status === undefined ? 'invalid_credentials' : providerFailureCode(error.status),
       error.status ?? 400,
       { step: 'token', reason: error.message }
     )

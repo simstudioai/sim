@@ -100,4 +100,12 @@ describe('getting a Databricks token for a run', () => {
       code: 'provider_unavailable',
     })
   })
+
+  it('reports a token reply without a token as the provider misbehaving, not a bad credential', async () => {
+    fetch.mockResolvedValue(jsonResponse({}, 200))
+
+    await expect(resolveDatabricksCredentialToken('cred-1')).rejects.toMatchObject({
+      code: 'provider_unavailable',
+    })
+  })
 })

@@ -44,6 +44,20 @@ const AUDIO_FIELD = ['audioFile', 'audioRef', 'audio'] as const
 const ANIMATION_FIELD = ['animationFile', 'animationRef', 'animation'] as const
 const DOCUMENT_FIELD = ['attachmentFiles', 'files'] as const
 
+/** Coerce string/number input to a finite number, throwing with a labeled message. */
+function requireNumber(value: unknown, label: string): number {
+  const num = Number(value)
+  if (value === undefined || value === null || value === '' || Number.isNaN(num)) {
+    throw new Error(`${label} is required and must be a number.`)
+  }
+  return num
+}
+
+/** Coerce agent-supplied "true"/"false" strings (or booleans) to a real boolean. */
+function toBoolean(value: unknown): boolean {
+  return value === true || String(value).toLowerCase() === 'true'
+}
+
 /** Builds Telegram tool params; a saved credential supplies the bot token, so only the legacy block requires it inline. */
 function telegramToolParams(params: BlockToolParams, requireBotToken: boolean) {
   if (requireBotToken && !params.botToken) {
@@ -59,19 +73,6 @@ function telegramToolParams(params: BlockToolParams, requireBotToken: boolean) {
     botToken: params.botToken,
     chatId,
   }
-
-  /** Coerce string/number input to a finite number, throwing with a labeled message. */
-  const requireNumber = (value: unknown, label: string): number => {
-    const num = Number(value)
-    if (value === undefined || value === null || value === '' || Number.isNaN(num)) {
-      throw new Error(`${label} is required and must be a number.`)
-    }
-    return num
-  }
-
-  /** Coerce agent-supplied "true"/"false" strings (or booleans) to a real boolean. */
-  const toBoolean = (value: unknown): boolean =>
-    value === true || String(value).toLowerCase() === 'true'
 
   switch (params.operation) {
     case 'telegram_message':

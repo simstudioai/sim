@@ -83,7 +83,8 @@ interface SavedCredentialOptions {
  * The fields of a credential-only successor to a block that takes inline
  * secrets. The legacy block keeps its own definition and keeps running; the
  * successor spreads it, then these fields swap its secret fields for a
- * saved-credential picker in the same place. Fields that depended on
+ * saved-credential picker right under the operation picker (or where the
+ * secret was, when the block has none). Fields that depended on
  * a replaced secret depend on the credential instead.
  */
 export function withSavedCredential(
@@ -142,8 +143,13 @@ export function withSavedCredential(
       `Block "${legacy.type}": unused selector twins ${unusedSelectorKeys.join(', ')}`
     )
   }
+  // The picker sits right under the operation picker, the first thing a user
+  // sets; a block without one keeps it where its secret was.
+  const operationAt = subBlocks.findIndex(
+    (subBlock) => subBlock.id === 'operation' && !isTriggerModeSubBlock(subBlock)
+  )
   subBlocks.splice(
-    at,
+    operationAt === -1 ? at : operationAt + 1,
     0,
     {
       ...picker,

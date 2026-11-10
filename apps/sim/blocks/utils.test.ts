@@ -292,6 +292,50 @@ describe('withSavedCredential', () => {
     outputs: {},
   }
 
+  it('places the picker right under the operation picker, ahead of the other fields', () => {
+    const { subBlocks } = withSavedCredential(
+      {
+        ...legacy,
+        subBlocks: [
+          { id: 'operation', title: 'Operation', type: 'dropdown', options: [] },
+          { id: 'bucket', title: 'Bucket', type: 'short-input' },
+          { id: 'accessKeyId', title: 'Access Key ID', type: 'short-input', required: true },
+          { id: 'secretAccessKey', title: 'Secret', type: 'short-input', required: true },
+        ],
+      },
+      picker
+    )
+
+    expect(subBlocks.map((subBlock) => subBlock.id)).toEqual([
+      'operation',
+      'credential',
+      'manualCredential',
+      'bucket',
+    ])
+  })
+
+  it('keeps the picker where the secret was when the block has no operation picker', () => {
+    const { subBlocks } = withSavedCredential(
+      {
+        ...legacy,
+        subBlocks: [
+          { id: 'region', title: 'Region', type: 'short-input' },
+          { id: 'accessKeyId', title: 'Access Key ID', type: 'short-input', required: true },
+          { id: 'secretAccessKey', title: 'Secret', type: 'short-input', required: true },
+          { id: 'bucket', title: 'Bucket', type: 'short-input' },
+        ],
+      },
+      picker
+    )
+
+    expect(subBlocks.map((subBlock) => subBlock.id)).toEqual([
+      'region',
+      'credential',
+      'manualCredential',
+      'bucket',
+    ])
+  })
+
   it('keeps trigger fields that share a replaced secret id, untouched', () => {
     const { subBlocks } = withSavedCredential(legacy, picker)
     const triggerFields = legacy.subBlocks.filter((subBlock) => subBlock.mode === 'trigger')

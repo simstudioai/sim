@@ -74,6 +74,19 @@ export function isTransientProviderStatus(status: number): boolean {
   return status === 408 || status === 429
 }
 
+/**
+ * The shared split for a failed provider call: a non-transient 4xx is the
+ * caller's input being wrong; anything else (5xx, 408/429, or a reply that
+ * wasn't an error status but still failed) is the provider.
+ */
+export function providerFailureCode(
+  status: number
+): Extract<TokenServiceAccountValidationCode, 'invalid_credentials' | 'provider_unavailable'> {
+  return status >= 400 && status < 500 && !isTransientProviderStatus(status)
+    ? 'invalid_credentials'
+    : 'provider_unavailable'
+}
+
 export interface FetchProviderOptions {
   /**
    * Validation code thrown when the host does not resolve (`ENOTFOUND` only —
@@ -182,11 +195,9 @@ export async function throwForProviderResponse(
 ): Promise<void> {
   if (res.ok) return
   const body = await readProviderErrorSnippet(res)
-  const callerError =
-    res.status >= 400 && res.status < 500 && !isTransientProviderStatus(res.status)
-  throw new TokenServiceAccountValidationError(
-    callerError ? 'invalid_credentials' : 'provider_unavailable',
-    res.status,
-    { step, body, ...context }
-  )
+  throw new TokenServiceAccountValidationError(providerFailureCode(res.status), res.status, {
+    step,
+    body,
+    ...context,
+  })
 }

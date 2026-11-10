@@ -2,7 +2,7 @@ import { truncate } from '@sim/utils/string'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   fetchProvider,
-  isTransientProviderStatus,
+  providerFailureCode,
   TokenServiceAccountValidationError,
   throwForProviderResponse,
 } from '@/lib/credentials/token-service-accounts/errors'
@@ -92,10 +92,14 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
     if ((check.rejectsKey || check.provesKey) && !response.ok) {
       const unreadable = Symbol('unreadable')
       const errorBody = await readJsonBody(response, check.serviceLabel).catch(() => unreadable)
-      if (errorBody !== unreadable && check.rejectsKey?.(errorBody)) {
-        throw new TokenServiceAccountValidationError('invalid_credentials', 400, { step: 'verify' })
+      if (errorBody !== unreadable) {
+        if (check.rejectsKey?.(errorBody)) {
+          throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+            step: 'verify',
+          })
+        }
+        if (check.provesKey?.(errorBody)) return accepted
       }
-      if (errorBody !== unreadable && check.provesKey?.(errorBody)) return accepted
       if (scopedForbidden) {
         // Only a body that was read and doesn't name a bad key proves the token.
         if (errorBody === unreadable) {
@@ -106,12 +110,8 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
         }
         return accepted
       }
-      const callerError =
-        response.status >= 400 &&
-        response.status < 500 &&
-        !isTransientProviderStatus(response.status)
       throw new TokenServiceAccountValidationError(
-        callerError ? 'invalid_credentials' : 'provider_unavailable',
+        providerFailureCode(response.status),
         response.status,
         {
           step: 'verify',
