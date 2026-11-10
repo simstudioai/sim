@@ -38,6 +38,7 @@
 }
 
 .theme {
+  composes: codeTokens from "../workflow-canvas/code-tokens.module.css";
   position: relative;
   margin-top: 0;
   padding-top: 0;
@@ -73,7 +74,7 @@
   overflow-wrap: break-word;
 }
 
-/* The legacy code theme: Cursor-style token colors, light by default and dark under a dark surface. */
+/* The legacy code theme's token colors, from the shared canvas code tokens. */
 .theme [class~="token"] {
   background: transparent;
 }
@@ -83,7 +84,7 @@
 .theme [class~="token"][class~="prolog"],
 .theme [class~="token"][class~="doctype"],
 .theme [class~="token"][class~="cdata"] {
-  color: #16a34a;
+  color: var(--wf-code-comment);
 }
 
 .theme [class~="token"][class~="punctuation"],
@@ -91,109 +92,51 @@
 .theme [class~="token"][class~="entity"],
 .theme [class~="token"][class~="url"],
 .theme [class~="token"][class~="symbol"] {
-  color: #383838;
+  color: var(--wf-code-punctuation);
 }
 
 .theme [class~="token"][class~="property"],
 .theme [class~="token"][class~="attr-name"],
 .theme [class~="token"][class~="variable"] {
-  color: #0891b2;
+  color: var(--wf-code-property);
 }
 
 .theme [class~="token"][class~="tag"],
 .theme [class~="token"][class~="boolean"],
 .theme [class~="token"][class~="number"],
 .theme [class~="token"][class~="constant"] {
-  color: #16a34a;
+  color: var(--wf-code-constant);
 }
 
 .theme [class~="token"][class~="string"],
 .theme [class~="token"][class~="char"],
 .theme [class~="token"][class~="builtin"],
 .theme [class~="token"][class~="inserted"] {
-  color: #b45309;
+  color: var(--wf-code-string);
 }
 
 .theme [class~="token"][class~="atrule"],
 .theme [class~="token"][class~="attr-value"],
 .theme [class~="token"][class~="keyword"] {
-  color: #2f55ff;
+  color: var(--wf-code-keyword);
 }
 
 .theme [class~="token"][class~="function"],
 .theme [class~="token"][class~="class-name"] {
-  color: #ca8a04;
+  color: var(--wf-code-function);
 }
 
 .theme [class~="token"][class~="regex"],
 .theme [class~="token"][class~="important"] {
-  color: #e11d48;
+  color: var(--wf-code-regex);
 }
 
 .theme [class~="token"][class~="deleted"] {
-  color: #dc2626;
+  color: var(--wf-code-deleted);
 }
 
 /* The platform accent for `<block.output>` and `{{ENV}}` references. */
 .theme [data-code-reference],
 .theme [class~="token"] [data-code-reference] {
-  color: #1d4ed8;
-}
-
-[data-theme="dark"] .theme [data-code-reference],
-[data-theme="dark"] .theme [class~="token"] [data-code-reference] {
-  color: #35b6ff;
-}
-
-[data-theme="dark"] .theme [class~="token"][class~="comment"],
-[data-theme="dark"] .theme [class~="token"][class~="block-comment"],
-[data-theme="dark"] .theme [class~="token"][class~="prolog"],
-[data-theme="dark"] .theme [class~="token"][class~="doctype"],
-[data-theme="dark"] .theme [class~="token"][class~="cdata"] {
-  color: #6ec97d;
-}
-
-[data-theme="dark"] .theme [class~="token"][class~="punctuation"],
-[data-theme="dark"] .theme [class~="token"][class~="operator"],
-[data-theme="dark"] .theme [class~="token"][class~="entity"],
-[data-theme="dark"] .theme [class~="token"][class~="url"],
-[data-theme="dark"] .theme [class~="token"][class~="symbol"] {
-  color: #d4d4d4;
-}
-
-[data-theme="dark"] .theme [class~="token"][class~="property"],
-[data-theme="dark"] .theme [class~="token"][class~="attr-name"],
-[data-theme="dark"] .theme [class~="token"][class~="variable"] {
-  color: #4fc3f7;
-}
-
-[data-theme="dark"] .theme [class~="token"][class~="tag"],
-[data-theme="dark"] .theme [class~="token"][class~="boolean"],
-[data-theme="dark"] .theme [class~="token"][class~="number"],
-[data-theme="dark"] .theme [class~="token"][class~="constant"] {
-  color: #a5d6a7;
-}
-
-[data-theme="dark"] .theme [class~="token"][class~="string"],
-[data-theme="dark"] .theme [class~="token"][class~="char"],
-[data-theme="dark"] .theme [class~="token"][class~="builtin"],
-[data-theme="dark"] .theme [class~="token"][class~="inserted"] {
-  color: #f39c6b;
-}
-
-[data-theme="dark"] .theme [class~="token"][class~="atrule"],
-[data-theme="dark"] .theme [class~="token"][class~="attr-value"],
-[data-theme="dark"] .theme [class~="token"][class~="keyword"] {
-  color: #2fa1ff;
-}
-
-[data-theme="dark"] .theme [class~="token"][class~="function"],
-[data-theme="dark"] .theme [class~="token"][class~="class-name"] {
-  color: #fbbf24;
-}
-
-[data-theme="dark"] .theme [class~="token"][class~="regex"],
-[data-theme="dark"] .theme [class~="token"][class~="important"],
-[data-theme="dark"] .theme [class~="token"][class~="deleted"] {
-  color: #f87171;
+  color: var(--wf-code-reference);
 }

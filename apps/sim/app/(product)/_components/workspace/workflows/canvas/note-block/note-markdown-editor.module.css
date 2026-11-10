@@ -9,6 +9,7 @@
  */
 
 .prose {
+  composes: codeTokens from "../workflow-canvas/code-tokens.module.css";
   min-height: 100%;
   width: 100%;
   color: currentColor;
@@ -359,8 +360,14 @@
   overflow-wrap: anywhere;
 }
 
-[class~="dark"] .prose :where([class~="ProseMirror"]) [class~="raw-markdown-block"],
-[class~="dark"] .prose :where([class~="ProseMirror"]) [class~="raw-markdown-inline"] {
+[data-platform-ui][data-theme="dark"]
+  .prose
+  :where([class~="ProseMirror"])
+  [class~="raw-markdown-block"],
+[data-platform-ui][data-theme="dark"]
+  .prose
+  :where([class~="ProseMirror"])
+  [class~="raw-markdown-inline"] {
   background: var(--wf-code-bg);
 }
 
@@ -385,7 +392,10 @@
   border-radius: 1px;
 }
 
-[class~="dark"] .prose :where([class~="ProseMirror"]) hr[class~="rich-leaf-in-selection"] {
+[data-platform-ui][data-theme="dark"]
+  .prose
+  :where([class~="ProseMirror"])
+  hr[class~="rich-leaf-in-selection"] {
   box-shadow: 0 0 0 0.4em var(--wf-selection-dark);
 }
 
@@ -438,13 +448,9 @@
     [class~="block-comment"],
     [class~="prolog"],
     [class~="doctype"],
-    [class~="cdata"],
-    [class~="tag"],
-    [class~="boolean"],
-    [class~="number"],
-    [class~="constant"]
+    [class~="cdata"]
   ) {
-  color: #16a34a;
+  color: var(--wf-code-comment);
 }
 
 .prose
@@ -457,122 +463,53 @@
     [class~="url"],
     [class~="symbol"]
   ) {
-  color: #383838;
+  color: var(--wf-code-punctuation);
 }
 
 .prose
   :where([class~="ProseMirror"])
   pre
   [class~="token"]:is([class~="property"], [class~="attr-name"], [class~="variable"]) {
-  color: #0891b2;
+  color: var(--wf-code-property);
+}
+
+.prose
+  :where([class~="ProseMirror"])
+  pre
+  [class~="token"]:is([class~="tag"], [class~="boolean"], [class~="number"], [class~="constant"]) {
+  color: var(--wf-code-constant);
 }
 
 .prose
   :where([class~="ProseMirror"])
   pre
   [class~="token"]:is([class~="string"], [class~="char"], [class~="builtin"], [class~="inserted"]) {
-  color: #b45309;
+  color: var(--wf-code-string);
 }
 
 .prose
   :where([class~="ProseMirror"])
   pre
   [class~="token"]:is([class~="atrule"], [class~="attr-value"], [class~="keyword"]) {
-  color: #2f55ff;
+  color: var(--wf-code-keyword);
 }
 
 .prose
   :where([class~="ProseMirror"])
   pre
   [class~="token"]:is([class~="function"], [class~="class-name"]) {
-  color: #ca8a04;
+  color: var(--wf-code-function);
 }
 
 .prose
   :where([class~="ProseMirror"])
   pre
   [class~="token"]:is([class~="regex"], [class~="important"]) {
-  color: #e11d48;
+  color: var(--wf-code-regex);
 }
 
-.prose :where([class~="ProseMirror"]) pre [class~="token"][class~="deleted"] {
-  color: #dc2626;
-}
-
-[class~="dark"]
-  .prose
-  :where([class~="ProseMirror"])
-  pre
-  [class~="token"]:is(
-    [class~="comment"],
-    [class~="block-comment"],
-    [class~="prolog"],
-    [class~="doctype"],
-    [class~="cdata"]
-  ) {
-  color: #6ec97d;
-}
-
-[class~="dark"]
-  .prose
-  :where([class~="ProseMirror"])
-  pre
-  [class~="token"]:is(
-    [class~="punctuation"],
-    [class~="operator"],
-    [class~="entity"],
-    [class~="url"],
-    [class~="symbol"]
-  ) {
-  color: #d4d4d4;
-}
-
-[class~="dark"]
-  .prose
-  :where([class~="ProseMirror"])
-  pre
-  [class~="token"]:is([class~="property"], [class~="attr-name"], [class~="variable"]) {
-  color: #4fc3f7;
-}
-
-[class~="dark"]
-  .prose
-  :where([class~="ProseMirror"])
-  pre
-  [class~="token"]:is([class~="tag"], [class~="boolean"], [class~="number"], [class~="constant"]) {
-  color: #a5d6a7;
-}
-
-[class~="dark"]
-  .prose
-  :where([class~="ProseMirror"])
-  pre
-  [class~="token"]:is([class~="string"], [class~="char"], [class~="builtin"], [class~="inserted"]) {
-  color: #f39c6b;
-}
-
-[class~="dark"]
-  .prose
-  :where([class~="ProseMirror"])
-  pre
-  [class~="token"]:is([class~="atrule"], [class~="attr-value"], [class~="keyword"]) {
-  color: #2fa1ff;
-}
-
-[class~="dark"]
-  .prose
-  :where([class~="ProseMirror"])
-  pre
-  [class~="token"]:is([class~="function"], [class~="class-name"]) {
-  color: #fbbf24;
-}
-
-[class~="dark"]
-  .prose
-  :where([class~="ProseMirror"])
-  pre
-  [class~="token"]:is([class~="regex"], [class~="important"], [class~="deleted"]) {
-  color: #f87171;
+.prose :where([class~="ProseMirror"]) pre [class~="token"]:is([class~="deleted"]) {
+  color: var(--wf-code-deleted);
 }
 
 /* The raw-source fallback for markdown the rich editor cannot round-trip losslessly. */
