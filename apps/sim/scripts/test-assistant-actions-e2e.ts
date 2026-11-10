@@ -771,10 +771,27 @@ try {
       const noCredentialsWithReason = page
         .getByRole('main')
         .getByRole('heading', { name: 'No connected credentials', exact: true })
+      // Coda joins the member's Search app with the workspace catalog's own Coda method, which the
+      // organization's Search approval does not govern.
+      const personalAccount = page.getByRole('menuitem', { name: 'Personal account', exact: true })
+      const workspaceConnect = page
+        .getByRole('main')
+        .getByRole('button', { name: 'Create credential', exact: true })
       await expect(connectIntegration).toBeEnabled()
+      await connectIntegration.click()
+      await expect(personalAccount).toBeVisible()
+      await page.keyboard.press('Escape')
       await expect(noCredentials).toBeVisible()
       await expect(page.getByText('meetings@acme.example', { exact: true })).toHaveCount(0)
       await capture('integration-enabled-empty')
+      /** Withheld, the member connection leaves the menu; the workspace's own method stays. */
+      const expectOnlyWorkspaceMethods = async () => {
+        await expect(connectIntegration).toHaveCount(0)
+        await workspaceConnect.click()
+        await expect(page.getByRole('menuitem').first()).toBeVisible()
+        await expect(personalAccount).toHaveCount(0)
+        await page.keyboard.press('Escape')
+      }
       const forgedUrl = new URL(detailUrl)
       forgedUrl.searchParams.set('account', firefliesCredentialId)
       await page.goto(forgedUrl.toString())
@@ -793,7 +810,7 @@ try {
         await expect(
           page.getByRole('main').getByText('Disabled by your organization', { exact: true })
         ).toBeVisible()
-        await expect(connectIntegration).toBeDisabled()
+        await expectOnlyWorkspaceMethods()
         await capture('integration-disabled-empty')
       } finally {
         await sql`update organization_search_integration set approved = true where organization_id = ${organizationId} and connector_type = 'coda'`
@@ -806,7 +823,7 @@ try {
             .getByRole('main')
             .getByText('Connections are paused by your organization', { exact: true })
         ).toBeVisible()
-        await expect(connectIntegration).toBeDisabled()
+        await expectOnlyWorkspaceMethods()
         await capture('integration-paused-empty')
       } finally {
         await sql`update credential_group set status = 'active' where id = ${groupId}`
