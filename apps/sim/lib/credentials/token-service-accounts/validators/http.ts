@@ -36,6 +36,12 @@ interface TokenCheck {
    * GraphQL `errors` array): returns whether the parsed body proves the key.
    */
   acceptsBody?: (body: unknown) => boolean
+  /**
+   * For a vendor that answers a rejected key with a server error (Fireflies
+   * returns 500 with `auth_failed`): returns whether the error body names a bad
+   * key, so the user is told the key is wrong rather than the vendor down.
+   */
+  rejectsKey?: (errorBody: unknown) => boolean
 }
 
 const MAX_CHECK_RESPONSE_BYTES = 64 * 1024
@@ -46,6 +52,13 @@ const MAX_CHECK_RESPONSE_BYTES = 64 * 1024
  * anything else is the provider being unavailable. Redirects are refused, so a
  * token is never forwarded to another host.
  */
+function readJsonBody(response: Response, serviceLabel: string): Promise<unknown> {
+  return readResponseJsonWithLimit(response, {
+    maxBytes: MAX_CHECK_RESPONSE_BYTES,
+    label: `${serviceLabel} credential check`,
+  })
+}
+
 export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValidator {
   return async (fields): Promise<TokenServiceAccountValidationResult> => {
     const { url, method = 'GET', headers, body } = check.request(fields)
@@ -59,16 +72,19 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
       check.forbiddenMeansScoped &&
       response.status === 403 &&
       (response.headers.get('content-type') ?? '').includes('application/json')
+    if (check.rejectsKey && !response.ok && !scopedForbidden) {
+      const errorBody = await readJsonBody(response, check.serviceLabel).catch(() => null)
+      if (check.rejectsKey(errorBody)) {
+        throw new TokenServiceAccountValidationError('invalid_credentials', 400, { step: 'verify' })
+      }
+    }
     if (!scopedForbidden) {
       await throwForProviderResponse(response, 'verify')
     }
     if (check.acceptsBody && response.ok) {
       let body: unknown
       try {
-        body = await readResponseJsonWithLimit(response, {
-          maxBytes: MAX_CHECK_RESPONSE_BYTES,
-          label: `${check.serviceLabel} credential check`,
-        })
+        body = await readJsonBody(response, check.serviceLabel)
       } catch {
         throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
           step: 'verify',

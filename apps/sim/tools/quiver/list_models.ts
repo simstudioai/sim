@@ -1,3 +1,4 @@
+import { QUIVER_CREDENTIAL_OAUTH } from '@/tools/quiver/credential'
 import type { QuiverListModelsParams, QuiverListModelsResponse } from '@/tools/quiver/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const quiverListModelsTool: ToolConfig<QuiverListModelsParams, QuiverList
   name: 'Quiver List Models',
   description: 'List all available QuiverAI models',
   version: '1.0.0',
+  oauth: QUIVER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

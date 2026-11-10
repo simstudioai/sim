@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/intercom/credential'
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -212,6 +213,7 @@ export const intercomCreateContactTool: ToolConfig<
   name: 'Create Contact in Intercom',
   description: 'Create a new contact in Intercom with email, external_id, or role',
   version: '1.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...intercomCreateContactBase,
 
@@ -353,6 +355,7 @@ export const intercomCreateContactV2Tool: ToolConfig<
   description:
     'Create a new contact in Intercom with email, external_id, or role. Returns API-aligned fields only.',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

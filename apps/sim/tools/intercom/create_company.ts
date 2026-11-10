@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/intercom/credential'
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -164,6 +165,7 @@ export const intercomCreateCompanyTool: ToolConfig<
   name: 'Create Company in Intercom',
   description: 'Create or update a company in Intercom',
   version: '1.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...createCompanyBase,
 
@@ -285,6 +287,7 @@ export const intercomCreateCompanyV2Tool: ToolConfig<
   name: 'Create Company in Intercom',
   description: 'Create or update a company in Intercom',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

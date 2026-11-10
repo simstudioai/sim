@@ -7213,7 +7213,7 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "cursor_v2",
+      "type": "cursor_v3",
       "slug": "cursor",
       "name": "Cursor",
       "description": "Launch and manage Cursor cloud agents to work on GitHub repositories",
@@ -7274,11 +7274,12 @@
       "operationCount": 12,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "cursor",
       "category": "tools",
       "integrationType": "devops",
       "tags": ["agentic", "automation"],
-      "updatedAt": "2026-08-18"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "dagster",
@@ -8406,7 +8407,7 @@
       "updatedAt": "2026-08-18"
     },
     {
-      "type": "dub_v2",
+      "type": "dub_v3",
       "slug": "dub",
       "name": "Dub",
       "description": "Link management with Dub",
@@ -8487,11 +8488,12 @@
       "operationCount": 17,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "dub",
       "category": "tools",
       "integrationType": "devops",
       "tags": ["link-management", "marketing", "data-analytics"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "duckduckgo",
@@ -9278,7 +9280,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "extend_v2",
+      "type": "extend_v3",
       "slug": "extend",
       "name": "Extend",
       "description": "Parse and extract content from documents",
@@ -9295,11 +9297,12 @@
       "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "extend",
       "category": "tools",
       "integrationType": "ai",
       "tags": ["document-processing", "ocr"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "fathom",
@@ -9497,7 +9500,7 @@
       "updatedAt": "2026-11-05"
     },
     {
-      "type": "fireflies_v2",
+      "type": "fireflies_v3",
       "slug": "fireflies",
       "name": "Fireflies",
       "description": "Interact with Fireflies.ai meeting transcripts and recordings",
@@ -9556,11 +9559,12 @@
         }
       ],
       "triggerCount": 1,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "fireflies",
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["meeting", "note-taking"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "fivetran",
@@ -9801,7 +9805,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "flint",
+      "type": "flint_v2",
       "slug": "flint",
       "name": "Flint",
       "description": "Run background agent tasks on your Flint sites",
@@ -9826,11 +9830,12 @@
       "operationCount": 3,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "flint",
       "category": "tools",
       "integrationType": "marketing",
       "tags": ["automation", "seo", "agentic"],
-      "updatedAt": "2026-08-18"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "flow",
@@ -14363,7 +14368,7 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "intercom_v2",
+      "type": "intercom_v3",
       "slug": "intercom",
       "name": "Intercom",
       "description": "Manage contacts, companies, conversations, tickets, and messages in Intercom",
@@ -14531,11 +14536,12 @@
         }
       ],
       "triggerCount": 6,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "intercom",
       "category": "tools",
       "integrationType": "support",
       "tags": ["customer-support", "messaging"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "jama",
@@ -21804,7 +21810,7 @@
       "updatedAt": "2026-08-18"
     },
     {
-      "type": "pulse_v2",
+      "type": "pulse_v3",
       "slug": "pulse",
       "name": "Pulse",
       "description": "Extract text from documents using Pulse OCR",
@@ -21821,11 +21827,12 @@
       "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "pulse",
       "category": "tools",
       "integrationType": "ai",
       "tags": ["document-processing", "ocr"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "qdrant",
@@ -22312,7 +22319,7 @@
       "updatedAt": "2026-09-06"
     },
     {
-      "type": "quiver_v2",
+      "type": "quiver_v3",
       "slug": "quiver",
       "name": "Quiver",
       "description": "Generate and vectorize SVGs",
@@ -22337,11 +22344,12 @@
       "operationCount": 3,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "quiver",
       "category": "tools",
       "integrationType": "ai",
       "tags": ["image-generation"],
-      "updatedAt": "2026-09-11"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "rabbitmq",
@@ -23015,7 +23023,7 @@
       "updatedAt": "2026-08-18"
     },
     {
-      "type": "reducto_v2",
+      "type": "reducto_v3",
       "slug": "reducto",
       "name": "Reducto",
       "description": "Extract text from PDF documents",
@@ -23032,11 +23040,12 @@
       "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "reducto",
       "category": "tools",
       "integrationType": "ai",
       "tags": ["document-processing", "ocr"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "resend",

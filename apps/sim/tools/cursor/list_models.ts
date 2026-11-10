@@ -1,3 +1,4 @@
+import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/cursor/credential'
 import type { ListModelsParams, ListModelsResponse } from '@/tools/cursor/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -24,6 +25,7 @@ export const listModelsTool: ToolConfig<ListModelsParams, ListModelsResponse> = 
   name: 'Cursor List Models',
   description: 'List the models available for launching cloud agents.',
   version: '1.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
 
   ...listModelsBase,
 
@@ -72,6 +74,7 @@ export const listModelsV2Tool: ToolConfig<ListModelsParams, ListModelsV2Response
   description:
     'List the models available for launching cloud agents. Returns API-aligned fields only.',
   version: '2.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
   transformResponse: async (response) => {
     const data = await response.json()
 

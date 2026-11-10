@@ -1,7 +1,7 @@
 import { IntercomIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector } from '@/blocks/utils'
+import { createVersionedToolSelector, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -21,7 +21,7 @@ export const IntercomBlock: BlockConfig = {
   type: 'intercom',
   name: 'Intercom (Legacy)',
   hideFromToolbar: true,
-  sunset: { status: 'legacy', replacedBy: 'intercom_v2' },
+  sunset: { status: 'legacy', replacedBy: 'intercom_v3' },
   description: 'Manage contacts, companies, conversations, tickets, and messages in Intercom',
   longDescription:
     'Create, get, update, list, search, and delete contacts; create, get, and list companies; get, list, reply, and search conversations; create, get, and update tickets; and create messages.',
@@ -1485,11 +1485,11 @@ Return ONLY the numeric timestamp.`,
 
 export const IntercomV2Block: BlockConfig = {
   ...IntercomBlock,
-  sunset: undefined,
+  sunset: { status: 'legacy', replacedBy: 'intercom_v3' },
   type: 'intercom_v2',
   name: 'Intercom',
   integrationType: IntegrationType.Support,
-  hideFromToolbar: false,
+  hideFromToolbar: true,
   subBlocks: [
     ...IntercomBlock.subBlocks,
     ...getTrigger('intercom_conversation_created').subBlocks,
@@ -1914,3 +1914,17 @@ export const IntercomV2BlockMeta = {
   tags: ['customer-support', 'messaging'],
   url: 'https://www.intercom.com',
 } as const satisfies BlockMeta
+
+export const IntercomV3Block: BlockConfig = {
+  ...IntercomV2Block,
+  type: 'intercom_v3',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(IntercomV2Block, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'intercom',
+    title: 'Intercom Credential',
+  }),
+}

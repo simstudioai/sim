@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/intercom/credential'
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -124,6 +125,7 @@ export const intercomCreateEventV2Tool: ToolConfig<
   name: 'Create Event in Intercom',
   description: 'Track a custom event for a contact in Intercom',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

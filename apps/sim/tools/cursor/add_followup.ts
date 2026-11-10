@@ -1,3 +1,4 @@
+import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/cursor/credential'
 import {
   applyProjectedCursorPromptModelInput,
   selectCursorPromptModelInput,
@@ -76,6 +77,7 @@ export const addFollowupTool: ToolConfig<AddFollowupParams, AddFollowupResponse>
   name: 'Cursor Add Follow-up',
   description: 'Add a follow-up instruction to an existing cloud agent.',
   version: '1.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
 
   ...addFollowupBase,
 
@@ -121,6 +123,7 @@ export const addFollowupV2Tool: ToolConfig<AddFollowupParams, AddFollowupV2Respo
   description:
     'Add a follow-up instruction to an existing cloud agent. Returns API-aligned fields only.',
   version: '2.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
   transformResponse: async (response) => {
     const data = await response.json()
 

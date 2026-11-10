@@ -104,6 +104,15 @@ const INLINE_SECRET_FIELDS = {
   mem0: ['apiKey'],
   zep: ['apiKey'],
   discord: ['botToken'],
+  cursor: ['apiKey'],
+  dub: ['apiKey'],
+  extend: ['apiKey'],
+  fireflies: ['apiKey'],
+  intercom: ['accessToken'],
+  pulse: ['apiKey'],
+  quiver: ['apiKey'],
+  reducto: ['apiKey'],
+  flint: ['apiKey'],
 } as const satisfies Record<string, readonly string[]>
 
 /** The saved-credential picker; {@link withSavedCredential} completes the standard fields. */

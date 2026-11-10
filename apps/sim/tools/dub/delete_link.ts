@@ -1,3 +1,4 @@
+import { DUB_CREDENTIAL_OAUTH } from '@/tools/dub/credential'
 import type { DubDeleteLinkParams, DubDeleteLinkResponse } from '@/tools/dub/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const deleteLinkTool: ToolConfig<DubDeleteLinkParams, DubDeleteLinkRespon
   name: 'Dub Delete Link',
   description: 'Delete a short link by its link ID or external ID (prefixed with ext_).',
   version: '1.0.0',
+  oauth: DUB_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

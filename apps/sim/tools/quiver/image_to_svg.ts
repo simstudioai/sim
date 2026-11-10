@@ -1,4 +1,5 @@
 import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
+import { QUIVER_CREDENTIAL_OAUTH } from '@/tools/quiver/credential'
 import { QUIVER_SVG_V2_OUTPUTS } from '@/tools/quiver/outputs'
 import type {
   QuiverImageToSvgParams,
@@ -12,6 +13,7 @@ export const quiverImageToSvgTool = {
   name: 'Quiver Image to SVG',
   description: 'Convert raster images into vector SVG format using QuiverAI',
   version: '1.0.0',
+  oauth: QUIVER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -138,6 +140,7 @@ export const quiverImageToSvgV2Tool: InternalToolConfig<
   ...quiverImageToSvgTool,
   id: 'quiver_image_to_svg_v2',
   version: '2.0.0',
+  oauth: QUIVER_CREDENTIAL_OAUTH,
   transformResponse: async (response) => {
     const data: QuiverSvgV2Response = await response.json()
     if (!data.success) throw new Error(data.error || 'Failed to vectorize image')

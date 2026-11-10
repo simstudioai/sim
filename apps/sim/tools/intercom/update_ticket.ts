@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/intercom/credential'
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -132,6 +133,7 @@ export const intercomUpdateTicketV2Tool: ToolConfig<
   name: 'Update Ticket in Intercom',
   description: 'Update a ticket in Intercom (change state, assignment, attributes)',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

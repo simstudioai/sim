@@ -1,4 +1,5 @@
 import { omit } from '@sim/utils/object'
+import { DUB_CREDENTIAL_OAUTH } from '@/tools/dub/credential'
 import type {
   DubGetQrCodeParams,
   DubGetQrCodeResponse,
@@ -42,6 +43,7 @@ export const getQrCodeTool = {
   description:
     'Generate a customizable QR code (PNG) for a short link, with control over size, error correction, colors, and margin.',
   version: '1.0.0',
+  oauth: DUB_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -153,6 +155,7 @@ export const getQrCodeV2Tool: ToolConfig<
   ...getQrCodeTool,
   id: 'dub_get_qr_code_v2',
   version: '2.0.0',
+  oauth: DUB_CREDENTIAL_OAUTH,
   request: { ...getQrCodeTool.request, responseType: 'binary' },
   transformResponse: transformDownloadResponse,
   outputs: omit(getQrCodeTool.outputs, ['content']),

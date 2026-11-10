@@ -1,3 +1,4 @@
+import { DUB_CREDENTIAL_OAUTH } from '@/tools/dub/credential'
 import type { DubListDomainsParams, DubListDomainsResponse } from '@/tools/dub/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -7,6 +8,7 @@ export const listDomainsTool: ToolConfig<DubListDomainsParams, DubListDomainsRes
   description:
     'Retrieve the custom domains registered in the workspace, so links can be created against the right domain.',
   version: '1.0.0',
+  oauth: DUB_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

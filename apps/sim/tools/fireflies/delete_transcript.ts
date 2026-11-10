@@ -1,3 +1,4 @@
+import { FIREFLIES_CREDENTIAL_OAUTH } from '@/tools/fireflies/credential'
 import type {
   FirefliesDeleteTranscriptParams,
   FirefliesDeleteTranscriptResponse,
@@ -12,6 +13,7 @@ export const firefliesDeleteTranscriptTool: ToolConfig<
   name: 'Fireflies Delete Transcript',
   description: 'Delete a transcript from Fireflies.ai',
   version: '1.0.0',
+  oauth: FIREFLIES_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

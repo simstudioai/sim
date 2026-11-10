@@ -1,3 +1,4 @@
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/intercom/credential'
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -86,6 +87,7 @@ export const intercomListConversationsTool: ToolConfig<
   name: 'List Conversations from Intercom',
   description: 'List all conversations from Intercom with pagination support',
   version: '1.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...listConversationsBase,
 
@@ -183,6 +185,7 @@ export const intercomListConversationsV2Tool: ToolConfig<
   name: 'List Conversations from Intercom',
   description: 'List all conversations from Intercom with pagination support',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

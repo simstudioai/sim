@@ -1,5 +1,6 @@
 import { toError } from '@sim/utils/errors'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file'
+import { REDUCTO_CREDENTIAL_OAUTH } from '@/tools/reducto/credential'
 import type {
   ReductoParserInput,
   ReductoParserOutput,
@@ -12,6 +13,7 @@ export const reductoParserTool: InternalToolConfig<ReductoParserInput, ReductoPa
   name: 'Reducto PDF Parser',
   description: 'Parse PDF documents using Reducto OCR API',
   version: '1.0.0',
+  oauth: REDUCTO_CREDENTIAL_OAUTH,
 
   params: {
     filePath: {

@@ -23,13 +23,18 @@ import { CloudTrailBlock, CloudTrailV2Block } from '@/blocks/blocks/cloudtrail'
 import { CloudWatchBlock, CloudWatchV2Block } from '@/blocks/blocks/cloudwatch'
 import { CodePipelineBlock, CodePipelineV2Block } from '@/blocks/blocks/codepipeline'
 import { CrunchbaseBlock, CrunchbaseV2Block } from '@/blocks/blocks/crunchbase'
+import { CursorV2Block, CursorV3Block } from '@/blocks/blocks/cursor'
 import { DatabricksBlock, DatabricksV2Block } from '@/blocks/blocks/databricks'
 import { DaytonaBlock, DaytonaV2Block } from '@/blocks/blocks/daytona'
 import { DiscordBlock, DiscordV2Block } from '@/blocks/blocks/discord'
+import { DubV2Block, DubV3Block } from '@/blocks/blocks/dub'
 import { DynamoDBBlock, DynamoDBV2Block } from '@/blocks/blocks/dynamodb'
 import { EC2Block, EC2V2Block } from '@/blocks/blocks/ec2'
 import { ElevenLabsBlock, ElevenLabsV2Block } from '@/blocks/blocks/elevenlabs'
 import { EnrichBlock, EnrichV2Block } from '@/blocks/blocks/enrich'
+import { ExtendV2Block, ExtendV3Block } from '@/blocks/blocks/extend'
+import { FirefliesV2Block, FirefliesV3Block } from '@/blocks/blocks/fireflies'
+import { FlintBlock, FlintV2Block } from '@/blocks/blocks/flint'
 import { GammaBlock, GammaV2Block } from '@/blocks/blocks/gamma'
 import { HexBlock, HexV2Block } from '@/blocks/blocks/hex'
 import { HuggingFaceBlock, HuggingFaceV2Block } from '@/blocks/blocks/huggingface'
@@ -37,6 +42,7 @@ import { IAMBlock, IAMV2Block } from '@/blocks/blocks/iam'
 import { IdentityCenterBlock, IdentityCenterV2Block } from '@/blocks/blocks/identity_center'
 import { IncidentioBlock, IncidentioV2Block } from '@/blocks/blocks/incidentio'
 import { InstantlyBlock, InstantlyV2Block } from '@/blocks/blocks/instantly'
+import { IntercomV2Block, IntercomV3Block } from '@/blocks/blocks/intercom'
 import { LambdaBlock, LambdaV2Block } from '@/blocks/blocks/lambda'
 import { LangsmithBlock, LangsmithV2Block } from '@/blocks/blocks/langsmith'
 import { LaunchDarklyBlock, LaunchDarklyV2Block } from '@/blocks/blocks/launchdarkly'
@@ -48,9 +54,12 @@ import { Mem0Block, Mem0V2Block } from '@/blocks/blocks/mem0'
 import { OtterBlock, OtterV2Block } from '@/blocks/blocks/otter'
 import { PersonaBlock, PersonaV2Block } from '@/blocks/blocks/persona'
 import { ProfoundBlock, ProfoundV2Block } from '@/blocks/blocks/profound'
+import { PulseV2Block, PulseV3Block } from '@/blocks/blocks/pulse'
 import { QuartrBlock, QuartrV2Block } from '@/blocks/blocks/quartr'
+import { QuiverV2Block, QuiverV3Block } from '@/blocks/blocks/quiver'
 import { RB2BBlock, RB2BV2Block } from '@/blocks/blocks/rb2b'
 import { RDSBlock, RDSV2Block } from '@/blocks/blocks/rds'
+import { ReductoV2Block, ReductoV3Block } from '@/blocks/blocks/reducto'
 import { RipplingBlock, RipplingV2Block } from '@/blocks/blocks/rippling'
 import { RocketlaneBlock, RocketlaneV2Block } from '@/blocks/blocks/rocketlane'
 import { S3Block, S3V2Block } from '@/blocks/blocks/s3'
@@ -211,6 +220,15 @@ const VERSIONS: Array<{
   { legacy: Mem0Block, successor: Mem0V2Block, secretIds: ['apiKey'] },
   { legacy: ZepBlock, successor: ZepV2Block, secretIds: ['apiKey'] },
   { legacy: DiscordBlock, successor: DiscordV2Block, secretIds: ['botToken'] },
+  { legacy: CursorV2Block, successor: CursorV3Block, secretIds: ['apiKey'] },
+  { legacy: DubV2Block, successor: DubV3Block, secretIds: ['apiKey'] },
+  { legacy: ExtendV2Block, successor: ExtendV3Block, secretIds: ['apiKey'] },
+  { legacy: FirefliesV2Block, successor: FirefliesV3Block, secretIds: ['apiKey'] },
+  { legacy: IntercomV2Block, successor: IntercomV3Block, secretIds: ['accessToken'] },
+  { legacy: PulseV2Block, successor: PulseV3Block, secretIds: ['apiKey'] },
+  { legacy: QuiverV2Block, successor: QuiverV3Block, secretIds: ['apiKey'] },
+  { legacy: ReductoV2Block, successor: ReductoV3Block, secretIds: ['apiKey'] },
+  { legacy: FlintBlock, successor: FlintV2Block, secretIds: ['apiKey'] },
 ]
 
 function valuesFor(ids: readonly string[], prefix: string): Record<string, string> {

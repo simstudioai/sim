@@ -2,7 +2,7 @@
 title: Cursor
 description: Launch and manage Cursor cloud agents to work on GitHub repositories
 integration:
-  type: "cursor_v2"
+  type: "cursor_v3"
   color: "#1E1E1E"
 ---
 
@@ -29,7 +29,6 @@ List all cloud agents for the authenticated user with optional pagination. Retur
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Cursor API key |
 | `limit` | number | No | Number of agents to return \(default: 20, max: 100\) |
 | `cursor` | string | No | Pagination cursor from previous response |
 | `prUrl` | string | No | Filter agents by pull request URL |
@@ -53,7 +52,6 @@ Retrieve the current status and results of a cloud agent. Returns API-aligned fi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Cursor API key |
 | `agentId` | string | Yes | Unique identifier for the cloud agent \(e.g., bc_abc123\) |
 
 #### Output
@@ -80,7 +78,6 @@ Retrieve the conversation history of a cloud agent, including all user prompts a
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Cursor API key |
 | `agentId` | string | Yes | Unique identifier for the cloud agent \(e.g., bc_abc123\) |
 
 #### Output
@@ -102,7 +99,6 @@ Start a new cloud agent to work on a GitHub repository with the given instructio
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Cursor API key |
 | `repository` | string | Yes | GitHub repository URL \(e.g., https://github.com/your-org/your-repo) |
 | `ref` | string | No | Branch, tag, or commit to work from \(defaults to default branch\) |
 | `promptText` | string | Yes | The instruction text for the agent |
@@ -132,7 +128,6 @@ Add a follow-up instruction to an existing cloud agent. Returns API-aligned fiel
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Cursor API key |
 | `agentId` | string | Yes | Unique identifier for the cloud agent \(e.g., bc_abc123\) |
 | `followupPromptText` | string | Yes | The follow-up instruction text for the agent |
 | `promptImages` | string | No | JSON array of image objects with base64 data and dimensions \(max 5\) |
@@ -155,7 +150,6 @@ Stop a running cloud agent. Returns API-aligned fields only.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Cursor API key |
 | `agentId` | string | Yes | Unique identifier for the cloud agent \(e.g., bc_abc123\) |
 
 #### Output
@@ -176,7 +170,6 @@ Permanently delete a cloud agent. Returns API-aligned fields only.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Cursor API key |
 | `agentId` | string | Yes | Unique identifier for the cloud agent \(e.g., bc_abc123\) |
 
 #### Output
@@ -197,7 +190,6 @@ List generated artifact files for a cloud agent. Returns API-aligned fields only
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Cursor API key |
 | `agentId` | string | Yes | Unique identifier for the cloud agent \(e.g., bc_abc123\) |
 
 #### Output
@@ -220,7 +212,6 @@ Download a generated artifact file from a cloud agent. Returns the file for exec
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Cursor API key |
 | `agentId` | string | Yes | Unique identifier for the cloud agent \(e.g., bc_abc123\) |
 | `path` | string | Yes | Absolute path of the artifact to download \(e.g., /src/index.ts\) |
 
@@ -242,7 +233,6 @@ List the models available for launching cloud agents. Returns API-aligned fields
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Cursor API key |
 
 #### Output
 
@@ -262,7 +252,6 @@ List the GitHub repositories accessible to the authenticated user. Returns API-a
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Cursor API key |
 
 #### Output
 
@@ -285,7 +274,6 @@ Retrieve details about the API key currently in use. Returns API-aligned fields 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Cursor API key |
 
 #### Output
 

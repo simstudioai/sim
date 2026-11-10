@@ -1,5 +1,6 @@
 import { toError } from '@sim/utils/errors'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file'
+import { EXTEND_CREDENTIAL_OAUTH } from '@/tools/extend/credential'
 import type {
   ExtendParserInput,
   ExtendParserOutput,
@@ -12,6 +13,7 @@ export const extendParserTool: InternalToolConfig<ExtendParserInput, ExtendParse
   name: 'Extend Document Parser',
   description: 'Parse and extract content from documents using Extend AI',
   version: '1.0.0',
+  oauth: EXTEND_CREDENTIAL_OAUTH,
 
   params: {
     filePath: {

@@ -1,3 +1,4 @@
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/intercom/credential'
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -79,6 +80,7 @@ export const intercomCloseConversationV2Tool: ToolConfig<
   name: 'Close Conversation in Intercom',
   description: 'Close a conversation in Intercom',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

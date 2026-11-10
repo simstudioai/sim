@@ -1,3 +1,4 @@
+import { FIREFLIES_CREDENTIAL_OAUTH } from '@/tools/fireflies/credential'
 import type {
   FirefliesUploadAudioParams,
   FirefliesUploadAudioResponse,
@@ -12,6 +13,7 @@ export const firefliesUploadAudioTool: InternalToolConfig<
   name: 'Fireflies Upload Audio',
   description: 'Upload an audio file URL to Fireflies.ai for transcription',
   version: '1.0.0',
+  oauth: FIREFLIES_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

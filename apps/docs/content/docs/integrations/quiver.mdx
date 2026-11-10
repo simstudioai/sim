@@ -2,7 +2,7 @@
 title: Quiver
 description: Generate and vectorize SVGs
 integration:
-  type: "quiver_v2"
+  type: "quiver_v3"
   color: "#FFFFFF"
 ---
 
@@ -31,7 +31,6 @@ Generate SVG images from text prompts using QuiverAI
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | QuiverAI API key |
 | `prompt` | string | Yes | A text description of the desired SVG |
 | `model` | string | Yes | The model to use for SVG generation \(e.g., "arrow-preview"\) |
 | `instructions` | string | No | Style or formatting guidance for the SVG output |
@@ -65,7 +64,6 @@ Convert raster images into vector SVG format using QuiverAI
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | QuiverAI API key |
 | `model` | string | Yes | The model to use for vectorization \(e.g., "arrow-preview"\) |
 | `image` | file | Yes | The raster image to vectorize into SVG |
 | `temperature` | number | No | Sampling temperature \(0-2, default 1\) |
@@ -98,7 +96,6 @@ List all available QuiverAI models
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | QuiverAI API key |
 
 #### Output
 

@@ -1,3 +1,4 @@
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/intercom/credential'
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -50,6 +51,7 @@ export const intercomListTagsV2Tool: ToolConfig<
   name: 'List Tags from Intercom',
   description: 'Fetch a list of all tags in the workspace',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

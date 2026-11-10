@@ -2,7 +2,7 @@
 title: Fireflies
 description: Interact with Fireflies.ai meeting transcripts and recordings
 integration:
-  type: "fireflies_v2"
+  type: "fireflies_v3"
   color: "#100730"
 ---
 
@@ -31,7 +31,6 @@ List meeting transcripts from Fireflies.ai with optional filtering
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Fireflies API key |
 | `keyword` | string | No | Search keyword in meeting title or transcript \(e.g., "quarterly review"\) |
 | `fromDate` | string | No | Filter transcripts from this date \(ISO 8601 format\) |
 | `toDate` | string | No | Filter transcripts until this date \(ISO 8601 format\) |
@@ -59,7 +58,6 @@ Get a single transcript with full details including summary, action items, and a
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Fireflies API key |
 | `transcriptId` | string | Yes | The transcript ID to retrieve \(e.g., "abc123def456"\) |
 
 #### Output
@@ -92,7 +90,6 @@ Get user information from Fireflies.ai. Returns current user if no ID specified.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Fireflies API key |
 | `userId` | string | No | User ID to retrieve \(e.g., "user_abc123", defaults to API key owner\) |
 
 #### Output
@@ -122,7 +119,6 @@ List all users within your Fireflies.ai team
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Fireflies API key |
 
 #### Output
 
@@ -142,7 +138,6 @@ Upload an audio file URL to Fireflies.ai for transcription
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Fireflies API key |
 | `audioFile` | file | No | Audio/video file to upload for transcription |
 | `audioUrl` | string | No | Public HTTPS URL of the audio/video file \(MP3, MP4, WAV, M4A, OGG\) |
 | `title` | string | No | Title for the meeting/transcript |
@@ -171,7 +166,6 @@ Delete a transcript from Fireflies.ai
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Fireflies API key |
 | `transcriptId` | string | Yes | The transcript ID to delete \(e.g., "abc123def456"\) |
 
 #### Output
@@ -199,7 +193,6 @@ Add the Fireflies.ai bot to an ongoing meeting to record and transcribe
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Fireflies API key |
 | `meetingLink` | string | Yes | Valid meeting URL \(Zoom, Google Meet, Microsoft Teams, etc.\) |
 | `title` | string | No | Title for the meeting \(max 256 characters\) |
 | `meetingPassword` | string | No | Password for the meeting if required \(max 32 characters\) |
@@ -224,7 +217,6 @@ Create a soundbite/highlight from a specific time range in a transcript
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Fireflies API key |
 | `transcriptId` | string | Yes | ID of the transcript to create the bite from \(e.g., "abc123def456"\) |
 | `startTime` | number | Yes | Start time of the bite in seconds |
 | `endTime` | number | Yes | End time of the bite in seconds |
@@ -253,7 +245,6 @@ List soundbites/highlights from Fireflies.ai
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Fireflies API key |
 | `transcriptId` | string | No | Filter bites for a specific transcript \(e.g., "abc123def456"\) |
 | `mine` | boolean | No | Only return bites owned by the API key owner \(default: true\) |
 | `limit` | number | No | Maximum number of bites to return \(e.g., 10, max 50\) |
@@ -277,7 +268,6 @@ List all contacts from your Fireflies.ai meetings
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Fireflies API key |
 
 #### Output
 

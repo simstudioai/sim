@@ -1,3 +1,4 @@
+import { FIREFLIES_CREDENTIAL_OAUTH } from '@/tools/fireflies/credential'
 import type {
   FirefliesGetTranscriptParams,
   FirefliesGetTranscriptResponse,
@@ -13,6 +14,7 @@ export const firefliesGetTranscriptTool: ToolConfig<
   description:
     'Get a single transcript with full details including summary, action items, and analytics',
   version: '1.0.0',
+  oauth: FIREFLIES_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

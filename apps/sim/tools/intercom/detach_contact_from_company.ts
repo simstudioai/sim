@@ -1,3 +1,4 @@
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/intercom/credential'
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -60,6 +61,7 @@ export const intercomDetachContactFromCompanyV2Tool: ToolConfig<
   name: 'Detach Contact from Company in Intercom',
   description: 'Remove a contact from a company in Intercom',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

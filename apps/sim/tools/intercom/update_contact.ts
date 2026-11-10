@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/intercom/credential'
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -167,6 +168,7 @@ export const intercomUpdateContactTool: ToolConfig<
   name: 'Update Contact in Intercom',
   description: 'Update an existing contact in Intercom',
   version: '1.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...intercomUpdateContactBase,
 
@@ -257,6 +259,7 @@ export const intercomUpdateContactV2Tool: ToolConfig<
   name: 'Update Contact in Intercom',
   description: 'Update an existing contact in Intercom. Returns API-aligned fields only.',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

@@ -1,3 +1,4 @@
+import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/cursor/credential'
 import type { DeleteAgentParams, DeleteAgentResponse } from '@/tools/cursor/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -30,6 +31,7 @@ export const deleteAgentTool: ToolConfig<DeleteAgentParams, DeleteAgentResponse>
   name: 'Cursor Delete Agent',
   description: 'Permanently delete a cloud agent. This action cannot be undone.',
   version: '1.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
 
   ...deleteAgentBase,
 
@@ -74,6 +76,7 @@ export const deleteAgentV2Tool: ToolConfig<DeleteAgentParams, DeleteAgentV2Respo
   name: 'Cursor Delete Agent',
   description: 'Permanently delete a cloud agent. Returns API-aligned fields only.',
   version: '2.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
   transformResponse: async (response) => {
     const data = await response.json()
 

@@ -1,3 +1,4 @@
+import { FIREFLIES_CREDENTIAL_OAUTH } from '@/tools/fireflies/credential'
 import type {
   FirefliesListContactsParams,
   FirefliesListContactsResponse,
@@ -12,6 +13,7 @@ export const firefliesListContactsTool: ToolConfig<
   name: 'Fireflies List Contacts',
   description: 'List all contacts from your Fireflies.ai meetings',
   version: '1.0.0',
+  oauth: FIREFLIES_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

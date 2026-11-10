@@ -1,3 +1,4 @@
+import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/cursor/credential'
 import {
   applyProjectedCursorPromptModelInput,
   selectCursorPromptModelInput,
@@ -130,6 +131,7 @@ export const launchAgentTool: ToolConfig<LaunchAgentParams, LaunchAgentResponse>
   description:
     'Start a new cloud agent to work on a GitHub repository with the given instructions.',
   version: '1.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
 
   ...launchAgentBase,
 
@@ -177,6 +179,7 @@ export const launchAgentV2Tool: ToolConfig<LaunchAgentParams, LaunchAgentV2Respo
   description:
     'Start a new cloud agent to work on a GitHub repository with the given instructions. Returns API-aligned fields only.',
   version: '2.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
   transformResponse: async (response) => {
     const data = await response.json()
     const agentUrl = `https://cursor.com/agents?selectedBcId=${data.id}`

@@ -3,10 +3,15 @@ import {
   AuthMode,
   type BlockConfig,
   type BlockMeta,
+  type BlockToolParams,
   IntegrationType,
   type SubBlockType,
 } from '@/blocks/types'
-import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
+import {
+  createVersionedToolSelector,
+  normalizeFileInput,
+  withSavedCredential,
+} from '@/blocks/utils'
 
 const DOCUMENT_FIELD = ['fileUpload', 'filePath'] as const
 /* v2 swaps the advanced URL input for a file reference, so the pair differs. */
@@ -17,7 +22,7 @@ export const PulseBlock: BlockConfig = {
   name: 'Pulse',
   description: 'Extract text from documents using Pulse OCR',
   hideFromToolbar: true,
-  sunset: { status: 'legacy', replacedBy: 'pulse_v2' },
+  sunset: { status: 'legacy', replacedBy: 'pulse_v3' },
   authMode: AuthMode.ApiKey,
   longDescription: 'Extract text from PDF documents, images, and Office files via URL or upload.',
   docsLink: 'https://docs.sim.ai/integrations/pulse',
@@ -177,12 +182,43 @@ const pulseV2SubBlocks = (PulseBlock.subBlocks || []).flatMap((subBlock) => {
   return [subBlock]
 })
 
+/**
+ * Tool params for the v2+ parser. `credentials` is empty when a saved credential
+ * supplies the key server-side.
+ */
+function pulseV2ToolParams(params: BlockToolParams, credentials: { apiKey?: string }) {
+  const parameters: Record<string, unknown> = { ...credentials }
+
+  const normalizedFile = normalizeFileInput(params.file, { single: true })
+  if (!normalizedFile) {
+    throw new Error('Document file is required')
+  }
+  parameters.file = normalizedFile
+
+  if (params.pages && params.pages.trim() !== '') {
+    parameters.pages = params.pages.trim()
+  }
+
+  if (params.chunking && params.chunking.trim() !== '') {
+    parameters.chunking = params.chunking.trim()
+  }
+
+  if (params.chunkSize && params.chunkSize.trim() !== '') {
+    const size = Number.parseInt(params.chunkSize.trim(), 10)
+    if (!Number.isNaN(size) && size > 0) {
+      parameters.chunkSize = size
+    }
+  }
+
+  return parameters
+}
+
 export const PulseV2Block: BlockConfig = {
   ...PulseBlock,
-  sunset: undefined,
+  sunset: { status: 'legacy', replacedBy: 'pulse_v3' },
   type: 'pulse_v2',
   name: 'Pulse',
-  hideFromToolbar: false,
+  hideFromToolbar: true,
   longDescription:
     'Extract text from PDF documents, images, and Office files via upload or file references.',
   canvasPresentation: {
@@ -204,34 +240,7 @@ export const PulseV2Block: BlockConfig = {
         suffix: '_v2',
         fallbackToolId: 'pulse_parser_v2',
       }),
-      params: (params) => {
-        const parameters: Record<string, unknown> = {
-          apiKey: params.apiKey.trim(),
-        }
-
-        const normalizedFile = normalizeFileInput(params.file, { single: true })
-        if (!normalizedFile) {
-          throw new Error('Document file is required')
-        }
-        parameters.file = normalizedFile
-
-        if (params.pages && params.pages.trim() !== '') {
-          parameters.pages = params.pages.trim()
-        }
-
-        if (params.chunking && params.chunking.trim() !== '') {
-          parameters.chunking = params.chunking.trim()
-        }
-
-        if (params.chunkSize && params.chunkSize.trim() !== '') {
-          const size = Number.parseInt(params.chunkSize.trim(), 10)
-          if (!Number.isNaN(size) && size > 0) {
-            parameters.chunkSize = size
-          }
-        }
-
-        return parameters
-      },
+      params: (params) => pulseV2ToolParams(params, { apiKey: params.apiKey.trim() }),
     },
   },
   inputs: pulseV2Inputs,
@@ -329,3 +338,16 @@ export const PulseBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const PulseV3Block: BlockConfig = {
+  ...PulseV2Block,
+  type: 'pulse_v3',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    PulseV2Block,
+    { id: 'credential', type: 'oauth-input', serviceId: 'pulse', title: 'Pulse Credential' },
+    { params: (params) => pulseV2ToolParams(params, {}) }
+  ),
+}

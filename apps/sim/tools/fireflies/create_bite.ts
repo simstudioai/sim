@@ -1,3 +1,4 @@
+import { FIREFLIES_CREDENTIAL_OAUTH } from '@/tools/fireflies/credential'
 import type {
   FirefliesCreateBiteParams,
   FirefliesCreateBiteResponse,
@@ -12,6 +13,7 @@ export const firefliesCreateBiteTool: ToolConfig<
   name: 'Fireflies Create Bite',
   description: 'Create a soundbite/highlight from a specific time range in a transcript',
   version: '1.0.0',
+  oauth: FIREFLIES_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

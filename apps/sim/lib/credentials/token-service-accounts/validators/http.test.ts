@@ -96,4 +96,23 @@ describe('tokenCheckValidator', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ data: { id: 'account' } })))
     await expect(graphql({ apiToken: 'good' })).resolves.toMatchObject({ displayName: 'GraphQL' })
   })
+
+  it('reports a key the vendor rejects with a server error as invalid, not an outage', async () => {
+    const check = tokenCheckValidator({
+      serviceLabel: 'ErrorBody',
+      request: () => ({ url: 'https://api.example.com/graphql', headers: {} }),
+      rejectsKey: (body) => (body as { code?: string }).code === 'auth_failed',
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ code: 'auth_failed' }, { status: 500 }))
+    )
+    await expect(check({ apiToken: 'bad' })).rejects.toMatchObject({ code: 'invalid_credentials' })
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ code: 'other' }, { status: 500 }))
+    )
+    await expect(check({ apiToken: 'any' })).rejects.toMatchObject({ code: 'provider_unavailable' })
+  })
 })

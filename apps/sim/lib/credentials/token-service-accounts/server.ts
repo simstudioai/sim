@@ -21,10 +21,15 @@ import {
   CLOUDFLARE_SERVICE_ACCOUNT_PROVIDER_ID,
   CODA_SERVICE_ACCOUNT_PROVIDER_ID,
   CRUNCHBASE_SERVICE_ACCOUNT_PROVIDER_ID,
+  CURSOR_SERVICE_ACCOUNT_PROVIDER_ID,
   DAYTONA_SERVICE_ACCOUNT_PROVIDER_ID,
   DISCORD_SERVICE_ACCOUNT_PROVIDER_ID,
+  DUB_SERVICE_ACCOUNT_PROVIDER_ID,
   ELEVENLABS_SERVICE_ACCOUNT_PROVIDER_ID,
   ENRICH_SERVICE_ACCOUNT_PROVIDER_ID,
+  EXTEND_SERVICE_ACCOUNT_PROVIDER_ID,
+  FIREFLIES_SERVICE_ACCOUNT_PROVIDER_ID,
+  FLINT_SERVICE_ACCOUNT_PROVIDER_ID,
   FLOW_SERVICE_ACCOUNT_PROVIDER_ID,
   GAMMA_SERVICE_ACCOUNT_PROVIDER_ID,
   GAUGE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -35,6 +40,7 @@ import {
   HUGGINGFACE_SERVICE_ACCOUNT_PROVIDER_ID,
   INCIDENTIO_SERVICE_ACCOUNT_PROVIDER_ID,
   INSTANTLY_SERVICE_ACCOUNT_PROVIDER_ID,
+  INTERCOM_SERVICE_ACCOUNT_PROVIDER_ID,
   isTokenServiceAccountProviderId,
   LANGSMITH_SERVICE_ACCOUNT_PROVIDER_ID,
   LAUNCHDARKLY_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -50,8 +56,11 @@ import {
   PERSONA_SERVICE_ACCOUNT_PROVIDER_ID,
   PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID,
   PROFOUND_SERVICE_ACCOUNT_PROVIDER_ID,
+  PULSE_SERVICE_ACCOUNT_PROVIDER_ID,
   QUARTR_SERVICE_ACCOUNT_PROVIDER_ID,
+  QUIVER_SERVICE_ACCOUNT_PROVIDER_ID,
   RB2B_SERVICE_ACCOUNT_PROVIDER_ID,
+  REDUCTO_SERVICE_ACCOUNT_PROVIDER_ID,
   RIPPLING_SERVICE_ACCOUNT_PROVIDER_ID,
   ROCKETLANE_SERVICE_ACCOUNT_PROVIDER_ID,
   SENDGRID_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -96,10 +105,15 @@ import { validateClickupServiceAccount } from '@/lib/credentials/token-service-a
 import { validateCloudflareServiceAccount } from '@/lib/credentials/token-service-accounts/validators/cloudflare'
 import { validateCodaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/coda'
 import { validateCrunchbaseServiceAccount } from '@/lib/credentials/token-service-accounts/validators/crunchbase'
+import { validateCursorServiceAccount } from '@/lib/credentials/token-service-accounts/validators/cursor'
 import { validateDaytonaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/daytona'
 import { validateDiscordServiceAccount } from '@/lib/credentials/token-service-accounts/validators/discord'
+import { validateDubServiceAccount } from '@/lib/credentials/token-service-accounts/validators/dub'
 import { validateElevenLabsServiceAccount } from '@/lib/credentials/token-service-accounts/validators/elevenlabs'
 import { validateEnrichServiceAccount } from '@/lib/credentials/token-service-accounts/validators/enrich'
+import { validateExtendServiceAccount } from '@/lib/credentials/token-service-accounts/validators/extend'
+import { validateFirefliesServiceAccount } from '@/lib/credentials/token-service-accounts/validators/fireflies'
+import { validateFlintServiceAccount } from '@/lib/credentials/token-service-accounts/validators/flint'
 import { validateFlowServiceAccount } from '@/lib/credentials/token-service-accounts/validators/flow'
 import { validateGammaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/gamma'
 import { validateGaugeServiceAccount } from '@/lib/credentials/token-service-accounts/validators/gauge'
@@ -110,6 +124,7 @@ import { validateHubspotServiceAccount } from '@/lib/credentials/token-service-a
 import { validateHuggingfaceServiceAccount } from '@/lib/credentials/token-service-accounts/validators/huggingface'
 import { validateIncidentioServiceAccount } from '@/lib/credentials/token-service-accounts/validators/incidentio'
 import { validateInstantlyServiceAccount } from '@/lib/credentials/token-service-accounts/validators/instantly'
+import { validateIntercomServiceAccount } from '@/lib/credentials/token-service-accounts/validators/intercom'
 import { validateLangsmithServiceAccount } from '@/lib/credentials/token-service-accounts/validators/langsmith'
 import { validateLaunchdarklyServiceAccount } from '@/lib/credentials/token-service-accounts/validators/launchdarkly'
 import { validateLinearServiceAccount } from '@/lib/credentials/token-service-accounts/validators/linear'
@@ -124,8 +139,11 @@ import { validateOtterServiceAccount } from '@/lib/credentials/token-service-acc
 import { validatePersonaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/persona'
 import { validatePipedriveServiceAccount } from '@/lib/credentials/token-service-accounts/validators/pipedrive'
 import { validateProfoundServiceAccount } from '@/lib/credentials/token-service-accounts/validators/profound'
+import { validatePulseServiceAccount } from '@/lib/credentials/token-service-accounts/validators/pulse'
 import { validateQuartrServiceAccount } from '@/lib/credentials/token-service-accounts/validators/quartr'
+import { validateQuiverServiceAccount } from '@/lib/credentials/token-service-accounts/validators/quiver'
 import { validateRB2BServiceAccount } from '@/lib/credentials/token-service-accounts/validators/rb2b'
+import { validateReductoServiceAccount } from '@/lib/credentials/token-service-accounts/validators/reducto'
 import { validateRipplingServiceAccount } from '@/lib/credentials/token-service-accounts/validators/rippling'
 import { validateRocketlaneServiceAccount } from '@/lib/credentials/token-service-accounts/validators/rocketlane'
 import { validateSendGridServiceAccount } from '@/lib/credentials/token-service-accounts/validators/sendgrid'
@@ -213,6 +231,15 @@ const TOKEN_SERVICE_ACCOUNT_VALIDATORS: Record<
   [GAUGE_SERVICE_ACCOUNT_PROVIDER_ID]: validateGaugeServiceAccount,
   [HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID]: validateHiggsfieldServiceAccount,
   [FLOW_SERVICE_ACCOUNT_PROVIDER_ID]: validateFlowServiceAccount,
+  [FLINT_SERVICE_ACCOUNT_PROVIDER_ID]: validateFlintServiceAccount,
+  [REDUCTO_SERVICE_ACCOUNT_PROVIDER_ID]: validateReductoServiceAccount,
+  [QUIVER_SERVICE_ACCOUNT_PROVIDER_ID]: validateQuiverServiceAccount,
+  [PULSE_SERVICE_ACCOUNT_PROVIDER_ID]: validatePulseServiceAccount,
+  [INTERCOM_SERVICE_ACCOUNT_PROVIDER_ID]: validateIntercomServiceAccount,
+  [FIREFLIES_SERVICE_ACCOUNT_PROVIDER_ID]: validateFirefliesServiceAccount,
+  [EXTEND_SERVICE_ACCOUNT_PROVIDER_ID]: validateExtendServiceAccount,
+  [DUB_SERVICE_ACCOUNT_PROVIDER_ID]: validateDubServiceAccount,
+  [CURSOR_SERVICE_ACCOUNT_PROVIDER_ID]: validateCursorServiceAccount,
   [DISCORD_SERVICE_ACCOUNT_PROVIDER_ID]: validateDiscordServiceAccount,
   [ZEP_SERVICE_ACCOUNT_PROVIDER_ID]: validateZepServiceAccount,
   [MEM0_SERVICE_ACCOUNT_PROVIDER_ID]: validateMem0ServiceAccount,

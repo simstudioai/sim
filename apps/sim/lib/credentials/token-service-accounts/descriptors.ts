@@ -85,6 +85,15 @@ export const FLOW_SERVICE_ACCOUNT_PROVIDER_ID = 'flow-service-account' as const
 export const CODA_SERVICE_ACCOUNT_PROVIDER_ID = 'coda-service-account' as const
 export const GAUGE_SERVICE_ACCOUNT_PROVIDER_ID = 'gauge-service-account' as const
 export const HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID = 'higgsfield-service-account' as const
+export const FLINT_SERVICE_ACCOUNT_PROVIDER_ID = 'flint-service-account' as const
+export const REDUCTO_SERVICE_ACCOUNT_PROVIDER_ID = 'reducto-service-account' as const
+export const QUIVER_SERVICE_ACCOUNT_PROVIDER_ID = 'quiver-service-account' as const
+export const PULSE_SERVICE_ACCOUNT_PROVIDER_ID = 'pulse-service-account' as const
+export const INTERCOM_SERVICE_ACCOUNT_PROVIDER_ID = 'intercom-service-account' as const
+export const FIREFLIES_SERVICE_ACCOUNT_PROVIDER_ID = 'fireflies-service-account' as const
+export const EXTEND_SERVICE_ACCOUNT_PROVIDER_ID = 'extend-service-account' as const
+export const DUB_SERVICE_ACCOUNT_PROVIDER_ID = 'dub-service-account' as const
+export const CURSOR_SERVICE_ACCOUNT_PROVIDER_ID = 'cursor-service-account' as const
 export const DISCORD_SERVICE_ACCOUNT_PROVIDER_ID = 'discord-service-account' as const
 export const ZEP_SERVICE_ACCOUNT_PROVIDER_ID = 'zep-service-account' as const
 export const MEM0_SERVICE_ACCOUNT_PROVIDER_ID = 'mem0-service-account' as const
@@ -166,6 +175,15 @@ export type TokenServiceAccountProviderId =
   | typeof CODA_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof GAUGE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof FLINT_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof REDUCTO_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof QUIVER_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof PULSE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof INTERCOM_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof FIREFLIES_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof EXTEND_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof DUB_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof CURSOR_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof DISCORD_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ZEP_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof MEM0_SERVICE_ACCOUNT_PROVIDER_ID
@@ -1343,6 +1361,120 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/discord',
     helpText:
       'Create a bot in the Discord Developer Portal and copy its token. The bot must be added to the servers your workflows use.',
+  },
+  [CURSOR_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: CURSOR_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Cursor',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Enter your Cursor API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/cursor',
+    helpText: 'Create a user API key in the Cursor dashboard under Integrations.',
+  },
+  [DUB_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: DUB_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Dub',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'dub_...',
+        secret: true,
+        hintPattern: /^dub_/,
+        hintMessage: 'Dub API keys start with dub_.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/dub',
+  },
+  [EXTEND_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: EXTEND_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Extend',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Enter your Extend API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/extend',
+  },
+  [FIREFLIES_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: FIREFLIES_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Fireflies',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Enter your Fireflies API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/fireflies',
+  },
+  [INTERCOM_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: INTERCOM_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Intercom',
+    tokenNoun: 'access token',
+    connectNoun: 'access token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Access token',
+        placeholder: 'Enter your Intercom access token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/intercom',
+    helpText: "Create it in the Intercom Developer Hub, on your app's Authentication page.",
+  },
+  [PULSE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: PULSE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Pulse',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Enter your Pulse API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/pulse',
+    helpText: 'Get your key from the Pulse Platform at platform.runpulse.com.',
+  },
+  [QUIVER_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: QUIVER_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Quiver',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Enter your QuiverAI API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/quiver',
+  },
+  [REDUCTO_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: REDUCTO_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Reducto',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Enter your Reducto API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/reducto',
+  },
+  [FLINT_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: FLINT_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Flint',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [{ id: 'apiToken', label: 'API key', placeholder: 'ak_...', secret: true }],
+    docsUrl: 'https://docs.sim.ai/integrations/flint',
+    helpText: 'Create a key in your Flint team settings. It needs at least the member role.',
   },
 }
 

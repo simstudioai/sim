@@ -1,3 +1,4 @@
+import { DUB_CREDENTIAL_OAUTH } from '@/tools/dub/credential'
 import type { DubCreateTagParams, DubCreateTagResponse } from '@/tools/dub/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const createTagTool: ToolConfig<DubCreateTagParams, DubCreateTagResponse>
   name: 'Dub Create Tag',
   description: 'Create a new tag in the workspace for organizing and filtering short links.',
   version: '1.0.0',
+  oauth: DUB_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

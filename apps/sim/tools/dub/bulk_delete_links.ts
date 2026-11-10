@@ -1,3 +1,4 @@
+import { DUB_CREDENTIAL_OAUTH } from '@/tools/dub/credential'
 import type { DubBulkDeleteLinksParams, DubBulkDeleteLinksResponse } from '@/tools/dub/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -8,6 +9,7 @@ export const bulkDeleteLinksTool: ToolConfig<DubBulkDeleteLinksParams, DubBulkDe
     description:
       'Delete up to 100 short links in a single request by their link IDs. Non-existing IDs are ignored.',
     version: '1.0.0',
+    oauth: DUB_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {
