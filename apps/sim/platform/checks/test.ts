@@ -44,8 +44,8 @@ function isHydrated() {
  * Waits until the loaded document has hydrated, for a page this suite's `test` does not wrap,
  * such as an Electron window's.
  */
-export async function waitUntilHydrated(page: Page) {
-  await page.waitForFunction(isHydrated, undefined, { polling: 100 })
+export async function waitUntilHydrated(page: Page, timeout?: number) {
+  await page.waitForFunction(isHydrated, undefined, { polling: 100, timeout })
 }
 
 async function waitForHydration(page: Page, appOrigin: string) {

@@ -20,6 +20,7 @@ import { escapeRegExp, truncate } from '@sim/utils/string'
 import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { waitUntilHydrated } from '@/platform/checks/test'
 import { ADMIN, type EVERYONE, ORGANIZATION_ID } from '@/scripts/org-redesign-e2e/fixture'
 
 /**
@@ -264,6 +265,22 @@ function isPageRead(request: Request) {
   return request.headers()['next-router-prefetch'] === undefined
 }
 
+/** Resource types a lazily loaded section's code arrives as. */
+const CODE_RESOURCE = new Set(['script', 'stylesheet'])
+
+/**
+ * Code the page is waiting on: a lazily loaded section mounts, and only then starts its reads, once
+ * its chunk arrives. Not a read, so the slowest reads stay the page's own, but a page with a chunk
+ * still out is not quiet, since a section that paints nothing while it loads looks finished.
+ */
+function isPageCode(request: Request) {
+  return (
+    CODE_RESOURCE.has(request.resourceType()) &&
+    isSameOrigin(request.url()) &&
+    new URL(request.url()).pathname.startsWith('/_next/static/')
+  )
+}
+
 class Session {
   private readonly inflight = new Set<Request>()
   /** How many page reads have started, so a wait can tell whether a new one began meanwhile. */
@@ -300,10 +317,10 @@ class Session {
       if (HIGH_VOLUME_REQUEST.test(request.url())) return
       if (request.isNavigationRequest() && request.frame() === page.mainFrame())
         this.loadingDocument = request
-      if (isPageRead(request)) {
+      if (isPageRead(request) || isPageCode(request)) {
         this.inflight.add(request)
         this.readsStarted += 1
-        this.readStarted.set(request, Date.now())
+        if (isPageRead(request)) this.readStarted.set(request, Date.now())
         this.wakeActivityWaiters()
       }
       if (isSameOrigin(request.url()))
@@ -394,9 +411,10 @@ class Session {
   }
 
   /**
-   * Every page read (`isPageRead`) that started has finished, and the page went idle without
-   * starting another; the SSE and socket connections that never finish are not reads. Fails at its
-   * deadline naming what is still out, because every caller goes on to reason about a quiet page.
+   * Every page read (`isPageRead`) and code chunk (`isPageCode`) that started has finished, and the
+   * page went idle without starting another; the SSE and socket connections that never finish are
+   * not reads. Fails at its deadline naming what is still out, because every caller goes on to
+   * reason about a quiet page.
    */
   async settle(maxMs = 8_000) {
     const deadline = Date.now() + maxMs
@@ -423,6 +441,8 @@ class Session {
     const started = Date.now()
     const loading = () => this.page.evaluate(loadingStatesOnScreen, LOADING_STATUS.source)
     let showing: string[] = []
+    // Server-rendered markup is quiet before the client has started the reads that fill it.
+    await waitUntilHydrated(this.page, maxMs)
     while (Date.now() - started < maxMs) {
       await this.settle(maxMs - (Date.now() - started))
       showing = await loading()
