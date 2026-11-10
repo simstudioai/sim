@@ -17,6 +17,7 @@ import {
 } from '@sim/db/schema'
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { generateId } from '@sim/utils/id'
+import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -58,6 +59,9 @@ const memberGmail = `member-gmail-${generateId()}`
 const memberCalendar = `member-calendar-${generateId()}`
 const memberOutlook = `member-outlook-${generateId()}`
 const colleagueGmail = `colleague-gmail-${generateId()}`
+/** A member with four Gmail accounts, whose merged inbox must match reading every thread. */
+const inboxOwnerId = generateId()
+const inboxGmails = ['a', 'b', 'c', 'd'].map((name) => `inbox-${name}-${generateId()}`)
 
 const session = (userId: string): SessionPrincipal => ({
   kind: 'session',
@@ -165,7 +169,7 @@ beforeAll(async () => {
     ),
     outlook: await getCredentialGroupProviderAdapter('outlook').getPolicy(undefined, {}),
   }
-  const people = [memberId, colleagueId, outsiderId]
+  const people = [memberId, colleagueId, outsiderId, inboxOwnerId]
   await db.insert(user).values(
     people.map((id) => ({
       id,
@@ -187,6 +191,7 @@ beforeAll(async () => {
   await db.insert(member).values([
     { id: generateId(), userId: memberId, organizationId, role: 'member' },
     { id: generateId(), userId: colleagueId, organizationId, role: 'member' },
+    { id: generateId(), userId: inboxOwnerId, organizationId, role: 'member' },
     {
       id: generateId(),
       userId: outsiderId,
@@ -226,7 +231,7 @@ beforeAll(async () => {
   )
   const enrollments = new Map(people.map((id) => [id, generateId()]))
   await db.insert(credentialGroupEnrollment).values(
-    [memberId, colleagueId].map((userId) => ({
+    [memberId, colleagueId, inboxOwnerId].map((userId) => ({
       id: enrollments.get(userId) as string,
       userId,
       credentialGroupId: groupId,
@@ -247,6 +252,12 @@ beforeAll(async () => {
     },
     { id: memberOutlook, userId: memberId, option: 'outlook', providerId: 'outlook' },
     { id: colleagueGmail, userId: colleagueId, option: 'gmail', providerId: 'google-email' },
+    ...inboxGmails.map((id) => ({
+      id,
+      userId: inboxOwnerId,
+      option: 'gmail' as const,
+      providerId: 'google-email' as const,
+    })),
   ] as const
   for (const grant of grants) {
     const policy = policies[grant.option]
@@ -292,7 +303,7 @@ afterAll(async () => {
   await db
     .delete(organization)
     .where(inArray(organization.id, [organizationId, otherOrganizationId]))
-  await db.delete(user).where(inArray(user.id, [memberId, colleagueId, outsiderId]))
+  await db.delete(user).where(inArray(user.id, [memberId, colleagueId, outsiderId, inboxOwnerId]))
   provider.mockRestore()
 })
 
@@ -425,6 +436,83 @@ describe('what a widget reports', () => {
     expect(calendar.accounts.map((a) => a.credentialId).sort()).toEqual(
       [memberCalendar, memberOutlook].sort()
     )
+  })
+})
+
+describe('merging several mailboxes', () => {
+  const minute = (value: number) => new Date(Date.UTC(2026, 10, 5, 0, value)).toISOString()
+  const descending = (from: number, count: number, step = 1) =>
+    Array.from({ length: count }, (_, index) => from - index * step)
+
+  /**
+   * Each account's inbox, newest first, as minutes past midnight; a thread's id carries its minute
+   * so its read can answer with that date. Returns how many threads were read one by one.
+   */
+  function serveMailboxes(minutesByAccount: number[][]) {
+    const reads = { threads: 0 }
+    provider.mockImplementation(async (url, options) => {
+      const token = String(options.headers?.Authorization).replace('Bearer token-for-', '')
+      const account = inboxGmails.indexOf(token)
+      if (url.includes('/threads?'))
+        return providerResponse({
+          threads: (minutesByAccount[account] ?? []).map((value) => ({
+            id: `${account}-${value}`,
+          })),
+        })
+      const id = /\/threads\/([^?]+)/.exec(url)?.[1] ?? ''
+      reads.threads += 1
+      return providerResponse({
+        id,
+        messages: [
+          {
+            id: `message-${id}`,
+            snippet: 'Preview',
+            payload: {
+              headers: [
+                { name: 'From', value: 'Ada <ada@example.com>' },
+                { name: 'Subject', value: id },
+                { name: 'Date', value: new Date(minute(Number(id.split('-')[1]))).toUTCString() },
+              ],
+            },
+          },
+        ],
+      })
+    })
+    return reads
+  }
+
+  it.each([
+    [
+      'one mailbox holding every recent thread',
+      [descending(900, 15), descending(100, 15), descending(50, 15), descending(20, 15)],
+      31,
+    ],
+    ['mailboxes too quiet to fill their share', [descending(900, 15), [800], [], [700, 600]], 18],
+    [
+      'an even spread',
+      [
+        descending(900, 15, 4),
+        descending(899, 15, 4),
+        descending(898, 15, 4),
+        descending(897, 15, 4),
+      ],
+      19,
+    ],
+  ])('shows what reading every thread would, on %s', async (_label, mailboxes, maxReads) => {
+    const reads = serveMailboxes(mailboxes)
+
+    const email = await readOrganizationHomeEmail.execute({
+      principal: session(inboxOwnerId),
+      input,
+    })
+
+    const everyThread = mailboxes
+      .flat()
+      .map(minute)
+      .sort((left, right) => compareStrings(right, left))
+      .slice(0, HOME_EMAIL_THREAD_LIMIT)
+    expect(email.threads.map((thread) => thread.receivedAt)).toEqual(everyThread)
+    expect(reads.threads).toBeLessThanOrEqual(maxReads)
   })
 })
 
