@@ -165,10 +165,15 @@ test.describe('Home for the seeded administrator', () => {
     await expect(
       page.getByRole('region', { name: 'Needs your attention', exact: true })
     ).toHaveCount(0)
-    await page
-      .getByRole('region', { name: 'Chats', exact: true })
-      .getByRole('link', { name: 'Vendor renewals' })
-      .click()
+    const chats = page.getByRole('region', { name: 'Chats', exact: true })
+    const vendorRenewals = chats.getByRole('link', { name: 'Vendor renewals' })
+    // Chats the other live checks start sort above the seeded one, a page or more down the rail.
+    await expect(async () => {
+      if ((await vendorRenewals.count()) === 0)
+        await chats.getByRole('button', { name: 'See more', exact: true }).click()
+      await expect(vendorRenewals).toBeVisible({ timeout: 1_000 })
+    }).toPass()
+    await vendorRenewals.click()
     await expect(page).toHaveURL(liveRoutePattern('/search/chat/22222222-'))
     await expect(page.getByText('Here is what I found about Vendor renewals.')).toBeVisible()
   })
@@ -340,21 +345,21 @@ test.describe('Home with connected accounts', () => {
         await withLiveDatabase((sql) =>
           sql.begin(async (tx) => {
             await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
-            select ${person.id} || '-' || entity_id, ${person.id}, entity_type, entity_id, permission_type
+            select ${person.id}::text || '-' || entity_id, ${person.id}, entity_type, entity_id, permission_type
             from permissions
             where user_id = (select id from "user" where email = ${connectedEmail()})
               and entity_type = 'workspace'`
             await tx`insert into credential_group_enrollment
             select (jsonb_populate_record(null::credential_group_enrollment, to_jsonb(e) || jsonb_build_object(
-              'id', ${`${person.id}-enrollment`}, 'user_id', ${person.id}, 'email', ${person.email},
-              'invitation_token_hash', ${`${person.id}-token`}))).*
+              'id', ${`${person.id}-enrollment`}::text, 'user_id', ${person.id}::text,
+              'email', ${person.email}::text, 'invitation_token_hash', ${`${person.id}-token`}::text))).*
             from credential_group_enrollment e where e.id = 'platform-live-enrollment'`
             for (const grant of [GRANT, CALENDAR_GRANT]) {
               await tx`insert into credential
               select (jsonb_populate_record(null::credential, to_jsonb(c) || jsonb_build_object(
-                'id', ${`${person.id}-${grant}`}, 'created_by', ${person.id},
-                'credential_group_enrollment_id', ${`${person.id}-enrollment`},
-                'display_name', ${person.email}))).*
+                'id', ${`${person.id}-${grant}`}::text, 'created_by', ${person.id}::text,
+                'credential_group_enrollment_id', ${`${person.id}-enrollment`}::text,
+                'display_name', ${person.email}::text))).*
               from credential c where c.id = ${grant}`
             }
           })
