@@ -11,3 +11,23 @@
   justify-content: flex-end;
   gap: var(--ui-action-gap);
 }
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+  min-inline-size: 0;
+}
+.rowTitle {
+  min-inline-size: 0;
+}
+.rowTitle:hover {
+  text-decoration: underline;
+}
+.quiet,
+.snippet {
+  color: var(--ui-secondary);
+}
+.snippet {
+  overflow-wrap: anywhere;
+}

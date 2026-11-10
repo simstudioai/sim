@@ -80,6 +80,8 @@ const UNEXPORTED_VARIANT_OWNERS: ReasonedAllowlist = {
  * 'Load more'`). These files keep loading copy for the reason given; each must still contain some.
  */
 const LOADING_COPY_OWNERS: ReasonedAllowlist = {
+  '../../packages/emcn/src/components/scroll-area/load-more-footer.tsx':
+    "The design owner's LoadMoreFooter (b5a30e9744) names a paged list's pending next page",
   [`${PRODUCT_ROUTES}_components/composer/message-composer.tsx`]:
     'The @ menu names its pending list, since the draft keeps focus and typing while it loads',
   [`${PRODUCT_ROUTES}workspace/[workspaceId]/knowledge/[knowledgeBaseId]/[documentId]/_components/document-view/document-view.tsx`]:

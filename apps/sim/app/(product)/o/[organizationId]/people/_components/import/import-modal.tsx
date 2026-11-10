@@ -156,7 +156,6 @@ export function ImportModal({ organizationId, onClose, onOpenSync }: ImportModal
       confirmLabel={
         done ? 'Done' : preview ? `Import ${plural(preview.updated, 'profile')}` : 'Preview import'
       }
-      pending={pending}
       confirmDisabled={pending || (!preview && !ready)}
       onBack={preview ? () => setPreview(null) : undefined}
       onConfirm={

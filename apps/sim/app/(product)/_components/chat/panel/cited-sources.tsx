@@ -2,7 +2,7 @@
 
 import { EmptyState } from '@sim/emcn/empty-state'
 import styles from '@/app/(product)/_components/chat/panel/panels.module.css'
-import { SourceRow } from '@/app/(product)/_components/source-row/source-row'
+import { SourceRow } from '@/app/(product)/_components/search/source-row'
 import type { ChatSource } from '@/platform/lib/data/models/chat'
 
 /** Every document one answer cited, in the same row a search result and the reply's list use. */

@@ -315,7 +315,6 @@ export function Tab({
   id,
   className,
   children,
-  tabIndex = 0,
   'aria-labelledby': labelledBy,
   ...props
 }: TabProps) {
@@ -326,7 +325,6 @@ export function Tab({
       {...props}
       keepMounted
       inert={false}
-      tabIndex={active ? tabIndex : -1}
       value={value}
       id={id ?? context?.panelIds.get(value) ?? `${context?.baseId}-${encodeURIComponent(value)}`}
       aria-labelledby={labelledBy ?? `${context?.baseId}-${encodeURIComponent(value)}-trigger`}

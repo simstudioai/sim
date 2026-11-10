@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { resolveFileCategory } from '@/components/file-viewer/file-category'
-import type { MentionFamily } from '@/lib/api/contracts/organization-mentions'
+import { MENTION_BROWSE_LIMIT, type MentionFamily } from '@/lib/api/contracts/organization-mentions'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { workspacePath } from '@/lib/navigation/paths'
 import { isWorkspaceResourceKind, workspaceResourcePath } from '@/lib/resources'
@@ -17,6 +17,7 @@ import type {
   useResourcePanelController,
 } from '@/hooks/mothership-chat/use-resource-panel'
 import { useTerminalTabResources } from '@/hooks/mothership-chat/use-terminal-tab-resources'
+import { useOrganizationMentions } from '@/hooks/queries/organization-mentions'
 import { grouped, useDashboardsShown, useMentionBrowse } from '@/platform/lib/data/chat-mentions'
 import type { ChatContext } from '@/platform/lib/data/chat-types'
 import type {
@@ -279,9 +280,11 @@ function pickedResource(
 }
 
 /**
- * The panel's + picker over the organization's mention reads: workspaces, then each workspace's
- * families as it opens, with the menu's search answered by the server. Nothing is read until the
- * picker first opens; a pick opens its tab and shows it.
+ * The panel's + picker over the organization's mention reads: each workspace with its most recently
+ * updated tables, files, knowledge bases, workflows, logs and (while their tab is shown) dashboards,
+ * and the menu's search answered by the server. A workspace is not itself a pick, so one with none
+ * of those is not listed. Nothing is read until the picker first opens; a pick opens its tab and
+ * shows it.
  */
 function usePanelPicker(
   panel: ReturnType<typeof useChatResourcePanel>,
@@ -290,9 +293,17 @@ function usePanelPicker(
   const { organization } = useOrganization()
   const [enabled, setEnabled] = useState(false)
   const browse = useMentionBrowse(enabled, organization.id)
-  const rows = browse.rows.filter(
-    (row) => PANEL_FAMILIES.has(row.family) || (row.family === 'workspaces' && !browse.searching)
+  const recent = useOrganizationMentions(
+    organization.id,
+    { query: '', limit: MENTION_BROWSE_LIMIT },
+    { enabled: enabled && !browse.searching }
   )
+  const rows = browse.searching
+    ? browse.rows.filter((row) => PANEL_FAMILIES.has(row.family))
+    : [
+        ...browse.rows.filter((row) => row.family === 'workspaces'),
+        ...(recent.data?.rows ?? []).filter((row) => PANEL_FAMILIES.has(row.family)),
+      ]
   const logIds = new Map(
     rows.flatMap((row) =>
       row.family === 'logs' ? [[row.executionId ?? row.id, row.id] as const] : []

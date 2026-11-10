@@ -1868,7 +1868,34 @@
           ".trailing",
           ".trailing,.copyAction",
           "textarea.input"
-        ]
+        ],
+        "declarations": {
+          ".autofillDecoys": "b5623a70aa36",
+          ".copyAction": "f657113c6c59",
+          ".error": "b8065332d033",
+          ".field": "4e844a641372",
+          ".hint": "e95eff97964c",
+          ".input": "fffb5e330a32",
+          ".input::placeholder": "0f1f0807e275",
+          ".inputFrame": "4a5f86ae8487",
+          ".inputFrame:is(:has(.input:disabled),[data-disabled])": "00a807696df3",
+          ".inputFrame:is(:has(.input[aria-invalid=\"true\"]),[data-invalid])": "e9ce5663ae52",
+          ".inputFrame:not(:has(.input:disabled),[data-disabled]):hover": "0a4cdf7ba015",
+          ".inputFrame[data-trailing]": "1df18d454aee",
+          ".inputFrame[data-view-only]": "0b470d4a2982",
+          ".inputFrame[data-view-only],.input[readonly]": "2dc8b2479ba5",
+          ".inputFrame[data-view-only]>.input": "21edec03b2fa",
+          ".input[data-masked]": "d30e8db58fa9",
+          ".optional": "e95eff97964c",
+          ".switchField": "55ecb22b4de5",
+          ".switchField>label": "c7c3a1442daf",
+          ".textareaFrame": "bb7fc5509b29",
+          ".textareaFrame[data-default-size=\"expanded\"]": "773b65cdfd03",
+          ".textareaFrame[data-default-size=\"large\"]": "cd845703ca33",
+          ".trailing": "e3189a5018b2",
+          ".trailing,.copyAction": "056f4f453c7f",
+          "textarea.input": "130c396c3187"
+        }
       },
       "./field/file-field": {
         "names": ["FileField"],
@@ -5303,7 +5330,22 @@
           ".popup",
           ".positioner",
           ".separator"
-        ]
+        ],
+        "declarations": {
+          ".anchorWidth": "61c41d6b6fcd",
+          ".heading": "6f67967a589a",
+          ".indicator": "ec60990574d1",
+          ".item": "e0a2eb9476c9",
+          ".item:is(:disabled,[data-disabled],[aria-disabled=\"true\"])": "2dc8b2479ba5",
+          ".item:not(:disabled,[data-disabled],[aria-disabled=\"true\"]):is([data-highlighted],:hover:not([role=\"option\"]))": "3cc115d8f0ba",
+          ".label": "3ba890378a6f",
+          ".list": "500a61421ce0",
+          ".panel": "8c0ff6f3734a",
+          ".panel[data-presentation=\"panel\"]": "083e8936cc01",
+          ".popup": "5408be8e4af4",
+          ".positioner": "c7e624da8506",
+          ".separator": "57f043a7df45"
+        }
       },
       "./menu/use-popover-container": {
         "names": ["usePopoverContainer"],
@@ -7139,11 +7181,48 @@
           "[data-emcn][data-theme=\"dark\"]",
           "[data-emcn][data-theme=\"dark\"] [data-plot=\"home-activity\"]",
           "[data-emcn][data-theme=\"dark\"] svg"
-        ]
+        ],
+        "declarations": {
+          ":where([data-emcn])[data-elevation=\"control\"]": "8cf9749d7e37",
+          ":where([data-emcn])[data-elevation=\"menu\"]": "5c4c857d5b0c",
+          ":where([data-emcn])[data-elevation=\"modal\"]": "e96789baf4bd",
+          ":where([data-emcn])[data-elevation=\"shell\"]": "069a36eec288",
+          ":where([data-emcn])[data-elevation=\"tooltip\"]": "9a762abc7fdf",
+          ":where([data-emcn])[data-material=\"floating\"]": "c50fe071a562",
+          ":where([data-emcn])[data-material=\"reading\"]": "aadcb81eccad",
+          ":where([data-emcn])[data-material=\"reading\"][data-elevation=\"composer\"]": "42da637026b1",
+          ":where([data-emcn])[data-material=\"shell\"]": "d85c88729701",
+          ":where([data-emcn])[data-material=\"shell\"],:where([data-emcn])[data-material=\"floating\"]": "5818f90594e8",
+          "@media(pointer:coarse) [data-emcn]": "533adb40560b",
+          "@media(prefers-reduced-motion:reduce) [data-emcn]": "7a81e40c140a",
+          "[data-emcn]": "33c13f26ac39",
+          "[data-emcn] [data-destructive-quiet]": "7e4a6653cc69",
+          "[data-emcn] [data-destructive-quiet]:not(:disabled,[data-disabled],[aria-disabled=\"true\"]):is(:hover,:active,[data-highlighted])": "323f6096302d",
+          "[data-emcn] [data-plot=\"home-activity\"]": "c1080149c143",
+          "[data-emcn] [data-row-rhythm=\"dividers\"]": "c26b2013ea4e",
+          "[data-emcn] [data-scroll-axis=\"horizontal\"]": "3a8b9baad7bc",
+          "[data-emcn] [data-scroll-axis=\"horizontal\"]:dir(rtl)": "2f65b5091d1a",
+          "[data-emcn] [data-scroll-axis]": "7860f738dc6a",
+          "[data-emcn] [data-scroll-axis][data-edges=\"both\"]": "293164deb732",
+          "[data-emcn] [data-scroll-axis][data-edges=\"end\"]": "098765a9e30f",
+          "[data-emcn] [data-scroll-axis][data-edges=\"start\"]": "5a6e5e92daed",
+          "[data-emcn] [data-scroll-axis][data-sticky-head]": "e56a57137291",
+          "[data-emcn] [data-solid]": "7248bf290783",
+          "[data-emcn] [data-solid] svg": "2002562b369d",
+          "[data-emcn] [data-solid][data-variant=\"destructive\"]": "2f3a64dc4a4f",
+          "[data-emcn] [data-visually-hidden]": "f9230177d6a4",
+          "[data-emcn]:is([data-menu-row],[role=\"menuitem\"],[role=\"menuitemradio\"],[role=\"menuitemcheckbox\"],[role=\"option\"]):not(:disabled,[data-disabled],[aria-disabled=\"true\"]):is(:hover:not([role=\"option\"]),[data-highlighted],[data-popup-open]),[data-emcn]:is([aria-current=\"page\"],[role=\"tab\"][aria-selected=\"true\"])": "f34732ad3223",
+          "[data-emcn][data-theme=\"dark\"]": "409668f09b98",
+          "[data-emcn][data-theme=\"dark\"] [data-plot=\"home-activity\"]": "85d2259d1fc8",
+          "[data-emcn][data-theme=\"dark\"] svg": "36e65fdcddf2"
+        }
       },
       "./styles/fonts.css": {
         "properties": [],
-        "selectors": ["@font-face"]
+        "selectors": ["@font-face"],
+        "declarations": {
+          "@font-face": "3ae41b437453"
+        }
       },
       "./styles/generated/tokens.css": {
         "properties": [
@@ -7856,7 +7935,10 @@
           "--white-90",
           "--width-nav-logo"
         ],
-        "selectors": ["[data-emcn]"]
+        "selectors": ["[data-emcn]"],
+        "declarations": {
+          "[data-emcn]": "ef7fc3a6ab74"
+        }
       },
       "./styles/generated/typography.css": {
         "properties": [],
@@ -7966,7 +8048,114 @@
           "[data-emcn] [data-type=\"T105\"]",
           "[data-emcn] [data-type=\"T106\"]",
           "[data-emcn] [data-type]"
-        ]
+        ],
+        "declarations": {
+          "[data-emcn] [data-type=\"T001\"]": "27f8ccdff2cc",
+          "[data-emcn] [data-type=\"T002\"]": "36a0fb1ff260",
+          "[data-emcn] [data-type=\"T003\"]": "ddef188b4aab",
+          "[data-emcn] [data-type=\"T004\"]": "2dfec909c44f",
+          "[data-emcn] [data-type=\"T005\"]": "aaabf85449c9",
+          "[data-emcn] [data-type=\"T006\"]": "ff3a0894a6a9",
+          "[data-emcn] [data-type=\"T007\"]": "0ffa59dff5cf",
+          "[data-emcn] [data-type=\"T008\"]": "185930fe2daa",
+          "[data-emcn] [data-type=\"T009\"]": "4d3064521d48",
+          "[data-emcn] [data-type=\"T010\"]": "c93331409879",
+          "[data-emcn] [data-type=\"T011\"]": "8f79d3ee926c",
+          "[data-emcn] [data-type=\"T012\"]": "6dfa32f11898",
+          "[data-emcn] [data-type=\"T013\"]": "fb4444f7ada6",
+          "[data-emcn] [data-type=\"T014\"]": "9fb176fec2e9",
+          "[data-emcn] [data-type=\"T015\"]": "e257dcb33fbd",
+          "[data-emcn] [data-type=\"T016\"]": "bd99717106ce",
+          "[data-emcn] [data-type=\"T017\"]": "7e46da0f2066",
+          "[data-emcn] [data-type=\"T018\"]": "7e8f977bb917",
+          "[data-emcn] [data-type=\"T019\"]": "9483fbc60002",
+          "[data-emcn] [data-type=\"T020\"]": "9aea73f47707",
+          "[data-emcn] [data-type=\"T021\"]": "160eedf16a95",
+          "[data-emcn] [data-type=\"T022\"]": "b75ee53e24d6",
+          "[data-emcn] [data-type=\"T023\"]": "9727ba7209b8",
+          "[data-emcn] [data-type=\"T024\"]": "0fde7f00c521",
+          "[data-emcn] [data-type=\"T025\"]": "7e16e480d2d9",
+          "[data-emcn] [data-type=\"T026\"]": "643190905bbc",
+          "[data-emcn] [data-type=\"T027\"]": "013bfe61c092",
+          "[data-emcn] [data-type=\"T028\"]": "e6ef360ca2a9",
+          "[data-emcn] [data-type=\"T029\"]": "0cc2758e9f6d",
+          "[data-emcn] [data-type=\"T030\"]": "55b6b48f0b86",
+          "[data-emcn] [data-type=\"T031\"]": "5cfe05541af7",
+          "[data-emcn] [data-type=\"T032\"]": "8e6e54de2cc9",
+          "[data-emcn] [data-type=\"T033\"]": "d5491e04b786",
+          "[data-emcn] [data-type=\"T034\"]": "4c34deaa9cc2",
+          "[data-emcn] [data-type=\"T035\"]": "a12135f8af99",
+          "[data-emcn] [data-type=\"T036\"]": "ed0024f2c510",
+          "[data-emcn] [data-type=\"T037\"]": "abcf90164d52",
+          "[data-emcn] [data-type=\"T038\"]": "c848cf8a7e61",
+          "[data-emcn] [data-type=\"T039\"]": "4a19d4212c0f",
+          "[data-emcn] [data-type=\"T040\"]": "805294c68977",
+          "[data-emcn] [data-type=\"T041\"]": "53cafc0e9338",
+          "[data-emcn] [data-type=\"T042\"]": "a25abca2221b",
+          "[data-emcn] [data-type=\"T043\"]": "37f740e51457",
+          "[data-emcn] [data-type=\"T044\"]": "5e0a2d7e7100",
+          "[data-emcn] [data-type=\"T045\"]": "c3cf4ac06c51",
+          "[data-emcn] [data-type=\"T046\"]": "0b491acd11e7",
+          "[data-emcn] [data-type=\"T047\"]": "f35662312087",
+          "[data-emcn] [data-type=\"T048\"]": "22ebdf8b9f40",
+          "[data-emcn] [data-type=\"T049\"]": "acf39243ce38",
+          "[data-emcn] [data-type=\"T050\"]": "904be182898c",
+          "[data-emcn] [data-type=\"T051\"]": "c5e5456073ea",
+          "[data-emcn] [data-type=\"T052\"]": "85eb2313dd6c",
+          "[data-emcn] [data-type=\"T053\"]": "0ebc33e8bc97",
+          "[data-emcn] [data-type=\"T054\"]": "207fa8146a6d",
+          "[data-emcn] [data-type=\"T055\"]": "b2a674cbfd9c",
+          "[data-emcn] [data-type=\"T056\"],[data-emcn] [data-type=\"T057\"]": "fe752d8a3b52",
+          "[data-emcn] [data-type=\"T058\"]": "eeafc19e69da",
+          "[data-emcn] [data-type=\"T059\"]": "585ef3e7512e",
+          "[data-emcn] [data-type=\"T060\"]": "070c3b25e8e7",
+          "[data-emcn] [data-type=\"T061\"]": "5991f7f9cae2",
+          "[data-emcn] [data-type=\"T062\"]": "40203cdca991",
+          "[data-emcn] [data-type=\"T063\"]": "6c6538a3f28d",
+          "[data-emcn] [data-type=\"T064\"]": "2e034965b49d",
+          "[data-emcn] [data-type=\"T065\"]": "12aa817f4605",
+          "[data-emcn] [data-type=\"T066\"]": "897e3bdfc54a",
+          "[data-emcn] [data-type=\"T067\"]": "1f7474921a74",
+          "[data-emcn] [data-type=\"T068\"]": "879d6d701460",
+          "[data-emcn] [data-type=\"T069\"]": "3985aea07995",
+          "[data-emcn] [data-type=\"T070\"]": "046ba40409f2",
+          "[data-emcn] [data-type=\"T071\"]": "3b24ccb1c77b",
+          "[data-emcn] [data-type=\"T072\"]": "7a4031b05b24",
+          "[data-emcn] [data-type=\"T073\"]": "d6b8b43937b0",
+          "[data-emcn] [data-type=\"T074\"]": "9f34e0b6de39",
+          "[data-emcn] [data-type=\"T075\"]": "d8d137dd8c77",
+          "[data-emcn] [data-type=\"T076\"]": "d94a8286f5f8",
+          "[data-emcn] [data-type=\"T077\"]": "dbf1beda56b4",
+          "[data-emcn] [data-type=\"T078\"]": "8fd8dee5759a",
+          "[data-emcn] [data-type=\"T079\"]": "3f638c56e24c",
+          "[data-emcn] [data-type=\"T080\"]": "571b8b5644d0",
+          "[data-emcn] [data-type=\"T081\"]": "d20737d4646d",
+          "[data-emcn] [data-type=\"T082\"]": "45882e3ccc61",
+          "[data-emcn] [data-type=\"T083\"]": "f71e0bcfc4d1",
+          "[data-emcn] [data-type=\"T084\"]": "6e2ee5257f70",
+          "[data-emcn] [data-type=\"T085\"]": "f7de5f1ccca5",
+          "[data-emcn] [data-type=\"T086\"]": "e71c6c532a2f",
+          "[data-emcn] [data-type=\"T087\"]": "692da96b1748",
+          "[data-emcn] [data-type=\"T088\"]": "9ad647e0729e",
+          "[data-emcn] [data-type=\"T089\"]": "6b8f57e0a6c3",
+          "[data-emcn] [data-type=\"T090\"]": "8456f4a8ef60",
+          "[data-emcn] [data-type=\"T091\"]": "fdeda15e23ee",
+          "[data-emcn] [data-type=\"T092\"]": "f0072f4cb1ed",
+          "[data-emcn] [data-type=\"T093\"]": "7ace433b43a7",
+          "[data-emcn] [data-type=\"T094\"]": "4b60849dbb79",
+          "[data-emcn] [data-type=\"T095\"]": "0c471ded485f",
+          "[data-emcn] [data-type=\"T096\"],[data-emcn] [data-type=\"T097\"]": "332b90d8f4be",
+          "[data-emcn] [data-type=\"T098\"]": "6fd11d526f1c",
+          "[data-emcn] [data-type=\"T099\"]": "caa7fafdf2b5",
+          "[data-emcn] [data-type=\"T100\"]": "59c2c7a9a36d",
+          "[data-emcn] [data-type=\"T101\"]": "dfbeb10bc1e5",
+          "[data-emcn] [data-type=\"T102\"]": "89a18d4d7bb4",
+          "[data-emcn] [data-type=\"T103\"]": "40a6e7afdbc3",
+          "[data-emcn] [data-type=\"T104\"]": "2d1bc3464cd0",
+          "[data-emcn] [data-type=\"T105\"]": "4870aeb09a73",
+          "[data-emcn] [data-type=\"T106\"]": "5a6a6f53e3b5",
+          "[data-emcn] [data-type]": "316ce96e9b79"
+        }
       },
       "./styles/global.css": {
         "properties": [
@@ -8093,7 +8282,11 @@
           "@media(prefers-reduced-motion:reduce)",
           "@media(prefers-reduced-motion:reduce) [data-emcn]",
           "[data-emcn]"
-        ]
+        ],
+        "declarations": {
+          "@media(prefers-reduced-motion:reduce) [data-emcn]": "4f6873dff570",
+          "[data-emcn]": "77b34aee5afc"
+        }
       },
       "./styles/theme.css": {
         "properties": [
@@ -8114,7 +8307,11 @@
           "--spacing-field",
           "--spacing-modal"
         ],
-        "selectors": ["@theme", "@theme inline"]
+        "selectors": ["@theme", "@theme inline"],
+        "declarations": {
+          "@theme": "bc2cbbde29db",
+          "@theme inline": "2e3bb86cfd30"
+        }
       },
       "./switch": {
         "names": ["Switch"],
@@ -8305,7 +8502,10 @@
       },
       "./tabs/tab-list.shared.module.css": {
         "properties": [],
-        "selectors": [".lane"]
+        "selectors": [".lane"],
+        "declarations": {
+          ".lane": "aafabc537963"
+        }
       },
       "./tooltip": {
         "names": ["Tooltip"],
@@ -8654,6 +8854,137 @@
       "src/components/touch-target/touch-target.module.css": {
         "touchTarget": "a3aa03f2b759"
       }
+    },
+    "sources": {
+      "src/catalog/icon-geometry.tsx": "a3c88263fe19",
+      "src/catalog/plots.module.css": "15c346510c1c",
+      "src/catalog/plots.tsx": "f6d3cfd1ef6a",
+      "src/components/activity-row/activity-body.tsx": "f1ed0c45d112",
+      "src/components/activity-row/activity-row.module.css": "1c95e639180e",
+      "src/components/activity-row/activity-row.tsx": "3f84a7d759c8",
+      "src/components/attachments/attachments.module.css": "45ded64aaae6",
+      "src/components/attachments/file-thumbnail.tsx": "3c0fdf1ab81f",
+      "src/components/attachments/grid.tsx": "8fdbc0ddc0e6",
+      "src/components/attachments/tile.tsx": "a7a861dd398e",
+      "src/components/attachments/use-file-url.ts": "2e58e3c5862e",
+      "src/components/avatar/avatar.module.css": "9fdaf677dff3",
+      "src/components/avatar/avatar.tsx": "447d4578fbc8",
+      "src/components/brand/provider-icon.tsx": "3cc21f1ba9ef",
+      "src/components/brand/wordmark.tsx": "a53f5d267c65",
+      "src/components/breadcrumbs/breadcrumbs.module.css": "e11b4ff84c54",
+      "src/components/breadcrumbs/breadcrumbs.tsx": "e26ce1bf9398",
+      "src/components/button/button.shared.module.css": "a870e4ae01ce",
+      "src/components/button/button.tsx": "2df29bfc31ef",
+      "src/components/button/control-row.tsx": "cdfec065fb9e",
+      "src/components/button/copy-button.tsx": "336338444ef8",
+      "src/components/chart/charts.module.css": "44bbcf77bc6b",
+      "src/components/chart/charts.tsx": "bed3d14029fe",
+      "src/components/chart/format.ts": "3de62978f974",
+      "src/components/chart/tooltip.module.css": "15349081dda0",
+      "src/components/chart/tooltip.tsx": "577df488fd18",
+      "src/components/chart/use-plot-inspection.ts": "1c159977fb1c",
+      "src/components/checkbox/checkbox.module.css": "ec894833c99e",
+      "src/components/checkbox/checkbox.tsx": "4f5d97e5524d",
+      "src/components/command-palette/command-palette.module.css": "f4190fd2c12b",
+      "src/components/command-palette/command-palette.tsx": "cbf3a96b0296",
+      "src/components/data-display/data-display.module.css": "6ca091c2b210",
+      "src/components/data-display/data-display.tsx": "47890cc866fc",
+      "src/components/disclosure/disclosure.module.css": "7ab5e71843da",
+      "src/components/disclosure/disclosure.tsx": "65cd8c7eb460",
+      "src/components/empty-state/empty-state.module.css": "6975864d7b9c",
+      "src/components/empty-state/empty-state.tsx": "c4437c7417ca",
+      "src/components/feedback/use-clipboard.ts": "09ad866ecfa0",
+      "src/components/feedback/use-feedback-expiry.ts": "c464390f3ff9",
+      "src/components/field/autofill-decoys.tsx": "ec494f3ff23d",
+      "src/components/field/details-field.module.css": "0f33d76b181e",
+      "src/components/field/details-field.tsx": "0d6b6a3ce59a",
+      "src/components/field/field.shared.module.css": "f0e2972e2499",
+      "src/components/field/fields.tsx": "c031ba6fd417",
+      "src/components/field/file-field.module.css": "73f60f3e3f35",
+      "src/components/field/file-field.tsx": "2b1e606acda5",
+      "src/components/field/frame.tsx": "437dd86433b8",
+      "src/components/field/index.ts": "6f5a209a0535",
+      "src/components/field/inputs.tsx": "9b4abd94d37d",
+      "src/components/field/list-field.module.css": "41888c8ed887",
+      "src/components/field/list-field.tsx": "ad734ed68472",
+      "src/components/field/value-fields.tsx": "0b01786e65ee",
+      "src/components/icon/assets.tsx": "b8dcf78841a9",
+      "src/components/icon/icon.module.css": "fb5b390d791e",
+      "src/components/icon/icon.tsx": "7b3e483717c8",
+      "src/components/icon/interface-glyphs.tsx": "01f82b5471b0",
+      "src/components/icon/provider-mark-ids.generated.ts": "80c91ff24fe0",
+      "src/components/icon/provider-marks.ts": "82841291448d",
+      "src/components/identity-button/identity-button.tsx": "2bf4cf3d479d",
+      "src/components/layout/use-compact-viewport.ts": "ad4eb39bbad8",
+      "src/components/menu/action-menu.tsx": "5fcd5428b47a",
+      "src/components/menu/anchored-popover.tsx": "234f8e0da826",
+      "src/components/menu/choice-menu.tsx": "187e0158adcc",
+      "src/components/menu/menu.module.css": "79d1cf69d01d",
+      "src/components/menu/popup.shared.module.css": "e26d6e810283",
+      "src/components/menu/use-popover-container.ts": "935040caac24",
+      "src/components/modal/confirm-dialog.tsx": "ad75da6b6140",
+      "src/components/modal/modal.module.css": "be7e58737c2e",
+      "src/components/modal/modal.tsx": "759d5645387c",
+      "src/components/modal/overlay-dialog.tsx": "206366ca1b6a",
+      "src/components/modal/parts.tsx": "4b9bd6ca49e5",
+      "src/components/overflow-text/counted-label.tsx": "1a44585c1268",
+      "src/components/overflow-text/overflow-text.module.css": "5ba5acee8430",
+      "src/components/overflow-text/overflow-text.tsx": "850c2a0aaa4c",
+      "src/components/pagination/pagination.module.css": "217eabe58236",
+      "src/components/pagination/pagination.tsx": "e8a485191104",
+      "src/components/picker/calendar.module.css": "fdbff2420ff1",
+      "src/components/picker/calendar.tsx": "e92294b342d1",
+      "src/components/picker/date-picker.tsx": "c4a1fefb9c9b",
+      "src/components/picker/multi-select.tsx": "9008ccc1faa0",
+      "src/components/picker/picker.module.css": "e0a75b8a2eb6",
+      "src/components/picker/search-combobox.tsx": "3833c36dcdfe",
+      "src/components/picker/search-popup.tsx": "4d85177adfae",
+      "src/components/picker/searchable-select.tsx": "f14d180ff229",
+      "src/components/picker/select.tsx": "a9176d99f7b9",
+      "src/components/picker/use-picker-value.ts": "9fbb5a36f1b3",
+      "src/components/property-list/property-list.module.css": "36b5710b2041",
+      "src/components/property-list/property-list.tsx": "25153d6fc5d2",
+      "src/components/scroll-area/load-more-footer.tsx": "df81568ba112",
+      "src/components/scroll-area/scroll-area.module.css": "1f7a2efb0053",
+      "src/components/scroll-area/scroll-area.tsx": "6832af621198",
+      "src/components/scroll-area/use-load-more.ts": "3994638834e9",
+      "src/components/scroll-area/use-scroll-edges.ts": "12fc92227d0c",
+      "src/components/search-field/menu-search-field.tsx": "2465583095f0",
+      "src/components/search-field/search-field.module.css": "dfb1cb62e23a",
+      "src/components/search-field/search-field.tsx": "d6732b61b027",
+      "src/components/segmented-control/segmented-control.module.css": "b618f87caf6c",
+      "src/components/segmented-control/segmented-control.tsx": "08d99a232a85",
+      "src/components/settings-section/row-list.tsx": "084863a247f2",
+      "src/components/settings-section/save-actions.tsx": "a59ba2dd043d",
+      "src/components/settings-section/settings-section.module.css": "b68613f27278",
+      "src/components/settings-section/settings-section.tsx": "8b8bf9c52cd8",
+      "src/components/stack/stack.module.css": "d60c765f4c2c",
+      "src/components/stack/stack.tsx": "9c1282860523",
+      "src/components/status/status.module.css": "857514143412",
+      "src/components/status/status.tsx": "2624ba499d78",
+      "src/components/switch/switch.module.css": "dfc49c13a86c",
+      "src/components/switch/switch.tsx": "1b4eab172507",
+      "src/components/tabs/content-tabs.tsx": "e6e1f6c3fcca",
+      "src/components/tabs/tab-list.shared.module.css": "1e788fc0038f",
+      "src/components/tabs/tabs.module.css": "d712075c3a08",
+      "src/components/tabs/tabs.tsx": "0de6dd891231",
+      "src/components/tooltip/tooltip.module.css": "135c319c544d",
+      "src/components/tooltip/tooltip.tsx": "7e3dad2fa413",
+      "src/components/touch-target/touch-target.module.css": "a3aa03f2b759",
+      "src/components/touch-target/touch-target.tsx": "826e0c725f93",
+      "src/fonts/OFL.txt": "e5e56b793839",
+      "src/fonts/geist-mono.woff2": "d11da4f1b610",
+      "src/fonts/geist.woff2": "e33c660daaed",
+      "src/lib/cn.ts": "78967d3aa1af",
+      "src/lib/feedback.ts": "8287d6e713f6",
+      "src/lib/navigation.ts": "fa93ff5fc75e",
+      "src/styles.d.ts": "0690f4a3ca87",
+      "src/styles/component-roles.css": "17614d16af32",
+      "src/styles/fonts.css": "774daa03402e",
+      "src/styles/generated/tokens.css": "e1780fff1bb0",
+      "src/styles/generated/typography.css": "4cf1459129a1",
+      "src/styles/global.css": "354f63ecacea",
+      "src/styles/theme.css": "addb06207618"
     }
   },
   "@sim/emcn-auth": {
@@ -9089,7 +9420,21 @@
           "[data-auth-root]",
           "[data-auth-root] [data-auth-titlebar]",
           "[data-auth-root]:where(button,a,input,[tabindex]):focus-visible"
-        ]
+        ],
+        "declarations": {
+          "@layer base [data-auth-root]:where(*,*::before,*::after)": "8d574ebea2e6",
+          "@layer base [data-auth-root]:where(a)": "e2e86c5248c6",
+          "@layer base [data-auth-root]:where(button)": "9463ff4798ce",
+          "@layer base [data-auth-root]:where(button,input,select,textarea)": "b232f55350ed",
+          "@layer base [data-auth-root]:where(button:disabled)": "2dc8b2479ba5",
+          "@layer base [data-auth-root]:where(h1,h2,h3,p,ul,ol,fieldset)": "e855691c6ab4",
+          "@layer base [data-auth-root]:where(svg)": "867764b6d2a2",
+          "@layer base [data-auth-root]:where(ul,ol)": "05314e44836d",
+          "@media(max-width:767px) [data-auth-root]": "e7ecf47071cb",
+          "[data-auth-root]": "c6465809868a",
+          "[data-auth-root] [data-auth-titlebar]": "fce205b055f9",
+          "[data-auth-root]:where(button,a,input,[tabindex]):focus-visible": "32dc532dccb1"
+        }
       },
       "./tag": {
         "names": ["AuthTag"],
@@ -9229,6 +9574,56 @@
       "src/components/text-link/text-link.module.css": {
         "textLink": "493f10507244"
       }
+    },
+    "sources": {
+      "src/components/account-menu/account-menu.module.css": "23911c19b69f",
+      "src/components/account-menu/account-menu.tsx": "050e542d1956",
+      "src/components/button/button.module.css": "e00417c5d655",
+      "src/components/button/button.tsx": "3632fe9793d4",
+      "src/components/code-entry/code-entry.module.css": "df88abadc8a1",
+      "src/components/code-entry/code-entry.tsx": "46584f463c44",
+      "src/components/divider/divider.module.css": "ce9e01b739e9",
+      "src/components/divider/divider.tsx": "bf9487ee9b19",
+      "src/components/feedback/feedback.module.css": "077b6328b0a3",
+      "src/components/feedback/feedback.tsx": "26a7ea952e3b",
+      "src/components/field/field.module.css": "c7289b88c0e2",
+      "src/components/field/field.tsx": "46f2df6d9151",
+      "src/components/heading/heading.module.css": "6ef75c79ad08",
+      "src/components/heading/heading.tsx": "34c32c957c19",
+      "src/components/identity/identity.module.css": "a188523eb187",
+      "src/components/identity/identity.tsx": "d058acf7c416",
+      "src/components/input/input.shared.module.css": "bea9069e47cd",
+      "src/components/input/input.tsx": "d0345c3b30ca",
+      "src/components/legal/legal.module.css": "2a1ae627345e",
+      "src/components/legal/legal.tsx": "1746ddd23e43",
+      "src/components/loading/loading.module.css": "aa123dab4ff1",
+      "src/components/loading/loading.tsx": "51834320cd26",
+      "src/components/navigation/navigation.module.css": "9696528d6805",
+      "src/components/navigation/navigation.tsx": "d7e14d6f0b8d",
+      "src/components/notification/notification.module.css": "787baebac0a1",
+      "src/components/notification/notification.tsx": "ac5ae39b8633",
+      "src/components/otp/otp.module.css": "9b1d85d9e8c2",
+      "src/components/otp/otp.tsx": "8e9c496d6845",
+      "src/components/popup/popup.shared.module.css": "66e6417a18fa",
+      "src/components/resource/resource.module.css": "7c870a688d01",
+      "src/components/resource/resource.tsx": "586e25fec03a",
+      "src/components/root/context.ts": "30f99af3104b",
+      "src/components/root/root.tsx": "231264229ae6",
+      "src/components/select/select.module.css": "4dd4ac227614",
+      "src/components/select/select.tsx": "f02b6efff0e8",
+      "src/components/shell/shell.module.css": "dd5c184117b7",
+      "src/components/shell/shell.tsx": "17c537fc5c7f",
+      "src/components/stack/stack.module.css": "4e9aae97e18f",
+      "src/components/stack/stack.tsx": "227e9262cb00",
+      "src/components/status/status.module.css": "a1494be13ff1",
+      "src/components/status/status.tsx": "41c6e7bc7cc1",
+      "src/components/tag/tag.module.css": "0d91602f3446",
+      "src/components/tag/tag.tsx": "efcad358143a",
+      "src/components/text-link/text-link.module.css": "0cc56c96583c",
+      "src/components/text-link/text-link.tsx": "53ab2933a5a0",
+      "src/styles.d.ts": "171c2cca0062",
+      "src/styles/auth.css": "66be2af1b82d",
+      "src/styles/utilities.css": "8c50f445b786"
     }
   },
   "@sim/emcn-docs": {
@@ -9319,8 +9714,7 @@
           },
           "CodeContent": {
             "children": ["‹ReactNode›"],
-            "label": ["‹string›"],
-            "tabIndex": ["‹number›"]
+            "label": ["‹string›"]
           }
         },
         "params": {}
@@ -9550,7 +9944,23 @@
           "@supports not(backdrop-filter:blur(1px))",
           "@supports not(backdrop-filter:blur(1px)) .docs-root,.docs-portal,.dark .docs-root,.dark .docs-portal,.docs-root.dark,.docs-portal.dark",
           "@theme inline"
-        ]
+        ],
+        "declarations": {
+          ".dark .docs-root .shiki,.dark .docs-root .shiki span": "869a7d91696f",
+          ".dark .docs-root,.dark .docs-portal,.docs-root.dark,.docs-portal.dark": "aa82243572f3",
+          ".dark .docs-root::selection,.dark .docs-portal::selection": "98074c4e3ec7",
+          ".docs-root .shiki,.docs-root .shiki span": "3af31d8145c2",
+          ".docs-root [hidden=\"until-found\"]": "ffddec200e20",
+          ".docs-root,.docs-portal": "e4da850412b4",
+          ".docs-root:focus-visible:not(input,textarea,select,[tabindex=\"-1\"]),.docs-portal:focus-visible:not(input,textarea,select,[tabindex=\"-1\"])": "bedeed9bdbc6",
+          ".docs-root:where(button,a,input,textarea,select,summary,[tabindex]):focus,.docs-portal:where(button,a,input,textarea,select,summary,[tabindex]):focus": "32dc532dccb1",
+          "@media print .docs-root [data-docs-tab-panel]": "66a84ce7140e",
+          "@media print .docs-root [hidden=\"until-found\"]": "1294ca3bb013",
+          "@media(max-width:1023px) .docs-root": "470d2208f586",
+          "@media(prefers-reduced-transparency:reduce) .docs-root,.docs-portal,.dark .docs-root,.dark .docs-portal,.docs-root.dark,.docs-portal.dark": "8c3cfc6cc4c2",
+          "@supports not(backdrop-filter:blur(1px)) .docs-root,.docs-portal,.dark .docs-root,.dark .docs-portal,.docs-root.dark,.docs-portal.dark": "8c3cfc6cc4c2",
+          "@theme inline": "8fd79dc3ef00"
+        }
       },
       "./tabs": {
         "names": ["Tab", "Tabs", "TabsList", "TabsSelect", "TabsTrigger"],
@@ -9631,6 +10041,28 @@
         "select": "30974bbe35f7",
         "trigger": "86b57412ed2c"
       }
+    },
+    "sources": {
+      "src/components/badge/badge.tsx": "ecc17af39787",
+      "src/components/button/button.tsx": "83f101e17127",
+      "src/components/callout/callout.tsx": "d8319e3b5fb7",
+      "src/components/cards/cards.tsx": "233141d318a5",
+      "src/components/chrome/chrome.module.css": "6cea0d32a5aa",
+      "src/components/chrome/chrome.ts": "e07e73091aaa",
+      "src/components/code-block/code-block.tsx": "ced9cfde6109",
+      "src/components/command-table/command-table.tsx": "4e3bd1ca5b08",
+      "src/components/copy-button/copy-button.tsx": "b561f24e813f",
+      "src/components/heading/heading.tsx": "85e72b5efcc9",
+      "src/components/lightbox/lightbox.tsx": "3cb7118cd77f",
+      "src/components/media-viewer/media-viewer.tsx": "c14104913bf5",
+      "src/components/reference-details/reference-details.tsx": "6f4416759216",
+      "src/components/screenshot-frame/screenshot-frame.tsx": "5c1030afbd8d",
+      "src/components/scroll-region/scroll-region.tsx": "49b6121c0340",
+      "src/components/steps/steps.tsx": "ca25e152e0f5",
+      "src/components/tabs/tabs.module.css": "b58dff309cc0",
+      "src/components/tabs/tabs.tsx": "ad078ae8bc45",
+      "src/styles.d.ts": "b13519efdfd3",
+      "src/styles/docs.css": "32ac7add52c1"
     }
   },
   "@sim/emcn-platform": {
@@ -10380,7 +10812,13 @@
           "--text-muted",
           "--text-primary"
         ],
-        "selectors": [".canvas", ".palette", ".tokens", "html[class~=\"dark\"] .tokens"]
+        "selectors": [".canvas", ".palette", ".tokens", "html[class~=\"dark\"] .tokens"],
+        "declarations": {
+          ".canvas": "7d1e89077327",
+          ".palette": "6f6bc3b66da8",
+          ".tokens": "51f3d3e8abdf",
+          "html[class~=\"dark\"] .tokens": "82320fe4d730"
+        }
       },
       "./styles/platform.css": {
         "properties": [
@@ -10437,7 +10875,25 @@
           "[data-platform-ui][data-theme=\"dark\"]",
           "[data-sim-desktop-title-bar=\"inset\"] [data-desktop][data-conversation][data-sidebar-collapsed]",
           "[data-sim-desktop-title-bar] [data-platform-ui]"
-        ]
+        ],
+        "declarations": {
+          "@container scrolling-shell(width < 75rem) [data-platform-ui] [data-page-opener]": "6c1e7897830b",
+          "@media(max-width:48rem) [data-platform-ui]": "58390dd46397",
+          "@media(max-width:48rem) [data-platform-ui] [data-desktop][data-conversation]": "0e58c6081953",
+          "@media(max-width:48rem) [data-platform-ui][data-embedded]": "03625a1292cf",
+          "@media(max-width:48rem) [data-sim-desktop-title-bar=\"inset\"] [data-desktop][data-conversation]": "fbfbe485c5e9",
+          "[data-platform-ui]": "de4f035a9542",
+          "[data-platform-ui] [data-desktop]": "55491dbc8776",
+          "[data-platform-ui] [data-desktop][data-conversation][data-sidebar-collapsed]": "0e58c6081953",
+          "[data-platform-ui] [data-sidebar-collapsed]": "58390dd46397",
+          "[data-platform-ui] textarea": "71214114845d",
+          "[data-platform-ui]:focus": "32dc532dccb1",
+          "[data-platform-ui][data-embedded]:focus-visible:not(input,textarea,select,[tabindex=\"-1\"])": "b070204e2a01",
+          "[data-platform-ui][data-embedded]:not([data-canvas])": "b0e873b422dc",
+          "[data-platform-ui][data-theme=\"dark\"]": "3ba3af043aa7",
+          "[data-sim-desktop-title-bar=\"inset\"] [data-desktop][data-conversation][data-sidebar-collapsed]": "fbfbe485c5e9",
+          "[data-sim-desktop-title-bar] [data-platform-ui]": "57d0c22e1389"
+        }
       },
       "./surface/platform-surface": {
         "names": ["PlatformSurface"],
@@ -11128,6 +11584,38 @@
         "palette": "f82874d57a19",
         "tokens": "f511ea4a930d"
       }
+    },
+    "sources": {
+      "src/catalog/component-recipe.tsx": "76ac620fcd33",
+      "src/catalog/evidence.json": "5719c7d05769",
+      "src/catalog/recipes.json": "1da1cd7adc10",
+      "src/catalog/recipes.module.css": "1aa56c17132a",
+      "src/catalog/variants.json": "41d5e24ff3c7",
+      "src/components/composer-input/composer-input.module.css": "ec54608c012d",
+      "src/components/composer-input/composer-input.tsx": "354819a5bccf",
+      "src/components/composer-input/marked-text.tsx": "323f3ef6bc87",
+      "src/components/composer-input/suggestions.module.css": "38c16831e0b4",
+      "src/components/composer-input/suggestions.tsx": "37a1316e7c79",
+      "src/components/connection-prompt/connection-prompt.module.css": "bc317c5d580a",
+      "src/components/connection-prompt/connection-prompt.tsx": "7b028d844697",
+      "src/components/destination-tabs/destination-tabs.module.css": "5ba614835e8b",
+      "src/components/destination-tabs/destination-tabs.tsx": "c5a517c446c4",
+      "src/components/execution-steps/execution-steps.module.css": "99abf0a90a64",
+      "src/components/execution-steps/execution-steps.tsx": "78298218af80",
+      "src/components/message-bubble/message-bubble.module.css": "da379b9f51b8",
+      "src/components/message-bubble/message-bubble.tsx": "acf36193093f",
+      "src/components/page-column/page-column.module.css": "c75e21a09c7d",
+      "src/components/page-column/page-column.tsx": "676c09641f00",
+      "src/components/recent-items/recent-items.module.css": "a9772ef7dacf",
+      "src/components/recent-items/recent-items.tsx": "c65edd18e6d3",
+      "src/components/surface/platform-surface.tsx": "a5ae7a89ee77",
+      "src/components/workspace-fields/workspace-fields.module.css": "68f8322da655",
+      "src/components/workspace-fields/workspace-fields.tsx": "6550ce2c7e88",
+      "src/components/workspace-list/workspace-list.module.css": "6b904c803eab",
+      "src/components/workspace-list/workspace-list.tsx": "d39c6bfba5b9",
+      "src/styles.d.ts": "d0872e24ee58",
+      "src/styles/host-bridge.module.css": "0e901f9814c7",
+      "src/styles/platform.css": "d44be950f81f"
     }
   }
 }

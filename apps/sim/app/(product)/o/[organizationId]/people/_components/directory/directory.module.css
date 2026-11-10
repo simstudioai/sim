@@ -32,13 +32,6 @@
   margin-inline-start: auto;
 }
 
-/* A phone gives search its own row, out to the page gutter. */
-@media (width < 30rem) {
-  .search {
-    flex-basis: 100%;
-  }
-}
-
 .scope {
   flex: 1;
   color: var(--ui-secondary);
@@ -49,35 +42,5 @@
 @media (width < 48rem) {
   .scope {
     display: none;
-  }
-}
-
-.personCell {
-  display: grid;
-  min-inline-size: 0;
-}
-
-.summary,
-.summaryDepartment {
-  display: none;
-}
-
-.summary {
-  gap: var(--ui-stack-gap);
-  margin-block-start: var(--ui-stack-gap);
-  color: var(--ui-secondary);
-  overflow-wrap: anywhere;
-}
-
-/* The breakpoints where the table hides its columns: what leaves the row joins the person's cell. */
-@container (width < 48rem) {
-  .summary {
-    display: grid;
-  }
-}
-
-@container (width < 30rem) {
-  .summaryDepartment {
-    display: inline;
   }
 }

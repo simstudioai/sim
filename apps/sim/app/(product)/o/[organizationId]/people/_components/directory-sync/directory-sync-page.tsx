@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { Modal } from '@sim/emcn/modal'
-import { FailureNotice, InlineNotice, StatusText } from '@sim/emcn/status'
+import { FailureNotice, InlineNotice, StatusTag } from '@sim/emcn/status'
 import { PageColumn } from '@sim/emcn-platform/page-column'
 import { formatDateTime } from '@sim/utils/formatting'
 import {
@@ -105,7 +105,7 @@ function SyncCard({ sync, syncing, running, onUpdate, onRun }: SyncCardProps) {
             </span>
           )}
         </span>
-        <StatusText label={tag} intent={intent} />
+        <StatusTag label={tag} intent={intent} live />
       </header>
       <div className={styles.summary}>
         <h2 data-type='T042'>{title}</h2>

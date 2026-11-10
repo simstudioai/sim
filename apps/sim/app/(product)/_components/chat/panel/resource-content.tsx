@@ -9,6 +9,7 @@ import { CitedSources } from '@/app/(product)/_components/chat/panel/cited-sourc
 import styles from '@/app/(product)/_components/chat/panel/panels.module.css'
 import { TerminalSession } from '@/app/(product)/_components/chat/panel/terminal-session/terminal-session'
 import { SearchResultsPanel } from '@/app/(product)/_components/search/search-results-host'
+import { useDashboardsShown } from '@/platform/lib/data/chat-mentions'
 import type { PlatformResource } from '@/platform/lib/data/models/chat'
 
 /** Loaded with the first workspace tab, so a chat that never opens one never downloads its views. */
@@ -49,13 +50,17 @@ interface ResourceContentProps {
   desktopScopeId: string
 }
 
-/** What a tab shows. A kind this app does not render yet links to the surface that does. */
+/**
+ * What a tab shows. A kind this app does not render yet links to the surface that does, as does a
+ * dashboard while its tab is held behind `platform-preview`.
+ */
 export function ResourceContent({
   resource,
   visible,
   selected,
   desktopScopeId,
 }: ResourceContentProps) {
+  const dashboardsShown = useDashboardsShown()
   if (resource.type === 'search' && resource.search)
     return <SearchResultsPanel resource={resource} />
   if (resource.type === 'browser')
@@ -67,7 +72,11 @@ export function ResourceContent({
     return selected ? (
       <StreamingFile file={resource.stream.unsaved} stream={resource.stream} />
     ) : null
-  if (resource.workspaceId && WORKSPACE_KINDS.has(resource.type))
+  if (
+    resource.workspaceId &&
+    WORKSPACE_KINDS.has(resource.type) &&
+    (resource.type !== 'dashboard' || dashboardsShown)
+  )
     return selected ? (
       <WorkspaceResource resource={resource} workspaceId={resource.workspaceId} />
     ) : null

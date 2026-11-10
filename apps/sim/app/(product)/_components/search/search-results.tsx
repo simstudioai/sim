@@ -8,7 +8,7 @@ import { DateRangePicker } from '@sim/emcn/picker/date-picker'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import Link from 'next/link'
 import styles from '@/app/(product)/_components/search/search.module.css'
-import { SourceRow } from '@/app/(product)/_components/source-row/source-row'
+import { SourceRow } from '@/app/(product)/_components/search/source-row'
 import type { SearchResultsData } from '@/platform/lib/data/models/search'
 
 function moveFocus(event: KeyboardEvent<HTMLElement>) {

@@ -122,3 +122,71 @@ it('fails when an export, prop, nested field, parameter, token, selector or clas
     rmSync(root, { recursive: true, force: true })
   }
 }, 30_000)
+
+it('fails when a token value or a component behaviour changes but no prop does', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'sim-emcn-values-'))
+  const put = (file: string, content: string) => {
+    mkdirSync(path.dirname(path.join(root, file)), { recursive: true })
+    writeFileSync(path.join(root, file), content)
+  }
+  const run = (...args: string[]) => {
+    const result = spawnSync('bun', [CHECK, root, ...args], { encoding: 'utf8' })
+    return { status: result.status, output: result.stdout + result.stderr }
+  }
+  try {
+    spawnSync('git', ['init', '-q'], { cwd: root })
+    mkdirSync(path.join(root, 'scripts'))
+    symlinkSync(
+      path.resolve(path.dirname(CHECK), '../node_modules'),
+      path.join(root, 'node_modules')
+    )
+    put(
+      'packages/emcn/package.json',
+      JSON.stringify({
+        name: '@sim/emcn',
+        exports: {
+          './status': './src/status/status.tsx',
+          './styles/theme.css': './src/styles/theme.css',
+        },
+      })
+    )
+    const theme = ':root { --emcn-ink: #000; --emcn-gap: 4px }'
+    put('packages/emcn/src/styles/theme.css', theme)
+    const status = `interface StatusProps { label: string; failed: boolean }
+      export function Status({ label, failed }: StatusProps) {
+        return <span role={failed ? 'alert' : 'status'}>{label}</span>
+      }`
+    put('packages/emcn/src/status/status.tsx', status)
+    expect(run('--update').status).toBe(0)
+
+    put(
+      'packages/emcn/src/status/status.tsx',
+      `// A status line.\n${status.replace('{ label: string; failed: boolean }', '{\n  label: string\n  failed: boolean\n}')}`
+    )
+    put(
+      'packages/emcn/src/styles/theme.css',
+      ':root {\n  --emcn-ink:  #000;\n  --emcn-gap: 4px;\n}'
+    )
+    expect(run().status).toBe(0)
+
+    put('packages/emcn/src/styles/theme.css', theme.replace('#000', '#111'))
+    let result = run()
+    expect(result.status).toBe(1)
+    expect(result.output).toContain(
+      '~ @sim/emcn › exports › ./styles/theme.css › declarations › :root'
+    )
+    expect(result.output).toContain('~ @sim/emcn › sources › src/styles/theme.css')
+
+    put('packages/emcn/src/styles/theme.css', theme)
+    put(
+      'packages/emcn/src/status/status.tsx',
+      status.replace("failed ? 'alert'", "!failed ? 'alert'")
+    )
+    result = run()
+    expect(result.status).toBe(1)
+    expect(result.output).toContain('~ @sim/emcn › sources › src/status/status.tsx')
+    expect(result.output).not.toContain('props')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}, 30_000)

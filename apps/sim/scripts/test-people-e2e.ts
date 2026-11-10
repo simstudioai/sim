@@ -785,14 +785,6 @@ async function run() {
           .addCookies([
             { name: 'better-auth.session_token', value: lead.cookie, url: baseUrl.origin },
           ])
-        await mobile.goto(peopleUrl(teamOrg, { view: 'directory' }), {
-          waitUntil: 'domcontentloaded',
-        })
-        // A report's row also holds this name, in its manager cell, which a phone keeps hidden.
-        const mobileRow = mobile
-          .getByRole('row')
-          .filter({ has: mobile.getByRole('link', { name: /^Amara Cole/ }) })
-        await expect(mobileRow.getByText(/^Reports to /)).toBeVisible()
         await mobile.goto(peopleUrl(teamOrg), { waitUntil: 'domcontentloaded' })
         await mobile
           .getByRole('link', { name: 'View profile for Maya Chen' })

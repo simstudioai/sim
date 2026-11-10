@@ -664,17 +664,7 @@ try {
     assert.equal(restored.searchParams.get('source'), 'slack')
     assert.equal(restored.searchParams.get('updated'), '7d')
   })
-  await check('New chat stays in Assistant and starts with a fresh draft', async () => {
-    await page.goto(appUrl(routes.searchChat(assistantId)))
-    await expect(searchMode(page, 'Assistant')).toBeChecked()
-    await expect(page.getByText(answer, { exact: true })).toBeVisible()
-    await capture('assistant-conversation-desktop')
-    await page.getByRole('button', { name: 'New chat', exact: true }).click()
-    await expect(page).toHaveURL(appUrl(`${routes.search}?mode=assistant`))
-    await expect(assistantComposer(page)).toHaveValue('')
-    await expect(searchMode(page, 'Assistant')).toBeChecked()
-  })
-  await check('Admission and New chat preserve mode, context and drafts', () =>
+  await check('Admission preserves mode and context', () =>
     withScriptedAssistant(async (assistant) => {
       const releaseAdmission = createDeferred<void>()
       assistant.held = releaseAdmission.promise
@@ -700,22 +690,6 @@ try {
         await expect(page.getByText(assistantResponse(first), { exact: true })).not.toBeVisible()
         await searchMode(page, 'Assistant').check()
         await expect(page.getByText(assistantResponse(first), { exact: true })).toBeVisible()
-        await composer.fill('An unsent follow-up')
-        await page.getByRole('button', { name: 'New chat', exact: true }).click()
-        await expect(page).toHaveURL(appUrl(`${routes.search}?mode=assistant`))
-        await expect(composer).toHaveValue('')
-        await composer.fill('A distinct new conversation')
-        await composer.press('Enter')
-        await expect(page.getByText(assistantResponse(first + 1), { exact: true })).toBeVisible()
-        assert.equal(assistant.posts.length, 2)
-        assert.equal(assistant.posts[1]?.createNewChat, true)
-        assert.equal(assistant.posts[1]?.chatId, undefined)
-        assert.notEqual(assistant.createdChatIds[0], assistant.createdChatIds[1])
-        await expect(page).toHaveURL((url) => isSearchChat(url, assistant.createdChatIds[1]))
-        await page.reload()
-        await expect(page.getByText(assistantResponse(first + 1), { exact: true })).toBeVisible()
-        await expect(page.getByText(assistantResponse(first), { exact: true })).toHaveCount(0)
-        await capture('assistant-new-chat-after-admission')
       } finally {
         releaseAdmission.resolve()
       }

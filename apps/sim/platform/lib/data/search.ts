@@ -251,7 +251,6 @@ export function useSearchSurface(chatId: string | undefined) {
         queryKey: knowledgeKeys.searchQuery(resourceScopeKey(scope), query.trim(), userId),
       })
     },
-    newLabel: mode === 'assistant' ? 'New chat' : 'New search',
     canStartNew: hasConversation || (mode === 'search' && Boolean(query.trim())),
     startingNew,
     /** A fresh conversation or search in the current mode, dropping its unsent text. */

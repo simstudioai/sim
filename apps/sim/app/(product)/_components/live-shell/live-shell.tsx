@@ -6,9 +6,9 @@ import { resolveLiveDestinations } from '@/app/(product)/_components/destination
 import { LiveComposerHost } from '@/app/(product)/_components/live-shell/live-composer-host'
 import { StaleSession } from '@/app/(product)/_components/live-shell/stale-session'
 import { ProductSession } from '@/app/(product)/_components/product-session'
+import { LiveSourceLinks } from '@/app/(product)/_components/search/live-source-links'
 import { SessionState } from '@/app/(product)/_components/session-state/session-state'
 import { AccessDenied, SurfaceUnavailable } from '@/app/(product)/_components/shell-gate/shell-gate'
-import { LiveSourceLinks } from '@/app/(product)/_components/source-row/live-source-links'
 import { prefetchShell } from '@/platform/lib/data/prefetch-shell'
 import { LiveProviders } from '@/platform/lib/data/providers'
 import {
