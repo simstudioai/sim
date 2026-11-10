@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { resolveFileCategory } from '@/components/file-viewer/file-category'
-import { MENTION_BROWSE_LIMIT, type MentionFamily } from '@/lib/api/contracts/organization-mentions'
+import { MENTION_BROWSE_LIMIT } from '@/lib/api/contracts/organization-mentions'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
-import { workspacePath } from '@/lib/navigation/paths'
-import { isWorkspaceResourceKind, workspaceResourcePath } from '@/lib/resources'
 import { requestTerminalFocus } from '@/lib/terminal/focus'
 import { terminalIdFromResourceId } from '@/lib/terminal/resource-id'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
@@ -18,8 +16,18 @@ import type {
 } from '@/hooks/mothership-chat/use-resource-panel'
 import { useTerminalTabResources } from '@/hooks/mothership-chat/use-terminal-tab-resources'
 import { useOrganizationMentions } from '@/hooks/queries/organization-mentions'
-import { grouped, useDashboardsShown, useMentionBrowse } from '@/platform/lib/data/chat-mentions'
-import type { ChatContext } from '@/platform/lib/data/chat-types'
+import {
+  grouped,
+  useDashboardsShown,
+  useMentionBrowse,
+  useTestsShown,
+} from '@/platform/lib/data/chat-mentions'
+import {
+  isPanelFamily,
+  livesInWorkspace,
+  pickedResource,
+  resourceHref,
+} from '@/platform/lib/data/chat-panel-model'
 import type {
   ChatSource,
   FileStream,
@@ -28,38 +36,6 @@ import type {
 } from '@/platform/lib/data/models/chat'
 import type { PanelPicker, PanelResources } from '@/platform/lib/data/models/chat-panel'
 import { useOrganization } from '@/platform/lib/data/organization'
-import { type SurfaceScope, surfaceHref } from '@/platform/lib/data/organization-model'
-
-const RESOURCE_KIND: Partial<Record<string, string>> = {
-  knowledgebase: 'knowledge',
-  filefolder: 'folder',
-}
-
-/**
- * A workspace resource opens on its workspace page; any other opens beside the organization's Home.
- * A dashboard links to the Dashboard tab only while that tab is shown.
- */
-function resourceHref(
-  scope: SurfaceScope,
-  resource: MothershipResource,
-  dashboardsShown: boolean
-): string | undefined {
-  if (!resource.workspaceId) return undefined
-  const kind = RESOURCE_KIND[resource.type] ?? resource.type
-  if (isWorkspaceResourceKind(kind))
-    return workspaceResourcePath(resource.workspaceId, kind, resource.id)
-  if (kind === 'dashboard')
-    return dashboardsShown ? workspacePath(resource.workspaceId, 'dashboards') : undefined
-  if (kind === 'log' && resource.executionId)
-    return workspacePath(resource.workspaceId, `logs/${encodeURIComponent(resource.executionId)}`)
-  return `${surfaceHref(scope, '/home')}?${new URLSearchParams({ resource: resource.id })}`
-}
-
-/** A kind that belongs to one workspace, which a workspace chat's older tabs leave implied. */
-function livesInWorkspace(type: string): boolean {
-  const kind = RESOURCE_KIND[type] ?? type
-  return isWorkspaceResourceKind(kind) || kind === 'dashboard' || kind === 'log'
-}
 
 /** A Sources tab lists what its answer cited; the transcript already holds that evidence. */
 function citedBy(
@@ -184,6 +160,7 @@ export function usePanelResources({
   useTerminalTabResources(panel.desktopTabResourceOptions)
   const scope = useOrganization()
   const dashboardsShown = useDashboardsShown()
+  const testsShown = useTestsShown()
   const picker = usePanelPicker(panel, dashboardsShown)
   const locked = useAgentFileEditLock(chat.previewSession?.status === 'streaming', chat.isSending)
   const resources: PlatformResource[] = chat.resources.map((stored) => {
@@ -196,7 +173,7 @@ export function usePanelResources({
       type: resource.type,
       title: resource.title,
       workspaceId: resource.workspaceId,
-      href: resourceHref(scope, resource, dashboardsShown),
+      href: resourceHref(scope, resource, { dashboards: dashboardsShown, tests: testsShown }),
       executionId: resource.executionId,
       active: resource.id === chat.activeResourceId,
       search: resource.search,
@@ -232,54 +209,6 @@ export function usePanelResources({
 }
 
 /**
- * The families a panel tab shows, as its + picker offers them. Chats, skills and workflow, table
- * and knowledge base folders open no tab of their own, as in legacy's picker. Dashboards are offered
- * only while the Dashboard tab is shown, which `grouped` decides.
- */
-const PANEL_FAMILIES: ReadonlySet<MentionFamily> = new Set([
-  'dashboards',
-  'tables',
-  'files',
-  'file_folders',
-  'knowledge_bases',
-  'workflows',
-  'logs',
-])
-
-/** The tab a picked reference opens, or nothing for a kind no tab shows. */
-function pickedResource(
-  context: ChatContext,
-  logIds: ReadonlyMap<string, string>
-): MothershipResource | null {
-  const owned = {
-    title: context.label,
-    workspaceId: 'workspaceId' in context ? context.workspaceId : undefined,
-  }
-  switch (context.kind) {
-    case 'table':
-      return { ...owned, type: 'table', id: context.tableId }
-    case 'file':
-      return { ...owned, type: 'file', id: context.fileId }
-    case 'filefolder':
-      return { ...owned, type: 'filefolder', id: context.fileFolderId }
-    case 'knowledge':
-      return context.knowledgeId
-        ? { ...owned, type: 'knowledgebase', id: context.knowledgeId }
-        : null
-    case 'workflow':
-      return { ...owned, type: 'workflow', id: context.workflowId }
-    case 'dashboard':
-      return { ...owned, type: 'dashboard', id: context.dashboardId }
-    case 'logs': {
-      const id = context.executionId && logIds.get(context.executionId)
-      return id ? { ...owned, type: 'log', id, executionId: context.executionId } : null
-    }
-    default:
-      return null
-  }
-}
-
-/**
  * The panel's + picker over the organization's mention reads: each workspace with its most recently
  * updated tables, files, knowledge bases, workflows, logs and (while their tab is shown) dashboards,
  * and the menu's search answered by the server. A workspace is not itself a pick, so one with none
@@ -299,10 +228,10 @@ function usePanelPicker(
     { enabled: enabled && !browse.searching }
   )
   const rows = browse.searching
-    ? browse.rows.filter((row) => PANEL_FAMILIES.has(row.family))
+    ? browse.rows.filter((row) => isPanelFamily(row.family))
     : [
         ...browse.rows.filter((row) => row.family === 'workspaces'),
-        ...(recent.data?.rows ?? []).filter((row) => PANEL_FAMILIES.has(row.family)),
+        ...(recent.data?.rows ?? []).filter((row) => isPanelFamily(row.family)),
       ]
   const logIds = new Map(
     rows.flatMap((row) =>

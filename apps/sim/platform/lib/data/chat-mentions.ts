@@ -133,6 +133,13 @@ export function useDashboardsShown(): boolean {
   return isWorkspaceTabShown('dashboards', { dashboards, 'platform-preview': preview })
 }
 
+/** Whether the Tests tab is shown, which decides whether a test the chat opened links into it. */
+export function useTestsShown(): boolean {
+  const tests = useFeatureFlag('workflow-tests')
+  const preview = useFeatureFlag('platform-preview')
+  return isWorkspaceTabShown('tests', { 'workflow-tests': tests, 'platform-preview': preview })
+}
+
 /**
  * Mention rows as the pickers list them, in groups by family. A dashboard is offered only while the
  * Dashboard tab it opens into is shown.
