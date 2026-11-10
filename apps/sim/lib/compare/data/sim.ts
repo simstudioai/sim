@@ -239,22 +239,21 @@ export const simProfile: CompetitorProfile = {
         ],
       },
       versionControlDepth: {
-        value:
-          'Deployed-version history with rollback for every workflow; server-persisted checkpoint/revert and visual diff (accept/reject) specifically for Copilot AI edits',
+        value: 'Deployed-version history with rollback for every workflow',
         detail:
           'Manual drag-and-drop undo/redo is client-side/localStorage only (capped at 100 ops, 5 stacks), not server-synced across devices. Deployment history does not include an arbitrary version-to-version diff tool, and knowledge base documents have no version history.',
-        shortValue: 'Deployment rollback plus Copilot edit diff/revert',
+        shortValue: 'Deployment rollback',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/workflows/diff/engine.ts',
-            label: 'Sim codebase: WorkflowDiffEngine',
-            asOf: '2026-07-02',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/api/workflows/%5Bid%5D/deployments/%5Bversion%5D/revert/route.ts',
+            label: 'Sim codebase: revert a workflow to a deployed version',
+            asOf: '2026-11-10',
           },
           {
             url: 'https://github.com/simstudioai/sim/blob/main/packages/db/schema.ts',
-            label: 'Sim codebase: workflowCheckpoints / workflow_deployment_version tables',
-            asOf: '2026-07-02',
+            label: 'Sim codebase: workflow_deployment_version table',
+            asOf: '2026-11-10',
           },
         ],
       },
