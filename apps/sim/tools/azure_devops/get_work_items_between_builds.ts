@@ -3,6 +3,7 @@ import type {
   GetWorkItemsBetweenBuildsParams,
   GetWorkItemsBetweenBuildsResponse,
 } from '@/tools/azure_devops/types'
+import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getWorkItemsBetweenBuildsTool: ToolConfig<
@@ -14,6 +15,7 @@ export const getWorkItemsBetweenBuildsTool: ToolConfig<
   description:
     'Get work item references associated with commits between two builds in Azure DevOps. Returns work item IDs and URLs — use Get Work Items Batch for full field details.',
   version: '1.0.0',
+  oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {
     organization: {

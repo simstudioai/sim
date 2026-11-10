@@ -1,9 +1,12 @@
 import { TinybirdIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const TinybirdBlock: BlockConfig = {
   type: 'tinybird',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'tinybird_v2' },
   name: 'Tinybird',
   description: 'Send events, query data, and manage Data Sources with Tinybird',
   authMode: AuthMode.ApiKey,
@@ -656,3 +659,19 @@ export const TinybirdBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const TinybirdV2Block: BlockConfig = {
+  ...TinybirdBlock,
+  type: 'tinybird_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Interact with Tinybird: stream JSON or NDJSON events with the Events API, run SQL with the Query API, call published Pipe API Endpoints by name with dynamic parameters, manage Data Sources by appending from a URL, truncating, or deleting rows by condition, and poll the status of asynchronous jobs.',
+  ...withSavedCredential(TinybirdBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'tinybird',
+    title: 'Tinybird Credential',
+  }),
+}

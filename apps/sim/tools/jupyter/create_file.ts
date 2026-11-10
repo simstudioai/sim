@@ -1,5 +1,6 @@
 import { encodeJupyterPath, parseJupyterContentModel } from '@/lib/internal/jupyter/protocol'
 import type { JupyterCreateFileParams, JupyterCreateFileResponse } from '@/tools/jupyter/types'
+import { JUPYTER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 const EMPTY_NOTEBOOK = { cells: [], metadata: {}, nbformat: 4, nbformat_minor: 5 }
@@ -12,6 +13,7 @@ export const jupyterCreateFileTool: InternalToolConfig<
   name: 'Jupyter Create File',
   description: 'Create a file, notebook, or directory on a Jupyter server',
   version: '1.0.0',
+  oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {
     serverUrl: {

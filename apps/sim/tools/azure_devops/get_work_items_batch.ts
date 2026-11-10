@@ -5,6 +5,7 @@ import type {
 } from '@/tools/azure_devops/types'
 import type { AzureDevOpsRawWorkItem } from '@/tools/azure_devops/utils'
 import { formatWorkItem, mapWorkItem } from '@/tools/azure_devops/utils'
+import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getWorkItemsBatchTool: ToolConfig<GetWorkItemsBatchParams, GetWorkItemsBatchResponse> =
@@ -14,6 +15,7 @@ export const getWorkItemsBatchTool: ToolConfig<GetWorkItemsBatchParams, GetWorkI
     description:
       'Fetch full details for multiple work items by ID from Azure DevOps. Pass comma-separated IDs (e.g. "123,456,789"). Requests with more than 200 IDs are automatically split into chunks.',
     version: '1.0.0',
+    oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
     params: {
       organization: {

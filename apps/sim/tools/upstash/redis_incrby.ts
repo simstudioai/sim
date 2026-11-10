@@ -1,3 +1,4 @@
+import { UPSTASH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { UpstashRedisIncrbyParams, UpstashRedisIncrbyResponse } from '@/tools/upstash/types'
 
@@ -10,6 +11,7 @@ export const upstashRedisIncrbyTool: ToolConfig<
   description:
     'Increment the integer value of a key by a given amount. Use a negative value to decrement. If the key does not exist, it is set to 0 before the operation.',
   version: '1.0.0',
+  oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {
     restUrl: {

@@ -1,4 +1,5 @@
 import type { ListBuildLogsParams, ListBuildLogsResponse } from '@/tools/azure_devops/types'
+import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listBuildLogsTool: ToolConfig<ListBuildLogsParams, ListBuildLogsResponse> = {
@@ -7,6 +8,7 @@ export const listBuildLogsTool: ToolConfig<ListBuildLogsParams, ListBuildLogsRes
   description:
     'List all log entries for a specific build in Azure DevOps. Returns log IDs, types, and line counts — use the log ID with the Get Build Log tool to fetch actual log text.',
   version: '1.0.0',
+  oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {
     organization: {

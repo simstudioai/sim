@@ -10,6 +10,7 @@ import {
   formatWorkItem,
   mapWorkItem,
 } from '@/tools/azure_devops/utils'
+import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateWorkItemTool: ToolConfig<UpdateWorkItemParams, UpdateWorkItemResponse> = {
@@ -18,6 +19,7 @@ export const updateWorkItemTool: ToolConfig<UpdateWorkItemParams, UpdateWorkItem
   description:
     'Update one or more fields on an existing work item in Azure DevOps. Provide only the fields you want to change.',
   version: '1.0.0',
+  oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {
     organization: {

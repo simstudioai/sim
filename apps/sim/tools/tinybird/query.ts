@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { TINYBIRD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TinybirdQueryParams, TinybirdQueryResponse } from '@/tools/tinybird/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -19,6 +20,7 @@ export const queryTool: ToolConfig<TinybirdQueryParams, TinybirdQueryResponse> =
   name: 'Tinybird Query',
   description: 'Execute SQL queries against Tinybird Pipes and Data Sources using the Query API.',
   version: '1.0.0',
+  oauth: TINYBIRD_CREDENTIAL_OAUTH,
   errorExtractor: 'nested-error-object',
 
   params: {

@@ -2,6 +2,7 @@ import type {
   AlgoliaPartialUpdateRecordParams,
   AlgoliaPartialUpdateRecordResponse,
 } from '@/tools/algolia/types'
+import { ALGOLIA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const partialUpdateRecordTool: ToolConfig<
@@ -12,6 +13,7 @@ export const partialUpdateRecordTool: ToolConfig<
   name: 'Algolia Partial Update Record',
   description: 'Partially update a record in an Algolia index without replacing it entirely',
   version: '1.0',
+  oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {
     applicationId: {

@@ -1,6 +1,7 @@
 import type { GetWorkItemParams, GetWorkItemResponse } from '@/tools/azure_devops/types'
 import type { AzureDevOpsRawWorkItem } from '@/tools/azure_devops/utils'
 import { formatWorkItem, mapWorkItem } from '@/tools/azure_devops/utils'
+import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getWorkItemTool: ToolConfig<GetWorkItemParams, GetWorkItemResponse> = {
@@ -9,6 +10,7 @@ export const getWorkItemTool: ToolConfig<GetWorkItemParams, GetWorkItemResponse>
   description:
     'Fetch full details of a single work item by ID from Azure DevOps, including title, state, type, assignee, and area path.',
   version: '1.0.0',
+  oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {
     organization: {

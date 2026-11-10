@@ -85,6 +85,25 @@ export const FLOW_SERVICE_ACCOUNT_PROVIDER_ID = 'flow-service-account' as const
 export const CODA_SERVICE_ACCOUNT_PROVIDER_ID = 'coda-service-account' as const
 export const GAUGE_SERVICE_ACCOUNT_PROVIDER_ID = 'gauge-service-account' as const
 export const HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID = 'higgsfield-service-account' as const
+export const SUPABASE_SERVICE_ACCOUNT_PROVIDER_ID = 'supabase-service-account' as const
+export const INFISICAL_SERVICE_ACCOUNT_PROVIDER_ID = 'infisical-service-account' as const
+export const OKTA_SERVICE_ACCOUNT_PROVIDER_ID = 'okta-service-account' as const
+export const DEVIN_SERVICE_ACCOUNT_PROVIDER_ID = 'devin-service-account' as const
+export const EMAILBISON_SERVICE_ACCOUNT_PROVIDER_ID = 'emailbison-service-account' as const
+export const UPSTASH_SERVICE_ACCOUNT_PROVIDER_ID = 'upstash-service-account' as const
+export const ALGOLIA_SERVICE_ACCOUNT_PROVIDER_ID = 'algolia-service-account' as const
+export const TWILIO_SERVICE_ACCOUNT_PROVIDER_ID = 'twilio-service-account' as const
+export const AZURE_DEVOPS_SERVICE_ACCOUNT_PROVIDER_ID = 'azure-devops-service-account' as const
+export const PLANE_SERVICE_ACCOUNT_PROVIDER_ID = 'plane-service-account' as const
+export const JOTFORM_SERVICE_ACCOUNT_PROVIDER_ID = 'jotform-service-account' as const
+export const MAILGUN_SERVICE_ACCOUNT_PROVIDER_ID = 'mailgun-service-account' as const
+export const LOGFIRE_SERVICE_ACCOUNT_PROVIDER_ID = 'logfire-service-account' as const
+export const NEW_RELIC_SERVICE_ACCOUNT_PROVIDER_ID = 'new-relic-service-account' as const
+export const DYNATRACE_SERVICE_ACCOUNT_PROVIDER_ID = 'dynatrace-service-account' as const
+export const TINYBIRD_SERVICE_ACCOUNT_PROVIDER_ID = 'tinybird-service-account' as const
+export const CONVEX_SERVICE_ACCOUNT_PROVIDER_ID = 'convex-service-account' as const
+export const JUPYTER_SERVICE_ACCOUNT_PROVIDER_ID = 'jupyter-service-account' as const
+export const GRAFANA_SERVICE_ACCOUNT_PROVIDER_ID = 'grafana-service-account' as const
 export const GITLAB_SERVICE_ACCOUNT_PROVIDER_ID = 'gitlab-service-account' as const
 export const WHATSAPP_SERVICE_ACCOUNT_PROVIDER_ID = 'whatsapp-service-account' as const
 export const VERCEL_SERVICE_ACCOUNT_PROVIDER_ID = 'vercel-service-account' as const
@@ -192,6 +211,25 @@ export type TokenServiceAccountProviderId =
   | typeof CODA_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof GAUGE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof SUPABASE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof INFISICAL_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof OKTA_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof DEVIN_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof EMAILBISON_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof UPSTASH_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ALGOLIA_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof TWILIO_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof AZURE_DEVOPS_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof PLANE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof JOTFORM_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof MAILGUN_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof LOGFIRE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof NEW_RELIC_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof DYNATRACE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof TINYBIRD_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof CONVEX_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof JUPYTER_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof GRAFANA_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof GITLAB_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof WHATSAPP_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof VERCEL_SERVICE_ACCOUNT_PROVIDER_ID
@@ -1788,6 +1826,425 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       'Use a personal, project, or group access token with the api scope (read_api for read-only workflows). Enter gitlab.com, or your self-managed host.',
     invalidCredentialsHelp:
       'GitLab rejected this token. Check that it is active, has the api or read_api scope, and belongs to the host you entered.',
+  },
+  [GRAFANA_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: GRAFANA_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Grafana',
+    tokenNoun: 'service account token',
+    connectNoun: 'service account token',
+    fields: [
+      { id: 'apiToken', label: 'Service account token', placeholder: 'glsa_...', secret: true },
+      {
+        id: 'domain',
+        label: 'Grafana URL',
+        placeholder: 'https://your-stack.grafana.net',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/grafana',
+    helpText:
+      'Create a service account and token in Grafana under Administration > Users and access > Service accounts. Give the service account a role that covers what your workflows change (Editor for dashboards and annotations, Admin for alerting and folders). Enter your Grafana Cloud stack URL or your self-managed instance URL.',
+    invalidCredentialsHelp:
+      'Grafana rejected this token. Check that it has not expired or been revoked, and that it belongs to the instance you entered.',
+  },
+  [JUPYTER_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: JUPYTER_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Jupyter',
+    tokenNoun: 'server token',
+    connectNoun: 'server token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Token',
+        placeholder: 'Paste your Jupyter server token',
+        secret: true,
+      },
+      {
+        id: 'domain',
+        label: 'Server URL',
+        placeholder: 'https://jupyter.example.com',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/jupyter',
+    helpText:
+      "Use the token your Jupyter server prints at startup (or the API token from JupyterHub under Token). Enter the server's base URL, including any path prefix such as /user/<name> on JupyterHub. The server must be reachable from Sim.",
+    invalidCredentialsHelp:
+      'The Jupyter server rejected this token. Check that it matches the server you entered and that the server is still running.',
+  },
+  [CONVEX_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: CONVEX_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Convex',
+    tokenNoun: 'deploy key',
+    connectNoun: 'deploy key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Deploy key',
+        placeholder: 'prod:your-deployment|...',
+        secret: true,
+      },
+      {
+        id: 'domain',
+        label: 'Deployment URL',
+        placeholder: 'https://your-deployment.convex.cloud',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/convex',
+    helpText:
+      'Generate a deploy key for the deployment in the Convex dashboard under Settings > General, and copy the deployment URL from the same page. Listing tables and exporting documents need a key with permission to read data.',
+    invalidCredentialsHelp:
+      'Convex rejected this key. Check that it was generated for the deployment URL you entered and has not been revoked.',
+  },
+  [TINYBIRD_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: TINYBIRD_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Tinybird',
+    tokenNoun: 'API token',
+    connectNoun: 'API token',
+    fields: [
+      { id: 'apiToken', label: 'API token', placeholder: 'p.eyJ...', secret: true },
+      {
+        id: 'domain',
+        label: 'API base URL',
+        placeholder: 'https://api.tinybird.co',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/tinybird',
+    helpText:
+      "Copy a token from Tokens in your Tinybird workspace. Enter the API base URL for your workspace's region (for example https://api.us-east.aws.tinybird.co), or your self-managed URL. Give the token the scopes your workflows need, such as DATASOURCES:APPEND or PIPES:READ.",
+    invalidCredentialsHelp:
+      'Tinybird rejected this token. Check that it was copied in full and that the base URL is the region your workspace lives in; a token only works in its own region.',
+  },
+  [DYNATRACE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: DYNATRACE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Dynatrace',
+    tokenNoun: 'access token',
+    connectNoun: 'access token',
+    fields: [
+      { id: 'apiToken', label: 'Access token', placeholder: 'dt0c01...', secret: true },
+      {
+        id: 'domain',
+        label: 'Environment URL',
+        placeholder: 'https://abc12345.live.dynatrace.com',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/dynatrace',
+    helpText:
+      'Generate an access token in Dynatrace under Access tokens with the scopes your workflows use (for example problems.read, metrics.read, logs.read). Enter your environment URL, such as https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/<environment-id> for Managed.',
+    invalidCredentialsHelp:
+      'Dynatrace rejected this token. Check that it is enabled, has not expired, and was created in the environment at this URL.',
+  },
+  [NEW_RELIC_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: NEW_RELIC_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'New Relic',
+    tokenNoun: 'User API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'User API key', placeholder: 'NRAK-...', secret: true },
+      { id: 'domain', label: 'Region', placeholder: 'us or eu', secret: false },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/new_relic',
+    helpText:
+      'Create a User API key (NRAK-...) in New Relic under API keys. Enter us, or eu if your account is in the EU data center.',
+    invalidCredentialsHelp:
+      "New Relic rejected this key. Check that it is a User API key (NRAK-...), not a license or browser key, and that the region matches your account's data center.",
+  },
+  [LOGFIRE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: LOGFIRE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Logfire',
+    tokenNoun: 'read token',
+    connectNoun: 'read token',
+    fields: [
+      { id: 'apiToken', label: 'Read token', placeholder: 'pylf_v1_us_...', secret: true },
+      {
+        id: 'domain',
+        label: 'Region or host',
+        placeholder: 'auto, us, eu, or https://logfire.example.com',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/logfire',
+    helpText:
+      'Create a read token in your Logfire project under Settings > Read tokens. Enter auto to use the region in the token, us or eu to choose a Logfire Cloud region, or the base URL of a self-hosted instance.',
+    invalidCredentialsHelp:
+      'Logfire rejected this read token. Check that it is a read token (not a write token), has not expired, and belongs to the region or host you entered.',
+  },
+  [MAILGUN_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: MAILGUN_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Mailgun',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste Mailgun API key', secret: true },
+      {
+        id: 'domain',
+        label: 'Region',
+        placeholder: 'us or eu',
+        secret: false,
+        hintPattern: /^(us|eu|US|EU)$/,
+        hintMessage: 'Enter us or eu, the region your Mailgun account is hosted in.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/mailgun',
+    helpText:
+      'Use an account API key from API Security in Mailgun, and the region (us or eu) your account is hosted in. Domain sending keys only send mail and cannot be saved here.',
+    invalidCredentialsHelp:
+      'Mailgun rejected this key. Check that it is an account API key, not a domain sending key, and that the region matches the one your account is hosted in.',
+  },
+  [JOTFORM_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: JOTFORM_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Jotform',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste Jotform API key', secret: true },
+      {
+        id: 'domain',
+        label: 'Region',
+        placeholder: 'us, eu, or hipaa',
+        secret: false,
+        hintPattern: /^(us|eu|hipaa|US|EU|HIPAA)$/,
+        hintMessage: 'Enter us, eu, or hipaa, the region your Jotform account is hosted in.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/jotform',
+    helpText:
+      'Create a key under Account Settings → API. Use eu for EU Safe accounts and hipaa for HIPAA accounts. A Read Access key validates here and then fails on actions that write.',
+    invalidCredentialsHelp:
+      'Jotform rejected this key. Check that it is still enabled and that the region matches your account: a key only works on the host that issued it.',
+  },
+  [PLANE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: PLANE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Plane',
+    tokenNoun: 'API token',
+    connectNoun: 'API token',
+    fields: [
+      { id: 'apiToken', label: 'API token', placeholder: 'plane_api_...', secret: true },
+      { id: 'domain', label: 'Instance URL', placeholder: 'https://api.plane.so', secret: false },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/plane',
+    helpText:
+      'Create a token under Profile settings → API tokens. Enter https://api.plane.so for Plane Cloud, or your self-hosted instance URL including any reverse-proxy path, without /api/v1.',
+    invalidCredentialsHelp:
+      'Plane rejected this token. Check that it is active and was created on the instance URL you entered.',
+  },
+  [AZURE_DEVOPS_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: AZURE_DEVOPS_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Azure DevOps',
+    tokenNoun: 'personal access token',
+    connectNoun: 'personal access token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Personal access token',
+        placeholder: 'Paste your Azure DevOps personal access token',
+        secret: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Organization',
+        placeholder: 'contoso',
+        secret: false,
+        hintPattern: /^[A-Za-z0-9][A-Za-z0-9-]*$/,
+        hintMessage: 'Enter the organization name only, as in dev.azure.com/contoso.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/azure_devops',
+    helpText:
+      'Create a personal access token in Azure DevOps under User settings > Personal access tokens, scoped to this organization with Build: Read and Work Items: Read & write. Enter the organization name from dev.azure.com/<organization>.',
+    invalidCredentialsHelp:
+      'Azure DevOps rejected this token. Check that it has not expired or been revoked, and that it was created for the organization you entered.',
+  },
+  [TWILIO_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: TWILIO_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Twilio',
+    tokenNoun: 'auth token',
+    connectNoun: 'auth token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Auth token',
+        placeholder: 'Paste your Twilio auth token',
+        secret: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Account SID',
+        placeholder: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+        secret: false,
+        hintPattern: /^AC[0-9a-f]{32}$/,
+        hintMessage: 'Twilio Account SIDs start with AC followed by 32 characters.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/twilio_sms',
+    helpText:
+      'Copy the Account SID and Auth Token from Account Info on your Twilio Console dashboard.',
+    invalidCredentialsHelp:
+      'Twilio rejected this Account SID and auth token. Check that the token belongs to this account and has not been rotated.',
+  },
+  [ALGOLIA_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: ALGOLIA_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Algolia',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Algolia API key', secret: true },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Application ID',
+        placeholder: 'e.g. ABCD1234EF',
+        secret: false,
+        hintPattern: /^[A-Za-z0-9]+$/,
+        hintMessage: 'Algolia application IDs contain only letters and numbers.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/algolia',
+    helpText:
+      'Copy the Application ID and an API key from Settings > API Keys in the Algolia dashboard. Use the Write API key, or a key with the ACLs your workflows need; a Search-only key can only search.',
+    invalidCredentialsHelp:
+      'Algolia rejected this application ID and API key. Check that the key belongs to this application and has not been deleted.',
+  },
+  [UPSTASH_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: UPSTASH_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Upstash',
+    tokenNoun: 'REST token',
+    connectNoun: 'REST token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'REST token',
+        placeholder: 'Paste your Upstash Redis REST token',
+        secret: true,
+      },
+      {
+        id: 'domain',
+        label: 'REST URL',
+        placeholder: 'https://your-database.upstash.io',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/upstash',
+    helpText:
+      'Copy the REST URL and token from the REST API section of your database in the Upstash console. A read-only token works for read operations only.',
+    invalidCredentialsHelp:
+      'Upstash rejected this REST token. Check that it belongs to the database at this URL and was not reset.',
+  },
+  [EMAILBISON_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: EMAILBISON_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Email Bison',
+    tokenNoun: 'API token',
+    connectNoun: 'API token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API token',
+        placeholder: 'Paste your Email Bison API token',
+        secret: true,
+      },
+      {
+        id: 'domain',
+        label: 'Instance URL',
+        placeholder: 'https://dedi.emailbison.com',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/emailbison',
+    helpText:
+      'Create an API token in Email Bison under Settings > Developer API. Enter the URL you sign in to Email Bison at; a workspace token only works for the workspace it was created in.',
+    invalidCredentialsHelp:
+      'Email Bison rejected this token. Check that it was copied in full and that the instance URL is the one where the token was created.',
+  },
+  [DEVIN_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: DEVIN_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Devin',
+    tokenNoun: 'service user API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'cog_...',
+        secret: true,
+        hintPattern: /^cog_/,
+        hintMessage: 'Devin service user keys start with cog_.',
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Organization ID',
+        placeholder: 'org-...',
+        secret: false,
+        hintPattern: /^org-/,
+        hintMessage: 'Devin organization IDs start with org-.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/devin',
+    helpText:
+      'Create a service user in Devin under Settings > Service Users with permission to manage sessions, and copy its API key and your organization ID.',
+    invalidCredentialsHelp:
+      'Devin rejected this key for that organization. Check that the key belongs to a service user in this organization and can view sessions.',
+  },
+  [OKTA_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: OKTA_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Okta',
+    tokenNoun: 'API token',
+    connectNoun: 'API token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API token',
+        placeholder: 'Paste your Okta API token',
+        secret: true,
+      },
+      { id: 'domain', label: 'Okta domain', placeholder: 'dev-123456.okta.com', secret: false },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/okta',
+    helpText:
+      'Create an API token in the Okta Admin Console under Security > API > Tokens. The token acts with the admin roles of the user who created it. Enter your Okta domain, such as dev-123456.okta.com; custom domains are not supported.',
+    invalidCredentialsHelp:
+      'Okta rejected this token. Check that it is active, was created in this Okta org, and that the domain is your okta.com (or oktapreview.com) domain.',
+  },
+  [INFISICAL_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: INFISICAL_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Infisical',
+    tokenNoun: 'machine identity access token',
+    connectNoun: 'access token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Access token',
+        placeholder: 'Paste a machine identity access token',
+        secret: true,
+      },
+      {
+        id: 'domain',
+        label: 'Instance URL',
+        placeholder: 'https://us.infisical.com',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/infisical',
+    helpText:
+      'Use https://us.infisical.com for US Cloud, https://eu.infisical.com for EU Cloud, or your self-hosted URL. Universal Auth tokens expire with their TTL; a Token Auth token with a long TTL keeps runs working.',
+    invalidCredentialsHelp:
+      'Paste a machine identity access token, not a client secret or service token, and make sure the instance URL matches the region the identity lives in.',
+  },
+  [SUPABASE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: SUPABASE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Supabase',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your project API key', secret: true },
+      { id: 'domain', label: 'Project ID', placeholder: 'abcdefghijklmnopqrst', secret: false },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/supabase',
+    helpText:
+      'Use a key from Project Settings > API Keys. A secret or service_role key bypasses row-level security; an anon or publishable key is limited by your policies.',
+    invalidCredentialsHelp:
+      "Supabase rejected this key. Check that it belongs to the project you entered and hasn't been revoked.",
   },
 }
 

@@ -1,6 +1,7 @@
 import { OktaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 /**
  * Coerces a numeric subBlock value, dropping anything that is not a real number.
@@ -45,6 +46,8 @@ function blankToUndefined(value: unknown): unknown {
 
 export const OktaBlock: BlockConfig = {
   type: 'okta',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'okta_v2' },
   name: 'Okta',
   description: 'Manage users, groups, apps, and MFA in Okta',
   longDescription:
@@ -1490,3 +1493,17 @@ export const OktaBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const OktaV2Block: BlockConfig = {
+  ...OktaBlock,
+  type: 'okta_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(OktaBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'okta',
+    title: 'Okta Credential',
+  }),
+}

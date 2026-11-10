@@ -13,6 +13,7 @@ import {
   toJsonObject,
   toStringOrNull,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createSubmissionTool: ToolConfig<
@@ -24,6 +25,7 @@ export const createSubmissionTool: ToolConfig<
   description:
     'Submit an entry to a Jotform form. Answers are keyed by question ID, which the List Questions operation returns.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

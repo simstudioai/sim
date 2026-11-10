@@ -4,6 +4,7 @@ import { secureFetchWithValidation } from '@/lib/core/security/input-validation.
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   fetchProvider,
+  type ProviderResponse,
   providerFailureCode,
   TokenServiceAccountValidationError,
   throwForProviderResponse,
@@ -19,14 +20,6 @@ interface TokenCheckRequest {
   method?: 'GET' | 'POST'
   headers: Record<string, string>
   body?: string
-}
-
-/** The parts of a provider response a check reads; both `fetch` and the guarded egress fetch return them. */
-interface CheckResponse {
-  ok: boolean
-  status: number
-  headers: { get(name: string): string | null }
-  body: ReadableStream<Uint8Array> | null
 }
 
 interface TokenCheck {
@@ -93,7 +86,7 @@ const MAX_CHECK_RESPONSE_BYTES = 64 * 1024
 const MAX_EGRESS_RESPONSE_BYTES = 1024 * 1024
 
 /** Reads a credential check's JSON response, capped so a hostile body can't exhaust memory. */
-export function readJsonBody(response: CheckResponse, serviceLabel: string): Promise<unknown> {
+export function readJsonBody(response: ProviderResponse, serviceLabel: string): Promise<unknown> {
   return readResponseJsonWithLimit(response, {
     maxBytes: MAX_CHECK_RESPONSE_BYTES,
     label: `${serviceLabel} credential check`,
@@ -121,7 +114,7 @@ function normalizedField(
 async function sendThroughEgress(
   profile: NonNullable<TokenCheck['egress']>,
   { url, method = 'GET', headers, body }: TokenCheckRequest
-): Promise<CheckResponse> {
+): Promise<ProviderResponse> {
   try {
     return await secureFetchWithValidation(url, {
       profile,
@@ -166,7 +159,7 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
       ...(domain === undefined ? {} : { normalizedDomain: domain }),
     }
     const request = check.request(fields)
-    const response: CheckResponse = check.egress
+    const response: ProviderResponse = check.egress
       ? await sendThroughEgress(check.egress, request)
       : await fetchProvider(
           request.url,

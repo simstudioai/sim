@@ -1,3 +1,4 @@
+import { SUPABASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   INTROSPECT_TABLE_OUTPUT_PROPERTIES,
   type SupabaseColumnSchema,
@@ -29,6 +30,7 @@ export const introspectTool: ToolConfig<SupabaseIntrospectParams, SupabaseIntros
   description:
     'Introspect Supabase database schema from its OpenAPI spec to get table and column structures (best-effort primary/foreign key detection)',
   version: '1.0.0',
+  oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {

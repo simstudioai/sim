@@ -9,6 +9,7 @@ import {
   parseJotformResponse,
   requireValue,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listQuestionsTool: ToolConfig<
@@ -20,6 +21,7 @@ export const listQuestionsTool: ToolConfig<
   description:
     'List every question on a form with its question ID, label, and field type. Question IDs are what submissions are keyed by.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,6 +1,7 @@
 import { normalizeReport, toList } from '@/tools/jotform/normalize'
 import type { JotformListReportsParams, JotformListReportsResponse } from '@/tools/jotform/types'
 import { buildJotformHeaders, buildJotformUrl, parseJotformResponse } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listReportsTool: ToolConfig<JotformListReportsParams, JotformListReportsResponse> = {
@@ -9,6 +10,7 @@ export const listReportsTool: ToolConfig<JotformListReportsParams, JotformListRe
   description:
     'List every report on the account, across all forms, with the shareable URL for each Excel, CSV, grid, table, calendar, RSS, or visual report.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

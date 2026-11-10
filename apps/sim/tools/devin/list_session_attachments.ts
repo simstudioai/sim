@@ -1,3 +1,4 @@
+import { DEVIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type {
   DevinListSessionAttachmentsParams,
@@ -13,6 +14,7 @@ export const devinListSessionAttachmentsTool: ToolConfig<
   name: 'Devin List Session Attachments',
   description: 'List the files uploaded to or produced by a Devin session.',
   version: '1.0.0',
+  oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

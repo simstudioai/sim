@@ -11,6 +11,7 @@ import {
   newRelicHeaders,
   parseNerdGraphResponse,
 } from '@/tools/new_relic/utils'
+import { NEW_RELIC_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface CreateDeploymentEventData {
@@ -205,6 +206,7 @@ export const newRelicCreateDeploymentEventTool: ToolConfig<
   name: 'New Relic Create Deployment Event',
   description: 'Record a deployment change event in New Relic change tracking.',
   version: '1.0.0',
+  oauth: NEW_RELIC_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

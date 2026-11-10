@@ -6,6 +6,7 @@ import {
   parseJotformResponse,
   requireValue,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listFormFilesTool: ToolConfig<JotformGetFormFilesParams, JotformGetFormFilesResponse> =
@@ -15,6 +16,7 @@ export const listFormFilesTool: ToolConfig<JotformGetFormFilesParams, JotformGet
     description:
       'List every file uploaded through a form, with its download URL, size, type, and the submission it came from.',
     version: '1.0.0',
+    oauth: JOTFORM_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

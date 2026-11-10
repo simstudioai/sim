@@ -1,3 +1,4 @@
+import { DEVIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { DevinListSessionMessagesParams, DevinListSessionMessagesResponse } from './types'
 import { DEVIN_SESSION_MESSAGE_PROPERTIES } from './types'
@@ -11,6 +12,7 @@ export const devinListSessionMessagesTool: ToolConfig<
   description:
     'List the messages exchanged in a Devin session, including messages from both the user and Devin.',
   version: '1.0.0',
+  oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

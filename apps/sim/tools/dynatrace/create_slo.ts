@@ -6,6 +6,7 @@ import {
   idFromLocationHeader,
 } from '@/tools/dynatrace/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { DYNATRACE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createSloTool: ToolConfig<DynatraceCreateSloParams, DynatraceCreateSloResponse> = {
@@ -14,6 +15,7 @@ export const createSloTool: ToolConfig<DynatraceCreateSloParams, DynatraceCreate
   description:
     'Create a service-level objective from a metric expression, target, and evaluation timeframe.',
   version: '1.0.0',
+  oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {

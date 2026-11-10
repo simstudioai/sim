@@ -1,4 +1,5 @@
 import type { ListBuildsParams, ListBuildsResponse } from '@/tools/azure_devops/types'
+import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listBuildsTool: ToolConfig<ListBuildsParams, ListBuildsResponse> = {
@@ -7,6 +8,7 @@ export const listBuildsTool: ToolConfig<ListBuildsParams, ListBuildsResponse> = 
   description:
     'List builds in an Azure DevOps project. Optionally filter by pipeline definition, status, result, or branch.',
   version: '1.0.0',
+  oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {
     organization: {

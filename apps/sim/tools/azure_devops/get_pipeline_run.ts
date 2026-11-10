@@ -1,4 +1,5 @@
 import type { GetPipelineRunParams, GetPipelineRunResponse } from '@/tools/azure_devops/types'
+import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getPipelineRunTool: ToolConfig<GetPipelineRunParams, GetPipelineRunResponse> = {
@@ -7,6 +8,7 @@ export const getPipelineRunTool: ToolConfig<GetPipelineRunParams, GetPipelineRun
   description:
     'Get details for a specific pipeline run in an Azure DevOps project. Returns run state, result, timestamps, and the pipeline reference.',
   version: '1.0.0',
+  oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {
     organization: {

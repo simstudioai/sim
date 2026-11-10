@@ -182,6 +182,8 @@ async function resolveDatabricksAccessToken(
     subject: config.subject,
     audience: DATABRICKS_WORKLOAD_IDENTITY_AUDIENCE,
     owner,
+    // Databricks' token expires with this one, and Genie polls for up to five minutes.
+    ttlSeconds: 3600,
   })
   return requestWorkspaceToken(
     config.host,

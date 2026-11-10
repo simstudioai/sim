@@ -2,6 +2,7 @@ import type {
   GrafanaCreateDashboardParams,
   GrafanaCreateDashboardResponse,
 } from '@/tools/grafana/types'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createDashboardTool: ToolConfig<
@@ -12,6 +13,7 @@ export const createDashboardTool: ToolConfig<
   name: 'Grafana Create Dashboard',
   description: 'Create a new dashboard',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

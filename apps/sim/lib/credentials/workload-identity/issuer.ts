@@ -23,6 +23,8 @@ const logger = createLogger('WorkloadIdentityIssuer')
 export const WORKLOAD_IDENTITY_PATH = '/oidc/workload'
 export const WORKLOAD_IDENTITY_ALGORITHM = 'RS256'
 export const WORKLOAD_IDENTITY_TOKEN_TTL_SECONDS = 300
+/** The longest lifetime a relying party may ask for; Databricks caps its own token at an hour. */
+const MAX_WORKLOAD_IDENTITY_TOKEN_TTL_SECONDS = 3600
 
 const PRIVATE_JWK_FIELDS = ['d', 'p', 'q', 'dp', 'dq', 'qi'] as const
 
@@ -181,12 +183,21 @@ export interface MintWorkloadIdentityTokenInput {
   /** Relying party, e.g. `sts.amazonaws.com`. */
   audience: string
   owner: WorkloadIdentityOwner
+  /**
+   * Lifetime in seconds, for a relying party whose own token inherits it
+   * (Databricks). Defaults to {@link WORKLOAD_IDENTITY_TOKEN_TTL_SECONDS}.
+   */
+  ttlSeconds?: number
 }
 
 /** Signs one short-lived token for a single credential resolution. */
 export async function mintWorkloadIdentityToken(
   input: MintWorkloadIdentityTokenInput
 ): Promise<string> {
+  const ttl = input.ttlSeconds ?? WORKLOAD_IDENTITY_TOKEN_TTL_SECONDS
+  if (!Number.isInteger(ttl) || ttl <= 0 || ttl > MAX_WORKLOAD_IDENTITY_TOKEN_TTL_SECONDS) {
+    throw new Error('Workload identity token lifetime must be between 1 second and an hour')
+  }
   const { privateKey, kid } = await loadSigningMaterial()
   const claims: Record<string, string> = {}
   if (input.owner.workspaceId) claims.sim_workspace_id = input.owner.workspaceId
@@ -199,7 +210,7 @@ export async function mintWorkloadIdentityToken(
     .setAudience(input.audience)
     .setIssuedAt(now)
     .setNotBefore(now - 30)
-    .setExpirationTime(now + WORKLOAD_IDENTITY_TOKEN_TTL_SECONDS)
+    .setExpirationTime(now + ttl)
     .setJti(generateId())
     .sign(privateKey)
 }

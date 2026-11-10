@@ -1,5 +1,6 @@
 import type { GetMailingListParams, GetMailingListResult } from '@/tools/mailgun/types'
 import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
+import { MAILGUN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const mailgunGetMailingListTool: ToolConfig<GetMailingListParams, GetMailingListResult> = {
@@ -7,6 +8,7 @@ export const mailgunGetMailingListTool: ToolConfig<GetMailingListParams, GetMail
   name: 'Mailgun Get Mailing List',
   description: 'Get details of a mailing list',
   version: '1.0.0',
+  oauth: MAILGUN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,4 +1,5 @@
 import type { ListPipelinesParams, ListPipelinesResponse } from '@/tools/azure_devops/types'
+import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listPipelinesTool: ToolConfig<ListPipelinesParams, ListPipelinesResponse> = {
@@ -7,6 +8,7 @@ export const listPipelinesTool: ToolConfig<ListPipelinesParams, ListPipelinesRes
   description:
     'List all pipelines in an Azure DevOps project. Returns pipeline ID, name, folder, revision, and URL.',
   version: '1.0.0',
+  oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {
     organization: {

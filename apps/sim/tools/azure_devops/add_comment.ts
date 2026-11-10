@@ -5,6 +5,7 @@ import type {
 } from '@/tools/azure_devops/types'
 import type { AzureDevOpsRawComment } from '@/tools/azure_devops/utils'
 import { formatComment, mapComment } from '@/tools/azure_devops/utils'
+import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const addCommentTool: ToolConfig<AddCommentParams, AddCommentResponse> = {
@@ -12,6 +13,7 @@ export const addCommentTool: ToolConfig<AddCommentParams, AddCommentResponse> = 
   name: 'Azure DevOps Add Comment',
   description: 'Add a comment to a work item in Azure DevOps.',
   version: '1.0.0',
+  oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {
     organization: {

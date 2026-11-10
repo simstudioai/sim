@@ -1,5 +1,12 @@
 import { jsonResponse } from '@sim/testing/helpers/http'
-import { describe, expect, it, vi } from 'vitest'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
 import { tokenCheckValidator } from '@/lib/credentials/token-service-accounts/validators/http'
 
 const validate = tokenCheckValidator({
@@ -114,5 +121,77 @@ describe('tokenCheckValidator', () => {
       vi.fn().mockResolvedValue(jsonResponse({ code: 'other' }, { status: 500 }))
     )
     await expect(check({ apiToken: 'any' })).rejects.toMatchObject({ code: 'provider_unavailable' })
+  })
+})
+
+describe('tokenCheckValidator with a typed host', () => {
+  const secureFetch = inputValidationMockFns.mockSecureFetchWithValidation
+  const validateHost = tokenCheckValidator({
+    serviceLabel: 'Example',
+    domain: ({ domain }) => {
+      const url = new URL(`https://${domain?.trim()}`)
+      if (url.username || url.pathname !== '/') throw new Error('not a bare host')
+      return url.host
+    },
+    egress: 'configuredEndpoint',
+    request: ({ apiToken, domain }) => ({
+      url: `https://${domain}/api/me`,
+      headers: { Authorization: `Bearer ${apiToken}` },
+    }),
+  })
+
+  beforeEach(() => {
+    secureFetch.mockReset()
+  })
+
+  it('verifies at the normalized host through the guarded egress and stores that host', async () => {
+    secureFetch.mockResolvedValue(jsonResponse({ ok: true }))
+
+    await expect(
+      validateHost({ apiToken: 'good', domain: ' Tools.Example.com ' })
+    ).resolves.toMatchObject({ normalizedDomain: 'tools.example.com' })
+    expect(secureFetch).toHaveBeenCalledWith(
+      'https://tools.example.com/api/me',
+      expect.objectContaining({ profile: 'configuredEndpoint', maxRedirects: 0 })
+    )
+  })
+
+  it('refuses a host its normalizer rejects without sending the token anywhere', async () => {
+    await expect(
+      validateHost({ apiToken: 'good', domain: 'evil.example.com@tools.example.com' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    expect(secureFetch).not.toHaveBeenCalled()
+  })
+
+  it('reports a host that does not exist as not found', async () => {
+    secureFetch.mockRejectedValue(
+      new Error('url hostname could not be resolved', {
+        cause: Object.assign(new Error('getaddrinfo ENOTFOUND'), { code: 'ENOTFOUND' }),
+      })
+    )
+
+    await expect(
+      validateHost({ apiToken: 'good', domain: 'tools.exmaple.com' })
+    ).rejects.toMatchObject({ code: 'site_not_found' })
+  })
+
+  it('keeps an error body that echoes the token out of the error details', async () => {
+    const echoing = tokenCheckValidator({
+      serviceLabel: 'Echo',
+      errorBodyEchoesToken: true,
+      request: ({ apiToken }) => ({
+        url: 'https://api.example.com/me',
+        headers: { Token: apiToken },
+      }),
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ error: 'invalid token tok-secret' }, 401))
+    )
+
+    const error = await echoing({ apiToken: 'tok-secret' }).catch((caught: unknown) => caught)
+
+    expect(error).toMatchObject({ code: 'invalid_credentials' })
+    expect(JSON.stringify(error)).not.toContain('tok-secret')
   })
 })

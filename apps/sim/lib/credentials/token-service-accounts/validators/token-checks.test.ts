@@ -1,12 +1,21 @@
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  validateAlgoliaServiceAccount,
   validateAshbyServiceAccount,
+  validateAzureDevOpsServiceAccount,
   validateBrexServiceAccount,
+  validateDevinServiceAccount,
   validateElevenLabsServiceAccount,
   validateFlintServiceAccount,
   validateInstantlyServiceAccount,
+  validateJotformServiceAccount,
+  validateMailgunServiceAccount,
+  validateNewRelicServiceAccount,
+  validateOktaServiceAccount,
   validateResendServiceAccount,
+  validateSupabaseServiceAccount,
+  validateTwilioServiceAccount,
   validateTypeformServiceAccount,
   validateVercelServiceAccount,
   validateYouTubeServiceAccount,
@@ -290,5 +299,48 @@ describe('ElevenLabs saved API key verification', () => {
     await expect(validateElevenLabsServiceAccount({ apiToken: 'sk_bad' })).rejects.toMatchObject({
       code: 'invalid_credentials',
     })
+  })
+})
+
+describe('saved credentials whose connection names a host, region, or account', () => {
+  it.each([
+    ['Algolia', validateAlgoliaServiceAccount, { providerWorkspaceId: 'evil.example.com/' }],
+    ['Azure DevOps', validateAzureDevOpsServiceAccount, { providerWorkspaceId: 'org/../other' }],
+    ['Devin', validateDevinServiceAccount, { providerWorkspaceId: 'org/sessions?x' }],
+    ['Jotform', validateJotformServiceAccount, { domain: 'evil' }],
+    ['Mailgun', validateMailgunServiceAccount, { domain: 'mars' }],
+    ['New Relic', validateNewRelicServiceAccount, { domain: 'mars' }],
+    ['Okta', validateOktaServiceAccount, { domain: 'evil.example.com' }],
+    ['Supabase', validateSupabaseServiceAccount, { domain: 'ref.evil.example.com' }],
+    ['Twilio', validateTwilioServiceAccount, { providerWorkspaceId: 'AC123/../Messages' }],
+  ])(
+    '%s refuses a typed value that could steer the request, before sending the key',
+    async (_, validate, typed) => {
+      const fetch = vi.fn()
+      vi.stubGlobal('fetch', fetch)
+
+      await expect(validate({ apiToken: 'secret', ...typed })).rejects.toMatchObject({
+        code: 'invalid_credentials',
+      })
+      expect(fetch).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rejects an Azure DevOps key that a public organization answers as an anonymous visitor', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          authenticatedUser: {
+            id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+            descriptor: 'System:PublicAccess;aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          },
+        })
+      )
+    )
+
+    await expect(
+      validateAzureDevOpsServiceAccount({ apiToken: 'bad', providerWorkspaceId: 'public-org' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
   })
 })

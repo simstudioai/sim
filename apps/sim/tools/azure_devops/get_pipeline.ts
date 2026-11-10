@@ -1,4 +1,5 @@
 import type { GetPipelineParams, GetPipelineResponse } from '@/tools/azure_devops/types'
+import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getPipelineTool: ToolConfig<GetPipelineParams, GetPipelineResponse> = {
@@ -7,6 +8,7 @@ export const getPipelineTool: ToolConfig<GetPipelineParams, GetPipelineResponse>
   description:
     'Get details for a specific pipeline in an Azure DevOps project, including configuration and repository info.',
   version: '1.0.0',
+  oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {
     organization: {

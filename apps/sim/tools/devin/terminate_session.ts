@@ -1,3 +1,4 @@
+import { DEVIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { DevinTerminateSessionParams, DevinTerminateSessionResponse } from './types'
 import { DEVIN_SESSION_OUTPUT_PROPERTIES } from './types'
@@ -11,6 +12,7 @@ export const devinTerminateSessionTool: ToolConfig<
   description:
     'Terminate a Devin session. Optionally archive the session instead of permanently terminating it.',
   version: '1.0.0',
+  oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

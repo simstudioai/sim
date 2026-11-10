@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { convertSquareBracketsToTwiML } from '@/lib/webhooks/utils'
+import { TWILIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TwilioCallOutput, TwilioMakeCallParams } from '@/tools/twilio_voice/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -10,6 +11,7 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
   name: 'Twilio Voice Make Call',
   description: 'Make an outbound phone call using Twilio Voice API.',
   version: '1.0.0',
+  oauth: TWILIO_CREDENTIAL_OAUTH,
 
   params: {
     to: {

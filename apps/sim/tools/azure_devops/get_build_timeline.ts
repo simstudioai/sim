@@ -3,6 +3,7 @@ import type {
   GetBuildTimelineParams,
   GetBuildTimelineResponse,
 } from '@/tools/azure_devops/types'
+import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getBuildTimelineTool: ToolConfig<GetBuildTimelineParams, GetBuildTimelineResponse> = {
@@ -11,6 +12,7 @@ export const getBuildTimelineTool: ToolConfig<GetBuildTimelineParams, GetBuildTi
   description:
     'Get the execution timeline for an Azure DevOps build — every stage, job, and task with its result and log ID. Use this to identify which steps failed before fetching their logs with Get Build Log.',
   version: '1.0.0',
+  oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {
     organization: {

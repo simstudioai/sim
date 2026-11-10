@@ -1,4 +1,5 @@
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { SUPABASE_PUBLIC_URL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SupabaseStorageGetPublicUrlParams,
   SupabaseStorageGetPublicUrlResponse,
@@ -13,6 +14,7 @@ export const storageGetPublicUrlTool: InternalToolConfig<
   name: 'Supabase Storage Get Public URL',
   description: 'Get the public URL for a file in a Supabase storage bucket',
   version: '1.0.0',
+  oauth: SUPABASE_PUBLIC_URL_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {

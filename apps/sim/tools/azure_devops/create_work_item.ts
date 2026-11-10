@@ -10,6 +10,7 @@ import {
   formatWorkItem,
   mapWorkItem,
 } from '@/tools/azure_devops/utils'
+import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createWorkItemTool: ToolConfig<CreateWorkItemParams, CreateWorkItemResponse> = {
@@ -18,6 +19,7 @@ export const createWorkItemTool: ToolConfig<CreateWorkItemParams, CreateWorkItem
   description:
     'Create a new Basic-process work item (Issue, Task, or Epic) in Azure DevOps. Returns the created work item with its assigned ID.',
   version: '1.0.0',
+  oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {
     organization: {

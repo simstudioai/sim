@@ -1,4 +1,5 @@
 import type { AlgoliaDeleteIndexParams, AlgoliaDeleteIndexResponse } from '@/tools/algolia/types'
+import { ALGOLIA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteIndexTool: ToolConfig<AlgoliaDeleteIndexParams, AlgoliaDeleteIndexResponse> = {
@@ -6,6 +7,7 @@ export const deleteIndexTool: ToolConfig<AlgoliaDeleteIndexParams, AlgoliaDelete
   name: 'Algolia Delete Index',
   description: 'Delete an entire Algolia index and all its records',
   version: '1.0',
+  oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {
     applicationId: {
