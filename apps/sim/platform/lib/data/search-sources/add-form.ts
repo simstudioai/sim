@@ -17,7 +17,7 @@ import { liveSearchSourceMeta } from '@/lib/sim-search/live/source-settings'
 import { getConnectorApiKeyConfig, isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import { useGitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
-import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
+import type { ConnectorConfigField } from '@/connectors/types'
 import { useConnectorConfigFields } from '@/hooks/kb/connectors/use-connector-config-fields'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/credentials'
@@ -25,6 +25,7 @@ import { useSourceAccounts } from '@/hooks/queries/source-accounts'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { useGitHubInstallationSetup } from '@/hooks/use-github-installation-setup'
 import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
+import { startingSourceConfig } from '@/platform/lib/data/knowledge/connectors/add-form'
 import { connectorServiceAccount } from '@/platform/lib/data/knowledge/connectors/service-account'
 import { useConnectorScope, useSearchAvailability } from '@/platform/lib/data/search-sources/scope'
 import type {
@@ -34,17 +35,6 @@ import type {
 import { useConnectorSetupStore } from '@/stores/connector-setup/store'
 
 const CONNECTOR_ENTRIES = Object.entries(CONNECTOR_META_REGISTRY)
-
-/** The settings a new connector's form starts from; a Search source adds its own defaults. */
-function startingSourceConfig(
-  meta: Pick<ConnectorMeta, 'defaultSourceConfig' | 'searchDefaultSourceConfig'> | null | undefined,
-  isSearchIndex: boolean | undefined
-): Record<string, string> {
-  return {
-    ...meta?.defaultSourceConfig,
-    ...(isSearchIndex ? meta?.searchDefaultSourceConfig : undefined),
-  }
-}
 
 export interface AddConnectorFormOptions {
   scope: ResourceScope
