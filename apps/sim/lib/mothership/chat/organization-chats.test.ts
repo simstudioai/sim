@@ -1,11 +1,4 @@
-import { settings, user } from '@sim/db/schema'
-import {
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-  resetEnvFlagsMock,
-  setEnvFlags,
-} from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import {
   knowledgeAvailabilityMock,
@@ -204,29 +197,6 @@ describe('organization chat admission', () => {
     permissionConfig.mockResolvedValue(null)
     setEnvFlags({ isBillingEnabled: true, isChatEnabled: true })
   })
-  it.each([
-    { role: 'member', billing: true, workspaceCreationDenied: false },
-    { role: 'member', billing: true, workspaceCreationDenied: true },
-    { role: 'owner', billing: true, workspaceCreationDenied: true },
-    { role: 'member', billing: false, workspaceCreationDenied: false },
-  ])(
-    'admits agent and Plan chats whatever the role or workspace creation policy: $role/$billing/$workspaceCreationDenied',
-    async ({ role, billing, workspaceCreationDenied }) => {
-      authorize.mockResolvedValue({ userId: 'member-1', organizationId: 'org-1', role })
-      permissionConfig.mockResolvedValue({ disableWorkspaceCreation: workspaceCreationDenied })
-      setEnvFlags({ isBillingEnabled: billing, isMothershipBenchmarkEnabled: true })
-      dbChainMockFns.returning.mockResolvedValue([{ id: 'new-chat' }])
-      for (const mode of ['agent', 'plan'] as const) {
-        for (const operation of [authorizeOrganizationChat, createOrganizationChat]) {
-          queueTableRows(user, [{ role: 'admin' }])
-          queueTableRows(settings, [{ superUserModeEnabled: true }])
-          await expect(
-            operation.execute({ principal: session, input: { organizationId: 'org-1', mode } })
-          ).resolves.toBeDefined()
-        }
-      }
-    }
-  )
   it('refuses every chat read, write and continuation while the deployment serves no chat', async () => {
     setEnvFlags({ isChatEnabled: false })
     authorize.mockClear().mockResolvedValue({

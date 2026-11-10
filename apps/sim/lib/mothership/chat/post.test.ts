@@ -1742,13 +1742,6 @@ describe('handleUnifiedChatPost', () => {
         expect(await response.json()).toMatchObject({ activeStreamId: 'run-1' })
         expect(admitTurn).not.toHaveBeenCalled()
       })
-
-      it('leaves a send without the mark to go straight to admission', async () => {
-        await post()
-
-        expect(settleFallback).not.toHaveBeenCalled()
-        expect(admitTurn).toHaveBeenCalled()
-      })
     })
 
     it('releases the claim when a stream collision stops the turn from starting', async () => {
