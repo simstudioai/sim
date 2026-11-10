@@ -6,6 +6,7 @@ import {
   knowledgeConnectorPermissionSnapshot,
 } from '@sim/db/schema'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
+import type { ConnectorPermissionGrants } from '@/lib/api/contracts/knowledge/connector-permissions'
 import {
   defineAuthorizedOrganizationUseCase,
   type OrganizationUseCaseContext,
@@ -14,18 +15,13 @@ import { authorizeOrganizationOperation } from '@/lib/core/application/organizat
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
-import { gitLabSearchPermissionOperations } from '@/lib/knowledge/application/operations'
+import { searchSourcePermissionOperations } from '@/lib/knowledge/application/operations'
+import { writeConnectorPermissions } from '@/lib/knowledge/connectors/permission-store'
 import { connectorIsLive } from '@/lib/knowledge/connectors/sync-lock'
 import {
   lockOrganizationSearchApproval,
   searchIntegrationAccessCondition,
 } from '@/lib/knowledge/search/integration-policy'
-import {
-  prepareGitLabPermissions,
-  readGitLabPermissionMetadata,
-  writeGitLabPermissions,
-} from '@/connectors/gitlab/permission-config/repository'
-import type { GitLabCsvUpload } from '@/connectors/gitlab/permission-config/types'
 
 interface SourceInput {
   organizationId: string
@@ -33,12 +29,14 @@ interface SourceInput {
 }
 interface ReplacementInput extends SourceInput {
   expectedRevision: number
-  userMapping: GitLabCsvUpload
-  projectPermissions: GitLabCsvUpload
+  permissions: ConnectorPermissionGrants
 }
 
 function sourceNotFound(): never {
-  throw new OrchestrationError('not_found', 'GitLab CSV Search source not found')
+  throw new OrchestrationError(
+    'not_found',
+    'Search source with externally managed permissions not found'
+  )
 }
 
 function searchIndex(organizationId: string) {
@@ -49,10 +47,9 @@ function searchIndex(organizationId: string) {
   )
 }
 
-function gitLabSource(sourceId: string) {
+function searchSource(sourceId: string) {
   return and(
     eq(knowledgeConnector.id, sourceId),
-    eq(knowledgeConnector.connectorType, 'gitlab'),
     eq(knowledgeConnector.accessMode, 'admin'),
     inArray(knowledgeConnector.status, ['active', 'paused', 'pending', 'syncing', 'error']),
     connectorIsLive(),
@@ -60,55 +57,55 @@ function gitLabSource(sourceId: string) {
   )
 }
 
-async function readCsvSource({ organizationId, sourceId }: SourceInput) {
+async function readPermissionSource({ organizationId, sourceId }: SourceInput) {
   if (!(await isKnowledgeMemberAccessAvailable({ organizationId }))) return sourceNotFound()
   const snapshot = knowledgeConnectorPermissionSnapshot
   const [source] = await db
     .select({
       knowledgeBaseId: knowledgeBase.id,
+      connectorType: knowledgeConnector.connectorType,
       revision: snapshot.revision,
       metadata: snapshot.metadata,
     })
     .from(knowledgeConnector)
     .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
     .innerJoin(snapshot, eq(snapshot.connectorId, knowledgeConnector.id))
-    .where(and(searchIndex(organizationId), gitLabSource(sourceId)))
+    .where(and(searchIndex(organizationId), searchSource(sourceId)))
     .limit(1)
   if (!source) return sourceNotFound()
-  const metadata = readGitLabPermissionMetadata(source.metadata)
-  if (metadata.mode !== 'csv') return sourceNotFound()
-  return {
-    knowledgeBaseId: source.knowledgeBaseId,
-    permissions: { ...metadata, revision: source.revision },
-  }
+  const { CONNECTOR_REGISTRY } = await import('@/connectors/registry.server')
+  const replacement = CONNECTOR_REGISTRY[source.connectorType]?.permissionConfig?.grantReplacement
+  if (!replacement?.supports(source.metadata)) return sourceNotFound()
+  return { ...source, replacement }
 }
 
 /** Allows CI to pin the revision without disclosing uploaded identities or project memberships. */
-export const readGitLabSearchPermissions = defineAuthorizedOrganizationUseCase({
-  operation: gitLabSearchPermissionOperations.read,
+export const readSearchSourcePermissions = defineAuthorizedOrganizationUseCase({
+  operation: searchSourcePermissionOperations.read,
   async execute({ input }: OrganizationUseCaseContext<SourceInput>) {
-    const { permissions } = await readCsvSource(input)
-    return { revision: permissions.revision }
+    const { revision } = await readPermissionSource(input)
+    return { revision }
   },
 })
 
-/** Replaces both permission files and the grants they produce in one revision. */
-export const replaceGitLabSearchPermissions = defineAuthorizedOrganizationUseCase({
-  operation: gitLabSearchPermissionOperations.replace,
+/** Replaces the configured provider’s grants in one revision. */
+export const replaceSearchSourcePermissions = defineAuthorizedOrganizationUseCase({
+  operation: searchSourcePermissionOperations.replace,
   async execute({ principal, input }: OrganizationUseCaseContext<ReplacementInput>) {
-    const { organizationId, sourceId, expectedRevision, userMapping, projectPermissions } = input
-    const { knowledgeBaseId, permissions } = await readCsvSource(input)
-    const prepared = prepareGitLabPermissions(
-      { mode: 'csv', expectedRevision, userMapping, projectPermissions },
-      permissions,
-      permissions,
-      true
-    )
-    await db.transaction(async (tx) => {
+    const { organizationId, sourceId, expectedRevision, permissions } = input
+    const source = await readPermissionSource(input)
+    if (permissions.provider !== source.connectorType) {
+      throw new OrchestrationError(
+        'validation',
+        'The permissions must match the configured source provider.'
+      )
+    }
+    const prepared = source.replacement.prepare(source, expectedRevision, permissions)
+    const revision = await db.transaction(async (tx) => {
       await lockOrganizationSearchApproval(tx, organizationId)
       await authorizeOrganizationOperation(
         principal,
-        gitLabSearchPermissionOperations.replace,
+        searchSourcePermissionOperations.replace,
         input,
         {
           executor: tx,
@@ -119,25 +116,31 @@ export const replaceGitLabSearchPermissions = defineAuthorizedOrganizationUseCas
       const [index] = await tx
         .select({ id: knowledgeBase.id })
         .from(knowledgeBase)
-        .where(and(eq(knowledgeBase.id, knowledgeBaseId), searchIndex(organizationId)))
+        .where(and(eq(knowledgeBase.id, source.knowledgeBaseId), searchIndex(organizationId)))
         .for('share')
       if (!index) return sourceNotFound()
-      const [source] = await tx
+      const [locked] = await tx
         .select({ id: knowledgeConnector.id })
         .from(knowledgeConnector)
-        .where(and(eq(knowledgeConnector.knowledgeBaseId, index.id), gitLabSource(sourceId)))
+        .where(
+          and(
+            eq(knowledgeConnector.knowledgeBaseId, index.id),
+            eq(knowledgeConnector.connectorType, source.connectorType),
+            searchSource(sourceId)
+          )
+        )
         .for('update')
-      if (!source) return sourceNotFound()
-      await writeGitLabPermissions(tx, source.id, prepared)
+      if (!locked) return sourceNotFound()
+      return writeConnectorPermissions(tx, locked.id, { ...prepared, expectedRevision })
     })
-    return { revision: prepared.snapshot.revision }
+    return { revision }
   },
   projectAudit: ({ input, result }) => ({
     action: AuditAction.CONNECTOR_UPDATED,
     resourceType: AuditResourceType.CONNECTOR,
     resourceId: input.sourceId,
-    resourceName: 'gitlab',
-    description: 'Replaced GitLab Search permission CSVs',
+    resourceName: input.permissions.provider,
+    description: 'Replaced Search source permissions',
     metadata: { revision: result.revision },
   }),
 })

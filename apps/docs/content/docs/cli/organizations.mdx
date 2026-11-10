@@ -229,14 +229,14 @@ sim organizations members remove <userId> [options]
 
 API request and response schemas: [removeOrganizationMember](/api-reference/organizations/removeOrganizationMember).
 
-## GitLab Search permissions
+## Search source permissions
 
-### Get GitLab search permission revision
+### Get search source permission revision
 
 OAuth login or personal API key required.
 
 ```bash
-sim organizations gitlab-permissions get <sourceId> [options]
+sim organizations search sources permissions get <sourceId> [options]
 ```
 
 **Arguments**
@@ -245,7 +245,7 @@ sim organizations gitlab-permissions get <sourceId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `sourceId` | Yes | Identifier of the configured GitLab Search source. |
+| `sourceId` | Yes | Identifier of the configured Search source. |
 
 </CommandTable>
 
@@ -259,16 +259,16 @@ sim organizations gitlab-permissions get <sourceId> [options]
 
 </CommandTable>
 
-API request and response schemas: [getGitLabSearchPermissions](/api-reference/organizations/getGitLabSearchPermissions).
+API request and response schemas: [getSearchSourcePermissions](/api-reference/organizations/getSearchSourcePermissions).
 
-### Replace GitLab search permission CSVs
+### Replace search source permissions
 
 OAuth login or personal API key required.
 
-This replaces both GitLab permission files. Readers omitted from the new grants lose access.
+This replaces the source’s permission grants. Readers omitted from the new grants lose access.
 
 ```bash
-sim organizations gitlab-permissions replace <sourceId> [options]
+sim organizations search sources permissions replace <sourceId> [options]
 ```
 
 **Arguments**
@@ -277,7 +277,7 @@ sim organizations gitlab-permissions replace <sourceId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `sourceId` | Yes | Identifier of the configured GitLab Search source. |
+| `sourceId` | Yes | Identifier of the configured Search source. |
 
 </CommandTable>
 
@@ -288,14 +288,13 @@ sim organizations gitlab-permissions replace <sourceId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--organization <value>` | Yes | Organization identifier. |
-| `--expected-revision <value>` | Yes | Current permission revision obtained before generating this snapshot. |
-| `--user-mapping <json\|@file>` | Yes | GitLab user IDs and their verified Sim email addresses. (JSON, or @path / @- to read a file or stdin). |
-| `--project-permissions <json\|@file>` | Yes | GitLab project paths and the IDs of users granted access. (JSON, or @path / @- to read a file or stdin). |
+| `--expected-revision <value>` | Yes | Permission revision read before exporting the grants. |
+| `--permissions <json\|@file>` | Yes | Complete permission grants in the source provider’s format. (JSON, or @path / @- to read a file or stdin). |
 | `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
-API request and response schemas: [replaceGitLabSearchPermissions](/api-reference/organizations/replaceGitLabSearchPermissions).
+API request and response schemas: [replaceSearchSourcePermissions](/api-reference/organizations/replaceSearchSourcePermissions).
 
 ## Invitations
 

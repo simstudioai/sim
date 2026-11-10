@@ -2,11 +2,10 @@ import { isPlainRecord } from '@sim/utils/object'
 import { z } from 'zod'
 import { gitLabPermissionSummarySchema } from '@/lib/api/contracts/knowledge/gitlab-permissions'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { DbTransaction } from '@/lib/db/types'
 import {
+  type ConnectorPermissionData,
   loadConnectorPermissionSnapshot,
   readConnectorPermissionMetadata,
-  writeConnectorPermissions,
 } from '@/lib/knowledge/connectors/permission-store'
 import {
   GitLabCsvValidationError,
@@ -173,24 +172,18 @@ export function prepareGitLabPermissions(
   }
 }
 
-/** The shared store serializes revision checks and grants inside the owning connector transaction. */
-export async function writeGitLabPermissions(
-  tx: DbTransaction,
-  connectorId: string,
-  prepared: PreparedGitLabPermissions
-): Promise<void> {
+export function gitLabPermissionData(prepared: PreparedGitLabPermissions): ConnectorPermissionData {
   const {
     revision: _revision,
     userMappingRows,
     projectPermissionRows,
     ...metadata
   } = prepared.snapshot
-  await writeConnectorPermissions(tx, connectorId, {
-    expectedRevision: prepared.expectedRevision,
+  return {
     metadata,
     payload: { userMappingRows, projectPermissionRows },
     groups: [{ groupKey: 'project', subjects: prepared.subjects }],
-  })
+  }
 }
 
 /** Projects only safe metadata; CSV contents never reach a response or browser draft. */

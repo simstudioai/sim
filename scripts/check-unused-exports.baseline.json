@@ -4519,7 +4519,6 @@
   "apps/sim/lib/knowledge/connectors/external-group-sync.ts#DIRECTORY_ERROR_PREFIX",
   "apps/sim/lib/knowledge/connectors/external-group-sync.ts#DIRECTORY_WARNING_PREFIX",
   "apps/sim/lib/knowledge/connectors/external-group-sync.ts#replaceDirectorySyncNotice",
-  "apps/sim/lib/knowledge/connectors/permission-store.ts#ConnectorPermissionSnapshot",
   "apps/sim/lib/knowledge/connectors/sync-database-retry.ts#RUN_HISTORY_LOCK_TIMEOUT_MS",
   "apps/sim/lib/knowledge/connectors/sync-database-retry.ts#RUN_HISTORY_STATEMENT_TIMEOUT_MS",
   "apps/sim/lib/knowledge/connectors/sync-engine.ts#ConnectorCredentialRevokedError",

@@ -1031,19 +1031,19 @@ function defineKnowledgeSessionOperation<const Id extends string>(
   return Object.freeze(operation)
 }
 
-export const gitLabSearchPermissionOperations = {
+export const searchSourcePermissionOperations = {
   read: defineOrganizationOperation({
     minimumRole: 'admin',
     principalKinds: ['personal_api_key', 'oauth_access_token'],
     capability: 'knowledge.use',
-    id: 'knowledge.search.gitlab_permissions.read',
+    id: 'knowledge.search.source_permissions.read',
     oauthScope: 'api:read',
   }),
   replace: defineOrganizationOperation({
     minimumRole: 'admin',
     principalKinds: ['personal_api_key', 'oauth_access_token'],
     capability: 'knowledge.use',
-    id: 'knowledge.search.gitlab_permissions.replace',
+    id: 'knowledge.search.source_permissions.replace',
     oauthScope: 'api:write',
   }),
 } as const

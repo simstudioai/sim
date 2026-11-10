@@ -407,7 +407,7 @@ describe('destructive operations are gated', () => {
     'bulkDeleteTables',
     'bulkUpdateKnowledgeChunks',
     'replaceWorkflowChatDeployment',
-    'replaceGitLabSearchPermissions',
+    'replaceSearchSourcePermissions',
     'replaceWorkflowState',
     'revertWorkflowVersion',
     'updateRowsByFilter',

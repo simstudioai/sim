@@ -35,17 +35,20 @@ const file = (filename: string, content: string) => ({ filename, content })
 const labels = { filename: 'initial.csv', rowCount: 1, uploadedAt: new Date().toISOString() }
 const csv = (expectedRevision: number, id = 2) => ({
   expectedRevision,
-  userMapping: file(
-    'users.csv',
-    `user_id,email\n1,${initialEmail}\n2,${nextEmail.toUpperCase()}\n`
-  ),
-  projectPermissions: file(
-    'projects.csv',
-    `project_path,user_id\n${project},${id}\nelsewhere/team,1\n`
-  ),
+  permissions: {
+    provider: 'gitlab',
+    userMapping: file(
+      'users.csv',
+      `user_id,email\n1,${initialEmail}\n2,${nextEmail.toUpperCase()}\n`
+    ),
+    projectPermissions: file(
+      'projects.csv',
+      `project_path,user_id\n${project},${id}\nelsewhere/team,1\n`
+    ),
+  },
 })
 const path = (organizationId = org) =>
-  `/api/v2/organizations/${organizationId}/search/sources/${source}/gitlab-permissions`
+  `/api/v2/organizations/${organizationId}/search/sources/${source}/permissions`
 
 async function request(token: string, body?: unknown, organizationId = org) {
   return fetch(new URL(path(organizationId), base), {
@@ -122,7 +125,12 @@ try {
   }
   assert.equal((await request(otherAdminKey, csv(1), otherOrg)).status, 404)
   assert.equal(
-    (await request(adminKey, { expectedRevision: 1, userMapping: csv(1).userMapping })).status,
+    (
+      await request(adminKey, {
+        expectedRevision: 1,
+        permissions: { provider: 'gitlab', userMapping: csv(1).permissions.userMapping },
+      })
+    ).status,
     400
   )
   assert.equal((await request(adminKey, { ...csv(1), apiKey: 'unexpected' })).status, 400)
@@ -130,13 +138,30 @@ try {
     (
       await request(adminKey, {
         ...csv(1),
-        userMapping: file('users.csv', 'x'.repeat(10 * 1024 * 1024)),
+        permissions: {
+          ...csv(1).permissions,
+          userMapping: file('users.csv', 'x'.repeat(10 * 1024 * 1024)),
+        },
       })
     ).status,
     413
   )
   assert.equal(
-    (await request(adminKey, { ...csv(1), userMapping: file('users.csv', '1,invalid') })).status,
+    (
+      await request(adminKey, {
+        ...csv(1),
+        permissions: { ...csv(1).permissions, userMapping: file('users.csv', '1,invalid') },
+      })
+    ).status,
+    400
+  )
+  assert.equal(
+    (
+      await request(adminKey, {
+        ...csv(1),
+        permissions: { ...csv(1).permissions, provider: 'unknown' },
+      })
+    ).status,
     400
   )
   assert.deepEqual(await grants(), [`u:${initialEmail}`])
@@ -146,6 +171,7 @@ try {
   )
 
   await sql`update knowledge_connector set connector_type = 'github' where id = ${source}`
+  assert.equal((await request(adminKey)).status, 404)
   assert.equal((await request(adminKey, csv(1))).status, 404)
   await sql`update knowledge_connector set connector_type = 'gitlab' where id = ${source}`
   const [original] =
@@ -154,6 +180,7 @@ try {
   await sql`update knowledge_connector_permission_snapshot
     set metadata = metadata || '{"mode":"administrator","userMapping":null,"projectPermissions":null}'::jsonb
     where connector_id = ${source}`
+  assert.equal((await request(adminKey)).status, 404)
   assert.equal((await request(adminKey, csv(1))).status, 404)
   await sql`update knowledge_connector_permission_snapshot set metadata = ${sql.json(original.metadata)} where connector_id = ${source}`
   assert.deepEqual(await grants(), [`u:${initialEmail}`])
