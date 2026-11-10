@@ -50,8 +50,9 @@ const names = (rows: { name: string }[]) => rows.map((row) => row.name).sort()
 
 async function seedWorkflow(workspaceId: string, name: string, extra = {}) {
   const now = tick()
+  const id = generateId()
   await db.insert(workflow).values({
-    id: generateId(),
+    id,
     userId: viewer,
     workspaceId,
     name,
@@ -60,6 +61,7 @@ async function seedWorkflow(workspaceId: string, name: string, extra = {}) {
     updatedAt: now,
     ...extra,
   })
+  return id
 }
 
 beforeAll(async () => {
@@ -262,13 +264,20 @@ describe('each family across the passed workspaces', () => {
 describe('an @ query', () => {
   it('ranks an exact name, then a prefix, then a substring, within the limit', async () => {
     const [a] = inScope
-    await seedWorkflow(a, 'Invoice reports')
-    await seedWorkflow(a, 'Sync invoice')
-    await seedWorkflow(a, 'Invoice')
-    const rows = await readWorkflowMentions(spec({ query: 'invoice', limit: 2 }))
-    expect(rows.map((row) => row.name)).toEqual(['Invoice', 'Invoice reports'])
-    const all = await readWorkflowMentions(spec({ query: 'invoice' }))
-    expect(all.map((row) => row.name)).toEqual(['Invoice', 'Invoice reports', 'Sync invoice'])
+    // Removed again afterwards, so no other case's workflow list depends on running before this.
+    const seeded = [
+      await seedWorkflow(a, 'Invoice reports'),
+      await seedWorkflow(a, 'Sync invoice'),
+      await seedWorkflow(a, 'Invoice'),
+    ]
+    try {
+      const rows = await readWorkflowMentions(spec({ query: 'invoice', limit: 2 }))
+      expect(rows.map((row) => row.name)).toEqual(['Invoice', 'Invoice reports'])
+      const all = await readWorkflowMentions(spec({ query: 'invoice' }))
+      expect(all.map((row) => row.name)).toEqual(['Invoice', 'Invoice reports', 'Sync invoice'])
+    } finally {
+      await db.delete(workflow).where(inArray(workflow.id, seeded))
+    }
   })
 
   it('offers the most recently updated rows when nothing is typed', async () => {
