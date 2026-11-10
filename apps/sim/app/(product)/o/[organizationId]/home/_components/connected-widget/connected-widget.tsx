@@ -5,7 +5,7 @@ import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
 import type { MenuAction } from '@sim/emcn/menu/action-menu'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { ConnectionPrompt } from '@sim/emcn-platform/connection-prompt'
 import { HomeSection } from '@/app/(product)/_components/home-section/home-section'
@@ -169,19 +169,14 @@ export function ConnectedWidget<T>({
           {children(state.data)}
         </>
       )}
-      <Modal
-        open={disconnecting !== null}
-        onOpenChange={(open) => {
-          if (!open) setDisconnecting(null)
-        }}
-        variant='confirm'
-        title={`Disconnect ${several && disconnecting ? disconnecting.label : title}?`}
-        confirmLabel='Disconnect'
-        destructive
+      <ConfirmDialog
+        target={disconnecting}
+        onClose={() => setDisconnecting(null)}
+        title={(account) => `Disconnect ${several ? account.label : title}`}
         description={DISCONNECT_NOTICE}
-        onConfirm={async () => {
-          if (disconnecting) await actions.disconnect(disconnecting.id)
-        }}
+        confirmLabel='Disconnect'
+        pendingLabel='Disconnecting…'
+        onConfirm={(account) => actions.disconnect(account.id)}
       />
     </HomeSection>
   )

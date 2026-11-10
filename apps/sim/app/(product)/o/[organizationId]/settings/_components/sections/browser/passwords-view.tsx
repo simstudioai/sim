@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { ActivityRow } from '@sim/emcn/activity-row'
 import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { toast } from '@/lib/toast/sink'
@@ -143,14 +143,13 @@ export function PasswordsView({
         </>
       )}
       <ImportModal open={importOpen} onOpenChange={setImportOpen} onImported={onImported} />
-      <Modal
-        variant='confirm'
-        destructive
-        open={confirmingDeleteAll}
-        onOpenChange={setConfirmingDeleteAll}
+      <ConfirmDialog
+        target={confirmingDeleteAll}
+        onClose={() => setConfirmingDeleteAll(false)}
         title='Delete all passwords'
         description={`This permanently deletes all ${pluralize(credentials.length, 'saved password')} from this device. Your accounts on those sites are not affected, and you can import again from another browser.`}
         confirmLabel='Delete all'
+        pendingLabel='Deleting…'
         onConfirm={forgetAll}
       />
     </>

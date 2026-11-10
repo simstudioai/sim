@@ -4,9 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type BreadcrumbItem, Breadcrumbs } from '@sim/emcn/breadcrumbs'
 import { Button } from '@sim/emcn/button'
 import { useClipboard } from '@sim/emcn/feedback/use-clipboard'
-import { TextField } from '@sim/emcn/field'
 import type { MenuAction } from '@sim/emcn/menu/action-menu'
-import { Modal } from '@sim/emcn/modal'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { getErrorMessage } from '@sim/utils/errors'
 import { notFound, useRouter } from 'next/navigation'
@@ -26,6 +24,7 @@ import type { FileStreamProps, PreviewMode } from '@/components/file-viewer/type
 import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
+import { RenameDialog } from '@/app/(product)/_components/rename-dialog/rename-dialog'
 import { ShareModal } from '@/app/(product)/_components/workspace/files/share-modal/share-modal'
 import {
   LiveWorkspacePage,
@@ -87,32 +86,6 @@ function nextModeAction(file: WorkspaceFileRecord, mode: PreviewMode) {
   return null
 }
 
-interface RenameFileModalProps {
-  file: WorkspaceFileRecord
-  workspaceId: string
-  onClose: () => void
-}
-
-function RenameFileModal({ file, workspaceId, onClose }: RenameFileModalProps) {
-  const [name, setName] = useState(file.name)
-  const { mutateAsync: renameFile } = useRenameWorkspaceFile()
-  const trimmed = name.trim()
-  return (
-    <Modal
-      open
-      onOpenChange={(open) => {
-        if (!open) onClose()
-      }}
-      title='Rename file'
-      confirmLabel='Rename'
-      confirmDisabled={!trimmed || trimmed === file.name}
-      onConfirm={() => renameFile({ workspaceId, fileId: file.id, name: trimmed, quiet: true })}
-    >
-      <TextField label='Name' placeholder={file.name} value={name} onChange={setName} />
-    </Modal>
-  )
-}
-
 /**
  * A workspace file opened from Files: the file's viewer or editor fills the page beneath its
  * location trail, which also carries the file's commands; the mode toggle and page actions end
@@ -134,6 +107,7 @@ export function FileView({ workspaceId, fileId, stream }: FileViewProps) {
   const deriveTitle = useDeriveFileTitle(workspaceId)
   const addToChat = useAddToChat()
   const deleteFile = useDeleteWorkspaceFile()
+  const { mutateAsync: renameFile } = useRenameWorkspaceFile()
   const { copied: linkCopied, copy } = useClipboard()
 
   const saveRef = useRef<(() => Promise<void>) | null>(null)
@@ -358,9 +332,12 @@ export function FileView({ workspaceId, fileId, stream }: FileViewProps) {
           />
         )}
       </LiveWorkspacePage>
-      {file && dialog === 'rename' && (
-        <RenameFileModal file={file} workspaceId={workspaceId} onClose={() => setDialog(null)} />
-      )}
+      <RenameDialog
+        target={file && dialog === 'rename' ? file : null}
+        noun='file'
+        onClose={() => setDialog(null)}
+        onRename={(id, name) => renameFile({ workspaceId, fileId: id, name, quiet: true })}
+      />
       {file && (
         <ShareModal
           open={dialog === 'share'}

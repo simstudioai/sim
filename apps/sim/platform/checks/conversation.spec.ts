@@ -23,7 +23,7 @@ test('Home can hide, undo, disconnect and reconnect widgets without losing the r
   await email.getByRole('button', { name: 'Email options' }).click()
   await page.getByRole('menuitem', { name: 'Disconnect Email' }).click()
   await page
-    .getByRole('dialog', { name: 'Disconnect Email?' })
+    .getByRole('dialog', { name: 'Disconnect Email' })
     .getByRole('button', { name: 'Disconnect', exact: true })
     .click()
   await expect(email.getByRole('button', { name: 'Gmail' })).toBeVisible()

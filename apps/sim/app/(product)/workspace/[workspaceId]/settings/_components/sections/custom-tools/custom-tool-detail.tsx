@@ -284,7 +284,7 @@ export function CustomToolDetail({
       <ConfirmDialog
         target={confirmingDelete}
         onClose={() => setConfirmingDelete(false)}
-        title='Delete Custom Tool'
+        title='Delete custom tool'
         description={CUSTOM_TOOL_DELETE_DESCRIPTION}
         confirmLabel='Delete'
         pendingLabel='Deleting…'

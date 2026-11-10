@@ -6,6 +6,7 @@ import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { RecipientField } from '@sim/emcn-platform/workspace-fields'
@@ -135,19 +136,16 @@ export function GroupPeople({ people, nextCursor, shallow, actions }: GroupPeopl
           />
         </FieldStack>
       </Modal>
-      <Modal
-        variant='confirm'
-        destructive
-        open={Boolean(revoking)}
-        onOpenChange={(open) => {
-          if (!open) setRevoking(undefined)
-        }}
-        title={`Revoke ${revoking?.email ?? 'account access'}`}
-        description='This removes all accounts contributed by this person from organization workflows and Search. Their organization membership remains active.'
+      <ConfirmDialog
+        target={revoking}
+        onClose={() => setRevoking(undefined)}
+        title='Revoke account access'
+        description={({ email }) =>
+          `This removes all accounts contributed by ${email} from organization workflows and Search. Their organization membership remains active.`
+        }
         confirmLabel='Revoke'
-        onConfirm={() => {
-          if (revoking) return actions.revoke(revoking.id)
-        }}
+        pendingLabel='Revoking…'
+        onConfirm={(person) => actions.revoke(person.id)}
       />
     </SectionStack>
   )

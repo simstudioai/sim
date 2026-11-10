@@ -1062,7 +1062,7 @@ export function TableRoute({ workspaceId, tableId }: TableRouteProps) {
       <ConfirmDialog
         target={deletingColumns}
         onClose={() => setDeletingColumns(null)}
-        title={(names) => (names.length > 1 ? `Delete ${names.length} Columns` : 'Delete Column')}
+        title={(names) => (names.length > 1 ? `Delete ${names.length} columns` : 'Delete column')}
         description={(names) =>
           `Are you sure you want to delete ${
             names.length > 1
@@ -1083,7 +1083,7 @@ export function TableRoute({ workspaceId, tableId }: TableRouteProps) {
       <ConfirmDialog
         target={showDeleteTableConfirm && tableData}
         onClose={() => setShowDeleteTableConfirm(false)}
-        title='Delete Table'
+        title='Delete table'
         description={(table) =>
           `Are you sure you want to delete ${table.name}? All ${table.rowCount} rows will be removed. You can restore it from Recently Deleted in Settings.`
         }

@@ -18,10 +18,10 @@ test('Back to app holds an unsaved Settings draft and restores the full entry UR
   const back = page.getByRole('button', { name: 'Back to app' })
   await back.click()
   const dialog = page.getByRole('dialog', { name: 'Unsaved changes' })
-  await dialog.getByRole('button', { name: 'Keep editing' }).click()
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(name).toHaveValue('UNSAVED_KEY')
   await back.click()
-  await dialog.getByRole('button', { name: 'Discard changes' }).click()
+  await dialog.getByRole('button', { name: 'Discard', exact: true }).click()
   await expect(page).toHaveURL(entry)
 })
 

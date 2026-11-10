@@ -150,8 +150,8 @@ export function WorkspacesSection({
         <Modal
           open={creating}
           onOpenChange={setCreating}
-          title='Add workspace'
-          confirmLabel='Create'
+          title='Create workspace'
+          confirmLabel='Create workspace'
           onConfirm={async (values) => {
             const name = readFormText(values, 'name')
             if (!name) throw new Error('Enter a workspace name.')

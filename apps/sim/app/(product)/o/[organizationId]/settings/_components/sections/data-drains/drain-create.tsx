@@ -209,7 +209,7 @@ export function DrainCreate({ organizationId, onBack, onCreated }: DrainCreatePr
             disabled={!canSubmit || createDrain.isPending}
             onClick={() => void submit()}
           >
-            {createDrain.isPending ? 'Creating…' : 'Create'}
+            {createDrain.isPending ? 'Creating…' : 'Create drain'}
           </Button>
           {!canSubmit && <Muted>Name the drain and complete its destination</Muted>}
         </ActionRow>

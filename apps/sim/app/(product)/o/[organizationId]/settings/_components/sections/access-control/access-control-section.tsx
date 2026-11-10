@@ -72,7 +72,7 @@ function CreateGroupModal({
       open={open}
       onOpenChange={change}
       title='Create permission group'
-      confirmLabel={createGroup.isPending ? 'Creating…' : 'Create'}
+      confirmLabel={createGroup.isPending ? 'Creating…' : 'Create group'}
       confirmDisabled={!name.trim() || (!isDefault && workspaceIds.length === 0)}
       onConfirm={async () => {
         await createGroup.mutateAsync({

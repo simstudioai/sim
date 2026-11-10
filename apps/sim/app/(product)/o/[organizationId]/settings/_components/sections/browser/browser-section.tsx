@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
@@ -220,23 +220,23 @@ function BrowserSettings({
           </Button>
         </SettingsRow>
       </SettingsSection>
-      <Modal
-        variant='confirm'
-        destructive
-        open={confirming !== null}
-        onOpenChange={(open) => {
-          if (open) return
+      <ConfirmDialog
+        target={confirming}
+        onClose={() => {
           setConfirming(null)
           onClearAllClosed()
         }}
-        title={target ? target.action : 'Clear all browsing data'}
-        description={`This will ${
-          target
-            ? target.consequence
-            : 'sign the browser out of every site and erase its cookies, site data, and cache'
-        }. Your Sim account and saved passwords are not affected.`}
+        title={(row) => (row === 'all' ? 'Clear all browsing data' : row.action)}
+        description={(row) =>
+          `This will ${
+            row === 'all'
+              ? 'sign the browser out of every site and erase its cookies, site data, and cache'
+              : row.consequence
+          }. Your Sim account and saved passwords are not affected.`
+        }
         confirmLabel={target ? target.action : 'Clear all'}
-        onConfirm={() => clear(target ? [target.kind] : BROWSER_DATA_KINDS)}
+        pendingLabel={target ? 'Deleting…' : 'Clearing…'}
+        onConfirm={(row) => clear(row === 'all' ? BROWSER_DATA_KINDS : [row.kind])}
       />
     </>
   )

@@ -259,7 +259,7 @@ export function EnrichmentConfig({
             disabled={pending || Boolean(blockedReason)}
             disabledReason={pending ? undefined : blockedReason}
           >
-            {pending ? 'Saving…' : isEditing ? 'Update' : 'Save'}
+            {pending ? 'Saving…' : isEditing ? 'Save' : 'Add enrichment'}
           </Button>
         </>
       }

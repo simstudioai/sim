@@ -255,7 +255,7 @@ export function AddPeopleModal({
         if (!next) close()
       }}
       title='Add people'
-      confirmLabel='Add'
+      confirmLabel='Add people'
       confirmDisabled={emails.length === 0 || Boolean(firstError)}
       onConfirm={add}
     >

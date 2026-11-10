@@ -114,12 +114,12 @@ type PermissionRequest = BrowserMediaPermissionRequest | BrowserSitePermissionRe
 function permissionCopy(request: PermissionRequest): { title: string; description: string } {
   if ('tabId' in request)
     return {
-      title: 'Open another website?',
+      title: 'Open another website',
       description: `This page wants to open ${request.origin}. Allow this destination for the rest of this browser task? Only continue if you trust this website.`,
     }
   const devices = request.devices.join(' and ')
   return {
-    title: `Allow ${request.origin} to use your ${devices}?`,
+    title: `Allow ${request.origin} to use your ${devices}`,
     description: `Allowing gives this page access to your ${devices} until it navigates. Block if you did not expect this request.`,
   }
 }

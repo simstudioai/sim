@@ -538,7 +538,7 @@ function DeployDialog({
       <ConfirmDialog
         target={undeploying}
         onClose={() => setUndeploying(false)}
-        title='Undeploy workflow?'
+        title='Undeploy workflow'
         description='This removes the API endpoint and makes it unavailable to external users.'
         confirmLabel='Undeploy'
         pendingLabel='Undeploying…'
@@ -547,7 +547,7 @@ function DeployDialog({
       <ConfirmDialog
         target={loadTarget}
         onClose={() => setLoadTarget(null)}
-        title='Load deployment?'
+        title='Load deployment'
         description={(target) =>
           `Load ${versionLabel(target.version)}? This replaces your current workflow with the deployed version.`
         }
@@ -558,7 +558,7 @@ function DeployDialog({
       <ConfirmDialog
         target={promoteTarget}
         onClose={() => setPromoteTarget(null)}
-        title='Promote to live?'
+        title='Promote to live'
         description={(target) =>
           `Promote ${versionLabel(target.version)} to live? It becomes the active deployment and serves all API requests.`
         }
@@ -573,7 +573,7 @@ function DeployDialog({
       <ConfirmDialog
         target={chat.confirmingPassword}
         onClose={() => chat.setConfirmingPassword(false)}
-        title='Change deployment password?'
+        title='Change deployment password'
         description='Are you sure you want to change the password for this deployment?'
         confirmLabel='Change password and redeploy'
         pendingLabel='Updating…'
@@ -586,7 +586,7 @@ function DeployDialog({
       <ConfirmDialog
         target={chat.confirmingDelete}
         onClose={() => chat.setConfirmingDelete(false)}
-        title='Delete chat?'
+        title='Delete chat'
         description={`This removes the chat at ${chat.liveUrl ?? 'its URL'} and makes it unavailable to everyone. This cannot be undone.`}
         confirmLabel='Delete'
         pendingLabel='Deleting…'

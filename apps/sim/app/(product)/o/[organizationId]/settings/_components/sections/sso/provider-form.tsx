@@ -479,11 +479,11 @@ export function ProviderForm({
             <Button variant='primary' submit disabled={configure.isPending}>
               {configure.isPending
                 ? isEditing
-                  ? 'Updating…'
-                  : 'Saving…'
+                  ? 'Saving…'
+                  : 'Adding…'
                 : isEditing
-                  ? 'Update'
-                  : 'Save'}
+                  ? 'Save'
+                  : 'Add provider'}
             </Button>
             {dirty && (
               <Button variant='quiet' disabled={configure.isPending} onClick={discard}>

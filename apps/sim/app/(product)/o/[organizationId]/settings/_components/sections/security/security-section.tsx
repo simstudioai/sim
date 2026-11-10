@@ -5,7 +5,7 @@ import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { TextField } from '@sim/emcn/field'
 import { CopyField } from '@sim/emcn/field/value-fields'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -121,14 +121,13 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
           Sign out all members
         </Button>
       </SettingsRow>
-      <Modal
-        variant='confirm'
-        destructive
-        open={confirmingRevoke}
-        onOpenChange={setConfirmingRevoke}
+      <ConfirmDialog
+        target={confirmingRevoke}
+        onClose={() => setConfirmingRevoke(false)}
         title='Sign out all members'
         description='Every member of this organization will be signed out on their next request, except your current session. Members will need to sign in again.'
-        confirmLabel={revokeSessions.isPending ? 'Signing out…' : 'Sign out all'}
+        confirmLabel='Sign out all'
+        pendingLabel='Signing out…'
         onConfirm={async () => {
           const result = await revokeSessions.mutateAsync({ orgId: organizationId })
           toast.success(`Signed out ${plural(result.data.revokedSessions, 'session')}`)

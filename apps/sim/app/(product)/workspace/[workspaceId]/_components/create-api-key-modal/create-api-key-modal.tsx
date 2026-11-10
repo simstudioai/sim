@@ -77,7 +77,7 @@ export function CreateApiKeyModal({
         if (!next) onClose()
       }}
       title={created ? 'Your API key has been created' : 'Create new API key'}
-      confirmLabel={created ? 'Done' : createApiKey.isPending ? 'Creating…' : 'Create'}
+      confirmLabel={created ? 'Done' : createApiKey.isPending ? 'Creating…' : 'Create API key'}
       confirmDisabled={!created && (!name.trim() || !canCreate)}
       cancelLabel={created ? 'Close' : undefined}
       onConfirm={created ? undefined : create}

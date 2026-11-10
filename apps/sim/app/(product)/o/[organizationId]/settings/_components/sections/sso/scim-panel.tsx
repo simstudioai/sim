@@ -6,6 +6,7 @@ import { Disclosure } from '@sim/emcn/disclosure'
 import { CopyField } from '@sim/emcn/field/value-fields'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { Select } from '@sim/emcn/picker/select'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
@@ -279,19 +280,15 @@ function ConnectionDetails({ organizationId, active, connection }: ConnectionDet
           hint='Copy it into your identity provider now. Sim stores only a digest and cannot show it again.'
         />
       </Modal>
-      <Modal
-        variant='confirm'
-        destructive
-        open={active && pendingRevoke !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingRevokeId(null)
-        }}
+      <ConfirmDialog
+        target={active && pendingRevoke}
+        onClose={() => setPendingRevokeId(null)}
         title='Revoke token'
         description={`Revoke ${pendingRevoke?.tokenPrefix ?? ''}? Your identity provider stops syncing the moment it next uses this token. Issue a new token first if you are rotating.`}
-        confirmLabel={revokeCredential.isPending ? 'Revoking…' : 'Revoke'}
-        onConfirm={async () => {
-          if (!pendingRevoke) return
-          await revokeCredential.mutateAsync({ organizationId, credentialId: pendingRevoke.id })
+        confirmLabel='Revoke'
+        pendingLabel='Revoking…'
+        onConfirm={async (credential) => {
+          await revokeCredential.mutateAsync({ organizationId, credentialId: credential.id })
           toast.success('Token revoked')
         }}
       />

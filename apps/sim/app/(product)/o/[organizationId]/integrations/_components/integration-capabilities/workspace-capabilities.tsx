@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { ActivityRow } from '@sim/emcn/activity-row'
 import { Icon } from '@sim/emcn/icon'
 import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type SkillDraft, SkillFields } from '@/app/(product)/_components/skill-fields/skill-fields'
 import { IntegrationTemplates } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-capabilities/integration-capabilities'
@@ -140,7 +141,7 @@ function SuggestedSkillEditor({
       <Modal
         open
         title={skill.name}
-        confirmLabel={installed ? 'Save changes' : 'Add to Skills'}
+        confirmLabel={installed ? 'Save' : 'Add to Skills'}
         confirmDisabled={!editable || !complete || Boolean(installed && !dirty)}
         onOpenChange={(next) => {
           if (!next) onClose()
@@ -160,16 +161,13 @@ function SuggestedSkillEditor({
         <SkillFields draft={draft} onEdit={setDraft} viewOnly={!editable} />
       </Modal>
       {removing && installed && (
-        <Modal
-          open
-          title='Remove from Skills?'
+        <ConfirmDialog
+          target={removing}
+          onClose={() => setRemoving(false)}
+          title='Remove skill'
           description={`This removes ${installed.name} from your integrations.`}
-          variant='confirm'
-          destructive
           confirmLabel='Remove from Skills'
-          onOpenChange={(next) => {
-            if (!next) setRemoving(false)
-          }}
+          pendingLabel='Removing…'
           onConfirm={async () => {
             try {
               await deleteSkill.mutateAsync({ workspaceId, skillId: installed.id })

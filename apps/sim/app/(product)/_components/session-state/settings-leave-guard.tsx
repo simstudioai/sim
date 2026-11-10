@@ -1,25 +1,20 @@
 'use client'
 
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { useSettingsLeaveGuard } from '@/platform/lib/data/settings-guard'
 
 /** One discard dialog for every Settings editor that registers an unsaved draft. */
 export function SettingsLeaveGuard() {
   const { pending, confirm, cancel } = useSettingsLeaveGuard()
   return (
-    <Modal
-      open={pending}
-      onOpenChange={(open) => {
-        if (!open) cancel()
-      }}
-      variant='confirm'
+    <ConfirmDialog
+      target={pending}
+      onClose={cancel}
       title='Unsaved changes'
-      confirmLabel='Discard changes'
-      cancelLabel='Keep editing'
-      destructive
+      description='You have unsaved changes. Are you sure you want to discard them?'
+      confirmLabel='Discard'
+      pendingLabel='Discarding…'
       onConfirm={confirm}
-    >
-      <p data-type='T048'>You have unsaved changes. Are you sure you want to discard them?</p>
-    </Modal>
+    />
   )
 }

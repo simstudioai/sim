@@ -46,7 +46,7 @@ export function LinkEditor({
         if (!open) onClose()
       }}
       title={link ? `Edit ${link.name}` : 'New link'}
-      confirmLabel={link ? 'Save' : 'Create'}
+      confirmLabel={link ? 'Save' : 'Create link'}
       onConfirm={editor.save}
     >
       <TextField

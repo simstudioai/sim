@@ -162,7 +162,7 @@ export function RowModal({
       <ConfirmDialog
         target={isOpen ? idsToDelete : null}
         onClose={onClose}
-        title={`Delete ${isSingleRow ? 'Row' : `${deleteCount} Rows`}`}
+        title={`Delete ${isSingleRow ? 'row' : `${deleteCount} rows`}`}
         description={`Are you sure you want to delete ${isSingleRow ? 'this row' : `these ${deleteCount} rows`}? This will permanently remove all data in ${isSingleRow ? 'this row' : 'these rows'}. This action cannot be undone.`}
         confirmLabel='Delete'
         pendingLabel='Deleting…'

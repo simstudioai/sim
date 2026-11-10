@@ -7,7 +7,7 @@ import { DataTable, TableLabel } from '@sim/emcn/data-display'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { Tooltip } from '@sim/emcn/tooltip'
 import { useQueryStates } from 'nuqs'
 import styles from '@/app/(product)/o/[organizationId]/integrations/_components/credential-access/credential-access.module.css'
@@ -329,26 +329,25 @@ export function CredentialAccess({ credential, viewer, access }: CredentialAcces
         />
       )}
       {removing.length > 0 && (
-        <Modal
-          open
+        <ConfirmDialog
+          target={removing}
+          onClose={() => setRemovingIds([])}
           title={
             ownRemoval
-              ? 'Leave credential?'
+              ? 'Leave credential'
               : removing.length === 1
-                ? `Remove ${removing[0].name}?`
-                : `Remove ${removing.length} people?`
+                ? 'Remove member'
+                : 'Remove members'
           }
           description={
             ownRemoval
               ? 'You will lose access until an admin adds you back.'
-              : 'Selected people will lose access to this credential.'
+              : removing.length === 1
+                ? `${removing[0].name} will lose access to this credential.`
+                : `${removing.length} people will lose access to this credential.`
           }
-          variant='confirm'
-          destructive
           confirmLabel={ownRemoval ? 'Leave' : 'Remove'}
-          onOpenChange={(open) => {
-            if (!open) setRemovingIds([])
-          }}
+          pendingLabel={ownRemoval ? 'Leaving…' : 'Removing…'}
           onConfirm={() => {
             const next = proposed(removingIds, null)
             if (!next) return false

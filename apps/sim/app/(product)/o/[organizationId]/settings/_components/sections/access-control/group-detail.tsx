@@ -6,7 +6,7 @@ import { Button } from '@sim/emcn/button'
 import { TextField } from '@sim/emcn/field'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { SearchField } from '@sim/emcn/search-field'
@@ -661,14 +661,13 @@ export function GroupDetail({
           isAdding={bulkAddMembers.isPending}
         />
       )}
-      <Modal
-        variant='confirm'
-        destructive
-        open={confirmingDelete}
-        onOpenChange={setConfirmingDelete}
+      <ConfirmDialog
+        target={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
         title='Delete permission group'
         description={`Are you sure you want to delete ${group.name}? All members will be removed from this group. This action cannot be undone.`}
-        confirmLabel={deleteGroup.isPending ? 'Deleting…' : 'Delete'}
+        confirmLabel='Delete'
+        pendingLabel='Deleting…'
         onConfirm={async () => {
           await deleteGroup.mutateAsync({ permissionGroupId: group.id, organizationId })
           onBack()

@@ -218,7 +218,7 @@ test('a permission group created in the form opens, saves its name and deletes',
     const dialog = page.getByRole('dialog', { name: 'Create permission group' })
     await dialog.getByRole('textbox', { name: 'Name' }).fill(name)
     await dialog.getByText('Make this the organization default group').click()
-    await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Create group', exact: true }).click()
     await expect(dialog).toBeHidden()
     await page.getByRole('button', { name: new RegExp(`^${escapeRegExp(name)}`) }).click()
     await expect(page).toHaveURL(/group-id=/)

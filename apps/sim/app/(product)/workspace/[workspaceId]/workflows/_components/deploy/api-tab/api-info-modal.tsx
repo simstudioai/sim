@@ -179,9 +179,9 @@ export function ApiInfoModal({ workspaceId, workflowId, onClose }: ApiInfoModalP
       <ConfirmDialog
         target={confirmingDiscard}
         onClose={() => setConfirmingDiscard(false)}
-        title='Discard changes?'
+        title='Unsaved changes'
         description='You have unsaved changes to this API.'
-        confirmLabel='Discard changes'
+        confirmLabel='Discard'
         pendingLabel='Discarding…'
         onConfirm={() => {
           setConfirmingDiscard(false)

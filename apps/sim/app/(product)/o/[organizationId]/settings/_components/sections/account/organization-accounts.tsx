@@ -5,7 +5,7 @@ import { DataTable, TableLabel } from '@sim/emcn/data-display'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { Icon } from '@sim/emcn/icon'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { FailureNotice, StatusText } from '@sim/emcn/status'
 import { usePersonalAccountsList } from '@/platform/shared/account'
 
@@ -76,19 +76,14 @@ export function OrganizationAccounts() {
           }))}
         />
       ))}
-      <Modal
-        open={pending !== null}
-        onOpenChange={(open) => {
-          if (!open) setPending(null)
-        }}
-        variant='confirm'
-        destructive
+      <ConfirmDialog
+        target={pending}
+        onClose={() => setPending(null)}
         title='Disconnect account'
         confirmLabel='Disconnect'
+        pendingLabel='Disconnecting…'
         description={`Disconnecting ${pending?.name ?? 'this account'} removes it from ${pending?.organizationName ?? 'the organization'}. Workflows using this account will lose access.`}
-        onConfirm={() =>
-          pending ? list.disconnect(pending.id, pending.organizationId, pending.name) : undefined
-        }
+        onConfirm={(account) => list.disconnect(account.id, account.organizationId, account.name)}
       />
     </>
   )

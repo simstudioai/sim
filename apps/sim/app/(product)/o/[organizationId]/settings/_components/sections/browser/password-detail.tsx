@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button, IconButton } from '@sim/emcn/button'
 import { Input } from '@sim/emcn/field/inputs'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { toast } from '@/lib/toast/sink'
 import { DetailHeader } from '@/app/(product)/_components/settings-parts/settings-parts'
@@ -163,14 +163,13 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
           </Button>
         </SettingsRow>
       </SettingsSection>
-      <Modal
-        variant='confirm'
-        destructive
-        open={confirmingForget}
-        onOpenChange={setConfirmingForget}
+      <ConfirmDialog
+        target={confirmingForget}
+        onClose={() => setConfirmingForget(false)}
         title='Forget password'
         description={`Sim will delete the saved password for ${site}. Your account on that site is not affected.`}
         confirmLabel='Forget'
+        pendingLabel='Forgetting…'
         onConfirm={forget}
       />
     </>

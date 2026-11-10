@@ -497,9 +497,9 @@ export async function sidebarChecks() {
           await railRegion(page, 'Workspaces')
             .getByRole('button', { name: 'Add workspace', exact: true })
             .click()
-          const modal = dialog(page, 'Add workspace')
+          const modal = dialog(page, 'Create workspace')
           await modal.getByRole('textbox', { name: 'Workspace name' }).fill('Created in acceptance')
-          await modal.getByRole('button', { name: 'Create', exact: true }).click()
+          await modal.getByRole('button', { name: 'Create workspace', exact: true }).click()
           await expect(page).toHaveURL(
             (address) => /^\/workspace\/[^/]+\/workflows$/.test(address.pathname),
             { timeout: 45_000 }

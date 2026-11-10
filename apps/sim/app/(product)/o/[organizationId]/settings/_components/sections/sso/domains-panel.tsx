@@ -5,7 +5,7 @@ import { Button } from '@sim/emcn/button'
 import { TextField } from '@sim/emcn/field'
 import { CopyField } from '@sim/emcn/field/value-fields'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -172,20 +172,16 @@ export function DomainsPanel({
           ))
         )}
       </SettingsSection>
-      <Modal
-        variant='confirm'
-        destructive
-        open={active && pendingRemoval !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingRemovalId(null)
-        }}
+      <ConfirmDialog
+        target={active && pendingRemoval}
+        onClose={() => setPendingRemovalId(null)}
         title='Remove domain'
         description={`Remove ${pendingRemoval?.domain ?? ''}? This immediately disables SSO sign-in for anyone on that domain, because the proof is what grants your identity provider its authority. Verifying the domain again restores it.`}
-        confirmLabel={removeDomain.isPending ? 'Removing…' : 'Remove'}
-        onConfirm={async () => {
-          if (!pendingRemoval) return
-          await removeDomain.mutateAsync({ orgId: organizationId, domainId: pendingRemoval.id })
-          toast.success(`${pendingRemoval.domain} removed`)
+        confirmLabel='Remove'
+        pendingLabel='Removing…'
+        onConfirm={async (domain) => {
+          await removeDomain.mutateAsync({ orgId: organizationId, domainId: domain.id })
+          toast.success(`${domain.domain} removed`)
         }}
       />
     </SectionStack>

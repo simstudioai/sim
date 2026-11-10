@@ -245,7 +245,7 @@ export function IntegrationsRoute({
   const named = integration ?? workspaceDetail
   const back =
     account && named
-      ? { href: directory.appHref(named.id), label: `Back to ${named.name}` }
+      ? { href: directory.appHref(named.id), label: named.name }
       : { href: indexHref, label: 'Integrations' }
   const disconnect = async (credentialId: string) => {
     if (integration?.accounts.some((item) => item.id === credentialId))

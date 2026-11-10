@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import {
   DetailHeader,
   Muted,
@@ -113,13 +113,14 @@ export function ForkSyncDetail({
         )}
       </DetailHeader>
       <ForkSyncView controller={controller} onDirectionChange={changeDirection} />
-      <Modal
-        variant='confirm'
-        open={confirmingSync}
-        onOpenChange={setConfirmingSync}
+      <ConfirmDialog
+        target={confirmingSync}
+        onClose={() => setConfirmingSync(false)}
+        safe
         title={`Overwrite ${target}`}
         description={`Syncing will overwrite any changes made in ${target} since the last sync. Continue?`}
         confirmLabel='Sync'
+        pendingLabel='Syncing…'
         onConfirm={async () => (await controller.sync()) || false}
       >
         {controller.archivedWorkflowNames.length > 0 && (
@@ -159,7 +160,7 @@ export function ForkSyncDetail({
             )}
           </RowStack>
         )}
-      </Modal>
+      </ConfirmDialog>
     </SectionStack>
   )
 }

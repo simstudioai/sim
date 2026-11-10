@@ -194,7 +194,7 @@ export function IntegrationCenter({
       <>
         <DirectoryBack
           href={linkTo({ ...clearCredentialView, resource: null })}
-          label='Back to Credentials'
+          label='Credentials'
           onNavigate={(event) => {
             event.preventDefault()
             void setView(

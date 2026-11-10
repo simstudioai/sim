@@ -33,12 +33,12 @@ test('app discovery preserves editable installed skills and sends templates to t
   const updated = `${instructions} Always cite its item reference.`
   await field.fill(updated)
   const remove = skill.getByRole('button', { name: 'Remove from Skills', exact: true })
-  const save = skill.getByRole('button', { name: 'Save changes', exact: true })
+  const save = skill.getByRole('button', { name: 'Save', exact: true })
   const [removeBox, saveBox] = await Promise.all([remove.boundingBox(), save.boundingBox()])
   if (!removeBox || !saveBox) throw new Error('Skill footer controls are not visible')
   expect(removeBox.x + removeBox.width).toBeLessThan(saveBox.x)
   await remove.click()
-  const confirmation = page.getByRole('dialog', { name: 'Remove from Skills?', exact: true })
+  const confirmation = page.getByRole('dialog', { name: 'Remove skill', exact: true })
   await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(remove).toBeFocused()
   await expect(field).toHaveValue(updated)
@@ -73,7 +73,10 @@ test('app discovery preserves editable installed skills and sends templates to t
   await editor.getByRole('textbox', { name: 'Name', exact: true }).fill('runtime-vault-lookup')
   await editor.getByRole('textbox', { name: 'Instructions', exact: true }).fill(editedInstructions)
   await editor.getByRole('button', { name: 'Save changes', exact: true }).click()
-  await main.getByRole('link', { name: 'Back to Skills', exact: true }).click()
+  await main
+    .getByRole('navigation', { name: 'Skills navigation', exact: true })
+    .getByRole('link')
+    .click()
   await expect(main.getByRole('link', { name: /^runtime-vault-lookup / })).toHaveCount(1)
   await main
     .getByRole('navigation', { name: 'Integration categories' })
@@ -129,14 +132,17 @@ test('adding another credential preserves existing accounts and its details surv
     .getByRole('textbox', { name: 'Display name', exact: true })
     .fill('Gmail account review')
   await list.getByRole('button', { name: 'Save changes', exact: true }).click()
-  await list.getByRole('link', { name: 'Back to Gmail', exact: true }).click()
+  await list
+    .getByRole('navigation', { name: 'Gmail navigation', exact: true })
+    .getByRole('link')
+    .click()
   await list.getByRole('link', { name: 'Integrations', exact: true }).click()
   await expect(list.getByRole('searchbox')).toHaveValue('gmail')
   await list.getByRole('link', { name: /^Gmail / }).click()
   await credentials.getByRole('button', { name: /^Gmail account review / }).click()
   await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
   await page
-    .getByRole('dialog', { name: 'Disconnect Gmail account review?', exact: true })
+    .getByRole('dialog', { name: 'Disconnect Gmail account review', exact: true })
     .getByRole('button', { name: 'Disconnect', exact: true })
     .click()
   await expect(credentials.getByRole('button', { name: /^Gmail account review / })).toHaveCount(0)
@@ -175,7 +181,10 @@ test('a private connection keeps its identity when shared and protects its only 
   await expect(main.getByRole('textbox', { name: 'Description', exact: true })).toHaveValue(
     'Personal follow-up drafts.'
   )
-  await main.getByRole('link', { name: 'Back to Gmail', exact: true }).click()
+  await main
+    .getByRole('navigation', { name: 'Gmail navigation', exact: true })
+    .getByRole('link')
+    .click()
   const row = main
     .getByRole('region', { name: 'Connected credentials', exact: true })
     .getByRole('button', { name: /^Account follow-ups / })
@@ -189,7 +198,10 @@ test('a private connection keeps its identity when shared and protects its only 
   await expect(people.getByRole('row')).toHaveCount(3)
   await main.getByRole('tab', { name: 'Details', exact: true }).click()
   await expect(id).toHaveValue(originalId)
-  await main.getByRole('link', { name: 'Back to Gmail', exact: true }).click()
+  await main
+    .getByRole('navigation', { name: 'Gmail navigation', exact: true })
+    .getByRole('link')
+    .click()
   await main.getByRole('link', { name: 'Integrations', exact: true }).click()
   const tabs = main.getByRole('navigation', { name: 'Integration categories' })
   await tabs.getByRole('link', { name: 'Credentials', exact: true }).click()
@@ -297,7 +309,10 @@ test('shared family credential edits and access changes propagate without removi
     .getByRole('textbox', { name: 'Display name', exact: true })
     .fill('Shared Google operations')
   await main.getByRole('button', { name: 'Save changes', exact: true }).click()
-  await main.getByRole('link', { name: 'Back to Gmail', exact: true }).click()
+  await main
+    .getByRole('navigation', { name: 'Gmail navigation', exact: true })
+    .getByRole('link')
+    .click()
   await main.getByRole('link', { name: 'Integrations', exact: true }).click()
   const tabs = main.getByRole('navigation', { name: 'Integration categories' })
   await tabs.getByRole('link', { name: 'Credentials', exact: true }).click()
@@ -421,7 +436,7 @@ test('a Google JSON credential is validated before joining every app in its fami
   await reconnect.getByRole('button', { name: 'Cancel', exact: true }).click()
   await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
   await page
-    .getByRole('dialog', { name: 'Disconnect Google reporting key?', exact: true })
+    .getByRole('dialog', { name: 'Disconnect Google reporting key', exact: true })
     .getByRole('button', { name: 'Disconnect', exact: true })
     .click()
   await main.getByRole('link', { name: 'Integrations', exact: true }).click()
@@ -555,7 +570,7 @@ test('member credentials withhold administration and personal tokens never offer
   await main.getByRole('button', { name: 'Manage access for Emir Karabeg', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Leave', exact: true }).click()
   await page
-    .getByRole('dialog', { name: 'Leave credential?', exact: true })
+    .getByRole('dialog', { name: 'Leave credential', exact: true })
     .getByRole('button', { name: 'Leave', exact: true })
     .click()
   await expect(main.getByRole('button', { name: /^Engineering repositories / })).toHaveCount(0)
@@ -606,7 +621,11 @@ test('individual permissions inherit their default without changing other tools'
   const draft = tools.getByRole('group', { name: 'Gmail Draft permission' })
   await send.getByRole('radio', { name: 'Block' }).check()
   await expect(draft.getByRole('radio', { name: 'Ask' })).toBeChecked()
-  await page.getByRole('main').getByRole('link', { name: 'Back to Gmail', exact: true }).click()
+  await page
+    .getByRole('main')
+    .getByRole('navigation', { name: 'Gmail navigation', exact: true })
+    .getByRole('link')
+    .click()
   await page.getByRole('main').getByRole('link', { name: 'Integrations', exact: true }).click()
   await page.getByRole('link', { name: /^Gmail / }).click()
   await page

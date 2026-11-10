@@ -288,7 +288,7 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
           <ConfirmDialog
             target
             onClose={() => setRemovingSlackAccounts(false)}
-            title='Remove Slack app setup?'
+            title='Remove Slack app setup'
             confirmLabel='Remove'
             pendingLabel='Removing…'
             onConfirm={connections.removeSlackSetup}

@@ -16,6 +16,7 @@ import { notFound, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { toast } from '@/lib/toast/sink'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
+import { RenameDialog } from '@/app/(product)/_components/rename-dialog/rename-dialog'
 import { DocumentTagsModal } from '@/app/(product)/_components/workspace/knowledge/document-tags-modal/document-tags-modal'
 import {
   documentHref,
@@ -23,7 +24,6 @@ import {
   knowledgeBaseHref,
   knowledgeListHref,
 } from '@/app/(product)/_components/workspace/knowledge/knowledge-base/model'
-import { RenameModal } from '@/app/(product)/_components/workspace/knowledge/rename-modal/rename-modal'
 import {
   type ResourceColumn,
   type ResourceRow,
@@ -808,7 +808,7 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
         onClose={() => setPendingAction(null)}
         title='Unsaved changes'
         description='You have unsaved changes. Discard them?'
-        confirmLabel='Discard changes'
+        confirmLabel='Discard'
         pendingLabel='Discarding…'
         onConfirm={(action) => {
           setDirty(false)
@@ -816,20 +816,15 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
           action.run()
         }}
       />
-      {renaming && document && (
-        <RenameModal
-          title='Rename document'
-          label='Name'
-          initialName={document.filename}
-          maxLength={255}
-          onClose={() => setRenaming(false)}
-          onSave={(next) =>
-            updateDocument
-              .mutateAsync({ knowledgeBaseId, documentId, updates: { filename: next } })
-              .then(() => {})
-          }
-        />
-      )}
+      <RenameDialog
+        target={renaming && document ? { id: documentId, name: document.filename } : null}
+        noun='document'
+        maxLength={255}
+        onClose={() => setRenaming(false)}
+        onRename={(_, filename) =>
+          updateDocument.mutateAsync({ knowledgeBaseId, documentId, updates: { filename } })
+        }
+      />
       {tagging && (
         <DocumentTagsModal
           open

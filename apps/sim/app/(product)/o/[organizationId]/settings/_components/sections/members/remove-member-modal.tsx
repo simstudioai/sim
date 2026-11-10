@@ -1,6 +1,6 @@
 'use client'
 
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { formatQuotedNameList } from '@sim/utils/string'
 import styles from '@/app/(product)/o/[organizationId]/settings/_components/sections/members/members.module.css'
 import { useMemberRemoval } from '@/platform/lib/data/members'
@@ -59,22 +59,21 @@ export function RemoveMemberModal({ target, onClose }: RemoveMemberModalProps) {
   const copy = removalCopy(target)
   const impact = describeImpact(target?.isSelf ?? false, removal.credentials, removal.checkFailed)
   return (
-    <Modal
-      variant='confirm'
-      destructive
-      open={target !== null}
-      onOpenChange={(open) => !open && onClose()}
+    <ConfirmDialog
+      target={target}
+      onClose={onClose}
       title={copy.title}
+      description={copy.body}
       confirmLabel={copy.confirmLabel}
+      pendingLabel={target?.isSelf ? 'Leaving…' : 'Removing…'}
       confirmDisabled={removal.checking}
       onConfirm={removal.confirm}
     >
-      <p data-type='T060'>{copy.body}</p>
       {!removal.checking && impact && (
         <p className={styles.status} data-type='T060'>
           {impact}
         </p>
       )}
-    </Modal>
+    </ConfirmDialog>
   )
 }

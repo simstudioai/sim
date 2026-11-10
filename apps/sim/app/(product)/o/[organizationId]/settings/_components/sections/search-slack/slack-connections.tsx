@@ -4,7 +4,7 @@ import { type ReactNode, useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { Icon } from '@sim/emcn/icon'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice, StatusTag } from '@sim/emcn/status'
 import { ActionRow } from '@/app/(product)/_components/settings-parts/settings-parts'
@@ -123,20 +123,17 @@ export function SlackConnections({ connections, renderSetup }: SlackConnectionsP
         <InlineNotice intent='danger' message={connections.updateError} />
       )}
       {setup && renderSetup(setup.target, setup.botName, () => setSetup(undefined))}
-      {removing && (
-        <Modal
-          open
-          variant='confirm'
-          destructive
-          onOpenChange={(open) => {
-            if (!open) setRemoving(undefined)
-          }}
-          title='Remove Slack Search'
-          description={`Remove ${botName(removing)} from Slack Search? Pending replies will be cancelled.`}
-          confirmLabel='Remove'
-          onConfirm={() => connections.remove(removing)}
-        />
-      )}
+      <ConfirmDialog
+        target={removing}
+        onClose={() => setRemoving(undefined)}
+        title='Remove Slack Search'
+        description={(bot) =>
+          `Remove ${botName(bot)} from Slack Search? Pending replies will be cancelled.`
+        }
+        confirmLabel='Remove'
+        pendingLabel='Removing…'
+        onConfirm={(bot) => connections.remove(bot)}
+      />
     </SettingsSection>
   )
 }

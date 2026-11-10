@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { SelectField, TextAreaField, TextField } from '@sim/emcn/field'
 import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { generateId } from '@sim/utils/id'
 import { ManualSecretFields } from '@/app/(product)/o/[organizationId]/integrations/_components/manual-secret-fields/manual-secret-fields'
 import {
@@ -97,7 +98,7 @@ function LibraryResourceEditor({
       <Modal
         open
         title={skillDefaults?.name ?? `${resource ? 'Edit' : 'Create'} ${noun}`}
-        confirmLabel={resource ? 'Save changes' : (createLabel ?? 'Create')}
+        confirmLabel={resource ? 'Save' : (createLabel ?? `Create ${noun}`)}
         confirmDisabled={!editor.editable || Boolean(resource && !editor.dirty)}
         onOpenChange={(open) => {
           if (!open) onClose()
@@ -118,16 +119,13 @@ function LibraryResourceEditor({
         <ResourceAccessFields editor={editor} data={data} resource={resource} />
       </Modal>
       {deleting && resource && onDelete && (
-        <Modal
-          open
-          title={`${removeLabel}?`}
+        <ConfirmDialog
+          target={deleting}
+          onClose={() => setDeleting(false)}
+          title={`${deleteLabel ? 'Remove' : 'Delete'} ${noun}`}
           description={`This removes ${resource.name} from your integrations.`}
-          variant='confirm'
-          destructive
           confirmLabel={removeLabel}
-          onOpenChange={(open) => {
-            if (!open) setDeleting(false)
-          }}
+          pendingLabel={deleteLabel ? 'Removing…' : 'Deleting…'}
           onConfirm={() => {
             onDelete()
             onClose()
@@ -145,7 +143,7 @@ function ManualCredentialEditor({ data, onSave, onClose, apps = [], appId }: Res
     <Modal
       open
       title='Create credential'
-      confirmLabel='Create'
+      confirmLabel='Create credential'
       onOpenChange={(open) => {
         if (!open) onClose()
       }}

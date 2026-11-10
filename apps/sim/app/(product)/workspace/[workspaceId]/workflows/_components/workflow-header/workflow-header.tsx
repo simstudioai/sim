@@ -3,12 +3,12 @@
 import { useCallback, useMemo, useState } from 'react'
 import { type BreadcrumbItem, Breadcrumbs } from '@sim/emcn/breadcrumbs'
 import { Button } from '@sim/emcn/button'
-import { TextField } from '@sim/emcn/field'
 import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { useRouter } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import { toast } from '@/lib/toast/sink'
+import { RenameDialog } from '@/app/(product)/_components/rename-dialog/rename-dialog'
 import { RequestAccessModal } from '@/app/(product)/_components/request-access-modal/request-access-modal'
 import { CANVAS_VIEWPORT_OPTIONS } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-canvas/workflow-canvas-constants'
 import { useRegisterGlobalCommands } from '@/app/(product)/_components/workspace/workflows/global-commands/global-commands'
@@ -90,7 +90,6 @@ export function WorkflowTrail({ workspaceId, workflowId }: WorkflowHeaderProps) 
   const duplicateWorkflow = useDuplicateWorkflowMutation()
   const deleteWorkflow = useDeleteWorkflowMutation()
   const [renaming, setRenaming] = useState(false)
-  const [draftName, setDraftName] = useState('')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const exportJson = useCallback(() => {
@@ -152,10 +151,7 @@ export function WorkflowTrail({ workspaceId, workflowId }: WorkflowHeaderProps) 
       label: 'Rename',
       icon: 'I036',
       disabled: !canMutateWorkflow,
-      onSelect: () => {
-        setDraftName(workflow?.name ?? '')
-        setRenaming(true)
-      },
+      onSelect: () => setRenaming(true),
     },
     {
       id: 'duplicate',
@@ -195,36 +191,21 @@ export function WorkflowTrail({ workspaceId, workflowId }: WorkflowHeaderProps) 
   return (
     <>
       <Breadcrumbs label='Location' items={items} />
-      <Modal
-        open={renaming}
-        onOpenChange={setRenaming}
-        title='Rename workflow'
-        confirmLabel='Rename'
-        confirmDisabled={!draftName.trim() || draftName.trim() === workflow?.name}
-        submitOnEnter
-        onConfirm={() =>
-          updateWorkflow.mutateAsync({
-            workspaceId,
-            workflowId,
-            metadata: { name: draftName.trim() },
-          })
+      <RenameDialog
+        target={renaming && workflow ? { id: workflowId, name: workflow.name } : null}
+        noun='workflow'
+        onClose={() => setRenaming(false)}
+        onRename={(id, name) =>
+          updateWorkflow.mutateAsync({ workspaceId, workflowId: id, metadata: { name } })
         }
-      >
-        <TextField
-          label='Name'
-          placeholder='Workflow name'
-          value={draftName}
-          onChange={setDraftName}
-        />
-      </Modal>
-      <Modal
-        variant='confirm'
-        destructive
-        open={confirmingDelete}
-        onOpenChange={setConfirmingDelete}
+      />
+      <ConfirmDialog
+        target={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
         title='Delete workflow'
-        description={`Delete "${workflow?.name ?? 'this workflow'}"? You can restore it from Recently deleted.`}
+        description={`Delete “${workflow?.name ?? 'this workflow'}”? You can restore it from Recently deleted.`}
         confirmLabel='Delete'
+        pendingLabel='Deleting…'
         onConfirm={async () => {
           await deleteWorkflow.mutateAsync({ workspaceId, workflowId })
           router.push(hrefFor(listHref(workspaceId, workflow?.folderId ?? undefined)))

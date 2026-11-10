@@ -175,7 +175,7 @@ export function CreateBaseModal({
         : 'Creating…'
     : createBase.isPending || deleteBase.isPending
       ? 'Creating…'
-      : 'Create'
+      : 'Create knowledge base'
 
   return (
     <Modal

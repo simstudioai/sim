@@ -1264,7 +1264,7 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
       <ConfirmDialog
         target={unzipTarget}
         onClose={() => setUnzipTarget(null)}
-        title='Unzip archive?'
+        title='Unzip archive'
         description={(target) => `This will unzip ${target.name} into a new folder beside it.`}
         confirmLabel='Unzip'
         pendingLabel='Unzipping…'

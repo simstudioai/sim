@@ -265,7 +265,7 @@ export function ByokKeyManager({
       <ConfirmDialog
         target={deleteConfirm}
         onClose={() => setDeleteConfirm(null)}
-        title='Delete API Key'
+        title='Delete API key'
         description={(target) => {
           const name = PROVIDERS.find((provider) => provider.id === target.providerId)?.name
           const consequence =

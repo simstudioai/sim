@@ -304,7 +304,7 @@ export function LiveSources() {
           <ConfirmDialog
             target
             onClose={() => setRemoving(null)}
-            title={`Remove ${removingName} source?`}
+            title={`Remove ${removingName} source`}
             confirmLabel='Remove source'
             pendingLabel='Removing…'
             onConfirm={() => settings.removeSource(removing)}

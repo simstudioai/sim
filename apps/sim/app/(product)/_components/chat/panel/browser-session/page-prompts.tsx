@@ -5,6 +5,7 @@ import { Button, IconButton } from '@sim/emcn/button'
 import { Checkbox } from '@sim/emcn/checkbox'
 import { SelectField, TextField } from '@sim/emcn/field'
 import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { InlineNotice } from '@sim/emcn/status'
 import { useActivationDelay, type useBrowserPanel } from '@/platform/lib/data/browser-panel'
 import { formatInstantDate } from '@/platform/shared/time'
@@ -48,7 +49,7 @@ export function PageDialogModal({ dialog, onAnswer }: PageDialogModalProps) {
       onOpenChange={(open) => {
         if (!open) answer(false)
       }}
-      title='Leave page?'
+      title='Leave page'
       description='Changes on this page may not be saved.'
       cancelLabel='Stay'
       confirmLabel='Leave'
@@ -240,15 +241,14 @@ function ExternalAppPrompt({ prompt, respond }: PromptModalProps<'external-app'>
   const armed = useActivationDelay(true)
   const [alwaysAllow, setAlwaysAllow] = useState(false)
   return (
-    <Modal
-      variant='confirm'
-      open
-      onOpenChange={(open) => {
-        if (!open) respond({ allowed: false })
-      }}
-      title={`Open ${prompt.appName}?`}
+    <ConfirmDialog
+      target={prompt}
+      onClose={() => respond({ allowed: false })}
+      safe
+      title={`Open ${prompt.appName}`}
       description={`${prompt.origin} wants to open this app.`}
       confirmLabel='Open'
+      pendingLabel='Opening…'
       confirmDisabled={!armed}
       onConfirm={() =>
         respond({
@@ -265,7 +265,7 @@ function ExternalAppPrompt({ prompt, respond }: PromptModalProps<'external-app'>
           onCheckedChange={setAlwaysAllow}
         />
       )}
-    </Modal>
+    </ConfirmDialog>
   )
 }
 

@@ -64,7 +64,7 @@ export function EnvVarDropdown({
     >
       {filteredEnvVars.length === 0 ? (
         <FieldPopoverRow leading={<Icon name='I074' />} onSelect={openEnvironmentSettings}>
-          Create Secret
+          Add secret
         </FieldPopoverRow>
       ) : (
         filteredGroups.map((group) => (
