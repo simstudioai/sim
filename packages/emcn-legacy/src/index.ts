@@ -5,7 +5,6 @@ export * from './components'
  * the COMPONENT; the icon stays available from `@sim/emcn-legacy/icons`.
  */
 export { Calendar } from './components/calendar/calendar'
-export * from './components/charts'
 /**
  * `Code` exists in BOTH `./components` (the code editor) and `./icons` (a
  * glyph). Same resolution as `Calendar` and `Table`: the barrel yields the
