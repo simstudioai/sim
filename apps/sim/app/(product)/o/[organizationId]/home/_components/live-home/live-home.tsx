@@ -4,6 +4,7 @@ import type { HomeWidget } from '@/app/(product)/_components/model'
 import { SavedAccountModal } from '@/app/(product)/_components/service-account-modal/saved-account-modal'
 import { useInterfacePreferences } from '@/app/(product)/_components/session/interface-preferences'
 import { ZoneHomeDashboard } from '@/app/(product)/o/[organizationId]/home/_components/home-dashboard/zone-home-dashboard'
+import { HOME_HIDDEN_SECTIONS } from '@/app/(product)/o/[organizationId]/home/_components/model'
 import { useHiddenHomeWidgets, useLiveHome } from '@/platform/lib/data/home'
 
 /** Until the viewer's Customize Home choices are known, every widget they could hide stays unread. */
@@ -23,7 +24,8 @@ export function LiveHome() {
   const hiddenWidgets = widgets?.hiddenWidgets ?? UNKNOWN_CHOICES
   const { view, actions, savedConnection } = useLiveHome(
     preferences?.homeMode === 'Search',
-    hiddenWidgets
+    hiddenWidgets,
+    HOME_HIDDEN_SECTIONS.has('Needs your attention')
   )
   return (
     <>

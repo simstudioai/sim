@@ -287,11 +287,12 @@ function useHomeAttention(
   organization: PlatformOrganization,
   integrations: ReturnType<typeof useHomeIntegrations>,
   reconnect: HomeWidgetActions['reconnect'],
-  readAccounts: readonly HomeAccountView[]
+  readAccounts: readonly HomeAccountView[],
+  hidden: boolean
 ): { state: HomeListState<AttentionItem>; retry: () => void } {
   const organizationId = organization.organization.id
-  const canReview = organization.viewer.isAdmin
-  const chats = useOrganizationMothershipChats(organizationId)
+  const canReview = organization.viewer.isAdmin && !hidden
+  const chats = useOrganizationMothershipChats(organizationId, 'active', { enabled: !hidden })
   const canOpenChat = useCanOpenOrganizationChat()
   const requests = useOrganizationAccessRequests(canReview ? organizationId : '')
   const reviewFailed = canReview && requests.isError && !isRefusal(requests.error)
@@ -317,8 +318,9 @@ function useHomeAttention(
     (integrations.allowed && !integrations.entries && !integrations.failure) ||
     chats.isPending ||
     (canReview && requests.isPending)
-  const state: HomeListState<AttentionItem> =
-    items.length === 0 && pending
+  const state: HomeListState<AttentionItem> = hidden
+    ? { status: 'ready', items: [] }
+    : items.length === 0 && pending
       ? { status: 'loading' }
       : items.length === 0 && failed
         ? {
@@ -329,6 +331,7 @@ function useHomeAttention(
   return {
     state,
     retry: () => {
+      if (hidden) return
       integrations.retry()
       void chats.refetch()
       if (canReview) void requests.refetch()
@@ -420,12 +423,14 @@ function firstNameOf(user: { name?: string | null; email?: string | null } | nul
 /**
  * Home's view and actions. Every widget reads the same member inventory the Integrations page reads,
  * so the two cannot disagree on what is offered. `assistant` is whether the viewer searches rather
- * than builds here, which decides whether Get started is theirs. A hidden widget reads nothing.
+ * than builds here, which decides whether Get started is theirs. A hidden widget reads nothing, and
+ * neither does the attention list while `attentionHidden` holds it back.
  * Until hydration the greeting and attention ages, which need the viewer's zone and clock, are empty.
  */
 export function useLiveHome(
   assistant: boolean,
-  hiddenWidgets: readonly HomeWidget[]
+  hiddenWidgets: readonly HomeWidget[],
+  attentionHidden: boolean
 ): { view: HomeView; actions: HomeActions; savedConnection: HomeSavedConnection | null } {
   const organization = useOrganization()
   const { data: session } = useSession()
@@ -470,7 +475,8 @@ export function useLiveHome(
     organization,
     integrations,
     connectionActions.reconnect,
-    [email.state, calendar.state].flatMap((state) => ('accounts' in state ? state.accounts : []))
+    [email.state, calendar.state].flatMap((state) => ('accounts' in state ? state.accounts : [])),
+    attentionHidden
   )
   // Search-only members start here, so their onboarding comes with the Assistant composer.
   const getStarted = useHomeGetStarted(organization, integrations, assistant)

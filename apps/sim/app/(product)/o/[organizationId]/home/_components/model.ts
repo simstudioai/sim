@@ -12,6 +12,14 @@ import type {
   HomeWidgetState,
 } from '@/platform/shared/home'
 
+/**
+ * Home sections held back by design until the designer's pass. Their views stay; Home renders none
+ * of them and the live Home skips their reads.
+ */
+export const HOME_HIDDEN_SECTIONS: ReadonlySet<'Needs your attention'> = new Set([
+  'Needs your attention',
+])
+
 export interface AttentionItem {
   id: string
   title: string
