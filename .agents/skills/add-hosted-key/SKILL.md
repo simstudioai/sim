@@ -16,7 +16,7 @@ When a tool has hosted key support, Sim provides its own API key if the user has
 | 2 | Research the API's pricing and rate limits | API docs / pricing page (before writing any code) |
 | 3 | Add `hosting` config to the tool | `tools/{service}/{action}.ts` |
 | 4 | Hide API key field when hosted | `blocks/blocks/{service}.ts` |
-| 5 | Add to BYOK settings UI | BYOK settings component (`byok.tsx`) |
+| 5 | Add to BYOK settings UI | BYOK settings `providers.ts` |
 | 6 | Summarize pricing and throttling comparison | Output to user (after all code changes) |
 
 ## Step 1: Register the BYOK Provider ID
@@ -80,7 +80,7 @@ When choosing values for `requestsPerMinute` and any dimension limits:
 
 Add a `hosting` object to the tool's `ToolConfig`. This tells the execution layer how to acquire hosted keys, calculate cost, and rate-limit.
 
-```typescript
+```typescript illustrative
 hosting: {
   envKeyPrefix: 'YOUR_SERVICE_API_KEY',
   apiKeyParam: 'apiKey',
@@ -107,14 +107,14 @@ hosting: {
 
 Keys use a numbered naming pattern driven by a count env var:
 
-```
+```text illustrative
 YOUR_SERVICE_API_KEY_COUNT=3
 YOUR_SERVICE_API_KEY_1=sk-...
 YOUR_SERVICE_API_KEY_2=sk-...
 YOUR_SERVICE_API_KEY_3=sk-...
 ```
 
-The `envKeyPrefix` value (`YOUR_SERVICE_API_KEY`) determines which env vars are read at runtime. Adding more keys only requires bumping the count and adding the new env var.
+The `envKeyPrefix` value (`<YOUR_SERVICE>_API_KEY`) determines which env vars are read at runtime. Adding more keys only requires bumping the count and adding the new env var.
 
 ### Pricing: Prefer API-Reported Cost
 
@@ -187,7 +187,7 @@ transformResponse: async (response: Response) => {
 
 For async/polling tools, capture it in `postProcess` when the job completes:
 
-```typescript
+```typescript illustrative
 if (jobData.status === 'completed') {
   result.output = {
     data: jobData.data,
@@ -253,9 +253,9 @@ To exclude multiple operations, use an array: `{ field: 'operation', value: ['op
 
 ## Step 5: Add to the BYOK Settings UI
 
-Add an entry to the `PROVIDERS` array in the BYOK settings component so users can bring their own key. You need the service icon from `components/icons.tsx`:
+Add an entry to the `PROVIDERS` array in the BYOK settings `providers.ts` so users can bring their own key. You need the service icon from `components/icons.tsx`:
 
-```typescript
+```typescript illustrative
 {
   id: 'your_service',
   name: 'Your Service',

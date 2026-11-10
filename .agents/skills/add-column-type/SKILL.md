@@ -134,7 +134,7 @@ Registering the *type* is compiler-enforced. Registering its *metadata* is not, 
 | `lib/api/contracts/v2/tables.ts` and `lib/table/application/columns.ts` — the same slots for the v2 API and its use cases | the v2 API silently drops it |
 | `columns/service.ts` `addTableColumn` param type | callers cannot pass it |
 | A metadata-only update in `lib/table/columns/service.ts` (`updateColumnCurrency` is the model) + a branch in `performUpdateTableColumn` in `lib/table/orchestration/columns.ts` | changing it on an existing column is a silent 200 no-op |
-| `column-config-sidebar.tsx` | no UI to set it |
+| `column-config.tsx` | no UI to set it |
 | `table-grid.tsx` delete-column undo + `use-table-undo.ts` restore | undo silently resets it to the default |
 
 `normalizeColumn`, `buildConvertedColumn`, and the undo snapshot read `TYPE_SPECIFIC_COLUMN_KEYS` generically, so those three are already zero-edit.
