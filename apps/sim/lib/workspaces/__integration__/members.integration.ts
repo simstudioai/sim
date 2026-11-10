@@ -480,14 +480,31 @@ describe('v2 workspace member management against PostgreSQL', () => {
     const refusals = await Promise.all([
       call(admin, 'PATCH', f.users.wsOwner, { body: { role: 'read' } }),
       call(admin, 'PATCH', f.users.billing, { body: { role: 'read' } }),
-      call(admin, 'PATCH', f.users.orgOwner, { body: { role: 'write' } }),
-      call(admin, 'PATCH', f.users.orgOwner, { body: { role: 'admin' } }),
       call(admin, 'DELETE', f.users.orgOwner),
       call(admin, 'DELETE', f.users.billing),
     ])
-    expect(refusals.map((response) => response.status)).toEqual([400, 400, 400, 400, 400, 400])
+    expect(refusals.map((response) => response.status)).toEqual([400, 400, 400, 400])
     expect(await roleOf(f.users.wsOwner)).toBe('admin')
     expect(await roleOf(f.users.billing)).toBe('admin')
+  })
+
+  it('refuses an inherited organization admin, who holds no grant row, whatever role is requested', async () => {
+    expect(await roleOf(f.users.orgOwner)).toBeNull()
+    for (const role of ['admin', 'write', 'read'] as const) {
+      const response = await call(key('admin'), 'PATCH', f.users.orgOwner, { body: { role } })
+      expect(response).toEqual({
+        status: 400,
+        retryAfter: null,
+        body: {
+          error: {
+            code: 'BAD_REQUEST',
+            message: 'Organization admins are workspace admins and their role cannot be changed',
+          },
+        },
+      })
+    }
+    expect(await roleOf(f.users.orgOwner)).toBeNull()
+    expect(await auditRows('member.role_changed')).toHaveLength(0)
   })
 
   it('returns the roster member and audits the key owner as actor', async () => {
