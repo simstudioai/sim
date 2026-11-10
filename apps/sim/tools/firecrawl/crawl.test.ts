@@ -1,6 +1,7 @@
 import { isPlainRecord } from '@sim/utils/object'
 import { describe, expect, it } from 'vitest'
 import { crawlTool } from '@/tools/firecrawl/crawl'
+import type { FirecrawlCrawlParams } from '@/tools/firecrawl/types'
 
 function crawlBody(options: {
   maxDepth: number
@@ -98,4 +99,17 @@ describe('Firecrawl legacy crawl depth', () => {
       expect(() => crawlBody({ maxDepth })).toThrow(/maxDepth/)
     }
   )
+
+  it('treats a blank depth as unset instead of a zero-depth crawl', () => {
+    if (typeof crawlTool.request.body !== 'function') throw new Error('Missing request formatter')
+    const blankDepth: Record<string, unknown> = {
+      apiKey: 'test',
+      url: 'https://example.com/docs',
+      maxDepth: '',
+    }
+    const body = crawlTool.request.body(blankDepth as FirecrawlCrawlParams)
+    if (!isPlainRecord(body)) throw new Error('Expected a JSON request body')
+    expect(body.includePaths).toBeUndefined()
+    expect(body.regexOnFullURL).toBeUndefined()
+  })
 })
