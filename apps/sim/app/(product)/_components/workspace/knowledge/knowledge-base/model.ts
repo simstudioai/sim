@@ -1,31 +1,19 @@
 import type { IconName } from '@sim/emcn/icon'
 import { workspacePath } from '@/lib/navigation/paths'
 import type { DocumentData } from '@/platform/lib/data/knowledge'
-import { platformHref } from '@/platform/lib/navigation'
 
-interface SearchValues {
-  get(key: string): string | null
-}
+type HrefFor = (path: string) => string
 
 /** The Knowledge bases list, opened at a folder or at its root. */
-export function knowledgeListHref(
-  workspaceId: string,
-  folderId: string | null,
-  search: SearchValues
-) {
+export function knowledgeListHref(workspaceId: string, folderId: string | null, hrefFor: HrefFor) {
   const list = workspacePath(workspaceId, 'knowledge')
-  return platformHref(folderId ? `${list}?${new URLSearchParams({ folderId })}` : list, search)
+  return hrefFor(folderId ? `${list}?${new URLSearchParams({ folderId })}` : list)
 }
 
 /** A knowledge base's documents. */
-export function knowledgeBaseHref(
-  workspaceId: string,
-  knowledgeBaseId: string,
-  search: SearchValues
-) {
-  return platformHref(
-    `${workspacePath(workspaceId, 'knowledge')}/${encodeURIComponent(knowledgeBaseId)}`,
-    search
+export function knowledgeBaseHref(workspaceId: string, knowledgeBaseId: string, hrefFor: HrefFor) {
+  return hrefFor(
+    `${workspacePath(workspaceId, 'knowledge')}/${encodeURIComponent(knowledgeBaseId)}`
   )
 }
 
@@ -34,11 +22,11 @@ export function documentHref(
   workspaceId: string,
   knowledgeBaseId: string,
   documentId: string,
-  search: SearchValues,
+  hrefFor: HrefFor,
   chunkId?: string
 ) {
   const path = `${workspacePath(workspaceId, 'knowledge')}/${encodeURIComponent(knowledgeBaseId)}/${encodeURIComponent(documentId)}`
-  return platformHref(chunkId ? `${path}?${new URLSearchParams({ chunk: chunkId })}` : path, search)
+  return hrefFor(chunkId ? `${path}?${new URLSearchParams({ chunk: chunkId })}` : path)
 }
 
 /** An image reads as one; every other document as a file. */

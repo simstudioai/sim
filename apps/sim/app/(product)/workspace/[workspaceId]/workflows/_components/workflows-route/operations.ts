@@ -5,7 +5,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import { useQueryClient } from '@tanstack/react-query'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
@@ -40,7 +40,7 @@ import {
   type WorkflowFolder,
   type WorkflowMetadata,
 } from '@/platform/lib/data/workflows'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 
 const logger = createLogger('WorkflowListOperations')
 
@@ -135,7 +135,7 @@ function duplicateFolderName(baseName: string, siblingNames: ReadonlySet<string>
  */
 export function useWorkflowListOperations(workspaceId: string) {
   const router = useRouter()
-  const searchParams = useSearchParams()
+  const hrefFor = usePlatformHref()
   const queryClient = useQueryClient()
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
@@ -157,9 +157,8 @@ export function useWorkflowListOperations(workspaceId: string) {
   const busy = useRef({ duplicating: false, exporting: false })
 
   const openWorkflow = useCallback(
-    (workflowId: string) =>
-      router.push(platformHref(workflowEditorPath(workspaceId, workflowId), searchParams)),
-    [router, searchParams, workspaceId]
+    (workflowId: string) => router.push(hrefFor(workflowEditorPath(workspaceId, workflowId))),
+    [router, hrefFor, workspaceId]
   )
 
   /**

@@ -37,6 +37,7 @@ import {
   withoutOverride,
 } from '@/platform/lib/data/data-retention'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
+import { compareText } from '@/platform/shared/time'
 
 function snapshotFrom(data: DataRetentionResponse): RetentionSnapshot {
   const rules = data.configured.piiRedaction?.rules ?? []
@@ -84,7 +85,7 @@ function RetentionForm({ initialData, organizationId, workspaceOptions }: Retent
   const workspaceName = (id: string) =>
     workspaceOptions.find((option) => option.value === id)?.label ?? 'Unknown workspace'
   const withOverrides = overrideWorkspaceIds(snapshot).sort((a, b) =>
-    workspaceName(a).localeCompare(workspaceName(b))
+    compareText(workspaceName(a), workspaceName(b))
   )
   const taken = new Set(withOverrides)
   const freeWorkspaces = workspaceOptions.filter((option) => !taken.has(option.value))

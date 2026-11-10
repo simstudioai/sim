@@ -58,7 +58,7 @@ vi.mock('@/lib/sim-search/live/coda-mcp', () => ({
 }))
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/workspaces/shell-organization', () => ({
-  resolveWorkspaceShellOrganizationId: mocks.shellOrganization,
+  resolveAccessibleWorkspaceShellOrganizationId: mocks.shellOrganization,
 }))
 vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 vi.mock('@/lib/sim-search/live/accounts', () => ({

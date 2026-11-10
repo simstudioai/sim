@@ -6,10 +6,10 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { createCredentialGroupInternalErrorPolicy } from '@/lib/api/server/routes/credential-groups'
 import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
 import { startSlackCredentialGroupConfiguration } from '@/lib/credential-groups/application/slack-managed-users'
 import { SlackManagedUsersError } from '@/lib/credential-groups/slack-managed-users'
-import { createCredentialGroupInternalErrorPolicy } from '@/app/api/workspaces/[id]/credential-groups/error-policy'
 
 export const POST = defineInternalJsonRoute({
   contract: startOrganizationSlackConfigurationContract,

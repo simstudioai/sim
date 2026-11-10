@@ -1,6 +1,6 @@
 /**
  * The Tests tab's logic seam. The list and a test's results read the legacy workflow-test hooks and
- * contract unchanged; only their views are ported into the zone.
+ * contract unchanged; only their views are Platform's.
  */
 
 export type {

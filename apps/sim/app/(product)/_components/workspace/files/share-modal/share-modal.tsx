@@ -11,7 +11,7 @@ import { Modal } from '@sim/emcn/modal'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { RecipientField } from '@sim/emcn-platform/workspace-fields'
-import { randomInt } from '@sim/utils/random'
+import { generatePassword } from '@sim/utils/random'
 import { LinkEditor } from '@/app/(product)/_components/links-page/link-editor'
 import {
   type ShareDialogProps,
@@ -19,18 +19,6 @@ import {
 } from '@/app/(product)/_components/workspace/files/share-modal/use-share-dialog'
 import { simLinkUrl, suggestSimLinkName, useSimLinksForUrl } from '@/platform/lib/data/files'
 import { useOrganization } from '@/platform/lib/data/organization'
-
-const PASSWORD_ALPHABET =
-  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_-+='
-const GENERATED_PASSWORD_LENGTH = 24
-
-function generatePassword(): string {
-  let password = ''
-  for (let index = 0; index < GENERATED_PASSWORD_LENGTH; index++) {
-    password += PASSWORD_ALPHABET.charAt(randomInt(0, PASSWORD_ALPHABET.length))
-  }
-  return password
-}
 
 interface SharePasswordFieldProps {
   value: string

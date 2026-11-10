@@ -95,7 +95,7 @@ function isSettingsPath(organization: PlatformOrganization, pathname: string): b
 
 /**
  * Where a member with nothing of theirs on the organization surface goes from an organization page:
- * their workspace, as legacy sent them, with the query kept. Settings is exempt: its account and
+ * their workspace, with the query kept. Settings is exempt: its account and
  * per-section pages stay reachable, each deciding its own visibility. The workspace entry hands a
  * viewer back only to {@link organizationLandingHref}, which is never this gate's target, so it
  * never redirects again. The organization layout applies it to a client navigation.
@@ -165,7 +165,7 @@ function resolveSearchEntry(
 
 /**
  * A saved access-request link into a Settings section lands on Requests, whose own gate then
- * decides, as the legacy Settings did: a viewer who may not open Requests gets not found there.
+ * decides: a viewer who may not open Requests gets not found there.
  */
 function resolveSettingsEntry(
   organization: PlatformOrganization,

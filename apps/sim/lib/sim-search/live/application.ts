@@ -84,7 +84,7 @@ import {
 } from '@/lib/sim-search/live/reference'
 import { queryRelevance } from '@/lib/sim-search/live/text-match'
 import type { LiveAccount, NativeDocument } from '@/lib/sim-search/live/types'
-import { resolveWorkspaceShellOrganizationId } from '@/lib/workspaces/shell-organization'
+import { resolveAccessibleWorkspaceShellOrganizationId } from '@/lib/workspaces/shell-organization'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -468,7 +468,9 @@ async function integrationsOrganizationId(
   userId: string
 ): Promise<string | null> {
   if (owner.organizationId) return owner.organizationId
-  return owner.workspaceId ? resolveWorkspaceShellOrganizationId(owner.workspaceId, userId) : null
+  return owner.workspaceId
+    ? resolveAccessibleWorkspaceShellOrganizationId(owner.workspaceId, userId)
+    : null
 }
 
 /**

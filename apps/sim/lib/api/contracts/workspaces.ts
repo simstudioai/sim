@@ -171,11 +171,6 @@ export const listWorkspacesContract = defineRouteContract({
        */
       pinnedWorkspaceIds: z.array(z.string()).default([]),
       creationPolicy: workspaceCreationPolicySchema.nullable(),
-      /**
-       * Set when the viewer has no workspace, cannot create one, and belongs to an
-       * organization whose surface can serve them instead of a blocked picker.
-       */
-      forwardOrganizationId: z.string().optional(),
     }),
   },
 })

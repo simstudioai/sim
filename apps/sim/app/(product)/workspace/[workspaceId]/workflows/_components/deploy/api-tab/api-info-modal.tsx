@@ -102,8 +102,11 @@ export function ApiInfoModal({ workspaceId, workflowId, onClose }: ApiInfoModalP
 
   const save = async () => {
     if (useWorkflowRegistry.getState().activeWorkflowId !== workflowId) return false
-    if (initialAccess !== null && accessMode !== initialAccess)
+    if (initialAccess !== null && accessMode !== initialAccess) {
       await updatePublicApi.mutateAsync({ workflowId, isPublicApi: accessMode === 'public' })
+      // Saved on its own: a description that then fails leaves only itself unsaved.
+      setInitialAccess(accessMode)
+    }
     if (description.trim() !== (workflow?.description || ''))
       await updateWorkflow.mutateAsync({
         workspaceId,

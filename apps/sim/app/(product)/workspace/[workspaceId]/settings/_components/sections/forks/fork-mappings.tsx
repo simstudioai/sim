@@ -26,6 +26,7 @@ import {
   getDisplayedDependentFields,
   isDependentConfigurationActionable,
 } from '@/platform/lib/data/forks'
+import { compareText } from '@/platform/shared/time'
 
 /** The target picker's "New copy" choice: shown while a copyable resource is copied, never sent. */
 const NEW_COPY_VALUE = '__new_copy__'
@@ -77,7 +78,7 @@ function groupDependentsByWorkflow(
           ),
         }))
         .filter((block) => block.configurableFields.length > 0)
-        .sort((a, b) => a.blockName.localeCompare(b.blockName)),
+        .sort((a, b) => compareText(a.blockName, b.blockName)),
     }
   })
 }
@@ -153,7 +154,7 @@ function DependentWorkflow({
             byTool.set(scope, group)
           }
           const toolGroups = Array.from(byTool.entries()).sort(([, a], [, b]) =>
-            a.name.localeCompare(b.name)
+            compareText(a.name, b.name)
           )
           return (
             <div key={block.targetBlockId} className={styles.group}>

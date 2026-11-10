@@ -9,7 +9,6 @@ import type { MenuAction } from '@sim/emcn/menu/action-menu'
 import { ActionMenu, ContextActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
-import { useSearchParams } from 'next/navigation'
 import { WORKSPACES_PATH, workspaceEntry } from '@/lib/navigation/paths'
 import { RenameDialog } from '@/app/(product)/_components/rename-dialog/rename-dialog'
 import { SidebarSortMenu } from '@/app/(product)/_components/sidebar/collection-order'
@@ -19,7 +18,7 @@ import { useSeeMore } from '@/app/(product)/_components/sidebar/see-more'
 import styles from '@/app/(product)/_components/sidebar/sidebar-collections.module.css'
 import { useSidebarLayout } from '@/app/(product)/_components/sidebar/sidebar-layout'
 import type { ShellActions, ShellData, ShellWorkspace } from '@/platform/lib/data/models/shell'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { openInNewTabAction, readFormText } from '@/platform/shared/row-links'
 
 const WORKSPACE_NAME_MAX_LENGTH = 100
@@ -39,7 +38,7 @@ export function WorkspacesSection({
   activeWorkspace,
   navigate,
 }: WorkspacesSectionProps) {
-  const query = useSearchParams()
+  const hrefFor = usePlatformHref()
   const { workspacesOpen, setWorkspacesOpen, workspaceOrder, setWorkspaceOrder } =
     useSidebarLayout()
   const [creating, setCreating] = useState(false)
@@ -55,7 +54,7 @@ export function WorkspacesSection({
   function rowActions(item: ShellWorkspace): MenuAction[] {
     const href = item.href
     return [
-      ...(href ? [openInNewTabAction(platformHref(href, query))] : []),
+      ...(href ? [openInNewTabAction(hrefFor(href))] : []),
       ...(rename
         ? [
             {
@@ -124,7 +123,7 @@ export function WorkspacesSection({
             return (
               <ContextActionMenu key={item.id} label={`Actions for ${item.name}`} actions={rows}>
                 <Chip
-                  href={platformHref(item.href ?? workspaceEntry(item.id), query)}
+                  href={hrefFor(item.href ?? workspaceEntry(item.id))}
                   selected={item.id === activeWorkspace}
                   status={item.isPinned && <Icon name='I131' label='Pinned' />}
                   replaceActionOnTouch={item.isPinned}

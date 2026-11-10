@@ -5,7 +5,7 @@ import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { useRevealedCount } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
 import { RunList } from '@/app/(product)/workspace/[workspaceId]/logs/_components/run-list/run-list'
 import { type RUN_PERIODS, type RUN_SORTS, runListParams } from '@/platform/lib/workspace-views'
-import { DAY_MS, MINUTE_MS } from '@/platform/shared/time'
+import { compareText, DAY_MS, MINUTE_MS } from '@/platform/shared/time'
 import type { RunSummary, RunsData } from '@/platform/shared/workspace-records'
 
 const PAGE_SIZE = 50
@@ -44,7 +44,7 @@ function compareRuns(sort: (typeof RUN_SORTS)[number]) {
 function ExampleRuns({ data }: { data: RunsData }) {
   const [view] = useQueryStates(runListParams)
   const workflows = [...new Map(data.runs.map((run) => [run.workflow.id, run.workflow])).values()]
-    .sort((left, right) => left.name.localeCompare(right.name))
+    .sort((left, right) => compareText(left.name, right.name))
     .map((workflow) => ({ value: workflow.id, label: workflow.name }))
   const triggers = [...new Set(data.runs.map((run) => run.trigger.label))]
     .sort()

@@ -183,7 +183,7 @@ export function useBillingSection(organization: PlatformOrganization) {
     showSubscription: paid || enterprise,
     /** The viewer's own credit usage, which Enterprise manages out of band. */
     showCreditUsage: !enterprise,
-    /** The 80% usage email is a personal plan's, as legacy offered it only on personal billing. */
+    /** The 80% usage email is offered only on personal billing. */
     showUsageNotifications: personal && !free && !enterprise,
     periodEndLabel: billing?.cancelAtPeriodEnd ? 'Access until' : 'Next billing date',
     periodEnd: billing?.billingPeriodEnd

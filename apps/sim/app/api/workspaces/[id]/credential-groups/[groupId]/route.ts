@@ -7,12 +7,12 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { createCredentialGroupInternalErrorPolicy } from '@/lib/api/server/routes/credential-groups'
 import {
   getCredentialGroupSettings,
   updateCredentialGroupSettings,
 } from '@/lib/credential-groups/application/manage-groups'
 import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
-import { createCredentialGroupInternalErrorPolicy } from '@/app/api/workspaces/[id]/credential-groups/error-policy'
 
 const rateLimit = internalRateLimits.none({
   reason: 'Preserve existing internal Credential Group detail behavior',

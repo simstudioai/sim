@@ -22,6 +22,7 @@ const { surface } = vi.hoisted(() => ({
 vi.mock('next/font/local', () => ({ default: () => ({ className: '', style: {} }) }))
 vi.mock('@/platform/lib/data/organization', () => ({ useOrganization: () => surface }))
 
+import { ADD_BLOCK_EVENT } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-canvas/add-block-event'
 import { GlobalCommandsProvider } from '@/app/(product)/_components/workspace/workflows/global-commands/global-commands'
 import {
   BlockErrorChatHandoff,
@@ -75,12 +76,12 @@ describe('EditorShortcuts', () => {
   it('adds an Agent block on Mod+Shift+A', () => {
     const added: unknown[] = []
     const listen = (event: Event) => added.push((event as CustomEvent).detail)
-    window.addEventListener('add-block-from-toolbar', listen)
+    window.addEventListener(ADD_BLOCK_EVENT, listen)
     try {
       render(<EditorShortcuts workspaceId='ws-1' canEdit onNewWorkflow={vi.fn()} />)
       press('A', true)
     } finally {
-      window.removeEventListener('add-block-from-toolbar', listen)
+      window.removeEventListener(ADD_BLOCK_EVENT, listen)
     }
 
     expect(added).toEqual([{ type: 'agent', enableTriggerMode: false }])

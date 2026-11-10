@@ -12,7 +12,7 @@ import {
 import type { BrowserKnownSession } from '@sim/browser-protocol'
 import type { BrowserCredentialMetadata, BrowserSiteInfo } from '@sim/desktop-bridge'
 import { compareStrings } from '@sim/utils/string'
-import { fuzzyMatch } from '@/components/workspace-sidebar/components/search-modal/utils'
+import { fuzzyMatch } from '@/lib/search/fuzzy'
 import {
   useBrowserSearchSuggestions,
   useBrowserSuggestionSources,

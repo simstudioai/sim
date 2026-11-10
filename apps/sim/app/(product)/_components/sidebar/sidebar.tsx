@@ -7,7 +7,6 @@ import { Icon } from '@sim/emcn/icon'
 import { IdentityButton } from '@sim/emcn/identity-button'
 import { ContextActionMenu } from '@sim/emcn/menu/action-menu'
 import { ScrollArea } from '@sim/emcn/scroll-area'
-import { useSearchParams } from 'next/navigation'
 import { platformDestinations } from '@/app/(product)/_components/destinations'
 import { OrganizationMenu } from '@/app/(product)/_components/organization-menu/organization-menu'
 import { useInterfacePreferences } from '@/app/(product)/_components/session/interface-preferences'
@@ -20,7 +19,7 @@ import styles from '@/app/(product)/_components/sidebar/sidebar.module.css'
 import { WorkspacesSection } from '@/app/(product)/_components/sidebar/workspaces-section'
 import type { ShellActions, ShellChat, ShellData } from '@/platform/lib/data/models/shell'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { workspaceLocation } from '@/platform/lib/workspace-navigation'
 import type { ShellDestination } from '@/platform/shared/shell'
@@ -52,7 +51,7 @@ export function Sidebar({
 }: SidebarProps) {
   const settings = Boolean(settingsSection)
   const activeWorkspace = workspaceLocation(pathname)?.id
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const scope = useSurfaceScope()
   const sidebarHeader = useRef<HTMLDivElement>(null)
   const sidebarFooter = useRef<HTMLElement>(null)
@@ -109,11 +108,7 @@ export function Sidebar({
                           }}
                           onPointerLeave={() => cancelWarm.current?.()}
                         >
-                          <Chip
-                            href={platformHref(item.value, search)}
-                            selected={selected}
-                            icon={item.icon}
-                          >
+                          <Chip href={hrefFor(item.value)} selected={selected} icon={item.icon}>
                             {item.label}
                           </Chip>
                         </div>

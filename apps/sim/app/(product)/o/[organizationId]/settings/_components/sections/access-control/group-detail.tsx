@@ -67,7 +67,7 @@ import {
 } from '@/platform/lib/data/access-control'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { plural } from '@/platform/shared/plural'
-import { formatTimestamp } from '@/platform/shared/time'
+import { compareText, formatTimestamp } from '@/platform/shared/time'
 
 const TABS = [
   { value: 'general', label: 'General' },
@@ -349,7 +349,7 @@ export function GroupDetail({
       const core = filtered.filter((block) => block.category === 'blocks')
       const tools = filtered
         .filter((block) => block.category === 'tools' || block.category === 'triggers')
-        .sort((a, b) => a.name.localeCompare(b.name))
+        .sort((a, b) => compareText(a.name, b.name))
       const targets = (list: typeof filtered): AccessRequestTarget[] =>
         list.map((block) => ({ kind: 'integration', id: block.type }))
       return (

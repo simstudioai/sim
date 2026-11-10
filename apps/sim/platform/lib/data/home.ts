@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useSyncExternalStore } from 'react'
+import { useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
 import { useSession } from '@/lib/auth/client'
@@ -27,6 +27,7 @@ import { useOrderedWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useHydrated } from '@/hooks/use-hydrated'
 import { useCanOpenOrganizationChat } from '@/platform/lib/data/chat-list'
+import { useMinuteClock } from '@/platform/lib/data/clock'
 import {
   type CollapsedRecent,
   greetingAt,
@@ -75,22 +76,8 @@ import { useOrganizationHomeStore } from '@/stores/organization-home/store'
 
 /** Long enough to fit the 7, 30 and 90 day chart windows in one read of daily buckets. */
 const ACTIVITY_DAYS = 90
-function subscribeToMinutes(onChange: () => void) {
-  const interval = setInterval(onChange, MINUTE_MS)
-  window.addEventListener('focus', onChange)
-  return () => {
-    clearInterval(interval)
-    window.removeEventListener('focus', onChange)
-  }
-}
-
 function currentMinute() {
   return Math.floor(Date.now() / MINUTE_MS) * MINUTE_MS
-}
-
-/** Home renders nothing from this clock until it hydrates, so no markup can disagree. */
-function useMinuteClock(): number {
-  return useSyncExternalStore(subscribeToMinutes, currentMinute, currentMinute)
 }
 
 function useHomeIntegrations(organization: PlatformOrganization) {
@@ -482,7 +469,8 @@ export function useLiveHome(
   const hydrated = useHydrated()
   const preview = useFeatureFlag('platform-preview')
   const organizationId = organization.organization.id
-  const nowMs = useMinuteClock()
+  /** Before hydration the shared clock is unknown; Home renders nothing from it until then. */
+  const nowMs = useMinuteClock() ?? currentMinute()
   const [timeZone] = useState(getBrowserTimezone)
   const [selectedDay, setSelectedDay] = useQueryState(homeDayParam.key, homeDayParam.parser)
   const today = localDate(new Date(nowMs), timeZone)

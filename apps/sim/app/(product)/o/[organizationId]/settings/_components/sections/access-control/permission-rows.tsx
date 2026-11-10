@@ -29,6 +29,7 @@ import {
   type PermissionResolvers,
   useProviderModels,
 } from '@/platform/lib/data/access-control'
+import { compareText } from '@/platform/shared/time'
 
 /** Resolves draft policy and inheritance, and stages edits without saving. */
 export interface PermissionControls extends PermissionResolvers {
@@ -168,7 +169,7 @@ export function PermissionGrid({
     .filter(
       (item) => item.label.toLowerCase().includes(query) || item.id.toLowerCase().includes(query)
     )
-    .sort((a, b) => a.label.localeCompare(b.label))
+    .sort((a, b) => compareText(a.label, b.label))
   const targetFor = (id: string) => ({ kind, id }) as AccessRequestTarget
   if (loading) return null
   if (!items.length) return <Muted>{emptyLabel}</Muted>

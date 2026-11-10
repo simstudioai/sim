@@ -246,7 +246,7 @@ export function useLiveComposer({
   const text = saved?.text ?? ''
 
   // Add to chat from a terminal, the browser, a file or a table attaches its context to this draft,
-  // as legacy's input claimed it. Claiming tells the producer a mounted composer took it.
+  // and the composer claims it. Claiming tells the producer a mounted composer took it.
   useEffect(() => {
     if (assistant) return
     const handleAddContext = (event: Event) => {

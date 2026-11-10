@@ -75,7 +75,7 @@ function catalogModelFacts(catalog: PermissionGroupEditorCatalog): ModelFacts {
 
 /**
  * `blacklist` is null while the deployment's provider blacklist is unread or failed: no provider is
- * offered then, as legacy did, while blocks and the rest of the catalog stay editable.
+ * offered then, while blocks and the rest of the catalog stay editable.
  */
 function toEditorModel(catalog: PermissionGroupEditorCatalog, blacklist: readonly string[] | null) {
   const definitions = new Map(catalog.providers.map((provider) => [provider.id, provider]))

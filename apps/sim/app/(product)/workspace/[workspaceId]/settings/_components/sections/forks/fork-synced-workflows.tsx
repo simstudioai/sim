@@ -19,6 +19,7 @@ import {
   type WorkflowFolder,
   type WorkflowMetadata,
 } from '@/platform/lib/data/forks'
+import { compareText } from '@/platform/shared/time'
 
 /**
  * The sidebar's folder structure for the workspace's DEPLOYED workflows, the only ones that sync.
@@ -47,7 +48,7 @@ function buildSyncTree(
     ])
   }
   const sortFolders = (list: readonly WorkflowFolder[]) =>
-    [...list].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+    [...list].sort((a, b) => a.sortOrder - b.sortOrder || compareText(a.name, b.name))
   const buildFolder = (folder: WorkflowFolder): CheckboxTreeNode | null => {
     const children = [
       ...sortFolders(childFolders.get(folder.id) ?? [])

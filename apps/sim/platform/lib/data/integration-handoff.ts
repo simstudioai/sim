@@ -33,8 +33,8 @@ export interface SavedSearchConnection {
 }
 
 /**
- * Saves a member's hand-entered Search account through the member-owned save operation, as the
- * legacy saved-credential dialog did, with the fields the shared service-account form collects.
+ * Saves a member's hand-entered Search account through the member-owned save operation, with the
+ * fields the shared service-account form collects.
  * Null when the provider has no service to title the dialog with.
  */
 export function useSavedSearchCredential(

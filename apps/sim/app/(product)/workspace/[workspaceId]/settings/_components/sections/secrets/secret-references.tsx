@@ -5,7 +5,6 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { Icon } from '@sim/emcn/icon'
 import { SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
-import { useSearchParams } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
 import {
   Muted,
@@ -19,7 +18,7 @@ import {
   type SecretReferenceResourcePayload,
   useSecretReferences,
 } from '@/platform/lib/data/secrets'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 
 /**
  * A capped scan that listed nothing is not "not referenced": it stopped early, so silence would
@@ -48,7 +47,7 @@ interface SecretReferencesProps {
  * owner, a block landing on the canvas at that block.
  */
 export function SecretReferences({ workspaceId, secretName, shadowed }: SecretReferencesProps) {
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const { data, isPending, isError, isFetching, refetch } = useSecretReferences(
     { workspaceId, name: secretName },
     !shadowed
@@ -78,7 +77,7 @@ export function SecretReferences({ workspaceId, secretName, shadowed }: SecretRe
     )
 
   const linkTo = (section: string, key: string, value: string) => {
-    const href = platformHref(workspacePath(workspaceId, section), search)
+    const href = hrefFor(workspacePath(workspaceId, section))
     return `${href}${href.includes('?') ? '&' : '?'}${key}=${encodeURIComponent(value)}`
   }
   const blockHref = (workflowId: string, blockId: string) =>

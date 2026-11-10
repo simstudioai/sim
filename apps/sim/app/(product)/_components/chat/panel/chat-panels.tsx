@@ -4,7 +4,7 @@ import { type ReactNode, useRef, useState } from 'react'
 import { IconButton } from '@sim/emcn/button'
 import type { TabItem } from '@sim/emcn/tabs'
 import { generateShortId } from '@sim/utils/id'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { workspaceEntry } from '@/lib/navigation/paths'
 import { OpenPanel } from '@/app/(product)/_components/chat/panel/chat-panel-trigger'
 import { PanelContent } from '@/app/(product)/_components/chat/panel/panel-content'
@@ -13,7 +13,7 @@ import styles from '@/app/(product)/_components/chat/panel/panels.module.css'
 import { useDesktopHost } from '@/app/(product)/_components/desktop/desktop-host'
 import { useRecentHistory } from '@/app/(product)/_components/session/interface-preferences'
 import type { PanelData, PanelRecent } from '@/platform/lib/data/models/chat-panel'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 
 export type PanelDestination = 'start' | 'workspaces' | 'terminal' | 'file' | 'website'
 interface PanelTab {
@@ -38,7 +38,7 @@ interface ChatPanelsProps {
 
 export function ChatPanels({ children, data, workspaces }: ChatPanelsProps) {
   const desktop = useDesktopHost()
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const router = useRouter()
   const [visible, setVisible] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -83,7 +83,7 @@ export function ChatPanels({ children, data, workspaces }: ChatPanelsProps) {
   }
   function openWorkspace(id: string) {
     const href = workspaces.find((workspace) => workspace.id === id)?.href
-    router.push(platformHref(href ?? workspaceEntry(id), search))
+    router.push(hrefFor(href ?? workspaceEntry(id)))
   }
   function recent(item: PanelRecent) {
     if (item.destination === 'workspace') openWorkspace(item.id)

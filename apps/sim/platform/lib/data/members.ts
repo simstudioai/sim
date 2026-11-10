@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import type { OrganizationRoster } from '@/lib/api/contracts/organization'
 import { useSession } from '@/lib/auth/client'
@@ -37,21 +37,13 @@ import { useOrganization } from '@/platform/lib/data/organization'
 import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
 import { openAcrossOrganizations } from '@/platform/lib/data/session'
 import { useFixtureSettings } from '@/platform/lib/data/settings-providers'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { toRosterModel, toSeatsModel, type WorkspacePermission } from '@/platform/shared/members'
 import { plural } from '@/platform/shared/plural'
 import { useBrowserTimezone } from '@/platform/shared/preferences'
+import { reportFailure } from '@/platform/shared/report-failure'
 
 export type SettingsRoster = OrganizationRoster
-
-/** Shows a failed background mutation: the row controls have no dialog of their own to hold it. */
-async function reportFailure(work: Promise<unknown>, message: string): Promise<void> {
-  try {
-    await work
-  } catch (error) {
-    toast.error(message, { description: getErrorMessage(error, 'Please try again in a moment.') })
-  }
-}
 
 /**
  * The viewer's standing and the roster's rows. The role comes from the viewer's own roster row and
@@ -171,9 +163,9 @@ export function useMemberSearch() {
 function useLeaveOrganization(organization: PlatformOrganization) {
   const fixture = useFixtureSettings()
   const router = useRouter()
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   return () => {
-    if (fixture) router.replace(platformHref(surfaceHref(organization, '/home'), search))
+    if (fixture) router.replace(hrefFor(surfaceHref(organization, '/home')))
     else openAcrossOrganizations(APP_ENTRY_PATH)
   }
 }

@@ -216,7 +216,7 @@ function payloadText(payload: TracePayload | undefined) {
   return payload && payload.format !== 'withheld' ? payload.content : ''
 }
 
-/** The step's input and output in one text, as legacy's Copy on the execution data put them. */
+/** The step's input and output in one text, as Copy on the execution data puts them. */
 function stepText(step: TraceSpan) {
   return [
     ['Input', payloadText(step.input)],
@@ -253,7 +253,7 @@ function ReferenceGroup({ label, references, copyable, onFieldContextMenu }: Ref
 
 /**
  * Follows a drag on the pane's top edge, writing the height straight to the pane each frame and
- * committing it on release. Dragging up opens the pane, as legacy's docked Connections did.
+ * committing it on release. Dragging up opens the pane.
  */
 function trackPaneDrag(
   event: PointerEvent<HTMLDivElement>,
@@ -291,7 +291,7 @@ interface ConnectionsPaneProps {
 }
 
 /**
- * Connections docked at the foot of the panel, as legacy's preview editor kept them: their own
+ * Connections docked at the foot of the panel: their own
  * scroll, a height the reader drags from the top edge, and a toggle that folds them to the header.
  * The height lasts while the block stays open.
  */

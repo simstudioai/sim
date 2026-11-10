@@ -6,7 +6,6 @@ import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { type PropertyItem, PropertyList } from '@sim/emcn/property-list'
 import { ExecutionSteps } from '@sim/emcn-platform/execution-steps'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
 import { DirectoryHeading } from '@/app/(product)/_components/resource-directory/resource-directory'
 import {
@@ -26,7 +25,7 @@ import styles from '@/app/(product)/workspace/[workspaceId]/issues/_components/i
 import { ISSUE_STATE_LABEL } from '@/app/(product)/workspace/[workspaceId]/issues/_components/issue-list/issue-state'
 import { SourceExcerpt } from '@/app/(product)/workspace/[workspaceId]/issues/_components/source-excerpt/source-excerpt'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { formatTimestamp } from '@/platform/shared/time'
 
@@ -65,14 +64,14 @@ const CONFIRM = {
  * Decisions live only in the control bar, chosen by the issue's state.
  */
 export function IssueDetails({ issue, actions, back, read }: IssueDetailsProps) {
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const scope = useSurfaceScope()
   const timeZone = useViewerTimeZone()
   const [pending, setPending] = useState<IssueDecision | null>(null)
   const [confirming, setConfirming] = useState<'deny' | 'cancel' | null>(null)
   /** The last confirmation asked, so its labels hold while the dialog closes. */
   const [confirmed, setConfirmed] = useState<'deny' | 'cancel'>('deny')
-  const href = (path: string) => platformHref(path, search)
+  const href = (path: string) => hrefFor(path)
 
   async function decide(decision: IssueDecision) {
     if (pending) return

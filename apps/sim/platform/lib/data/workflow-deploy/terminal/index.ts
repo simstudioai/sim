@@ -1,7 +1,7 @@
 /**
  * The editor Terminal's logic seam. The ported terminal reads the legacy console store (IndexedDB
  * backed), its persisted layout preferences, the execution-tree grouping and filter hook, and the
- * code viewer's search state unchanged; only the views are rebuilt in the zone.
+ * code viewer's search state unchanged; only the views are Platform's.
  */
 
 export { useTerminalFilters } from '@/components/workflow-editor/components/terminal/hooks/use-terminal-filters'

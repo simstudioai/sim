@@ -26,6 +26,7 @@ import type {
   IntegrationCredential,
 } from '@/platform/lib/integrations/credential-model'
 import { credentialAccessParams } from '@/platform/lib/integrations/credential-navigation'
+import { compareText } from '@/platform/shared/time'
 
 /** Who a credential can be shared with and the edits its Access tab proposes. */
 export interface CredentialAccessActions {
@@ -95,7 +96,7 @@ export function CredentialAccess({ credential, viewer, access }: CredentialAcces
             ? member.roleSource === view.accessRole
             : member.role === view.accessRole && member.roleSource === 'explicit'))
     )
-    .sort((a, b) => (view.accessOrder === 'asc' ? 1 : -1) * a.name.localeCompare(b.name))
+    .sort((a, b) => (view.accessOrder === 'asc' ? 1 : -1) * compareText(a.name, b.name))
 
   function lockReason(member: CredentialMember) {
     if (!shareable)

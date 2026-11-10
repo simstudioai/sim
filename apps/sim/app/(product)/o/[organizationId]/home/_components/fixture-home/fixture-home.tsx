@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { RecentItem } from '@sim/emcn-platform/recent-items'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import {
   useInterfacePreferences,
   useRecentHistory,
@@ -11,7 +11,7 @@ import { ZoneHomeDashboard } from '@/app/(product)/o/[organizationId]/home/_comp
 import type { EmailItem, HomeActions, HomeData, HomeView } from '@/platform/lib/data/models/home'
 import type { ShellWorkspace } from '@/platform/lib/data/models/shell'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { workspaceHomePath } from '@/platform/lib/workspace-navigation'
 import type {
@@ -75,7 +75,7 @@ interface FixtureHomeProps {
 /** The session implementation of Home's view: edits last as long as the product session. */
 export function FixtureHome({ data, recentLinks, workspaces }: FixtureHomeProps) {
   const router = useRouter()
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const scope = useSurfaceScope()
   const preferences = useInterfacePreferences()
   const { recents, removeRecent } = useRecentHistory(recentLinks)
@@ -119,7 +119,7 @@ export function FixtureHome({ data, recentLinks, workspaces }: FixtureHomeProps)
       items: workspaces.map(({ id, name }) => ({
         id,
         name,
-        href: platformHref(workspaceHomePath(id, 'fixture'), search),
+        href: hrefFor(workspaceHomePath(id, 'fixture')),
       })),
     },
     recents: { status: 'ready', items: recents },
@@ -129,7 +129,7 @@ export function FixtureHome({ data, recentLinks, workspaces }: FixtureHomeProps)
   const actions: HomeActions = {
     email: widgetActions('Email'),
     calendar: widgetActions('Calendar'),
-    openEmail: () => router.push(platformHref(surfaceHref(scope, '/home'), search)),
+    openEmail: () => router.push(hrefFor(surfaceHref(scope, '/home'))),
     changeDay: (delta) => setDayOffset((offset) => offset + delta),
     returnToToday: () => setDayOffset(0),
     retryAttention: () => {},

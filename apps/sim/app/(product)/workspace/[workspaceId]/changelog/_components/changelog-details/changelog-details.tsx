@@ -4,7 +4,6 @@ import type { ReactNode } from 'react'
 import { Button } from '@sim/emcn/button'
 import { PropertyList } from '@sim/emcn/property-list'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
 import { DirectoryHeading } from '@/app/(product)/_components/resource-directory/resource-directory'
 import {
@@ -15,7 +14,7 @@ import type { WorkspaceRead } from '@/app/(product)/_components/workspace/worksp
 import { useViewerTimeZone } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
 import { WorkspaceChanges } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-changes/workspace-changes'
 import styles from '@/app/(product)/workspace/[workspaceId]/changelog/_components/changelog-details/changelog-details.module.css'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { formatTimestamp } from '@/platform/shared/time'
 import type { ChangelogDetail } from '@/platform/shared/workspace-records'
 
@@ -32,14 +31,11 @@ interface ChangelogDetailsProps {
 
 /** One shipped change: what it does and the workspace items it touched, beside who applied it. */
 export function ChangelogDetails({ entry, back, read, actions, notes }: ChangelogDetailsProps) {
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const timeZone = useViewerTimeZone()
   const issueHref =
     entry.issueId &&
-    platformHref(
-      workspacePath(entry.workspace.id, `issues/${encodeURIComponent(entry.issueId)}`),
-      search
-    )
+    hrefFor(workspacePath(entry.workspace.id, `issues/${encodeURIComponent(entry.issueId)}`))
   return (
     <DetailSplit
       read={read}
@@ -102,7 +98,7 @@ export function ChangelogDetails({ entry, back, read, actions, notes }: Changelo
               label: 'Workspace',
               kind: 'link',
               value: entry.workspace.name,
-              href: platformHref(workspacePath(entry.workspace.id, 'dashboards'), search),
+              href: hrefFor(workspacePath(entry.workspace.id, 'dashboards')),
             },
           ]}
         />
@@ -125,7 +121,7 @@ export function ChangelogDetails({ entry, back, read, actions, notes }: Changelo
             {entry.changes.map((change) => (
               <li key={change.id} data-type='T048'>
                 {change.href ? (
-                  <Link href={platformHref(change.href, search)} className={styles.change}>
+                  <Link href={hrefFor(change.href)} className={styles.change}>
                     {change.text}
                   </Link>
                 ) : (

@@ -18,7 +18,6 @@ import { type MenuAction, PointActionMenu } from '@sim/emcn/menu/action-menu'
 import { getErrorMessage } from '@sim/utils/errors'
 import { assessTextPaste, formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useSearchParams } from 'next/navigation'
 import { FindBar } from '@/components/find-bar/find-bar'
 import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
@@ -121,7 +120,7 @@ import {
   useUpdateWorkflowGroup,
   type WorkflowGroup,
 } from '@/platform/lib/data/tables'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { LOCALE } from '@/platform/shared/time'
 
 /** A menu the grid opens at a viewport point: under a header, or where a cell was right-clicked. */
@@ -461,7 +460,7 @@ export function TableGrid({
   confirmDeleteColumnsSinkRef,
   pushTableRenameUndoSinkRef,
 }: TableGridProps) {
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   useCaptureWhenReady(
     'table_opened',
     tableId && workspaceId ? { table_id: tableId, workspace_id: workspaceId } : null,
@@ -746,9 +745,9 @@ export function TableGrid({
   const handleViewWorkflow = useCallback(
     (workflowId: string) => {
       const path = `${workspacePath(workspaceId, 'workflows')}/${encodeURIComponent(workflowId)}`
-      window.open(platformHref(path, search), '_blank', 'noopener,noreferrer')
+      window.open(hrefFor(path), '_blank', 'noopener,noreferrer')
     },
-    [workspaceId, search]
+    [workspaceId, hrefFor]
   )
 
   function handleColumnOrderChange(order: string[]) {

@@ -38,6 +38,7 @@ import {
   useWorkflowStore,
 } from '@/platform/lib/data/workflow-editor'
 import { workspaceFileOptionLabel } from '@/platform/lib/data/workflow-editor/uploads/file-labels'
+import { compareText } from '@/platform/shared/time'
 import { getProviderFileAttachment, getProviderFromModel } from '@/providers/models'
 
 const logger = createLogger('PlatformFileUpload')
@@ -194,8 +195,8 @@ function isFileTypeAccepted(fileType: string | undefined, accepted: string): boo
 }
 
 function byFolderThenName(a: WorkspaceFile, b: WorkspaceFile): number {
-  const folderOrder = (a.folderPath ?? '').localeCompare(b.folderPath ?? '')
-  return folderOrder !== 0 ? folderOrder : a.name.localeCompare(b.name)
+  const folderOrder = compareText(a.folderPath ?? '', b.folderPath ?? '')
+  return folderOrder !== 0 ? folderOrder : compareText(a.name, b.name)
 }
 
 /** The larger of the sub-block's own ceiling and what the block's chosen model accepts. */

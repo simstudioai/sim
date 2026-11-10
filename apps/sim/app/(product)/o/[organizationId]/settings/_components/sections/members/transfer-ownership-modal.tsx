@@ -7,6 +7,7 @@ import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { InlineNotice } from '@sim/emcn/status'
 import { useOwnershipTransfer } from '@/platform/lib/data/members'
 import type { RosterModel } from '@/platform/shared/members'
+import { compareText } from '@/platform/shared/time'
 
 interface TransferOwnershipModalProps {
   open: boolean
@@ -31,7 +32,7 @@ export function TransferOwnershipModal({
         .sort((a, b) => {
           if (a.role === 'admin' && b.role !== 'admin') return -1
           if (a.role !== 'admin' && b.role === 'admin') return 1
-          return a.name.localeCompare(b.name)
+          return compareText(a.name, b.name)
         })
         .map((row) => ({
           value: row.userId,

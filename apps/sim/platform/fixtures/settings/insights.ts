@@ -3,7 +3,7 @@ import { settingsWorkspaces } from '@/platform/fixtures/settings/organization'
 import type { SettingsFixtureState } from '@/platform/fixtures/settings/state'
 import { csvRow } from '@/platform/lib/data/csv'
 import type { OrganizationUsageBreakdown, UsageBreakdownDimension } from '@/platform/lib/data/usage'
-import { calendarDayFormatter } from '@/platform/shared/time'
+import { calendarDayFormatter, compareText } from '@/platform/shared/time'
 
 const DAY = 86_400_000
 const HOUR = 3_600_000
@@ -123,7 +123,7 @@ function breakdown(
   const score = (row: OrganizationUsageBreakdown['rows'][number]) =>
     dimension === 'byok' ? (row.tokens ?? 0) : row.credits
   const sorted = [...groups.values()].sort(
-    (a, b) => score(b) - score(a) || a.label.localeCompare(b.label)
+    (a, b) => score(b) - score(a) || compareText(a.label, b.label)
   )
   const total = sorted.reduce((sum, row) => sum + score(row), 0)
   for (const row of sorted) row.share = total ? score(row) / total : 0
@@ -187,7 +187,7 @@ function activityBreakdown(events: Ledger, dimension: Dimension, params: URLSear
       : sort === 'duration'
         ? (row.averageDurationMs ?? 0)
         : row.workflowRuns + row.chatRuns
-  rows.sort((a, b) => score(b) - score(a) || a.label.localeCompare(b.label))
+  rows.sort((a, b) => score(b) - score(a) || compareText(a.label, b.label))
   const offset = Number(params.get('page') ?? 0) * 25
   return { rows: rows.slice(offset, offset + 25), hasMore: rows.length > offset + 25 }
 }

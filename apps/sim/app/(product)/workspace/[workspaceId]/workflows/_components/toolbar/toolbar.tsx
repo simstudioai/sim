@@ -18,7 +18,7 @@ import { Icon } from '@sim/emcn/icon'
 import { ContextActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { SearchField } from '@sim/emcn/search-field'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { RequestAccessModal } from '@/app/(product)/_components/request-access-modal/request-access-modal'
 import { BlockTile } from '@/app/(product)/_components/workspace/workflows/canvas/block-tile/block-tile'
 import { getCustomBlockTile } from '@/app/(product)/_components/workspace/workflows/canvas/block-tile/custom-block-tile'
@@ -44,7 +44,8 @@ import {
   useToolbarStore,
   useWorkflowScope,
 } from '@/platform/lib/data/workflows'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
+import { compareText } from '@/platform/shared/time'
 
 interface BlockItem {
   name: string
@@ -106,7 +107,7 @@ const ToolbarItem = memo(function ToolbarItem({
     onClick(item.type, isTriggerCapable)
   }, [item.type, isTriggerCapable, onClick])
 
-  /** The context menu adds with the section's trigger flag, as the legacy menu did. */
+  /** The context menu adds with the section's trigger flag. */
   const addToCanvas = useCallback(() => {
     onAddToCanvas(item.type, isTrigger)
   }, [item.type, isTrigger, onAddToCanvas])
@@ -217,7 +218,7 @@ function getTriggers(overlayVersion: number): BlockItem[] {
       if (aHasPriority && bHasPriority) return aIndex - bIndex
       if (aHasPriority) return -1
       if (bHasPriority) return 1
-      return a.name.localeCompare(b.name)
+      return compareText(a.name, b.name)
     })
 
     cachedTriggers = sortedTriggers.map((trigger) => ({
@@ -288,8 +289,8 @@ function ensureBlockCaches() {
     bgColor: block.bgColor,
   }))
 
-  regularBlockItems.sort((a, b) => a.name.localeCompare(b.name))
-  toolItems.sort((a, b) => a.name.localeCompare(b.name))
+  regularBlockItems.sort((a, b) => compareText(a.name, b.name))
+  toolItems.sort((a, b) => compareText(a.name, b.name))
 
   cachedBlocks = regularBlockItems
   cachedTools = toolItems
@@ -404,7 +405,7 @@ export interface ToolbarRef {
 export const Toolbar = memo(
   forwardRef<ToolbarRef, ToolbarProps>(function Toolbar({ isActive = true }: ToolbarProps, ref) {
     const router = useRouter()
-    const search = useSearchParams()
+    const hrefFor = usePlatformHref()
     const rootRef = useRef<HTMLDivElement>(null)
     const searchRef = useRef<HTMLDivElement>(null)
     const listEdges = useScrollEdges<HTMLDivElement>()
@@ -533,7 +534,7 @@ export const Toolbar = memo(
             bgColor,
           } satisfies BlockItem
         })
-        .sort((a, b) => a.name.localeCompare(b.name))
+        .sort((a, b) => compareText(a.name, b.name))
     }, [customBlocksData, currentWorkflowId])
 
     const handleRequestItemClick = useCallback((type: string) => {
@@ -849,10 +850,7 @@ export const Toolbar = memo(
             label={requestedBlock.name}
             onViewRequest={(requestId) =>
               router.push(
-                platformHref(
-                  getMyAccessRequestHref({ kind: 'workspace', workspaceId }, requestId),
-                  search
-                )
+                hrefFor(getMyAccessRequestHref({ kind: 'workspace', workspaceId }, requestId))
               )
             }
             onClose={() => setRequestedBlockType(null)}

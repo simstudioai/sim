@@ -22,6 +22,7 @@ import {
   PYTHON_AI_PROMPT,
   SHELL_AI_PROMPT,
 } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/code/wand-prompts'
+import { placeCaret } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/caret'
 import {
   highlightCode,
   highlightMaskedCode,
@@ -68,16 +69,6 @@ function defaultText(defaultValue: unknown): string {
   if (defaultValue === undefined || defaultValue === null) return ''
   if (typeof defaultValue === 'string') return defaultValue
   return JSON.stringify(defaultValue, null, 2)
-}
-
-/** Puts the caret back after React commits a picker's insertion, so it lands after the text. */
-function placeCaret(textarea: HTMLTextAreaElement | null, position: number) {
-  setTimeout(() => {
-    if (!textarea) return
-    textarea.focus()
-    textarea.selectionStart = position
-    textarea.selectionEnd = position
-  })
 }
 
 /** The AI prompt a code field runs: its own, or the Function block's for Python and Shell. */

@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  filterAndCap,
-  filterAndSort,
-  fuzzyMatch,
-} from '@/components/workspace-sidebar/components/search-modal/utils'
+import { filterAndCap, filterAndSort, fuzzyMatch } from '@/lib/search/fuzzy'
 
 /**
  * The matcher that shipped before fuzzy matching was introduced. Re-implemented

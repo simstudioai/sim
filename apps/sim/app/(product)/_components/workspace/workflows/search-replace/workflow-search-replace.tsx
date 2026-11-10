@@ -70,7 +70,7 @@ const SEARCH_PANEL_EXPANDED_HEIGHT = 156
 const SEARCH_PANEL_CANVAS_INSET = 32
 
 /**
- * The workflow canvas the panel floats over. In the zone the canvas sits below the workspace
+ * The workflow canvas the panel floats over. The canvas sits below the workspace
  * heading, tabs and control bar and beside the right panel, so its own box is what the legacy
  * viewport arithmetic (sidebar width, panel width, terminal height) stood for.
  */
