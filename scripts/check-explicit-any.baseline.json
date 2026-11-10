@@ -950,7 +950,6 @@
     "apps/sim/tools/thrive/update_audience.ts": 1,
     "apps/sim/tools/thrive/update_user.ts": 1,
     "apps/sim/tools/thrive/utils.ts": 2,
-    "apps/sim/tools/twilio_voice/list_calls.ts": 2,
     "apps/sim/tools/twilio_voice/make_call.ts": 2,
     "apps/sim/tools/typeform/create_form.ts": 1,
     "apps/sim/tools/typeform/types.ts": 20,

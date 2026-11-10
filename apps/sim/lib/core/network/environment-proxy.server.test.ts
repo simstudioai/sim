@@ -17,16 +17,17 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 vi.mock('@sim/security/dns', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@sim/security/dns')>()
-  const records: Record<string, string> = {
-    'origin.invalid': '1.1.1.1',
-    'internal.invalid': '10.0.0.5',
+  const records: Record<string, [string, ...string[]]> = {
+    'origin.invalid': ['1.1.1.1', '93.184.216.34'],
+    'internal.invalid': ['10.0.0.5'],
+    'split.invalid': ['93.184.216.34', '169.254.169.254'],
   }
   return {
     ...actual,
     resolveHostAddresses: async (host: string) => {
-      const address = records[host]
-      if (!address) throw new Error(`No addresses for ${host}`)
-      return { addresses: [address], preferred: address }
+      const addresses = records[host]
+      if (!addresses) throw new Error(`No addresses for ${host}`)
+      return { addresses, preferred: addresses[0] }
     },
   }
 })
@@ -206,6 +207,20 @@ describe('guarded requests under HTTPS_PROXY', () => {
     ])
   })
 
+  it('caps an uncompressed plain-http body forwarded by the proxy', async () => {
+    const pinned = createPinnedFetchWithDispatcher('1.1.1.1', {
+      profile: 'selfHostedService',
+      maxResponseSize: 4,
+    })
+    try {
+      const response = await pinned.fetch('http://origin.invalid/plain')
+      await expect(response.text()).rejects.toThrow(/max size/i)
+    } finally {
+      await pinned.dispatcher.destroy()
+    }
+    expect(forwarded.map((request) => request.url)).toEqual(['http://origin.invalid/plain'])
+  })
+
   it('connects directly, still pinned, when NO_PROXY names the host', async () => {
     vi.stubEnv('NO_PROXY', 'localhost,.invalid')
     const response = await secureFetchWithPinnedIP(
@@ -229,6 +244,23 @@ describe('guarded requests under HTTPS_PROXY', () => {
       await guarded.dispatcher.destroy()
     }
     expect(tunnels).toEqual([])
+  })
+
+  it('refuses a name with any blocked record, since the proxy may dial any of them', async () => {
+    const guarded = createSsrfGuardedFetchWithDispatcher(options)
+    try {
+      await expect(guarded.fetch('https://split.invalid/')).rejects.toThrow(/metadata/i)
+      await expect(secureFetchWithValidation('https://split.invalid/', options)).rejects.toThrow(
+        /metadata/i
+      )
+    } finally {
+      await guarded.dispatcher.destroy()
+    }
+    expect(tunnels).toEqual([])
+
+    const response = await secureFetchWithValidation('https://origin.invalid/', options)
+    expect(await response.text()).toBe('tls reached')
+    expect(tunnels.map((tunnel) => tunnel.authority)).toEqual(['origin.invalid:443'])
   })
 
   it('judges each redirect hop again before proxying it', async () => {

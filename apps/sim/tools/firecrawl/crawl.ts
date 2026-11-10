@@ -18,6 +18,19 @@ const logger = createLogger('FirecrawlCrawlTool')
 const POLL_INTERVAL_MS = 5000
 const MAX_POLL_TIME_MS = DEFAULT_EXECUTION_TIMEOUT_MS
 
+/** Path segments of the start URL, ignoring empty segments and a trailing index file. */
+function startPathDepth(url: string, indexFiles: string[]): number {
+  let pathname: string
+  try {
+    pathname = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(url) ? url : `https://${url}`).pathname
+  } catch {
+    return 0
+  }
+  const segments = pathname.split('/').filter(Boolean)
+  if (indexFiles.includes(segments[segments.length - 1] ?? '')) segments.pop()
+  return segments.length
+}
+
 export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse> = {
   id: 'firecrawl_crawl',
   name: 'Firecrawl Crawl',
@@ -42,7 +55,7 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Maximum URL path depth (e.g., 1 allows /docs and /docs/index.html). Independent of link discovery depth',
+        'Maximum path depth below the starting URL (e.g., 1 from /docs allows /docs/guide and /docs/guide/index.html). Independent of link discovery depth',
     },
     formats: {
       type: 'json',
@@ -161,10 +174,11 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
           throw new Error('maxDepth must be a non-negative integer')
         }
 
-        // v1 depth counted URL path segments; v2 discovery depth counts link hops.
+        // v1 depth counted URL path segments below the start URL; v2 discovery depth counts link hops.
         body.regexOnFullURL = false
+        const indexFiles = ['index.html', 'index.php']
+        const depth = maxDepth + startPathDepth(params.url, indexFiles)
         if (params.includePaths?.length) {
-          const indexFiles = ['index.html', 'index.php']
           const nonIndexSegmentPatterns = new Set<string>()
           // Rust regex has no lookarounds, so enumerate incomplete prefixes and first mismatches.
           for (const file of indexFiles) {
@@ -181,15 +195,15 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
               nonIndexSegmentPatterns.add(`${escapedPrefix}[^/${nextCharacters}][^/]*`)
             }
           }
-          const nonIndexBoundary = `^(/+[^/]+){${maxDepth}}/+(${[...nonIndexSegmentPatterns].join('|')})/*$`
+          const nonIndexBoundary = `^(/+[^/]+){${depth}}/+(${[...nonIndexSegmentPatterns].join('|')})/*$`
           body.excludePaths = [
             ...(params.excludePaths ?? []),
-            `^(/+[^/]+){${maxDepth + 2}}|${nonIndexBoundary}`,
+            `^(/+[^/]+){${depth + 2}}|${nonIndexBoundary}`,
           ]
         } else {
           body.includePaths = [
-            `^(/+[^/]+){0,${maxDepth}}/*$`,
-            `^(/+[^/]+){0,${maxDepth}}/+index\\.(html|php)/*$`,
+            `^(/+[^/]+){0,${depth}}/*$`,
+            `^(/+[^/]+){0,${depth}}/+index\\.(html|php)/*$`,
           ]
         }
       }

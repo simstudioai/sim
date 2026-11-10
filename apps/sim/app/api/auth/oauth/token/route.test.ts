@@ -290,6 +290,111 @@ describe('OAuth Token API Routes', () => {
       })
     })
 
+    describe('saved service-account credentials', () => {
+      const authorized = {
+        ok: true,
+        requesterUserId: 'test-user-id',
+        credentialOwnerUserId: 'test-user-id',
+        workspaceId: 'workspace-id',
+      }
+
+      beforeEach(() => {
+        authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce({
+          accountId: '',
+          credentialId: 'saved-credential-id',
+          credentialType: 'service_account',
+          providerId: 'vanta-service-account',
+          workspaceId: 'workspace-id',
+          usedCredentialTable: true,
+        })
+        authOAuthUtilsMockFns.mockResolveServiceAccountToken.mockResolvedValue({
+          accessToken: 'saved-secret',
+        })
+        mockGetToolMetadata.mockReturnValue({
+          id: 'vanta_list_tests',
+          params: {},
+          oauth: { required: true, provider: 'vanta', credentialKind: 'service-account' },
+        })
+      })
+
+      it('refuses to release the secret to a session caller', async () => {
+        hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+          success: true,
+          authType: 'session',
+          userId: 'test-user-id',
+        })
+        mockAuthorizeCredentialUse.mockResolvedValueOnce(authorized)
+
+        const response = await POST(
+          createMockRequest('POST', {
+            credentialId: 'saved-credential-id',
+            toolId: 'vanta_list_tests',
+          })
+        )
+
+        expect(response.status).toBe(403)
+        const body = await response.json()
+        expect(body).toMatchObject({ code: 'SERVICE_ACCOUNT_SESSION_FORBIDDEN' })
+        expect(JSON.stringify(body)).not.toContain('saved-secret')
+        expect(authOAuthUtilsMockFns.mockResolveServiceAccountToken).not.toHaveBeenCalled()
+      })
+
+      it('resolves the secret for an internal-JWT execution caller', async () => {
+        hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+          success: true,
+          authType: 'internal_jwt',
+          userId: 'test-user-id',
+        })
+        mockAuthorizeCredentialUse.mockResolvedValueOnce(authorized)
+
+        const response = await POST(
+          createMockRequest('POST', {
+            credentialId: 'saved-credential-id',
+            toolId: 'vanta_list_tests',
+            workflowId: 'workflow-id',
+          })
+        )
+
+        expect(response.status).toBe(200)
+        await expect(response.json()).resolves.toMatchObject({
+          accessToken: 'saved-secret',
+          credentialType: 'service_account',
+        })
+      })
+    })
+
+    it('still returns an OAuth token to a session caller', async () => {
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+        success: true,
+        authType: 'session',
+        userId: 'test-user-id',
+      })
+      mockAuthorizeCredentialUse.mockResolvedValueOnce({
+        ok: true,
+        requesterUserId: 'test-user-id',
+        credentialOwnerUserId: 'test-user-id',
+      })
+      authOAuthUtilsMockFns.mockGetCredential.mockResolvedValueOnce({
+        id: 'credential-id',
+        accessToken: 'test-token',
+        refreshToken: 'refresh-token',
+        accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000),
+        providerId: 'google',
+      })
+      authOAuthUtilsMockFns.mockRefreshTokenIfNeeded.mockResolvedValueOnce({
+        accessToken: 'session-oauth-token',
+        refreshed: false,
+      })
+
+      const response = await POST(createMockRequest('POST', { credentialId: 'credential-id' }))
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({
+        accessToken: 'session-oauth-token',
+        credentialType: 'oauth',
+      })
+    })
+
     describe('credentialAccountUserId + providerId path', () => {
       it('should reject internal JWT authentication', async () => {
         hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({

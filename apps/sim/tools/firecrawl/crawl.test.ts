@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { crawlTool } from '@/tools/firecrawl/crawl'
 
 function crawlBody(options: {
+  url?: string
   maxDepth: number
   maxDiscoveryDepth?: number
   includePaths?: string[]
@@ -27,6 +28,25 @@ describe('Firecrawl legacy crawl depth', () => {
     expect(accepts('/docs/index.html')).toBe(true)
     expect(accepts('/docs/guide')).toBe(false)
     expect(accepts('/docs/guide/page')).toBe(false)
+  })
+
+  it.each<[string, boolean]>([
+    ['/docs/guide', true],
+    ['/docs/guide/a', true],
+    ['/docs/guide/a/index.html', true],
+    ['/docs/guide/a/b', false],
+  ])('counts depth from a start URL with a path: %s', (path, accepted) => {
+    for (const url of [
+      'https://example.com/docs/guide',
+      'https://example.com/docs/guide/index.html',
+    ]) {
+      const body = crawlBody({ url, maxDepth: 1 })
+      const includes = (body.includePaths as string[]).map((pattern) => new RegExp(pattern))
+      expect(includes.some((pattern) => pattern.test(path))).toBe(accepted)
+      const filtered = crawlBody({ url, maxDepth: 1, includePaths: ['^/docs'] })
+      const excludes = (filtered.excludePaths as string[]).map((pattern) => new RegExp(pattern))
+      expect(excludes.some((pattern) => pattern.test(path))).toBe(!accepted)
+    }
   })
 
   it('keeps existing path filters while excluding paths beyond the legacy depth', () => {

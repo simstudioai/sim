@@ -271,7 +271,6 @@ export interface SearchParams {
   apiKey: string
   query: string
   limit?: number
-  sources?: ('web' | 'images' | 'news')[]
   categories?: ('github' | 'research' | 'pdf')[]
   tbs?: string
   location?: string

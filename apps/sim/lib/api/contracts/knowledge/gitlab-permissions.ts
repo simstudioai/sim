@@ -11,7 +11,9 @@ const gitLabCsvUploadSchema = z
       .string()
       .min(1)
       .max(GITLAB_CSV_MAX_BYTES)
-      .describe('UTF-8 CSV contents, up to 4 MiB.'),
+      .describe(
+        'UTF-8 CSV contents, up to 4 MiB. Both files travel in one request body limited to 10 MiB after JSON encoding.'
+      ),
   })
   .strict()
 export const gitLabPermissionInputSchema = z

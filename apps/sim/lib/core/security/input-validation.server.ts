@@ -893,8 +893,7 @@ async function undiciRequestAsResponse(
     return response
   }
 
-  // Decode Content-Encoding like `fetch` does (`request()` returns raw bytes). `maxResponseSize`
-  // still caps the compressed wire bytes on `body`.
+  // Decode Content-Encoding like `fetch` does (`request()` returns raw bytes).
   const contentEncoding = String(headers['content-encoding'] ?? '')
     .toLowerCase()
     .trim()
@@ -908,14 +907,16 @@ async function undiciRequestAsResponse(
   // `nodeReadableToWebStream` attaches its `error` listener synchronously, so wiring the pipe
   // AFTER it means a synchronous zlib error (e.g. a server mislabeling a non-gzip body as gzip)
   // is caught and rejects the reader instead of taking down the process.
+  // The cap applies to every body the consumer reads, decoded or not: undici's proxy wrapper
+  // for http:// destinations ignores the dispatcher's `maxResponseSize`, which stays a backstop.
   let webBody = nodeReadableToWebStream(decoder ?? body)
-  if (decoder && maxResponseSize !== undefined && maxResponseSize >= 0) {
-    let decodedBytes = 0
+  if (maxResponseSize !== undefined && maxResponseSize >= 0) {
+    let readBytes = 0
     webBody = webBody.pipeThrough(
       new TransformStream<Uint8Array, Uint8Array>({
         transform(chunk, controller) {
-          decodedBytes += chunk.byteLength
-          if (decodedBytes > maxResponseSize) throw new errors.ResponseExceededMaxSizeError()
+          readBytes += chunk.byteLength
+          if (readBytes > maxResponseSize) throw new errors.ResponseExceededMaxSizeError()
           controller.enqueue(chunk)
         },
       })

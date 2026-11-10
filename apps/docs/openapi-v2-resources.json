@@ -23929,7 +23929,7 @@
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 4194304,
-                        "description": "UTF-8 CSV contents, up to 4 MiB."
+                        "description": "UTF-8 CSV contents, up to 4 MiB. Both files travel in one request body limited to 10 MiB after JSON encoding."
                       }
                     },
                     "required": ["filename", "content"],
@@ -23949,7 +23949,7 @@
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 4194304,
-                        "description": "UTF-8 CSV contents, up to 4 MiB."
+                        "description": "UTF-8 CSV contents, up to 4 MiB. Both files travel in one request body limited to 10 MiB after JSON encoding."
                       }
                     },
                     "required": ["filename", "content"],
