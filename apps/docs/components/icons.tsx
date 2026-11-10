@@ -10459,3 +10459,16 @@ export function PlaneIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function AutomIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox='-1 1 22 22' fill='none' xmlns='http://www.w3.org/2000/svg' {...props}>
+      <title>Autom</title>
+      <path
+        d='M10 2V8.18C10 9.543 8.328 10.2 7.401 9.201L3.5 5M20 12H13.82C12.457 12 11.8 10.329 12.799 9.401L17 5.5M10 22V15.82C10 14.457 11.671 13.8 12.599 14.799L16.5 19M0 12L6.18 12C7.543 12 8.2 13.671 7.201 14.599L3 18.5'
+        stroke='#2563EB'
+        strokeWidth='1.75'
+      />
+    </svg>
+  )
+}

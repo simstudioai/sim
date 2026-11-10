@@ -89,6 +89,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/atlassian-service-account.mdx',
   'integrations/attio-service-account.mdx',
   'integrations/attio.mdx',
+  'integrations/autom.mdx',
   'integrations/azure_data_explorer.mdx',
   'integrations/azure_devops.mdx',
   'integrations/bitbucket.mdx',

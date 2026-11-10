@@ -18,6 +18,7 @@ import { AsanaBlock, AsanaBlockMeta } from '@/blocks/blocks/asana'
 import { AshbyBlock, AshbyBlockMeta } from '@/blocks/blocks/ashby'
 import { AthenaBlock, AthenaBlockMeta } from '@/blocks/blocks/athena'
 import { AttioBlock, AttioBlockMeta } from '@/blocks/blocks/attio'
+import { AutomBlock, AutomBlockMeta } from '@/blocks/blocks/autom'
 import {
   AzureDataExplorerBlock,
   AzureDataExplorerBlockMeta,
@@ -427,6 +428,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   ashby: AshbyBlock,
   athena: AthenaBlock,
   attio: AttioBlock,
+  autom: AutomBlock,
   azure_data_explorer: AzureDataExplorerBlock,
   azure_devops: AzureDevOpsBlock,
   bitbucket: BitbucketBlock,
@@ -813,6 +815,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   ashby: AshbyBlockMeta,
   athena: AthenaBlockMeta,
   attio: AttioBlockMeta,
+  autom: AutomBlockMeta,
   azure_data_explorer: AzureDataExplorerBlockMeta,
   azure_devops: AzureDevOpsBlockMeta,
   bitbucket: BitbucketBlockMeta,

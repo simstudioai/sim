@@ -1,0 +1,349 @@
+---
+title: Autom
+description: Search Google, Bing, Brave, Yahoo and DuckDuckGo
+integration:
+  type: "autom"
+  color: "#FFFFFF"
+---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
+
+{/* MANUAL-CONTENT-START:intro */}
+[Autom](https://www.autom.dev/) is a SERP API that returns structured results from Google, Bing, Brave, Yahoo and DuckDuckGo.
+
+With the Autom block, you can:
+
+- **Search the web**: get organic results from Google, Bing, Brave, Yahoo or DuckDuckGo, with position, title, link and snippet
+- **Search Google verticals**: get Google News articles, Google Maps places with address, phone and website, and autocomplete suggestions
+- **Localize searches**: find the Google location names that localized Google searches accept
+
+Create an API key in the [Autom dashboard](https://app.autom.dev/) and paste it into the block.
+
+In Sim, the Autom block lets your agents track keyword rankings, monitor news and build lists of local businesses.
+{/* MANUAL-CONTENT-END */}
+
+## Use the block [#usage-instructions]
+
+Get structured search results from Google (web, news, Maps and autocomplete), Bing, Brave, Yahoo and DuckDuckGo, and look up the Google location names that localized searches accept.
+
+## Actions
+
+### Autom Google Search
+
+Search Google and get organic results with their position, title, link and snippet, the knowledge graph and the estimated total.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Search query \(e.g., "best electric cars"\) |
+| `country` | string | No | Two-letter country code to search from \(e.g., "us"\) |
+| `language` | string | No | Two-letter language code of the results \(e.g., "en"\) |
+| `location` | string | No | Google location name to search from, as Find Google Locations returns it \(e.g., "Paris,Paris,Ile-de-France,France"\) |
+| `page` | number | No | Page of results, starting at 1 |
+| `numResults` | number | No | Number of results per page \(e.g., 10\) |
+| `apiKey` | string | Yes | Autom API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Organic results |
+|   ↳ `position` | number | Position of the result on the page |
+|   ↳ `title` | string | Title of the result |
+|   ↳ `link` | string | URL of the result |
+|   ↳ `domain` | string | Domain of the result |
+|   ↳ `displayedLink` | string | Link as the search engine displays it |
+|   ↳ `source` | string | Source or site name |
+|   ↳ `snippet` | string | Snippet shown under the title |
+|   ↳ `date` | string | Date shown with the result, when there is one |
+| `knowledgeGraph` | object | Knowledge graph panel, when Google shows one |
+|   ↳ `title` | string | Title of the entity |
+|   ↳ `type` | string | Type of the entity |
+|   ↳ `website` | string | Website of the entity |
+| `totalResults` | number | Estimated total number of results |
+| `hasNextPage` | boolean | Whether another page of results exists |
+
+</ReferenceDetails>
+
+### Autom Google Search (Organic Only)
+
+Search Google and get only the organic results, the fastest and cheapest Google search.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Search query \(e.g., "best electric cars"\) |
+| `country` | string | No | Two-letter country code to search from \(e.g., "us"\) |
+| `language` | string | No | Two-letter language code of the results \(e.g., "en"\) |
+| `apiKey` | string | Yes | Autom API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Organic results |
+|   ↳ `position` | number | Position of the result on the page |
+|   ↳ `title` | string | Title of the result |
+|   ↳ `link` | string | URL of the result |
+|   ↳ `domain` | string | Domain of the result |
+|   ↳ `displayedLink` | string | Link as the search engine displays it |
+|   ↳ `source` | string | Source or site name |
+|   ↳ `snippet` | string | Snippet shown under the title |
+|   ↳ `date` | string | Date shown with the result, when there is one |
+
+</ReferenceDetails>
+
+### Autom Google News
+
+Search Google News and get articles with title, source, date, link and snippet.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Search query \(e.g., "best electric cars"\) |
+| `country` | string | No | Two-letter country code to search from \(e.g., "us"\) |
+| `language` | string | No | Two-letter language code of the results \(e.g., "en"\) |
+| `page` | number | No | Page of results, starting at 1 |
+| `numResults` | number | No | Number of results per page \(e.g., 10\) |
+| `apiKey` | string | Yes | Autom API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | News articles |
+|   ↳ `position` | number | Position of the result on the page |
+|   ↳ `title` | string | Title of the result |
+|   ↳ `link` | string | URL of the result |
+|   ↳ `domain` | string | Domain of the result |
+|   ↳ `displayedLink` | string | Link as the search engine displays it |
+|   ↳ `source` | string | Source or site name |
+|   ↳ `snippet` | string | Snippet shown under the title |
+|   ↳ `date` | string | Date shown with the result, when there is one |
+| `hasNextPage` | boolean | Whether another page of results exists |
+
+</ReferenceDetails>
+
+### Autom Google Maps
+
+Search Google Maps and get places with address, website, phone number and coordinates.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Search query \(e.g., "best electric cars"\) |
+| `country` | string | No | Two-letter country code to search from \(e.g., "us"\) |
+| `language` | string | No | Two-letter language code of the results \(e.g., "en"\) |
+| `page` | number | No | Page of results, starting at 1 |
+| `apiKey` | string | Yes | Autom API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `places` | array | Places found on Google Maps |
+|   ↳ `title` | string | Name of the place |
+|   ↳ `address` | string | Address of the place |
+|   ↳ `website` | string | Website of the place |
+|   ↳ `phoneNumber` | string | Phone number of the place |
+|   ↳ `latitude` | number | Latitude |
+|   ↳ `longitude` | number | Longitude |
+|   ↳ `placeId` | string | Google Maps feature ID of the place |
+
+</ReferenceDetails>
+
+### Autom Google Autocomplete
+
+Get the Google Search autocomplete suggestions for a partial query.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Search query \(e.g., "best electric cars"\) |
+| `country` | string | No | Two-letter country code to search from \(e.g., "us"\) |
+| `language` | string | No | Two-letter language code of the results \(e.g., "en"\) |
+| `apiKey` | string | Yes | Autom API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `suggestions` | array | Autocomplete suggestions |
+|   ↳ `value` | string | Suggested query |
+
+</ReferenceDetails>
+
+### Autom Bing Search
+
+Search Bing and get organic results with their position, title, link and snippet.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Search query \(e.g., "best electric cars"\) |
+| `market` | string | No | Bing market code \(e.g., "en-US"\) |
+| `page` | number | No | Page of results, starting at 1 |
+| `numResults` | number | No | Number of results per page \(e.g., 10\) |
+| `apiKey` | string | Yes | Autom API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Organic results |
+|   ↳ `position` | number | Position of the result on the page |
+|   ↳ `title` | string | Title of the result |
+|   ↳ `link` | string | URL of the result |
+|   ↳ `domain` | string | Domain of the result |
+|   ↳ `displayedLink` | string | Link as the search engine displays it |
+|   ↳ `source` | string | Source or site name |
+|   ↳ `snippet` | string | Snippet shown under the title |
+|   ↳ `date` | string | Date shown with the result, when there is one |
+| `totalResults` | number | Estimated total number of results |
+| `hasNextPage` | boolean | Whether another page of results exists |
+
+</ReferenceDetails>
+
+### Autom DuckDuckGo Search
+
+Search DuckDuckGo and get organic results with their position, title, link and snippet.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Search query \(e.g., "best electric cars"\) |
+| `country` | string | No | Two-letter country code to search from \(e.g., "us"\) |
+| `language` | string | No | Two-letter language code of the results \(e.g., "en"\) |
+| `page` | number | No | Page of results, starting at 1 |
+| `apiKey` | string | Yes | Autom API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Organic results |
+|   ↳ `position` | number | Position of the result on the page |
+|   ↳ `title` | string | Title of the result |
+|   ↳ `link` | string | URL of the result |
+|   ↳ `domain` | string | Domain of the result |
+|   ↳ `displayedLink` | string | Link as the search engine displays it |
+|   ↳ `source` | string | Source or site name |
+|   ↳ `snippet` | string | Snippet shown under the title |
+|   ↳ `date` | string | Date shown with the result, when there is one |
+
+</ReferenceDetails>
+
+### Autom Yahoo Search
+
+Search Yahoo and get organic results with their position, title, link and snippet.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Search query \(e.g., "best electric cars"\) |
+| `country` | string | No | Two-letter country code to search from \(e.g., "us"\) |
+| `language` | string | No | Two-letter language code of the results \(e.g., "en"\) |
+| `page` | number | No | Page of results, starting at 1 |
+| `apiKey` | string | Yes | Autom API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Organic results |
+|   ↳ `position` | number | Position of the result on the page |
+|   ↳ `title` | string | Title of the result |
+|   ↳ `link` | string | URL of the result |
+|   ↳ `domain` | string | Domain of the result |
+|   ↳ `displayedLink` | string | Link as the search engine displays it |
+|   ↳ `source` | string | Source or site name |
+|   ↳ `snippet` | string | Snippet shown under the title |
+|   ↳ `date` | string | Date shown with the result, when there is one |
+
+</ReferenceDetails>
+
+### Autom Brave Search
+
+Search Brave's web index and get organic results with their position, title, link and snippet.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Search query \(e.g., "best electric cars"\) |
+| `country` | string | No | Two-letter country code to search from \(e.g., "us"\) |
+| `language` | string | No | Two-letter language code of the results \(e.g., "en"\) |
+| `page` | number | No | Page of results, starting at 1 |
+| `apiKey` | string | Yes | Autom API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Organic results |
+|   ↳ `position` | number | Position of the result on the page |
+|   ↳ `title` | string | Title of the result |
+|   ↳ `link` | string | URL of the result |
+|   ↳ `domain` | string | Domain of the result |
+|   ↳ `displayedLink` | string | Link as the search engine displays it |
+|   ↳ `source` | string | Source or site name |
+|   ↳ `snippet` | string | Snippet shown under the title |
+|   ↳ `date` | string | Date shown with the result, when there is one |
+
+</ReferenceDetails>
+
+### Autom Find Google Locations
+
+Find the Google location names that the Location field of Google searches accepts, ordered by reach.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | A city, region or country name \(e.g., "paris"\) |
+| `apiKey` | string | Yes | Autom API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `locations` | array | Matching Google locations, ordered by reach |
+|   ↳ `canonicalName` | string | Full location name, as the Location field accepts it |
+|   ↳ `name` | string | Short name of the location |
+|   ↳ `targetType` | string | Type of location, such as City or Country |
+|   ↳ `countryCode` | string | ISO 3166-1 alpha-2 country code |
+|   ↳ `reach` | number | Estimated reach of the location |
+|   ↳ `googleId` | number | Google's ID of the location |
+
+</ReferenceDetails>
+
+
