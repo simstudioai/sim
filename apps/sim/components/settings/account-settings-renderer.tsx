@@ -26,7 +26,7 @@ export function AccountSettingsRenderer({ section }: AccountSettingsRendererProp
   useCaptureWhenReady('settings_tab_viewed', { plane: 'account', section }, section)
 
   if (section === 'general') return <General />
-  if (section === 'billing') return <Billing scope='account' />
+  if (section === 'billing') return <Billing />
   if (section === 'api-keys') return <ApiKeys scope='personal' />
   if (section === 'admin') return <Admin />
   return <Mothership />

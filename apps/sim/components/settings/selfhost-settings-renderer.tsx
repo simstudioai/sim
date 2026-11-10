@@ -20,6 +20,6 @@ export function SelfHostSettingsRenderer({ section }: SelfHostSettingsRendererPr
   useCaptureWhenReady('settings_tab_viewed', { plane: 'selfhost', section }, section)
 
   if (section === 'general') return <General />
-  if (section === 'billing') return <Billing scope='account' />
+  if (section === 'billing') return <Billing />
   return <ChatKeys />
 }

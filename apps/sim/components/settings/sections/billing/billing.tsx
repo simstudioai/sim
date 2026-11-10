@@ -14,7 +14,6 @@ import {
   toast,
 } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
-import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useRouter } from 'next/navigation'
@@ -48,7 +47,6 @@ import {
 } from '@/lib/billing/plan-helpers'
 import { getSubscriptionPermissions } from '@/lib/billing/subscription-permissions'
 import {
-  getEffectiveSeats,
   hasPaidSubscriptionStatus,
   hasUsableSubscriptionAccess,
 } from '@/lib/billing/subscriptions/utils'
@@ -59,8 +57,6 @@ import {
   useBillingUsageNotifications,
   useUpdateGeneralSetting,
 } from '@/hooks/queries/general-settings'
-import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
-import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 import {
   useInvoices,
   useOpenBillingPortal,
@@ -70,44 +66,22 @@ import {
 
 const logger = createLogger('Billing')
 
-interface BillingProps {
-  scope: 'account' | 'organization'
-  organizationId?: string
-  creditUsageHref?: string
-}
-
-export function Billing({ scope, organizationId, creditUsageHref }: BillingProps) {
+/** The signed-in user's personal plan, usage, and invoices. */
+export function Billing() {
   const router = useRouter()
-  const isOrganizationScope = scope === 'organization'
 
   const {
     data: subscriptionData,
-    error: subscriptionError,
-    isFetchedAfterMount: isSubscriptionFetchedAfterMount,
-    isFetching: isSubscriptionFetching,
-    isLoading: isSubscriptionLoading,
+    error: billingError,
+    isFetchedAfterMount,
+    isFetching,
+    isLoading,
     refetch: refetchSubscription,
-  } = useSubscriptionData({
-    includeOrg: false,
-    enabled: !isOrganizationScope,
-  })
-  const billingOrganizationId = isOrganizationScope ? (organizationId ?? null) : null
-  const marketplaceBilling = useAwsMarketplaceBilling(billingOrganizationId)
+  } = useSubscriptionData()
+  const marketplaceBilling = useAwsMarketplaceBilling(null)
   const { billedThroughMarketplace } = marketplaceBilling
 
-  const {
-    data: organizationBillingData,
-    error: organizationBillingError,
-    isFetchedAfterMount: isOrganizationBillingFetchedAfterMount,
-    isFetching: isOrganizationBillingFetching,
-    isLoading: isOrgBillingLoading,
-    refetch: refetchOrganizationBilling,
-  } = useOrganizationBillingSummary(billingOrganizationId || '', {
-    enabled: isOrganizationScope,
-  })
-
   const updateUserLimit = useUpdateUsageLimit()
-  const updateOrgLimit = useUpdateOrganizationUsageLimit()
 
   const billingUsageNotificationsEnabled = useBillingUsageNotifications()
   const updateGeneralSetting = useUpdateGeneralSetting()
@@ -116,27 +90,14 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   const betterAuthSubscription = useSubscription()
   const openBillingPortal = useOpenBillingPortal()
 
-  const organizationBilling = organizationBillingData?.data
-  const upgradeWorkspaceId = isOrganizationScope
-    ? organizationBilling?.upgradeWorkspaceId
-    : subscriptionData?.data?.upgradeWorkspaceId
+  const upgradeWorkspaceId = subscriptionData?.data?.upgradeWorkspaceId
   const upgradeHref = upgradeWorkspaceId ? buildUpgradeHref() : null
   const prefetchUpgrade = () => {
     if (upgradeHref) router.prefetch(upgradeHref)
   }
 
-  const plan = isOrganizationScope
-    ? (organizationBilling?.subscriptionPlan ?? 'free')
-    : (subscriptionData?.data?.plan ?? 'free')
-  const status = isOrganizationScope
-    ? (organizationBilling?.subscriptionStatus ?? 'inactive')
-    : (subscriptionData?.data?.status ?? 'inactive')
-  const isLoading = isOrganizationScope ? isOrgBillingLoading : isSubscriptionLoading
-  const isFetchedAfterMount = isOrganizationScope
-    ? isOrganizationBillingFetchedAfterMount
-    : isSubscriptionFetchedAfterMount
-  const isFetching = isOrganizationScope ? isOrganizationBillingFetching : isSubscriptionFetching
-  const billingError = isOrganizationScope ? organizationBillingError : subscriptionError
+  const plan = subscriptionData?.data?.plan ?? 'free'
+  const status = subscriptionData?.data?.status ?? 'inactive'
 
   const subscription = {
     isFree: isFree(plan),
@@ -144,78 +105,35 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     isTeam: isTeam(plan),
     isEnterprise: isEnterprise(plan),
     isPaid: isPaid(plan) && hasPaidSubscriptionStatus(status),
-    /**
-     * True when the subscription is attached to an org (regardless of plan
-     * name). Drives routing of usage-limit edits and whether we show pooled
-     * or personal usage.
-     */
-    isOrgScoped: isOrganizationScope,
     plan,
     status,
-    seats: isOrganizationScope
-      ? (organizationBilling?.totalSeats ?? 0)
-      : getEffectiveSeats(subscriptionData?.data),
   }
 
   const usage = {
-    current: isOrganizationScope
-      ? (organizationBilling?.totalCurrentUsage ?? 0)
-      : (subscriptionData?.data?.usage?.current ?? 0),
-    limit: isOrganizationScope
-      ? (organizationBilling?.totalUsageLimit ?? 0)
-      : (subscriptionData?.data?.usage?.limit ?? 0),
-    percentUsed: isOrganizationScope
-      ? organizationBilling?.totalUsageLimit
-        ? (organizationBilling.totalCurrentUsage / organizationBilling.totalUsageLimit) * 100
-        : 0
-      : (subscriptionData?.data?.usage?.percentUsed ?? 0),
+    current: subscriptionData?.data?.usage?.current ?? 0,
+    limit: subscriptionData?.data?.usage?.limit ?? 0,
   }
 
-  const isBlocked = isOrganizationScope
-    ? Boolean(organizationBilling?.billingBlocked)
-    : Boolean(subscriptionData?.data?.billingBlocked)
-
-  const userRole = isOrganizationScope ? (organizationBilling?.userRole ?? 'member') : 'owner'
-  const isTeamAdmin = isOrgAdminRole(userRole)
-  const shouldUseOrganizationBillingContext = isOrganizationScope
+  const isBlocked = Boolean(subscriptionData?.data?.billingBlocked)
 
   /**
    * Invoice lookup is safe to start with the payer query: the endpoint returns an empty list
    * when the payer has no Stripe customer. Waiting to derive `isFree` serialized two independent
-   * requests for every paid account and organization.
+   * requests for every paid account.
    */
-  const { data: invoicesData } = useInvoices({
-    context: shouldUseOrganizationBillingContext ? 'organization' : 'user',
-    organizationId: shouldUseOrganizationBillingContext
-      ? (billingOrganizationId ?? undefined)
-      : undefined,
-  })
+  const { data: invoicesData } = useInvoices({ context: 'user' })
 
-  const planIncludedAmount =
-    subscription.isOrgScoped && organizationBilling
-      ? organizationBilling.minimumBillingAmount
-      : getPlanTierCredits(subscription.plan) / CREDIT_MULTIPLIER
-
-  const effectiveUsageLimit =
-    subscription.isOrgScoped && organizationBilling
-      ? organizationBilling.totalUsageLimit
-      : usage.limit
-
-  const effectiveCurrentUsage =
-    subscription.isOrgScoped && organizationBilling?.totalCurrentUsage != null
-      ? organizationBilling.totalCurrentUsage
-      : usage.current
+  const planIncludedAmount = getPlanTierCredits(subscription.plan) / CREDIT_MULTIPLIER
+  const effectiveUsageLimit = usage.limit
+  const effectiveCurrentUsage = usage.current
 
   /**
    * Goodwill credits are already baked into the usage limit by
    * `setUsageLimitForCredits` (limit = planBase + creditBalance). `covered` is
    * that same never-billed ceiling, so on-demand is "on" only when the limit is
    * raised above it — a credit grant alone must not read as on-demand.
-   * Each scope reads its exact payer balance from the matching billing DTO.
    */
-  const creditBalance = isOrganizationScope
-    ? (organizationBilling?.creditBalance ?? 0)
-    : (subscriptionData?.data?.creditBalance ?? 0)
+  const creditBalance = subscriptionData?.data?.creditBalance ?? 0
   const covered = getCoveredUsage(planIncludedAmount, creditBalance)
 
   const isOnDemandActive = getIsOnDemandActive({
@@ -245,18 +163,18 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
       isTeam: subscription.isTeam,
       isEnterprise: subscription.isEnterprise,
       isPaid: subscription.isPaid,
-      isOrgScoped: subscription.isOrgScoped,
-      plan: subscription.plan || 'free',
-      status: subscription.status || 'inactive',
+      isOrgScoped: false,
+      plan: subscription.plan,
+      status: subscription.status,
     },
-    { isTeamAdmin, userRole: userRole || 'member' }
+    { isTeamAdmin: true, userRole: 'owner' }
   )
 
   const hasUsablePaidAccess = subscription.isPaid
     ? hasUsableSubscriptionAccess(subscription.status, isBlocked)
     : false
 
-  const isTogglingOnDemand = updateUserLimit.isPending || updateOrgLimit.isPending
+  const isTogglingOnDemand = updateUserLimit.isPending
 
   const handleToggleOnDemand = async () => {
     if (!permissions.canEditUsageLimit) {
@@ -267,24 +185,10 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     }
 
     try {
-      if (shouldUseOrganizationBillingContext && !billingOrganizationId) {
-        throw new Error(
-          'Organization billing context is unavailable. Please refresh and try again.'
-        )
-      }
-
       const nextLimit = isOnDemandActive
         ? getOnDemandOffLimit(effectiveCurrentUsage, covered)
         : ON_DEMAND_UNLIMITED
-
-      if (shouldUseOrganizationBillingContext) {
-        await updateOrgLimit.mutateAsync({
-          organizationId: billingOrganizationId!,
-          limit: nextLimit,
-        })
-      } else {
-        await updateUserLimit.mutateAsync({ limit: nextLimit })
-      }
+      await updateUserLimit.mutateAsync({ limit: nextLimit })
     } catch (error) {
       logger.error('Failed to toggle on-demand billing', { error })
       toast.error("Couldn't update on-demand usage", {
@@ -300,26 +204,12 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
       })
       return
     }
-    const context = subscription.isOrgScoped ? 'organization' : 'user'
-    if (context === 'organization' && !billingOrganizationId) {
-      toast.error('Billing unavailable', {
-        description: 'Organization billing context is unavailable. Please refresh and try again.',
+    openBillingPortal.open({ context: 'user', returnUrl: window.location.href }, (error) => {
+      logger.error('Failed to open billing portal', { error })
+      toast.error("Couldn't open billing portal", {
+        description: getErrorMessage(error, 'Please try again in a moment.'),
       })
-      return
-    }
-    openBillingPortal.open(
-      {
-        context,
-        organizationId: billingOrganizationId ?? undefined,
-        returnUrl: window.location.href,
-      },
-      (error) => {
-        logger.error('Failed to open billing portal', { error })
-        toast.error("Couldn't open billing portal", {
-          description: getErrorMessage(error, 'Please try again in a moment.'),
-        })
-      }
-    )
+    })
   }
 
   const handleCancelSubscription = async () => {
@@ -331,16 +221,10 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     }
     if (!betterAuthSubscription.cancel) return
     try {
-      if (subscription.isOrgScoped && !billingOrganizationId) {
-        throw new Error(
-          'Organization billing context is unavailable. Please refresh and try again.'
-        )
-      }
-      const referenceId = subscription.isOrgScoped ? billingOrganizationId : session?.user?.id
       const returnUrl = getBaseUrl() + window.location.pathname
       await betterAuthSubscription.cancel({
         returnUrl,
-        referenceId: referenceId || '',
+        referenceId: session?.user?.id || '',
       })
     } catch (error) {
       logger.error('Failed to cancel subscription', { error })
@@ -359,15 +243,8 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     }
     if (!betterAuthSubscription.restore) return
     try {
-      if (subscription.isOrgScoped && !billingOrganizationId) {
-        throw new Error(
-          'Organization billing context is unavailable. Please refresh and try again.'
-        )
-      }
-      const referenceId = subscription.isOrgScoped ? billingOrganizationId : session?.user?.id
-      await betterAuthSubscription.restore({ referenceId: referenceId || '' })
-      if (isOrganizationScope) await refetchOrganizationBilling()
-      else await refetchSubscription()
+      await betterAuthSubscription.restore({ referenceId: session?.user?.id || '' })
+      await refetchSubscription()
     } catch (error) {
       logger.error('Failed to restore subscription', { error })
       toast.error("Couldn't restore subscription", {
@@ -377,55 +254,35 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   }
 
   if (isLoading && !isFetchedAfterMount) return null
-  if (isOrganizationScope ? !organizationBilling : !subscriptionData?.data) {
+  if (!subscriptionData?.data) {
     return (
       <SettingsPanel>
         <SettingsQueryErrorState
           error={billingError}
           fallback='Failed to load billing information'
           isRetrying={isFetching}
-          onRetry={() => {
-            if (isOrganizationScope) void refetchOrganizationBilling()
-            else void refetchSubscription()
-          }}
+          onRetry={() => void refetchSubscription()}
         />
       </SettingsPanel>
     )
   }
 
   const planName = getDisplayPlanName(subscription.plan)
-  const billingInterval = isOrganizationScope
-    ? organizationBilling?.billingInterval
-    : subscriptionData?.data?.billingInterval
-  const billingPeriod = billingInterval === 'year' ? 'billed annually' : 'billed monthly'
-  const organizationSubscriptionState = organizationBilling?.subscriptionState
-  const planTitle = isOrganizationScope
-    ? organizationSubscriptionState === 'lapsed'
-      ? `Organization ${planName} plan ended`
-      : `Organization ${planName} plan`
-    : `Personal ${planName} plan`
+  const billingPeriod =
+    subscriptionData.data.billingInterval === 'year' ? 'billed annually' : 'billed monthly'
+  const planTitle = `Personal ${planName} plan`
   const priceText = billedThroughMarketplace
     ? subscription.isFree
       ? 'AWS Marketplace setup in progress'
       : 'Billed through AWS Marketplace'
-    : organizationSubscriptionState === 'free'
-      ? 'No active organization subscription'
-      : organizationSubscriptionState === 'lapsed'
-        ? 'Choose a new plan for this organization'
-        : subscription.isEnterprise
-          ? 'Custom pricing'
-          : `$${getPlanTierDollars(subscription.plan)} per user/month, ${billingPeriod}`
+    : subscription.isEnterprise
+      ? 'Custom pricing'
+      : `$${getPlanTierDollars(subscription.plan)} per user/month, ${billingPeriod}`
 
-  const periodEnd = isOrganizationScope
-    ? (organizationBilling?.billingPeriodEnd ?? null)
-    : (subscriptionData?.data?.periodEnd ?? null)
-  const isCancelledAtPeriodEnd = isOrganizationScope
-    ? organizationBilling?.cancelAtPeriodEnd === true
-    : subscriptionData?.data?.cancelAtPeriodEnd === true
+  const periodEnd = subscriptionData.data.periodEnd ?? null
+  const isCancelledAtPeriodEnd = subscriptionData.data.cancelAtPeriodEnd === true
 
-  const weeklyRefreshDollars =
-    getPlanWeeklyRefreshDollars(subscription.plan) *
-    (isOrganizationScope ? subscription.seats || 1 : 1)
+  const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(subscription.plan)
 
   const invoices = (invoicesData?.invoices ?? []).map((invoice) => ({
     id: invoice.id,
@@ -441,18 +298,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   const showUsageLimit = subscription.isPaid && !subscription.isEnterprise
   const showOnDemand = hasUsablePaidAccess && !subscription.isEnterprise
 
-  const usageLimitCurrent =
-    subscription.isOrgScoped && organizationBilling
-      ? organizationBilling.totalUsageLimit
-      : usage.limit
-
-  const usageLimitMinimum =
-    subscription.isOrgScoped && organizationBilling
-      ? organizationBilling.minimumBillingAmount
-      : getPlanTierDollars(subscription.plan)
-  const explorePlansLabel = isOrganizationScope
-    ? 'Explore organization plans'
-    : 'Explore personal plans'
+  const explorePlansLabel = 'Explore personal plans'
 
   return (
     <SettingsPanel>
@@ -489,13 +335,10 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
 
       {showUsageLimit && (
         <UsageLimitField
-          currentLimit={usageLimitCurrent}
-          minimumLimit={usageLimitMinimum}
+          currentLimit={usage.limit}
+          minimumLimit={getPlanTierDollars(subscription.plan)}
           canEdit={permissions.canEditUsageLimit}
-          context={shouldUseOrganizationBillingContext ? 'organization' : 'user'}
-          organizationId={
-            shouldUseOrganizationBillingContext ? (billingOrganizationId ?? undefined) : undefined
-          }
+          context='user'
         />
       )}
 
@@ -535,7 +378,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
         </SettingsSection>
       )}
 
-      {!isOrganizationScope && !subscription.isFree && !subscription.isEnterprise && (
+      {!subscription.isFree && !subscription.isEnterprise && (
         <SettingsSection label='Usage notifications'>
           <div className='flex items-center justify-between'>
             <Label htmlFor='usage-notifications'>Email me when I reach 80% usage</Label>
@@ -617,13 +460,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
         </SettingsSection>
       )}
 
-      <AwsMarketplaceSubscriptionSection organizationId={billingOrganizationId} />
-      {isOrganizationScope && (
-        <AwsMarketplaceSubscriptionSection
-          organizationId={null}
-          label='AWS Marketplace subscription on your account'
-        />
-      )}
+      <AwsMarketplaceSubscriptionSection organizationId={null} />
 
       {!subscription.isFree && invoices.length > 0 && (
         <SettingsSection label='Invoices'>
@@ -682,9 +519,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
         </SettingsSection>
       )}
 
-      {!isOrganizationScope && !subscription.isEnterprise && (
-        <CreditUsageSection href={creditUsageHref} />
-      )}
+      {!subscription.isEnterprise && <CreditUsageSection />}
     </SettingsPanel>
   )
 }
