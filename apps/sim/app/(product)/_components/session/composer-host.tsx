@@ -8,6 +8,7 @@ import {
   type SetStateAction,
   useContext,
   useLayoutEffect,
+  useMemo,
   useState,
 } from 'react'
 import { generateId } from '@sim/utils/id'
@@ -162,9 +163,10 @@ interface ComposerSessionProps {
 export function ComposerSession({ children }: ComposerSessionProps) {
   const host = useContext(HostContext) ?? MEMORY_HOST
   const [target, request] = useState<string | null>(null)
+  const focus = useMemo(() => ({ target, request }), [target])
   return (
     <HostContext.Provider value={host}>
-      <FocusContext.Provider value={{ target, request }}>{children}</FocusContext.Provider>
+      <FocusContext.Provider value={focus}>{children}</FocusContext.Provider>
     </HostContext.Provider>
   )
 }
