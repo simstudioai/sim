@@ -3737,6 +3737,51 @@ describe('Internal Route Trust', () => {
       }
     )
 
+    it('aborts Cortex Analyst’s generated SQL when the run is cancelled', async () => {
+      ;(tools as Record<string, unknown>)[snowflakeCortexAnalystAskTool.id] =
+        snowflakeCortexAnalystAskTool
+      const controller = new AbortController()
+      let statementSignal: AbortSignal | undefined
+      try {
+        mockResolveExecutorCredentialToken.mockResolvedValue({
+          credentialType: 'service_account',
+          domain: CREDENTIAL_HOST,
+          accessToken: 'pat-secret',
+        })
+        mockSecureFetchWithPinnedIP
+          .mockResolvedValueOnce(
+            toSecureFetchResponse(
+              Response.json({
+                message: { role: 'analyst', content: [{ type: 'sql', statement: 'SELECT 1' }] },
+              })
+            )
+          )
+          .mockImplementationOnce(
+            async (_url: string, _ip: string, init: { signal?: AbortSignal }) => {
+              statementSignal = init.signal
+              controller.abort(new Error('run cancelled'))
+              throw new Error('aborted')
+            }
+          )
+
+        const result = await executeTool(
+          snowflakeCortexAnalystAskTool.id,
+          {
+            oauthCredential: 'snowflake-credential',
+            question: 'How many?',
+            semanticView: 'DB.SCHEMA.VIEW',
+            executeSql: true,
+          },
+          { signal: controller.signal }
+        )
+
+        expect(statementSignal?.aborted).toBe(true)
+        expect(result.success).toBe(false)
+      } finally {
+        Reflect.deleteProperty(tools, snowflakeCortexAnalystAskTool.id)
+      }
+    })
+
     it('sends a keyless credential’s token through workload identity federation', async () => {
       const { headers } = await snowflakeRequestHeaders(
         { accessToken: 'signed-jwt', authStyle: 'snowflake-workload-identity' },
@@ -4520,7 +4565,8 @@ describe('Internal Route Trust', () => {
       expect(postProcess).toHaveBeenCalledWith(
         expect.any(Object),
         expect.objectContaining({ prompt: 'direct-secret', apiKey: 'direct-secret' }),
-        expect.any(Function)
+        expect.any(Function),
+        expect.any(Object)
       )
       expect(params).toEqual(originalParams)
     } finally {

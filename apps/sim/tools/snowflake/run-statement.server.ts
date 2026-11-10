@@ -22,7 +22,8 @@ import {
 export async function runSnowflakeStatement(
   params: SnowflakeResultParams,
   statement: string,
-  context: { database?: string; schema?: string }
+  context: { database?: string; schema?: string },
+  signal?: AbortSignal
 ): Promise<SnowflakeStatementOutput> {
   const url = `${getSnowflakeBaseUrl(params)}/api/v2/statements`
   const body = buildSnowflakeStatementBody(
@@ -30,7 +31,7 @@ export async function runSnowflakeStatement(
     { statement },
     { context, warehouse: params.warehouse, maxRows: params.maxRows }
   )
-  const validation = await validateUrlWithDNS(url, 'snowflakeUrl', 'requestTarget')
+  const validation = await validateUrlWithDNS(url, 'snowflakeUrl', 'requestTarget', { signal })
   if (!validation.isValid) {
     throw new Error(`Invalid Snowflake URL: ${validation.error ?? 'DNS resolution failed'}`)
   }
@@ -41,12 +42,14 @@ export async function runSnowflakeStatement(
     body: JSON.stringify(body),
     maxRedirects: 0,
     maxResponseBytes: SNOWFLAKE_MAX_RESPONSE_BYTES,
+    signal,
   })
   return readSnowflakeResult(
     new Response(response.body, {
       status: response.status,
       statusText: response.statusText,
       headers: response.headers.toRecord(),
-    })
+    }),
+    { signal }
   )
 }

@@ -143,7 +143,7 @@ export const cortexAnalystAskTool: ToolConfig<
       ),
     }
   },
-  postProcess: async (result, params) => {
+  postProcess: async (result, params, _executeTool, context) => {
     const { sql } = result.output
     if (!sql || !shouldExecuteSql(params.executeSql)) return result
 
@@ -159,7 +159,8 @@ export const cortexAnalystAskTool: ToolConfig<
       const execution = await runSnowflakeStatement(
         params,
         sql,
-        cortexAnalystSqlContext(params, result.output.semanticModelSelection?.index)
+        cortexAnalystSqlContext(params, result.output.semanticModelSelection?.index),
+        context?.signal
       )
       return { ...result, output: { ...result.output, execution } }
     } catch (error) {
