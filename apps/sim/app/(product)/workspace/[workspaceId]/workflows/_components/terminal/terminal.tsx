@@ -128,7 +128,6 @@ export function Terminal() {
   const setOutputPanelWidth = useTerminalStore((state) => state.setOutputPanelWidth)
   const openOnRun = useTerminalStore((state) => state.openOnRun)
   const setOpenOnRun = useTerminalStore((state) => state.setOpenOnRun)
-  const setHasHydrated = useTerminalStore((state) => state.setHasHydrated)
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const hasConsoleHydrated = useTerminalConsoleStore((state) => state._hasHydrated)
   const clearWorkflowConsole = useTerminalConsoleStore((state) => state.clearWorkflowConsole)
@@ -181,15 +180,17 @@ export function Terminal() {
     if (!input) return false
     return typeof input === 'object' ? Object.keys(input).length > 0 : true
   }, [selectedEntry])
+  /** The input view needs input to show; an entry without any shows its output. */
+  const effectiveShowInput = showInput && hasInputData
 
   const selectedEntryRef = useRef(selectedEntry)
   const navigableEntriesRef = useRef(navigableEntries)
-  const showInputRef = useRef(showInput)
+  const showInputRef = useRef(effectiveShowInput)
   const hasInputDataRef = useRef(hasInputData)
   const isExpandedRef = useRef(isExpanded)
   selectedEntryRef.current = selectedEntry
   navigableEntriesRef.current = navigableEntries
-  showInputRef.current = showInput
+  showInputRef.current = effectiveShowInput
   hasInputDataRef.current = hasInputData
   isExpandedRef.current = isExpanded
 
@@ -327,18 +328,6 @@ export function Terminal() {
       overrides: { allowInEditable: false },
     }),
   ])
-
-  useEffect(() => {
-    setHasHydrated(true)
-  }, [setHasHydrated])
-
-  useEffect(() => {
-    if (!selectedEntry) {
-      setShowInput(false)
-      return
-    }
-    if (showInput && !hasInputData) setShowInput(false)
-  }, [selectedEntry, showInput, hasInputData])
 
   // Until the reader picks a row, the newest run's last block stays selected.
   useEffect(() => {
@@ -632,7 +621,7 @@ export function Terminal() {
             selectedEntry={selectedEntry}
             isExpanded={isExpanded}
             isMobile={isMobile}
-            showInput={showInput}
+            showInput={effectiveShowInput}
             hasInputData={hasInputData}
             hasEntries={filteredEntries.length > 0}
             terminalActions={terminalActions}

@@ -13,6 +13,4 @@ export interface TerminalState {
   setWrapText: (wrap: boolean) => void
   structuredView: boolean
   setStructuredView: (structured: boolean) => void
-  _hasHydrated: boolean
-  setHasHydrated: (hasHydrated: boolean) => void
 }
