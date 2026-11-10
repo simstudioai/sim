@@ -22,6 +22,43 @@ export function groupResultsByDocument(
   return grouped
 }
 
+const KNOWLEDGE_DOCUMENT_PATH = /^\/(?:o|workspace)\/[^/]+\/knowledge\/([^/]+)\/([^/]+)\/?$/
+
+/** Where Sim shows a knowledge document with no source link of its own. */
+function knowledgeDocumentUrl(
+  scope: ResourceScope,
+  knowledgeBaseId: string,
+  documentId: string
+): string {
+  const owner =
+    scope.kind === 'organization'
+      ? `/o/${encodeURIComponent(scope.organizationId)}`
+      : `/workspace/${encodeURIComponent(scope.workspaceId)}`
+  return `${getBaseUrl()}${owner}/knowledge/${encodeURIComponent(knowledgeBaseId)}/${encodeURIComponent(documentId)}`
+}
+
+/**
+ * The knowledge document a cited Sim link names, as {@link toSource} builds one, or `null` for any
+ * other link. A saved answer keeps citing a document after it is deleted (a personal index removed
+ * when its owner joined a team, say), so a reader can check the document before linking to it.
+ */
+export function knowledgeDocumentLink(
+  url: string
+): { knowledgeBaseId: string; documentId: string } | null {
+  try {
+    const link = new URL(url)
+    if (link.origin !== new URL(getBaseUrl()).origin) return null
+    const match = KNOWLEDGE_DOCUMENT_PATH.exec(link.pathname)
+    if (!match) return null
+    return {
+      knowledgeBaseId: decodeURIComponent(match[1]),
+      documentId: decodeURIComponent(match[2]),
+    }
+  } catch {
+    return null
+  }
+}
+
 /**
  * A result as the source card renders it: the row's second line names the
  * source app, or the knowledge base for an upload. Without an HTTP(S) source
@@ -35,7 +72,7 @@ export function toSource(
   return {
     url: isHttpUrl(result.sourceUrl)
       ? result.sourceUrl
-      : `${getBaseUrl()}${scope.kind === 'organization' ? `/o/${encodeURIComponent(scope.organizationId)}` : `/workspace/${encodeURIComponent(scope.workspaceId)}`}/knowledge/${encodeURIComponent(result.knowledgeBaseId)}/${encodeURIComponent(result.documentId)}`,
+      : knowledgeDocumentUrl(scope, result.knowledgeBaseId, result.documentId),
     title: result.documentName ?? undefined,
     siteName: result.connectorType
       ? connectorDisplayName(result.connectorType)

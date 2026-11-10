@@ -5,6 +5,7 @@ import { ActivityBody } from '@sim/emcn/activity-row/activity-body'
 import { useClipboard } from '@sim/emcn/feedback/use-clipboard'
 import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { OverflowText } from '@sim/emcn/overflow-text'
+import { StatusText } from '@sim/emcn/status'
 import { toast } from '@/lib/toast/sink'
 import styles from '@/app/(product)/_components/source-row/source-row.module.css'
 import { onExternalLinkClick } from '@/platform/lib/data/external-link'
@@ -16,6 +17,8 @@ export interface SourceRowData {
   title: string
   meta?: string
   snippet?: string
+  /** The document no longer opens for this reader, as when it was deleted after it was cited. */
+  unavailable?: boolean
 }
 
 export interface SourceActionsProps {
@@ -65,20 +68,27 @@ export function SourceRow({ row, onOpen, onSummarize, onLeave }: SourceRowProps)
   return (
     <article className={styles.row}>
       <ActivityBody>
-        <a
-          className={styles.title}
-          data-type='T048'
-          data-source-link=''
-          href={row.url}
-          target='_blank'
-          rel='noopener noreferrer'
-          onClick={(event) => {
-            onOpen?.(row)
-            onExternalLinkClick(event, row.url)
-          }}
-        >
-          <OverflowText text={row.title}>{row.title}</OverflowText>
-        </a>
+        {row.unavailable ? (
+          <span className={styles.unavailable} data-type='T048'>
+            <OverflowText text={row.title}>{row.title}</OverflowText>
+          </span>
+        ) : (
+          <a
+            className={styles.title}
+            data-type='T048'
+            data-source-link=''
+            href={row.url}
+            target='_blank'
+            rel='noopener noreferrer'
+            onClick={(event) => {
+              onOpen?.(row)
+              onExternalLinkClick(event, row.url)
+            }}
+          >
+            <OverflowText text={row.title}>{row.title}</OverflowText>
+          </a>
+        )}
+        {row.unavailable && <StatusText label='Unavailable' />}
         {row.meta && (
           <span className={styles.quiet} data-type='T052'>
             {row.meta}
@@ -90,23 +100,25 @@ export function SourceRow({ row, onOpen, onSummarize, onLeave }: SourceRowProps)
           </span>
         )}
       </ActivityBody>
-      <Actions
-        row={row}
-        onLeave={onLeave}
-        actions={[
-          ...(onSummarize
-            ? [{ id: 'summarize', label: 'Summarize', onSelect: () => onSummarize(row) }]
-            : []),
-          {
-            id: 'copy',
-            label: 'Copy link',
-            onSelect: () =>
-              void copy(row.url).then((copied) => {
-                if (!copied) toast.error('Unable to copy link')
-              }),
-          },
-        ]}
-      />
+      {!row.unavailable && (
+        <Actions
+          row={row}
+          onLeave={onLeave}
+          actions={[
+            ...(onSummarize
+              ? [{ id: 'summarize', label: 'Summarize', onSelect: () => onSummarize(row) }]
+              : []),
+            {
+              id: 'copy',
+              label: 'Copy link',
+              onSelect: () =>
+                void copy(row.url).then((copied) => {
+                  if (!copied) toast.error('Unable to copy link')
+                }),
+            },
+          ]}
+        />
+      )}
     </article>
   )
 }

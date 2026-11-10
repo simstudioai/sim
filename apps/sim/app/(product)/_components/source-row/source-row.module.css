@@ -11,6 +11,10 @@
 .title:hover {
   text-decoration: underline;
 }
+.unavailable {
+  min-inline-size: 0;
+  color: var(--ui-secondary);
+}
 .quiet,
 .snippet {
   color: var(--ui-secondary);
