@@ -25,6 +25,7 @@
     "azure_data_explorer",
     "azure_devops",
     "bitbucket",
+    "bitbucket-service-account",
     "box",
     "box-service-account",
     "brandfetch",

@@ -116,7 +116,7 @@ const PROVIDER_FETCH_TIMEOUT_MS = 10_000
  */
 export function isHostNotFound(error: unknown): boolean {
   const failure = error as { code?: unknown; cause?: { code?: unknown } } | undefined
-  return (failure?.code ?? failure?.cause?.code) === 'ENOTFOUND'
+  return failure?.code === 'ENOTFOUND' || failure?.cause?.code === 'ENOTFOUND'
 }
 
 export async function fetchProvider(

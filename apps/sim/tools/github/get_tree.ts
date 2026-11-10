@@ -1,4 +1,5 @@
 import type { GetTreeParams, TreeResponse } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getTreeTool: ToolConfig<GetTreeParams, TreeResponse> = {
@@ -7,6 +8,7 @@ export const getTreeTool: ToolConfig<GetTreeParams, TreeResponse> = {
   description:
     'Get the contents of a directory in a GitHub repository. Returns a list of files and subdirectories. Use empty path or omit to get root directory contents.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -168,6 +170,7 @@ export const getTreeV2Tool: ToolConfig<GetTreeParams, any> = {
   name: getTreeTool.name,
   description: getTreeTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getTreeTool.params,
   request: getTreeTool.request,
 

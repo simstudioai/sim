@@ -92,6 +92,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/aws-credentials.mdx',
   'integrations/azure_data_explorer.mdx',
   'integrations/azure_devops.mdx',
+  'integrations/bitbucket-service-account.mdx',
   'integrations/bitbucket.mdx',
   'integrations/box-service-account.mdx',
   'integrations/box.mdx',

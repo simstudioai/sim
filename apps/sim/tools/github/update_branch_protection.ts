@@ -1,5 +1,6 @@
 import type { BranchProtectionResponse, UpdateBranchProtectionParams } from '@/tools/github/types'
 import { BRANCH_PROTECTION_OUTPUT_PROPERTIES } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 /**
@@ -75,6 +76,7 @@ export const updateBranchProtectionTool: ToolConfig<
   description:
     'Update branch protection rules for a specific branch, including status checks, review requirements, admin enforcement, and push restrictions.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {

@@ -18,6 +18,7 @@ import {
 } from '@/lib/credentials/token-service-accounts/validators/http'
 import { buildJupyterAuthHeaders, normalizeJupyterServerUrl } from '@/lib/internal/jupyter/protocol'
 import { ashbyAuthHeaders } from '@/tools/ashby/utils'
+import { BITBUCKET_API_BASE, bitbucketHeaders } from '@/tools/bitbucket/utils'
 import { checkrHeaders } from '@/tools/checkr/utils'
 import { convexApiUrl, convexAuthHeaders } from '@/tools/convex/utils'
 import { buildDynatraceUrl, dynatraceHeaders } from '@/tools/dynatrace/utils'
@@ -575,6 +576,70 @@ export const validateGammaServiceAccount = tokenCheckValidator({
     url: 'https://public-api.gamma.app/v1.0/themes?limit=1',
     headers: { 'X-API-KEY': apiToken, Accept: 'application/json' },
   }),
+})
+
+/**
+ * GitHub's authenticated-user endpoint is available to fine-grained and classic personal
+ * access tokens alike (fine-grained tokens need no permission for it): 200 with the token
+ * owner for a valid token, 401 for a bad one, and 403 for a token that cannot act as a user
+ * (a GitHub App installation token). Sent with the same host, scheme, and headers as the
+ * GitHub tools; Enterprise Server hosts are deliberately not offered.
+ * https://docs.github.com/en/rest/authentication/endpoints-available-for-fine-grained-personal-access-tokens
+ */
+export const validateGitHubServiceAccount = tokenCheckValidator({
+  serviceLabel: 'GitHub',
+  request: ({ apiToken }) => ({
+    url: 'https://api.github.com/user',
+    headers: {
+      Authorization: `Bearer ${apiToken}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'Sim',
+    },
+  }),
+  acceptsBody: (body) => {
+    const { login } = toRecord(body)
+    if (typeof login !== 'string' || !login.trim()) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'GitHub returned an unexpected user lookup',
+      })
+    }
+    return { displayName: `${login.trim()} (GitHub)` }
+  },
+})
+
+/** Bitbucket workspace slugs: letters, digits, hyphens, and underscores. */
+const BITBUCKET_WORKSPACE_SLUG = /^[A-Za-z0-9][A-Za-z0-9_-]{0,254}$/
+
+/**
+ * Bitbucket access tokens belong to a workspace, project, or repository rather than a user,
+ * so the user endpoints refuse them. Listing one repository of the token's workspace works
+ * for all three kinds with the `repository` scope the tools need: 200 with a page of
+ * repositories, 401 for a bad token, 403 for a token without that scope, and 404 for a
+ * workspace that does not exist.
+ * https://developer.atlassian.com/cloud/bitbucket/rest/intro/#access-tokens
+ */
+export const validateBitbucketServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Bitbucket',
+  workspaceId: ({ providerWorkspaceId }) => {
+    const workspace = (providerWorkspaceId ?? '').trim()
+    if (!BITBUCKET_WORKSPACE_SLUG.test(workspace)) throw new Error('invalid workspace slug')
+    return workspace
+  },
+  request: ({ apiToken, providerWorkspaceId = '' }) => ({
+    url: `${BITBUCKET_API_BASE}/repositories/${providerWorkspaceId}?pagelen=1`,
+    headers: bitbucketHeaders(apiToken),
+  }),
+  acceptsBody: (body) => {
+    if (!Array.isArray(toRecord(body).values)) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'Bitbucket returned an unexpected repository page',
+      })
+    }
+    return true
+  },
 })
 
 /** Scopes that let the GitLab tools call the REST API. */

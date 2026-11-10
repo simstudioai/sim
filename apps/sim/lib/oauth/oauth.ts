@@ -1006,6 +1006,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Bitbucket',
         description: 'Read repositories, collaborate on pull requests, and manage pipelines.',
         providerId: 'bitbucket',
+        serviceAccountProviderId: 'bitbucket-service-account',
         icon: BitbucketIcon,
         baseProviderIcon: BitbucketIcon,
         scopes: [
@@ -3085,6 +3086,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'whatsapp',
+  },
+  github: {
+    name: 'GitHub',
+    icon: GithubIcon,
+    services: {
+      github: {
+        name: 'GitHub',
+        description:
+          'Manage GitHub repositories, issues, pull requests, workflows, releases, and gists.',
+        providerId: 'github',
+        serviceAccountProviderId: 'github-service-account',
+        icon: GithubIcon,
+        baseProviderIcon: GithubIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'github',
   },
   gitlab: {
     name: 'GitLab',

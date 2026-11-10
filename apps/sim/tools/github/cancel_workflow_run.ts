@@ -1,4 +1,5 @@
 import type { CancelWorkflowRunParams, CancelWorkflowRunResponse } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const cancelWorkflowRunTool: ToolConfig<CancelWorkflowRunParams, CancelWorkflowRunResponse> =
@@ -8,6 +9,7 @@ export const cancelWorkflowRunTool: ToolConfig<CancelWorkflowRunParams, CancelWo
     description:
       'Cancel a workflow run. Returns 202 Accepted if cancellation is initiated, or 409 Conflict if the run cannot be cancelled (already completed).',
     version: '1.0.0',
+    oauth: GITHUB_CREDENTIAL_OAUTH,
 
     params: {
       owner: {

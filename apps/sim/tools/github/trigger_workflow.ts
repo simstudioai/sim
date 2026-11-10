@@ -1,4 +1,5 @@
 import type { TriggerWorkflowParams, TriggerWorkflowResponse } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const triggerWorkflowTool: ToolConfig<TriggerWorkflowParams, TriggerWorkflowResponse> = {
@@ -7,6 +8,7 @@ export const triggerWorkflowTool: ToolConfig<TriggerWorkflowParams, TriggerWorkf
   description:
     'Trigger a workflow dispatch event for a GitHub Actions workflow. The workflow must have a workflow_dispatch trigger configured. Returns 204 No Content on success.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {

@@ -4,6 +4,7 @@ import {
   RELEASE_OUTPUT_PROPERTIES,
   USER_OUTPUT,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listReleasesTool: ToolConfig<ListReleasesParams, ListReleasesResponse> = {
@@ -12,6 +13,7 @@ export const listReleasesTool: ToolConfig<ListReleasesParams, ListReleasesRespon
   description:
     'List all releases for a GitHub repository. Returns release information including tags, names, and download URLs.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -146,6 +148,7 @@ export const listReleasesV2Tool: ToolConfig<ListReleasesParams, any> = {
   name: listReleasesTool.name,
   description: listReleasesTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listReleasesTool.params,
   request: listReleasesTool.request,
 

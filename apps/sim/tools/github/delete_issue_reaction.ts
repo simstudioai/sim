@@ -1,3 +1,4 @@
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface DeleteIssueReactionParams {
@@ -27,6 +28,7 @@ export const deleteIssueReactionTool: ToolConfig<
   name: 'GitHub Delete Issue Reaction',
   description: 'Remove a reaction from an issue',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -107,6 +109,7 @@ export const deleteIssueReactionV2Tool: ToolConfig<DeleteIssueReactionParams, an
   name: deleteIssueReactionTool.name,
   description: deleteIssueReactionTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: deleteIssueReactionTool.params,
   request: deleteIssueReactionTool.request,
 

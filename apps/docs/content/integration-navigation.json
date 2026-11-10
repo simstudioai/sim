@@ -18,6 +18,10 @@
     "aws-credentials": {
       "title": "AWS credentials"
     },
+    "bitbucket-service-account": {
+      "integration": "bitbucket",
+      "title": "Access tokens"
+    },
     "box-service-account": {
       "integration": "box",
       "title": "Service accounts"

@@ -4,6 +4,7 @@ import {
   type LatestCommitResponse,
   USER_FULL_OUTPUT,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const latestCommitTool: InternalToolConfig<LatestCommitParams, LatestCommitResponse> = {
@@ -11,6 +12,7 @@ export const latestCommitTool: InternalToolConfig<LatestCommitParams, LatestComm
   name: 'GitHub Latest Commit',
   description: 'Retrieve the latest commit from a GitHub repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {

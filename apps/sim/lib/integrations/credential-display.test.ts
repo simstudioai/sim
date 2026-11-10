@@ -41,7 +41,9 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   'clickup-service-account': ['clickup'],
   'coda-service-account': ['coda'],
   'fivetran-service-account': ['fivetran'],
+  'bitbucket-service-account': ['bitbucket'],
   'github-app-installation': ['github'],
+  'github-service-account': ['github'],
   'google-service-account': [
     'gmail',
     'google-bigquery',
@@ -99,19 +101,21 @@ const REGISTERED_SERVICE_ACCOUNT_IDS = [
 
 describe('GitHub Search credentials', () => {
   it('applies GitHub integration policy without changing workflow token authentication', () => {
-    expect(getIntegrationTypesForOAuthServiceId('github-repositories')).toEqual(['github_v2'])
-    expect(getIntegrationTypesForOAuthServiceId('GITHUB-REPOSITORIES')).toEqual(['github_v2'])
+    expect(getIntegrationTypesForOAuthServiceId('github-repositories')).toEqual(['github_v3'])
+    expect(getIntegrationTypesForOAuthServiceId('GITHUB-REPOSITORIES')).toEqual(['github_v3'])
     expect(isOAuthServiceAllowedByIntegrationTypes('github-repositories', new Set(['slack']))).toBe(
       false
     )
     expect(
-      isOAuthServiceAllowedByIntegrationTypes('github-repositories', new Set(['github_v2']))
+      isOAuthServiceAllowedByIntegrationTypes('github-repositories', new Set(['github_v3']))
     ).toBe(true)
     expect(isOAuthServiceAllowedByIntegrationTypes('github-repositories', null)).toBe(true)
     expect(getIntegrationsForCredentialProvider('github-repositories')).toEqual([
-      expect.objectContaining({ slug: 'github', type: 'github_v2', authType: 'api-key' }),
+      expect.objectContaining({ slug: 'github', type: 'github_v3', authType: 'oauth' }),
     ])
-    expect(getIntegrationsForCredentialProvider('github')).toEqual([])
+    expect(getIntegrationsForCredentialProvider('github-service-account')).toEqual([
+      expect.objectContaining({ slug: 'github', type: 'github_v3' }),
+    ])
   })
 })
 
@@ -134,6 +138,9 @@ describe('service-account coverage', () => {
    */
   it('agrees with the predicate the Connected list actually filters on', () => {
     for (const providerId of REGISTERED_SERVICE_ACCOUNT_IDS) {
+      // GitHub App installations authorize Search, not workflows: they carry GitHub's
+      // brand and policy but are managed from Search, never the block's Connected list.
+      if (providerId === 'github-app-installation') continue
       const covered = new Set(getIntegrationsForCredentialProvider(providerId).map((i) => i.slug))
 
       for (const integration of INTEGRATIONS) {

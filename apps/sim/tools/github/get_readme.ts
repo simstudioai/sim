@@ -1,4 +1,5 @@
 import type { GetReadmeParams, ReadmeResponse } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getReadmeTool: ToolConfig<GetReadmeParams, ReadmeResponse> = {
@@ -7,6 +8,7 @@ export const getReadmeTool: ToolConfig<GetReadmeParams, ReadmeResponse> = {
   description:
     'Get the preferred README for a GitHub repository, with its content decoded to plain text.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -117,6 +119,7 @@ export const getReadmeV2Tool: ToolConfig<GetReadmeParams, any> = {
   name: getReadmeTool.name,
   description: getReadmeTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getReadmeTool.params,
   request: getReadmeTool.request,
 

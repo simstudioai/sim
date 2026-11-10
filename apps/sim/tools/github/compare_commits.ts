@@ -3,6 +3,7 @@ import {
   COMMIT_FILE_OUTPUT_PROPERTIES,
   USER_FULL_OUTPUT,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface CompareCommitsParams {
@@ -52,6 +53,7 @@ export const compareCommitsTool: ToolConfig<CompareCommitsParams, CompareCommits
   description:
     'Compare two commits or branches to see the diff, commits between them, and changed files',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -230,6 +232,7 @@ export const compareCommitsV2Tool: ToolConfig<CompareCommitsParams, any> = {
   name: compareCommitsTool.name,
   description: compareCommitsTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: compareCommitsTool.params,
   request: compareCommitsTool.request,
 

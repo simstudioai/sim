@@ -104,7 +104,7 @@ describe('resolveServiceAccountIntegration', () => {
   it.concurrent('returns null rather than inventing a link for unsupported input', () => {
     // The handler turns null into "use oauth_get_auth_link instead"; a wrong
     // match here would send the user to a modal that cannot take their key.
-    expect(resolveServiceAccountIntegration('github')).toBeNull()
+    expect(resolveServiceAccountIntegration('spotify')).toBeNull()
     expect(resolveServiceAccountIntegration('dropbox')).toBeNull()
     expect(resolveServiceAccountIntegration('')).toBeNull()
     expect(resolveServiceAccountIntegration('   ')).toBeNull()

@@ -1,5 +1,6 @@
 import type { BranchProtectionResponse, GetBranchProtectionParams } from '@/tools/github/types'
 import { BRANCH_PROTECTION_OUTPUT_PROPERTIES } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getBranchProtectionTool: ToolConfig<
@@ -11,6 +12,7 @@ export const getBranchProtectionTool: ToolConfig<
   description:
     'Get the branch protection rules for a specific branch, including status checks, review requirements, and restrictions.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -188,6 +190,7 @@ export const getBranchProtectionV2Tool: ToolConfig<GetBranchProtectionParams, an
   name: getBranchProtectionTool.name,
   description: getBranchProtectionTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getBranchProtectionTool.params,
   request: getBranchProtectionTool.request,
 

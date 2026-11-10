@@ -1,4 +1,5 @@
 import type { JobLogsParams, JobLogsResponse } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const DEFAULT_MAX_CHARACTERS = 20_000
@@ -88,6 +89,7 @@ export const jobLogsTool: ToolConfig<JobLogsParams, JobLogsResponse> = {
   description:
     "Read the tail of a GitHub Actions job log. Takes the job id, which is a check run's databaseId for an Actions check.",
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {

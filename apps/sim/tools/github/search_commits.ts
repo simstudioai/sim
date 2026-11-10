@@ -1,3 +1,4 @@
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface SearchCommitsParams {
@@ -38,6 +39,7 @@ export const searchCommitsTool: ToolConfig<SearchCommitsParams, SearchCommitsRes
   description:
     'Search for commits across GitHub. Use qualifiers like repo:owner/name, author:user, committer:user, author-date:>2023-01-01',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     q: {
@@ -183,6 +185,7 @@ export const searchCommitsV2Tool: ToolConfig<SearchCommitsParams, any> = {
   name: searchCommitsTool.name,
   description: searchCommitsTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: searchCommitsTool.params,
   request: searchCommitsTool.request,
 
