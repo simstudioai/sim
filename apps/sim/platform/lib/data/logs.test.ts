@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveLogWorkflowId } from '@/components/logs/utils'
+import { resolveLogWorkflowId } from '@/platform/lib/data/logs'
 
 describe('resolveLogWorkflowId', () => {
   it('returns null for Sim agent jobs even when a workflow id exists', () => {

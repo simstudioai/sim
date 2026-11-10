@@ -24,13 +24,13 @@ import {
   SidePanelSection,
 } from '@/app/(product)/_components/workspace/tables/side-panel/side-panel'
 import { useViewerTimeZone } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
+import { resolveLogWorkflowId } from '@/platform/lib/data/logs'
 import {
   apportionCredits,
   BASE_EXECUTION_CHARGE,
   dollarsToCredits,
   filterHiddenOutputKeys,
   formatCreditCost,
-  resolveLogWorkflowId,
   type TraceSpan,
   useLogByExecutionId,
   useTraceVisibility,

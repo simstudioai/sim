@@ -6,7 +6,6 @@
  */
 
 export type { TableCellSelection } from '@sim/realtime-protocol/table-presence'
-export { resolveLogWorkflowId } from '@/components/logs/utils'
 export {
   exceedsTablePasteRowLimit,
   parseBoundedTsv,

@@ -4,7 +4,6 @@ import { useEffect } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQuery } from '@tanstack/react-query'
 import type { inferParserType } from 'nuqs'
-import { resolveLogWorkflowId } from '@/components/logs/utils'
 import { isApiClientError } from '@/lib/api/client/errors'
 import {
   type DashboardStatsResponse,
@@ -147,6 +146,21 @@ function durationMs(duration: string | null) {
   if (duration === null) return null
   const value = Number.parseInt(duration.replace(/[^0-9]/g, ''), 10)
   return Number.isFinite(value) ? value : null
+}
+
+/**
+ * The workflow a log can open and run again, or null when there is nowhere to go: a Sim agent job
+ * has no workflow of its own, a deleted workflow leaves both id fields empty, and an archived one
+ * keeps its id but can no longer be opened. The run list and the execution details panel both read
+ * it, so a row never says "Deleted Workflow" while still linking somewhere.
+ */
+export function resolveLogWorkflowId(log: {
+  trigger?: string | null
+  workflowId?: string | null
+  workflow?: { id?: string; archivedAt?: string | null } | null
+}): string | null {
+  if (log.trigger === 'mothership' || log.workflow?.archivedAt) return null
+  return log.workflow?.id || log.workflowId || null
 }
 
 function toRunSummary(log: WorkflowLogSummary & { executionId: string }): RunSummary {
