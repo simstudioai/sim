@@ -1,8 +1,15 @@
 ---
 description: Tailwind CSS and styling conventions
 paths:
-  - "apps/sim/**/*.tsx"
-  - "apps/sim/**/*.css"
+  - "apps/sim/components/**/*.tsx"
+  - "apps/sim/ee/**/*.tsx"
+  - "apps/sim/app/_shell/**/*.tsx"
+  - "apps/sim/app/(interfaces)/**/*.tsx"
+  - "apps/sim/app/(site)/**/*.tsx"
+  - "apps/sim/app/(landing)/**/*.tsx"
+  - "apps/sim/components/**/*.css"
+  - "apps/sim/app/_styles/**/*.css"
+  - "packages/emcn-legacy/**/*.tsx"
   - "packages/workflow-renderer/**/*.tsx"
 ---
 
