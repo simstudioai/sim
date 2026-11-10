@@ -189,13 +189,17 @@ async function createUser(): Promise<string> {
   return id
 }
 
-async function createOrganization(members: Array<{ userId: string; role: string }>) {
+async function createOrganization(
+  members: Array<{ userId: string; role: string }>,
+  kind: 'team' | 'personal' = 'team'
+) {
   const id = generateId()
   organizationIds.push(id)
   await db.insert(organization).values({
     id,
     name: 'Marketplace organization',
     slug: id,
+    kind,
     createdAt: new Date(),
   })
   await db.insert(member).values(
@@ -1674,5 +1678,21 @@ describe('the admin license route', () => {
       expect(entries).toEqual([{ action: 'aws_marketplace_license.linked' }])
     })
     await db.delete(auditLog).where(eq(auditLog.resourceId, id))
+  })
+
+  it('refuses to link a license to a personal organization', async () => {
+    const { id, licenseArn } = await insertLicense()
+    const personalOrganizationId = await createOrganization(
+      [{ userId: await createUser(), role: 'owner' }],
+      'personal'
+    )
+
+    const response = await adminLink(
+      adminRequest({ licenseId: id, organizationId: personalOrganizationId }),
+      {}
+    )
+
+    expect(response.status).toBe(409)
+    expect((await readLicense(licenseArn))?.organizationId).toBeNull()
   })
 })

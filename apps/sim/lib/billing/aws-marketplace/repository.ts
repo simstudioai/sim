@@ -681,13 +681,14 @@ export async function linkLicenseForTeam(
   return license
 }
 
-export async function organizationExists(tx: DbTransaction, organizationId: string) {
+/** The organization's kind, or null when it does not exist. */
+export async function getOrganizationKind(tx: DbTransaction, organizationId: string) {
   const [row] = await tx
-    .select({ id: organization.id })
+    .select({ kind: organization.kind })
     .from(organization)
     .where(eq(organization.id, organizationId))
     .limit(1)
-  return Boolean(row)
+  return row?.kind ?? null
 }
 
 /** Who linked a license to which organization, for the team's provisioning notice. */
