@@ -73,7 +73,7 @@ export function MyRequests({ scope, view, mine }: MyRequestsProps) {
         <EmptyState
           title={
             mine.query
-              ? 'No matching results'
+              ? 'No matching requests'
               : mine.page > 0
                 ? 'No more access to request'
                 : 'Nothing to request in this organization'

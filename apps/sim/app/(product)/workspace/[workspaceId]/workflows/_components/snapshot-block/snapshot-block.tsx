@@ -53,14 +53,14 @@ import type { WorkflowState } from '@/platform/lib/data/workflows'
 import type { TracePayload, TraceSpan } from '@/platform/shared/workspace-records'
 
 const LOOP_TYPES = [
-  { value: 'for', label: 'For Loop' },
-  { value: 'forEach', label: 'For Each' },
-  { value: 'while', label: 'While Loop' },
-  { value: 'doWhile', label: 'Do While Loop' },
+  { value: 'for', label: 'For loop' },
+  { value: 'forEach', label: 'For each' },
+  { value: 'while', label: 'While loop' },
+  { value: 'doWhile', label: 'Do while loop' },
 ] as const
 const PARALLEL_TYPES = [
-  { value: 'count', label: 'Parallel Count' },
-  { value: 'collection', label: 'Parallel Each' },
+  { value: 'count', label: 'Parallel count' },
+  { value: 'collection', label: 'Parallel each' },
 ] as const
 /** What the editor shows for a loop or parallel saved before it held its own setting. */
 const DEFAULT_ITERATIONS = 5
@@ -148,24 +148,24 @@ function SubflowFields({ block, workflowState }: SubflowFieldsProps) {
         : (loop?.doWhileCondition ?? data.doWhileCondition)
     return (
       <div className={styles.fields}>
-        <SelectField label='Loop Type' options={LOOP_TYPES} value={type} disabled />
+        <SelectField label='Loop type' options={LOOP_TYPES} value={type} disabled />
         {type === 'for' ? (
           <TextField
-            label='Loop Iterations'
+            label='Loop iterations'
             placeholder='5'
             value={String(loop?.iterations ?? data.count ?? DEFAULT_ITERATIONS)}
             viewOnly
           />
         ) : type === 'forEach' ? (
           <TextAreaField
-            label='Collection Items'
+            label='Collection items'
             placeholder="['item1', 'item2', 'item3']"
             value={textOf(loop?.forEachItems ?? data.collection)}
             viewOnly
           />
         ) : (
           <TextAreaField
-            label='While Condition'
+            label='While condition'
             placeholder='<counter.value> < 10'
             value={textOf(condition)}
             viewOnly
@@ -178,24 +178,24 @@ function SubflowFields({ block, workflowState }: SubflowFieldsProps) {
   const type = parallel?.parallelType ?? data.parallelType ?? 'count'
   return (
     <div className={styles.fields}>
-      <SelectField label='Parallel Type' options={PARALLEL_TYPES} value={type} disabled />
+      <SelectField label='Parallel type' options={PARALLEL_TYPES} value={type} disabled />
       {type === 'count' ? (
         <TextField
-          label='Parallel Iterations'
+          label='Parallel iterations'
           placeholder='1'
           value={String(parallel?.count ?? data.count ?? DEFAULT_PARALLEL_COUNT)}
           viewOnly
         />
       ) : (
         <TextAreaField
-          label='Parallel Items'
+          label='Parallel items'
           placeholder="['item1', 'item2', 'item3']"
           value={textOf(parallel?.distribution ?? data.collection)}
           viewOnly
         />
       )}
       <TextField
-        label='Parallel Batch Size'
+        label='Parallel batch size'
         placeholder='20'
         value={String(parallel?.batchSize ?? data.batchSize ?? DEFAULT_BATCH_SIZE)}
         viewOnly

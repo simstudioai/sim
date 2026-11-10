@@ -198,7 +198,7 @@ export async function searchChecks() {
         await create.click()
         const form = page.getByRole('dialog').filter({ hasText: 'Destination URL' })
         await expect(form).toBeVisible()
-        await expect(form.getByRole('checkbox', { name: 'Hide from the Links page' })).toBeVisible()
+        await expect(form.getByRole('checkbox', { name: 'Hide from the links page' })).toBeVisible()
         await expect(form.getByRole('textbox', { name: 'Destination URL' })).toHaveValue(
           'https://wiki.example.com/recall'
         )

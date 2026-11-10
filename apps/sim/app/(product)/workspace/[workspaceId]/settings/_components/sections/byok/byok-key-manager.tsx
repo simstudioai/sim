@@ -188,7 +188,7 @@ export function ByokKeyManager({
         onOpenChange={(open) => {
           if (!open) setManagingProviderId(null)
         }}
-        title={managingMeta ? `${managingMeta.name} API Keys` : 'API Keys'}
+        title={managingMeta ? `${managingMeta.name} API keys` : 'API keys'}
         confirmLabel={capabilities.add ? 'Add key' : undefined}
         confirmDisabled={managingKeys.length >= MAX_BYOK_KEYS_PER_PROVIDER}
         onConfirm={() => {
@@ -232,8 +232,8 @@ export function ByokKeyManager({
         }}
         title={
           editingMeta
-            ? `${isUpdatingExistingKey ? 'Update' : 'Add'} ${editingMeta.name} API Key`
-            : 'API Key'
+            ? `${isUpdatingExistingKey ? 'Update' : 'Add'} ${editingMeta.name} API key`
+            : 'API key'
         }
         description={keyUsageDescription}
         confirmLabel='Save'
@@ -244,7 +244,7 @@ export function ByokKeyManager({
         <AutofillDecoys />
         <FieldStack>
           <SecretField
-            label='API Key'
+            label='API key'
             required
             name='byok_api_key'
             placeholder={editingMeta?.placeholder ?? ''}
@@ -265,7 +265,7 @@ export function ByokKeyManager({
       <ConfirmDialog
         target={deleteConfirm}
         onClose={() => setDeleteConfirm(null)}
-        title='Delete API Key'
+        title='Delete API key'
         description={(target) => {
           const name = PROVIDERS.find((provider) => provider.id === target.providerId)?.name
           const consequence =

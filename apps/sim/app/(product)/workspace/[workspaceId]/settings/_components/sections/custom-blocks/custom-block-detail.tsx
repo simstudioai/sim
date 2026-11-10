@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { SwitchField, TextAreaField, TextField } from '@sim/emcn/field'
 import { FileField } from '@sim/emcn/field/file-field'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
@@ -566,14 +566,13 @@ export function CustomBlockDetail({ existing, workspaceId, onBack }: CustomBlock
         </SettingsSection>
       )}
       {existing && (
-        <Modal
-          variant='confirm'
-          destructive
-          open={showDelete}
-          onOpenChange={setShowDelete}
+        <ConfirmDialog
+          target={showDelete}
+          onClose={() => setShowDelete(false)}
           title='Delete custom block'
           description={`Delete ${existing.name}? This cannot be undone.`}
           confirmLabel='Delete'
+          pendingLabel='Deleting…'
           confirmDisabled={confirmationText !== existing.name}
           onConfirm={async () => {
             await remove.mutateAsync(existing.id)
@@ -597,7 +596,7 @@ export function CustomBlockDetail({ existing, workspaceId, onBack }: CustomBlock
             placeholder={existing.name}
             autoComplete='off'
           />
-        </Modal>
+        </ConfirmDialog>
       )}
     </SectionStack>
   )

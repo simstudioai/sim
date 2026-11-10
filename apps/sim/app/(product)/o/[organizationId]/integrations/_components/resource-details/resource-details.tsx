@@ -5,7 +5,8 @@ import { Avatar } from '@sim/emcn/avatar'
 import { Button } from '@sim/emcn/button'
 import { DataTable, TableLabel } from '@sim/emcn/data-display'
 import { Icon } from '@sim/emcn/icon'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { InlineNotice } from '@sim/emcn/status'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
@@ -50,7 +51,7 @@ export function ResourceDetails({
   const [view, setView] = useQueryStates(resourceDetailParams)
   const [error, setError] = useState<string>()
   const [deleting, setDeleting] = useState(false)
-  const noun = kind === 'skill' ? 'skill' : 'MCP'
+  const noun = kind === 'skill' ? 'skill' : 'MCP server'
   const owner = resource?.owner ?? data.viewer
   const people = [
     owner,
@@ -70,7 +71,7 @@ export function ResourceDetails({
     <>
       <DirectoryBack
         href={backHref}
-        label={kind === 'skill' ? 'Back to Skills' : 'Back to MCPs'}
+        label={kind === 'skill' ? 'Skills' : 'MCPs'}
         onNavigate={(event) => {
           event.preventDefault()
           guardBack(onBack)
@@ -131,7 +132,7 @@ export function ResourceDetails({
                   submit
                   disabled={Boolean(resource && !editor.dirty)}
                 >
-                  {resource ? 'Save changes' : kind === 'skill' ? 'Create' : 'Connect'}
+                  {resource ? 'Save' : kind === 'skill' ? 'Create skill' : 'Connect'}
                 </Button>
               </>
             ) : undefined
@@ -183,23 +184,16 @@ export function ResourceDetails({
             },
           ]}
         />
-        {error && (
-          <p className={styles.error} data-type='T052' role='alert'>
-            {error}
-          </p>
-        )}
+        {error && <InlineNotice intent='danger' message={error} />}
       </form>
       {deleting && resource && (
-        <Modal
-          open
-          title={`Delete ${resource.name}?`}
-          description='This removes it from your integrations.'
-          variant='confirm'
-          confirmLabel={`Delete ${noun}`}
-          destructive
-          onOpenChange={(open) => {
-            if (!open) setDeleting(false)
-          }}
+        <ConfirmDialog
+          target={deleting}
+          onClose={() => setDeleting(false)}
+          title={`Delete ${noun}`}
+          description={`This removes ${resource.name} from your integrations.`}
+          confirmLabel='Delete'
+          pendingLabel='Deleting…'
           onConfirm={() => {
             onDelete(resource.id)
             onBack()

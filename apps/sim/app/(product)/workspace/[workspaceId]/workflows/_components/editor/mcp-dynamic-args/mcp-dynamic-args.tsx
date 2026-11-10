@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { SwitchField } from '@sim/emcn/field'
 import { AutofillDecoys } from '@sim/emcn/field/autofill-decoys'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { InlineNotice } from '@sim/emcn/status'
 import { isPlainRecord, omit } from '@sim/utils/object'
 import { LongInput } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/long-input/long-input'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/mcp-dynamic-args/mcp-dynamic-args.module.css'
@@ -414,9 +415,10 @@ export function McpDynamicArgs({
 
   if (!toolSchema) {
     return (
-      <p className={styles.error} data-type='T052' role='alert'>
-        Operation schema unavailable. Refresh or select an available operation.
-      </p>
+      <InlineNotice
+        intent='danger'
+        message='Operation schema unavailable. Refresh or select an available operation.'
+      />
     )
   }
 

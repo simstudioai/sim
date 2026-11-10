@@ -55,7 +55,7 @@ export function ToolUsageControl({
   const advanced = mode === 'advanced'
   return (
     <ActionField
-      label='Permission Mode'
+      label='Permission mode'
       actions={
         <Button
           variant='quiet'
@@ -81,7 +81,7 @@ export function ToolUsageControl({
         />
       ) : (
         <Select<UsageControlValue>
-          label='Permission Mode'
+          label='Permission mode'
           value={tool.usageControl ?? 'auto'}
           onValueChange={onFixedChange}
           disabled={disabled}

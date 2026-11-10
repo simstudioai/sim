@@ -10,10 +10,6 @@
   gap: var(--ui-product-section-gap);
 }
 
-.error {
-  color: var(--control-danger);
-}
-
 .email {
   display: block;
   color: var(--ui-secondary);

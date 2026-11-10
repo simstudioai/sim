@@ -92,8 +92,8 @@ export function HomeDashboard({
                   <p data-type='T048'>{prompt}</p>
                 </div>
                 <ActionMenu
-                  label='Customize Home'
-                  heading='Customize Home'
+                  label='Customize home'
+                  heading='Customize home'
                   icon='I108'
                   align='end'
                   actions={customizable.map((widget) => ({

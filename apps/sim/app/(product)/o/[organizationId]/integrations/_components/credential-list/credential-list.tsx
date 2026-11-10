@@ -1,4 +1,5 @@
 import { ActivityRow } from '@sim/emcn/activity-row'
+import { EmptyState } from '@sim/emcn/empty-state'
 import { CountedLabel } from '@sim/emcn/overflow-text/counted-label'
 import { BrandMark } from '@/app/(product)/_components/brand-mark/brand-mark'
 import styles from '@/app/(product)/o/[organizationId]/integrations/_components/credential-list/credential-list.module.css'
@@ -55,9 +56,7 @@ export function CredentialList({
           )}
         </ul>
       ) : (
-        <p className={styles.empty} data-type='T060'>
-          No connected credentials
-        </p>
+        <EmptyState title='No connected credentials' />
       )}
     </section>
   )

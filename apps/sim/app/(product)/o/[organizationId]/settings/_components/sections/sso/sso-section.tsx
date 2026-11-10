@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { ActivityRow } from '@sim/emcn/activity-row'
 import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
@@ -96,7 +96,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
     )
   }
   if (billingEnabled && !billing.data?.data.hasEnterprisePlan) {
-    return <EmptyState title='Single Sign-On is available on Enterprise plans only.' />
+    return <EmptyState title='Single sign-on is available on Enterprise plans only.' />
   }
 
   const providerCountByDomain = new Map<string, number>()
@@ -205,40 +205,36 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
         </SectionStack>
       </div>
 
-      <Modal
-        variant='confirm'
-        open={tab === 'sign-in' && pendingPrimary !== undefined}
-        onOpenChange={(open) => {
-          if (!open) setPendingPrimaryId(null)
-        }}
+      <ConfirmDialog
+        target={tab === 'sign-in' && pendingPrimary}
+        onClose={() => setPendingPrimaryId(null)}
+        safe
         title='Make primary provider'
         description={`Make ${pendingPrimary?.providerId ?? 'this provider'} the primary provider for ${pendingPrimary?.domain ?? 'its domain'}? Everyone there signs in through it from their next sign-in. People already signed in stay signed in, and the current primary stays configured so you can switch back.`}
-        confirmLabel={setPrimaryProvider.isPending ? 'Switching…' : 'Make primary'}
-        onConfirm={async () => {
-          if (!pendingPrimary?.providerId) return
-          await setPrimaryProvider.mutateAsync(pendingPrimary.providerId)
-          toast.success(`${pendingPrimary.providerId} is now the primary provider`)
+        confirmLabel='Make primary'
+        pendingLabel='Switching…'
+        onConfirm={async ({ providerId }) => {
+          if (!providerId) return
+          await setPrimaryProvider.mutateAsync(providerId)
+          toast.success(`${providerId} is now the primary provider`)
         }}
       />
-      <Modal
-        variant='confirm'
-        destructive
-        open={tab === 'sign-in' && pendingDelete !== undefined}
-        onOpenChange={(open) => {
-          if (!open) setPendingDeleteId(null)
-        }}
+      <ConfirmDialog
+        target={tab === 'sign-in' && pendingDelete}
+        onClose={() => setPendingDeleteId(null)}
         title='Delete identity provider'
         description={`Delete ${pendingDelete?.providerId ?? 'this provider'}? ${
           deleteSignInProvider
             ? `People at ${deleteDomain} ${pendingDelete?.isPrimary ? 'will sign in through' : 'keep signing in through'} ${deleteSignInProvider.providerId}.`
             : `People at ${deleteDomain} can no longer sign in through it.`
         } Their accounts and memberships stay.`}
-        confirmLabel={deleteProvider.isPending ? 'Deleting…' : 'Delete'}
-        onConfirm={async () => {
-          if (!pendingDelete?.providerId) return
-          await deleteProvider.mutateAsync(pendingDelete.providerId)
+        confirmLabel='Delete'
+        pendingLabel='Deleting…'
+        onConfirm={async ({ providerId }) => {
+          if (!providerId) return
+          await deleteProvider.mutateAsync(providerId)
           toast.success('Identity provider deleted')
-          if (selectedProvider?.providerId === pendingDelete.providerId) showList()
+          if (selectedProvider?.providerId === providerId) showList()
         }}
       />
 

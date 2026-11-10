@@ -243,7 +243,7 @@ export function LiveCredentialCard({
                   render={
                     <Link href={integrationsHref} target='_blank' rel='noopener noreferrer' />
                   }
-                  label={`Connect ${serviceName(item)} in Integrations`}
+                  label={`Connect ${serviceName(item)} in integrations`}
                   trailingIcon='I030'
                 />
               ) : null
@@ -291,12 +291,12 @@ export function LiveUsageNotice({ action, reason, message }: UsageNoticeProps) {
     !canManage && reason === 'usage_limit' && action === 'increase_limit'
   )
   if (reason === 'job_run_budget')
-    return <InlineNotice intent='warning' title='Run Spend Limit Reached' message={message} />
+    return <InlineNotice intent='warning' title='Run spend limit reached' message={message} />
   return (
     <>
       <InlineNotice
         intent='warning'
-        title={reason === 'chat_plan_required' ? 'Paid Plan Required' : 'Usage Limit Reached'}
+        title={reason === 'chat_plan_required' ? 'Paid plan required' : 'Usage limit reached'}
         message={
           canManage
             ? message
@@ -306,7 +306,7 @@ export function LiveUsageNotice({ action, reason, message }: UsageNoticeProps) {
           canManage ? (
             <ControlRow
               render={<Link href={href} />}
-              label={upgrade ? 'Upgrade Plan' : 'Increase Limit'}
+              label={upgrade ? 'Upgrade plan' : 'Increase limit'}
               trailingIcon='I030'
             />
           ) : memberLimit ? (

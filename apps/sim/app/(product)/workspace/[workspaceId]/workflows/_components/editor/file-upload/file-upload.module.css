@@ -9,10 +9,6 @@
   color: var(--ui-secondary);
 }
 
-.error {
-  color: var(--control-danger);
-}
-
 .files {
   display: flex;
   flex-direction: column;

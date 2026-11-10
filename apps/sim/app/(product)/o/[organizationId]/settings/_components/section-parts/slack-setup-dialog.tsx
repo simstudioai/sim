@@ -128,7 +128,7 @@ export function SlackSetupDialog({ target, flow }: SlackSetupDialogProps) {
           continueDisabled: !botToken.trim(),
           content: (
             <SecretField
-              label='Bot User OAuth Token'
+              label='Bot user OAuth token'
               placeholder='xoxb-…'
               value={botToken}
               onChange={setBotToken}
@@ -150,13 +150,13 @@ export function SlackSetupDialog({ target, flow }: SlackSetupDialogProps) {
                 onChange={setClientId}
               />
               <SecretField
-                label='Client Secret'
+                label='Client secret'
                 placeholder={placeholder ?? 'Slack client secret'}
                 value={clientSecret}
                 onChange={setClientSecret}
               />
               <SecretField
-                label='Signing Secret'
+                label='Signing secret'
                 placeholder={placeholder ?? 'Slack signing secret'}
                 value={signingSecret}
                 onChange={setSigningSecret}

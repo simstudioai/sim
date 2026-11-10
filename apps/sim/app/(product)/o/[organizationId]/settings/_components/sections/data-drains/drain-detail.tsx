@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { PropertyList } from '@sim/emcn/property-list'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
@@ -238,14 +238,13 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
           </Button>
         </SettingsRow>
       </SettingsSection>
-      <Modal
-        variant='confirm'
-        destructive
-        open={confirmingDelete}
-        onOpenChange={setConfirmingDelete}
+      <ConfirmDialog
+        target={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
         title='Delete drain'
         description={`Are you sure you want to delete ${drain.name}? This action cannot be undone.`}
         confirmLabel='Delete'
+        pendingLabel='Deleting…'
         onConfirm={async () => {
           await deleteDrain.mutateAsync({ organizationId, drainId: drain.id })
           toast.success('Drain deleted')

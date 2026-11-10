@@ -7,7 +7,7 @@ import { DataTable, TableLabel } from '@sim/emcn/data-display'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { Icon } from '@sim/emcn/icon'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { FailureNotice } from '@sim/emcn/status'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
@@ -166,7 +166,7 @@ export function SkillDetails({
   const back = (
     <DirectoryBack
       href={backHref}
-      label='Back to Skills'
+      label='Skills'
       onNavigate={(event) => {
         event.preventDefault()
         guardBack(onBack)
@@ -271,7 +271,7 @@ export function SkillDetails({
                   submit
                   disabled={!dirty || pending || !workspaceId}
                 >
-                  {skill ? 'Save changes' : 'Create'}
+                  {skill ? 'Save' : 'Create skill'}
                 </Button>
               </>
             ) : undefined
@@ -304,16 +304,13 @@ export function SkillDetails({
         }}
       />
       {deleting && skill && workspaceId && (
-        <Modal
-          open
-          title={`Delete ${skill.name}?`}
-          description='This removes it from your integrations.'
-          variant='confirm'
-          confirmLabel='Delete skill'
-          destructive
-          onOpenChange={(open) => {
-            if (!open) setDeleting(false)
-          }}
+        <ConfirmDialog
+          target={deleting}
+          onClose={() => setDeleting(false)}
+          title='Delete skill'
+          description={`This removes ${skill.name} from your integrations.`}
+          confirmLabel='Delete'
+          pendingLabel='Deleting…'
           onConfirm={async () => {
             try {
               await remove.mutateAsync({ workspaceId, skillId: skill.id })

@@ -21,7 +21,7 @@ async function withEmptyWorkflow(page: Page, work: () => Promise<void>) {
   )
   try {
     await signInAsAdmin(page, `/workspace/${WORKSPACE_ID}/workflows/${workflowId}`)
-    await expect(page.getByRole('button', { name: /^Search Blocks/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /^Search blocks/ })).toBeVisible()
     await work()
   } finally {
     await withLiveDatabase((sql) => sql`delete from workflow where id = ${workflowId}`)
@@ -48,7 +48,7 @@ async function expectToolbarSearchFocused(page: Page) {
   await expect(panel.getByRole('searchbox', { name: 'Search toolbar' })).toBeFocused()
 }
 
-test('Add Block in the canvas menu opens the Toolbar tab with its search focused', async ({
+test('Add block in the canvas menu opens the Toolbar tab with its search focused', async ({
   page,
 }) => {
   await withEmptyWorkflow(page, async () => {
@@ -58,7 +58,7 @@ test('Add Block in the canvas menu opens the Toolbar tab with its search focused
     const menu = page.getByRole('menu', { name: 'Canvas actions' })
     await expect(menu).toBeVisible()
     await expect(variables).toHaveAttribute('aria-selected', 'true')
-    await menu.getByRole('menuitem', { name: /^Add Block/ }).click()
+    await menu.getByRole('menuitem', { name: /^Add block/ }).click()
     await expectToolbarSearchFocused(page)
     // The menu returns focus as it unmounts, so focus must still be in the search once it has gone.
     await expect(menu).toBeHidden()
@@ -66,12 +66,12 @@ test('Add Block in the canvas menu opens the Toolbar tab with its search focused
   })
 })
 
-test('Search Blocks on an empty canvas opens the Toolbar tab with its search focused', async ({
+test('Search blocks on an empty canvas opens the Toolbar tab with its search focused', async ({
   page,
 }) => {
   await withEmptyWorkflow(page, async () => {
     await leaveToolbarTab(page)
-    await page.getByRole('button', { name: /^Search Blocks/ }).click()
+    await page.getByRole('button', { name: /^Search blocks/ }).click()
     await expectToolbarSearchFocused(page)
   })
 })

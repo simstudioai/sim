@@ -202,7 +202,7 @@ export function BlockMenu({
     if (canRemoveFromSubflow) {
       add({
         id: 'remove-from-subflow',
-        label: 'Remove from Subflow',
+        label: 'Remove from subflow',
         disabled: disableEdit,
         onSelect: () => {
           onRemoveFromSubflow()
@@ -240,7 +240,7 @@ export function BlockMenu({
     if (isSingleBlock && allNoteBlocks) {
       add({
         id: 'add-image',
-        label: 'Add Image',
+        label: 'Add image',
         disabled: disableEdit,
         onSelect: () => {
           onAddImage()
@@ -253,7 +253,7 @@ export function BlockMenu({
     if (isSingleBlock && !allNoteBlocks) {
       add({
         id: 'open-editor',
-        label: 'Open Editor',
+        label: 'Open editor',
         onSelect: () => {
           onOpenEditor()
           onClose()

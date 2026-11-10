@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { TextField } from '@sim/emcn/field'
 import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { CredentialDetail } from '@/app/(product)/o/[organizationId]/integrations/_components/credential-detail/credential-detail'
 import { ManualSecretFields } from '@/app/(product)/o/[organizationId]/integrations/_components/manual-secret-fields/manual-secret-fields'
 import type {
@@ -93,16 +94,13 @@ export function ManualCredentialDetail({
         </Modal>
       )}
       {action === 'delete' && (
-        <Modal
-          open
-          title={`Delete ${resource.name}?`}
-          description='People and workflows using this credential will lose access.'
+        <ConfirmDialog
+          target={action === 'delete'}
+          onClose={() => setAction(null)}
+          title='Delete credential'
+          description={`People and workflows using ${resource.name} will lose access.`}
           confirmLabel='Delete'
-          destructive
-          variant='confirm'
-          onOpenChange={(open) => {
-            if (!open) setAction(null)
-          }}
+          pendingLabel='Deleting…'
           onConfirm={onRemove}
         />
       )}

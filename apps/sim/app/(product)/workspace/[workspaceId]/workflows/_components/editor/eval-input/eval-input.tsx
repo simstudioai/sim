@@ -180,7 +180,7 @@ export function EvalInput({
               />
             </FieldFrame>
             <div className={styles.range}>
-              <FieldFrame label='Min Value'>
+              <FieldFrame label='Min value'>
                 <ShortInput
                   blockId={blockId}
                   subBlockId={subBlockId}
@@ -200,7 +200,7 @@ export function EvalInput({
                   workflowSearchValuePath={[index, 'range', 'min']}
                 />
               </FieldFrame>
-              <FieldFrame label='Max Value'>
+              <FieldFrame label='Max value'>
                 <ShortInput
                   blockId={blockId}
                   subBlockId={subBlockId}

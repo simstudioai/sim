@@ -92,7 +92,7 @@ export async function integrationChecks() {
         )
         await expect(appSearch(page)).toHaveValue('jira')
         await appSearch(page).fill('zzzz-nothing')
-        await expect(page.getByRole('heading', { name: 'No results found' })).toBeVisible()
+        await expect(page.getByRole('heading', { name: 'No matching apps' })).toBeVisible()
       })
     }
   )

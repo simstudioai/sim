@@ -32,10 +32,10 @@ export function useRunPageCommands({ exportHref, canExport }: RunPageCommandsInp
         ]
       : []),
     view.view === 'dashboard'
-      ? { id: 'logs-show-runs', label: 'Switch to Runs', run: () => void setView({ view: null }) }
+      ? { id: 'logs-show-runs', label: 'Switch to runs', run: () => void setView({ view: null }) }
       : {
           id: 'logs-show-dashboard',
-          label: 'Switch to Dashboard',
+          label: 'Switch to dashboard',
           run: () => void setView({ view: 'dashboard' }),
         },
   ])

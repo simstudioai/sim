@@ -1193,3 +1193,58 @@ it('fails [helper-copy] for a hint, a form subtitle or a static row subtitle, an
     rmSync(root, { recursive: true, force: true })
   }
 }, 30_000)
+
+it('fails the ownership and copy rules: confirm-owner, copy-case, copy-ellipsis, back-owner, tab-owner, alert-owner, native-title', () => {
+  const { root, put, run } = productFixture()
+  const view = 'app/(product)/o/[organizationId]/home/_components/digest/digest.tsx'
+  try {
+    put(
+      view,
+      `import { Button } from '@sim/emcn/button'
+      import { Modal } from '@sim/emcn/modal'
+      const STATUS = { queued: { label: 'Waiting...' } }
+      export function Digest({ name, back }: { name: string; back: () => void }) {
+        return <>
+          <Modal variant='confirm' title='Delete digest' />
+          <Button variant='quiet' icon='I093' onClick={back}>Back to home</Button>
+          <div role='tablist'><button role='tab'>Runs</button></div>
+          <p role='alert'>{name}</p>
+          <span title={name}>{name}</span>
+          <Button onClick={back}>Fit to View</Button>
+          <Button onClick={back}>Connect Slack</Button>
+          <iframe title='Preview' />
+          <p>{STATUS.queued.label}</p>
+        </>
+      }`
+    )
+    const result = run()
+    expect(result.status).toBe(1)
+    for (const finding of [
+      `${view}:3 [copy-ellipsis]`,
+      `${view}:6 [confirm-owner]`,
+      `${view}:7 [back-owner]`,
+      `${view}:8 [tab-owner]`,
+      `${view}:9 [alert-owner]`,
+      `${view}:10 [native-title]`,
+      `${view}:11 [copy-case]`,
+    ])
+      expect(result.output).toContain(finding)
+    expect(result.output).toContain('Write View in sentence case')
+    expect(result.output.match(/\[tab-owner\]/g)).toHaveLength(2)
+    expect(result.output).not.toContain(`${view}:12 [copy-case]`)
+    expect(result.output).not.toContain(`${view}:13 [native-title]`)
+
+    writeAllowlists(root, {
+      CONFIRM_OWNERS: { [view]: 'The fixture keeps its confirm to prove a grant' },
+      BACK_OWNERS: { [view]: 'The fixture keeps its back button to prove a grant' },
+      TAB_OWNERS: { [view]: 'The fixture keeps its tabs to prove a grant' },
+      ALERT_OWNERS: { [view]: 'The fixture keeps its alert to prove a grant' },
+    })
+    const granted = run()
+    for (const rule of ['confirm-owner', 'back-owner', 'tab-owner', 'alert-owner'])
+      expect(granted.output).not.toContain(`[${rule}]`)
+    expect(granted.output).toContain('[native-title]')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}, 30_000)

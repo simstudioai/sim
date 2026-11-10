@@ -221,7 +221,7 @@ export function CredentialDetail({
                       Cancel
                     </Button>
                     <Button size='compact' submit disabled={saving || !displayName.trim()}>
-                      Save changes
+                      Save
                     </Button>
                   </div>
                 )}

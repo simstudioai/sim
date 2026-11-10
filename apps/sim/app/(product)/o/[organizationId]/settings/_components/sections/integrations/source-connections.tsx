@@ -10,6 +10,7 @@ import { FileField } from '@sim/emcn/field/file-field'
 import { SecretField } from '@sim/emcn/field/value-fields'
 import { Icon } from '@sim/emcn/icon'
 import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { Select } from '@sim/emcn/picker/select'
 import { SearchField } from '@sim/emcn/search-field'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
@@ -129,7 +130,7 @@ function ConnectionForm({
       title={title}
       open
       onOpenChange={(open) => !open && close()}
-      confirmLabel='Add'
+      confirmLabel='Add connection'
       confirmDisabled={!valid}
       onConfirm={() =>
         save(
@@ -343,14 +344,13 @@ export function ConnectionDetails({ source, connection, href, update }: DetailsP
           </Button>
         </SettingsRow>
       </SettingsSection>
-      <Modal
-        open={removing}
-        variant='confirm'
-        destructive
-        title='Remove connection?'
+      <ConfirmDialog
+        target={removing}
+        onClose={() => setRemoving(false)}
+        title='Remove connection'
         description={connection.name}
         confirmLabel='Remove'
-        onOpenChange={setRemoving}
+        pendingLabel='Removing…'
         onConfirm={() => {
           update((current) => ({
             ...current,

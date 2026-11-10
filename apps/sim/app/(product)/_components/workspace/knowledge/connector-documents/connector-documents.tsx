@@ -3,7 +3,7 @@
 import { Button, IconButton } from '@sim/emcn/button'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { OverflowText } from '@sim/emcn/overflow-text'
-import { FailureNotice } from '@sim/emcn/status'
+import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import Link from 'next/link'
 import styles from '@/app/(product)/_components/workspace/knowledge/connector-documents/connector-documents.module.css'
 import { getDocumentIndexingStatus, useUpdateDocument } from '@/platform/lib/data/knowledge'
@@ -209,11 +209,7 @@ export function ConnectorDocuments({
           </Button>
         </span>
       ) : null}
-      {failure && (
-        <p className={styles.error} data-type='T060' role='alert'>
-          {failure.message}
-        </p>
-      )}
+      {failure && <InlineNotice intent='danger' message={failure.message} />}
     </div>
   )
 }

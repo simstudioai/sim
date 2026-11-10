@@ -114,7 +114,7 @@ export function ConnectorSettingsFields({
         <>
           <GitLabTokenTabs form={gitlabPermissions} disabled={isSaving || !canAdmin} />
           <SecretField
-            label='Personal Access Token'
+            label='Personal access token'
             value={gitlabPermissions.apiKey}
             onChange={gitlabPermissions.setApiKey}
             placeholder='Leave blank to keep the saved token'

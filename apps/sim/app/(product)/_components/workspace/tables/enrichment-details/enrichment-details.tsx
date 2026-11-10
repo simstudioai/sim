@@ -26,7 +26,7 @@ type ResultStatus = 'matched' | 'no_match' | 'error' | 'not_run' | 'cancelled'
 const RESULT_STATUS_LABEL: Record<ResultStatus, string> = {
   matched: 'Matched',
   no_match: 'No match',
-  error: 'Error',
+  error: 'Failed',
   not_run: 'Not run',
   cancelled: 'Cancelled',
 }
@@ -35,7 +35,7 @@ const PROVIDER_STATUS_LABEL: Record<EnrichmentProviderOutcome['status'], string>
   matched: 'Matched',
   no_match: 'No match',
   skipped: 'Skipped',
-  error: 'Error',
+  error: 'Failed',
   not_run: 'Not run',
 }
 

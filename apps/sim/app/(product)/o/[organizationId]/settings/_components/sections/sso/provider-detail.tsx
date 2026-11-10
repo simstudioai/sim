@@ -95,10 +95,10 @@ export function ProviderDetail({
             ]}
           />
           <CopyField
-            label={isSaml ? 'ACS URL (Reply URL)' : 'Callback URL'}
+            label={isSaml ? 'ACS URL (reply URL)' : 'Callback URL'}
             value={ssoProviderCallbackUrl(provider, baseUrl)}
           />
-          {isSaml && <CopyField label='SP Entity ID' value={baseUrl} />}
+          {isSaml && <CopyField label='SP entity ID' value={baseUrl} />}
           {isOidc && (
             <CopyField
               label='Initiate login URL'

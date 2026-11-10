@@ -72,7 +72,7 @@ function CreateGroupModal({
       open={open}
       onOpenChange={change}
       title='Create permission group'
-      confirmLabel={createGroup.isPending ? 'Creating…' : 'Create'}
+      confirmLabel={createGroup.isPending ? 'Creating…' : 'Create group'}
       confirmDisabled={!name.trim() || (!isDefault && workspaceIds.length === 0)}
       onConfirm={async () => {
         await createGroup.mutateAsync({
@@ -190,7 +190,7 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
       {permissionGroups.length === 0 ? (
         <EmptyState title='No permission groups yet' description='Create a group to get started.' />
       ) : filtered.length === 0 ? (
-        <EmptyState title={`No groups found matching "${params.search}"`} />
+        <EmptyState title={`No matching groups for “${params.search}”`} />
       ) : (
         <SettingsSection title={`Permission groups ${permissionGroups.length}`}>
           <ResourceList>

@@ -39,7 +39,7 @@ const commands: CommandItem[] = [
     shortcut: 'L',
   },
   {
-    label: 'Search Blocks',
+    label: 'Search blocks',
     icon: 'I089',
     shortcut: ['⌥', 'F'],
   },

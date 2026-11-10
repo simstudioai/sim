@@ -6,7 +6,7 @@ import { CopyButton } from '@sim/emcn/button/copy-button'
 import { useFeedbackExpiry } from '@sim/emcn/feedback/use-feedback-expiry'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
@@ -346,20 +346,18 @@ export function ServerDetail({
           onClose={closeDialog}
         />
       )}
-      <Modal
-        variant='confirm'
-        destructive
-        open={dialog?.kind === 'remove-tool'}
-        onOpenChange={(open) => {
-          if (!open) closeDialog()
-        }}
+      <ConfirmDialog
+        target={dialog?.kind === 'remove-tool' && dialog.tool}
+        onClose={closeDialog}
         title='Remove workflow'
-        description={`Are you sure you want to remove ${dialog?.kind === 'remove-tool' ? dialog.tool.toolName : 'this workflow'} from this server? The workflow will remain deployed and can be added back later.`}
-        confirmLabel={deleteTool.isPending ? 'Removing…' : 'Remove'}
-        onConfirm={async () => {
-          if (dialog?.kind !== 'remove-tool') return
-          await deleteTool.mutateAsync({ workspaceId, serverId: server.id, toolId: dialog.tool.id })
-        }}
+        description={(tool) =>
+          `Are you sure you want to remove ${tool.toolName} from this server? The workflow will remain deployed and can be added back later.`
+        }
+        confirmLabel='Remove'
+        pendingLabel='Removing…'
+        onConfirm={(tool) =>
+          deleteTool.mutateAsync({ workspaceId, serverId: server.id, toolId: tool.id })
+        }
       />
       {dialog?.kind === 'create-api-key' && (
         <CreateApiKeyModal

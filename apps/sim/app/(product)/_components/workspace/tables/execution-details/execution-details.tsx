@@ -49,9 +49,9 @@ const LEVEL_LABEL: Record<string, string> = {
   running: 'Running',
   redacting: 'Redacting',
   pending: 'Pending',
-  cancelling: 'Cancelling...',
+  cancelling: 'Cancelling…',
   cancelled: 'Cancelled',
-  failed: 'Error',
+  failed: 'Failed',
 }
 
 interface RunTraceProps {
@@ -114,9 +114,7 @@ function RunTrace({ run, costDollars }: RunTraceProps) {
         onCollapseAll={trace.collapseAll}
       />
       {trace.rows.length === 0 ? (
-        <p className={styles.note} data-type='T060'>
-          No matching spans
-        </p>
+        <SidePanelNote>No matching spans</SidePanelNote>
       ) : (
         <div ref={tree} className={styles.tree}>
           <TraceTree
@@ -252,7 +250,7 @@ function ExecutionContent({ log, run, workspaceId, traceShown }: ExecutionConten
       onSelect={(id) => setTab(id === 'trace' ? 'trace' : 'overview')}
       actions={
         <IconButton
-          label='Open in Logs'
+          label='Open in logs'
           icon='I037'
           tooltip
           onClick={() =>

@@ -46,13 +46,13 @@ interface IssueDetailsProps {
 
 const CONFIRM = {
   deny: {
-    title: 'Deny this issue?',
+    title: 'Deny issue',
     description: 'The proposal closes without changes. Its evidence stays in the issue.',
     confirmLabel: 'Deny',
     pendingLabel: 'Denying…',
   },
   cancel: {
-    title: 'Cancel this issue?',
+    title: 'Cancel issue',
     description: 'Work stops and nothing more is applied. Its history stays in the issue.',
     confirmLabel: 'Cancel issue',
     pendingLabel: 'Cancelling…',

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { TextField } from '@sim/emcn/field'
 import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { Switch } from '@sim/emcn/switch'
 import { Muted } from '@/app/(product)/_components/settings-parts/settings-parts'
@@ -60,19 +61,18 @@ export function InboxEnableToggle({ workspaceId, enabled, address }: InboxEnable
           autoComplete='off'
         />
       </Modal>
-      <Modal
-        variant='confirm'
-        destructive
-        open={disabling}
-        onOpenChange={setDisabling}
+      <ConfirmDialog
+        target={disabling}
+        onClose={() => setDisabling(false)}
         title='Disable email inbox'
         description={`Are you sure you want to disable the inbox${address ? ` ${address}` : ''}? Any emails sent to this address after disabling will not be delivered. This action cannot be undone.`}
-        confirmLabel={toggleInbox.isPending ? 'Disabling…' : 'Disable inbox'}
+        confirmLabel='Disable inbox'
+        pendingLabel='Disabling…'
         pending={toggleInbox.isPending}
         onConfirm={() => toggleInbox.mutateAsync({ workspaceId, enabled: false })}
       >
         <Muted>Your existing conversations and task history will be preserved.</Muted>
-      </Modal>
+      </ConfirmDialog>
     </SettingsSection>
   )
 }

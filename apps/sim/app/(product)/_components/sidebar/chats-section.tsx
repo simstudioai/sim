@@ -6,7 +6,7 @@ import { Disclosure } from '@sim/emcn/disclosure'
 import { Icon } from '@sim/emcn/icon'
 import type { MenuAction } from '@sim/emcn/menu/action-menu'
 import { ActionMenu, ContextActionMenu } from '@sim/emcn/menu/action-menu'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { RenameDialog } from '@/app/(product)/_components/rename-dialog/rename-dialog'
 import { SidebarSortMenu } from '@/app/(product)/_components/sidebar/collection-order'
 import { linkMenuActions, pinAction } from '@/app/(product)/_components/sidebar/row-links'
@@ -177,11 +177,6 @@ export function ChatsSection({
 
   const renamingChat =
     editing?.kind === 'rename' ? chats.find((chat) => chat.id === editing.chatId) : undefined
-  const removing = editing?.kind === 'remove' ? editing.chats : []
-  const removeTitle =
-    removing.length > 1
-      ? `${actions.removeLabel} ${removing.length} chats`
-      : `${actions.removeLabel} chat`
 
   return (
     <>
@@ -259,24 +254,25 @@ export function ChatsSection({
         onClose={() => setEditing(null)}
         onRename={actions.rename}
       />
-      {editing?.kind === 'remove' && (
-        <Modal
-          open
-          onOpenChange={() => setEditing(null)}
-          variant='confirm'
-          title={removeTitle}
-          confirmLabel={actions.removeLabel}
-          destructive
-          onConfirm={() => confirmRemoval(removing)}
-        >
-          <p data-type='T048'>
-            {removing.length === 1
+      <ConfirmDialog
+        target={editing?.kind === 'remove' && editing.chats}
+        onClose={() => setEditing(null)}
+        title={(removing) =>
+          removing.length > 1
+            ? `${actions.removeLabel} ${removing.length} chats`
+            : `${actions.removeLabel} chat`
+        }
+        description={(removing) =>
+          `${
+            removing.length === 1
               ? `${actions.removeLabel} “${removing[0].title}”?`
-              : `${actions.removeLabel} ${removing.length} chats?`}
-            {actions.removeDetail && ` ${actions.removeDetail(removing.length)}`}
-          </p>
-        </Modal>
-      )}
+              : `${actions.removeLabel} ${removing.length} chats?`
+          }${actions.removeDetail ? ` ${actions.removeDetail(removing.length)}` : ''}`
+        }
+        confirmLabel={actions.removeLabel}
+        pendingLabel={actions.removeLabel === 'Archive' ? 'Archiving…' : 'Deleting…'}
+        onConfirm={confirmRemoval}
+      />
     </>
   )
 }

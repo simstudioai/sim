@@ -228,7 +228,7 @@ function WizardModal({
             <>
               <ExecutionSteps title='In Slack' steps={TOKEN_STEPS} />
               <SecretField
-                label='Bot Token'
+                label='Bot token'
                 value={botToken ?? ''}
                 onChange={(next) => {
                   if (!controlsDisabled) setBotToken(next)
@@ -246,7 +246,7 @@ function WizardModal({
             <>
               <ExecutionSteps title='In Slack' steps={SECRET_STEPS} />
               <SecretField
-                label='Signing Secret'
+                label='Signing secret'
                 value={signingSecret ?? ''}
                 onChange={(next) => {
                   if (!controlsDisabled) setSigningSecret(next)
@@ -266,8 +266,8 @@ function WizardModal({
                 open App Manifest and verify the event Request URL before using the trigger.
               </p>
               <div className={styles.statusRows}>
-                <CredentialStatus label='Signing Secret' saved={Boolean(signingSecret)} />
-                <CredentialStatus label='Bot Token' saved={Boolean(botToken)} />
+                <CredentialStatus label='Signing secret' saved={Boolean(signingSecret)} />
+                <CredentialStatus label='Bot token' saved={Boolean(botToken)} />
               </div>
             </>
           ),

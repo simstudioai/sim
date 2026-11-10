@@ -65,7 +65,7 @@ export function SandboxCreateModal({
       open={open}
       onOpenChange={onOpenChange}
       title='Create sandbox'
-      confirmLabel={sandbox.saving ? 'Creating…' : 'Create'}
+      confirmLabel={sandbox.saving ? 'Creating…' : 'Create sandbox'}
       confirmDisabled={sandbox.saving || sandbox.draft.name.trim().length === 0}
       pending={sandbox.saving}
       onConfirm={() => sandbox.create()}

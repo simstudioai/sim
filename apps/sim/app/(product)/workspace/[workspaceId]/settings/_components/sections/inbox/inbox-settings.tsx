@@ -179,7 +179,7 @@ export function InboxSettings({
         open={addingSender}
         onOpenChange={setAddingSender}
         title='Add allowed sender'
-        confirmLabel='Add'
+        confirmLabel='Add sender'
         confirmDisabled={!senderEmail.trim() || addSender.isPending}
         pending={addSender.isPending}
         onConfirm={() =>

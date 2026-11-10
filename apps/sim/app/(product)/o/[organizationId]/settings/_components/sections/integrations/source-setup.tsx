@@ -234,7 +234,7 @@ export function SourceSetupForm({
                 )}
                 {isApiKeyMode ? (
                   <ConnectorApiKeyField
-                    label={apiKeyConfig?.label || 'API Key'}
+                    label={apiKeyConfig?.label || 'API key'}
                     value={form.apiKeyValue}
                     onChange={form.setApiKeyValue}
                     placeholder={apiKeyConfig?.placeholder || 'Enter API key'}

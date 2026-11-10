@@ -23,7 +23,7 @@ interface EnvVarSuggestionsOptions {
 /**
  * The secret names matching a `{{` trigger, grouped by workspace and personal scope, with the
  * keyboard selection the field keeps while it holds focus (arrows, Enter, Tab and Escape are read
- * globally) and how a chosen name is written into the field's text. "Create Secret" queues the
+ * globally) and how a chosen name is written into the field's text. "Add secret" queues the
  * typed name for the workspace Secrets settings, which live in the main app, and opens them there.
  */
 export function useEnvVarSuggestions({

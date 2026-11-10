@@ -680,7 +680,7 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
       >
         <div className={styles.results}>
           <CommandFadedList ref={listRef}>
-            <Command.Empty className={styles.empty}>No blocks found.</Command.Empty>
+            <Command.Empty className={styles.empty}>No matching blocks</Command.Empty>
             {isSearching ? (
               searchResults.length > 0 && (
                 <Command.Group className={styles.group}>

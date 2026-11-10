@@ -262,7 +262,7 @@ export function useTerminalSession({ scopeId, visible }: { scopeId: string; visi
       }
       setClosing({
         targets: [{ terminalId, running: tab.running }],
-        title: 'Close terminal?',
+        title: 'Close terminal',
         description: `${describeRunningCommand(tab.running)} is still running. Closing the terminal will stop it.`,
       })
     },

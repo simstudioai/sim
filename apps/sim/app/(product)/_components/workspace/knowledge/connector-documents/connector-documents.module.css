@@ -50,7 +50,3 @@
   display: flex;
   justify-content: center;
 }
-.error {
-  margin: 0;
-  color: var(--control-danger);
-}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
@@ -66,13 +66,14 @@ export function RequireSso({ organizationId }: { organizationId: string }) {
           />
         ) : null}
       </FieldStack>
-      <Modal
-        variant='confirm'
-        open={confirmingEnable}
-        onOpenChange={setConfirmingEnable}
+      <ConfirmDialog
+        target={confirmingEnable}
+        onClose={() => setConfirmingEnable(false)}
+        safe
         title='Require single sign-on'
         description='Members will have to sign in through your identity provider from their next sign-in. Nobody is signed out, and owners keep password sign-in so you can undo this if the provider breaks.'
-        confirmLabel={updatePolicy.isPending ? 'Saving…' : 'Require SSO'}
+        confirmLabel='Require SSO'
+        pendingLabel='Saving…'
         onConfirm={async () => {
           await updatePolicy.mutateAsync({ organizationId, requireSso: true })
           toast.success('Members must now sign in through SSO')

@@ -120,9 +120,9 @@ export function VersionDescription({
       <ConfirmDialog
         target={confirmingDiscard}
         onClose={() => setConfirmingDiscard(false)}
-        title='Discard changes?'
+        title='Unsaved changes'
         description='You have unsaved changes to this description.'
-        confirmLabel='Discard changes'
+        confirmLabel='Discard'
         pendingLabel='Discarding…'
         onConfirm={() => {
           setConfirmingDiscard(false)

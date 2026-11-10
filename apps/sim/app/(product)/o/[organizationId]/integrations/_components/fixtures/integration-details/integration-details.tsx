@@ -3,7 +3,7 @@
 import { type ComponentProps, useState, useTransition } from 'react'
 import { Button } from '@sim/emcn/button'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { generateId } from '@sim/utils/id'
 import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
@@ -100,10 +100,10 @@ export function IntegrationDetails({
   const back: ComponentProps<typeof DirectoryBack> = !(selectedSecret || selected)
     ? { href: backHrefs.integrations, label: 'Integrations' }
     : view.credentialFrom === 'credentials'
-      ? { href: backHrefs.credentials, label: 'Back to Credentials' }
+      ? { href: backHrefs.credentials, label: 'Credentials' }
       : {
           href: backHrefs.app,
-          label: `Back to ${integration.name}`,
+          label: integration.name,
           onNavigate: (event) => {
             event.preventDefault()
             void setView(
@@ -423,20 +423,15 @@ export function IntegrationDetails({
           onSubmit={connect}
         />
       )}
-      {disconnecting && (
-        <Modal
-          open
-          title={`Disconnect ${disconnecting.displayName}?`}
-          description='People and workflows using this credential will lose access.'
-          variant='confirm'
-          destructive
-          confirmLabel='Disconnect'
-          onOpenChange={(open) => {
-            if (!open) setDisconnecting(null)
-          }}
-          onConfirm={() => remove(disconnecting)}
-        />
-      )}
+      <ConfirmDialog
+        target={disconnecting}
+        onClose={() => setDisconnecting(null)}
+        title={(credential) => `Disconnect ${credential.displayName}`}
+        description='People and workflows using this credential will lose access.'
+        confirmLabel='Disconnect'
+        pendingLabel='Disconnecting…'
+        onConfirm={remove}
+      />
     </>
   )
 }

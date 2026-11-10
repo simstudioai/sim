@@ -286,7 +286,7 @@ export function DocumentTagsModal({
           if (!next) close()
         }}
         title={creating ? 'Add tag' : 'Edit tag'}
-        confirmLabel={creating ? 'Apply tag' : 'Save changes'}
+        confirmLabel={creating ? 'Apply tag' : 'Save'}
         confirmDisabled={!canSave}
         onBack={() => {
           setDraft(EMPTY_DRAFT)

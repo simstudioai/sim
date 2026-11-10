@@ -92,7 +92,7 @@ export function LiveIntegrationDetails({
         <ConfirmDialog
           target={disconnecting}
           onClose={() => setDisconnecting(null)}
-          title={(credential) => `Disconnect ${credential.displayName}?`}
+          title={(credential) => `Disconnect ${credential.displayName}`}
           description='People and workflows using this credential will lose access.'
           confirmLabel='Disconnect'
           pendingLabel='Disconnecting…'

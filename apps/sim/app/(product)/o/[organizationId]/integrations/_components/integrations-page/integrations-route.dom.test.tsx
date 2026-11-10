@@ -260,13 +260,13 @@ it('opens a new skill read-only for a read-only member', async () => {
   viewerPermission = 'read'
   await render('?tab=skills&resource=new')
   expect(container.querySelector('form[aria-label="Skill details"]')).not.toBeNull()
-  expect(buttonNamed('Create')).toBeUndefined()
+  expect(buttonNamed('Create skill')).toBeUndefined()
   expect(buttonNamed('Import')).toBeUndefined()
 })
 
 it('opens a new skill editable for a member who can write', async () => {
   await render('?tab=skills&resource=new')
-  expect(buttonNamed('Create')).toBeDefined()
+  expect(buttonNamed('Create skill')).toBeDefined()
 })
 
 it('asks once before leaving an unsaved skill, with the shell’s one discard dialog', async () => {

@@ -37,7 +37,7 @@ export function continueSignInActions(
   return [
     {
       id: 'continue-sign-in',
-      label: 'Continue in Browser',
+      label: 'Continue in browser',
       separatorBefore: true,
       children: [head, ...tail],
     },

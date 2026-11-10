@@ -339,7 +339,7 @@ export function ProviderForm({
                   {isSaml ? (
                     <>
                       <TextField
-                        label='Audience (Entity ID)'
+                        label='Audience (entity ID)'
                         optional
                         autoComplete='off'
                         placeholder='Enter Audience'
@@ -417,10 +417,10 @@ export function ProviderForm({
                 </FieldStack>
               </Disclosure>
               <CopyField
-                label={isSaml ? 'ACS URL (Reply URL)' : 'Callback URL'}
+                label={isSaml ? 'ACS URL (reply URL)' : 'Callback URL'}
                 value={ssoFormCallbackUrl(form, existingProvider, baseUrl)}
               />
-              {isSaml && <CopyField label='SP Entity ID' value={baseUrl} />}
+              {isSaml && <CopyField label='SP entity ID' value={baseUrl} />}
               <Disclosure
                 label='Attribute mapping'
                 open={showMapping}
@@ -479,11 +479,11 @@ export function ProviderForm({
             <Button variant='primary' submit disabled={configure.isPending}>
               {configure.isPending
                 ? isEditing
-                  ? 'Updating…'
-                  : 'Saving…'
+                  ? 'Saving…'
+                  : 'Adding…'
                 : isEditing
-                  ? 'Update'
-                  : 'Save'}
+                  ? 'Save'
+                  : 'Add provider'}
             </Button>
             {dirty && (
               <Button variant='quiet' disabled={configure.isPending} onClick={discard}>

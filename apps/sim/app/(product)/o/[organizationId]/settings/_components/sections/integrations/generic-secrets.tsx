@@ -116,7 +116,7 @@ export function GenericSecretSourceRow({ organizationId, source }: GenericSecret
         <ConfirmDialog
           target
           onClose={() => setRemoving(false)}
-          title='Remove Generic Secrets source?'
+          title='Remove Generic Secrets source'
           confirmLabel='Remove source'
           pendingLabel='Removing…'
           onConfirm={() => remove(source.id)}

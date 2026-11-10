@@ -80,7 +80,7 @@ export function LockSettingsModal({
       onOpenChange={(open) => {
         if (!open) onClose()
       }}
-      title='Table Security'
+      title='Table security'
       confirmLabel={updateLocks.isPending ? 'Saving…' : 'Save'}
       confirmDisabled={!dirty}
       pending={updateLocks.isPending}

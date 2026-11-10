@@ -106,7 +106,7 @@ export function EnrichmentsPanel({
         onValueChange={setQuery}
       />
       {enrichments.length === 0 ? (
-        <SidePanelNote>No enrichments found.</SidePanelNote>
+        <SidePanelNote>{query.trim() ? 'No matching enrichments' : 'No enrichments'}</SidePanelNote>
       ) : (
         <ul className={styles.catalog} aria-label='Enrichments'>
           {enrichments.map((enrichment) => (

@@ -68,7 +68,7 @@ export function GroupAccess({ data, actions }: GroupAccessProps) {
         })}
         {!visible.length && (
           <EmptyState
-            title={search.trim() ? 'No workspaces match your search' : 'No workspaces have access'}
+            title={search.trim() ? 'No matching workspaces' : 'No workspaces have access'}
           />
         )}
         <SettingsRow label='Grant workspace access'>

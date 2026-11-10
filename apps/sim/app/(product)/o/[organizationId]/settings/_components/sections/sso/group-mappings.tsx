@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { Select } from '@sim/emcn/picker/select'
 import { SettingsRow } from '@sim/emcn/settings-section'
@@ -264,19 +264,15 @@ export function GroupMappings({
           </div>
         )
       })}
-      <Modal
-        variant='confirm'
-        destructive
-        open={active && pendingRemove !== undefined}
-        onOpenChange={(open) => {
-          if (!open) setPendingRemoveId(null)
-        }}
+      <ConfirmDialog
+        target={active && pendingRemove}
+        onClose={() => setPendingRemoveId(null)}
         title='Remove mapping'
         description={`Remove the mapping to ${pendingRemove ? describeScimMapping(pendingRemove, names) : ''}? ${removeMappingConsequence(pendingRemove, automaticMatchRemains)}`}
-        confirmLabel={deleteMapping.isPending ? 'Removing…' : 'Remove'}
-        onConfirm={async () => {
-          if (!pendingRemove) return
-          await deleteMapping.mutateAsync({ organizationId, mappingId: pendingRemove.id })
+        confirmLabel='Remove'
+        pendingLabel='Removing…'
+        onConfirm={async (mapping) => {
+          await deleteMapping.mutateAsync({ organizationId, mappingId: mapping.id })
           toast.success('Mapping removed')
         }}
       />

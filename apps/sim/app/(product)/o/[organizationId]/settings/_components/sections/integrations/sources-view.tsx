@@ -7,6 +7,7 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { Icon } from '@sim/emcn/icon'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { Select } from '@sim/emcn/picker/select'
 import { SearchField } from '@sim/emcn/search-field'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
@@ -315,14 +316,13 @@ export function SourcesView({ initial, subpath }: SourcesViewProps) {
         />
       )}
       {removing && editor?.type === 'remove' && (
-        <Modal
-          open
-          variant='confirm'
-          destructive
-          title={`Remove ${removing} source?`}
+        <ConfirmDialog
+          target={removing}
+          onClose={() => setEditor(null)}
+          title={`Remove ${removing} source`}
           description='Members will lose access to this source in Search.'
           confirmLabel='Remove source'
-          onOpenChange={(open) => !open && setEditor(null)}
+          pendingLabel='Removing…'
           onConfirm={() =>
             update((current) =>
               editor.id === 'secrets'

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { DataTable } from '@sim/emcn/data-display'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SearchField } from '@sim/emcn/search-field'
 import { FailureNotice } from '@sim/emcn/status'
 import { useAuthorizedAppsList } from '@/platform/shared/account'
@@ -42,7 +42,7 @@ export function AuthorizedApps() {
         <EmptyState
           title={
             list.term
-              ? `No apps found matching "${list.term}"`
+              ? `No matching apps for “${list.term}”`
               : 'No apps have access to your account'
           }
         />
@@ -73,17 +73,14 @@ export function AuthorizedApps() {
           }))}
         />
       )}
-      <Modal
-        open={revoking !== null}
-        onOpenChange={(open) => {
-          if (!open) setRevoking(null)
-        }}
-        variant='confirm'
-        destructive
+      <ConfirmDialog
+        target={revoking}
+        onClose={() => setRevoking(null)}
         title='Revoke access'
         confirmLabel='Revoke'
+        pendingLabel='Revoking…'
         description={`Revoking ${revoking?.name ?? 'this app'} immediately signs it out everywhere. You will have to authorize it again to reconnect.`}
-        onConfirm={() => (revoking ? list.revoke(revoking.id, revoking.name) : undefined)}
+        onConfirm={(app) => list.revoke(app.id, app.name)}
       />
     </>
   )

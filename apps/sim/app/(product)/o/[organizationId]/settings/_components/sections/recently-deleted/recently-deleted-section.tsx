@@ -46,7 +46,7 @@ export default function RecentlyDeletedSection({ organization }: SettingsSection
       ) : deleted.status === 'pending' ? (
         <SettingsSection title={TITLE} />
       ) : deleted.chats.length === 0 ? (
-        <EmptyState title={deleted.hasAny ? 'No chats match your search' : 'No deleted chats'} />
+        <EmptyState title={deleted.hasAny ? 'No matching chats' : 'No deleted chats'} />
       ) : (
         <SettingsSection title={TITLE}>
           {deleted.chats.map((chat) => (

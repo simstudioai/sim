@@ -263,7 +263,7 @@ export function CustomToolModal({
           if (!next) handleCloseAttempt()
         }}
         title={title}
-        confirmLabel={section === 'schema' ? 'Next' : isEditing ? 'Update Tool' : 'Save Tool'}
+        confirmLabel={section === 'schema' ? 'Next' : isEditing ? 'Save' : 'Create tool'}
         confirmDisabled={!isSchemaValid || Boolean(schemaError) || (section === 'code' && !canSave)}
         onConfirm={
           section === 'schema'
@@ -348,7 +348,7 @@ export function CustomToolModal({
       <ConfirmDialog
         target={confirmingDelete}
         onClose={() => setConfirmingDelete(false)}
-        title='Delete Custom Tool'
+        title='Delete custom tool'
         description={CUSTOM_TOOL_DELETE_DESCRIPTION}
         confirmLabel='Delete'
         pendingLabel='Deleting…'
@@ -359,9 +359,9 @@ export function CustomToolModal({
       <ConfirmDialog
         target={confirmingDiscard}
         onClose={() => setConfirmingDiscard(false)}
-        title='Unsaved Changes'
+        title='Unsaved changes'
         description='You have unsaved changes. Are you sure you want to discard them?'
-        confirmLabel='Discard Changes'
+        confirmLabel='Discard'
         pendingLabel='Discarding…'
         onConfirm={handleClose}
       />

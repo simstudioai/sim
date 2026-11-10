@@ -4,7 +4,7 @@ import { lazy, Suspense, useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
@@ -239,17 +239,18 @@ export default function ForksSection({ workspaceId }: WorkspaceSettingsSectionPr
                   description={query ? undefined : 'Create a fork to get started.'}
                 />
               )}
-              <SettingsRow label='New fork'>
-                <Button
-                  variant='primary'
-                  size='compact'
-                  icon='I074'
-                  disabled={!canMutate}
-                  onClick={() => setForking(true)}
-                >
-                  Create fork
-                </Button>
-              </SettingsRow>
+              {canMutate && (
+                <SettingsRow label='New fork'>
+                  <Button
+                    variant='primary'
+                    size='compact'
+                    icon='I074'
+                    onClick={() => setForking(true)}
+                  >
+                    Create fork
+                  </Button>
+                </SettingsRow>
+              )}
             </SettingsSection>
             <SettingsSection title='Synced workflows'>
               {/* Only this workspace's own value: a previous workspace's placeholder would write another lineage's policy. */}
@@ -280,38 +281,36 @@ export default function ForksSection({ workspaceId }: WorkspaceSettingsSectionPr
           onClose={() => setForking(false)}
         />
       )}
-      <Modal
-        variant='confirm'
-        destructive
-        open={confirmUnlink !== null}
-        onOpenChange={(open) => {
-          if (!open) setConfirmUnlink(null)
-        }}
+      <ConfirmDialog
+        target={confirmUnlink}
+        onClose={() => setConfirmUnlink(null)}
         title='Disconnect fork'
-        description={`This permanently removes the fork relationship with ${confirmUnlink?.name ?? ''}. Both workspaces stay exactly as they are, but they will no longer appear in each other's fork lists, and syncing between them stops.`}
+        description={({ name }) =>
+          `This permanently removes the fork relationship with ${name}. Both workspaces stay exactly as they are, but they will no longer appear in each other's fork lists, and syncing between them stops.`
+        }
         confirmLabel='Disconnect'
+        pendingLabel='Disconnecting…'
         onConfirm={runUnlink}
       >
         <InlineNotice
           intent='warning'
           message='This cannot be undone — the saved mappings and sync history for this pair are deleted, and forking again creates a brand-new workspace.'
         />
-      </Modal>
-      <Modal
-        variant='confirm'
-        destructive
-        open={confirmingRollback}
-        onOpenChange={setConfirmingRollback}
+      </ConfirmDialog>
+      <ConfirmDialog
+        target={confirmingRollback}
+        onClose={() => setConfirmingRollback(false)}
         title='Undo last sync'
         description='This restores each affected workflow to its prior deployed version and removes workflows the sync created. Continue?'
         confirmLabel='Rollback'
+        pendingLabel='Rolling back…'
         onConfirm={runRollback}
       >
         <InlineNotice
           intent='warning'
           message='Resources copied into this workspace during syncs may remain afterward — rollback restores workflows to their prior versions but does not remove copied resources.'
         />
-      </Modal>
+      </ConfirmDialog>
     </>
   )
 }

@@ -50,11 +50,11 @@ test.describe('governance settings', () => {
     const name = `Live check ${Date.now()}`
     await page.getByRole('button', { name: 'Create group' }).click()
     const dialog = page.getByRole('dialog', { name: 'Create permission group' })
-    await expect(dialog.getByRole('button', { name: 'Create', exact: true })).toBeDisabled()
+    await expect(dialog.getByRole('button', { name: 'Create group', exact: true })).toBeDisabled()
     await dialog.getByRole('textbox', { name: 'Name' }).fill(name)
     await dialog.getByText('Make this the organization default group').click()
     await dialog.getByText('Make this the organization default group').click()
-    await expect(dialog.getByRole('button', { name: 'Create', exact: true })).toBeDisabled()
+    await expect(dialog.getByRole('button', { name: 'Create group', exact: true })).toBeDisabled()
     await dialog.getByRole('button', { name: 'Cancel' }).click()
 
     const response = await page.request.get(
@@ -156,7 +156,7 @@ test.describe('governance settings', () => {
     await openSection(page, 'data-drains')
     await page.getByRole('button', { name: 'Create drain' }).click()
     await page.getByRole('textbox', { name: 'Name' }).fill('Live check')
-    await expect(page.getByRole('button', { name: 'Create', exact: true })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Create drain', exact: true })).toBeDisabled()
     await expect(page.getByRole('textbox', { name: 'Secret access key' })).toHaveAttribute(
       'type',
       'password'

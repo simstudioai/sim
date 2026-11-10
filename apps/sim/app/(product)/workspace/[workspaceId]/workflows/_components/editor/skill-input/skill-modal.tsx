@@ -134,8 +134,8 @@ export function SkillModal({
     <Modal
       open={open}
       onOpenChange={onOpenChange}
-      title={isEditing ? 'Edit skill' : 'Add skill'}
-      confirmLabel={saving ? 'Saving…' : isEditing ? 'Update' : 'Create'}
+      title={isEditing ? 'Edit skill' : 'Create skill'}
+      confirmLabel={saving ? 'Saving…' : isEditing ? 'Save' : 'Create skill'}
       confirmDisabled={readOnly || saving || !hasChanges}
       onConfirm={handleSave}
     >

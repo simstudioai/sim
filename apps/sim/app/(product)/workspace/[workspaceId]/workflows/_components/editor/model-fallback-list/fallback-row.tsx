@@ -157,7 +157,7 @@ export function FallbackRow({
           selectedLabel={apiKey ? (apiKeyOption?.label ?? apiKey) : undefined}
           placeholder='Select a secret'
           searchLabel='Search secrets'
-          createLabel='Create Secret'
+          createLabel='Add secret'
           onCreate={onCreateSecret}
           onValueChange={(next) => {
             if (next !== null) onChangeApiKey(row.id, next)

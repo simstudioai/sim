@@ -7,15 +7,22 @@ test('credential Back returns to its directory origin with filters intact', asyn
   const main = page.getByRole('main')
   await main.getByRole('link', { name: /^Customer operations service account / }).click()
   await expect(main.getByLabel('Credential ID', { exact: true })).toBeVisible()
-  await expect(main.getByRole('link', { name: 'Back to Credentials', exact: true })).toBeVisible()
-  await main.getByRole('link', { name: 'Back to Credentials', exact: true }).click()
+  await expect(
+    main.getByRole('navigation', { name: 'Credentials navigation', exact: true }).getByRole('link')
+  ).toBeVisible()
+  await main
+    .getByRole('navigation', { name: 'Credentials navigation', exact: true })
+    .getByRole('link')
+    .click()
   await expect(main.getByRole('searchbox', { name: 'Search credentials' })).toHaveValue('Customer')
   await expect(page).toHaveURL(/tab=credentials/)
   await expect(page).toHaveURL(/order=desc/)
   await page.goBack()
   await expect(main.getByLabel('Credential ID', { exact: true })).toBeVisible()
   await page.reload()
-  await expect(main.getByRole('link', { name: 'Back to Credentials', exact: true })).toBeVisible()
+  await expect(
+    main.getByRole('navigation', { name: 'Credentials navigation', exact: true }).getByRole('link')
+  ).toBeVisible()
 })
 
 test('manual secrets link to apps, start private and clear values across type changes and reopening', async ({
@@ -84,7 +91,10 @@ test('manual secrets link to apps, start private and clear values across type ch
   await replacement.getByRole('button', { name: 'Cancel', exact: true }).click()
   await main.getByRole('tab', { name: 'Access', exact: true }).click()
   await main.getByRole('searchbox', { name: 'Search people', exact: true }).fill('Nina')
-  await main.getByRole('link', { name: 'Back to Credentials', exact: true }).click()
+  await main
+    .getByRole('navigation', { name: 'Credentials navigation', exact: true })
+    .getByRole('link')
+    .click()
   await expect(page).not.toHaveURL(/credentialTab=|accessQ=/)
   await main.getByRole('button', { name: /^Research API / }).click()
   await expect(main.getByLabel('Credential ID', { exact: true })).toHaveValue('research-api-key')

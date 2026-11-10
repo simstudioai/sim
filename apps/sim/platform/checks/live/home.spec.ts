@@ -86,8 +86,8 @@ test.describe('Home on real data', () => {
     }
   })
 
-  test('Customize Home hides a widget for the session and Undo restores it', async ({ page }) => {
-    await page.getByRole('button', { name: 'Customize Home' }).click()
+  test('Customize home hides a widget for the session and Undo restores it', async ({ page }) => {
+    await page.getByRole('button', { name: 'Customize home' }).click()
     await page.getByRole('menuitemcheckbox', { name: 'Email' }).click()
     await page.keyboard.press('Escape')
     const email = page.getByRole('region', { name: 'Email', exact: true })

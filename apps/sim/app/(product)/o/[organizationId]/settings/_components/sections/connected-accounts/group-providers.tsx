@@ -8,6 +8,7 @@ import { SecretField } from '@sim/emcn/field/value-fields'
 import { Icon } from '@sim/emcn/icon'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
@@ -85,7 +86,7 @@ function DatabricksForm({ configuration, onSave, onClose }: DatabricksFormProps)
         />
         <TextField
           placeholder='Enter the OAuth client ID'
-          label='OAuth Client ID'
+          label='OAuth client ID'
           maxLength={512}
           autoComplete='off'
           required
@@ -93,7 +94,7 @@ function DatabricksForm({ configuration, onSave, onClose }: DatabricksFormProps)
           onChange={setClientId}
         />
         <SecretField
-          label='OAuth Client Secret'
+          label='OAuth client secret'
           optional
           value={secret}
           autoComplete='new-password'
@@ -177,7 +178,7 @@ export function GroupProviders({ data, actions, renderSlackSetup }: GroupProvide
           <EmptyState
             title={
               search.trim()
-                ? 'No integrations match your search'
+                ? 'No matching integrations'
                 : 'Add an integration to start connecting accounts.'
             }
           />
@@ -209,7 +210,7 @@ export function GroupProviders({ data, actions, renderSlackSetup }: GroupProvide
         open={catalog}
         onOpenChange={setCatalog}
         title='Add integration'
-        confirmLabel='Add'
+        confirmLabel='Add integration'
         confirmDisabled={!choice}
         onConfirm={choose}
       >
@@ -231,20 +232,17 @@ export function GroupProviders({ data, actions, renderSlackSetup }: GroupProvide
           onSave={actions.saveDatabricks}
         />
       )}
-      {removing && (
-        <Modal
-          variant='confirm'
-          destructive
-          open
-          onOpenChange={(open) => {
-            if (!open) setRemoving(undefined)
-          }}
-          title={`Remove ${removing.name}`}
-          description='Remove this provider and its connected accounts from the organization?'
-          confirmLabel='Remove'
-          onConfirm={() => actions.removeProvider(removing)}
-        />
-      )}
+      <ConfirmDialog
+        target={removing}
+        onClose={() => setRemoving(undefined)}
+        title='Remove provider'
+        description={({ name }) =>
+          `Remove ${name} and its connected accounts from the organization?`
+        }
+        confirmLabel='Remove'
+        pendingLabel='Removing…'
+        onConfirm={(provider) => actions.removeProvider(provider)}
+      />
     </SectionStack>
   )
 }

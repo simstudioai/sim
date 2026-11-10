@@ -130,7 +130,7 @@ export default function CustomToolsSection({ workspaceId }: WorkspaceSettingsSec
                 key={tool.id}
                 density='comfortable'
                 leading={<Icon name='I127' />}
-                title={tool.title || 'Unnamed Tool'}
+                title={tool.title || 'Unnamed tool'}
                 detail={tool.schema?.function?.description || undefined}
                 onOpen={() => void setSelectedToolId(tool.id)}
               />

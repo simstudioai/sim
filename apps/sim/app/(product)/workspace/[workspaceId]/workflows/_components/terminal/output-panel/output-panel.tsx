@@ -176,7 +176,7 @@ export const OutputPanel = memo(function OutputPanel({
       <div className={styles.header} onClick={toggleFromHeader(onToggleExpanded)}>
         <div className={styles.tabs} role='tablist' aria-label='Block data'>
           {isMobile && (
-            <IconButton label='Back to logs' icon='I140' size='compact' onClick={onBackToLogs} />
+            <IconButton label='Back to logs' icon='I093' size='compact' onClick={onBackToLogs} />
           )}
           <ControlRow
             label='Output'

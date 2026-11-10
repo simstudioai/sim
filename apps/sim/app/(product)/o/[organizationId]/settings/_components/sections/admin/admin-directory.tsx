@@ -59,7 +59,7 @@ export function AdminDirectory({ directory, onImpersonate }: AdminDirectoryProps
         />
         {directory.error && <InlineNotice intent='danger' message={directory.error} />}
         {directory.warning && <InlineNotice intent='warning' message={directory.warning} />}
-        {q && results && rows.length === 0 && <EmptyState title='No users found.' />}
+        {q && results && rows.length === 0 && <EmptyState title='No matching users' />}
         {rows.length > 0 && (
           <div>
             {!q && <Muted>Recently impersonated</Muted>}

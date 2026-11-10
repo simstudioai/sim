@@ -8,7 +8,7 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { Icon } from '@sim/emcn/icon'
 import type { MenuAction } from '@sim/emcn/menu/action-menu'
 import { ActionMenu, ContextActionMenu } from '@sim/emcn/menu/action-menu'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import type { LoadMoreState } from '@sim/emcn/scroll-area/use-load-more'
 import { SearchField } from '@sim/emcn/search-field'
@@ -259,7 +259,7 @@ export function LinksPage({ organizationId }: LinksPageProps) {
       ) : unsettled ? null : links.rows.length === 0 ? (
         links.term ? (
           <EmptyState
-            title={`No results for “${links.term}”`}
+            title={`No matching links for “${links.term}”`}
             description='Searched every link you can see.'
             action={<Button onClick={() => links.setSearch('')}>Clear search</Button>}
           />
@@ -301,17 +301,14 @@ export function LinksPage({ organizationId }: LinksPageProps) {
           onClose={() => setEditing(null)}
         />
       )}
-      <Modal
-        open={deleting !== null}
-        onOpenChange={(open) => {
-          if (!open) setDeleting(null)
-        }}
-        variant='confirm'
-        destructive
+      <ConfirmDialog
+        target={deleting}
+        onClose={() => setDeleting(null)}
         title='Delete link'
         confirmLabel='Delete'
+        pendingLabel='Deleting…'
         description={`${deleting?.name ?? 'This link'} will stop working for everyone in your organization.`}
-        onConfirm={() => (deleting ? links.remove(deleting.id) : undefined)}
+        onConfirm={(link) => links.remove(link.id)}
       />
     </div>
   )

@@ -186,7 +186,7 @@ export function ShareModal(props: ShareDialogProps) {
       <ConfirmDialog
         target={open && dialog.unshareConfirmOpen}
         onClose={() => dialog.setUnshareConfirmOpen(false)}
-        title='Unshare file?'
+        title='Unshare file'
         description='Anyone with the link will lose access.'
         confirmLabel='Unshare'
         pendingLabel='Unsharing…'

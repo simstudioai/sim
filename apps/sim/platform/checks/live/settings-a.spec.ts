@@ -166,7 +166,7 @@ test('links: create, find, open, edit and delete on the Platform', async ({ page
   await dialog.getByLabel('Destination URL').fill('https://example.com/')
   await dialog.getByLabel('Name').fill(`sim/${name}`)
   await expect(dialog.getByLabel('Name')).toHaveValue(name)
-  await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Create link', exact: true }).click()
   await expect(dialog).toHaveCount(0)
   await page.getByLabel('Search links').fill(name)
   await expect(page).toHaveURL(new RegExp(`search=${name}`))
@@ -194,7 +194,7 @@ test('links: create, find, open, edit and delete on the Platform', async ({ page
   await page.getByRole('button', { name: `${name} actions` }).click()
   await page.getByRole('menuitem', { name: 'Delete', exact: true }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click()
-  await expect(page.getByRole('heading', { name: `No results for “${name}”` })).toBeVisible()
+  await expect(page.getByRole('heading', { name: `No matching links for “${name}”` })).toBeVisible()
 })
 
 test('an unknown sim/ link opens the editor here, prefilled', async ({ page }) => {

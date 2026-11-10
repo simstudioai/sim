@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { Disclosure } from '@sim/emcn/disclosure'
 import { SelectField, TextAreaField, TextField } from '@sim/emcn/field'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { SaveActions } from '@sim/emcn/settings-section/save-actions'
@@ -264,14 +264,13 @@ export function SandboxEditor({
         </SettingsSection>
       )}
       {sandbox && (
-        <Modal
-          variant='confirm'
-          destructive
-          open={confirmingDelete}
-          onOpenChange={setConfirmingDelete}
+        <ConfirmDialog
+          target={confirmingDelete}
+          onClose={() => setConfirmingDelete(false)}
           title='Delete sandbox'
           description={`This will permanently delete ${sandbox.name} and remove it from any Function blocks that are using it. This action cannot be undone.`}
           confirmLabel='Delete'
+          pendingLabel='Deleting…'
           onConfirm={onDelete}
         />
       )}

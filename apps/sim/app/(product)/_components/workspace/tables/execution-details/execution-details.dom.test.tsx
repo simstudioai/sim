@@ -214,13 +214,13 @@ function traceRow(name: string) {
 it('shows the run overview a table cell showed before: level, failure, input, files and cost', async () => {
   await render()
   const overview = text()
-  expect(overview).toContain('Error')
+  expect(overview).toContain('Failed')
   expect(overview).toContain('Lookup failed: no such customer')
   expect(overview).toContain('Support triage')
   expect(overview).toContain('Slack Webhook')
   expect(overview).toContain('T-42')
   expect(overview).toContain('report.csv')
-  expect(overview).toContain('Base Run')
+  expect(overview).toContain('Base run')
   expect(overview).toContain('120 in · 40 out')
 })
 

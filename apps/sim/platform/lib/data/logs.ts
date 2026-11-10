@@ -521,7 +521,7 @@ function runCost(log: WorkflowLogDetail): RunCost | undefined {
         id: String(index),
         label:
           item.category === 'fixed' && item.description === 'execution_fee'
-            ? 'Base Run'
+            ? 'Base run'
             : item.description,
         value: creditLabel(credits[String(index)] ?? 0, item.cost),
       })),

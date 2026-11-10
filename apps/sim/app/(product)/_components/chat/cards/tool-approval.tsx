@@ -5,6 +5,7 @@ import { ActivityBody } from '@sim/emcn/activity-row/activity-body'
 import { Button } from '@sim/emcn/button'
 import { Icon } from '@sim/emcn/icon'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { Tooltip } from '@sim/emcn/tooltip'
 import { generateId } from '@sim/utils/id'
 import styles from '@/app/(product)/_components/chat/cards/cards.module.css'
 import { usePlatformNotices } from '@/app/(product)/_components/notification-tray/notification-tray'
@@ -50,9 +51,11 @@ export function ToolApproval({ tool }: { tool: PlatformTool }) {
   return (
     <div className={styles.card}>
       <ActivityBody leading={<Icon name='I084' />} decorativeLeading>
-        <span className={styles.title} data-type='T048' title={tool.input}>
-          {tool.title}
-        </span>
+        <Tooltip label={tool.input ?? ''} enabled={Boolean(tool.input)}>
+          <span className={styles.title} data-type='T048'>
+            {tool.title}
+          </span>
+        </Tooltip>
       </ActivityBody>
       <div className={styles.actions}>
         <Button

@@ -117,7 +117,7 @@ test('creating a workspace opens it in the zone, on its Workflows tab', async ({
       .getByRole('button', { name: 'Add workspace' })
       .click()
     await page.getByRole('textbox', { name: 'Workspace name' }).fill(name)
-    await page.getByRole('button', { name: 'Create', exact: true }).click()
+    await page.getByRole('button', { name: 'Create workspace', exact: true }).click()
     await expect(page).toHaveURL(/\/workspace\/[^/]+\/workflows/)
   } finally {
     // Every later check reads the seeded organization's workspaces, and a rerun would list two.

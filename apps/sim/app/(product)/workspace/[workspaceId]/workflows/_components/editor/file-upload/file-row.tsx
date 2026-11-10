@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { IconButton } from '@sim/emcn/button'
+import { OverflowText } from '@sim/emcn/overflow-text'
 import { Spinner } from '@sim/emcn/status'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/file-upload/file-upload.module.css'
 import {
@@ -41,9 +42,9 @@ export function FileRow({
   return (
     <ItemCard
       name={
-        <span title={name}>
+        <OverflowText text={label} fullValue={name}>
           {formatDisplayText(label, { workflowSearchHighlight: highlight ?? null })}
-        </span>
+        </OverflowText>
       }
       title={name}
       badges={

@@ -100,7 +100,7 @@ export function CanvasMenu({
       // Edit and creation actions
       {
         id: 'add-block',
-        label: 'Add Block',
+        label: 'Add block',
         shortcut: '⌘⌥F',
         separatorBefore: true,
         disabled: disableEdit,
@@ -135,7 +135,7 @@ export function CanvasMenu({
     actions.push(
       {
         id: 'fit-to-view',
-        label: 'Fit to View',
+        label: 'Fit to view',
         onSelect: () => {
           onFitToView()
           onClose()
@@ -154,7 +154,7 @@ export function CanvasMenu({
       },
       {
         id: 'open-logs',
-        label: 'Open Logs',
+        label: 'Open logs',
         shortcut: '⌘L',
         onSelect: () => {
           onOpenLogs()
@@ -163,7 +163,7 @@ export function CanvasMenu({
       },
       {
         id: 'toggle-variables',
-        label: isVariablesOpen ? 'Close Variables' : 'Open Variables',
+        label: isVariablesOpen ? 'Close variables' : 'Open variables',
         onSelect: () => {
           onToggleVariables()
           onClose()

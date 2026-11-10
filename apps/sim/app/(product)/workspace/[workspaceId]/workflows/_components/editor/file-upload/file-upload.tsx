@@ -1,6 +1,7 @@
 'use client'
 
 import { type ChangeEvent, useRef } from 'react'
+import { InlineNotice } from '@sim/emcn/status'
 import { useActiveSearchTarget } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/active-search-target/active-search-target'
 import { FilePicker } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/file-upload/file-picker'
 import { FileRow } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/file-upload/file-row'
@@ -123,11 +124,7 @@ export function FileUpload({
           Choose one available folder to upload a new file. Existing files can still be selected.
         </p>
       )}
-      {upload.uploadError && (
-        <p className={styles.error} data-type='T052' role='alert'>
-          {upload.uploadError.message}
-        </p>
-      )}
+      {upload.uploadError && <InlineNotice intent='danger' message={upload.uploadError.message} />}
 
       {((multiple && files.length > 0) || isUploading) && (
         <div className={styles.files}>

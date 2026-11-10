@@ -89,15 +89,13 @@ export function MembersPanel({ organization }: MembersPanelProps) {
           onRetry={roster.retry}
         />
       ) : noMatches ? (
-        <EmptyState title={`No members matching “${search.trim()}”`} />
+        <EmptyState title={`No matching members for “${search.trim()}”`} />
       ) : (
         <>
           {(!searching || visible.members.length + visible.invitations.length > 0) && (
             <SettingsSection title={`Members ${visible.total}`}>
               {visible.members.length + visible.invitations.length === 0 && (
-                <p className={styles.status} data-type='T060'>
-                  No members yet
-                </p>
+                <EmptyState title='No members yet' />
               )}
               {visible.members.map((row) => (
                 <MemberRow
@@ -123,9 +121,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
           {visible.workspaces.map((workspace) => (
             <SettingsSection key={workspace.id} title={`${workspace.name} ${workspace.total}`}>
               {workspace.members.length + workspace.invitations.length === 0 && (
-                <p className={styles.status} data-type='T060'>
-                  No members in this workspace
-                </p>
+                <EmptyState title='No members in this workspace' />
               )}
               {workspace.members.map((row) => (
                 <WorkspaceMemberRow

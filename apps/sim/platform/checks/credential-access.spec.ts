@@ -268,9 +268,9 @@ for (const theme of ['light', 'dark']) {
       )
       await leave.focus()
       await page.keyboard.press('Enter')
-      await expect(
-        page.getByRole('dialog', { name: 'Leave credential?', exact: true })
-      ).toHaveCount(0)
+      await expect(page.getByRole('dialog', { name: 'Leave credential', exact: true })).toHaveCount(
+        0
+      )
       await page.keyboard.press('Escape')
       const tablePosition = () =>
         people.evaluate((node) => {

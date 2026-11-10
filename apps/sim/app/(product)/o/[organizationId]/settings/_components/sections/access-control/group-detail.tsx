@@ -6,7 +6,7 @@ import { Button } from '@sim/emcn/button'
 import { TextField } from '@sim/emcn/field'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { SearchField } from '@sim/emcn/search-field'
@@ -71,7 +71,7 @@ import { compareText, formatTimestamp } from '@/platform/shared/time'
 
 const TABS = [
   { value: 'general', label: 'General' },
-  { value: 'providers', label: 'Model Providers' },
+  { value: 'providers', label: 'Model providers' },
   { value: 'blocks', label: 'Blocks' },
   { value: 'platform', label: 'Platform' },
 ] as const
@@ -324,7 +324,7 @@ export function GroupDetail({
             />
           </SectionToolbar>
           {filtered.length === 0 ? (
-            <Muted>No providers match your filters.</Muted>
+            <Muted>No matching providers</Muted>
           ) : (
             <SettingsSection title='Providers'>
               {filtered.map((providerId) => (
@@ -367,9 +367,9 @@ export function GroupDetail({
           >
             <StatusFilter value={status} onChange={params.setStatus} />
           </SectionToolbar>
-          {core.length === 0 && tools.length === 0 && <Muted>No blocks match your filters.</Muted>}
+          {core.length === 0 && tools.length === 0 && <Muted>No matching blocks</Muted>}
           {core.length > 0 && (
-            <SettingsSection title='Core Blocks'>
+            <SettingsSection title='Core blocks'>
               <SettingsRow label='All core blocks'>
                 <PermissionBulkSelect targets={targets(core)} controls={controls} />
               </SettingsRow>
@@ -379,7 +379,7 @@ export function GroupDetail({
             </SettingsSection>
           )}
           {tools.length > 0 && (
-            <SettingsSection title='Integrations and Triggers'>
+            <SettingsSection title='Integrations and triggers'>
               <SettingsRow label='All integrations and triggers'>
                 <PermissionBulkSelect targets={targets(tools)} controls={controls} />
               </SettingsRow>
@@ -445,7 +445,7 @@ export function GroupDetail({
             controls={controls}
           />
         </SectionToolbar>
-        {sections.length === 0 && <Muted>No features match your filters.</Muted>}
+        {sections.length === 0 && <Muted>No matching features</Muted>}
         {sections.map(({ category, features: rows }) => (
           <SettingsSection key={category} title={category}>
             {rows.map((feature) => (
@@ -661,14 +661,13 @@ export function GroupDetail({
           isAdding={bulkAddMembers.isPending}
         />
       )}
-      <Modal
-        variant='confirm'
-        destructive
-        open={confirmingDelete}
-        onOpenChange={setConfirmingDelete}
+      <ConfirmDialog
+        target={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
         title='Delete permission group'
         description={`Are you sure you want to delete ${group.name}? All members will be removed from this group. This action cannot be undone.`}
-        confirmLabel={deleteGroup.isPending ? 'Deleting…' : 'Delete'}
+        confirmLabel='Delete'
+        pendingLabel='Deleting…'
         onConfirm={async () => {
           await deleteGroup.mutateAsync({ permissionGroupId: group.id, organizationId })
           onBack()

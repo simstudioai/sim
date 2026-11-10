@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import Link from 'next/link'
 import { toast } from '@/lib/toast/sink'
@@ -110,14 +110,13 @@ function SignedInRows({
           Delete account
         </Button>
       </SettingsRow>
-      <Modal
-        open={dialog === 'reset'}
-        onOpenChange={(open) => {
-          if (!open) setDialog(null)
-        }}
-        variant='confirm'
+      <ConfirmDialog
+        target={dialog === 'reset'}
+        onClose={() => setDialog(null)}
+        safe
         title='Reset password'
         confirmLabel='Send reset email'
+        pendingLabel='Sending…'
         description={`A password reset link will be sent to ${email ?? 'your account email'}. Click the link in the email to create a new password.`}
         onConfirm={() => (email ? resetPassword(email) : undefined)}
       />

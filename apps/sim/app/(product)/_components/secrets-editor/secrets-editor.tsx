@@ -162,7 +162,7 @@ interface WorkspaceSecretsProps {
 
 /**
  * The workspace's and the viewer's own secrets, saved together. A personal secret the workspace
- * also names is overridden by it, and a secret named by a `{{` suggestion's "Create Secret" arrives
+ * also names is overridden by it, and a secret named by a `{{` suggestion's "Add secret" arrives
  * as a pending create request.
  */
 function WorkspaceSecrets({ workspaceId, onViewDetails }: WorkspaceSecretsProps) {
@@ -224,7 +224,7 @@ interface SecretScope {
   rowAccess?: ReadonlyMap<string, SecretRowAccess>
   /** The index of a scope whose same-named secrets override this one's. */
   overriddenBy?: number
-  /** A `{{` suggestion's "Create Secret" adds its name here. */
+  /** A `{{` suggestion's "Add secret" adds its name here. */
   takesCreateRequests?: boolean
   save: (plan: {
     upsert: Record<string, string>
@@ -579,7 +579,7 @@ function SecretRows({
           </SettingsSection>
         )
       })}
-      {noMatches && <EmptyState title={`No secrets found matching “${searchTerm}”`} />}
+      {noMatches && <EmptyState title={`No matching secrets for “${searchTerm}”`} />}
       <SaveActions
         dirty={hasChanges}
         saving={isSaving}

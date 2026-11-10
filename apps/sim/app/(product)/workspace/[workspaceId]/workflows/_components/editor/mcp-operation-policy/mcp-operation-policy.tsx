@@ -2,6 +2,7 @@
 
 import { type ClipboardEvent, type KeyboardEvent, useId, useRef, useState } from 'react'
 import { Select } from '@sim/emcn/picker/select'
+import { InlineNotice } from '@sim/emcn/status'
 import { RecipientTag } from '@sim/emcn-platform/workspace-fields'
 import { getErrorMessage } from '@sim/utils/errors'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/mcp-operation-policy/mcp-operation-policy.module.css'
@@ -164,11 +165,7 @@ export function McpOperationPolicyEditor({
               onBlur={commitDraft}
             />
           </div>
-          {error && (
-            <p role='alert' className={styles.error} data-type='T052'>
-              {error}
-            </p>
-          )}
+          {error && <InlineNotice intent='danger' message={error} />}
         </div>
       )}
       <p id={descriptionId} className={styles.description} data-type='T052'>
