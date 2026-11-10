@@ -7,18 +7,6 @@ import type { ChatPosition } from '@/stores/chat/types'
 const DEFAULT_WIDTH = 305
 const DEFAULT_HEIGHT = 286
 
-/**
- * Minimum chat dimensions (same as baseline default)
- */
-export const MIN_CHAT_WIDTH = DEFAULT_WIDTH
-export const MIN_CHAT_HEIGHT = DEFAULT_HEIGHT
-
-/**
- * Maximum chat dimensions
- */
-export const MAX_CHAT_WIDTH = 500
-export const MAX_CHAT_HEIGHT = 600
-
 /** Inset gap between the viewport edge and the content window */
 const CONTENT_WINDOW_GAP = 8
 

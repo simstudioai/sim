@@ -36,7 +36,6 @@ import {
   indexWorkflowSearchMatches,
   isConstrainedResourceMatch,
   isWorkflowEffectivelyLocked,
-  useChatStore,
   useCollaborativeWorkflow,
   useCurrentWorkflow,
   useCustomBlockOverlayVersion,
@@ -385,7 +384,6 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
       const match = hydratedMatches.find((candidate) => candidate.id === matchId)
       if (!match) return
       if (!isFloatingLayout()) {
-        useChatStore.getState().setIsChatOpen(false)
         useVariablesModalStore.getState().setIsOpen(false)
         usePanelStore.getState().setIsMobilePanelOpen(match.blockType !== 'note')
       }

@@ -6,8 +6,7 @@ import type { FolderResourceType } from '@/lib/api/contracts/folders'
  * knowledge bases, and tables.
  *
  * `color` and `isExpanded` were dropped along with the generic-folder table: `color` had
- * no consumer, and expansion state is client-only (it lives in this store, and was never
- * read back from the server).
+ * no consumer, and expansion state was never read back from the server.
  */
 export interface WorkflowFolder {
   id: string

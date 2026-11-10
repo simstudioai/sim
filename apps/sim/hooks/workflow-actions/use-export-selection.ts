@@ -9,7 +9,6 @@ import {
 } from '@/lib/workflows/operations/import-export'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
-import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
@@ -189,10 +188,6 @@ export function useExportSelection({ workspaceId, onSuccess }: UseExportSelectio
         const zipBlob = await exportWorkflowsToZip(workflowExportData)
         const zipFilename = `selection-export-${Date.now()}.zip`
         downloadFile(zipBlob, zipFilename, 'application/zip')
-
-        const { clearSelection, clearFolderSelection } = useFolderStore.getState()
-        clearSelection()
-        clearFolderSelection()
 
         logger.info('Selection exported successfully', {
           workflowCount: workflowExportData.length,

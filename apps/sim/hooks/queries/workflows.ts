@@ -37,7 +37,6 @@ import {
   mapWorkflow,
   WORKFLOW_LIST_STALE_TIME,
 } from '@/hooks/queries/utils/workflow-list-query'
-import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { generateCreativeWorkflowName } from '@/stores/workflows/registry/utils'
@@ -271,17 +270,6 @@ export function useCreateWorkflow() {
           )
       )
 
-      if (tempId !== data.id) {
-        useFolderStore.setState((state) => {
-          const selectedWorkflows = new Set(state.selectedWorkflows)
-          if (selectedWorkflows.has(tempId)) {
-            selectedWorkflows.delete(tempId)
-            selectedWorkflows.add(data.id)
-          }
-          return { selectedWorkflows }
-        })
-      }
-
       if (data.subBlockValues) {
         useSubBlockStore.setState((state) => ({
           workflowValues: {
@@ -438,17 +426,6 @@ export function useDuplicateWorkflowMutation() {
               : w
           )
       )
-
-      if (tempId !== data.id) {
-        useFolderStore.setState((state) => {
-          const selectedWorkflows = new Set(state.selectedWorkflows)
-          if (selectedWorkflows.has(tempId)) {
-            selectedWorkflows.delete(tempId)
-            selectedWorkflows.add(data.id)
-          }
-          return { selectedWorkflows }
-        })
-      }
 
       logger.info(`[DuplicateWorkflow] Success, replaced temp entry ${tempId}`)
     },

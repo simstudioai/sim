@@ -24,8 +24,6 @@ const {
   mockCancel,
   mockExecute,
   mockExecuteFromBlock,
-  mockFindStartBlock,
-  mockFetch,
   mockHandleExecutionCancelledConsole,
   mockHandleExecutionErrorConsole,
   mockIsExecutionStreamHttpError,
@@ -33,7 +31,6 @@ const {
   mockReconnect,
   mockResolveStartCandidates,
   mockSelectBestTrigger,
-  mockUploadInternalFileSession,
   runToolReleaseListeners,
   terminalStoreState,
   workflowBlocks,
@@ -104,8 +101,6 @@ const {
     mockCancel: vi.fn(),
     mockExecute: vi.fn(),
     mockExecuteFromBlock: vi.fn(),
-    mockFindStartBlock: vi.fn(() => ({ blockId: 'start' })),
-    mockFetch: vi.fn(),
     mockHandleExecutionCancelledConsole: vi.fn(),
     mockHandleExecutionErrorConsole: vi.fn(),
     mockIsExecutionStreamHttpError: vi.fn(() => false),
@@ -113,7 +108,6 @@ const {
     mockReconnect: vi.fn(),
     mockResolveStartCandidates: vi.fn(),
     mockSelectBestTrigger: vi.fn(),
-    mockUploadInternalFileSession: vi.fn(),
     runToolReleaseListeners: new Set<(workflowId: string) => void>(),
     terminalStoreState,
     workflowBlocks,
@@ -142,14 +136,6 @@ vi.mock('@/lib/api/contracts/workflows', () => ({
   workflowStateSchema: { parse: (value: unknown) => value },
 }))
 
-vi.mock('@/lib/tokenization', () => ({
-  processStreamingBlockLogs: () => 0,
-}))
-
-vi.mock('@/lib/uploads/client/session-upload', () => ({
-  uploadInternalFileSession: mockUploadInternalFileSession,
-}))
-
 vi.mock('@/lib/workflows/input-format', () => ({
   collectInputFormatFiles: () => [],
   isFileFieldType: () => false,
@@ -169,10 +155,6 @@ vi.mock('@/lib/workflows/triggers/triggers', () => ({
     UNIFIED: 'unified',
     LEGACY_STARTER: 'legacy-starter',
     EXTERNAL_TRIGGER: 'external-trigger',
-  },
-  TriggerUtils: {
-    findStartBlock: mockFindStartBlock,
-    getTriggerValidationMessage: () => 'Missing trigger',
   },
 }))
 
@@ -239,14 +221,6 @@ vi.mock('@/serializer', () => ({
   WorkflowValidationError: class WorkflowValidationError extends Error {},
 }))
 
-vi.mock('@/stores/chat/store', () => ({
-  useChatStore: {
-    getState: () => ({
-      getSelectedWorkflowOutput: () => [],
-    }),
-  },
-}))
-
 vi.mock('@/stores/execution', () => ({
   defaultWorkflowExecutionState: executionStoreState.getWorkflowExecution('workflow-1'),
   useExecutionStore: Object.assign(
@@ -281,11 +255,7 @@ vi.mock('@/stores/workflows/workflow/store', () => ({
   ),
 }))
 
-import {
-  type ChatWorkflowRunResult,
-  useWorkflowExecution,
-  WorkflowAttachmentUploadError,
-} from '@/components/workflow-editor/hooks/use-workflow-execution'
+import { useWorkflowExecution } from '@/components/workflow-editor/hooks/use-workflow-execution'
 
 nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
 resetWorkflowRegistryMockState({
@@ -354,14 +324,6 @@ function renderWorkflowExecutionHook(): HookHarness {
     result: () => latest,
     unmount: () => act(() => root.unmount()),
   }
-}
-
-async function drainStream(value: unknown): Promise<void> {
-  if (!value || typeof value !== 'object' || !('stream' in value)) return
-  if (!(value.stream instanceof ReadableStream)) return
-
-  const reader = value.stream.getReader()
-  while (!(await reader.read()).done) {}
 }
 
 describe('useWorkflowExecution cancellation', () => {
@@ -457,18 +419,30 @@ describe('useWorkflowExecution lifecycle ownership', () => {
     const executionStarted = new Promise<void>((resolve) => {
       markExecutionStarted = resolve
     })
+    const startCandidate = { blockId: 'start', block: workflowBlocks.start, path: 'legacy-starter' }
+    mockResolveStartCandidates.mockReturnValue([startCandidate])
+    mockSelectBestTrigger.mockReturnValue([startCandidate])
     mockBeginScopedExecution.mockReturnValueOnce(persistenceExecution)
-    mockExecute.mockImplementationOnce(() => {
+    mockExecute.mockImplementationOnce((options) => {
       markExecutionStarted?.()
       return new Promise<void>((resolve) => {
-        resolveActiveRun = resolve
+        resolveActiveRun = () => {
+          options.callbacks.onExecutionCompleted({
+            success: true,
+            output: {},
+            duration: 0,
+            startTime: '',
+            endTime: '',
+          })
+          resolve()
+        }
       })
     })
     const { result, unmount } = renderWorkflowExecutionHook()
 
-    let activeRun: unknown
+    let activeRun: Promise<unknown> | undefined
     await act(async () => {
-      activeRun = await result().handleRunWorkflow({ input: 'active run' })
+      activeRun = result().handleRunWorkflow()
       await executionStarted
     })
 
@@ -490,7 +464,7 @@ describe('useWorkflowExecution lifecycle ownership', () => {
 
     await act(async () => {
       resolveActiveRun?.()
-      await drainStream(activeRun)
+      await activeRun
     })
 
     expect(mockEndScopedExecution).toHaveBeenCalledOnce()
@@ -692,133 +666,8 @@ describe('useWorkflowExecution lifecycle ownership', () => {
   })
 })
 
-describe('useWorkflowExecution attachment uploads', () => {
-  beforeEach(() => {
-    resetWorkflowExecutionTestState()
-    vi.stubGlobal('fetch', mockFetch)
-    mockUploadInternalFileSession.mockRejectedValue(
-      new Error('Workspace file storage limit exceeded')
-    )
-    mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ error: 'Workspace file storage limit exceeded' }), {
-        status: 413,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    )
-  })
-
-  it('does not execute and reports the exact server error when an explicit attachment fails', async () => {
-    const { result, unmount } = renderWorkflowExecutionHook()
-    const contextFile = new File(['context'], 'context.txt', { type: 'text/plain' })
-    const file = new File(['report'], 'report.pdf', { type: 'application/pdf' })
-    let uploadError: unknown
-
-    mockUploadInternalFileSession.mockResolvedValueOnce({
-      id: 'attachment-context',
-      key: 'executions/context.txt',
-      url: '/uploads/context.txt',
-      name: contextFile.name,
-      size: contextFile.size,
-      type: contextFile.type,
-      context: 'execution',
-    })
-
-    await act(async () => {
-      try {
-        await result().handleRunWorkflow({
-          input: 'Summarize this report',
-          conversationId: 'conversation-1',
-          files: [
-            {
-              name: contextFile.name,
-              size: contextFile.size,
-              type: contextFile.type,
-              file: contextFile,
-            },
-            {
-              name: file.name,
-              size: file.size,
-              type: file.type,
-              file,
-            },
-          ],
-        })
-      } catch (error) {
-        uploadError = error
-      }
-    })
-
-    expect(uploadError).toBeInstanceOf(WorkflowAttachmentUploadError)
-    expect((uploadError as Error).message).toBe(
-      'Failed to upload report.pdf: Workspace file storage limit exceeded'
-    )
-    expect(mockExecute).not.toHaveBeenCalled()
-
-    unmount()
-  })
-
-  it('returns uploaded metadata without mutating or leaking local input into execution', async () => {
-    const { result, unmount } = renderWorkflowExecutionHook()
-    const file = new File(['diagram'], 'diagram.png', { type: 'image/png' })
-    const workflowInput = {
-      input: 'Describe this diagram',
-      conversationId: 'conversation-1',
-      files: [
-        {
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          file,
-        },
-      ],
-    }
-    let runResult: unknown
-
-    mockUploadInternalFileSession.mockResolvedValueOnce({
-      id: 'attachment-diagram',
-      key: 'execution/diagram.png',
-      url: '/api/files/serve/execution%2Fdiagram.png',
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      context: 'execution',
-    })
-
-    await act(async () => {
-      runResult = await result().handleRunWorkflow(workflowInput)
-      await drainStream(runResult)
-    })
-
-    expect(runResult).toEqual(
-      expect.objectContaining({ success: true, stream: expect.any(ReadableStream) })
-    )
-    expect((runResult as ChatWorkflowRunResult).uploadedAttachments).toEqual([
-      expect.objectContaining({
-        name: 'diagram.png',
-        url: '/api/files/serve/execution%2Fdiagram.png',
-        size: file.size,
-        type: 'image/png',
-        key: 'execution/diagram.png',
-      }),
-    ])
-    expect(workflowInput.files[0].file).toBe(file)
-    expect(mockExecute).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({
-          input: 'Describe this diagram',
-          conversationId: 'conversation-1',
-          files: [
-            expect.objectContaining({
-              name: 'diagram.png',
-              url: '/api/files/serve/execution%2Fdiagram.png',
-            }),
-          ],
-        }),
-      })
-    )
-
-    unmount()
-  })
+describe('useWorkflowExecution run from block', () => {
+  beforeEach(resetWorkflowExecutionTestState)
 
   it('sends the snapshot as a fallback with a trusted run-from-block execution ID', async () => {
     const sourceSnapshot = {
@@ -935,7 +784,6 @@ describe('useWorkflowExecution attachment uploads', () => {
 describe('useWorkflowExecution workflow state override', () => {
   beforeEach(() => {
     resetWorkflowExecutionTestState()
-    vi.stubGlobal('fetch', mockFetch)
     const startCandidate = {
       blockId: 'start',
       block: workflowBlocks.start,
@@ -945,7 +793,7 @@ describe('useWorkflowExecution workflow state override', () => {
     mockSelectBestTrigger.mockReturnValue([startCandidate])
   })
 
-  it.each(['manual', 'chat', 'run-until'] as const)(
+  it.each(['manual', 'run-until'] as const)(
     'keeps disabled blocks and edges in %s payloads while excluding disabled triggers',
     async (triggerType) => {
       const blocks = {
@@ -991,15 +839,7 @@ describe('useWorkflowExecution workflow state override', () => {
           await result().handleRunUntilBlock('condition1', 'workflow-1')
           return
         }
-        const runResult = await result().handleRunWorkflow(
-          triggerType === 'chat'
-            ? {
-                input: 'go',
-                conversationId: 'conversation-1',
-              }
-            : undefined
-        )
-        await drainStream(runResult)
+        await result().handleRunWorkflow()
       })
 
       expect(mockExecute).toHaveBeenCalledTimes(1)
@@ -1014,13 +854,9 @@ describe('useWorkflowExecution workflow state override', () => {
         expect(sentBlockIds.has(edge.target)).toBe(true)
       }
       const enabledBlocks = { start: blocks.start, condition1: blocks.condition1 }
-      if (triggerType === 'chat') {
-        expect(mockFindStartBlock).toHaveBeenCalledWith(enabledBlocks, 'chat')
-      } else {
-        expect(mockResolveStartCandidates).toHaveBeenCalledWith(enabledBlocks, {
-          execution: 'manual',
-        })
-      }
+      expect(mockResolveStartCandidates).toHaveBeenCalledWith(enabledBlocks, {
+        execution: 'manual',
+      })
 
       unmount()
     }

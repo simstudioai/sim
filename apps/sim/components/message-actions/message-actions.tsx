@@ -26,7 +26,6 @@ import { organizationRoutes } from '@/lib/navigation/paths'
 import { isAnswerSegmentId } from '@/hooks/mothership-chat/steered-messages'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 import { useForkMothershipChat } from '@/hooks/queries/mothership-chats'
-import { useFolderStore } from '@/stores/folders/store'
 
 const ICON_CLASS = 'size-[14px]'
 const BUTTON_CLASS =
@@ -148,7 +147,6 @@ export const MessageActions = memo(function MessageActions({
       } else if (params.organizationId) {
         router.push(organizationRoutes(params.organizationId).chat(result.id))
       } else {
-        useFolderStore.getState().clearChatSelection()
         router.push(`/workspace/${params.workspaceId}/chat/${result.id}`)
       }
     } catch (error) {
