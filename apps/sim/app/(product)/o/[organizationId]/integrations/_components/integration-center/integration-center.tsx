@@ -44,8 +44,6 @@ interface ResourceLibrary {
 
 /** A tab whose rows live data supplies, such as a workspace's skills or MCP servers. */
 export interface LiveTab {
-  /** A choice of its own beside the page's, where the tab has one. */
-  filter?: ReactNode
   /** Create and import, ending the control bar. */
   actions: ReactNode
   content: ReactNode
@@ -295,22 +293,22 @@ export function IntegrationCenter({
                   }
                 }}
               />
-            ) : live ? (
-              live.filter
             ) : (
-              <ChoiceMenu
-                label='Category'
-                value={view.scope}
-                options={[
-                  { label: 'All', value: 'all' },
-                  { label: 'Shared', value: 'shared' },
-                  { label: 'Personal', value: 'personal' },
-                ]}
-                onValueChange={(scope) => {
-                  if (scope === 'all' || scope === 'shared' || scope === 'personal')
-                    void setView({ scope })
-                }}
-              />
+              !live && (
+                <ChoiceMenu
+                  label='Category'
+                  value={view.scope}
+                  options={[
+                    { label: 'All', value: 'all' },
+                    { label: 'Shared', value: 'shared' },
+                    { label: 'Personal', value: 'personal' },
+                  ]}
+                  onValueChange={(scope) => {
+                    if (scope === 'all' || scope === 'shared' || scope === 'personal')
+                      void setView({ scope })
+                  }}
+                />
+              )
             )}
             <ActionMenu
               label='Sort integrations'

@@ -1,8 +1,12 @@
 /**
  * @vitest-environment jsdom
  *
- * A workspace credential opens on the example design's credential page. Failure mode: a rename the
- * server refuses clears the draft the user typed.
+ * A workspace credential opens on the example design's credential page, and an app's page offers
+ * only the ways to connect that exist. Failure modes: a rename the server refuses clears the draft
+ * the user typed; an app the catalog lists no connection for showing a disabled Connect that can
+ * never work; an app this deployment has not configured, or whose listed connections it cannot
+ * complete, losing the disabled Connect that says why; and a member integration the organization
+ * disables saying so in place of the credential list while the workspace's Connect menu works.
  */
 import { act } from 'react'
 import { flushMacrotask } from '@sim/testing/helpers/async'
@@ -17,9 +21,12 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/auth/client', () => authClientMock)
 
+import type { ComponentProps } from 'react'
 import { IntegrationDetails } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-details/integration-details'
 import type { WorkspaceCredential } from '@/platform/lib/data/credentials'
 import type { WorkspaceAppDetail } from '@/platform/lib/integrations/workspace-catalog'
+import { SurfaceScopeProvider } from '@/platform/lib/surface-scope'
+import type { OrganizationIntegration } from '@/platform/shared/integrations'
 
 const WORKSPACE = { id: 'ws-1', name: 'Acme' }
 const VIEWER = { id: 'viewer', name: 'Viewer', email: 'viewer@sim.test', image: null }
@@ -133,23 +140,39 @@ async function settle() {
 }
 
 async function open(credentials: WorkspaceCredential[]) {
+  await show({
+    workspaceApp: { app: GMAIL, workspace: WORKSPACE, credentials },
+    accountId: 'cred-1',
+  })
+}
+
+async function show({
+  integration,
+  workspaceApp,
+  accountId = null,
+}: Pick<ComponentProps<typeof IntegrationDetails>, 'integration' | 'workspaceApp'> & {
+  accountId?: string | null
+}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   act(() =>
     root.render(
       <QueryClientProvider client={queryClient}>
         <NuqsTestingAdapter>
-          <IntegrationDetails
-            workspaceApp={{ app: GMAIL, workspace: WORKSPACE, credentials }}
-            accountId='cred-1'
-            integrationHref='/o/org/integrations/gmail'
-            accountHref={(account) => `/o/org/integrations/gmail?account=${account}`}
-            pending={false}
-            onConnect={() => undefined}
-            onReconnect={() => undefined}
-            onDisconnect={async () => undefined}
-            onLeave={() => undefined}
-            renderToolPermissions={() => null}
-          />
+          <SurfaceScopeProvider routePrefix='/o/org'>
+            <IntegrationDetails
+              integration={integration}
+              workspaceApp={workspaceApp}
+              accountId={accountId}
+              integrationHref='/o/org/integrations/gmail'
+              accountHref={(account) => `/o/org/integrations/gmail?account=${account}`}
+              pending={false}
+              onConnect={() => undefined}
+              onReconnect={() => undefined}
+              onDisconnect={async () => undefined}
+              onLeave={() => undefined}
+              renderToolPermissions={() => null}
+            />
+          </SurfaceScopeProvider>
         </NuqsTestingAdapter>
       </QueryClientProvider>
     )
@@ -187,4 +210,51 @@ it('keeps a refused rename’s draft for the user to correct', async () => {
   await settle()
 
   expect(name.value).toBe('Taken inbox')
+})
+
+/** The page's Connect when no method can connect: a disabled button explaining why. */
+function disabledConnect() {
+  return [...container.querySelectorAll('button')].find(
+    (button) => button.textContent === 'Connect integration'
+  )
+}
+
+function workspaceOnly(app: WorkspaceAppDetail) {
+  return { workspaceApp: { app, workspace: WORKSPACE, credentials: [] } }
+}
+
+it('offers no Connect for an app the catalog lists no connection for', async () => {
+  await show(workspaceOnly({ ...GMAIL, credentialProviders: [], connections: [] }))
+  expect(disabledConnect()).toBeUndefined()
+})
+
+it('keeps the disabled Connect for an app this deployment has not configured', async () => {
+  await show(workspaceOnly({ ...GMAIL, access: 'unconfigured', connections: [] }))
+  expect(disabledConnect()?.disabled).toBe(true)
+})
+
+it('keeps the disabled Connect for an app whose listed connections cannot complete here', async () => {
+  await show(workspaceOnly({ ...GMAIL, connections: [] }))
+  expect(disabledConnect()?.disabled).toBe(true)
+})
+
+it('lists credentials, not the organization’s refusal, while the workspace can still connect', async () => {
+  const blocked: OrganizationIntegration = {
+    id: 'gmail',
+    providerId: 'google-email',
+    icon: () => null,
+    name: 'Gmail',
+    description: 'Gmail search',
+    category: 'Email',
+    setupGuideUrl: 'https://docs.sim.test/gmail',
+    searchResource: null,
+    searchReads: [],
+    requestedScopes: null,
+    accessDescription: '',
+    availability: 'blocked',
+    status: 'Disabled by your organization',
+    accounts: [],
+  }
+  await show({ integration: blocked, workspaceApp: workspaceOnly(GMAIL).workspaceApp })
+  expect(container.querySelector('section[aria-label="Connected credentials"]')).not.toBeNull()
 })

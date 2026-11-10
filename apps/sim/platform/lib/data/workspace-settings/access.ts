@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
+import type { BooleanPermissionGroupConfigKey } from '@/lib/permission-groups/features'
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
 import { useForkingAvailability } from '@/ee/workspace-forking/hooks/use-forking-available'
 import { useDiscoverAccessRequests } from '@/hooks/queries/access-requests'
@@ -12,6 +13,7 @@ import {
   resolveWorkspaceSettings,
   type WorkspaceSetting,
   type WorkspaceSettingsKey,
+  workspaceSettingRestriction,
 } from '@/platform/lib/data/workspace-settings/navigation'
 
 /**
@@ -76,6 +78,28 @@ export function useWorkspaceSettings(workspaceId: string) {
           candidate.target.kind === 'feature' && candidate.target.configKey === configKey
       ),
     }),
+  }
+}
+
+const MCP_RESTRICTION = workspaceSettingRestriction('mcp')
+const SECRETS_RESTRICTION = workspaceSettingRestriction('secrets')
+
+/**
+ * What the viewer's permission group withholds in one workspace from the surfaces that list its MCP
+ * servers, skills and secrets outside Settings: the flags Settings hides its MCP and Secrets sections
+ * by, and the one that refuses `skills.use`. A group that cannot be read withholds all three, as
+ * Settings shows no section it cannot judge. `settled` once the group answers, or with no workspace.
+ */
+export function useWorkspaceRestrictions(workspaceId: string | undefined) {
+  const policy = useUserPermissionConfig(workspaceId)
+  const config = policy.data?.config
+  const withheld = (key: BooleanPermissionGroupConfigKey | undefined) =>
+    !policy.isSuccess || Boolean(key && config?.[key])
+  return {
+    settled: !workspaceId || policy.isSuccess || policy.isError,
+    mcp: withheld(MCP_RESTRICTION),
+    skills: withheld('disableSkills'),
+    secrets: withheld(SECRETS_RESTRICTION),
   }
 }
 

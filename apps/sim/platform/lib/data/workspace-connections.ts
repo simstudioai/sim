@@ -2,9 +2,12 @@
 
 import { useDeleteWorkspaceCredential, useWorkspaceCredentials } from '@/hooks/queries/credentials'
 
-/** One workspace's connected credentials, as legacy's workspace Integrations page read them. */
-export function useWorkspaceConnections(workspaceId: string | undefined) {
-  const credentials = useWorkspaceCredentials({ workspaceId })
+/**
+ * One workspace's connected credentials, as legacy's workspace Integrations page read them. With
+ * `enabled` false the list is left unread, for a view that shows none of it.
+ */
+export function useWorkspaceConnections(workspaceId: string | undefined, enabled = true) {
+  const credentials = useWorkspaceCredentials({ workspaceId, enabled })
   const remove = useDeleteWorkspaceCredential(workspaceId)
   return {
     credentials,
