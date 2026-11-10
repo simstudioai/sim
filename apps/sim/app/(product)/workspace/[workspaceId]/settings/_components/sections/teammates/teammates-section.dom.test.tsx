@@ -111,7 +111,7 @@ function view() {
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { enabled: false } } })}
     >
-      <TeammatesSection workspaceId='ws' />
+      <TeammatesSection workspaceId='ws' subpath={[]} />
     </QueryClientProvider>
   )
 }

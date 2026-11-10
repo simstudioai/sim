@@ -31,7 +31,7 @@ import {
   migrateBrowserScope,
   openUrlInNewBrowserTab,
 } from '@/lib/browser-agent/transport'
-import { ChatPanelTrigger } from '@/app/(product)/_components/chat/panel/chat-panels'
+import { ChatPanelTrigger } from '@/app/(product)/_components/chat/panel/chat-panel-trigger'
 import { ResourcePanels } from '@/app/(product)/_components/chat/panel/resource-panels'
 import { useMothershipResize } from '@/hooks/mothership-chat/use-mothership-resize'
 import { SurfaceScopeProvider } from '@/platform/lib/surface-scope'

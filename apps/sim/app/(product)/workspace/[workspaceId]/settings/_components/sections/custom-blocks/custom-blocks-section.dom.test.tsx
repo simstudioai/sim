@@ -47,7 +47,7 @@ afterEach(() => {
 })
 
 it('shows a failed workspace read with Retry', async () => {
-  act(() => root.render(<CustomBlocksSection workspaceId='ws' />))
+  act(() => root.render(<CustomBlocksSection workspaceId='ws' subpath={[]} />))
   const retry = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Retry')
   await act(async () => retry?.click())
   expect(reads.refetchWorkspaces).toHaveBeenCalled()

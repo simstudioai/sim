@@ -64,7 +64,7 @@ const BLOCK_ID = 'block-1'
 /** The mapped credential every dependent below hangs off; already mapped, so nothing re-picks it. */
 const CREDENTIAL_ENTRY: ForkMappingEntry = {
   kind: 'credential',
-  resourceType: 'credential',
+  resourceType: 'oauth_credential',
   sourceId: 'cred-src',
   sourceLabel: 'Google (source)',
   targetId: 'cred-tgt',

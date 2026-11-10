@@ -62,7 +62,7 @@ afterEach(() => {
 const openDialog = () => document.querySelector('dialog[open]')
 
 async function requestDelete() {
-  act(() => root.render(<WorkflowMcpServersSection workspaceId='ws' />))
+  act(() => root.render(<WorkflowMcpServersSection workspaceId='ws' subpath={[]} />))
   const open = [...container.querySelectorAll('button')].find(
     (button) => button.textContent === 'Delete server'
   )
