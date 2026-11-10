@@ -10,9 +10,11 @@ import { useQueryStates } from 'nuqs'
 import { DirectoryHeading } from '@/app/(product)/_components/resource-directory/resource-directory'
 import { DetailSplit } from '@/app/(product)/_components/workspace/detail-split/detail-split'
 import { WorkflowPreview } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-preview/workflow-preview'
+import { useWorkspaceTabFlags } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/run-snapshot/run-snapshot.module.css'
 import { SnapshotBlock } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/snapshot-block/snapshot-block'
 import { useRunSnapshot } from '@/platform/lib/data/logs'
+import { isWorkspaceTabShown } from '@/platform/lib/workspace-navigation'
 import { runSnapshotParams, serializeRunSnapshot } from '@/platform/lib/workspace-views'
 
 /** The block types that run another workflow, whose child run legacy's snapshot opens. */
@@ -32,6 +34,8 @@ interface RunSnapshotProps {
   workspaceId: string
   executionId: string
   back: { href: string; label: string }
+  /** Where a run a test opened returns instead, while the Tests tab is shown. */
+  testBack?: { href: string; label: string }
 }
 
 /**
@@ -41,7 +45,8 @@ interface RunSnapshotProps {
  * opens the child workflow it ran, frozen as this run ran it, with a trail back to its parents; the
  * drill path lives in the URL.
  */
-export function RunSnapshot({ workspaceId, executionId, back }: RunSnapshotProps) {
+export function RunSnapshot({ workspaceId, executionId, back, testBack }: RunSnapshotProps) {
+  const testsShown = isWorkspaceTabShown('tests', useWorkspaceTabFlags())
   const snapshot = useRunSnapshot(workspaceId, executionId)
   const pathname = usePathname()
   const search = useSearchParams()
@@ -82,7 +87,7 @@ export function RunSnapshot({ workspaceId, executionId, back }: RunSnapshotProps
   return (
     <DetailSplit
       read={snapshot.read}
-      back={back}
+      back={testBack && testsShown ? testBack : back}
       actions={
         childHref && (
           <Button variant='secondary' size='compact' render={<Link href={childHref} />}>

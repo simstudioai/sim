@@ -82,6 +82,13 @@ const FEATURE_FLAGS = {
       'Enable the organization People directory, org chart, profile imports, and directory sync. Supports organization rollout; disabled by default.',
     fallback: 'PEOPLE',
   },
+  'platform-preview': {
+    description:
+      "Show Platform UI held for its design pass: Home's Needs your attention and Workspaces " +
+      'sections, and the workspace Dashboard, Issues, Changelog and Tests tabs with their entry ' +
+      'points. Global on/off only; disabled by default.',
+    fallback: 'PLATFORM_PREVIEW',
+  },
   'mothership-model-selector': {
     description:
       'Show the Mothership model selector, model-specific effort levels, and Fast for supported ' +

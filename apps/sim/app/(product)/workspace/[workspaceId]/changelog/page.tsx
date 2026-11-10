@@ -25,12 +25,12 @@ export default async function Page({
     if (!data) notFound()
     return <ChangelogRoute data={data} />
   }
-  const [{ readWorkspaceTabFlag }, { LiveChangelog }] = await Promise.all([
+  const [{ readWorkspaceTabShown }, { LiveChangelog }] = await Promise.all([
     import('@/platform/lib/data/workspace-tab-flags'),
     import(
       '@/app/(product)/workspace/[workspaceId]/changelog/_components/live-changelog/live-changelog'
     ),
   ])
-  if (!(await readWorkspaceTabFlag('changelog'))) notFound()
+  if (!(await readWorkspaceTabShown('changelog'))) notFound()
   return <LiveChangelog workspaceId={workspaceId} />
 }

@@ -25,10 +25,10 @@ export default async function Page({
     if (!data) notFound()
     return <DashboardRoute data={data} />
   }
-  const [{ readWorkspaceTabFlag }, { LiveDashboard }] = await Promise.all([
+  const [{ readWorkspaceTabShown }, { LiveDashboard }] = await Promise.all([
     import('@/platform/lib/data/workspace-tab-flags'),
     import('@/app/(product)/_components/workspace/dashboards/live-dashboard/live-dashboard'),
   ])
-  if (!(await readWorkspaceTabFlag('dashboards'))) notFound()
+  if (!(await readWorkspaceTabShown('dashboards'))) notFound()
   return <LiveDashboard workspaceId={workspaceId} />
 }

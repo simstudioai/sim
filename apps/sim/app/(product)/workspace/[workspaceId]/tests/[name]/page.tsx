@@ -13,11 +13,11 @@ export default async function Page({
   params: Promise<{ workspaceId: string; name: string }>
 }) {
   if (resolvePlatformMode() !== 'live') notFound()
-  const [{ workspaceId, name }, { readWorkspaceTabFlag }, { TestDetails }] = await Promise.all([
+  const [{ workspaceId, name }, { readWorkspaceTabShown }, { TestDetails }] = await Promise.all([
     params,
     import('@/platform/lib/data/workspace-tab-flags'),
     import('@/app/(product)/workspace/[workspaceId]/tests/_components/test-details/test-details'),
   ])
-  if (!(await readWorkspaceTabFlag('workflow-tests'))) notFound()
+  if (!(await readWorkspaceTabShown('tests'))) notFound()
   return <TestDetails key={name} workspaceId={workspaceId} name={decodeURIComponent(name)} />
 }

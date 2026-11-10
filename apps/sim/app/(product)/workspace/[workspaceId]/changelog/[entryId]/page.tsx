@@ -29,12 +29,12 @@ export default async function Page({
     if (!entry) notFound()
     return <ChangelogDetails entry={entry} back={back} />
   }
-  const [{ readWorkspaceTabFlag }, { LiveRelease }] = await Promise.all([
+  const [{ readWorkspaceTabShown }, { LiveRelease }] = await Promise.all([
     import('@/platform/lib/data/workspace-tab-flags'),
     import(
       '@/app/(product)/workspace/[workspaceId]/changelog/_components/live-release/live-release'
     ),
   ])
-  if (!(await readWorkspaceTabFlag('changelog'))) notFound()
+  if (!(await readWorkspaceTabShown('changelog'))) notFound()
   return <LiveRelease workspaceId={workspaceId} releaseId={id} back={back} />
 }
