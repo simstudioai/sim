@@ -175,6 +175,9 @@ platform_live_environment() {
   export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
   export NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true
   export SIM_LINKS=true PEOPLE=true
+  # The flags each held-back workspace tab needs besides `platform-preview`, which stays off as in
+  # production: what the live suite finds hidden, `platform-preview` alone hides.
+  export DASHBOARDS=true CHANGELOG=true WORKFLOW_TESTS=true
   export INTERNAL_API_SECRET=platform-live-ci-local-secret-at-least-32-characters
   export COPILOT_TOOL_PERMISSIONS_ENABLED=true
   export DB_TX_TRIPWIRE=throw
