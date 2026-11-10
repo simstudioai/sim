@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ActivityRow } from '@sim/emcn/activity-row'
 import { Avatar } from '@sim/emcn/avatar'
 import { Button } from '@sim/emcn/button'
@@ -42,7 +42,8 @@ export default function CustomBlocksSection({ workspaceId }: WorkspaceSettingsSe
     'custom-blocks'
   )
   const access = useCanPublishCustomBlock(workspaceId)
-  const { data: blocks = [] } = useCustomBlocks(workspaceId)
+  const blocksQuery = useCustomBlocks(workspaceId)
+  const blocks = blocksQuery.data ?? []
   const workspacesQuery = useWorkspacesQuery()
   const workspaces = workspacesQuery.data ?? []
   // A block without an uploaded icon shows the host organization's logo, as the legacy branding did.
@@ -67,6 +68,15 @@ export default function CustomBlocksSection({ workspaceId }: WorkspaceSettingsSe
   const selectedBlock = selectedBlockId
     ? blocks.find((block) => block.id === selectedBlockId)
     : undefined
+  // A `?block=` the settled list does not hold (deleted, or never this workspace's) leaves the URL.
+  const unknownBlock =
+    Boolean(selectedBlockId) &&
+    blocksQuery.data !== undefined &&
+    !blocksQuery.isPlaceholderData &&
+    !selectedBlock
+  useEffect(() => {
+    if (unknownBlock) void setSelectedBlockId(null, { history: 'replace' })
+  }, [unknownBlock, setSelectedBlockId])
 
   // The list read also answers the entitlement, so a deep link never flashes the list first.
   if (access.isPending) return null
