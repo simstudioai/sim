@@ -27,8 +27,8 @@ describe('Pi provider catalog', () => {
 
   it('maps Sim provider IDs onto Pi provider IDs', () => {
     expect(resolvePiModelId('kimi', 'kimi-k2.6')).toBe('kimi-k2.6')
-    expect(resolvePiModelId('nvidia', 'nvidia/nemotron-3-super-120b-a12b')).toBe(
-      'nvidia/nemotron-3-super-120b-a12b'
+    expect(resolvePiModelId('nvidia', 'nvidia/nemotron-3-ultra-550b-a55b')).toBe(
+      'nvidia/nemotron-3-ultra-550b-a55b'
     )
   })
 
