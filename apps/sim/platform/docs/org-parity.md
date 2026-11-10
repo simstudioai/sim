@@ -94,7 +94,7 @@ One row per capability of the legacy organization surface. Every capability is e
 | Preferences | Picture upload, 5MB and type validation, failure notice | General | Unverified | No live check yet. Same hook as legacy (`hooks/use-profile-picture-upload`); not exercised in which uploads no file |
 | Preferences | Avatar fallback to the whitelabel logo | General | Hidden | Legacy mounts no brand provider on `/o`, so the organization surface never showed it. Applying a brand to the Platform needs its token mapping |
 | Preferences | Theme persisted, optimistic, applied to the shell | General | Done | "a theme chosen here persists" |
-| Preferences | Time zone with Auto and invalid-value rows | General | Unverified | "the time zone offers Auto" reads the row; no check writes it |
+| Preferences | Time zone with Auto and invalid-value rows | General | Unverified | "the time zone row reads Auto or a saved zone" reads the row; no check writes it |
 | Preferences | Auto-connect, auto-focus, snap to grid, canvas controls | General | Unverified | No live check yet. The legacy explainer videos are not ported: they are static assets of the main app |
 | Preferences | Interface font, Code font | None; Platform only | Hidden | No font preference exists. Needs a settings column |
 | Notifications | Canvas error notifications | General | Done | "a notification preference writes", "unbacked preferences stay out" |
@@ -117,8 +117,9 @@ One row per capability of the legacy organization surface. Every capability is e
 
 | Domain | Capability | Legacy source | Status | Proof or reason |
 | --- | --- | --- | --- | --- |
-| Billing | Section gate | `settingsSections` | Done | "${name} renders healthy in both themes at both widths" |
-| Billing | First-paint read, failure with retry | Billing | Unverified | The server read is proved by "a plan read on the server stands". The failure state needs the Platform server's own read to fail, which no browser stub can do |
+| Billing | Section hidden and not found with billing off | `settingsSections` | Done | "self-hosted settings offer no billing section" in the `live (self-hosted)` job |
+| Billing | Section gate by plan and role on a billed deployment | `settingsSections` | Unverified | "${name} renders healthy in both themes at both widths" opens it only for the seeded Enterprise administrator; no check opens it as a member or on another plan |
+| Billing | First-paint read, failure with retry | Billing | Unverified | "a plan read on the server stands" proves the server's read stands when the browser's own read fails. The failure state with Retry needs the Platform server's own read to fail, which no browser stub can do |
 | Billing | Plan name, price, lapsed and free copy | Billing | Unverified | No live check yet. Same derivations; needs a seeded subscription for each state |
 | Billing | Explore plans link | Billing | Unverified | No live check yet. Links to `/settings/billing/plans` |
 | Billing | Plan picker: plans, period, checkout, switch, contact, upgrade reasons, self-hosted and billing-off gates | `/workspace/[id]/upgrade` | Unverified | No live check yet. `/settings/billing/plans`, `lib/data/plans.ts`; needs Stripe |
@@ -150,7 +151,8 @@ One row per capability of the legacy organization surface. Every capability is e
 | Links | Favicon, owner, access, updated cells | Links | Unverified | No live check yet |
 | Links | Row opens `sim/<name>` on the main app | Links | Done | "links: create, find, open, edit and delete" |
 | Links | Row menu: Open, Copy link, Edit, Delete by `canEdit` | Links | Done | "links: create, find, open, edit and delete" |
-| Links | Create and edit: variable default, normalized name, 409 on the field, access, Learn more | Links | Done | "links: create, find, open, edit and delete". 409 and Learn more have no live check |
+| Links | Create and edit: variable default, normalized name | Links | Done | "links: create, find, open, edit and delete" |
+| Links | Create and edit: 409 on the field, access, Learn more | Links | Unverified | No live check yet: no check submits a taken name, changes access or follows Learn more |
 | Links | `?create=<name>` deep link from an unknown `sim/<name>` | `app/(site)/sim/[[...path]]` | Done | "an unknown sim/ link opens the editor" |
 | Links | Delete confirm with error | Links | Done | "links: create, find, open, edit and delete". The error path has no live check |
 | Links | Install Sim for Chrome | Links | Unverified | No live check yet. Hosted only, same gate. Current staging has no shortcuts modal or bookmark export |
@@ -182,7 +184,8 @@ Every API behind these sections keeps its own server gate; the navigation entry 
 | Sign-in | Plan gates, tabs with docs link, hidden tabs stay mounted | `ee/sso/components/sso-settings.tsx` | Unverified | No live check yet |
 | Sign-in | Provider list as routing table, Primary tag, make primary, delete naming who signs in next | `ee/sso/lib/provider-form.ts` | Unverified | No live check yet |
 | Sign-in | Add and edit form, OIDC and SAML, all fields and validation, attribute mapping, callback and entity values | `ee/sso/lib/provider-form.ts` | Unverified | No live check yet |
-| Sign-in | Client secret write-only: masked fact, Replace, Keep saved, blank keeps the stored secret, no copy | `ee/sso/lib/provider-form.ts` | Done | "single sign-on never receives a stored client secret". No provider is seeded, so Replace and Keep saved have no live check |
+| Sign-in | Client secret never reaches the browser, with no copy control | `ee/sso/lib/provider-form.ts` | Done | "single sign-on never receives a stored client secret" seeds a provider with a known secret and reads it back redacted |
+| Sign-in | Client secret editing: masked fact, Replace, Keep saved, blank keeps the stored secret | `ee/sso/lib/provider-form.ts` | Unverified | No live check yet: no check opens the seeded provider's form |
 | Sign-in | Password-manager decoy inputs and read-only-until-focus | `sso-provider-settings.tsx` | Hidden | Uses `autoComplete` off or `new-password` on the shared fields, which take no focus hooks or decoys |
 | Sign-in | Require SSO: confirm on enable, explanation, off always available | `require-sso-section.tsx`, `ee/sso/lib/provider-form.ts` | Unverified | No live check yet |
 | Domains | Add with Enter, status, host and TXT copy, verify, remove with SSO warning, all states | `verified-domains-section.tsx` | Unverified | No live check yet |
@@ -220,7 +223,9 @@ Every row runs on live data through `lib/data/members.ts`. Proof quotes a test i
 | Viewer role from the viewer's roster row, falling back to the server-read surface, never Better Auth's capped list | `TM/team-management.tsx` | Done | "plain member sees no controls" |
 | Roster, name and email, avatar, joined date, directory deactivation, empty, loading and error with retry, prefetch for first paint | `organization-member-lists.tsx`, `settings-query-warmers.ts` | Done | "a role change persists", "a plain member sees no controls". Failure with retry has no live check |
 | Search across every section in `?search=`, sections collapse, no-match copy | `organization-member-lists.tsx` | Done | "member search lives in the URL" |
-| Change role, with row controls matching the server's guards | `organization-member-lists.tsx` | Done | "a role change persists" |
+| Change role | `organization-member-lists.tsx` | Done | "a role change persists" |
+| Row controls withheld from a plain member | `organization-member-lists.tsx` | Done | "a plain member sees no controls" |
+| Row controls matching the server's guards for an administrator (owner and self rows) | `organization-member-lists.tsx` | Unverified | No live check yet: no check reads an administrator's controls on the owner's or their own row |
 | Role, resend, revoke and workspace mutation failures reach the viewer. Legacy only logged them | `organization-member-lists.tsx` | Done, not copied | "a failed one is reported" for the role. Resend, revoke and workspace mutations have no live check |
 | Remove member. Path parameter is the user id | `TM/team-management.tsx`, `remove-member-dialog.tsx` | Done | "removal holds on its disclosure" |
 | Removal impact disclosure holds confirm on any refetch, cautions on a failed check | `TM/team-management.tsx`, `remove-member-dialog.tsx` | Done | "removal holds on its disclosure" |
@@ -340,7 +345,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Workspace logo tile | `workspace-list.tsx` | Hidden | Design contract: workspace names are text-only |
 | No workspaces yet, silent while loading, retry on failure | `workspace-list.tsx` | Unverified | No live check yet. `section-status.tsx` |
 | See more and See less | `workspace-list.tsx` | Unverified | No live check yet. `workspaces-section.tsx` |
-| Switch workspace | `workspace-list.tsx` | Done | "creating a workspace opens it" |
+| Switch workspace | `workspace-list.tsx` | Unverified | No live check yet: "creating a workspace opens it" enters a new workspace from its dialog, not from the list |
 | Row options and right click | `workspace-list.tsx` | Unverified | No live check yet. `workspaces-section.tsx` |
 | Open in new tab | `workspace-list.tsx` | Unverified | No live check yet. `row-links.ts` |
 | Rename | `workspace-list.tsx` | Done | "a workspace pins and renames". Admin only |
