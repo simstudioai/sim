@@ -1,6 +1,11 @@
 import 'server-only'
-import type { SettingsData } from '@/app/(product)/o/[organizationId]/settings/_components/model'
 import type { Scenario } from '@/platform/fixtures'
+
+interface SettingsData {
+  email: string
+  members: { id: string; name: string; email: string }[]
+  connections: string[]
+}
 
 const owner = { id: 'emir', name: 'Emir Karabeg', email: 'emir@example.com' }
 const full: SettingsData = {
