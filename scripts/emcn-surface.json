@@ -9319,7 +9319,8 @@
           },
           "CodeContent": {
             "children": ["‹ReactNode›"],
-            "label": ["‹string›"]
+            "label": ["‹string›"],
+            "tabIndex": ["‹number›"]
           }
         },
         "params": {}

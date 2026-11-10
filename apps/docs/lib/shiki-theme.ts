@@ -195,4 +195,5 @@ const simShikiDark = buildTheme('sim-dark', 'dark', DARK)
 export const simShikiOptions = {
   themes: { light: simShikiLight, dark: simShikiDark },
   defaultColor: false,
+  tabindex: false,
 } as const
