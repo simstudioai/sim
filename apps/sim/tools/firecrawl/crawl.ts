@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
+import { escapeRegExp } from '@sim/utils/string'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { firecrawlHosting } from '@/tools/firecrawl/hosting'
 import {
@@ -163,7 +164,28 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
         // v1 depth counted URL path segments; v2 discovery depth counts link hops.
         body.regexOnFullURL = false
         if (params.includePaths?.length) {
-          body.excludePaths = [...(params.excludePaths ?? []), `^(/+[^/]+){${maxDepth + 1}}`]
+          const indexFiles = ['index.html', 'index.php']
+          const nonIndexSegmentPatterns = new Set<string>()
+          // Rust regex has no lookarounds, so enumerate incomplete prefixes and first mismatches.
+          for (const file of indexFiles) {
+            for (let length = 0; length <= file.length; length++) {
+              const prefix = file.slice(0, length)
+              const nextCharacters = indexFiles
+                .filter((indexFile) => indexFile.startsWith(prefix))
+                .map((indexFile) => indexFile.charAt(length))
+                .join('')
+              const escapedPrefix = escapeRegExp(prefix)
+              if (prefix && !indexFiles.includes(prefix)) {
+                nonIndexSegmentPatterns.add(escapedPrefix)
+              }
+              nonIndexSegmentPatterns.add(`${escapedPrefix}[^/${nextCharacters}][^/]*`)
+            }
+          }
+          const nonIndexBoundary = `^(/+[^/]+){${maxDepth}}/+(${[...nonIndexSegmentPatterns].join('|')})/*$`
+          body.excludePaths = [
+            ...(params.excludePaths ?? []),
+            `^(/+[^/]+){${maxDepth + 2}}|${nonIndexBoundary}`,
+          ]
         } else {
           body.includePaths = [
             `^(/+[^/]+){0,${maxDepth}}/*$`,

@@ -48,6 +48,24 @@ describe('Firecrawl legacy crawl depth', () => {
     expect(patterns.some((pattern) => pattern.test('/docs'))).toBe(false)
   })
 
+  it.each<[number, string, boolean]>([
+    [0, '/index.html', false],
+    [0, '/index.php/', false],
+    [1, '/docs/index.html', false],
+    [1, '/docs/index.php', false],
+    [1, '/docs//index.html/', false],
+    [1, '/docs/guide/index.html', true],
+    [1, '/docs/index.html/child', true],
+    [1, '/docs/index.html.bak', true],
+    [1, '/docs/index.phpx', true],
+    [1, '/docs/inde', true],
+    [1, '/docs/index.htm', true],
+  ])('applies depth %s with existing includes to %s', (maxDepth, path, excluded) => {
+    const body = crawlBody({ maxDepth, includePaths: ['^/'] })
+    const patterns = (body.excludePaths as string[]).map((pattern) => new RegExp(pattern))
+    expect(patterns.some((pattern) => pattern.test(path))).toBe(excluded)
+  })
+
   it.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
     'rejects an invalid legacy depth: %s',
     (maxDepth) => {
