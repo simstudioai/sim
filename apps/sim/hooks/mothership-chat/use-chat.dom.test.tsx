@@ -716,7 +716,7 @@ async function chatReadsDuring(ms: number): Promise<number> {
 
 /** Lets everything already due run: answered requests, their handlers, what those schedule. */
 async function settle(): Promise<void> {
-  for (let tick = 0; tick < 8; tick++) await flushMacrotask()
+  for (let tick = 0; tick < 8; tick++) await elapse(0)
 }
 
 async function waitFor(predicate: () => boolean, budgetMs = 2000): Promise<void> {
@@ -3636,6 +3636,23 @@ describe('useChat remount send recovery', () => {
         },
       }
     }
+
+    /** Every wait here runs on the fake clock, so a loaded machine cannot time a read out. */
+    beforeEach(() => {
+      vi.useFakeTimers({
+        toFake: [
+          'setTimeout',
+          'clearTimeout',
+          'Date',
+          'requestAnimationFrame',
+          'cancelAnimationFrame',
+        ],
+      })
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
 
     async function startTurn() {
       const turn = stubRunningTurn()

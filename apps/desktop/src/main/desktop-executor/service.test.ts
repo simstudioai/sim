@@ -232,16 +232,24 @@ describe('desktop executor registration', () => {
 
   it("offers the device to a turn sent while the sign-in's registration is still due", async () => {
     const { sim, desktopExecutor } = await service()
-    desktopExecutor.start()
-    desktopExecutor.refreshRegistration()
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+    try {
+      desktopExecutor.start()
+      desktopExecutor.refreshRegistration()
 
-    // Asked before the debounced registration has even gone out, as a first send after sign-in.
-    const offered = desktopExecutor.getDevice()
-    await vi.waitFor(() => expect(sim.registrations).toHaveLength(1), { timeout: 3_000 })
-    sim.registrations[0]?.(true)
+      // Asked before the debounced registration has even gone out, as a first send after sign-in.
+      const offered = desktopExecutor.getDevice()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(sim.registrations).toHaveLength(0)
+      await vi.advanceTimersByTimeAsync(1_000)
+      await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
+      sim.registrations[0]?.(true)
 
-    await expect(offered).resolves.toMatchObject({ protocolVersion: 1 })
-    await desktopExecutor.signOut()
+      await expect(offered).resolves.toMatchObject({ protocolVersion: 1 })
+      await desktopExecutor.signOut()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('never holds a turn on a registration that is only backing off', async () => {
