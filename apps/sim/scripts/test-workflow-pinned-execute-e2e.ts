@@ -106,7 +106,7 @@ async function check(name: string, run: () => Promise<void>) {
   try {
     await run()
     checks.push({ name, status: 'passed', durationMs: Math.round(performance.now() - started) })
-    logger.info(`PASS ${name}`)
+    logger.info('Check passed', { name })
   } catch (error) {
     checks.push({
       name,
@@ -141,6 +141,15 @@ const waitSubBlocks = {
   async: { id: 'async', type: 'switch', value: false },
 }
 
+/** The approval asks for one required field, which the run detail lists for the pause. */
+const approvalSubBlocks = {
+  inputFormat: {
+    id: 'inputFormat',
+    type: 'input-format',
+    value: [{ id: 'approved', name: 'approved', type: 'boolean', required: true }],
+  },
+}
+
 /** The deployed graph of one version: Start → [Approval →] the version's own block. */
 function deployedState(fixture: VersionedFixture, version: 1 | 2) {
   const own = version === 1 ? fixture.one : fixture.two
@@ -148,7 +157,9 @@ function deployedState(fixture: VersionedFixture, version: 1 | 2) {
     block(fixture.start, 'start_trigger', 'Start', 0, {
       inputFormat: { id: 'inputFormat', type: 'input-format', value: [] },
     }),
-    ...(fixture.approval ? [block(fixture.approval, 'human_in_the_loop', 'Approval', 1)] : []),
+    ...(fixture.approval
+      ? [block(fixture.approval, 'human_in_the_loop', 'Approval', 1, approvalSubBlocks)]
+      : []),
     block(own.id, 'wait', own.name, 2, waitSubBlocks),
   ]
   return {
@@ -468,7 +479,9 @@ try {
           loop: null,
         }
       )
-      assert(Array.isArray(points[0].inputFields), 'A human pause captured now lists its fields')
+      assert.deepEqual(points[0].inputFields, [
+        { name: 'approved', label: 'approved', type: 'boolean', required: true },
+      ])
       const resumed = v2ExecuteWorkflowDataSchema.parse(
         (
           await request(
@@ -493,7 +506,7 @@ try {
     }
   )
 } catch (error) {
-  logger.error(failureMessage(error))
+  logger.error('Pinned execute E2E failed', { error: failureMessage(error) })
   process.exitCode = 1
 } finally {
   try {
@@ -505,7 +518,7 @@ try {
       await sql`delete from "user" where id in (${ownerId}, ${readerId})`
     })
   } catch (error) {
-    logger.error(failureMessage(error))
+    logger.error('Pinned execute E2E cleanup failed', { error: failureMessage(error) })
     process.exitCode = 1
   } finally {
     await sql.end()

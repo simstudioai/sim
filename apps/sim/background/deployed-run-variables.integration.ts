@@ -88,10 +88,13 @@ function deployedState(
   }
 }
 
-/** A workflow deployed once, whose saved variables differ from the deployed ones. */
+/**
+ * A workflow whose saved variables differ from the deployed ones. With `superseded`, the
+ * returned version is no longer active: a later one with its own variables is.
+ */
 async function deployWorkflow(
   trigger: typeof SCHEDULE_TRIGGER | typeof WEBHOOK_TRIGGER,
-  { snapshotsVariables }: { snapshotsVariables: boolean }
+  { snapshotsVariables, superseded = false }: { snapshotsVariables: boolean; superseded?: boolean }
 ) {
   const workflowId = generateId()
   const versionId = generateId()
@@ -117,8 +120,17 @@ async function deployWorkflow(
       trigger,
       snapshotsVariables ? variables(workflowId, 'deployed') : undefined
     ),
-    isActive: true,
+    isActive: !superseded,
   })
+  if (superseded) {
+    await db.insert(workflowDeploymentVersion).values({
+      id: generateId(),
+      workflowId,
+      version: 2,
+      state: deployedState(trigger, variables(workflowId, 'active')),
+      isActive: true,
+    })
+  }
   return { workflowId, versionId }
 }
 
@@ -138,7 +150,7 @@ async function settledOutput(workflowId: string, executionId: string) {
       }
       return status.finalOutput
     },
-    { timeout: 30_000, interval: 250 }
+    { timeout: 20_000, interval: 250 }
   )
 }
 
@@ -250,9 +262,10 @@ describe('variables a queued deployed run executes with', () => {
     })
   })
 
-  it('runs a webhook delivery with its deployed variables, not the saved ones', async () => {
+  it('runs a webhook delivery admitted on an earlier version with that version variables', async () => {
     const { workflowId, versionId } = await deployWorkflow(WEBHOOK_TRIGGER, {
       snapshotsVariables: true,
+      superseded: true,
     })
     await expect(runWebhook(workflowId, versionId)).resolves.toMatchObject({
       data: { greeting: 'deployed' },

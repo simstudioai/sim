@@ -101,7 +101,7 @@ async function pausedRun(): Promise<string> {
         .where(eq(pausedExecutions.executionId, executionId))
       if (!row) throw new Error('Pause not yet published')
     },
-    { timeout: 30_000, interval: 250 }
+    { timeout: 20_000, interval: 250 }
   )
   return executionId
 }

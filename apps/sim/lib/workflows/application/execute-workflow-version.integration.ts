@@ -109,7 +109,7 @@ async function settledRun(executionId: string) {
       }
       return status
     },
-    { timeout: 30_000, interval: 250 }
+    { timeout: 20_000, interval: 250 }
   )
 }
 
