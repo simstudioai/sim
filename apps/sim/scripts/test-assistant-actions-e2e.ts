@@ -843,8 +843,9 @@ try {
         await expect(
           page.getByRole('region', { name: 'Connected credentials', exact: true }).getByRole('link')
         ).toHaveCount(0)
-        // With no connectable option left the page offers no connection at all.
-        await expect(connectIntegration).toHaveCount(0)
+        // No member method is left and this deployment configures no Salesforce client for the
+        // workspace, so the page keeps Connect integration only as a disabled control naming why.
+        await expect(connectIntegration).toBeDisabled()
         await capture('integration-disabled-app-empty')
       } finally {
         await sql`update credential set managed_oauth_status = 'active' where id = ${nativeCredentialId}`
