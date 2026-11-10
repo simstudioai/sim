@@ -18,6 +18,23 @@ const workspaces = (page: Page) => page.getByRole('region', { name: 'Workspaces'
  * Presses a shortcut once. The suite's `test` waits for hydration after every load, and the shell
  * attaches its shortcut listener in an effect of that commit, which has run a frame later.
  */
+/**
+ * Chooses `item` and waits for the write it sends to be answered, so a reload after it reads the
+ * saved state rather than racing the request.
+ */
+async function chooseAndSave(page: Page, item: string, method: string, path: RegExp) {
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (candidate) =>
+        candidate.request().method() === method && path.test(new URL(candidate.url()).pathname)
+    ),
+    page.getByRole('menuitem', { name: item, exact: true }).click(),
+  ])
+  expect(response.ok(), `${item} was refused`).toBe(true)
+}
+
+const CHAT_WRITE = /^\/api\/mothership\/chats\/[^/]+$/
+
 async function pressShortcut(page: Page, key: string) {
   await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => setTimeout(done))))
   await page.keyboard.press(key)
@@ -27,11 +44,11 @@ test('a chat pins and marks unread, and both survive a reload', async ({ page })
   await withSeededChat({ email: adminEmail() }, async ({ title }) => {
     await signInAsAdmin(page, liveRoute('/home'))
     await openChatMenu(page, title)
-    await page.getByRole('menuitem', { name: 'Pin', exact: true }).click()
+    await chooseAndSave(page, 'Pin', 'PATCH', CHAT_WRITE)
     await page.reload()
     await openChatMenu(page, title)
     await expect(page.getByRole('menuitem', { name: 'Unpin', exact: true })).toBeVisible()
-    await page.getByRole('menuitem', { name: 'Mark as unread', exact: true }).click()
+    await chooseAndSave(page, 'Mark as unread', 'PATCH', CHAT_WRITE)
     await page.reload()
     await openChatMenu(page, title)
     await expect(page.getByRole('menuitem', { name: 'Mark as read', exact: true })).toBeVisible()
@@ -43,7 +60,7 @@ test('a workspace pins and renames through its row menu', async ({ page }) => {
   const list = workspaces(page)
   try {
     await list.getByRole('button', { name: 'Actions for Marketing' }).click()
-    await page.getByRole('menuitem', { name: 'Pin', exact: true }).click()
+    await chooseAndSave(page, 'Pin', 'POST', /^\/api\/pinned-items$/)
     await page.reload()
     await list.getByRole('button', { name: 'Actions for Marketing' }).click()
     await expect(page.getByRole('menuitem', { name: 'Unpin', exact: true })).toBeVisible()
@@ -128,7 +145,7 @@ test('a pending invite resends and revokes from its row', async ({ page }) => {
     .first()
     .locator('xpath=ancestor::div[.//button[starts-with(@aria-label, "Actions for")]][1]')
   await row.getByRole('button', { name: /^Actions for/ }).click()
-  await page.getByRole('menuitem', { name: 'Resend invite' }).click()
+  await chooseAndSave(page, 'Resend invite', 'POST', /^\/api\/invitations\/[^/]+\/resend$/)
   await expect(page.getByRole('menuitem', { name: 'Resend invite' })).toHaveCount(0)
   await row.getByRole('button', { name: /^Actions for/ }).click()
   await page.getByRole('menuitem', { name: 'Revoke invite' }).click()

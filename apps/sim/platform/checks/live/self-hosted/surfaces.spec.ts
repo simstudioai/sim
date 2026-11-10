@@ -1,4 +1,4 @@
-import { expect } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
 import { SIM_SITE_URL } from '@sim/utils/site'
 import { signInAsAdmin } from '@/platform/checks/live/session'
 import { firstHopFrom } from '@/platform/checks/live/support/navigation'
@@ -12,21 +12,28 @@ import { test } from '@/platform/checks/test'
 const WORKSPACE_ID = '5e1d7c3a-0b6f-4a2e-9c41-7d8e0f1a2b01'
 const WORKSPACE = `/workspace/${WORKSPACE_ID}`
 
+const heading = (name: string | RegExp) => (page: Page) =>
+  page.getByRole('main').getByRole('heading', { level: 1, name })
+
+/** What each section paints of its own once it has rendered, so a missing page cannot pass. */
+const SECTIONS: readonly (readonly [string, (page: Page) => Locator])[] = [
+  ['/home', heading(/\S/)],
+  ['/search', heading(/^Search /)],
+  ['/chat', (page) => page.getByRole('main').getByRole('textbox').first()],
+  ['/integrations', heading('Integrations')],
+  ['/settings', heading('General')],
+  ['/settings/members', heading('Members')],
+  ['/settings/links', heading('Links')],
+]
+
 test('a self-hosted shell renders every section a member uses', async ({ page }) => {
   await signInAsAdmin(page, liveRoute('/home'))
-  for (const route of [
-    '/home',
-    '/search',
-    '/chat',
-    '/integrations',
-    '/settings',
-    '/settings/members',
-    '/settings/links',
-  ]) {
+  for (const [route, landmark] of SECTIONS) {
     const response = await page.goto(liveRoute(route))
     expect(response?.status(), route).toBe(200)
     await expect(page, route).toHaveURL(liveRoutePattern(route, '(?:\\?|$)'))
     await expect(page.getByRole('complementary', { name: 'Platform sidebar' })).toBeVisible()
+    await expect(landmark(page), route).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Page not found' }), route).toHaveCount(0)
   }
 })
@@ -35,7 +42,11 @@ test('self-hosted settings offer no billing section, a saved billing link is not
   page,
 }) => {
   await signInAsAdmin(page, liveRoute('/settings'))
-  await expect(page.getByRole('link', { name: 'Billing', exact: true })).toHaveCount(0)
+  const nav = page.getByRole('navigation', { name: 'Settings', exact: true })
+  await expect(nav.getByRole('link', { name: 'General', exact: true })).toBeVisible()
+  // The section's navigation label is Subscription; Billing is its legacy name.
+  await expect(nav.getByRole('link', { name: 'Subscription', exact: true })).toHaveCount(0)
+  await expect(nav.getByRole('link', { name: 'Billing', exact: true })).toHaveCount(0)
   await page.goto(liveRoute('/settings/billing'))
   await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
   // A self-hosted deployment buys its plan on the hosted app, as the legacy upgrade page sent it.

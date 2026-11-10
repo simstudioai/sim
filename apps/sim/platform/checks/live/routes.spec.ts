@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { expect, type Page } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
 import {
   adminEmail,
   memberEmail,
@@ -17,39 +17,76 @@ import { test } from '@/platform/checks/test'
  */
 const SCREENSHOTS = path.join(reportDir, 'screenshots')
 
-const ADMIN_ROUTES = [
-  ['home', liveRoute('/home')],
-  ['chat-new', liveRoute('/chat')],
-  ['chat-existing', liveRoute('/chat/11111111-1111-4111-8111-111111111111')],
-  ['search', liveRoute('/search')],
-  ['people-directory', liveRoute('/people?view=directory')],
-  ['people-chart', liveRoute('/people?view=chart')],
-  ['integrations', liveRoute('/integrations')],
-  ['settings-preferences', liveRoute('/settings')],
-  ['settings-notifications', liveRoute('/settings/notifications')],
-  ['settings-shortcuts', liveRoute('/settings/keyboard-shortcuts')],
-  ['settings-privacy', liveRoute('/settings/privacy')],
-  ['settings-account', liveRoute('/settings/account')],
-  ['settings-recently-deleted', liveRoute('/settings/recently-deleted')],
-  ['settings-members', liveRoute('/settings/members')],
-  ['settings-requests', liveRoute('/settings/requests')],
-  ['settings-billing', liveRoute('/settings/billing')],
-  ['settings-usage', liveRoute('/settings/usage')],
-  ['settings-usage-events', liveRoute('/settings/usage/events')],
-  ['settings-links', liveRoute('/settings/links')],
-  ['settings-whitelabeling', liveRoute('/settings/whitelabeling')],
-  ['settings-audit-logs', liveRoute('/settings/audit-logs')],
-  ['settings-access-control', liveRoute('/settings/access-control')],
-  ['settings-sso', liveRoute('/settings/sso')],
-  ['settings-security', liveRoute('/settings/security')],
-  ['settings-data-retention', liveRoute('/settings/data-retention')],
-  ['settings-data-drains', liveRoute('/settings/data-drains')],
-] as const
+/** What a route paints inside its `main` once it has rendered its own content, not the shell's. */
+type Landmark = (main: Locator) => Locator
 
-const MEMBER_ROUTES = [
-  ['member-home', liveRoute('/home')],
-  ['member-settings-members', liveRoute('/settings/members')],
-] as const
+const pageHeading =
+  (name: string | RegExp): Landmark =>
+  (main) =>
+    main.getByRole('heading', { level: 1, name, exact: typeof name === 'string' || undefined })
+
+/** A Settings section's `main` opens on the title its navigation gives it (`settings-navigation.ts`). */
+const settingsHeading = pageHeading
+
+const composer: Landmark = (main) => main.getByRole('textbox').first()
+
+const ADMIN_ROUTES: readonly (readonly [string, string, Landmark])[] = [
+  ['home', liveRoute('/home'), pageHeading(/\S/)],
+  ['chat-new', liveRoute('/chat'), composer],
+  [
+    'chat-existing',
+    liveRoute('/chat/11111111-1111-4111-8111-111111111111'),
+    (main) => main.getByRole('region', { name: 'Conversation' }),
+  ],
+  ['search', liveRoute('/search'), pageHeading(/^Search /)],
+  ['people-directory', liveRoute('/people?view=directory'), pageHeading('People')],
+  ['people-chart', liveRoute('/people?view=chart'), pageHeading('People')],
+  ['integrations', liveRoute('/integrations'), pageHeading('Integrations')],
+  ['settings-preferences', liveRoute('/settings'), settingsHeading('General')],
+  ['settings-notifications', liveRoute('/settings/notifications'), settingsHeading('General')],
+  [
+    'settings-shortcuts',
+    liveRoute('/settings/keyboard-shortcuts'),
+    settingsHeading('Keyboard shortcuts'),
+  ],
+  ['settings-privacy', liveRoute('/settings/privacy'), settingsHeading('General')],
+  ['settings-account', liveRoute('/settings/account'), settingsHeading('General')],
+  [
+    'settings-recently-deleted',
+    liveRoute('/settings/recently-deleted'),
+    settingsHeading('Recently deleted'),
+  ],
+  ['settings-members', liveRoute('/settings/members'), settingsHeading('Members')],
+  ['settings-requests', liveRoute('/settings/requests'), settingsHeading('Requests')],
+  ['settings-billing', liveRoute('/settings/billing'), settingsHeading('Subscription')],
+  ['settings-usage', liveRoute('/settings/usage'), settingsHeading('Insights')],
+  ['settings-usage-events', liveRoute('/settings/usage/events'), settingsHeading('Insights')],
+  ['settings-links', liveRoute('/settings/links'), settingsHeading('Links')],
+  [
+    'settings-whitelabeling',
+    liveRoute('/settings/whitelabeling'),
+    settingsHeading('White-labeling'),
+  ],
+  ['settings-audit-logs', liveRoute('/settings/audit-logs'), settingsHeading('Audit logs')],
+  [
+    'settings-access-control',
+    liveRoute('/settings/access-control'),
+    settingsHeading('Permission groups'),
+  ],
+  ['settings-sso', liveRoute('/settings/sso'), settingsHeading('Single sign-on')],
+  ['settings-security', liveRoute('/settings/security'), settingsHeading('Security')],
+  [
+    'settings-data-retention',
+    liveRoute('/settings/data-retention'),
+    settingsHeading('Data retention'),
+  ],
+  ['settings-data-drains', liveRoute('/settings/data-drains'), settingsHeading('Data drains')],
+]
+
+const MEMBER_ROUTES: readonly (readonly [string, string, Landmark])[] = [
+  ['member-home', liveRoute('/home'), pageHeading(/\S/)],
+  ['member-settings-members', liveRoute('/settings/members'), settingsHeading('Members')],
+]
 
 const VIEWPORTS = [
   { name: 'desktop', width: 1440, height: 900 },
@@ -81,26 +118,28 @@ function watchForBreakage(page: Page) {
   return problems
 }
 
-/** The page has rendered its content and holds no loading state, so its screenshot is of it. */
-async function settle(page: Page, route: string) {
-  await expect(
-    page.locator('main, [data-platform-ui]').first(),
-    `${route} rendered an empty shell`
-  ).toHaveText(/\S/)
+/**
+ * The page has rendered its own content and holds no loading state, so its screenshot is of it. The
+ * route's landmark sits inside its `main`, so a shell painted around an empty page does not pass.
+ */
+async function settle(page: Page, route: string, landmark: Landmark) {
+  const main = page.getByRole('main')
+  await expect(main, `${route} rendered no main content`).toHaveText(/\S/)
+  await expect(landmark(main), `${route} rendered an empty shell`).toBeVisible()
   await expect(
     page.getByRole('status', { name: /Loading/i }),
     `${route} is still loading`
   ).toHaveCount(0)
 }
 
-async function visitEverywhere(page: Page, name: string, route: string) {
+async function visitEverywhere(page: Page, name: string, route: string, landmark: Landmark) {
   for (const viewport of VIEWPORTS) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height })
     for (const colorScheme of THEMES) {
       await page.emulateMedia({ colorScheme })
       const response = await page.goto(route)
       expect(response?.status(), `${route} status`).toBeLessThan(400)
-      await settle(page, route)
+      await settle(page, route, landmark)
       await page.screenshot({
         path: path.join(SCREENSHOTS, `${name}-${viewport.name}-${colorScheme}.png`),
         fullPage: true,
@@ -117,11 +156,11 @@ for (const [routes, email] of [
   [ADMIN_ROUTES, adminEmail],
   [MEMBER_ROUTES, memberEmail],
 ] as const) {
-  for (const [name, route] of routes) {
+  for (const [name, route, landmark] of routes) {
     test(`${name} renders healthy in both themes at both widths`, async ({ page }) => {
       const problems = watchForBreakage(page)
       await signIn(page, email(), route)
-      await visitEverywhere(page, name, route)
+      await visitEverywhere(page, name, route, landmark)
       expect(problems).toEqual([])
     })
   }
@@ -134,7 +173,12 @@ test('people-profile renders healthy in both themes at both widths', async ({ pa
   const { people: rows } = (await people.json()) as { people: { memberId: string }[] }
   const first = rows[0]
   if (!first) throw new Error('The seeded directory is empty')
-  await visitEverywhere(page, 'people-profile', liveRoute(`/people/${first.memberId}`))
+  await visitEverywhere(
+    page,
+    'people-profile',
+    liveRoute(`/people/${first.memberId}`),
+    pageHeading(/\S/)
+  )
   expect(problems).toEqual([])
 })
 

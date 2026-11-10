@@ -4,7 +4,8 @@
  * that organization's cleanup, orphaning every object the account's own storage sweep leaves to
  * it; and the organization cleanup covering only Knowledge files, orphaning its chats' Copilot
  * uploads and knowledge documents (the admin organization delete shares
- * it). An object a surviving row still names is never deleted.
+ * it); and an organization with more objects than one cleanup batch holds losing every object past
+ * the first page. An object a surviving row still names is never deleted.
  */
 import { db } from '@sim/db'
 import {
@@ -31,7 +32,10 @@ vi.mock('@/lib/uploads/core/storage-service', async (importOriginal) => ({
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 import { createPersonalOrganization } from '@/lib/organizations/provision-personal'
 import { organizationResourceCleanupOutboxHandlers } from '@/lib/organizations/resource-cleanup'
-import { ORGANIZATION_RESOURCE_CLEANUP_EVENT } from '@/lib/organizations/resource-cleanup-event'
+import {
+  CLEANUP_BATCH_SIZE,
+  ORGANIZATION_RESOURCE_CLEANUP_EVENT,
+} from '@/lib/organizations/resource-cleanup-event'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
 
 const userIds: string[] = []
@@ -225,5 +229,35 @@ describe("deleting an account with a personal organization's stored objects", ()
     const deletedKeys = deleteFile.mock.calls.map(([options]) => options.key)
     expect(deletedKeys).toContain(ownOnly.key)
     expect(deletedKeys).not.toContain(shared.key)
+  })
+
+  it('pages an organization with more objects than one batch into events of at most a batch each', async () => {
+    const ownerId = await createUser()
+    const organizationId = await personalOrganization(ownerId)
+    if (!organizationId) throw new Error('expected a personal organization')
+    const files = Array.from({ length: CLEANUP_BATCH_SIZE + 1 }, () => {
+      const id = generateId()
+      return {
+        id,
+        key: `kb/org-cleanup-test/${id}.txt`,
+        userId: ownerId,
+        organizationId,
+        context: 'knowledge-base',
+        originalName: 'file.txt',
+        contentType: 'text/plain',
+        sizeBytes: 4,
+      }
+    })
+    await db.insert(workspaceFiles).values(files)
+
+    await deleteUserAccount(ownerId, { recordIdentity: false })
+
+    const events = await cleanupEventsFor(organizationId)
+    const batches = events.map((event) =>
+      (event.payload as { objects: { key: string }[] }).objects.map(({ key }) => key)
+    )
+    expect(batches.length).toBeGreaterThanOrEqual(2)
+    for (const batch of batches) expect(batch.length).toBeLessThanOrEqual(CLEANUP_BATCH_SIZE)
+    expect(new Set(batches.flat())).toEqual(new Set(files.map(({ key }) => key)))
   })
 })

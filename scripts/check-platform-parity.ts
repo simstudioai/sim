@@ -285,12 +285,19 @@ export function auditLedger({
   return findings
 }
 
-interface ReportSuite {
+export interface ReportSuite {
   suites?: ReportSuite[]
   specs?: { title: string; ok: boolean; tests: { results: { status: string }[] }[] }[]
 }
 
-function readRunOutcome(reports: readonly string[]): RunOutcome {
+/** Worse outcomes rank higher, so a title keeps the worst of its runs. */
+const OUTCOME_SEVERITY: Record<string, number> = { passed: 0, skipped: 1, failed: 2 }
+
+/**
+ * Each test title's worst status across `reports`: a title run twice (a parameterized test, or the
+ * same title in two specs) proves its row only when every run of it passed.
+ */
+export function worstOutcomes(reports: readonly ReportSuite[]): RunOutcome {
   const titles = new Map<string, string>()
   const visit = (suite: ReportSuite) => {
     suite.suites?.forEach(visit)
@@ -301,19 +308,27 @@ function readRunOutcome(reports: readonly string[]): RunOutcome {
         : spec.ok && statuses.length > 0
           ? 'passed'
           : 'failed'
-      if (titles.get(spec.title) !== 'passed') titles.set(spec.title, status)
+      const seen = titles.get(spec.title)
+      if (seen === undefined || OUTCOME_SEVERITY[status] > OUTCOME_SEVERITY[seen])
+        titles.set(spec.title, status)
     }
   }
-  for (const report of reports) {
-    if (!existsSync(report)) {
-      console.error(
-        `check:platform-parity: --report ${report} does not exist; did the live run write it?`
-      )
-      process.exit(1)
-    }
-    visit(JSON.parse(readFileSync(report, 'utf8')) as ReportSuite)
-  }
+  reports.forEach(visit)
   return titles
+}
+
+function readRunOutcome(reports: readonly string[]): RunOutcome {
+  return worstOutcomes(
+    reports.map((report) => {
+      if (!existsSync(report)) {
+        console.error(
+          `check:platform-parity: --report ${report} does not exist; did the live run write it?`
+        )
+        process.exit(1)
+      }
+      return JSON.parse(readFileSync(report, 'utf8')) as ReportSuite
+    })
+  )
 }
 
 function main() {
