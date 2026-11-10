@@ -11,6 +11,7 @@ import {
   copilotChats,
   document,
   knowledgeBase,
+  organization,
   outboxEvent,
   user,
   userStats,
@@ -33,6 +34,8 @@ import { ORGANIZATION_RESOURCE_CLEANUP_EVENT } from '@/lib/organizations/resourc
 import { deleteUserAccount } from '@/lib/users/account-deletion'
 
 const userIds: string[] = []
+/** Every organization the suite created, whose cleanup events and rows `afterAll` removes. */
+const organizationIds: string[] = []
 const handleCleanup = organizationResourceCleanupOutboxHandlers[ORGANIZATION_RESOURCE_CLEANUP_EVENT]
 
 async function createUser(): Promise<string> {
@@ -99,6 +102,12 @@ async function createOrganizationChat(ownerId: string, organizationId: string): 
   return chat.id
 }
 
+async function personalOrganization(ownerId: string) {
+  const organizationId = await createPersonalOrganization(ownerId)
+  if (organizationId) organizationIds.push(organizationId)
+  return organizationId
+}
+
 function context(eventId: string): OutboxEventContext {
   return {
     eventId,
@@ -129,13 +138,19 @@ beforeEach(() => {
 })
 
 afterAll(async () => {
+  if (organizationIds.length > 0) {
+    await db
+      .delete(outboxEvent)
+      .where(inArray(sql`${outboxEvent.payload}->>'organizationId'`, organizationIds))
+    await db.delete(organization).where(inArray(organization.id, organizationIds))
+  }
   if (userIds.length > 0) await db.delete(user).where(inArray(user.id, userIds))
 })
 
 describe("deleting an account with a personal organization's stored objects", () => {
   it("queues and runs the organization's cleanup for every object it owned", async () => {
     const ownerId = await createUser()
-    const organizationId = await createPersonalOrganization(ownerId)
+    const organizationId = await personalOrganization(ownerId)
     if (!organizationId) throw new Error('expected a personal organization')
 
     const chatId = await createOrganizationChat(ownerId, organizationId)
@@ -179,10 +194,11 @@ describe("deleting an account with a personal organization's stored objects", ()
   it('keeps an object that a surviving row still names', async () => {
     const ownerId = await createUser()
     const keeperId = await createUser()
-    const organizationId = await createPersonalOrganization(ownerId)
-    const keeperOrganizationId = await createPersonalOrganization(keeperId)
+    const organizationId = await personalOrganization(ownerId)
+    const keeperOrganizationId = await personalOrganization(keeperId)
     if (!organizationId || !keeperOrganizationId) throw new Error('expected personal organizations')
     const shared = await createKnowledgeFile(ownerId, organizationId)
+    const ownOnly = await createKnowledgeFile(ownerId, organizationId)
     const keeperKnowledgeBaseId = generateId()
     await db.insert(knowledgeBase).values({
       id: keeperKnowledgeBaseId,
@@ -203,9 +219,12 @@ describe("deleting an account with a personal organization's stored objects", ()
     })
 
     await deleteUserAccount(ownerId, { recordIdentity: false })
-    for (const event of await cleanupEventsFor(organizationId))
-      await handleCleanup(event.payload, context(event.id))
+    const events = await cleanupEventsFor(organizationId)
+    for (const event of events) await handleCleanup(event.payload, context(event.id))
 
-    expect(deleteFile.mock.calls.map(([options]) => options.key)).not.toContain(shared.key)
+    expect(events.length).toBeGreaterThan(0)
+    const deletedKeys = deleteFile.mock.calls.map(([options]) => options.key)
+    expect(deletedKeys).toContain(ownOnly.key)
+    expect(deletedKeys).not.toContain(shared.key)
   })
 })
