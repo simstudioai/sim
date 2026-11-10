@@ -22,6 +22,7 @@ import {
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal } from '@/lib/billing/utils/decimal'
 import type { DbTransaction } from '@/lib/db/types'
+import type { PersonalOrganizationAuditActor } from '@/lib/organizations/lifecycle-audit'
 import { getPersonalOrganizationId } from '@/lib/organizations/personal'
 import {
   attachOwnedWorkspacesToOrganization,
@@ -60,6 +61,7 @@ function teamOrganizationSlug(userId: string): string {
 
 export async function createOrganizationForTeamPlan(
   userId: string,
+  actor: PersonalOrganizationAuditActor,
   userName?: string,
   userEmail?: string,
   organizationSlug?: string
@@ -81,6 +83,7 @@ export async function createOrganizationForTeamPlan(
         createdForTeamPlan: true,
         originalUserId: userId,
       },
+      actor,
     })
 
     logger.info('Created organization for team/enterprise plan', {
@@ -106,7 +109,10 @@ export async function createOrganizationForTeamPlan(
  * workspaces. Idempotent: the attach picks up only workspaces the owner still holds outside an
  * organization, and returns at once when there are none.
  */
-async function attachTeamPlanOwnerWorkspaces(subscription: SubscriptionData): Promise<void> {
+async function attachTeamPlanOwnerWorkspaces(
+  subscription: SubscriptionData,
+  actor: PersonalOrganizationAuditActor
+): Promise<void> {
   if (!hasPaidSubscriptionStatus(subscription.status)) return
   const [owner] = await db
     .select({ userId: member.userId })
@@ -127,11 +133,19 @@ async function attachTeamPlanOwnerWorkspaces(subscription: SubscriptionData): Pr
     organizationId: subscription.referenceId,
     externalMemberPolicy: 'keep-external',
     includeArchived: true,
+    actor,
   })
 }
 
+/**
+ * Resolves the organization a Team or Enterprise subscription belongs to, creating it (from the
+ * buyer's personal organization) or re-homing the subscription onto the one the buyer administers,
+ * and attaches the buyer's workspaces. `actor` is who caused it: the billing webhook, or the
+ * signed-in buyer creating their organization.
+ */
 export async function ensureOrganizationForTeamSubscription(
-  subscription: SubscriptionData
+  subscription: SubscriptionData,
+  actor: PersonalOrganizationAuditActor
 ): Promise<SubscriptionData> {
   if (!isOrgPlan(subscription.plan)) {
     return subscription
@@ -146,7 +160,7 @@ export async function ensureOrganizationForTeamSubscription(
         subscription.enterpriseOperationId ?? null
       )
     })
-    await attachTeamPlanOwnerWorkspaces(subscription)
+    await attachTeamPlanOwnerWorkspaces(subscription, actor)
     return subscription
   }
 
@@ -299,6 +313,7 @@ export async function ensureOrganizationForTeamSubscription(
         organizationId: membership.organizationId,
         externalMemberPolicy: 'keep-external',
         includeArchived: true,
+        actor,
       })
 
       return { ...subscription, referenceId: membership.organizationId }
@@ -323,6 +338,7 @@ export async function ensureOrganizationForTeamSubscription(
       name: userData.name || `${userData.email || 'User'}'s Team`,
       slug: teamOrganizationSlug(userId),
       metadata: { createdForTeamPlan: true, originalUserId: userId },
+      actor,
     })
     await acquireOrganizationMutationLock(tx, orgId)
     await assertNoCompetingEnterpriseIssuance(tx, orgId, subscription.enterpriseOperationId ?? null)
@@ -373,6 +389,7 @@ export async function ensureOrganizationForTeamSubscription(
     organizationId: orgId,
     externalMemberPolicy: 'keep-external',
     includeArchived: true,
+    actor,
   })
 
   logger.info('Created organization and updated subscription referenceId', {
@@ -396,7 +413,8 @@ export async function ensureOrganizationForTeamSubscription(
  */
 export async function ensureOrganizationForTeamSubscriptionTx(
   tx: DbTransaction,
-  subscription: SubscriptionData & { workspaceIdsToAttach: string[] }
+  subscription: SubscriptionData & { workspaceIdsToAttach: string[] },
+  actor: PersonalOrganizationAuditActor
 ): Promise<SubscriptionData & { usageLimitUserIds: string[] }> {
   if (!isOrgPlan(subscription.plan)) {
     return { ...subscription, usageLimitUserIds: [] }
@@ -494,6 +512,7 @@ export async function ensureOrganizationForTeamSubscriptionTx(
       name: userData.name || `${userData.email || 'User'}'s Team`,
       slug: teamOrganizationSlug(userId),
       metadata: { createdForTeamPlan: true, originalUserId: userId },
+      actor,
     })
     organizationId = created.organizationId
     await acquireOrganizationMutationLock(tx, organizationId)
@@ -514,6 +533,7 @@ export async function ensureOrganizationForTeamSubscriptionTx(
     organizationId,
     workspaceIds: subscription.workspaceIdsToAttach,
     includeArchived: true,
+    actor,
   })
 
   return {

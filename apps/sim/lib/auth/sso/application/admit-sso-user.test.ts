@@ -120,6 +120,7 @@ describe('SSO JIT admission', () => {
       userId: 'user-1',
       organizationId: 'org-1',
       role: 'member',
+      actor: { type: 'user', userId: 'user-1' },
     })
     expect(mockApplySessionPolicyToNewMember).toHaveBeenCalledWith('user-1', 'org-1')
     expect(mockReconcileOrganizationSeats).toHaveBeenCalledWith({
@@ -332,6 +333,7 @@ describe('SSO JIT admission', () => {
       userId: 'user-1',
       organizationId: 'org-1',
       role: 'member',
+      actor: { type: 'user', userId: 'user-1' },
       skipSeatValidation: true,
       organizationSubscriptionId: 'subscription-current',
     })
@@ -356,6 +358,7 @@ describe('SSO JIT admission', () => {
       userId: 'user-1',
       organizationId: 'org-1',
       role: 'member',
+      actor: { type: 'user', userId: 'user-1' },
       organizationSubscriptionId: 'subscription-current',
     })
   })

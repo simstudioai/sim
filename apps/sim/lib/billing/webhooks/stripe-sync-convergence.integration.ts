@@ -1047,6 +1047,7 @@ describe('Team activation', () => {
     await cancelling.locked
     const activating = testDatabase.transaction((tx) =>
       ensureTeamOrganizationForAcceptance({
+        actor: { type: 'system', name: 'Test' },
         billingOwnerUserId: owner.id,
         workspaceOrganizationId: null,
         executor: tx,

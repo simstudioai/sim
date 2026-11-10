@@ -66,6 +66,7 @@ const seeded = await (async () => {
   await createPersonalOrganization(personalDone)
   const teamMember = await createUser('d-team')
   const { organizationId: teamId } = await createOrganizationWithOwner({
+    actor: { type: 'system', name: 'Test' },
     ownerUserId: teamMember,
     name: 'Team',
     slug: `team-${generateId()}`.toLowerCase(),

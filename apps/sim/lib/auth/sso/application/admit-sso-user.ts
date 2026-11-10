@@ -288,6 +288,7 @@ async function runAdmissionTransaction(
       userId,
       organizationId: provider.organizationId,
       role: 'member',
+      actor: { type: 'user', userId },
       ...seatPolicy,
     })
 

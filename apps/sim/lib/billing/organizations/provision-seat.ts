@@ -24,6 +24,7 @@ import {
   recordCancelAtPeriodEnd,
 } from '@/lib/billing/webhooks/subscription-sync'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import type { PersonalOrganizationAuditActor } from '@/lib/organizations/lifecycle-audit'
 
 const logger = createLogger('ProvisionSeat')
 
@@ -57,6 +58,8 @@ interface EnsureTeamOrganizationParams {
   executor: DbTransaction
   /** Workspace rows already covered by the caller's invitation/workspace locks. */
   workspaceIdsToAttach: string[]
+  /** The accepting user, whose acceptance converts the billing owner's plan. */
+  actor: PersonalOrganizationAuditActor
 }
 
 /**
@@ -82,7 +85,8 @@ interface EnsureTeamOrganizationParams {
 export async function ensureTeamOrganizationForAcceptance(
   params: EnsureTeamOrganizationParams
 ): Promise<EnsureTeamOrganizationResult> {
-  const { billingOwnerUserId, workspaceOrganizationId, executor, workspaceIdsToAttach } = params
+  const { billingOwnerUserId, workspaceOrganizationId, executor, workspaceIdsToAttach, actor } =
+    params
 
   try {
     if (workspaceOrganizationId) {
@@ -95,7 +99,8 @@ export async function ensureTeamOrganizationForAcceptance(
     return await convertPersonalSubscriptionToTeam(
       billingOwnerUserId,
       workspaceIdsToAttach,
-      executor
+      executor,
+      actor
     )
   } catch (error) {
     logger.error('Failed to ensure team organization for acceptance', {
@@ -158,7 +163,8 @@ async function ensureOrganizationOnTeamPlan(
 async function convertPersonalSubscriptionToTeam(
   userId: string,
   workspaceIdsToAttach: string[],
-  executor: DbTransaction
+  executor: DbTransaction,
+  actor: PersonalOrganizationAuditActor
 ): Promise<EnsureTeamOrganizationResult> {
   const personalSub = await getHighestPriorityPersonalSubscription(userId, {
     onError: 'throw',
@@ -184,14 +190,18 @@ async function convertPersonalSubscriptionToTeam(
   // member's personal Pro; updating the subscription first would create a
   // lock inversion. Everything still shares the caller's transaction, so a
   // later plan/outbox failure rolls the org and workspace work back too.
-  const updated = await ensureOrganizationForTeamSubscriptionTx(executor, {
-    id: personalSub.id,
-    plan: targetPlan,
-    referenceId: userId,
-    status: personalSub.status,
-    seats: personalSub.seats ?? 1,
-    workspaceIdsToAttach,
-  })
+  const updated = await ensureOrganizationForTeamSubscriptionTx(
+    executor,
+    {
+      id: personalSub.id,
+      plan: targetPlan,
+      referenceId: userId,
+      status: personalSub.status,
+      seats: personalSub.seats ?? 1,
+      workspaceIdsToAttach,
+    },
+    actor
+  )
 
   // The conversion helper acquires the organization mutation lock. Re-read
   // the outbox intent while that transaction-scoped lock is still held so a

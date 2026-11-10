@@ -76,6 +76,8 @@ function testExecutor(onSubscriptionLock: () => void = () => {}) {
   } as never
 }
 
+const ACCEPTOR = { type: 'user', userId: 'acceptor-1' } as const
+
 describe('ensureTeamOrganizationForAcceptance', () => {
   beforeEach(() => {
     resetDbChainMock()
@@ -102,6 +104,7 @@ describe('ensureTeamOrganizationForAcceptance', () => {
 
     const executor = testExecutor()
     const result = await ensureTeamOrganizationForAcceptance({
+      actor: ACCEPTOR,
       billingOwnerUserId: 'owner-1',
       workspaceOrganizationId: 'org-1',
       executor,
@@ -139,6 +142,7 @@ describe('ensureTeamOrganizationForAcceptance', () => {
 
     await expect(
       ensureTeamOrganizationForAcceptance({
+        actor: ACCEPTOR,
         billingOwnerUserId: 'owner-1',
         workspaceOrganizationId: 'org-1',
         executor: testExecutor(),
@@ -155,6 +159,7 @@ describe('ensureTeamOrganizationForAcceptance', () => {
 
     const executor = testExecutor()
     const result = await ensureTeamOrganizationForAcceptance({
+      actor: ACCEPTOR,
       billingOwnerUserId: 'owner-1',
       workspaceOrganizationId: null,
       executor,
@@ -181,6 +186,7 @@ describe('ensureTeamOrganizationForAcceptance', () => {
 
     const executor = testExecutor(() => lockOrder.push('subscription'))
     const result = await ensureTeamOrganizationForAcceptance({
+      actor: ACCEPTOR,
       billingOwnerUserId: 'owner-1',
       workspaceOrganizationId: null,
       executor,
@@ -207,7 +213,8 @@ describe('ensureTeamOrganizationForAcceptance', () => {
     )
     expect(mockEnsureOrganizationForTeamSubscriptionTx).toHaveBeenCalledWith(
       executor,
-      expect.objectContaining({ plan: 'team_6000', referenceId: 'owner-1' })
+      expect.objectContaining({ plan: 'team_6000', referenceId: 'owner-1' }),
+      ACCEPTOR
     )
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
     expect(lockOrder).toEqual(['organization', 'subscription'])
@@ -231,6 +238,7 @@ describe('ensureTeamOrganizationForAcceptance', () => {
 
     await expect(
       ensureTeamOrganizationForAcceptance({
+        actor: ACCEPTOR,
         billingOwnerUserId: 'owner-1',
         workspaceOrganizationId: null,
         executor: testExecutor(),
@@ -253,6 +261,7 @@ describe('ensureTeamOrganizationForAcceptance', () => {
     })
 
     const result = await ensureTeamOrganizationForAcceptance({
+      actor: ACCEPTOR,
       billingOwnerUserId: 'owner-1',
       workspaceOrganizationId: null,
       executor: testExecutor(),
@@ -262,7 +271,8 @@ describe('ensureTeamOrganizationForAcceptance', () => {
     expect(result).toEqual({ success: true, organizationId: 'org-new', fixedSeats: false })
     expect(mockEnsureOrganizationForTeamSubscriptionTx).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ plan: 'team', referenceId: 'owner-1' })
+      expect.objectContaining({ plan: 'team', referenceId: 'owner-1' }),
+      ACCEPTOR
     )
   })
 
@@ -277,6 +287,7 @@ describe('ensureTeamOrganizationForAcceptance', () => {
     mockGetPlanByName.mockReturnValue(undefined)
 
     const result = await ensureTeamOrganizationForAcceptance({
+      actor: ACCEPTOR,
       billingOwnerUserId: 'owner-1',
       workspaceOrganizationId: null,
       executor: testExecutor(),

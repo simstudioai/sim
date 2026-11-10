@@ -1080,6 +1080,7 @@ async function acceptLockedInvitation(
         workspaceOrganizationId,
         executor: tx,
         workspaceIdsToAttach: lockPlan.workspaceIds,
+        actor: { type: 'user', userId: input.userId },
       })
       if (!orgResult.success) {
         return { success: false, kind: orgResult.failureCode }
@@ -1133,6 +1134,7 @@ async function acceptLockedInvitation(
         userId: input.userId,
         organizationId: targetOrganizationId,
         role: (inv.role || 'member') as 'admin' | 'member' | 'owner',
+        actor: { type: 'user', userId: input.userId },
         acceptingInvitationId: inv.id,
         // If the pre-lock membership read said the user already belonged to
         // this org but a concurrent removal won the org lock first, fall back
@@ -1249,6 +1251,7 @@ async function acceptLockedInvitation(
             externalMemberPolicy: 'external-all',
             ownerMatch: 'owner',
             includeArchived: true,
+            actor: { type: 'user', userId: input.userId },
           })
           effects.syncUsageLimitUserIds.push(...attachResult.usageLimitUserIds)
           effects.attachedWorkspaceIds = attachResult.attachedWorkspaceIds

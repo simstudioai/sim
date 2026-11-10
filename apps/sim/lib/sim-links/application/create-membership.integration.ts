@@ -81,6 +81,7 @@ it('refuses a link whose creator is removed after authorization but before the i
   expect(
     (
       await removeUserFromOrganization({
+        actor: { type: 'system', name: 'Test' },
         organizationId,
         userId: creatorId,
         memberId: creatorMemberId,

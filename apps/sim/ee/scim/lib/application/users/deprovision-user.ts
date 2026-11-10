@@ -73,6 +73,7 @@ export const deprovisionScimUser = defineAuthorizedScimUseCase({
         userId: current.userId,
         organizationId: context.organizationId,
         memberId: membership.id,
+        actor: { type: 'system', name: 'SCIM' },
         revokePersonalApiKeys: true,
       })
       deliverRunStops(removal.stoppedRuns)

@@ -271,6 +271,7 @@ export const DELETE = withRouteHandler(
         userId,
         organizationId,
         memberId,
+        actor: { type: 'system', name: 'Admin API' },
         skipBillingLogic,
       })
       deliverRunStops(result.stoppedRuns)

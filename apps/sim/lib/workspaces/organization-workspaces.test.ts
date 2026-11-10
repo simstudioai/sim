@@ -82,6 +82,7 @@ describe('organization workspace helpers', () => {
 
     await expect(
       attachOwnedWorkspacesToOrganization({
+        actor: { type: 'system', name: 'Test' },
         ownerUserId: 'user-1',
         organizationId: 'org-1',
       })
@@ -113,6 +114,7 @@ describe('organization workspace helpers', () => {
     })
 
     const result = await attachOwnedWorkspacesToOrganization({
+      actor: { type: 'system', name: 'Test' },
       ownerUserId: 'user-1',
       organizationId: 'org-1',
       externalMemberPolicy: 'keep-external',
@@ -148,6 +150,7 @@ describe('organization workspace helpers', () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'ws-archived' }])
 
     const result = await attachOwnedWorkspacesToOrganization({
+      actor: { type: 'system', name: 'Test' },
       ownerUserId: 'user-1',
       organizationId: 'org-1',
       externalMemberPolicy: 'keep-external',
@@ -167,6 +170,7 @@ describe('organization workspace helpers', () => {
     queueTableRows(schemaMock.workspace, [])
 
     const result = await attachOwnedWorkspacesToOrganization({
+      actor: { type: 'system', name: 'Test' },
       ownerUserId: 'user-1',
       organizationId: 'org-1',
       externalMemberPolicy: 'keep-external',

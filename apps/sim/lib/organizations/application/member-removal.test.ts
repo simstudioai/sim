@@ -96,6 +96,7 @@ describe('organization member removal', () => {
       organizationId: 'org',
       memberId: 'member-id',
       actorUserId: 'actor',
+      actor: { type: 'user', userId: 'actor' },
       onError: 'throw',
     })
     expect(mocks.seats).toHaveBeenCalledWith({
@@ -134,6 +135,7 @@ describe('organization member removal', () => {
       memberId: 'member-id',
       spareSessionId: 'live-session',
       actorUserId: 'actor',
+      actor: { type: 'user', userId: 'actor' },
       onError: 'throw',
     })
     expect(mocks.active).toHaveBeenCalledWith(null)

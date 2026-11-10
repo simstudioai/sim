@@ -1313,6 +1313,7 @@ describe('shared resource retention across workspace departure and account erasu
     expect(
       (
         await removeUserFromOrganization({
+          actor: { type: 'system', name: 'Test' },
           organizationId,
           userId: fixture.departingId,
           memberId,
@@ -1901,6 +1902,7 @@ describe('shared resource retention across workspace departure and account erasu
         expect(
           (
             await removeUserFromOrganization({
+              actor: { type: 'system', name: 'Test' },
               organizationId,
               userId: fixture.departingId,
               memberId,

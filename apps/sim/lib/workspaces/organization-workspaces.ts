@@ -13,6 +13,7 @@ import {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
+import type { PersonalOrganizationAuditActor } from '@/lib/organizations/lifecycle-audit'
 import { transferWorkspaceProjects } from '@/lib/projects/membership'
 import { invalidateWorkspaceTableLimitsCache } from '@/lib/table/billing'
 import { getOrganizationOwnerId, WORKSPACE_MODE } from '@/lib/workspaces/policy'
@@ -128,6 +129,8 @@ async function lockWorkspaceRowsForPayerChanges(tx: DbOrTx, workspaceIds: string
 interface AttachOwnedWorkspacesToOrganizationParams {
   ownerUserId: string
   organizationId: string
+  /** Who triggered the attach, recorded when it joins a collaborator in no organization. */
+  actor: PersonalOrganizationAuditActor
   externalMemberPolicy?: ExternalMemberPolicy
   /**
    * Also attach archived workspaces. Join-attach sweeps them so unarchiving
@@ -141,6 +144,7 @@ export async function attachOwnedWorkspacesToOrganization({
   organizationId,
   externalMemberPolicy = 'reject',
   includeArchived = false,
+  actor,
 }: AttachOwnedWorkspacesToOrganizationParams): Promise<AttachOwnedWorkspacesToOrganizationResult> {
   const ownedWorkspaces = await db
     .select({ id: workspace.id })
@@ -171,6 +175,7 @@ export async function attachOwnedWorkspacesToOrganization({
       externalMemberPolicy,
       ownerMatch: 'owner',
       includeArchived,
+      actor,
     })
   })
 
@@ -227,6 +232,7 @@ export async function attachOwnedWorkspacesToOrganizationTx(
     externalMemberPolicy = 'keep-external',
     ownerMatch = 'billing-account',
     includeArchived = false,
+    actor,
   }: {
     ownerUserId: string
     organizationId: string
@@ -234,6 +240,7 @@ export async function attachOwnedWorkspacesToOrganizationTx(
     externalMemberPolicy?: ExternalMemberPolicy
     ownerMatch?: 'owner' | 'billing-account'
     includeArchived?: boolean
+    actor: PersonalOrganizationAuditActor
   }
 ): Promise<AttachOwnedWorkspacesToOrganizationTxResult> {
   if (workspaceIds.length === 0) {
@@ -372,6 +379,7 @@ export async function attachOwnedWorkspacesToOrganizationTx(
       organizationId,
       role: userId === ownerMembership.userId ? 'owner' : 'member',
       skipSeatValidation: true,
+      actor,
     })
     if (!result.success) {
       throw new Error(result.error || 'Failed to sync workspace member into organization')

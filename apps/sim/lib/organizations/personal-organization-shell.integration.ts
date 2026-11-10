@@ -207,6 +207,7 @@ describe('the organization a workspace opens in', () => {
     const teamOwnerId = await createUser()
     const externalId = await createUser()
     const { organizationId: teamId } = await createOrganizationWithOwner({
+      actor: { type: 'system', name: 'Test' },
       ownerUserId: teamOwnerId,
       name: 'Team',
       slug: `team-${generateId()}`.toLowerCase(),
@@ -288,7 +289,10 @@ describe('on-demand personal organization provisioning', () => {
       firstWritten = resolve
     })
     const first = db.transaction(async (tx) => {
-      const organizationId = await createPersonalOrganizationTx(tx, ownerId)
+      const organizationId = await createPersonalOrganizationTx(tx, ownerId, {
+        type: 'user',
+        userId: ownerId,
+      })
       firstWritten()
       await firstHeld
       return organizationId
@@ -308,6 +312,7 @@ describe('on-demand personal organization provisioning', () => {
   it('leaves a team member in their team', async () => {
     const ownerId = await createUser()
     const { organizationId: teamId } = await createOrganizationWithOwner({
+      actor: { type: 'system', name: 'Test' },
       ownerUserId: ownerId,
       name: 'Team',
       slug: `team-${generateId()}`.toLowerCase(),
@@ -326,6 +331,7 @@ describe('the organization surface a shell renders', () => {
     const ownerId = await createUser()
     await ensureUserOrganization(viewerId, { atSignup: false })
     const { organizationId: othersId } = await createOrganizationWithOwner({
+      actor: { type: 'system', name: 'Test' },
       ownerUserId: ownerId,
       name: 'Others',
       slug: `others-${generateId()}`.toLowerCase(),

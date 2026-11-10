@@ -993,6 +993,7 @@ export async function acceptEnterpriseOwnerClaim(params: {
         name: payload.request.organizationName,
         slug: claimOrganizationSlug(payload.request.organizationName, params.claimId),
         metadata: { createdForEnterpriseOwnerClaim: params.claimId },
+        actor: { type: 'user', userId: params.userId },
       })
       const acceptedAt = new Date()
       const nextActivationEventId = generateId()

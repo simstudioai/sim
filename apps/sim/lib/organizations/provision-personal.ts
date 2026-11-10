@@ -17,6 +17,9 @@ import { transferWorkspaceProjects } from '@/lib/projects/membership'
 
 const logger = createLogger('PersonalOrganizationProvision')
 
+/** The backfill script, an operator action with no signed-in user behind it. */
+const BACKFILL_ACTOR = { type: 'system', name: 'Personal organization backfill' } as const
+
 export type ProvisionPersonalOrganizationResult =
   | {
       status: 'provisioned'
@@ -91,7 +94,10 @@ export async function provisionPersonalOrganization(
     }
 
     const created = !locked
-    if (created && !(await createPersonalOrganizationTx(tx, userId, organizationId))) {
+    if (
+      created &&
+      !(await createPersonalOrganizationTx(tx, userId, BACKFILL_ACTOR, organizationId))
+    ) {
       return { status: 'user-missing' }
     }
 
@@ -199,7 +205,7 @@ async function attachUnassignedWorkspacesTx(
  */
 export async function createPersonalOrganization(userId: string): Promise<string | null> {
   if (!(await isFeatureEnabled('pause-personal-organizations'))) {
-    await db.transaction((tx) => createPersonalOrganizationTx(tx, userId))
+    await db.transaction((tx) => createPersonalOrganizationTx(tx, userId, { type: 'user', userId }))
   }
   return resolveOrganizationLanding(userId, null)
 }
@@ -216,7 +222,10 @@ export async function ensureUserOrganization(
   userId: string,
   options: { atSignup: boolean }
 ): Promise<string | null> {
-  if (await joinInstanceOrganization(userId, options))
-    return resolveOrganizationLanding(userId, null)
+  const joined = await joinInstanceOrganization(userId, {
+    atSignup: options.atSignup,
+    actor: { type: 'user', userId },
+  })
+  if (joined) return resolveOrganizationLanding(userId, null)
   return createPersonalOrganization(userId)
 }

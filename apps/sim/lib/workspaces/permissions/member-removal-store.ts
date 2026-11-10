@@ -148,6 +148,7 @@ export async function removeWorkspaceMemberRecord(
           userId,
           organizationId,
           memberId: orgMembership.id,
+          actor: { type: 'user', userId: actorId },
           requireNoOrgWorkspaceAccess: true,
           /** Leaving a workspace must not sign the leaver out of Sim. */
           ...(spareSessionId ? { spareSessionId } : {}),

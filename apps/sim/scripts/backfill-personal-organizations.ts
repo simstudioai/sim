@@ -197,7 +197,12 @@ async function main(): Promise<void> {
       for (const userId of batch) {
         try {
           if (instanceMode) {
-            if (!(await joinInstanceOrganization(userId, { atSignup: false }))) {
+            if (
+              !(await joinInstanceOrganization(userId, {
+                atSignup: false,
+                actor: { type: 'system', name: 'Personal organization backfill' },
+              }))
+            ) {
               throw new Error('The instance organization did not admit this user')
             }
             report.provisioned += 1

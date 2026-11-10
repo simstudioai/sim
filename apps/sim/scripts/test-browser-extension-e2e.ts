@@ -269,6 +269,7 @@ async function seed() {
     ownerUserId: owner,
     name: organizationName,
     slug: `extension-qa-${generateRandomHex(8)}`,
+    actor: { type: 'user', userId: owner },
   })
   assert.equal(
     team.organizationId,

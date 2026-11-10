@@ -79,6 +79,7 @@ async function personalOrganizationOf(userId: string): Promise<string> {
 
 async function team(ownerId: string): Promise<string> {
   const { organizationId } = await createOrganizationWithOwner({
+    actor: { type: 'system', name: 'Test' },
     ownerUserId: ownerId,
     name: 'Team',
     slug: `team-${generateId()}`.toLowerCase(),
@@ -166,6 +167,7 @@ describe('joining a team from a personal organization', () => {
     })
 
     const joined = await addUserToOrganization({
+      actor: { type: 'system', name: 'Test' },
       userId: joinerId,
       organizationId: teamId,
       role: 'member',
@@ -195,29 +197,14 @@ describe('auditing a personal organization’s retirement', () => {
     await db.insert(copilotChats).values({ userId: joinerId, organizationId: personalId })
 
     await addUserToOrganization({
+      actor: { type: 'system', name: 'Test' },
       userId: joinerId,
       organizationId: teamId,
       role: 'member',
       skipBillingLogic: true,
       skipSeatValidation: true,
     })
-    const events = await db
-      .select({ id: outboxEvent.id, payload: outboxEvent.payload })
-      .from(outboxEvent)
-      .where(
-        and(
-          eq(outboxEvent.eventType, PERSONAL_ORGANIZATION_AUDIT_EVENT),
-          sql`${outboxEvent.payload}->>'organizationId' = ${personalId}`
-        )
-      )
-    for (const event of events) {
-      await personalOrganizationAuditOutboxHandlers[PERSONAL_ORGANIZATION_AUDIT_EVENT](
-        event.payload,
-        { eventId: event.id } as Parameters<
-          (typeof personalOrganizationAuditOutboxHandlers)[typeof PERSONAL_ORGANIZATION_AUDIT_EVENT]
-        >[1]
-      )
-    }
+    await recordPersonalOrganizationAudit(personalId)
 
     const entries = await db
       .select({ action: auditLog.action, metadata: auditLog.metadata })
@@ -236,7 +223,56 @@ describe('auditing a personal organization’s retirement', () => {
       ])
     )
   })
+
+  it('attributes the retirement to whoever made the join, never to the person who joined', async () => {
+    const joinerId = await createUser()
+    const adminId = await createUser()
+    const teamId = await team(adminId)
+    const personalId = await personalOrganizationOf(joinerId)
+
+    await addUserToOrganization({
+      actor: { type: 'user', userId: adminId },
+      userId: joinerId,
+      organizationId: teamId,
+      role: 'member',
+      skipBillingLogic: true,
+      skipSeatValidation: true,
+    })
+    await recordPersonalOrganizationAudit(personalId)
+
+    const entries = await db
+      .select({ action: auditLog.action, actorId: auditLog.actorId })
+      .from(auditLog)
+      .where(eq(auditLog.resourceId, personalId))
+    expect(entries).toEqual(
+      expect.arrayContaining([
+        { action: 'organization.created', actorId: joinerId },
+        { action: 'organization.deleted', actorId: adminId },
+      ])
+    )
+  })
 })
+
+/** Runs the outbox handler for every queued lifecycle audit event of `organizationId`. */
+async function recordPersonalOrganizationAudit(organizationId: string): Promise<void> {
+  const events = await db
+    .select({ id: outboxEvent.id, payload: outboxEvent.payload })
+    .from(outboxEvent)
+    .where(
+      and(
+        eq(outboxEvent.eventType, PERSONAL_ORGANIZATION_AUDIT_EVENT),
+        sql`${outboxEvent.payload}->>'organizationId' = ${organizationId}`
+      )
+    )
+  for (const event of events) {
+    await personalOrganizationAuditOutboxHandlers[PERSONAL_ORGANIZATION_AUDIT_EVENT](
+      event.payload,
+      { eventId: event.id } as Parameters<
+        (typeof personalOrganizationAuditOutboxHandlers)[typeof PERSONAL_ORGANIZATION_AUDIT_EVENT]
+      >[1]
+    )
+  }
+}
 
 /** Resolves once some backend sits waiting on a row lock, i.e. the racing statement is parked. */
 async function waitForLockWaiter(): Promise<void> {
@@ -300,6 +336,7 @@ describe('joining a team while the personal organization is still being written 
     await inserted
 
     const join = addUserToOrganization({
+      actor: { type: 'system', name: 'Test' },
       userId: joinerId,
       organizationId: teamId,
       role: 'member',
@@ -335,6 +372,7 @@ describe('joining a team while the personal organization is still being written 
     // The first acceptance has joined and moved everything, uncommitted, when the second arrives.
     const { release, settled: first } = await holdOpen((tx) =>
       ensureUserInOrganizationTx(tx, {
+        actor: { type: 'system', name: 'Test' },
         userId: joinerId,
         organizationId: firstTeamId,
         role: 'member',
@@ -343,6 +381,7 @@ describe('joining a team while the personal organization is still being written 
       })
     )
     const second = addUserToOrganization({
+      actor: { type: 'system', name: 'Test' },
       userId: joinerId,
       organizationId: secondTeamId,
       role: 'member',
@@ -381,6 +420,7 @@ describe('joining a team while the personal organization is still being written 
     // The join has written its membership, uncommitted, when the first page load provisions.
     const { release, settled: joined } = await holdOpen((tx) =>
       ensureUserInOrganizationTx(tx, {
+        actor: { type: 'system', name: 'Test' },
         userId: joinerId,
         organizationId: teamId,
         role: 'member',
@@ -430,6 +470,7 @@ describe('joining a team while an invitation into a personal workspace is being 
       await tx.execute(sql`SELECT id FROM workspace WHERE id = ${personalWorkspace.id} FOR UPDATE`)
     })
     const join = addUserToOrganization({
+      actor: { type: 'system', name: 'Test' },
       userId: joinerId,
       organizationId: teamId,
       role: 'member',
@@ -510,6 +551,7 @@ describe('team-only configuration on a personal organization', () => {
       await expect(
         db.transaction((tx) =>
           ensureUserInOrganizationTx(tx, {
+            actor: { type: 'system', name: 'Test' },
             userId: joinerId,
             organizationId: teamId,
             role: 'member',

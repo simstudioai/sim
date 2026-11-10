@@ -55,6 +55,7 @@ async function personalAndTeam() {
   const provisioned = await provisionPersonalOrganization(personalOwnerId)
   if (provisioned.status !== 'provisioned') throw new Error('expected provisioning')
   const { organizationId: teamId } = await createOrganizationWithOwner({
+    actor: { type: 'system', name: 'Test' },
     ownerUserId: teamOwnerId,
     name: 'Entitled Team',
     slug: `entitled-${generateId()}`.toLowerCase(),

@@ -35,7 +35,10 @@ import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/iden
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
-import { enqueuePersonalOrganizationAuditTx } from '@/lib/organizations/lifecycle-audit'
+import {
+  enqueuePersonalOrganizationAuditTx,
+  type PersonalOrganizationAuditActor,
+} from '@/lib/organizations/lifecycle-audit'
 import { enqueueOrganizationStoredObjectCleanup } from '@/lib/organizations/resource-cleanup-event'
 import { transferWorkspaceProjects } from '@/lib/projects/membership'
 
@@ -118,6 +121,7 @@ function personalOrganizationName(row: { name: string | null; email: string }): 
 export async function createPersonalOrganizationTx(
   tx: DbTransaction,
   userId: string,
+  actor: PersonalOrganizationAuditActor,
   organizationId = `org_${generateId()}`
 ): Promise<string | null> {
   await acquireUserBillingIdentityLock(tx, userId)
@@ -154,6 +158,7 @@ export async function createPersonalOrganizationTx(
     change: 'created',
     organizationId,
     userId,
+    actor,
     metadata: {},
   })
   return organizationId
@@ -220,7 +225,14 @@ export async function convertPersonalOrganizationToTeamTx(
     name,
     slug,
     metadata,
-  }: { userId: string; name: string; slug: string; metadata: Record<string, unknown> }
+    actor,
+  }: {
+    userId: string
+    name: string
+    slug: string
+    metadata: Record<string, unknown>
+    actor: PersonalOrganizationAuditActor
+  }
 ): Promise<ConvertPersonalOrganizationResult | null> {
   await acquireUserBillingIdentityLock(tx, userId)
   const [personal] = await tx
@@ -245,6 +257,7 @@ export async function convertPersonalOrganizationToTeamTx(
     change: 'converted',
     organizationId: personal.organizationId,
     userId,
+    actor,
     metadata: { detachedWorkspaceIds },
   })
   logger.info('Converted personal organization into a team', {
@@ -522,7 +535,11 @@ export interface RetirePersonalOrganizationResult {
  */
 export async function retirePersonalOrganizationTx(
   tx: DbTransaction,
-  { userId, targetOrganizationId }: { userId: string; targetOrganizationId: string }
+  {
+    userId,
+    targetOrganizationId,
+    actor,
+  }: { userId: string; targetOrganizationId: string; actor: PersonalOrganizationAuditActor }
 ): Promise<RetirePersonalOrganizationResult> {
   const personalOrganizationId = await getPersonalOrganizationId(userId, tx)
   if (!personalOrganizationId) {
@@ -558,6 +575,7 @@ export async function retirePersonalOrganizationTx(
     change: 'retired',
     organizationId: personalOrganizationId,
     userId,
+    actor,
     metadata: {
       targetOrganizationId,
       detachedWorkspaceIds,

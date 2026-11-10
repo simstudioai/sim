@@ -1606,6 +1606,7 @@ export async function removeDashboardOrganizationMember(
     userId: existing.userId,
     organizationId,
     memberId,
+    actor: actor.id ? { type: 'user', userId: actor.id } : { type: 'system', name: actor.name },
   })
   deliverRunStops(result.stoppedRuns)
   if (!result.success) throw new Error(result.error ?? 'Failed to remove member')

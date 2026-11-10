@@ -101,6 +101,7 @@ describe('POST /api/organizations', () => {
       ownerUserId: 'user-1',
       organizationId: 'legacy-org-id',
       includeArchived: true,
+      actor: { type: 'user', userId: 'user-1' },
     })
     expect(mockCreateOrganizationForTeamPlan).not.toHaveBeenCalled()
     expect(mockEnsureOrganizationForTeamSubscription).not.toHaveBeenCalled()

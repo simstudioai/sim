@@ -157,6 +157,7 @@ export const POST = withRouteHandler(
         ownerUserId: ownerId,
         name,
         slug,
+        actor: { type: 'system', name: 'Admin API' },
       })
 
       const [createdOrg] = await db

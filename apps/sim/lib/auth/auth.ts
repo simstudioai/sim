@@ -182,6 +182,9 @@ import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 
 const logger = createLogger('Auth')
 
+/** The Stripe subscription webhook, which creates or re-homes a Team organization on its own. */
+const BILLING_WEBHOOK_ACTOR = { type: 'system', name: 'Billing System' } as const
+
 /**
  * A Stripe price that maps to no catalog plan leaves the stored plan in place. That is expected
  * for enterprise (priced per customer) and for a legacy plan still on the price it was sold at;
@@ -1661,8 +1664,10 @@ export const auth = betterAuth({
 
                 let resolvedSubscription = subscription
                 try {
-                  resolvedSubscription =
-                    await ensureOrganizationForTeamSubscription(subscriptionForOrg)
+                  resolvedSubscription = await ensureOrganizationForTeamSubscription(
+                    subscriptionForOrg,
+                    BILLING_WEBHOOK_ACTOR
+                  )
                 } catch (orgError) {
                   logger.error(
                     '[onSubscriptionComplete] Failed to ensure organization for team subscription',
@@ -1767,8 +1772,10 @@ export const auth = betterAuth({
 
                 let resolvedSubscription = subscription
                 try {
-                  resolvedSubscription =
-                    await ensureOrganizationForTeamSubscription(subscriptionForOrg)
+                  resolvedSubscription = await ensureOrganizationForTeamSubscription(
+                    subscriptionForOrg,
+                    BILLING_WEBHOOK_ACTOR
+                  )
 
                   if (isUpgradeToTeam) {
                     logger.info(

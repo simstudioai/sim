@@ -149,6 +149,7 @@ export async function revertPersonalOrganization(
         change: 'reverted',
         organizationId,
         userId: owner.userId,
+        actor: { type: 'system', name: 'Personal organization rollback' },
         metadata: { detachedWorkspaceIds, deletedContent: table !== null },
       })
       await tx.delete(member).where(eq(member.organizationId, organizationId))

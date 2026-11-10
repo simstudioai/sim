@@ -75,6 +75,8 @@ const { mockGetPlanPricing, mockIsSubscriptionOrgScoped } = billingCoreMockFns
 const { mockSyncUsageLimitsFromSubscription } = billingUsageMockFns
 const { mockAcquireOrganizationMutationLock } = organizationMembershipMockFns
 const { mockAcquireUserBillingIdentityLock } = billingIdentityLockMockFns
+const BILLING_WEBHOOK = { type: 'system', name: 'Billing System' } as const
+const ACCEPTOR = { type: 'user', userId: 'acceptor-1' } as const
 billingPlanHelpersMockFns.mockIsPaid.mockImplementation((plan) => plan !== 'free')
 
 function queueWhereResponses(responses: unknown[][]) {
@@ -100,14 +102,17 @@ describe('ensureOrganizationForTeamSubscription', () => {
   it('allows the authoritative Enterprise webhook to apply its own unresolved issuance', async () => {
     mockIsSubscriptionOrgScoped.mockResolvedValueOnce(true)
 
-    const result = await ensureOrganizationForTeamSubscription({
-      id: 'sub-enterprise',
-      plan: 'enterprise',
-      referenceId: 'org-enterprise',
-      status: 'active',
-      seats: 5,
-      enterpriseOperationId: 'operation-1',
-    })
+    const result = await ensureOrganizationForTeamSubscription(
+      {
+        id: 'sub-enterprise',
+        plan: 'enterprise',
+        referenceId: 'org-enterprise',
+        status: 'active',
+        seats: 5,
+        enterpriseOperationId: 'operation-1',
+      },
+      BILLING_WEBHOOK
+    )
 
     expect(result.referenceId).toBe('org-enterprise')
     expect(mockAssertNoCompetingEnterpriseIssuance).toHaveBeenCalledWith(
@@ -134,13 +139,16 @@ describe('ensureOrganizationForTeamSubscription', () => {
       [],
     ])
 
-    const result = await ensureOrganizationForTeamSubscription({
-      id: 'sub-1',
-      plan: 'team',
-      referenceId: 'user-1',
-      status: 'active',
-      seats: 2,
-    })
+    const result = await ensureOrganizationForTeamSubscription(
+      {
+        id: 'sub-1',
+        plan: 'team',
+        referenceId: 'user-1',
+        status: 'active',
+        seats: 2,
+      },
+      BILLING_WEBHOOK
+    )
 
     expect(result.referenceId).toBe('org-owned')
     expect(dbChainMockFns.update).toHaveBeenCalled()
@@ -149,6 +157,7 @@ describe('ensureOrganizationForTeamSubscription', () => {
       organizationId: 'org-owned',
       externalMemberPolicy: 'keep-external',
       includeArchived: true,
+      actor: BILLING_WEBHOOK,
     })
     expect(mockCreateOrganizationWithOwner).not.toHaveBeenCalled()
   })
@@ -165,14 +174,18 @@ describe('ensureOrganizationForTeamSubscription', () => {
     ])
     mockAttachOwnedWorkspacesToOrganizationTx.mockResolvedValueOnce({ usageLimitUserIds: [] })
 
-    await ensureOrganizationForTeamSubscriptionTx(dbChainMock.db, {
-      id: 'sub-1',
-      plan: 'team',
-      referenceId: 'owner-1',
-      status: 'active',
-      seats: 1,
-      workspaceIdsToAttach: [],
-    })
+    await ensureOrganizationForTeamSubscriptionTx(
+      dbChainMock.db,
+      {
+        id: 'sub-1',
+        plan: 'team',
+        referenceId: 'owner-1',
+        status: 'active',
+        seats: 1,
+        workspaceIdsToAttach: [],
+      },
+      ACCEPTOR
+    )
 
     const personalLock = mockAcquireOrganizationMutationLock.mock.calls.findIndex(
       ([, organizationId]) => organizationId === 'org-personal'
@@ -190,14 +203,18 @@ describe('ensureOrganizationForTeamSubscription', () => {
     )
 
     await expect(
-      ensureOrganizationForTeamSubscriptionTx(dbChainMock.db, {
-        id: 'sub-1',
-        plan: 'team',
-        referenceId: 'owner-1',
-        status: 'active',
-        seats: 1,
-        workspaceIdsToAttach: ['workspace-1'],
-      })
+      ensureOrganizationForTeamSubscriptionTx(
+        dbChainMock.db,
+        {
+          id: 'sub-1',
+          plan: 'team',
+          referenceId: 'owner-1',
+          status: 'active',
+          seats: 1,
+          workspaceIdsToAttach: ['workspace-1'],
+        },
+        ACCEPTOR
+      )
     ).rejects.toThrow('workspace attachment failed')
 
     expect(mockCreateOrganizationWithOwnerTx).toHaveBeenCalledWith(
@@ -250,13 +267,16 @@ describe('syncSubscriptionUsageLimits', () => {
     mockGetOrganizationIdForSubscriptionReference.mockResolvedValue('org-1')
     mockGetPlanPricing.mockReturnValue({ basePrice: 25 })
 
-    await syncSubscriptionUsageLimits({
-      id: 'sub-1',
-      plan: 'team_6000',
-      referenceId: 'org-1',
-      status: 'active',
-      seats: 2,
-    })
+    await syncSubscriptionUsageLimits(
+      {
+        id: 'sub-1',
+        plan: 'team_6000',
+        referenceId: 'org-1',
+        status: 'active',
+        seats: 2,
+      },
+      BILLING_WEBHOOK
+    )
 
     const update = dbChainMockFns.set.mock.calls[0]?.[0]
     const expression = JSON.stringify(update?.orgUsageLimit)

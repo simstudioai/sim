@@ -7,6 +7,7 @@ import {
   acquireUserBillingIdentityLock,
 } from '@/lib/billing/organizations/identity-lock'
 import type { DbTransaction } from '@/lib/db/types'
+import type { PersonalOrganizationAuditActor } from '@/lib/organizations/lifecycle-audit'
 import {
   convertPersonalOrganizationToTeamTx,
   getPersonalOrganizationId,
@@ -33,6 +34,8 @@ interface CreateOrganizationWithOwnerParams {
   name: string
   slug: string
   metadata?: Record<string, unknown>
+  /** Who is starting the team, recorded when it converts the owner's personal organization. */
+  actor: PersonalOrganizationAuditActor
 }
 
 interface EnsureOrganizationSlugAvailableParams {
@@ -91,7 +94,7 @@ export async function createOrganizationWithOwner(
  */
 export async function createOrganizationWithOwnerTx(
   tx: DbTransaction,
-  { ownerUserId, name, slug, metadata = {} }: CreateOrganizationWithOwnerParams
+  { ownerUserId, name, slug, metadata = {}, actor }: CreateOrganizationWithOwnerParams
 ): Promise<CreateOrganizationWithOwnerResult> {
   validateOrganizationSlugOrThrow(slug)
 
@@ -121,6 +124,7 @@ export async function createOrganizationWithOwnerTx(
     name,
     slug,
     metadata,
+    actor,
   })
   if (converted) {
     return { organizationId: converted.organizationId, memberId: converted.memberId }

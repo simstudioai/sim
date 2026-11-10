@@ -4,16 +4,33 @@ import { enqueueOutboxEvent, type OutboxHandlerRegistry } from '@/lib/core/outbo
 import type { DbTransaction } from '@/lib/db/types'
 import { PERSONAL_ORGANIZATION_AUDIT_EVENT } from '@/lib/organizations/lifecycle-audit-event'
 
+const actorSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('user'), userId: z.string().min(1) }).strict(),
+  z.object({ type: z.literal('system'), name: z.string().min(1) }).strict(),
+])
+
+/**
+ * Who made the change: a signed-in user (the person themselves, an inviter's invitee accepting, an
+ * organization or platform admin) or a system actor with no user row (the Admin API key, SCIM, the
+ * billing webhook, an operator script). Never the person whose organization changed, unless they
+ * made the change themselves.
+ */
+export type PersonalOrganizationAuditActor = z.output<typeof actorSchema>
+
 const personalOrganizationAuditSchema = z
   .object({
     change: z.enum(['created', 'converted', 'retired', 'reverted']),
     organizationId: z.string().min(1),
     userId: z.string().min(1),
+    /** Absent only on events queued before the actor was carried. */
+    actor: actorSchema.optional(),
     metadata: z.record(z.string(), z.unknown()),
   })
   .strict()
 
-type PersonalOrganizationAudit = z.output<typeof personalOrganizationAuditSchema>
+type PersonalOrganizationAudit = z.output<typeof personalOrganizationAuditSchema> & {
+  actor: PersonalOrganizationAuditActor
+}
 
 const AUDIT_ENTRY = {
   created: {
@@ -54,15 +71,22 @@ export async function enqueuePersonalOrganizationAuditTx(
 
 export const personalOrganizationAuditOutboxHandlers = {
   [PERSONAL_ORGANIZATION_AUDIT_EVENT]: async (rawPayload, context) => {
-    const { change, organizationId, userId, metadata } =
+    const { change, organizationId, userId, actor, metadata } =
       personalOrganizationAuditSchema.parse(rawPayload)
     await recordAuditOnce(context.eventId, {
-      actorId: userId,
+      ...(actor?.type === 'user'
+        ? { actorId: actor.userId }
+        : { actorId: null, actorName: actor?.name ?? 'System' }),
       action: AUDIT_ENTRY[change].action,
       resourceType: AuditResourceType.ORGANIZATION,
       resourceId: organizationId,
       description: AUDIT_ENTRY[change].description,
-      metadata: { ...metadata, organizationId, kind: change === 'converted' ? 'team' : 'personal' },
+      metadata: {
+        ...metadata,
+        organizationId,
+        userId,
+        kind: change === 'converted' ? 'team' : 'personal',
+      },
     })
   },
 } satisfies OutboxHandlerRegistry

@@ -29,6 +29,7 @@ import { env } from '@/lib/core/config/env'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
+import type { PersonalOrganizationAuditActor } from '@/lib/organizations/lifecycle-audit'
 
 const logger = createLogger('InstanceOrganization')
 
@@ -188,7 +189,8 @@ async function resolveOwnerUserId(
  * carry on rather than failing the signup that triggered it.
  */
 export async function ensureInstanceOrganization(
-  signupUserId: string | null
+  signupUserId: string | null,
+  actor: PersonalOrganizationAuditActor
 ): Promise<string | null> {
   const config = getInstanceOrganizationConfig()
   if (!config) return null
@@ -251,6 +253,7 @@ export async function ensureInstanceOrganization(
         name: config.name,
         slug: config.slug,
         metadata: { instanceOrganization: true },
+        actor,
       })
 
       logger.info('Provisioned the instance organization', {
@@ -288,18 +291,19 @@ export async function ensureInstanceOrganization(
  * signup catches them so a deployment never becomes unable to register users.
  *
  * Only signup (`atSignup`) may provision the organization with this user as its owner; anyone else
- * provisions it only for the configured owner ({@link ensureInstanceOrganization}).
+ * provisions it only for the configured owner ({@link ensureInstanceOrganization}). `actor` is who
+ * caused the join: the person themselves at signup or on a visit, or the backfill.
  *
  * The membership module is imported lazily to keep the organization and billing graph out of the
  * auth module's load path.
  */
 export async function joinInstanceOrganization(
   userId: string,
-  { atSignup }: { atSignup: boolean }
+  { atSignup, actor }: { atSignup: boolean; actor: PersonalOrganizationAuditActor }
 ): Promise<boolean> {
   if (!isInstanceOrganizationMode()) return false
 
-  const organizationId = await ensureInstanceOrganization(atSignup ? userId : null)
+  const organizationId = await ensureInstanceOrganization(atSignup ? userId : null, actor)
   if (!organizationId) return false
 
   const { ensureUserInOrganization } = await import('@/lib/billing/organizations/membership')
@@ -307,6 +311,7 @@ export async function joinInstanceOrganization(
     userId,
     organizationId,
     role: 'member',
+    actor,
     skipBillingLogic: true,
     skipSeatValidation: true,
   })

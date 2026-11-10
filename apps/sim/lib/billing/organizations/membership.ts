@@ -68,6 +68,7 @@ import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
 import { enqueueMemoryCleanup } from '@/lib/mothership/memories/cleanup-outbox'
+import type { PersonalOrganizationAuditActor } from '@/lib/organizations/lifecycle-audit'
 import { requireMemberManagementAuthority } from '@/lib/organizations/members/authority'
 import {
   revokePersonalApiKeysTx,
@@ -468,6 +469,8 @@ export interface AddMemberParams {
   userId: string
   organizationId: string
   role: 'admin' | 'member' | 'owner'
+  /** Who is adding them, recorded when the join retires their personal organization. */
+  actor: PersonalOrganizationAuditActor
   /** Skip Pro snapshot/cancellation logic (default: false) */
   skipBillingLogic?: boolean
   /** Skip seat validation (default: false) */
@@ -503,6 +506,8 @@ export interface RemoveMemberParams {
   userId: string
   organizationId: string
   memberId: string
+  /** Who is removing them, recorded on the personal organization they leave into. */
+  actor: PersonalOrganizationAuditActor
   /** Skip departed usage capture and Pro restoration (default: false) */
   skipBillingLogic?: boolean
   /**
@@ -802,7 +807,11 @@ export async function ensureUserInOrganizationTx(
   }
 
   if (existingMemberships.length > 0) {
-    await retirePersonalOrganizationTx(tx, { userId, targetOrganizationId: organizationId })
+    await retirePersonalOrganizationTx(tx, {
+      userId,
+      targetOrganizationId: organizationId,
+      actor: params.actor,
+    })
   }
 
   const memberId = generateId()
@@ -1118,6 +1127,7 @@ export interface TransferOrganizationMemberParams {
   role: 'admin' | 'member'
   usageLimitDollars?: number | null
   setBy?: string
+  actor: PersonalOrganizationAuditActor
 }
 
 export interface TransferOrganizationMemberResult {
@@ -1302,6 +1312,7 @@ export async function transferUserBetweenOrganizations(
           organizationId: params.destinationOrganizationId,
           role: params.role,
           skipSeatValidation: destinationSubscription?.plan.startsWith('team') ?? false,
+          actor: params.actor,
         })
         if (!added.success || !added.memberId || added.alreadyMember) {
           throw new Error(added.error ?? 'Failed to add member to destination organization')
@@ -1441,7 +1452,9 @@ export async function removeUserFromOrganization(
         }
         await enqueueMemoryCleanup(tx, [{ kind: 'organization_member', organizationId, userId }])
         /** Nobody is left without an organization: the person leaves into their own. */
-        if (!personalOrganizationsPaused) await createPersonalOrganizationTx(tx, userId)
+        if (!personalOrganizationsPaused) {
+          await createPersonalOrganizationTx(tx, userId, params.actor)
+        }
 
         if (!skipBillingLogic) {
           await enqueueOutboxEvent(tx, MEMBER_BILLING_RECONCILIATION_EVENT_TYPE, {
@@ -2287,6 +2300,7 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
         userId,
         organizationId,
         role,
+        actor: params.actor,
         skipBillingLogic,
         skipSeatValidation,
         organizationSubscriptionId,

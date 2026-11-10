@@ -41,6 +41,7 @@ describe('external organization access removal', () => {
     queueTableRows(member, [{ id: 'actor-membership', role: 'member' }])
     await expect(
       removeUserFromOrganization({
+        actor: { type: 'system', name: 'Test' },
         organizationId: 'org-1',
         userId: 'target',
         memberId: 'membership',
