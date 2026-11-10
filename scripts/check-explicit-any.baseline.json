@@ -1087,7 +1087,6 @@
     "apps/sim/app/api/credential-groups/slack-managed-users/callback/route.test.ts": 1,
     "apps/sim/app/api/logs/export/route.test.ts": 3,
     "apps/sim/app/api/mcp/oauth/callback/route.test.ts": 1,
-    "apps/sim/app/api/mothership/events/route.test.ts": 5,
     "apps/sim/app/api/mothership/execute/route.test.ts": 1,
     "apps/sim/app/api/schedules/execute/route.ts": 2,
     "apps/sim/app/api/table/[tableId]/rows/route.ts": 1,

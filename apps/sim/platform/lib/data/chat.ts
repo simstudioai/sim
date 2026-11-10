@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { escapeRegExp } from '@sim/utils/string'
 import { useQueries } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { createSerializer, useQueryStates } from 'nuqs'
@@ -37,7 +38,10 @@ import {
 } from '@/hooks/mothership-chat/use-resource-panel'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 import { useDecideToolPermissions } from '@/hooks/queries/copilot-tool-permissions'
-import { documentQueryOptions } from '@/hooks/queries/kb/knowledge'
+import {
+  documentQueryOptions,
+  KNOWLEDGE_DOCUMENT_DETAIL_STALE_TIME,
+} from '@/hooks/queries/kb/knowledge'
 import {
   useForkMothershipChat,
   useMarkMothershipChatRead,
@@ -103,10 +107,6 @@ function isGone(error: unknown): boolean {
   return isApiClientError(error) && (error.status === 403 || error.status === 404)
 }
 
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
 /** Prose cites each source as a Markdown link; a gone one keeps its label as plain text. */
 function unlinkProse(parts: readonly PlatformPart[], gone: ReadonlySet<string>): PlatformPart[] {
   const links = [...gone].map((url) => new RegExp(`\\[([^\\]]*)\\]\\(${escapeRegExp(url)}\\)`, 'g'))
@@ -140,7 +140,7 @@ function useAvailableSources(turns: readonly PlatformTurn[]): readonly PlatformT
     for (const turn of turns) {
       if (turn.role !== 'assistant') continue
       for (const source of turn.sources ?? []) {
-        if (byUrl.has(source.url)) continue
+        if (!source.url || byUrl.has(source.url)) continue
         const document = knowledgeDocumentLink(source.url)
         if (document) byUrl.set(source.url, document)
       }
@@ -148,8 +148,9 @@ function useAvailableSources(turns: readonly PlatformTurn[]): readonly PlatformT
     return [...byUrl]
   }, [turns])
   const gone = useQueries({
-    queries: documents.map(([, { knowledgeBaseId, documentId }]) => ({
-      ...documentQueryOptions(knowledgeBaseId, documentId),
+    queries: documents.map(([, document]) => ({
+      ...documentQueryOptions(document.knowledgeBaseId, document.documentId),
+      staleTime: KNOWLEDGE_DOCUMENT_DETAIL_STALE_TIME,
       retry: false,
     })),
     combine: (results) =>
@@ -159,13 +160,16 @@ function useAvailableSources(turns: readonly PlatformTurn[]): readonly PlatformT
     if (!gone) return turns
     const urls = new Set(gone.split('\n'))
     return turns.map((turn) =>
-      turn.role === 'assistant' && turn.sources?.some((source) => urls.has(source.url))
+      turn.role === 'assistant' &&
+      turn.sources?.some((source) => source.url !== undefined && urls.has(source.url))
         ? {
             ...turn,
             parts: unlinkProse(turn.parts, urls),
             sources: turn.sources.map(
               (source): ChatSource =>
-                urls.has(source.url) ? { ...source, unavailable: true } : source
+                source.url !== undefined && urls.has(source.url)
+                  ? { ...source, unavailable: true }
+                  : source
             ),
           }
         : turn

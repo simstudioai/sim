@@ -42,6 +42,11 @@ function emit(event: ChatStatusEvent) {
 }
 
 /** Every chunk after the stream's opening comment. */
+function bodyOf(response: Response): ReadableStream<Uint8Array> {
+  if (!response.body) throw new Error('The events response has no body')
+  return response.body
+}
+
 async function collect(body: ReadableStream<Uint8Array>, chunks: string[]) {
   const reader = body.getReader()
   const decoder = new TextDecoder()
@@ -105,7 +110,7 @@ describe('Mothership owner-scoped event stream', () => {
     const response = await GET(request('organizationId=org-1', abort.signal))
     expect(response.status).toBe(200)
     const chunks: string[] = []
-    const collected = collect(response.body!, chunks)
+    const collected = collect(bodyOf(response), chunks)
     emit({
       organizationId: 'org-1',
       userId: 'other-user',
@@ -140,7 +145,7 @@ describe('Mothership owner-scoped event stream', () => {
     const abort = new AbortController()
     const response = await GET(request('organizationId=org-1', abort.signal))
     const chunks: string[] = []
-    const collected = collect(response.body!, chunks)
+    const collected = collect(bodyOf(response), chunks)
     emit({
       workspaceId: 'openable-ws',
       userId: 'other-user',
@@ -166,7 +171,7 @@ describe('Mothership owner-scoped event stream', () => {
   it('drops a pending event and closes immediately when current authorization fails', async () => {
     const response = await GET(request('organizationId=org-1'))
     const chunks: string[] = []
-    const collected = collect(response.body!, chunks)
+    const collected = collect(bodyOf(response), chunks)
     authorize.mockRejectedValueOnce(new OrchestrationError('not_found', 'Organization not found'))
     emit({ organizationId: 'org-1', userId: 'user-1', chatId: 'revoked-chat', type: 'renamed' })
     await collected
@@ -177,7 +182,7 @@ describe('Mothership owner-scoped event stream', () => {
   it('rechecks membership and rollout while idle and releases a revoked connection', async () => {
     const response = await GET(request('organizationId=org-1'))
     const chunks: string[] = []
-    const collected = collect(response.body!, chunks)
+    const collected = collect(bodyOf(response), chunks)
     authorize.mockRejectedValueOnce(new OrchestrationError('forbidden', 'Search is disabled'))
     await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_MS)
     await collected
@@ -188,7 +193,7 @@ describe('Mothership owner-scoped event stream', () => {
   it('bounds publications waiting on slow authorization and reconciles through reconnect', async () => {
     const response = await GET(request('organizationId=org-1'))
     const chunks: string[] = []
-    const collected = collect(response.body!, chunks)
+    const collected = collect(bodyOf(response), chunks)
     await vi.advanceTimersByTimeAsync(0)
     let authorizeDone: (() => void) | undefined
     authorize.mockReturnValueOnce(
@@ -245,7 +250,7 @@ describe('Mothership owner-scoped event stream', () => {
     const abort = new AbortController()
     const response = await GET(request('workspaceId=ws-1', abort.signal))
     const chunks: string[] = []
-    const collected = collect(response.body!, chunks)
+    const collected = collect(bodyOf(response), chunks)
     await vi.advanceTimersByTimeAsync(0)
     emit({ organizationId: 'org-1', userId: 'user-1', chatId: 'org-chat', type: 'created' })
     emit({ workspaceId: 'ws-2', chatId: 'other-workspace-chat', type: 'created' })
