@@ -285,7 +285,7 @@ export async function homeChecks() {
         })
     )
   })
-  await check('Recents collapse repeats, and every chip has a mark', async () => {
+  await check('Recents collapse repeats, and only a provider chip has a mark', async () => {
     const [before] =
       await sql`select sources from organization_search_history where user_id = ${ADMIN.userId} and organization_id = ${ORGANIZATION_ID}`
     const viewedAt = new Date().toISOString()
@@ -317,9 +317,9 @@ export async function homeChecks() {
             sources[0].url,
             'A collapsed chip must link its latest visit'
           )
-          for (const link of await links.all()) {
-            await expect(link.locator('svg, img').first()).toBeVisible()
-          }
+          // The design owner's row draws a provider's mark and no favicon for a plain site.
+          await expect(links.first().locator('svg, img').first()).toBeVisible()
+          await expect(links.nth(1).locator('svg, img')).toHaveCount(0)
           const channelChip = links.first()
           await channelChip.hover()
           await recents.getByRole('button', { name: 'Remove #candidates from recents' }).click()
