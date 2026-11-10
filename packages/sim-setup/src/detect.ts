@@ -16,6 +16,43 @@ export const REDIS_CONTAINER = 'sim-redis'
  */
 export const LOOPBACK_HOST = '127.0.0.1'
 
+export interface PortBinding {
+  /** Empty when Docker publishes on every interface. */
+  hostIp: string
+  hostPort: string
+}
+
+/**
+ * The host side of a container's published port, read from its static config so
+ * a stopped container answers too. Containers from releases before
+ * `LOOPBACK_HOST` was enforced report an empty or wildcard `hostIp`.
+ */
+export function publishedBinding(container: string, containerPort: string): PortBinding | null {
+  const out = commandOutput('docker', [
+    'inspect',
+    container,
+    '--format',
+    `{{json (index .HostConfig.PortBindings "${containerPort}")}}`,
+  ])
+  if (!out) return null
+  try {
+    const [first] = JSON.parse(out) as { HostIp?: string; HostPort?: string }[]
+    return first?.HostPort ? { hostIp: first.HostIp ?? '', hostPort: first.HostPort } : null
+  } catch {
+    return null
+  }
+}
+
+/** Whether `url` addresses this machine on `port`, so it reaches a container published there. */
+export function targetsLocalPort(url: string, port: string): boolean {
+  try {
+    const { hostname, port: urlPort } = new URL(url)
+    return ['localhost', LOOPBACK_HOST, '[::1]'].includes(hostname) && urlPort === port
+  } catch {
+    return false
+  }
+}
+
 const SHELL_LLM_KEYS = [
   'OPENAI_API_KEY',
   'ANTHROPIC_API_KEY',

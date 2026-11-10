@@ -608,8 +608,17 @@ async function reset(install: Install | null): Promise<void> {
     p.log.step('Containers and volumes removed')
   } else if (install?.kind === 'dev') {
     const names = managedNames(install)
-    if (names.length) spawnSync('docker', ['rm', '-f', ...names], { cwd: ROOT, stdio: 'ignore' })
-    spawnSync('docker', ['volume', 'rm', POSTGRES_VOLUME], { cwd: ROOT, stdio: 'ignore' })
+    if (names.length) dockerRun(['rm', '-f', ...names], 'docker rm failed')
+    // A volume that never existed is already reset; only one that survives is a failure.
+    const removal = spawnSync('docker', ['volume', 'rm', POSTGRES_VOLUME], { encoding: 'utf8' })
+    if (
+      removal.status !== 0 &&
+      spawnSync('docker', ['volume', 'inspect', POSTGRES_VOLUME], { stdio: 'ignore' }).status === 0
+    ) {
+      throw new SetupError(
+        `could not remove the ${POSTGRES_VOLUME} volume: ${removal.stderr.trim()}`
+      )
+    }
     p.log.step('Managed containers and Postgres volume removed')
   } else if (install?.kind === 'k8s') {
     const uninstall = spawnSync(
