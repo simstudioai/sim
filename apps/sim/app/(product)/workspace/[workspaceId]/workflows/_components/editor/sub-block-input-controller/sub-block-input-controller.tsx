@@ -41,7 +41,6 @@ interface SubBlockInputControllerProps {
   isPreview?: boolean
   disabled?: boolean
   isStreaming?: boolean
-  onStreamingEnd?: () => void
   previewValue?: string | null
   /** Whether the secret and reference pickers may open. Defaults to `true`. */
   allowReferences?: boolean
@@ -71,7 +70,6 @@ export function SubBlockInputController({
   isPreview,
   disabled,
   isStreaming,
-  onStreamingEnd,
   previewValue,
   allowReferences,
   shouldForceEnvDropdown,
@@ -87,7 +85,6 @@ export function SubBlockInputController({
     isPreview,
     disabled,
     isStreaming,
-    onStreamingEnd,
     previewValue,
     allowReferences,
     shouldForceEnvDropdown,
