@@ -9,7 +9,11 @@ import { loadChatFileAttachmentsNamed } from '@/lib/mothership/chat/lifecycle'
 import { readOrganizationChatAttachment } from '@/lib/uploads/contexts/organization-assistant/application'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 
-/** Org uploads are private chat attachments, never files in an arbitrary workspace. */
+/**
+ * Org uploads are private chat attachments, never files in an arbitrary workspace. A chat that
+ * moved out of a retired personal organization into its owner's workspace keeps reading the ones
+ * it names, now held by that workspace.
+ */
 export const readChatAttachment = defineAuthorizedChatUseCase({
   operation: defineWorkspaceOperation({
     id: 'mothership.chats.read_attachment',
@@ -48,7 +52,7 @@ export const readChatAttachment = defineAuthorizedChatUseCase({
     },
   },
   async execute({ principal, context, input }) {
-    if (!context.organizationId || !input.reference.startsWith('uploads/'))
+    if (!input.reference.startsWith('uploads/'))
       throw new OrchestrationError('not_found', 'Chat attachment not found')
     let name: string
     try {
@@ -76,7 +80,9 @@ export const readChatAttachment = defineAuthorizedChatUseCase({
     })
     return readOrganizationChatAttachment({
       principal,
-      organizationId: context.organizationId,
+      ...(context.organizationId
+        ? { organizationId: context.organizationId }
+        : { workspaceId: context.workspaceId }),
       key: file.key,
       maxBytes: input.maxBytes,
       signal: input.signal,
