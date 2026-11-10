@@ -11,7 +11,7 @@ import { projectResolvedSecretModelJsonContent } from '@/executor/utils/resolved
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { buildBranchNodeId } from '@/executor/utils/subflow-node-id-codec'
 
-/** Per-point ceiling on captured display content; larger content is withheld, not truncated. */
+/** Per-part ceiling on captured display content and fields; larger parts are withheld, not truncated. */
 const MAX_PAUSE_DISPLAY_BYTES = 64 * 1024
 
 /** Response keys that drive resume and rendering rather than describe what the reviewer sees. */
@@ -96,8 +96,9 @@ function toPauseInputField(field: unknown): PauseInputField | null {
  * `{{API_KEY}}` in its configuration is stored resolved. This projects the parts a caller
  * reading the run may see — the content without resume links, control keys, or API-mode status
  * and headers, and the input fields without their default values — through the run's committed
- * secret matches. An unprovable projection (no registry, an incomplete one, or content over
- * {@link MAX_PAUSE_DISPLAY_BYTES}) yields neither. Time pauses carry no reviewer content.
+ * secret matches. Content and fields are proven separately: a part whose projection is
+ * unprovable (no registry, an incomplete one, or over {@link MAX_PAUSE_DISPLAY_BYTES}) is null
+ * while the other may survive. Time pauses carry no reviewer content.
  */
 export function capturePauseDisplay(
   pause: Pick<PauseMetadata, 'pauseKind' | 'response'>,
@@ -117,17 +118,19 @@ export function capturePauseDisplay(
       ? data.inputFormat.flatMap((field) => toPauseInputField(field) ?? [])
       : null
 
-  const projection = projectResolvedSecretModelJsonContent(
-    { content, inputFields },
-    registry,
-    MAX_PAUSE_DISPLAY_BYTES
-  )
-  if (!projection.safe || !isRecordLike(projection.value)) return withheld
+  /** Each part is projected on its own, so content too large to prove withholds only itself. */
+  const project = (value: unknown): unknown => {
+    const projection = projectResolvedSecretModelJsonContent(
+      value,
+      registry,
+      MAX_PAUSE_DISPLAY_BYTES
+    )
+    return projection.safe ? projection.value : null
+  }
+  const projectedFields = inputFields ? project(inputFields) : null
   return {
     displayScrubbed: true,
-    display: projection.value.content ?? null,
-    inputFields: Array.isArray(projection.value.inputFields)
-      ? (projection.value.inputFields as PauseInputField[])
-      : null,
+    display: project(content) ?? null,
+    inputFields: Array.isArray(projectedFields) ? (projectedFields as PauseInputField[]) : null,
   }
 }

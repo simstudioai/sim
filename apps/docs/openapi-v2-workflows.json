@@ -14819,8 +14819,15 @@
             "description": "Resume state of this point: waiting, queued behind another resume, resuming, resumed, or a failed resume attempt."
           },
           "registeredAt": {
-            "type": "string",
-            "description": "ISO 8601 timestamp when the run paused at this point.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when the run paused at this point, or null for a point recorded without one.",
             "format": "date-time"
           },
           "resumeAt": {
@@ -14910,18 +14917,18 @@
                 "type": "null"
               }
             ],
-            "description": "Fields a human pause asks for, without default values. Null for a time pause, a pause with no declared form, or one recorded before pause details were captured."
+            "description": "Fields a human pause asks for, without default values. Null for a time pause, a pause with no declared form, fields over 64 KiB or not provably free of secrets, or one recorded before pause details were captured."
           },
           "display": {
             "anyOf": [
               {
-                "description": "Content the pause presents to its reviewer."
+                "description": "Reviewer content value."
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Content the pause presents to its reviewer, with the run's resolved secrets redacted. Null for a time pause, content over 64 KiB, or a pause recorded before pause details were captured."
+            "description": "Content the pause presents to its reviewer, with the run's resolved secrets redacted. Null unless `includeOutput=true`, when hidden by organization permission groups, for a time pause, for content over 64 KiB or not provably free of secrets, or for a pause recorded before pause details were captured."
           },
           "queuePosition": {
             "anyOf": [

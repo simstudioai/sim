@@ -1942,7 +1942,10 @@ const v2WorkflowRunPausePointSchema = z
       ),
     registeredAt: z
       .string()
-      .describe('ISO 8601 timestamp when the run paused at this point.')
+      .nullable()
+      .describe(
+        'ISO 8601 timestamp when the run paused at this point, or null for a point recorded without one.'
+      )
       .meta({ format: 'date-time' }),
     resumeAt: z
       .string()
@@ -1972,14 +1975,14 @@ const v2WorkflowRunPausePointSchema = z
       .array(v2PauseInputFieldSchema)
       .nullable()
       .describe(
-        'Fields a human pause asks for, without default values. Null for a time pause, a pause with no declared form, or one recorded before pause details were captured.'
+        'Fields a human pause asks for, without default values. Null for a time pause, a pause with no declared form, fields over 64 KiB or not provably free of secrets, or one recorded before pause details were captured.'
       ),
     display: z
       .unknown()
-      .describe('Content the pause presents to its reviewer.')
+      .describe('Reviewer content value.')
       .nullable()
       .describe(
-        "Content the pause presents to its reviewer, with the run's resolved secrets redacted. Null for a time pause, content over 64 KiB, or a pause recorded before pause details were captured."
+        "Content the pause presents to its reviewer, with the run's resolved secrets redacted. Null unless `includeOutput=true`, when hidden by organization permission groups, for a time pause, for content over 64 KiB or not provably free of secrets, or for a pause recorded before pause details were captured."
       ),
     queuePosition: z
       .number()

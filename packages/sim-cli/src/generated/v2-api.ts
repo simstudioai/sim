@@ -7872,7 +7872,7 @@ type GetWorkflowRunResponseRef0 = {
   blockName: string | null
   kind: 'human' | 'time'
   status: 'paused' | 'queued' | 'resuming' | 'resumed' | 'failed'
-  registeredAt: string
+  registeredAt: string | null
   resumeAt: string | null
   parallel: {
     parallelId: string

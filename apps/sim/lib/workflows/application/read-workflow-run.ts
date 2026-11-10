@@ -154,12 +154,22 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
       /**
        * Every pause point of a paused run, so a caller can resume any of them by
        * `contextId`, not only the earliest one `paused` summarizes.
+       *
+       * A point's `display` is what the block rendered from upstream outputs, so it
+       * follows `finalOutput`'s gating: withheld unless output was asked for and the
+       * viewer's group shows execution data. `inputFields` are the block's own
+       * configuration and stay.
+       *
+       * permission-group-enforced: logs.trace_spans
        */
+      const showsDisplay = input.includeOutput && !projection.hideTraceSpans
       const pausePoints = status.paused
-        ? ((await readPausedRunPoints({
-            workflowId: context.workflowId,
-            executionId: context.runId,
-          })) ?? [])
+        ? (
+            (await readPausedRunPoints({
+              workflowId: context.workflowId,
+              executionId: context.runId,
+            })) ?? []
+          ).map((point) => (showsDisplay ? point : { ...point, display: null }))
         : null
 
       return { ...status, files, pausePoints }

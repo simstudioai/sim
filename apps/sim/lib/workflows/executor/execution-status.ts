@@ -518,7 +518,8 @@ export interface PausedRunPoint {
   blockName: string | null
   kind: 'human' | 'time'
   status: ResumeStatus
-  registeredAt: string
+  /** Null for a point recorded without a registration time. */
+  registeredAt: string | null
   resumeAt: string | null
   parallel: { parallelId: string; branchIndex: number; branchTotal: number | null } | null
   loop: { loopId: string; iteration: number } | null
@@ -629,7 +630,7 @@ export async function readPausedRunPoints(input: {
       blockName: names.get(blockId) ?? null,
       kind: point.pauseKind === 'time' ? 'time' : 'human',
       status: point.resumeStatus,
-      registeredAt: point.registeredAt,
+      registeredAt: point.registeredAt ?? null,
       resumeAt: point.resumeAt ?? null,
       parallel: point.parallelScope
         ? {

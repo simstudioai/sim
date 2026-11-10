@@ -384,6 +384,28 @@ describe('readPausedRunPoints', () => {
     expect(JSON.stringify(point)).not.toContain(SECRET)
   })
 
+  it('keeps the input fields when the reviewer content is too large to capture', async () => {
+    const point = humanBranchPoint(0, registryWithResolvedSecret())
+    point.response.data.responseStructure[0].value = 'x'.repeat(70 * 1024)
+    const executionId = await publishPausedRun([
+      { ...point, ...capturePauseDisplay(point, registryWithResolvedSecret()) },
+    ])
+
+    const [read] = (await readPausedRunPoints({ workflowId: ids.workflow, executionId })) ?? []
+    expect(read).toMatchObject({
+      display: null,
+      inputFields: [{ name: 'approved', label: 'approved', type: 'boolean', required: true }],
+    })
+  })
+
+  it('lists a point recorded without a registration time instead of failing the run', async () => {
+    const { registeredAt, ...unregistered } = humanBranchPoint(0, registryWithResolvedSecret())
+    const executionId = await publishPausedRun([unregistered as PausePoint])
+
+    const [read] = (await readPausedRunPoints({ workflowId: ids.workflow, executionId })) ?? []
+    expect(read).toMatchObject({ contextId: BRANCH_IDS[0], registeredAt: null })
+  })
+
   it('reports a time pause with its resume time and no input fields', async () => {
     const resumeAt = new Date(Date.now() + 60_000).toISOString()
     const executionId = await publishPausedRun([
