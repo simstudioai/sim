@@ -20,7 +20,6 @@ import {
 import { useQueryClient } from '@tanstack/react-query'
 import type { Edge } from '@xyflow/react'
 import { isEqual } from 'es-toolkit'
-import { useShallow } from 'zustand/react/shallow'
 import { useSocket } from '@/components/workspace-providers/socket-provider'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts'
@@ -44,11 +43,8 @@ import {
 import { usePanelEditorStore } from '@/stores/panel'
 import { useCodeUndoRedoStore, useUndoRedoStore } from '@/stores/undo-redo'
 import { useVariablesStore } from '@/stores/variables/store'
-import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
-import {
-  applyWorkflowStateToStores,
-  WORKFLOW_DIFF_SETTLED_EVENT,
-} from '@/stores/workflow-diff/utils'
+import { useWorkflowReconciliationStore } from '@/stores/workflow-reconciliation/store'
+import { applyWorkflowStateToStores } from '@/stores/workflows/apply-state'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { filterNewEdges, filterValidEdges, mergeSubblockState } from '@/stores/workflows/utils'
@@ -63,6 +59,9 @@ import type {
 import { findAllDescendantNodes } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('CollaborativeWorkflow')
+
+/** Fired when a failed reconciliation leaves an external update pending, so it is replayed. */
+const WORKFLOW_RECONCILIATION_SETTLED_EVENT = 'workflow-reconciliation-settled'
 
 /** Applies a subblock value and its block's replacement `canonicalModes` to the local stores. */
 function applySubblockValueWithCanonicalModes(
@@ -81,7 +80,6 @@ export function useCollaborativeWorkflow() {
   const undoRedo = useUndoRedo()
   const recordBatchRemoveEdges = undoRedo.recordBatchRemoveEdges
   const isUndoRedoInProgress = useRef(false)
-  const lastDiffOperationId = useRef<string | null>(null)
 
   useEffect(() => {
     const moveHandler = (e: any) => {
@@ -106,56 +104,11 @@ export function useCollaborativeWorkflow() {
       )
     }
 
-    const diffOperationHandler = (e: any) => {
-      const {
-        type,
-        baselineSnapshot,
-        proposedState,
-        diffAnalysis,
-        beforeAccept,
-        afterAccept,
-        beforeReject,
-        afterReject,
-      } = e.detail || {}
-      // Don't record during undo/redo operations
-      if (isUndoRedoInProgress.current) return
-
-      // Generate a unique ID for this diff operation to prevent duplicates
-      // Use block keys from the relevant states for each operation type
-      let stateForId
-      if (type === 'apply-diff') {
-        stateForId = proposedState
-      } else if (type === 'accept-diff') {
-        stateForId = afterAccept
-      } else if (type === 'reject-diff') {
-        stateForId = afterReject
-      }
-
-      const blockKeys = stateForId?.blocks ? Object.keys(stateForId.blocks).sort().join(',') : ''
-      const operationId = `${type}-${blockKeys}`
-
-      if (lastDiffOperationId.current === operationId) {
-        logger.debug('Skipping duplicate diff operation', { type, operationId })
-        return // Skip duplicate
-      }
-      lastDiffOperationId.current = operationId
-
-      if (type === 'apply-diff' && baselineSnapshot && proposedState) {
-        undoRedo.recordApplyDiff(baselineSnapshot, proposedState, diffAnalysis)
-      } else if (type === 'accept-diff' && beforeAccept && afterAccept) {
-        undoRedo.recordAcceptDiff(beforeAccept, afterAccept, diffAnalysis, baselineSnapshot)
-      } else if (type === 'reject-diff' && beforeReject && afterReject) {
-        undoRedo.recordRejectDiff(beforeReject, afterReject, diffAnalysis, baselineSnapshot)
-      }
-    }
-
     window.addEventListener('workflow-record-move', moveHandler)
     window.addEventListener('workflow-record-parent-update', parentUpdateHandler)
-    window.addEventListener('record-diff-operation', diffOperationHandler)
     return () => {
       window.removeEventListener('workflow-record-move', moveHandler)
       window.removeEventListener('workflow-record-parent-update', parentUpdateHandler)
-      window.removeEventListener('record-diff-operation', diffOperationHandler)
     }
   }, [undoRedo])
   const {
@@ -178,13 +131,6 @@ export function useCollaborativeWorkflow() {
 
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const { data: session } = useSession()
-  const { hasActiveDiff, isShowingDiff } = useWorkflowDiffStore(
-    useShallow((state) => ({
-      hasActiveDiff: state.hasActiveDiff,
-      isShowingDiff: state.isShowingDiff,
-    }))
-  )
-  const isBaselineDiffView = hasActiveDiff && !isShowingDiff
 
   // Track if we're applying remote changes to avoid infinite loops
   const isApplyingRemoteChange = useRef(false)
@@ -426,8 +372,6 @@ export function useCollaborativeWorkflow() {
                   userId,
                   blockCount: Object.keys(payload.state.blocks || {}).length,
                   edgeCount: (payload.state.edges || []).length,
-                  hasActiveDiff,
-                  isShowingDiff,
                 })
                 useWorkflowStore.getState().replaceWorkflowState(payload.state)
 
@@ -687,19 +631,25 @@ export function useCollaborativeWorkflow() {
       reloadSequencesRef.current[workflowId] = reloadSequence
       const isLatestReload = () => reloadSequencesRef.current[workflowId] === reloadSequence
       const pendingExternalUpdateAtStart =
-        useWorkflowDiffStore.getState().pendingExternalUpdates[workflowId] ?? 0
-      useWorkflowDiffStore.getState().setWorkflowReconciliationInProgress(workflowId, true)
+        useWorkflowReconciliationStore.getState().pendingExternalUpdates[workflowId] ?? 0
+      useWorkflowReconciliationStore
+        .getState()
+        .setWorkflowReconciliationInProgress(workflowId, true)
       const failLatestReconciliation = (message: string) => {
         if (!isLatestReload()) return
-        const diffStore = useWorkflowDiffStore.getState()
-        if ((diffStore.pendingExternalUpdates[workflowId] ?? 0) <= pendingExternalUpdateAtStart) {
-          diffStore.clearExternalUpdatePending(workflowId)
+        const reconciliation = useWorkflowReconciliationStore.getState()
+        if (
+          (reconciliation.pendingExternalUpdates[workflowId] ?? 0) <= pendingExternalUpdateAtStart
+        ) {
+          reconciliation.clearExternalUpdatePending(workflowId)
         }
-        diffStore.setWorkflowReconciliationInProgress(workflowId, false)
-        diffStore.setWorkflowReconciliationError(workflowId, message)
-        if ((useWorkflowDiffStore.getState().pendingExternalUpdates[workflowId] ?? 0) > 0) {
+        reconciliation.setWorkflowReconciliationInProgress(workflowId, false)
+        reconciliation.setWorkflowReconciliationError(workflowId, message)
+        if (
+          (useWorkflowReconciliationStore.getState().pendingExternalUpdates[workflowId] ?? 0) > 0
+        ) {
           window.dispatchEvent(
-            new CustomEvent(WORKFLOW_DIFF_SETTLED_EVENT, { detail: { workflowId } })
+            new CustomEvent(WORKFLOW_RECONCILIATION_SETTLED_EVENT, { detail: { workflowId } })
           )
         }
       }
@@ -745,23 +695,26 @@ export function useCollaborativeWorkflow() {
       if (useWorkflowRegistry.getState().activeWorkflowId !== workflowId) {
         logger.debug(`Ignoring workflow reload after active workflow changed`, { workflowId })
         if (isLatestReload()) {
-          useWorkflowDiffStore.getState().setWorkflowReconciliationInProgress(workflowId, false)
+          useWorkflowReconciliationStore
+            .getState()
+            .setWorkflowReconciliationInProgress(workflowId, false)
         }
         return false
       }
 
-      const diffStateBeforeApply = useWorkflowDiffStore.getState()
+      const reconciliationBeforeApply = useWorkflowReconciliationStore.getState()
       const pendingExternalUpdateBeforeApply =
-        diffStateBeforeApply.pendingExternalUpdates[workflowId] ?? 0
+        reconciliationBeforeApply.pendingExternalUpdates[workflowId] ?? 0
       if (
-        diffStateBeforeApply.hasActiveDiff ||
         pendingExternalUpdateBeforeApply > pendingExternalUpdateAtStart ||
         useOperationQueueStore.getState().hasPendingOperations(workflowId)
       ) {
         logger.info(`Deferring workflow reload apply after ${reason}`, { workflowId })
-        useWorkflowDiffStore.getState().markExternalUpdatePending(workflowId)
+        useWorkflowReconciliationStore.getState().markExternalUpdatePending(workflowId)
         if (isLatestReload()) {
-          useWorkflowDiffStore.getState().setWorkflowReconciliationInProgress(workflowId, false)
+          useWorkflowReconciliationStore
+            .getState()
+            .setWorkflowReconciliationInProgress(workflowId, false)
           if (useWorkflowRegistry.getState().activeWorkflowId === workflowId) {
             void replayPendingExternalUpdate(
               workflowId,
@@ -801,17 +754,19 @@ export function useCollaborativeWorkflow() {
         })
 
         logger.info(`Successfully reloaded workflow state after ${reason}`, { workflowId })
-        const diffStore = useWorkflowDiffStore.getState()
-        const pendingExternalUpdate = diffStore.pendingExternalUpdates[workflowId] ?? 0
+        const reconciliation = useWorkflowReconciliationStore.getState()
+        const pendingExternalUpdate = reconciliation.pendingExternalUpdates[workflowId] ?? 0
         if (pendingExternalUpdate <= pendingExternalUpdateAtStart) {
-          diffStore.clearExternalUpdatePending(workflowId)
+          reconciliation.clearExternalUpdatePending(workflowId)
         }
-        diffStore.setWorkflowReconciliationError(workflowId, null)
+        reconciliation.setWorkflowReconciliationError(workflowId, null)
         return true
       } finally {
         isApplyingRemoteChange.current = false
         if (isLatestReload()) {
-          useWorkflowDiffStore.getState().setWorkflowReconciliationInProgress(workflowId, false)
+          useWorkflowReconciliationStore
+            .getState()
+            .setWorkflowReconciliationInProgress(workflowId, false)
           if (useWorkflowRegistry.getState().activeWorkflowId === workflowId) {
             void replayPendingExternalUpdate(
               workflowId,
@@ -823,12 +778,11 @@ export function useCollaborativeWorkflow() {
     }
 
     const replayPendingExternalUpdate = async (workflowId: string, reason: string) => {
-      const diffStore = useWorkflowDiffStore.getState()
+      const reconciliation = useWorkflowReconciliationStore.getState()
       if (
         useWorkflowRegistry.getState().activeWorkflowId !== workflowId ||
-        diffStore.hasActiveDiff ||
-        diffStore.reconcilingWorkflows[workflowId] ||
-        !diffStore.pendingExternalUpdates[workflowId]
+        reconciliation.reconcilingWorkflows[workflowId] ||
+        !reconciliation.pendingExternalUpdates[workflowId]
       ) {
         return
       }
@@ -850,7 +804,7 @@ export function useCollaborativeWorkflow() {
       logger.info(`Workflow ${workflowId} has been reverted to deployed state`)
 
       if (activeWorkflowId !== workflowId) return
-      useWorkflowDiffStore.getState().markRemoteUpdateSeen(workflowId)
+      useWorkflowReconciliationStore.getState().markRemoteUpdateSeen(workflowId)
 
       try {
         await reloadWorkflowFromApi(workflowId, 'revert')
@@ -865,19 +819,12 @@ export function useCollaborativeWorkflow() {
 
       if (activeWorkflowId !== workflowId) return
 
-      const diffStore = useWorkflowDiffStore.getState()
-      const { hasActiveDiff } = diffStore
-      if (hasActiveDiff) {
-        logger.info('Deferring workflow-updated: active diff in progress', { workflowId })
-        diffStore.markExternalUpdatePending(workflowId)
-        return
-      }
-
-      if (diffStore.reconcilingWorkflows[workflowId]) {
+      const reconciliation = useWorkflowReconciliationStore.getState()
+      if (reconciliation.reconcilingWorkflows[workflowId]) {
         logger.info('Deferring workflow-updated: workflow reconciliation is in progress', {
           workflowId,
         })
-        diffStore.markExternalUpdatePending(workflowId)
+        reconciliation.markExternalUpdatePending(workflowId)
         return
       }
 
@@ -886,10 +833,10 @@ export function useCollaborativeWorkflow() {
         logger.info('Deferring workflow-updated: local operations are still pending', {
           workflowId,
         })
-        diffStore.markExternalUpdatePending(workflowId)
+        reconciliation.markExternalUpdatePending(workflowId)
         void operationQueue.waitForWorkflowOperations(workflowId).then((result) => {
           if (result === 'cancelled') {
-            useWorkflowDiffStore.getState().clearExternalUpdatePending(workflowId)
+            useWorkflowReconciliationStore.getState().clearExternalUpdatePending(workflowId)
             return
           }
 
@@ -898,9 +845,9 @@ export function useCollaborativeWorkflow() {
             if (latestQueue.hasPendingOperations(workflowId) && !latestQueue.hasOperationError) {
               return
             }
-            const diffStore = useWorkflowDiffStore.getState()
-            diffStore.clearExternalUpdatePending(workflowId)
-            diffStore.setWorkflowReconciliationError(
+            const reconciliation = useWorkflowReconciliationStore.getState()
+            reconciliation.clearExternalUpdatePending(workflowId)
+            reconciliation.setWorkflowReconciliationError(
               workflowId,
               'Failed to save local workflow changes before syncing external updates.'
             )
@@ -912,7 +859,7 @@ export function useCollaborativeWorkflow() {
         return
       }
 
-      diffStore.markRemoteUpdateSeen(workflowId)
+      reconciliation.markRemoteUpdateSeen(workflowId)
       try {
         await reloadWorkflowFromApi(workflowId, 'external update')
       } catch (error) {
@@ -920,12 +867,12 @@ export function useCollaborativeWorkflow() {
       }
     }
 
-    const handleDiffSettled = async (event: Event) => {
+    const handleReconciliationSettled = async (event: Event) => {
       const customEvent = event as CustomEvent<{ workflowId?: string }>
       const workflowId = customEvent.detail?.workflowId
       if (!workflowId || activeWorkflowId !== workflowId) return
-      const diffStore = useWorkflowDiffStore.getState()
-      if (!diffStore.pendingExternalUpdates[workflowId]) return
+      const reconciliation = useWorkflowReconciliationStore.getState()
+      if (!reconciliation.pendingExternalUpdates[workflowId]) return
 
       await replayPendingExternalUpdate(workflowId, 'deferred external update')
     }
@@ -974,7 +921,7 @@ export function useCollaborativeWorkflow() {
       }
     }
     window.addEventListener(WORKFLOW_EXTERNAL_UPDATE_EVENT, handleToolUpdate)
-    window.addEventListener(WORKFLOW_DIFF_SETTLED_EVENT, handleDiffSettled)
+    window.addEventListener(WORKFLOW_RECONCILIATION_SETTLED_EVENT, handleReconciliationSettled)
 
     if (activeWorkflowId) {
       void replayPendingExternalUpdate(
@@ -985,7 +932,7 @@ export function useCollaborativeWorkflow() {
 
     return () => {
       window.removeEventListener(WORKFLOW_EXTERNAL_UPDATE_EVENT, handleToolUpdate)
-      window.removeEventListener(WORKFLOW_DIFF_SETTLED_EVENT, handleDiffSettled)
+      window.removeEventListener(WORKFLOW_RECONCILIATION_SETTLED_EVENT, handleReconciliationSettled)
     }
   }, [
     onWorkflowOperation,
@@ -1011,12 +958,6 @@ export function useCollaborativeWorkflow() {
         return
       }
 
-      // Skip socket operations when viewing baseline diff (readonly)
-      if (isBaselineDiffView) {
-        logger.debug('Skipping socket operation while viewing baseline diff:', operation)
-        return
-      }
-
       // Queue operations if we have an active workflow - queue handles socket readiness
       if (!activeWorkflowId) {
         logger.debug('Skipping operation - no active workflow', { operation, target })
@@ -1038,7 +979,7 @@ export function useCollaborativeWorkflow() {
 
       localAction()
     },
-    [addToQueue, session?.user?.id, isBaselineDiffView, activeWorkflowId]
+    [addToQueue, session?.user?.id, activeWorkflowId]
   )
 
   const collaborativeBatchUpdatePositions = useCallback(
@@ -1048,10 +989,6 @@ export function useCollaborativeWorkflow() {
         previousPositions?: Map<string, { x: number; y: number; parentId?: string }>
       }
     ) => {
-      if (isBaselineDiffView) {
-        return
-      }
-
       if (!activeWorkflowId) {
         logger.debug('Skipping batch position update - no active workflow')
         return
@@ -1097,7 +1034,7 @@ export function useCollaborativeWorkflow() {
         }
       }
     },
-    [isBaselineDiffView, addToQueue, activeWorkflowId, session?.user?.id, undoRedo]
+    [addToQueue, activeWorkflowId, session?.user?.id, undoRedo]
   )
 
   const collaborativeUpdateBlockName = useCallback(
@@ -1187,10 +1124,6 @@ export function useCollaborativeWorkflow() {
 
   const collaborativeBatchToggleBlockEnabled = useCallback(
     (ids: string[]) => {
-      if (isBaselineDiffView) {
-        return
-      }
-
       if (ids.length === 0) return
 
       const currentBlocks = useWorkflowStore.getState().blocks
@@ -1236,7 +1169,7 @@ export function useCollaborativeWorkflow() {
 
       undoRedo.recordBatchToggleEnabled(validIds, previousStates)
     },
-    [isBaselineDiffView, addToQueue, activeWorkflowId, session?.user?.id, undoRedo]
+    [addToQueue, activeWorkflowId, session?.user?.id, undoRedo]
   )
 
   const collaborativeBatchUpdateParent = useCallback(
@@ -1248,10 +1181,6 @@ export function useCollaborativeWorkflow() {
         affectedEdges: Edge[]
       }>
     ) => {
-      if (isBaselineDiffView) {
-        return
-      }
-
       if (!activeWorkflowId) {
         logger.debug('Skipping batch update parent - no active workflow')
         return
@@ -1322,7 +1251,7 @@ export function useCollaborativeWorkflow() {
 
       logger.debug('Batch updated parent for blocks', { updateCount: updates.length })
     },
-    [isBaselineDiffView, undoRedo, addToQueue, activeWorkflowId, session?.user?.id]
+    [undoRedo, addToQueue, activeWorkflowId, session?.user?.id]
   )
 
   const collaborativeToggleBlockAdvancedMode = useCallback(
@@ -1366,10 +1295,6 @@ export function useCollaborativeWorkflow() {
 
   const collaborativeSetBlockCanonicalMode = useCallback(
     (id: string, canonicalId: string, canonicalMode: 'basic' | 'advanced') => {
-      if (isBaselineDiffView) {
-        return
-      }
-
       useWorkflowStore.getState().setBlockCanonicalMode(id, canonicalId, canonicalMode)
 
       if (!activeWorkflowId) {
@@ -1388,15 +1313,11 @@ export function useCollaborativeWorkflow() {
         userId: session?.user?.id || 'unknown',
       })
     },
-    [isBaselineDiffView, activeWorkflowId, addToQueue, session?.user?.id]
+    [activeWorkflowId, addToQueue, session?.user?.id]
   )
 
   const collaborativeBatchToggleBlockHandles = useCallback(
     (ids: string[]) => {
-      if (isBaselineDiffView) {
-        return
-      }
-
       if (ids.length === 0) return
 
       const blocks = useWorkflowStore.getState().blocks
@@ -1431,15 +1352,11 @@ export function useCollaborativeWorkflow() {
 
       undoRedo.recordBatchToggleHandles(validIds, previousStates)
     },
-    [isBaselineDiffView, addToQueue, activeWorkflowId, session?.user?.id, undoRedo]
+    [addToQueue, activeWorkflowId, session?.user?.id, undoRedo]
   )
 
   const collaborativeBatchToggleLocked = useCallback(
     (ids: string[]) => {
-      if (isBaselineDiffView) {
-        return
-      }
-
       if (ids.length === 0) return
 
       const currentBlocks = useWorkflowStore.getState().blocks
@@ -1479,15 +1396,11 @@ export function useCollaborativeWorkflow() {
 
       undoRedo.recordBatchToggleLocked(validIds, previousStates)
     },
-    [isBaselineDiffView, addToQueue, activeWorkflowId, session?.user?.id, undoRedo]
+    [addToQueue, activeWorkflowId, session?.user?.id, undoRedo]
   )
 
   const collaborativeBatchAddEdges = useCallback(
     (edges: Edge[], options?: { skipUndoRedo?: boolean }) => {
-      if (isBaselineDiffView) {
-        return false
-      }
-
       if (!activeWorkflowId) {
         logger.debug('Skipping batch add edges - no active workflow')
         return false
@@ -1527,15 +1440,11 @@ export function useCollaborativeWorkflow() {
 
       return true
     },
-    [isBaselineDiffView, addToQueue, activeWorkflowId, session?.user?.id, undoRedo]
+    [addToQueue, activeWorkflowId, session?.user?.id, undoRedo]
   )
 
   const collaborativeBatchRemoveEdges = useCallback(
     (edgeIds: string[], options?: { skipUndoRedo?: boolean }) => {
-      if (isBaselineDiffView) {
-        return false
-      }
-
       if (!activeWorkflowId) {
         logger.debug('Skipping batch remove edges - no active workflow')
         return false
@@ -1585,17 +1494,12 @@ export function useCollaborativeWorkflow() {
       logger.info('Batch removed edges', { count: validEdgeIds.length })
       return true
     },
-    [isBaselineDiffView, addToQueue, activeWorkflowId, session, recordBatchRemoveEdges]
+    [addToQueue, activeWorkflowId, session, recordBatchRemoveEdges]
   )
 
   const collaborativeSetSubblockValue = useCallback(
     (blockId: string, subblockId: string, value: any, options?: { _visited?: Set<string> }) => {
       if (isApplyingRemoteChange.current) return
-
-      if (isBaselineDiffView) {
-        logger.debug('Skipping collaborative subblock update while viewing baseline diff')
-        return
-      }
 
       // ALWAYS update local store first for immediate UI feedback
       useSubBlockStore.getState().setValue(blockId, subblockId, value)
@@ -1642,7 +1546,7 @@ export function useCollaborativeWorkflow() {
         // Best-effort; do not block on clearing
       }
     },
-    [activeWorkflowId, addToQueue, session?.user?.id, isBaselineDiffView]
+    [activeWorkflowId, addToQueue, session?.user?.id]
   )
 
   /**
@@ -1659,11 +1563,6 @@ export function useCollaborativeWorkflow() {
     ) => {
       if (isApplyingRemoteChange.current) return
 
-      if (isBaselineDiffView) {
-        logger.debug('Skipping collaborative subblock update while viewing baseline diff')
-        return
-      }
-
       applySubblockValueWithCanonicalModes(blockId, subblockId, value, canonicalModes)
 
       if (!activeWorkflowId) return
@@ -1679,7 +1578,7 @@ export function useCollaborativeWorkflow() {
         userId: session?.user?.id || 'unknown',
       })
     },
-    [activeWorkflowId, addToQueue, session?.user?.id, isBaselineDiffView]
+    [activeWorkflowId, addToQueue, session?.user?.id]
   )
 
   const collaborativeBatchSetSubblockValues = useCallback(
@@ -1705,11 +1604,6 @@ export function useCollaborativeWorkflow() {
         isApplyingRemoteChange.current ||
         (updates.length === 0 && undoSubflowUpdates.length === 0)
       ) {
-        return false
-      }
-
-      if (isBaselineDiffView) {
-        logger.debug('Skipping collaborative batch subblock update while viewing baseline diff')
         return false
       }
 
@@ -1787,17 +1681,13 @@ export function useCollaborativeWorkflow() {
 
       return true
     },
-    [activeWorkflowId, addToQueue, isBaselineDiffView, session?.user?.id, undoRedo]
+    [activeWorkflowId, addToQueue, session?.user?.id, undoRedo]
   )
 
   // Immediate tag selection (uses queue but processes immediately, no debouncing)
   const collaborativeSetTagSelection = useCallback(
     (blockId: string, subblockId: string, value: string) => {
       if (isApplyingRemoteChange.current) return
-
-      if (isBaselineDiffView) {
-        return
-      }
 
       if (!activeWorkflowId) {
         logger.debug('Skipping tag selection - no active workflow', { blockId, subblockId })
@@ -1824,7 +1714,7 @@ export function useCollaborativeWorkflow() {
         userId: session?.user?.id || 'unknown',
       })
     },
-    [isBaselineDiffView, addToQueue, activeWorkflowId, session?.user?.id]
+    [addToQueue, activeWorkflowId, session?.user?.id]
   )
 
   const collaborativeUpdateLoopType = useCallback(
@@ -2164,11 +2054,6 @@ export function useCollaborativeWorkflow() {
         return false
       }
 
-      if (isBaselineDiffView) {
-        logger.debug('Skipping batch add blocks while viewing baseline diff')
-        return false
-      }
-
       if (blocks.length === 0) return false
 
       // Filter out invalid edges (e.g., edges targeting trigger blocks)
@@ -2213,15 +2098,11 @@ export function useCollaborativeWorkflow() {
 
       return true
     },
-    [addToQueue, activeWorkflowId, session?.user?.id, isBaselineDiffView, undoRedo]
+    [addToQueue, activeWorkflowId, session?.user?.id, undoRedo]
   )
 
   const collaborativeBatchRemoveBlocks = useCallback(
     (blockIds: string[], options?: { skipUndoRedo?: boolean }) => {
-      if (isBaselineDiffView) {
-        return false
-      }
-
       if (!activeWorkflowId) {
         logger.debug('Skipping batch remove blocks - no active workflow')
         return false
@@ -2302,14 +2183,7 @@ export function useCollaborativeWorkflow() {
 
       return true
     },
-    [
-      isBaselineDiffView,
-      addToQueue,
-      activeWorkflowId,
-      session?.user?.id,
-      cancelOperationsForBlock,
-      undoRedo,
-    ]
+    [addToQueue, activeWorkflowId, session?.user?.id, cancelOperationsForBlock, undoRedo]
   )
 
   return {

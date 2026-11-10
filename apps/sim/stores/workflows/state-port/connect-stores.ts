@@ -1,5 +1,4 @@
 import { useVariablesStore } from '@/stores/variables/store'
-import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { connectWorkflowState } from '@/stores/workflows/state-port/connection'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -20,7 +19,6 @@ export function connectWorkflowStores() {
     registry: useWorkflowRegistry,
     workflow: useWorkflowStore,
     subBlock: useSubBlockStore,
-    diff: useWorkflowDiffStore,
     variables: useVariablesStore,
     draft: { canApplyDraftSnapshot, captureDraftVersions, syncLocalDraftFromServer },
   })

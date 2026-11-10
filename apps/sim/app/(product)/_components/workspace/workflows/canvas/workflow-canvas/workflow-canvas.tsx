@@ -158,7 +158,6 @@ import {
   useUndoRedoStore,
   useUpdateWorkflow,
   useVariablesModalStore,
-  useWorkflowDiffStore,
   useWorkflowExecution,
   useWorkflowMap,
   useWorkflowRegistry,
@@ -182,8 +181,6 @@ const SUBFLOW_FOCUS_MAX_WAIT_FRAMES = 18
 const SUBFLOW_FOCUS_LAYOUT_TOLERANCE_PX = 0.5
 const SUBFLOW_FOCUS_PADDING = 0.08
 const AUTO_LAYOUT_DEBOUNCE_MS = 250
-/** Re-applies diff markers on the next task, after the rehydrated blocks have committed. */
-const DIFF_MARKER_REAPPLY_DELAY_MS = 0
 const CONNECTION_LINE_STYLE = {
   stroke: 'var(--connection-line-stroke)',
   strokeWidth: 2,
@@ -586,17 +583,6 @@ const WorkflowContent = memo(function WorkflowContent({
       window.removeEventListener('open-oauth-connect', handleOpenOAuthConnect as EventListener)
   }, [workflowIdParam, workspaceId])
 
-  const { diffAnalysis, isShowingDiff, isDiffReady, reapplyDiffMarkers, hasActiveDiff } =
-    useWorkflowDiffStore(
-      useShallow((state) => ({
-        diffAnalysis: state.diffAnalysis,
-        isShowingDiff: state.isShowingDiff,
-        isDiffReady: state.isDiffReady,
-        reapplyDiffMarkers: state.reapplyDiffMarkers,
-        hasActiveDiff: state.hasActiveDiff,
-      }))
-    )
-
   /** Stores source node/handle info when a connection drag starts for drop-on-block detection. */
   const connectionSourceRef = useRef<{
     nodeId: string | null
@@ -616,69 +602,9 @@ const WorkflowContent = memo(function WorkflowContent({
   > | null>(null)
   const multiNodeDragStart = (multiNodeDragStartRef.current ??= new Map())
 
-  /** Re-applies diff markers when blocks change after socket rehydration. */
-  const blocksRef = useRef(blocks)
-  useEffect(() => {
-    if (!isWorkflowReady) return
-    if (hasActiveDiff && isDiffReady && blocks !== blocksRef.current) {
-      blocksRef.current = blocks
-      const timeoutId = setTimeout(() => reapplyDiffMarkers(), DIFF_MARKER_REAPPLY_DELAY_MS)
-      return () => clearTimeout(timeoutId)
-    }
-  }, [blocks, hasActiveDiff, isDiffReady, reapplyDiffMarkers, isWorkflowReady])
-
-  /** Reconstructs deleted edges for diff view and filters invalid edges. */
+  /** Heals legacy handle ids and filters edges whose endpoints are missing. */
   const edgesForDisplay = useMemo(() => {
-    let edgesToFilter = edges
-
-    if (!isShowingDiff && isDiffReady && diffAnalysis?.edge_diff?.deleted_edges) {
-      const reconstructedEdges: Edge[] = []
-      const validHandles = ['source', 'target', 'success', 'error', 'default', 'condition']
-
-      diffAnalysis.edge_diff.deleted_edges.forEach((edgeIdentifier) => {
-        const parts = edgeIdentifier.split('-')
-        if (parts.length >= 4) {
-          let sourceEndIndex = -1
-          let targetStartIndex = -1
-
-          for (let i = 1; i < parts.length - 1; i++) {
-            if (validHandles.includes(parts[i])) {
-              sourceEndIndex = i
-              for (let j = i + 1; j < parts.length - 1; j++) {
-                if (parts[j].length > 0) {
-                  targetStartIndex = j
-                  break
-                }
-              }
-              break
-            }
-          }
-
-          if (sourceEndIndex > 0 && targetStartIndex > 0) {
-            const sourceId = parts.slice(0, sourceEndIndex).join('-')
-            const sourceHandle = parts[sourceEndIndex]
-            const targetHandle = parts[parts.length - 1]
-            const targetId = parts.slice(targetStartIndex, parts.length - 1).join('-')
-
-            if (blocks[sourceId] && blocks[targetId]) {
-              reconstructedEdges.push({
-                id: `deleted-${sourceId}-${sourceHandle}-${targetId}-${targetHandle}`,
-                source: sourceId,
-                target: targetId,
-                sourceHandle,
-                targetHandle,
-                type: 'workflowEdge',
-                data: { isDeleted: true },
-              })
-            }
-          }
-        }
-      })
-
-      edgesToFilter = [...edges, ...reconstructedEdges]
-    }
-
-    return edgesToFilter
+    return edges
       .map((edge) => {
         /* Heals an edge still carrying a side-anchored handle id from an
            older snapshot so it renders against a handle that exists. */
@@ -697,22 +623,15 @@ const WorkflowContent = memo(function WorkflowContent({
         const targetBlock = blocks[edge.target]
         return Boolean(sourceBlock && targetBlock)
       })
-  }, [edges, isShowingDiff, isDiffReady, diffAnalysis, blocks])
+  }, [edges, blocks])
 
   const { userPermissions, workspacePermissions, permissionsError } =
     useWorkspacePermissionsContext()
-  /** Returns read-only permissions when viewing snapshot or a locked workflow. */
-  const effectivePermissions = useMemo(() => {
-    if (currentWorkflow.isSnapshotView || workflowReadOnly) {
-      return {
-        ...userPermissions,
-        canEdit: false,
-        canAdmin: currentWorkflow.isSnapshotView ? false : userPermissions.canAdmin,
-        canRead: userPermissions.canRead,
-      }
-    }
-    return userPermissions
-  }, [userPermissions, currentWorkflow.isSnapshotView, workflowReadOnly])
+  /** Returns read-only permissions for a locked workflow. */
+  const effectivePermissions = useMemo(
+    () => (workflowReadOnly ? { ...userPermissions, canEdit: false } : userPermissions),
+    [userPermissions, workflowReadOnly]
+  )
   const {
     collaborativeBatchAddEdges,
     collaborativeBatchRemoveEdges,
@@ -2462,34 +2381,6 @@ const WorkflowContent = memo(function WorkflowContent({
       )
   }, [screenToFlowPosition, handleToolbarDrop])
 
-  /** Tracks blocks to pan to after diff updates. */
-  const pendingZoomBlockIdsRef = useRef<Set<string> | null>(null)
-  const seenDiffBlocksRef = useRef<Set<string> | null>(null)
-  const seenDiffBlocks = (seenDiffBlocksRef.current ??= new Set())
-
-  /** Queues newly changed blocks for viewport panning. */
-  useEffect(() => {
-    if (!isDiffReady || !diffAnalysis) {
-      pendingZoomBlockIdsRef.current = null
-      seenDiffBlocks.clear()
-      return
-    }
-
-    const newBlocks = new Set<string>()
-    const allBlocks = [...(diffAnalysis.new_blocks || []), ...(diffAnalysis.edited_blocks || [])]
-
-    for (const id of allBlocks) {
-      if (!seenDiffBlocks.has(id)) {
-        newBlocks.add(id)
-      }
-      seenDiffBlocks.add(id)
-    }
-
-    if (newBlocks.size > 0) {
-      pendingZoomBlockIdsRef.current = newBlocks
-    }
-  }, [isDiffReady, diffAnalysis])
-
   /** Displays trigger warning notifications. */
   useEffect(() => {
     const handleShowTriggerWarning = (event: CustomEvent) => {
@@ -2666,9 +2557,6 @@ const WorkflowContent = memo(function WorkflowContent({
     if (needsWorkflowLoad) {
       // Mark this workflow as being loaded to prevent duplicate calls
       loadingWorkflowRef.current = currentId
-
-      const { clearDiff } = useWorkflowDiffStore.getState()
-      clearDiff()
 
       setIsCanvasReady(false)
 
@@ -2906,46 +2794,6 @@ const WorkflowContent = memo(function WorkflowContent({
 
     setDisplayNodes((currentNodes) => reconcileCanvasNodes(currentNodes, derivedNodes))
   }, [derivedNodes, blocks, pendingSelection, clearPendingSelection])
-
-  /** Pans viewport to pending blocks once they have valid dimensions. */
-  useEffect(() => {
-    const pendingBlockIds = pendingZoomBlockIdsRef.current
-    if (!pendingBlockIds || pendingBlockIds.size === 0) return
-
-    const pendingNodes = displayNodes.filter((node) => pendingBlockIds.has(node.id))
-    const allNodesReady =
-      pendingNodes.length === pendingBlockIds.size &&
-      pendingNodes.every(
-        (node) =>
-          typeof node.measured?.width === 'number' &&
-          typeof node.measured.height === 'number' &&
-          node.measured.width > 0 &&
-          node.measured.height > 0
-      )
-
-    if (allNodesReady) {
-      logger.info('Focusing on changed blocks', {
-        changedBlockIds: Array.from(pendingBlockIds),
-        foundNodes: pendingNodes.length,
-      })
-      pendingZoomBlockIdsRef.current = null
-
-      const nodesWithAbsolutePositions = pendingNodes.map((node) => ({
-        ...node,
-        position: getNodeAbsolutePosition(node.id),
-      }))
-
-      requestAnimationFrame(() => {
-        fitViewToBounds({
-          nodes: nodesWithAbsolutePositions,
-          duration: 600,
-          padding: 0.1,
-          minZoom: 0.5,
-          maxZoom: 1.0,
-        })
-      })
-    }
-  }, [displayNodes, fitViewToBounds, getNodeAbsolutePosition])
 
   /** Handles ActionBar remove-from-subflow events. */
   useEffect(() => {

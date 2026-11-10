@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import type { Edge } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
-import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -16,11 +15,6 @@ export interface CurrentWorkflow {
   parallels: Record<string, Parallel>
   lastSaved?: number
 
-  // Mode information
-  isDiffMode: boolean
-  isNormalMode: boolean
-  isSnapshotView: boolean
-
   // Full workflow state (for cases that need the complete object)
   workflowState: WorkflowState
 
@@ -34,11 +28,9 @@ export interface CurrentWorkflow {
 
 /**
  * Clean abstraction for accessing the current workflow state.
- * Automatically handles diff vs normal mode without exposing the complexity to consumers.
  */
 export function useCurrentWorkflow(): CurrentWorkflow {
-  // Get normal workflow state - optimized with shallow comparison
-  const normalWorkflow = useWorkflowStore(
+  const activeWorkflow = useWorkflowStore(
     useShallow((state) => ({
       blocks: state.blocks,
       edges: state.edges,
@@ -48,48 +40,22 @@ export function useCurrentWorkflow(): CurrentWorkflow {
     }))
   )
 
-  // Get diff state - optimized with shallow comparison
-  const { isShowingDiff, isDiffReady, hasActiveDiff, baselineWorkflow } = useWorkflowDiffStore(
-    useShallow((state) => ({
-      isShowingDiff: state.isShowingDiff,
-      isDiffReady: state.isDiffReady,
-      hasActiveDiff: state.hasActiveDiff,
-      baselineWorkflow: state.baselineWorkflow,
-    }))
-  )
-
-  // Create the abstracted interface - optimized to prevent unnecessary re-renders
-  const currentWorkflow = useMemo((): CurrentWorkflow => {
-    // Determine which workflow to use
-    const isSnapshotView =
-      Boolean(baselineWorkflow) && hasActiveDiff && isDiffReady && !isShowingDiff
-
-    const activeWorkflow = isSnapshotView ? (baselineWorkflow as WorkflowState) : normalWorkflow
-
-    return {
-      // Current workflow state
+  return useMemo(
+    (): CurrentWorkflow => ({
       blocks: activeWorkflow.blocks || {},
       edges: activeWorkflow.edges || [],
       loops: activeWorkflow.loops || {},
       parallels: activeWorkflow.parallels || {},
       lastSaved: activeWorkflow.lastSaved,
 
-      // Mode information - update to reflect ready state
-      isDiffMode: hasActiveDiff && isShowingDiff,
-      isNormalMode: !hasActiveDiff || (!isShowingDiff && !isSnapshotView),
-      isSnapshotView: Boolean(isSnapshotView),
-
-      // Full workflow state (for cases that need the complete object)
       workflowState: activeWorkflow as WorkflowState,
 
-      // Helper methods
       getBlockById: (blockId: string) => activeWorkflow.blocks?.[blockId],
       getBlockCount: () => Object.keys(activeWorkflow.blocks || {}).length,
       getEdgeCount: () => (activeWorkflow.edges || []).length,
       hasBlocks: () => Object.keys(activeWorkflow.blocks || {}).length > 0,
       hasEdges: () => (activeWorkflow.edges || []).length > 0,
-    }
-  }, [normalWorkflow, isShowingDiff, isDiffReady, hasActiveDiff, baselineWorkflow])
-
-  return currentWorkflow
+    }),
+    [activeWorkflow]
+  )
 }

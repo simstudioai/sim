@@ -198,16 +198,9 @@ function migrationPrompt(name: string, target: BlockConfig): string {
  * Sunset state for a placed block: the block type itself (via `config.sunset`)
  * or its selected model. `legacy` (amber) is superseded-but-supported and needs
  * a resolvable successor; `deprecated` (red) is no longer supported and badges
- * with or without one. `null` when neither applies or in diff mode.
+ * with or without one. `null` when neither applies.
  */
-function getBlockSunset(
-  config: BlockConfig,
-  name: string,
-  model: unknown,
-  isDiffMode: boolean
-): BlockSunset | null {
-  if (isDiffMode) return null
-
+function getBlockSunset(config: BlockConfig, name: string, model: unknown): BlockSunset | null {
   const sunset = config.sunset
   if (sunset) {
     const target = sunset.replacedBy ? getBlock(sunset.replacedBy) : undefined
@@ -671,13 +664,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const currentBlock = currentWorkflow.getBlockById(id)
 
   const { horizontalHandles, blockHeight, blockWidth, displayAdvancedMode, displayTriggerMode } =
-    useBlockProperties(
-      id,
-      currentWorkflow.isDiffMode,
-      data.isPreview ?? false,
-      data.blockState,
-      currentWorkflow.blocks
-    )
+    useBlockProperties(id, data.isPreview ?? false, data.blockState)
 
   const {
     isWebhookConfigured,
@@ -817,7 +804,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
   const posthog = usePostHog()
 
-  const sunset = getBlockSunset(config, name, blockSubBlockValues.model, currentWorkflow.isDiffMode)
+  const sunset = getBlockSunset(config, name, blockSubBlockValues.model)
 
   const onFixSunset = () => {
     if (!sunset) return
@@ -936,7 +923,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     displayTriggerMode,
     data.isPreview,
     data.subBlockValues,
-    currentWorkflow.isDiffMode,
     currentBlock,
     canonicalModeOverrides,
     canEditWorkflow,

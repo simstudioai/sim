@@ -9,7 +9,6 @@ import {
   getSmoothStepPath,
   useStore,
 } from '@xyflow/react'
-import { useShallow } from 'zustand/react/shallow'
 import styles from '@/app/(product)/_components/workspace/workflows/canvas/workflow-edge/workflow-edge.module.css'
 import {
   isEdgeConnectedToEditor,
@@ -19,16 +18,14 @@ import {
   useLastRunEdges,
   usePanelEditorStore,
   usePanelStore,
-  useWorkflowDiffStore,
   X,
 } from '@/platform/lib/data/workflows'
 
 /**
- * Diff state of an edge when comparing two workflow versions. `deleted` is the
- * Copilot preview's loud red dash; `ghost` is the version comparison's quiet
- * trace of a connection that no longer exists.
+ * Diff state of an edge when comparing two workflow versions. `ghost` is the
+ * quiet trace of a connection that no longer exists.
  */
-type EdgeDiffStatus = 'new' | 'deleted' | 'ghost' | 'unchanged' | null
+type EdgeDiffStatus = 'new' | 'ghost' | null
 
 /** Execution outcome of an edge for run-path visualization. */
 type EdgeRunStatus = 'success' | 'error' | 'not-executed' | undefined
@@ -110,7 +107,7 @@ type WorkflowEdgeType = Edge<WorkflowEdgeData>
  * status originated from a preview — is resolved by the container and passed in.
  */
 interface WorkflowEdgeViewProps extends EdgeProps<WorkflowEdgeType> {
-  /** Pre-resolved diff state (container reads the diff store). */
+  /** Version-comparison diff state; the live canvas passes `null`. */
   diffStatus: EdgeDiffStatus
   /** Pre-resolved execution outcome (container reads the execution store). */
   runStatus: EdgeRunStatus
@@ -132,7 +129,7 @@ interface WorkflowEdgeViewProps extends EdgeProps<WorkflowEdgeType> {
  *
  * @remarks
  * Edge coloring priority:
- * 1. Diff status (deleted/new) - for version comparison
+ * 1. Diff status (new/ghost) - for version comparison
  * 2. Live execution path and errors
  * 3. Execution result after the run completes
  * 4. Selected endpoint outside execution
@@ -218,10 +215,7 @@ export function WorkflowEdgeView({
     let color = 'var(--wf-workflow-edge)'
     let opacity = 1
 
-    if (diffStatus === 'deleted') {
-      color = 'var(--wf-text-error)'
-      opacity = 0.7
-    } else if (diffStatus === 'ghost') {
+    if (diffStatus === 'ghost') {
       color = 'var(--wf-text-tertiary)'
       opacity = 0.7
     } else if (diffStatus === 'new') {
@@ -250,7 +244,6 @@ export function WorkflowEdgeView({
 
     return {
       strokeWidth: diffStatus === 'ghost' ? 1.5 : diffStatus ? 2.5 : hasRunStatus ? 2 : 1.5,
-      strokeDasharray: diffStatus === 'deleted' ? '10,5' : undefined,
       opacity,
       ...(style ?? {}),
       // Selection/status stroke must win over any default edge style.
@@ -361,15 +354,8 @@ export function WorkflowEdgeView({
 type WorkflowEdgeProps = EdgeProps<WorkflowEdgeType>
 
 const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
-  const { id, data, source, target, sourceHandleId, targetHandleId } = props
+  const { id, data, source, target } = props
 
-  const { diffAnalysis, isShowingDiff, isDiffReady } = useWorkflowDiffStore(
-    useShallow((state) => ({
-      diffAnalysis: state.diffAnalysis,
-      isShowingDiff: state.isShowingDiff,
-      isDiffReady: state.isDiffReady,
-    }))
-  )
   const lastRunEdges = useLastRunEdges()
   const isWorkflowRunning = useIsCurrentWorkflowExecuting()
   const isTargetActive = useIsBlockActive(target)
@@ -406,36 +392,10 @@ const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
   )?.executionStatus
   const runStatus = previewExecutionStatus || lastRunEdges.get(id)
 
-  const diffStatus = useMemo((): EdgeDiffStatus => {
-    if (data?.isDeleted) return 'deleted'
-    if (!diffAnalysis?.edge_diff || !isDiffReady) return null
-
-    const actualSourceHandle = sourceHandleId || 'source'
-    const actualTargetHandle = targetHandleId || 'target'
-    const edgeIdentifier = `${source}-${actualSourceHandle}-${target}-${actualTargetHandle}`
-
-    if (isShowingDiff) {
-      if (diffAnalysis.edge_diff.new_edges.includes(edgeIdentifier)) return 'new'
-      if (diffAnalysis.edge_diff.unchanged_edges.includes(edgeIdentifier)) return 'unchanged'
-    } else {
-      if (diffAnalysis.edge_diff.deleted_edges.includes(edgeIdentifier)) return 'deleted'
-    }
-    return null
-  }, [
-    data?.isDeleted,
-    diffAnalysis,
-    isDiffReady,
-    isShowingDiff,
-    source,
-    target,
-    sourceHandleId,
-    targetHandleId,
-  ])
-
   return (
     <WorkflowEdgeView
       {...props}
-      diffStatus={diffStatus}
+      diffStatus={null}
       runStatus={runStatus}
       isPreviewRun={Boolean(previewExecutionStatus)}
       isWorkflowRunning={isWorkflowRunning}

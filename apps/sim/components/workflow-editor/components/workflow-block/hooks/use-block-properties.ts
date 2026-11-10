@@ -23,18 +23,14 @@ export interface UseBlockPropertiesReturn {
  * Custom hook for managing block properties (trigger mode, advanced mode, handles, dimensions)
  *
  * @param blockId - The ID of the block
- * @param isDiffMode - Whether the workflow is in diff mode
  * @param isPreview - Whether the block is in preview mode
  * @param blockState - The block state in preview mode
- * @param currentWorkflowBlocks - Current workflow blocks for diff mode
  * @returns Block properties and display states
  */
 export function useBlockProperties(
   blockId: string,
-  isDiffMode: boolean,
   isPreview: boolean,
-  blockState: WorkflowBlockProps['blockState'],
-  currentWorkflowBlocks: Record<string, any>
+  blockState: WorkflowBlockProps['blockState']
 ): UseBlockPropertiesReturn {
   // Get block properties from workflow store
   const {
@@ -61,34 +57,19 @@ export function useBlockProperties(
     )
   )
 
-  // Determine horizontal handles
   const horizontalHandles = isPreview
     ? (blockState?.horizontalHandles ?? true)
-    : isDiffMode
-      ? (currentWorkflowBlocks[blockId]?.horizontalHandles ?? true)
-      : storeHorizontalHandles
+    : storeHorizontalHandles
 
-  // Determine block dimensions
-  const blockHeight = isDiffMode ? (currentWorkflowBlocks[blockId]?.height ?? 0) : storeBlockHeight
-
-  const blockWidth = isDiffMode
-    ? (currentWorkflowBlocks[blockId]?.layout?.measuredWidth ?? 0)
-    : (storeBlockLayout?.measuredWidth ?? 0)
-
-  // Get advanced mode from appropriate source
-  const blockAdvancedMode = isDiffMode
-    ? (currentWorkflowBlocks[blockId]?.advancedMode ?? false)
-    : storeBlockAdvancedMode
-
-  // Get trigger mode from appropriate source
-  const blockTriggerMode = isDiffMode
-    ? (currentWorkflowBlocks[blockId]?.triggerMode ?? false)
-    : storeBlockTriggerMode
+  const blockHeight = storeBlockHeight
+  const blockWidth = storeBlockLayout?.measuredWidth ?? 0
 
   // Compute display states
-  const displayAdvancedMode = isPreview ? (blockState?.advancedMode ?? false) : blockAdvancedMode
+  const displayAdvancedMode = isPreview
+    ? (blockState?.advancedMode ?? false)
+    : storeBlockAdvancedMode
 
-  const displayTriggerMode = isPreview ? (blockState?.triggerMode ?? false) : blockTriggerMode
+  const displayTriggerMode = isPreview ? (blockState?.triggerMode ?? false) : storeBlockTriggerMode
 
   return {
     horizontalHandles,

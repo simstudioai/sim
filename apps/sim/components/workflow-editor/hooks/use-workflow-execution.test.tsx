@@ -164,7 +164,6 @@ vi.mock('@/components/workflow-editor/hooks/use-current-workflow', () => ({
     edges: [],
     loops: {},
     parallels: {},
-    isDiffMode: false,
   }),
 }))
 
@@ -235,11 +234,6 @@ vi.mock('@/stores/variables/store', () => ({
       getVariablesByWorkflowId: () => [],
       variables: [],
     }),
-}))
-
-vi.mock('@/stores/workflow-diff', () => ({
-  useWorkflowDiffStore: (selector: (state: { isShowingDiff: boolean }) => unknown) =>
-    selector({ isShowingDiff: false }),
 }))
 
 vi.mock('@/stores/workflows/registry/store', () => workflowRegistryStoreMock)

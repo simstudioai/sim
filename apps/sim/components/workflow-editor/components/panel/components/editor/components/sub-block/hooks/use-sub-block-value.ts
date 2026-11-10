@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { isEqual } from 'es-toolkit'
-import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { isMcpRuntimeReference } from '@/lib/mcp/operation-policy'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { getProviderFromModel } from '@/providers/utils'
-import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -74,22 +72,6 @@ export function useSubBlockValue<T = any>(
     (a, b) => isEqual(a, b)
   )
 
-  // Check if we're in diff mode and get diff value if available
-  const { isShowingDiff, hasActiveDiff, baselineWorkflow } = useWorkflowDiffStore(
-    useShallow((state) => ({
-      isShowingDiff: state.isShowingDiff,
-      hasActiveDiff: state.hasActiveDiff,
-      baselineWorkflow: state.baselineWorkflow,
-    }))
-  )
-  const isBaselineView = hasActiveDiff && !isShowingDiff
-  const snapshotSubBlock =
-    isBaselineView && baselineWorkflow
-      ? baselineWorkflow.blocks?.[blockId]?.subBlocks?.[subBlockId]
-      : undefined
-  const hasSnapshotValue = snapshotSubBlock !== undefined
-  const snapshotValue = hasSnapshotValue ? ((snapshotSubBlock as any)?.value ?? null) : null
-
   // Check if this is an API key field that could be auto-filled
   const isApiKey =
     subBlockId === 'apiKey' || (subBlockId?.toLowerCase().includes('apikey') ?? false)
@@ -153,12 +135,6 @@ export function useSubBlockValue<T = any>(
   // Hook to set a value in the subblock store
   const setValue = useCallback(
     (newValue: T) => {
-      // Don't allow updates when showing the baseline snapshot (readonly preview)
-      if (isBaselineView) {
-        logger.debug('Ignoring setValue while viewing baseline diff', { blockId, subBlockId })
-        return
-      }
-
       const currentActiveWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
       if (!currentActiveWorkflowId) {
         logger.warn('No active workflow ID when setting value', { blockId, subBlockId })
@@ -219,18 +195,12 @@ export function useSubBlockValue<T = any>(
       modelValue,
       isStreaming,
       emitValue,
-      isBaselineView,
       collaborativeSetSubblockValue,
       isProviderBasedBlock,
     ]
   )
 
-  // Determine the effective value: diff value takes precedence if in diff mode
-  const effectiveValue = hasSnapshotValue
-    ? snapshotValue
-    : storeValue !== undefined
-      ? storeValue
-      : initialValue
+  const effectiveValue = (storeValue !== undefined ? storeValue : initialValue) as T | null
 
   // Initialize valueRef on first render
   useEffect(() => {

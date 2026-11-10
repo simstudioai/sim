@@ -119,38 +119,6 @@ export function createInverseOperation(operation: Operation): Operation {
       } as BatchUpdateParentOperation
     }
 
-    case UNDO_REDO_OPERATIONS.APPLY_DIFF:
-      return {
-        ...operation,
-        data: {
-          baselineSnapshot: operation.data.proposedState,
-          proposedState: operation.data.baselineSnapshot,
-          diffAnalysis: operation.data.diffAnalysis,
-        },
-      }
-
-    case UNDO_REDO_OPERATIONS.ACCEPT_DIFF:
-      return {
-        ...operation,
-        data: {
-          beforeAccept: operation.data.afterAccept,
-          afterAccept: operation.data.beforeAccept,
-          diffAnalysis: operation.data.diffAnalysis,
-          baselineSnapshot: operation.data.baselineSnapshot,
-        },
-      }
-
-    case UNDO_REDO_OPERATIONS.REJECT_DIFF:
-      return {
-        ...operation,
-        data: {
-          beforeReject: operation.data.afterReject,
-          afterReject: operation.data.beforeReject,
-          diffAnalysis: operation.data.diffAnalysis,
-          baselineSnapshot: operation.data.baselineSnapshot,
-        },
-      }
-
     case UNDO_REDO_OPERATIONS.BATCH_TOGGLE_ENABLED:
       return {
         ...operation,

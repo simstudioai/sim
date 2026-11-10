@@ -161,43 +161,6 @@ export const useUndoRedoStore = create<UndoRedoState>()(
 
         const stack = currentStacks[key] || { undo: [], redo: [] }
 
-        // Prevent duplicate diff operations (apply-diff, accept-diff, reject-diff)
-        if (['apply-diff', 'accept-diff', 'reject-diff'].includes(entry.operation.type)) {
-          const lastEntry = stack.undo[stack.undo.length - 1]
-          if (lastEntry && lastEntry.operation.type === entry.operation.type) {
-            // Check if it's a duplicate by comparing the relevant state data
-            const lastData = lastEntry.operation.data as any
-            const newData = entry.operation.data as any
-
-            // For each diff operation type, check the relevant state
-            let isDuplicate = false
-            if (entry.operation.type === 'apply-diff') {
-              isDuplicate =
-                JSON.stringify(lastData.baselineSnapshot?.blocks) ===
-                  JSON.stringify(newData.baselineSnapshot?.blocks) &&
-                JSON.stringify(lastData.proposedState?.blocks) ===
-                  JSON.stringify(newData.proposedState?.blocks)
-            } else if (entry.operation.type === 'accept-diff') {
-              isDuplicate =
-                JSON.stringify(lastData.afterAccept?.blocks) ===
-                JSON.stringify(newData.afterAccept?.blocks)
-            } else if (entry.operation.type === 'reject-diff') {
-              isDuplicate =
-                JSON.stringify(lastData.afterReject?.blocks) ===
-                JSON.stringify(newData.afterReject?.blocks)
-            }
-
-            if (isDuplicate) {
-              logger.debug('Skipping duplicate diff operation', {
-                type: entry.operation.type,
-                workflowId,
-                userId,
-              })
-              return
-            }
-          }
-        }
-
         // Coalesce consecutive batch-move-blocks operations for overlapping blocks
         if (entry.operation.type === 'batch-move-blocks') {
           const incoming = entry.operation as BatchMoveBlocksOperation

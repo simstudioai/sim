@@ -4,8 +4,8 @@ import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-enve
 import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
-import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
-import { applyWorkflowStateToStores } from '@/stores/workflow-diff/utils'
+import { useWorkflowReconciliationStore } from '@/stores/workflow-reconciliation/store'
+import { applyWorkflowStateToStores } from '@/stores/workflows/apply-state'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -40,13 +40,13 @@ export function captureDraftVersions(workflowId: string): DraftSyncVersions {
   return {
     localOperation: queueState.workflowOperationVersions[workflowId] ?? 0,
     remoteApply: queueState.remoteApplyVersions[workflowId] ?? 0,
-    remoteUpdate: useWorkflowDiffStore.getState().remoteUpdateVersions[workflowId] ?? 0,
+    remoteUpdate: useWorkflowReconciliationStore.getState().remoteUpdateVersions[workflowId] ?? 0,
   }
 }
 
 /**
  * Hard guards shared by every snapshot application: the workflow is still
- * active, nothing local is pending or was enqueued since capture, no diff or
+ * active, nothing local is pending or was enqueued since capture, no
  * reconciliation is in progress, and no external full reload
  * (workflow-updated / revert) landed since capture. Remote collaborator ops
  * (`remoteApply`) are deliberately NOT part of this core — the sync loop
@@ -65,13 +65,12 @@ function canApplyServerSnapshot(
     return false
   }
 
-  const diffState = useWorkflowDiffStore.getState()
+  const reconciliation = useWorkflowReconciliationStore.getState()
   return (
-    !diffState.hasActiveDiff &&
-    !diffState.pendingExternalUpdates[workflowId] &&
-    !diffState.reconcilingWorkflows[workflowId] &&
-    !diffState.reconciliationErrors[workflowId] &&
-    (diffState.remoteUpdateVersions[workflowId] ?? 0) === expected.remoteUpdate
+    !reconciliation.pendingExternalUpdates[workflowId] &&
+    !reconciliation.reconcilingWorkflows[workflowId] &&
+    !reconciliation.reconciliationErrors[workflowId] &&
+    (reconciliation.remoteUpdateVersions[workflowId] ?? 0) === expected.remoteUpdate
   )
 }
 
@@ -101,8 +100,7 @@ export function canApplyDraftSnapshot(workflowId: string, versions: DraftSyncVer
  * coalesces into a single request and the cache stays warm.
  *
  * Refuses to apply (returns false) when the session is busy — pending or
- * newly-queued local operations, an active copilot diff, in-progress
- * reconciliation, a newer remote update during the fetch, or navigation away —
+ * newly-queued local operations, in-progress reconciliation, a newer remote update during the fetch, or navigation away —
  * so it never clobbers in-flight work. A remote collaborator's op applied
  * during the fetch triggers a bounded refetch instead (the snapshot may
  * predate that op's persist). Throws when the fetch itself fails.

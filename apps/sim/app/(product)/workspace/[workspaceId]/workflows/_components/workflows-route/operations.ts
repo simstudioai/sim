@@ -35,7 +35,6 @@ import {
   useCreateWorkflow,
   useDuplicateWorkflowMutation,
   useReorderWorkflows,
-  useWorkflowDiffStore,
   useWorkflowRegistry,
   type WorkflowExportData,
   type WorkflowFolder,
@@ -151,7 +150,6 @@ export function useWorkflowListOperations(workspaceId: string) {
   const duplicateFolderAsync = useDuplicateFolderMutation().mutateAsync
   const reorderWorkflows = useReorderWorkflows().mutateAsync
   const reorderFolders = useReorderFolders().mutateAsync
-  const clearDiff = useWorkflowDiffStore((state) => state.clearDiff)
 
   const [isDuplicating, setIsDuplicating] = useState(false)
   const [exportingFolderId, setExportingFolderId] = useState<string | null>(null)
@@ -170,7 +168,6 @@ export function useWorkflowListOperations(workspaceId: string) {
    */
   const createWorkflow = useCallback(
     (folderId: string | null) => {
-      if (!folderId) clearDiff()
       const name = generateCreativeWorkflowName()
       const id = generateId()
       createWorkflowMutate({
@@ -183,7 +180,7 @@ export function useWorkflowListOperations(workspaceId: string) {
       useWorkflowRegistry.getState().markWorkflowCreating(id)
       openWorkflow(id)
     },
-    [clearDiff, createWorkflowMutate, openWorkflow, workspaceId]
+    [createWorkflowMutate, openWorkflow, workspaceId]
   )
 
   /**
@@ -337,7 +334,6 @@ export function useWorkflowListOperations(workspaceId: string) {
 
   const importSingleWorkflow = useCallback(
     async (content: string, filename: string, folderId?: string, sortOrder?: number) => {
-      clearDiff()
       const result = await persistImportedWorkflow({
         content,
         filename,
@@ -357,7 +353,7 @@ export function useWorkflowListOperations(workspaceId: string) {
       if (!result) throw new Error('The file does not contain valid workflow JSON.')
       return result.workflowId
     },
-    [clearDiff, createWorkflowAsync, workspaceId]
+    [createWorkflowAsync, workspaceId]
   )
 
   /**

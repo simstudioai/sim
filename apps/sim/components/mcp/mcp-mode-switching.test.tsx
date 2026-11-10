@@ -46,9 +46,6 @@ vi.mock('zustand/traditional', () => ({
     selector: (state: typeof mocks.subBlockState) => unknown
   ) => selector(store.getState()),
 }))
-vi.mock('@/stores/workflow-diff/store', () => ({
-  useWorkflowDiffStore: () => ({ hasActiveDiff: false, isShowingDiff: false }),
-}))
 
 import { buildSelectorRawContext } from '@/lib/selectors/context'
 import { getSubBlocksDependingOnChange } from '@/lib/workflows/subblocks/dependencies'

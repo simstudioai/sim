@@ -207,8 +207,6 @@ export type {
   BlockDiffStatus,
   EdgeDiffStatus as VersionEdgeDiffStatus,
 } from '@/lib/workflows/comparison'
-export type { DiffStatus } from '@/lib/workflows/diff/types'
-export { hasDiffStatus } from '@/lib/workflows/diff/types'
 export {
   getConditionRows,
   getDynamicHandleRows,
@@ -387,7 +385,6 @@ export { usePresenceStore } from '@/stores/presence/store'
 export { useProvidersStore } from '@/stores/providers/store'
 export { useUndoRedoStore } from '@/stores/undo-redo'
 export { useVariablesStore } from '@/stores/variables/store'
-export { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 export { useWorkflowSearchReplaceStore } from '@/stores/workflow-search-replace/store'
 export { getWorkflowWithValues } from '@/stores/workflows'
 export { prepareBlockState } from '@/stores/workflows/prepare-block-state'

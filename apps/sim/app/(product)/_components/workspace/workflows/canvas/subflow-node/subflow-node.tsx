@@ -46,10 +46,8 @@ import {
   Ban,
   BLOCK_DIMENSIONS,
   CONTAINER_DIMENSIONS,
-  type DiffStatus,
   getWorkflowSubflowHandleIds,
   HANDLE_POSITIONS,
-  hasDiffStatus,
   Lock,
   Repeat,
   Split,
@@ -88,6 +86,9 @@ export interface SubflowNodeData extends Record<string, unknown> {
  * in. The editor-only action bar is injected via the `actionBar` slot so the
  * pure renderer carries no store, socket, or permission coupling.
  */
+/** A container's change in a version comparison. */
+type SubflowDiffStatus = 'new' | 'edited' | undefined
+
 interface SubflowNodeViewProps {
   id: string
   data: SubflowNodeData
@@ -102,7 +103,7 @@ interface SubflowNodeViewProps {
   /** Whether this subflow participates in the current execution handoff. */
   isExecutionHighlighted?: boolean
   /** Diff state when comparing workflow versions. */
-  diffStatus?: DiffStatus
+  diffStatus?: SubflowDiffStatus
   /** Depth in the parent container hierarchy (drives nesting styling). */
   nestingLevel: number
   canEditWorkflow: boolean
@@ -329,7 +330,7 @@ function SubflowStartView({
  */
 function getSubflowRing(
   isNodeSelected: boolean,
-  diffStatus: DiffStatus,
+  diffStatus: SubflowDiffStatus,
   previewRunStatus: SubflowNodeData['executionStatus']
 ): BlockRing | null {
   if (isNodeSelected) return 'selected'
@@ -722,7 +723,7 @@ type SubflowNode = Node<SubflowNodeData, 'subflowNode'>
 /**
  * Editor container for the loop/parallel node.
  *
- * Resolves the subflow's enabled/locked/focus/diff/run state from the editor
+ * Resolves the subflow's enabled/locked/focus/run state from the editor
  * stores, computes its nesting depth from the ReactFlow node tree, and renders
  * the legacy container pixels — injecting the editor-only {@link ActionBar}.
  */
@@ -733,10 +734,6 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
 
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentWorkflow.getBlockById(id)
-  const diffStatus =
-    currentWorkflow.isDiffMode && currentBlock && hasDiffStatus(currentBlock)
-      ? currentBlock.is_diff
-      : undefined
 
   const isEnabled = currentBlock?.enabled ?? true
   const isLocked = currentBlock?.locked ?? false
@@ -784,7 +781,6 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
       isFocused={isFocused}
       isRunning={isRunning}
       isExecutionHighlighted={isExecutionHighlighted}
-      diffStatus={diffStatus}
       nestingLevel={nestingLevel}
       canEditWorkflow={canEditWorkflow}
       onSelect={() => setCurrentBlockId(id)}

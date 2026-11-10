@@ -13,7 +13,6 @@ import {
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useReactiveConditions } from '@/hooks/use-reactive-conditions'
-import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -27,7 +26,6 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
  * @param displayTriggerMode - Whether trigger mode is enabled for this block
  * @param activeWorkflowId - The active workflow ID
  * @param blockSubBlockValues - Current subblock values from the store
- * @param isDiffMode - Whether we're currently viewing a diff
  * @returns Object containing subBlocks array and stateToUse for stable key generation
  */
 export function useEditorSubblockLayout(
@@ -36,8 +34,7 @@ export function useEditorSubblockLayout(
   displayAdvancedMode: boolean,
   displayTriggerMode: boolean,
   activeWorkflowId: string | null,
-  blockSubBlockValues: Record<string, any>,
-  isSnapshotView: boolean
+  blockSubBlockValues: Record<string, any>
 ) {
   const blockDataFromStore = useWorkflowStore(
     useCallback((state) => state.blocks?.[blockId]?.data, [blockId])
@@ -59,41 +56,29 @@ export function useEditorSubblockLayout(
       return { subBlocks: [] as SubBlockConfig[], stateToUse: {} }
     }
 
-    const diffStore = useWorkflowDiffStore.getState()
     const workflowBlocks = useWorkflowStore.getState().blocks || {}
-
-    const sourceBlocks = isSnapshotView
-      ? (diffStore.baselineWorkflow?.blocks as Record<string, any>) || {}
-      : workflowBlocks
-
-    const mergedMap = isSnapshotView
-      ? { [blockId]: structuredClone(sourceBlocks[blockId]) }
-      : mergeSubblockState(sourceBlocks, activeWorkflowId || undefined, blockId)
+    const mergedMap = mergeSubblockState(workflowBlocks, activeWorkflowId || undefined, blockId)
 
     const mergedState = mergedMap ? mergedMap[blockId] : undefined
     const mergedSubBlocks = mergedState?.subBlocks || {}
-    const blockData = isSnapshotView ? mergedState?.data || {} : blockDataFromStore || {}
+    const blockData = blockDataFromStore || {}
 
     const stateToUse = Object.keys(mergedSubBlocks).reduce(
       (acc, key) => {
-        const baselineValue = mergedSubBlocks[key]?.value ?? null
+        const storedValue = mergedSubBlocks[key]?.value ?? null
         const liveValue =
-          blockSubBlockValues[key] !== undefined ? blockSubBlockValues[key] : baselineValue
-        acc[key] = {
-          value: isSnapshotView ? baselineValue : liveValue,
-        }
+          blockSubBlockValues[key] !== undefined ? blockSubBlockValues[key] : storedValue
+        acc[key] = { value: liveValue }
         return acc
       },
       {} as Record<string, { value: unknown }>
     )
 
-    if (!isSnapshotView) {
-      Object.keys(blockSubBlockValues).forEach((key) => {
-        if (!(key in stateToUse)) {
-          stateToUse[key] = { value: blockSubBlockValues[key] }
-        }
-      })
-    }
+    Object.keys(blockSubBlockValues).forEach((key) => {
+      if (!(key in stateToUse)) {
+        stateToUse[key] = { value: blockSubBlockValues[key] }
+      }
+    })
 
     const canonicalIndex = buildCanonicalIndexForSurface(config.subBlocks || [], displayTriggerMode)
     const effectiveAdvanced = displayAdvancedMode
@@ -150,7 +135,6 @@ export function useEditorSubblockLayout(
     displayTriggerMode,
     blockSubBlockValues,
     activeWorkflowId,
-    isSnapshotView,
     blockDataFromStore,
     hiddenByReactiveCondition,
     permissionConfig.disableSkills,

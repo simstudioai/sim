@@ -150,10 +150,7 @@ export function EditorPanel() {
     : false
   const canEditBlock = userPermissions.canEdit && !workflowLocked && !isLocked
 
-  const { advancedMode, triggerMode } = useEditorBlockProperties(
-    currentBlockId,
-    currentWorkflow.isSnapshotView
-  )
+  const { advancedMode, triggerMode } = useEditorBlockProperties(currentBlockId)
 
   const blockSubBlockValues = useStoreWithEqualityFn(
     useSubBlockStore,
@@ -224,8 +221,7 @@ export function EditorPanel() {
     displayAdvancedOptions,
     triggerMode,
     activeWorkflowId,
-    blockSubBlockValues,
-    currentWorkflow.isSnapshotView
+    blockSubBlockValues
   )
   const subBlockState = stateToUse as SubBlockValues
 

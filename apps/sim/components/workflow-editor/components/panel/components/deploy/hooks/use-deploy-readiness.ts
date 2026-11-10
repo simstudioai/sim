@@ -1,21 +1,14 @@
 import { useCallback, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
-import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+import { useWorkflowReconciliationStore } from '@/stores/workflow-reconciliation/store'
 
-export type DeployReadinessStatus =
-  | 'ready'
-  | 'missing-workflow'
-  | 'saving'
-  | 'reviewing-diff'
-  | 'syncing'
-  | 'error'
+export type DeployReadinessStatus = 'ready' | 'missing-workflow' | 'saving' | 'syncing' | 'error'
 
 interface DeployReadinessInput {
   workflowId: string | null
   hasPendingOperations: boolean
   hasOperationError: boolean
-  hasActiveDiff: boolean
   hasPendingExternalUpdate: boolean
   isReconciling: boolean
   reconciliationError?: string
@@ -58,14 +51,6 @@ export function getDeployReadinessState(input: DeployReadinessInput) {
     }
   }
 
-  if (input.hasActiveDiff) {
-    return {
-      status: 'reviewing-diff' as const,
-      label: 'Reviewing...',
-      tooltip: 'Accept or reject the current copilot changes before deploying',
-    }
-  }
-
   if (input.hasPendingExternalUpdate || input.isReconciling) {
     return {
       status: 'syncing' as const,
@@ -91,10 +76,9 @@ export function useDeployReadiness(workflowId: string | null): DeployReadiness {
     }))
   )
 
-  const { hasActiveDiff, hasPendingExternalUpdate, isReconciling, reconciliationError } =
-    useWorkflowDiffStore(
+  const { hasPendingExternalUpdate, isReconciling, reconciliationError } =
+    useWorkflowReconciliationStore(
       useShallow((state) => ({
-        hasActiveDiff: state.hasActiveDiff,
         hasPendingExternalUpdate: workflowId
           ? Boolean(state.pendingExternalUpdates[workflowId])
           : false,
@@ -109,7 +93,6 @@ export function useDeployReadiness(workflowId: string | null): DeployReadiness {
         workflowId,
         hasPendingOperations,
         hasOperationError,
-        hasActiveDiff,
         hasPendingExternalUpdate,
         isReconciling,
         reconciliationError,
@@ -118,7 +101,6 @@ export function useDeployReadiness(workflowId: string | null): DeployReadiness {
       workflowId,
       hasPendingOperations,
       hasOperationError,
-      hasActiveDiff,
       hasPendingExternalUpdate,
       isReconciling,
       reconciliationError,
@@ -135,14 +117,13 @@ export function useDeployReadiness(workflowId: string | null): DeployReadiness {
     if (drainResult !== 'drained') return false
 
     const latestQueue = useOperationQueueStore.getState()
-    const diff = useWorkflowDiffStore.getState()
+    const reconciliation = useWorkflowReconciliationStore.getState()
     return (
       !latestQueue.hasOperationError &&
       !latestQueue.hasPendingOperations(workflowId) &&
-      !diff.hasActiveDiff &&
-      !diff.pendingExternalUpdates[workflowId] &&
-      !diff.reconcilingWorkflows[workflowId] &&
-      !diff.reconciliationErrors[workflowId]
+      !reconciliation.pendingExternalUpdates[workflowId] &&
+      !reconciliation.reconcilingWorkflows[workflowId] &&
+      !reconciliation.reconciliationErrors[workflowId]
     )
   }, [workflowId])
 

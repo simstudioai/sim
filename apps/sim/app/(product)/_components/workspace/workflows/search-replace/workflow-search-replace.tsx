@@ -192,12 +192,8 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
   const { data: folders = {} } = useFolderMap(workspaceId)
   const workflowMetadata = workflowId ? workflows[workflowId] : undefined
   const workflowLocked = isWorkflowEffectivelyLocked(workflowMetadata, folders)
-  const searchReadOnly = currentWorkflow.isSnapshotView || workflowLocked
-  const readonlyReason = currentWorkflow.isSnapshotView
-    ? 'Snapshot view is readonly'
-    : workflowLocked
-      ? 'Workflow is locked'
-      : undefined
+  const searchReadOnly = workflowLocked
+  const readonlyReason = workflowLocked ? 'Workflow is locked' : undefined
   const userPermissions = useUserPermissionsContext()
   const {
     collaborativeBatchSetSubblockValues,
@@ -253,10 +249,9 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
     () =>
       getWorkflowSearchBlocks({
         blocks: currentWorkflow.blocks,
-        isSnapshotView: currentWorkflow.isSnapshotView,
         subblockValues: workflowSubblockValues,
       }),
-    [currentWorkflow.blocks, currentWorkflow.isSnapshotView, workflowSubblockValues]
+    [currentWorkflow.blocks, workflowSubblockValues]
   )
 
   const credentialTypeById = useMemo(
@@ -276,7 +271,6 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
         query,
         mode: 'all',
         includeResourceMatchesWithoutQuery: true,
-        isSnapshotView: currentWorkflow.isSnapshotView,
         isReadOnly: searchReadOnly,
         readonlyReason,
         workspaceId,
@@ -286,7 +280,6 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
         mcpToolNamesById,
       }),
     [
-      currentWorkflow.isSnapshotView,
       credentialTypeById,
       customBlockOverlayVersion,
       customTools,

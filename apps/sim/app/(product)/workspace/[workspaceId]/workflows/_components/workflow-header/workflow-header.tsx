@@ -25,7 +25,6 @@ import {
   isWorkflowEffectivelyLocked,
   useAutoLayout,
   useCollaborativeWorkflow,
-  useCurrentWorkflow,
   useDeleteWorkflowMutation,
   useDeploymentShape,
   useDuplicateWorkflowMutation,
@@ -271,7 +270,6 @@ export function WorkflowActions({ workspaceId, workflowId }: WorkflowHeaderProps
   const { data: folders = {} } = useFolderMap(workspaceId)
   const workflowLocked = isWorkflowEffectivelyLocked(workflows[workflowId] ?? null, folders)
   const canMutateWorkflow = userPermissions.canEdit && !workflowLocked
-  const { isSnapshotView } = useCurrentWorkflow()
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const { handleAutoLayout } = useAutoLayout(activeWorkflowId || null, CANVAS_VIEWPORT_OPTIONS)
   const [isAutoLayouting, setIsAutoLayouting] = useState(false)
@@ -366,7 +364,7 @@ export function WorkflowActions({ workspaceId, workflowId }: WorkflowHeaderProps
         icon: 'I050',
         onSelect: () => setVariablesOpen(!variablesOpen),
       },
-      ...(userPermissions.canAdmin && !isSnapshotView
+      ...(userPermissions.canAdmin
         ? [
             {
               id: 'lock',
@@ -390,7 +388,6 @@ export function WorkflowActions({ workspaceId, workflowId }: WorkflowHeaderProps
       variablesOpen,
       setVariablesOpen,
       userPermissions.canAdmin,
-      isSnapshotView,
       allBlocksLocked,
       hasBlocks,
       workflowLocked,

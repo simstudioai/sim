@@ -3,7 +3,6 @@ import { useSubBlockValue } from '@/components/workflow-editor/components/panel/
 import { resolvePreviewContextValue } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/utils'
 import { resolveMcpBlockConfig } from '@/lib/mcp/workflow-config'
 import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
-import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface UseMcpBlockConfigProps {
@@ -26,18 +25,10 @@ export function useMcpBlockConfig({ blockId, previewContextValues }: UseMcpBlock
         ])
       )
     : { serverSelector, serverReference, toolSelector, toolReference }
-  const isBaselineView = useWorkflowDiffStore(
-    (state) => state.hasActiveDiff && !state.isShowingDiff
-  )
-  const baselineModes = useWorkflowDiffStore(
-    (state) => state.baselineWorkflow?.blocks[blockId]?.data?.canonicalModes
-  )
   const effectiveModes = previewContextValues
     ? isPlainRecord(previewContextValues.__canonicalModes)
       ? (previewContextValues.__canonicalModes as CanonicalModeOverrides)
       : undefined
-    : isBaselineView
-      ? baselineModes
-      : modes
+    : modes
   return resolveMcpBlockConfig(values, effectiveModes)
 }

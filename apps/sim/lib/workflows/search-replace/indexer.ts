@@ -494,7 +494,6 @@ function addDisplayLabelMatches({
   query,
   caseSensitive,
   protectedByLock,
-  isSnapshotView,
   basePath = [],
 }: {
   matches: WorkflowSearchMatch[]
@@ -507,7 +506,6 @@ function addDisplayLabelMatches({
   query?: string
   caseSensitive: boolean
   protectedByLock: boolean
-  isSnapshotView: boolean
   basePath?: WorkflowSearchValuePath
 }) {
   for (const leaf of getDisplayLabelLeaves({ value, subBlockConfig, subBlockType })) {
@@ -526,7 +524,6 @@ function addDisplayLabelMatches({
       caseSensitive,
       editable: false,
       protectedByLock,
-      isSnapshotView,
       readonlyReason: DISPLAY_LABEL_READONLY_REASON,
     })
   }
@@ -593,7 +590,6 @@ interface AddTextMatchesOptions {
   caseSensitive: boolean
   editable: boolean
   protectedByLock: boolean
-  isSnapshotView: boolean
   readonlyReason?: string
   /** Declared by the field's config; see {@link findTextRanges}. */
   searchTextFormat?: SubBlockConfig['searchTextFormat']
@@ -601,15 +597,13 @@ interface AddTextMatchesOptions {
 
 function getReadonlyReason({
   editable,
-  isSnapshotView,
   readonlyReason,
 }: {
   editable: boolean
-  isSnapshotView: boolean
   readonlyReason?: string
 }) {
   if (editable) return undefined
-  return readonlyReason ?? (isSnapshotView ? 'Snapshot view is readonly' : 'Block is locked')
+  return readonlyReason ?? 'Block is locked'
 }
 
 function addTextMatches({
@@ -627,7 +621,6 @@ function addTextMatches({
   caseSensitive,
   editable,
   protectedByLock,
-  isSnapshotView,
   readonlyReason,
   searchTextFormat,
 }: AddTextMatchesOptions) {
@@ -658,7 +651,7 @@ function addTextMatches({
       editable,
       navigable: true,
       protected: protectedByLock,
-      reason: getReadonlyReason({ editable, isSnapshotView, readonlyReason }),
+      reason: getReadonlyReason({ editable, readonlyReason }),
     })
   })
 }
@@ -896,7 +889,6 @@ function addToolInputMatches({
   resourceQueryEnabled,
   editable,
   protectedByLock,
-  isSnapshotView,
   readonlyReason,
   workspaceId,
   workflowId,
@@ -918,7 +910,6 @@ function addToolInputMatches({
   resourceQueryEnabled: boolean
   editable: boolean
   protectedByLock: boolean
-  isSnapshotView: boolean
   readonlyReason?: string
   workspaceId?: string
   workflowId?: string
@@ -954,7 +945,6 @@ function addToolInputMatches({
         caseSensitive,
         editable: false,
         protectedByLock,
-        isSnapshotView,
         readonlyReason: DISPLAY_LABEL_READONLY_REASON,
       })
     }
@@ -1002,7 +992,6 @@ function addToolInputMatches({
           query,
           caseSensitive,
           protectedByLock,
-          isSnapshotView,
           basePath,
         })
 
@@ -1023,7 +1012,6 @@ function addToolInputMatches({
             caseSensitive,
             editable: leafEditable,
             protectedByLock,
-            isSnapshotView,
             readonlyReason: leafEditable
               ? undefined
               : typeof leaf.originalValue === 'string'
@@ -1079,7 +1067,7 @@ function addToolInputMatches({
             editable,
             navigable: true,
             protected: protectedByLock,
-            reason: getReadonlyReason({ editable, isSnapshotView, readonlyReason }),
+            reason: getReadonlyReason({ editable, readonlyReason }),
           })
         })
       }
@@ -1132,7 +1120,7 @@ function addToolInputMatches({
           editable,
           navigable: true,
           protected: protectedByLock,
-          reason: getReadonlyReason({ editable, isSnapshotView, readonlyReason }),
+          reason: getReadonlyReason({ editable, readonlyReason }),
         })
       })
     }
@@ -1221,8 +1209,7 @@ export function indexWorkflowSearchMatches(
     mode = 'all',
     caseSensitive = false,
     includeResourceMatchesWithoutQuery = false,
-    isSnapshotView = false,
-    isReadOnly = isSnapshotView,
+    isReadOnly = false,
     readonlyReason,
     workspaceId,
     workflowId,
@@ -1297,7 +1284,6 @@ export function indexWorkflowSearchMatches(
           caseSensitive,
           editable: fieldEditable,
           protectedByLock,
-          isSnapshotView,
           readonlyReason: fieldEditable ? undefined : !editable ? readonlyReason : field.reason,
         })
       }
@@ -1364,7 +1350,6 @@ export function indexWorkflowSearchMatches(
           resourceQueryEnabled,
           editable,
           protectedByLock,
-          isSnapshotView,
           readonlyReason,
           workspaceId,
           workflowId,
@@ -1389,7 +1374,6 @@ export function indexWorkflowSearchMatches(
           query,
           caseSensitive,
           protectedByLock,
-          isSnapshotView,
         })
 
         if (subBlockType === 'mcp-dynamic-args') {
@@ -1409,7 +1393,6 @@ export function indexWorkflowSearchMatches(
               caseSensitive,
               editable: false,
               protectedByLock,
-              isSnapshotView,
               readonlyReason: DISPLAY_LABEL_READONLY_REASON,
             })
           }
@@ -1446,7 +1429,6 @@ export function indexWorkflowSearchMatches(
             searchTextFormat: subBlockConfig?.searchTextFormat,
             editable: leafEditable,
             protectedByLock,
-            isSnapshotView,
             readonlyReason: leafEditable
               ? undefined
               : typeof leaf.originalValue === 'string'
@@ -1500,7 +1482,7 @@ export function indexWorkflowSearchMatches(
             editable,
             navigable: true,
             protected: protectedByLock,
-            reason: getReadonlyReason({ editable, isSnapshotView, readonlyReason }),
+            reason: getReadonlyReason({ editable, readonlyReason }),
           })
         })
       }
@@ -1556,7 +1538,7 @@ export function indexWorkflowSearchMatches(
           editable,
           navigable: true,
           protected: protectedByLock,
-          reason: getReadonlyReason({ editable, isSnapshotView, readonlyReason }),
+          reason: getReadonlyReason({ editable, readonlyReason }),
         })
       })
     }

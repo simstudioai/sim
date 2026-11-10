@@ -1979,19 +1979,4 @@ describe('indexWorkflowSearchMatches', () => {
       })
     )
   })
-
-  it('marks snapshot view matches as searchable but not editable', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'email',
-      mode: 'text',
-      isSnapshotView: true,
-      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
-    })
-
-    expect(matches.every((match) => !match.editable)).toBe(true)
-    expect(matches.every((match) => match.reason === 'Snapshot view is readonly')).toBe(true)
-  })
 })

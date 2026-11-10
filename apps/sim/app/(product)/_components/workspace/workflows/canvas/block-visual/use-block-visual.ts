@@ -11,8 +11,9 @@ import {
 
 /**
  * The ring a block card paints, in legacy priority order: the neutral selection ring (editor open,
- * selected, or preview selection), then pending, deleted and the copilot diff states. Each card's
- * CSS paints it from `data-ring` with the legacy 1.5px ring.
+ * selected, or preview selection), then pending. Subflow containers also take the status rings for
+ * version-comparison diffs and preview run outcomes. Each card's CSS paints it from `data-ring` with
+ * the legacy 1.5px ring.
  */
 export type BlockRing = 'selected' | 'pending' | 'deleted' | 'new' | 'edited'
 
@@ -20,8 +21,6 @@ interface BlockRingOptions {
   isExecuting: boolean
   isEditorOpen: boolean
   isPending: boolean
-  isDeletedBlock: boolean
-  diffStatus: 'new' | 'edited' | null | undefined
   isPreviewSelection?: boolean
   isSelected?: boolean
 }
@@ -31,17 +30,12 @@ function blockRing({
   isExecuting,
   isEditorOpen,
   isPending,
-  isDeletedBlock,
-  diffStatus,
   isPreviewSelection,
   isSelected,
 }: BlockRingOptions): BlockRing | null {
   if (isEditorOpen || isSelected || isPreviewSelection) return 'selected'
   if (isExecuting) return null
   if (isPending) return 'pending'
-  if (isDeletedBlock) return 'deleted'
-  if (diffStatus === 'new') return 'new'
-  if (diffStatus === 'edited') return 'edited'
   return null
 }
 
@@ -73,8 +67,6 @@ export function useBlockVisual({
   const {
     isEnabled,
     isActive: isExecuting,
-    diffStatus,
-    isDeletedBlock,
     isLocked,
   } = useBlockState(blockId, currentWorkflow, data)
 
@@ -105,22 +97,10 @@ export function useBlockVisual({
         isExecuting: isPreview ? false : isExecuting,
         isEditorOpen: isPreview ? isPreviewSelected : isEditorOpen,
         isPending: isPreview ? false : isPending,
-        isDeletedBlock: isPreview ? false : isDeletedBlock,
-        diffStatus: isPreview ? undefined : diffStatus,
         isPreviewSelection: isPreview && isPreviewSelected,
         isSelected: isPreview || isEmbedded ? false : isSelected,
       }),
-    [
-      isExecuting,
-      isEditorOpen,
-      isPending,
-      isDeletedBlock,
-      diffStatus,
-      isPreview,
-      isEmbedded,
-      isPreviewSelected,
-      isSelected,
-    ]
+    [isExecuting, isEditorOpen, isPending, isPreview, isEmbedded, isPreviewSelected, isSelected]
   )
 
   return {

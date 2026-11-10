@@ -9,7 +9,7 @@ const {
   mockApplyWorkflowStateToStores,
   mockHasPendingOperations,
   mockGetOperationQueueState,
-  mockGetWorkflowDiffState,
+  mockGetWorkflowReconciliationState,
 } = vi.hoisted(() => ({
   mockFetchQuery: vi.fn(),
   mockApplyWorkflowStateToStores: vi.fn(),
@@ -19,8 +19,7 @@ const {
     workflowOperationVersions: {},
     remoteApplyVersions: {},
   })),
-  mockGetWorkflowDiffState: vi.fn(() => ({
-    hasActiveDiff: false,
+  mockGetWorkflowReconciliationState: vi.fn(() => ({
     pendingExternalUpdates: {},
     reconcilingWorkflows: {},
     reconciliationErrors: {},
@@ -42,13 +41,13 @@ vi.mock('@/hooks/queries/utils/workflow-keys', () => ({
   },
 }))
 
-vi.mock('@/stores/workflow-diff/utils', () => ({
+vi.mock('@/stores/workflows/apply-state', () => ({
   applyWorkflowStateToStores: mockApplyWorkflowStateToStores,
 }))
 
-vi.mock('@/stores/workflow-diff/store', () => ({
-  useWorkflowDiffStore: {
-    getState: mockGetWorkflowDiffState,
+vi.mock('@/stores/workflow-reconciliation/store', () => ({
+  useWorkflowReconciliationStore: {
+    getState: mockGetWorkflowReconciliationState,
   },
 }))
 
@@ -87,8 +86,7 @@ describe('syncLocalDraftFromServer', () => {
       workflowOperationVersions: {},
       remoteApplyVersions: {},
     }))
-    mockGetWorkflowDiffState.mockReturnValue({
-      hasActiveDiff: false,
+    mockGetWorkflowReconciliationState.mockReturnValue({
       pendingExternalUpdates: {},
       reconcilingWorkflows: {},
       reconciliationErrors: {},
@@ -130,32 +128,15 @@ describe('syncLocalDraftFromServer', () => {
     expect(mockApplyWorkflowStateToStores).not.toHaveBeenCalled()
   })
 
-  it('does not apply a fetched draft when an active diff is showing', async () => {
-    mockGetWorkflowDiffState.mockReturnValue({
-      hasActiveDiff: true,
-      pendingExternalUpdates: {},
-      reconcilingWorkflows: {},
-      reconciliationErrors: {},
-      remoteUpdateVersions: {},
-    })
-    mockFetchQuery.mockResolvedValue({ state: buildEnvelopeState(), variables: {} })
-
-    await expect(syncLocalDraftFromServer('workflow-a')).resolves.toBe(false)
-
-    expect(mockApplyWorkflowStateToStores).not.toHaveBeenCalled()
-  })
-
   it('does not apply a fetched draft when a newer remote update arrives during fetch', async () => {
-    mockGetWorkflowDiffState
+    mockGetWorkflowReconciliationState
       .mockReturnValueOnce({
-        hasActiveDiff: false,
         pendingExternalUpdates: {},
         reconcilingWorkflows: {},
         reconciliationErrors: {},
         remoteUpdateVersions: {},
       })
       .mockReturnValueOnce({
-        hasActiveDiff: false,
         pendingExternalUpdates: {},
         reconcilingWorkflows: {},
         reconciliationErrors: {},
@@ -234,8 +215,7 @@ describe('canApplyDraftSnapshot', () => {
       workflowOperationVersions: {},
       remoteApplyVersions: {},
     }))
-    mockGetWorkflowDiffState.mockReturnValue({
-      hasActiveDiff: false,
+    mockGetWorkflowReconciliationState.mockReturnValue({
       pendingExternalUpdates: {},
       reconcilingWorkflows: {},
       reconciliationErrors: {},
@@ -245,8 +225,7 @@ describe('canApplyDraftSnapshot', () => {
 
   it('refuses when an external full reload (workflow-updated) landed since capture', () => {
     const versions = captureDraftVersions('workflow-a')
-    mockGetWorkflowDiffState.mockReturnValue({
-      hasActiveDiff: false,
+    mockGetWorkflowReconciliationState.mockReturnValue({
       pendingExternalUpdates: {},
       reconcilingWorkflows: {},
       reconciliationErrors: {},

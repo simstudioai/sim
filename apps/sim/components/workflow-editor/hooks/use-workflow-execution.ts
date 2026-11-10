@@ -25,7 +25,11 @@ import {
   handleExecutionErrorConsole as sharedHandleExecutionErrorConsole,
 } from '@/components/workflow-editor/utils/workflow-execution'
 import { requestJson } from '@/lib/api/client/request'
-import { cancelWorkflowExecutionContract, workflowStateSchema } from '@/lib/api/contracts/workflows'
+import {
+  cancelWorkflowExecutionContract,
+  type WorkflowStateContractInput,
+  workflowStateSchema,
+} from '@/lib/api/contracts/workflows'
 import type { SecretSafeBlockLog } from '@/lib/logs/execution/display-types'
 import {
   isRunToolActiveForWorkflow,
@@ -66,7 +70,6 @@ import {
   useTerminalConsoleStore,
 } from '@/stores/terminal'
 import { useVariablesStore } from '@/stores/variables/store'
-import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -443,7 +446,6 @@ export function useWorkflowExecution() {
     executionStream
   const runFromBlockOwnerRef = useRef<string | null>(null)
   const lastSeenEventIdRef = useRef<number>(0)
-  const isViewingDiff = useWorkflowDiffStore((state) => state.isShowingDiff)
 
   /**
    * Validates debug state before performing debug operations
@@ -693,22 +695,11 @@ export function useWorkflowExecution() {
     stopAfterBlockId?: string
     persistenceExecution: ConsolePersistenceExecution
   }): Promise<ExecutionResult> => {
-    // Use diff workflow for execution when available, regardless of canvas view state
-    const executionWorkflowState = null as {
-      blocks?: any
-      edges?: any
-      loops?: any
-      parallels?: any
-    } | null
-    const usingDiffForExecution = false
-
     // Read blocks and edges directly from store to ensure we get the latest state,
     // even if React hasn't re-rendered yet after adding blocks/edges
     const latestWorkflowState = useWorkflowStore.getState().getWorkflowState()
-    const workflowBlocks = (executionWorkflowState?.blocks ??
-      latestWorkflowState.blocks) as typeof currentWorkflow.blocks
-    const workflowEdges = (executionWorkflowState?.edges ??
-      latestWorkflowState.edges) as typeof currentWorkflow.edges
+    const workflowBlocks = latestWorkflowState.blocks
+    const workflowEdges = latestWorkflowState.edges
 
     /** Keep disabled targets available for routing; the DAG excludes them from execution. */
     const validBlocks = Object.entries(workflowBlocks).reduce(
@@ -722,10 +713,6 @@ export function useWorkflowExecution() {
     )
 
     logger.info('Executing workflow', {
-      isDiffMode: currentWorkflow.isDiffMode,
-      usingDiffForExecution,
-      isViewingDiff,
-      executingDiffWorkflow: usingDiffForExecution && isViewingDiff,
       totalBlocksCount: Object.keys(workflowBlocks).length,
       validBlocksCount: Object.keys(validBlocks).length,
       edgesCount: workflowEdges.length,
@@ -837,7 +824,7 @@ export function useWorkflowExecution() {
           includeStartConsoleEntry: true,
         })
 
-        const clientWorkflowState = executionWorkflowState || {
+        const clientWorkflowState = {
           blocks: filteredStates,
           edges: workflowEdges,
           loops: latestWorkflowState.loops,
@@ -856,7 +843,7 @@ export function useWorkflowExecution() {
           stopAfterBlockId,
           workflowStateOverride: {
             blocks: clientWorkflowState.blocks,
-            edges: clientWorkflowState.edges,
+            edges: clientWorkflowState.edges as WorkflowStateContractInput['edges'],
             loops: clientWorkflowState.loops,
             parallels: clientWorkflowState.parallels,
           },

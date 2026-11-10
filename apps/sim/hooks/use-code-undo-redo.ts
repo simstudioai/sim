@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { useShallow } from 'zustand/react/shallow'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useCodeUndoRedoStore } from '@/stores/undo-redo'
-import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('CodeUndoRedo')
@@ -30,21 +28,13 @@ export function useCodeUndoRedo({
 }: UseCodeUndoRedoOptions) {
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  const { isShowingDiff, hasActiveDiff } = useWorkflowDiffStore(
-    useShallow((state) => ({
-      isShowingDiff: state.isShowingDiff,
-      hasActiveDiff: state.hasActiveDiff,
-    }))
-  )
-
-  const isBaselineView = hasActiveDiff && !isShowingDiff
   const isEnabled = useMemo(
-    () => Boolean(enabled && activeWorkflowId && !isReadOnly && !isStreaming && !isBaselineView),
-    [enabled, activeWorkflowId, isReadOnly, isStreaming, isBaselineView]
+    () => Boolean(enabled && activeWorkflowId && !isReadOnly && !isStreaming),
+    [enabled, activeWorkflowId, isReadOnly, isStreaming]
   )
   const isReplaceEnabled = useMemo(
-    () => Boolean(enabled && activeWorkflowId && !isReadOnly && !isBaselineView),
-    [enabled, activeWorkflowId, isReadOnly, isBaselineView]
+    () => Boolean(enabled && activeWorkflowId && !isReadOnly),
+    [enabled, activeWorkflowId, isReadOnly]
   )
 
   const lastCommittedValueRef = useRef<string>(value ?? '')

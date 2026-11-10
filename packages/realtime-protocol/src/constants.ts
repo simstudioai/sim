@@ -84,9 +84,6 @@ export const UNDO_REDO_OPERATIONS = {
   BATCH_TOGGLE_HANDLES: 'batch-toggle-handles',
   BATCH_TOGGLE_LOCKED: 'batch-toggle-locked',
   BATCH_UPDATE_SUBBLOCKS: 'batch-update-subblocks',
-  APPLY_DIFF: 'apply-diff',
-  ACCEPT_DIFF: 'accept-diff',
-  REJECT_DIFF: 'reject-diff',
 } as const
 
 export type UndoRedoOperation = (typeof UNDO_REDO_OPERATIONS)[keyof typeof UNDO_REDO_OPERATIONS]

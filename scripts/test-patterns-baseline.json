@@ -44,7 +44,6 @@
   "local-factory\tapps/sim/lib/workflows/autolayout/core.test.ts\t@/blocks",
   "local-factory\tapps/sim/lib/workflows/autolayout/targeted.test.ts\t@/blocks",
   "local-factory\tapps/sim/lib/workflows/autolayout/utils.test.ts\t@/blocks",
-  "local-factory\tapps/sim/lib/workflows/diff/engine.test.ts\t@/blocks",
   "local-factory\tapps/sim/lib/workflows/subblocks/display.test.ts\t@/blocks",
   "local-factory\tapps/sim/serializer/checkbox-list.test.ts\t@/blocks",
   "local-factory\tapps/sim/serializer/custom-block-lifecycle.test.ts\t@/blocks",

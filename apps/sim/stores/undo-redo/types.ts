@@ -124,35 +124,6 @@ export interface BatchUpdateSubblocksOperation extends BaseOperation {
   }
 }
 
-interface ApplyDiffOperation extends BaseOperation {
-  type: typeof UNDO_REDO_OPERATIONS.APPLY_DIFF
-  data: {
-    baselineSnapshot: any // WorkflowState snapshot before diff
-    proposedState: any // WorkflowState with diff applied
-    diffAnalysis: any // DiffAnalysis for re-applying markers
-  }
-}
-
-interface AcceptDiffOperation extends BaseOperation {
-  type: typeof UNDO_REDO_OPERATIONS.ACCEPT_DIFF
-  data: {
-    beforeAccept: any // WorkflowState with diff markers
-    afterAccept: any // WorkflowState without diff markers
-    diffAnalysis: any // DiffAnalysis to restore markers on undo
-    baselineSnapshot: any // Baseline workflow state
-  }
-}
-
-interface RejectDiffOperation extends BaseOperation {
-  type: typeof UNDO_REDO_OPERATIONS.REJECT_DIFF
-  data: {
-    beforeReject: any // WorkflowState with diff markers
-    afterReject: any // WorkflowState baseline (after reject)
-    diffAnalysis: any // DiffAnalysis to restore markers on undo
-    baselineSnapshot: any // Baseline workflow state
-  }
-}
-
 export type Operation =
   | BatchAddBlocksOperation
   | BatchRemoveBlocksOperation
@@ -165,9 +136,6 @@ export type Operation =
   | BatchToggleHandlesOperation
   | BatchToggleLockedOperation
   | BatchUpdateSubblocksOperation
-  | ApplyDiffOperation
-  | AcceptDiffOperation
-  | RejectDiffOperation
 
 export interface OperationEntry {
   id: string

@@ -267,7 +267,6 @@ The workflow editor (`apps/sim/app/(product)/workspace/[workspaceId]/workflows/*
 - **Live cursor** and **broadcast live selection** (presence; emitted over the socket, throttled).
 - **Pan / zoom / viewport** (ReactFlow-owned, continuous, not persisted).
 - **Drag state** and **resize widths/heights** (panel/terminal/sidebar — high-frequency, persisted as local preferences).
-- **Ephemeral diff staging** (`hasActiveDiff`, `baselineWorkflow`, `diffAnalysis`).
 
 Borderline candidates that *look* shareable but currently stay in Zustand because moving them fights existing machinery:
 

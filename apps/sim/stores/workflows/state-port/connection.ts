@@ -1,5 +1,4 @@
 import type { useVariablesStore } from '@/stores/variables/store'
-import type { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import type { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type {
@@ -14,7 +13,6 @@ interface WorkflowStateModules {
   registry: typeof useWorkflowRegistry
   workflow: typeof useWorkflowStore
   subBlock: typeof useSubBlockStore
-  diff: typeof useWorkflowDiffStore
   variables: typeof useVariablesStore
   draft: {
     canApplyDraftSnapshot: typeof canApplyDraftSnapshot

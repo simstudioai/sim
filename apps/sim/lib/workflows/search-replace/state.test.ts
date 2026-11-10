@@ -20,24 +20,11 @@ describe('getWorkflowSearchBlocks', () => {
   it('uses merged live subblock values for normal workflow search', () => {
     const result = getWorkflowSearchBlocks({
       blocks,
-      isSnapshotView: false,
       subblockValues: {
         block1: { code: 'Hello' },
       },
     })
 
     expect(result.block1.subBlocks.code.value).toBe('Hello')
-  })
-
-  it('does not merge snapshot blocks', () => {
-    const result = getWorkflowSearchBlocks({
-      blocks,
-      isSnapshotView: true,
-      subblockValues: {
-        block1: { code: 'Hello' },
-      },
-    })
-
-    expect(result).toBe(blocks)
   })
 })

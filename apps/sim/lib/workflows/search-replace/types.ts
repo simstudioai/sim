@@ -98,7 +98,6 @@ export interface WorkflowSearchIndexerOptions {
   mode?: WorkflowSearchMode
   caseSensitive?: boolean
   includeResourceMatchesWithoutQuery?: boolean
-  isSnapshotView?: boolean
   isReadOnly?: boolean
   readonlyReason?: string
   workspaceId?: string

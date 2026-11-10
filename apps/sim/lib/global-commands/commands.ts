@@ -7,7 +7,6 @@ import type { GlobalCommand } from '@/lib/global-commands/provider'
  * ad-hoc ids or shortcuts to ensure a single source of truth.
  */
 export type CommandId =
-  | 'accept-diff-changes'
   | 'add-agent'
   | 'add-workflow'
   | 'goto-logs'
@@ -43,11 +42,6 @@ interface CommandDefinition {
  * All global commands must be declared here to be usable.
  */
 export const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
-  'accept-diff-changes': {
-    id: 'accept-diff-changes',
-    shortcut: 'Mod+Shift+Enter',
-    allowInEditable: true,
-  },
   'add-agent': {
     id: 'add-agent',
     shortcut: 'Mod+Shift+A',

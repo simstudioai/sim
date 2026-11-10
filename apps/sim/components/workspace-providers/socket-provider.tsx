@@ -786,7 +786,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
          */
         const applyRawJoinStateFallback = async (workflowId: string, workflowState: any) => {
           const { useOperationQueueStore } = await import('@/stores/operation-queue/store')
-          const { registry, workflow, subBlock, diff } = requireWorkflowState()
+          const { registry, workflow, subBlock } = requireWorkflowState()
 
           const { activeWorkflowId } = registry.getState()
           if (activeWorkflowId !== workflowId) {
@@ -799,11 +799,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             .operations.some((op: any) => op.workflowId === workflowId && op.status !== 'confirmed')
           if (hasPending) {
             logger.info('Skipping rehydration due to pending operations in queue')
-            return false
-          }
-
-          if (diff.getState().hasActiveDiff) {
-            logger.info('Skipping rehydration - an active diff is in progress')
             return false
           }
 
