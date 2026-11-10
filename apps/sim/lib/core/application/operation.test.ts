@@ -29,9 +29,27 @@ describe('defineOperation', () => {
       })
     ).toThrow('Operation meta.duplicate declares duplicate principal kinds')
   })
+
+  it('refuses an operation that admits the Admin API key beside a human principal', () => {
+    expect(() =>
+      defineOperation({
+        id: 'meta.shared_with_operator',
+        capability: 'none',
+        principalKinds: ['admin_api_key', 'session'],
+      })
+    ).toThrow(
+      'Operation meta.shared_with_operator admits the Admin API key alongside other principals'
+    )
+  })
 })
 
 describe('assertOperationPrincipal', () => {
+  it('refuses the Admin API key on an operation that does not name it', () => {
+    expect(() => assertOperationPrincipal({ kind: 'admin_api_key' }, readSelf)).toThrow(
+      'Operation meta.capabilities.read reached by principal kind admin_api_key, which its policy does not name'
+    )
+  })
+
   it('accepts a principal kind the operation names', () => {
     const principal: Principal = { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' }
 
