@@ -28,6 +28,7 @@ import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
 import { PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
 import { generateRandomHex } from '@sim/utils/random'
+import { compareStrings } from '@sim/utils/string'
 import postgres from 'postgres'
 import { chatContextsSchema } from '@/lib/api/contracts/mothership-chat-context'
 import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
@@ -714,6 +715,25 @@ try {
     await expect(shell.locator('body')).toHaveAttribute('data-capture-receipts', String(before + 1))
   }
   const attachments = () => frame().getByRole('group', { name: 'Page attached to next message' })
+  /**
+   * The organization's chat access as the panel next reads it. Call it after a policy change: a
+   * read the panel starts from then on is answered under the change.
+   */
+  const organizationAccessReread = async (timeout: number) => {
+    const request = await shell.waitForRequest(
+      (candidate) => {
+        const url = new URL(candidate.url())
+        return (
+          url.pathname === `/api/organizations/${organizationId}` &&
+          url.searchParams.get('include') === 'chat-access'
+        )
+      },
+      { timeout }
+    )
+    const response = await request.response()
+    assert(response?.ok(), 'The organization chat access re-read failed')
+    return toRecord(toRecord(await response.json()).chatAccess)
+  }
   const isUploadCompletion = (url: URL) =>
     url.pathname.startsWith('/api/files/uploads/') && url.pathname.endsWith('/complete')
   const uploadFile = async (name: string, add: () => Promise<void>): Promise<string> => {
@@ -832,7 +852,7 @@ try {
       window.addEventListener('sim-qa-release-capture', release)
       window.addEventListener('sim-qa-dispose-capture', dispose)
     }, `chrome-extension://${extensionId}`)
-  const verifyPendingCaptureDrop = async (scope: 'workspace' | 'organization' | 'assistant') => {
+  const verifyPendingCaptureDrop = async (scope: 'workspace' | 'organization') => {
     const app = frame()
     const input = app.getByRole('textbox', {
       name: scope === 'workspace' ? 'Message' : 'Ask Sim',
@@ -937,7 +957,7 @@ try {
         body[scope === 'workspace' ? 'workspaceId' : 'organizationId'],
         scope === 'workspace' ? alphaId : organizationId
       )
-      if (scope === 'assistant') assert.equal(body.mode, 'assistant')
+      if (scope === 'organization') assert.equal(body.mode, 'agent')
       const pages = submittedPages(body)
       assert.equal(pages.length, 1)
       assert(pages[0].text.includes('ORCHID-482'))
@@ -2055,26 +2075,21 @@ try {
       const permissionGroupId = generateId()
       await shell.bringToFront()
       await sql`insert into permission_group (id, organization_id, name, config, created_by, is_default)
-        values (${permissionGroupId}, ${scope.organizationId}, 'Revoked Build access',
+        values (${permissionGroupId}, ${scope.organizationId}, 'No workspace creation',
         ${sql.json({ disableWorkspaceCreation: true })}, ${userId}, true)`
       try {
-        await expect(frame().getByText('This chat is unavailable.')).toBeVisible({
-          timeout: ACCESS_REVALIDATION_TIMEOUT_MS,
-        })
+        // Chat follows `copilot.use` and the deployment, so an admitted chat stays open.
+        assert.equal(
+          (await organizationAccessReread(ACCESS_REVALIDATION_TIMEOUT_MS)).mothershipAvailable,
+          true
+        )
+        await expect(frame().getByText('This chat is unavailable.')).toHaveCount(0)
         await expect(
           frame().getByRole('textbox', { name: scope.inputLabel, exact: true })
-        ).toHaveCount(0)
-        await expect(attachments()).toHaveCount(0)
-        await captureScreenshot('admitted-build-access-revoked')
+        ).toBeVisible()
+        await captureScreenshot('admitted-chat-kept-without-workspace-creation')
         const [savedChat] = await sql`select config from copilot_chats where id=${chatId}`
         assert.equal(toRecord(savedChat.config).conversationMode, 'agent')
-        await frame().getByRole('button', { name: 'Back to chat', exact: true }).click()
-        await expect(
-          frame().getByRole('button', { name: 'Attach image', exact: true })
-        ).toBeVisible()
-        await expect.poll(() => new URL(frame().url()).searchParams.get('chat')).toBeNull()
-        await expect(attachments()).toHaveCount(0)
-        await captureScreenshot('assistant-after-build-revocation')
       } finally {
         await sql`delete from permission_group where id=${permissionGroupId}`
       }
@@ -2214,12 +2229,35 @@ try {
         `${base.origin}/extension/o/${otherOrganizationId}?chat=${otherOrganizationChatId}`
       )
       await expect(frame().getByText('This organization is unavailable.')).toBeVisible()
-      for (const chatId of [historyId, otherOrganizationChatId]) {
-        await navigate(`${base.origin}/extension/o/${organizationId}?chat=${chatId}`)
-        await expect(frame().getByText('This chat is unavailable.')).toBeVisible()
-        await expect(frame().getByRole('textbox', { name: 'Ask Sim', exact: true })).toHaveCount(0)
-      }
+      await navigate(`${base.origin}/extension/o/${organizationId}?chat=${otherOrganizationChatId}`)
+      await expect(frame().getByText('This chat is unavailable.')).toBeVisible()
+      await expect(frame().getByRole('textbox', { name: 'Ask Sim', exact: true })).toHaveCount(0)
       await screenshot('organization-wrong-scope-history')
+      // The organization's chat list holds the viewer's workspace chats; one opens here and sends
+      // under its own workspace, never the organization.
+      await navigate(`${base.origin}/extension/o/${organizationId}?chat=${historyId}`)
+      await expect(
+        frame().getByText('QA history response.', { exact: false }).first()
+      ).toBeVisible()
+      let workspaceChatSend: unknown
+      await shell.route('**/api/mothership/chat', async (route) => {
+        if (route.request().method() !== 'POST') return route.continue()
+        workspaceChatSend = route.request().postDataJSON()
+        injectedRequests.add(route.request())
+        await route.fulfill({ status: 403, json: { error: 'QA admission rejected' } })
+      })
+      try {
+        const composer = frame().getByRole('textbox', { name: 'Ask Sim', exact: true })
+        await composer.fill('QA workspace chat follow-up')
+        await composer.press('Enter')
+        await expect.poll(() => workspaceChatSend).toBeTruthy()
+        const payload = toRecord(workspaceChatSend)
+        assert.equal(payload.chatId, historyId)
+        assert.equal(payload.workspaceId, alphaId)
+        assert.equal(payload.organizationId, undefined)
+      } finally {
+        await shell.unroute('**/api/mothership/chat')
+      }
     }
   )
   const setActiveOrganization = async () => {
@@ -2973,45 +3011,44 @@ try {
     )
   }
   await checkAccess(
-    'Organization permission changes switch a new chat to Assistant without losing its draft',
+    'A workspace-creation restriction keeps a new organization chat in Build with its draft',
     async () => {
       assert(userId)
       await navigate(`${base.origin}/extension/o/${organizationId}`)
       const input = frame().getByRole('textbox', { name: 'Ask Sim', exact: true })
+      const attachFileButton = frame().getByRole('button', { name: 'Attach file', exact: true })
       await expect(input).toBeVisible()
-      await expect(frame().getByRole('button', { name: 'Attach file', exact: true })).toBeVisible()
+      await expect(attachFileButton).toBeVisible()
       await capture()
-      await input.fill('Keep this draft when Build access changes.')
-      await attachFile()
+      await input.fill('Keep this draft when workspace creation changes.')
+      const notesKey = await attachFile()
       await shell.bringToFront()
       await sql`insert into permission_group (id, organization_id, name, config, created_by, is_default)
-      values (${generateId()}, ${organizationId}, 'Search only',
+      values (${generateId()}, ${organizationId}, 'No workspace creation',
       ${sql.json({ disableWorkspaceCreation: true })}, ${userId}, true)`
+      // Chat follows `copilot.use` and the deployment, never workspace creation.
+      const reread = organizationAccessReread(revalidationTimeout)
       await advanceAccessRevalidation()
-      await expect(frame().getByRole('button', { name: 'Attach image', exact: true })).toBeVisible({
-        timeout: revalidationTimeout,
-      })
-      await expect(input).toHaveValue('Keep this draft when Build access changes.')
+      assert.equal((await reread).mothershipAvailable, true)
+      await expect(frame().getByText('This chat is unavailable.')).toHaveCount(0)
+      await expect(attachFileButton).toBeVisible()
+      await expect(frame().getByRole('button', { name: 'Attach image', exact: true })).toHaveCount(
+        0
+      )
+      await expect(input).toHaveValue('Keep this draft when workspace creation changes.')
       await expect(attachments()).toHaveCount(1)
-      await input.press('Enter')
-      await expect(frame().getByText(/Remove unsupported files/)).toBeVisible()
-      await expect(input).toHaveValue('Keep this draft when Build access changes.')
-      await expect(attachments()).toHaveCount(1)
-      await screenshot('organization-mode-file-recovery')
-      await frame().getByRole('button', { name: 'Remove extension-notes.txt', exact: true }).click()
-      await expect(frame().getByText(/Remove unsupported files/)).not.toBeVisible()
-      await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
-      await capture('shortcut')
-      await expect(attachments()).toHaveCount(1)
+      await expect(
+        frame().getByRole('button', { name: 'Remove extension-notes.txt', exact: true })
+      ).toBeVisible()
       const droppedImage = !liveChat
         ? await attachScreenshot(
             frame().getByRole('heading', { name: 'How can I help?', exact: true })
           )
         : undefined
       await expect(frame().getByRole('button', { name: 'Voice input', exact: true })).toBeVisible()
-      await screenshot('organization-assistant-page')
+      await screenshot('organization-build-page')
       await setPanelViewport(320, 844)
-      await screenshot('assistant-microphone-320')
+      await screenshot('build-microphone-320')
       await setPanelViewport(390, 844)
       if (!liveChat)
         await shell.route('**/api/mothership/chat', (route) =>
@@ -3026,11 +3063,12 @@ try {
       )
       await input.press('Enter')
       const body = toRecord((await submitted).postDataJSON())
-      if (droppedImage) {
-        assert(Array.isArray(body.fileAttachments) && body.fileAttachments.length === 1)
-        assert.equal(toRecord(body.fileAttachments[0]).key, droppedImage)
-      }
-      assert.equal(body.mode, 'assistant')
+      assert(Array.isArray(body.fileAttachments))
+      assert.deepEqual(
+        body.fileAttachments.map((file) => String(toRecord(file).key)).sort(compareStrings),
+        [notesKey, ...(droppedImage ? [droppedImage] : [])].sort(compareStrings)
+      )
+      assert.equal(body.mode, 'agent')
       assert.equal(body.organizationId, organizationId)
       assert.equal(body.workspaceId, undefined)
       assert(Array.isArray(body.contexts) && body.contexts.length === 1)
@@ -3057,16 +3095,16 @@ try {
           await sql`select organization_id, workspace_id, config from copilot_chats where id=${chatId}`
         assert.equal(chat.organization_id, organizationId)
         assert.equal(chat.workspace_id, null)
-        assert.equal(toRecord(chat.config).conversationMode, 'assistant')
+        assert.equal(toRecord(chat.config).conversationMode, 'agent')
         await expect(
           frame().getByRole('button', { name: 'Copy message', exact: true })
         ).toBeVisible({ timeout: 120_000 })
-        await screenshot('organization-assistant-response')
+        await screenshot('organization-build-response')
       } else await shell.unroute('**/api/mothership/chat')
     }
   )
   await checkAccess(
-    'Restricted Assistant freezes body file drops while a page reference is pending',
+    'A workspace-creation restriction still freezes body file drops while a page reference is pending',
     async () => {
       await shell.close()
       panel = await openPanel()
@@ -3078,9 +3116,9 @@ try {
         await observeCaptureReceipts()
         await navigate(`${base.origin}/extension/o/${organizationId}`)
         await expect(
-          frame().getByRole('button', { name: 'Attach image', exact: true })
+          frame().getByRole('button', { name: 'Attach file', exact: true })
         ).toBeVisible()
-        await verifyPendingCaptureDrop('assistant')
+        await verifyPendingCaptureDrop('organization')
       } finally {
         await captureGate.dispose()
       }
