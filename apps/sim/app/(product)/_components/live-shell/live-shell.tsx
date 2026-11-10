@@ -1,5 +1,6 @@
 import { type ReactNode, Suspense } from 'react'
 import { cookies } from 'next/headers'
+import { loginHref } from '@/lib/navigation/paths'
 import { resolveLiveDestinations } from '@/app/(product)/_components/destinations'
 import { LiveComposerHost } from '@/app/(product)/_components/live-shell/live-composer-host'
 import { StaleSession } from '@/app/(product)/_components/live-shell/stale-session'
@@ -13,8 +14,6 @@ import { LiveProviders } from '@/platform/lib/data/providers'
 import { followProductRoute, readDocumentLocation } from '@/platform/lib/data/route-resolution'
 import { resolveSettingsNavigation } from '@/platform/lib/data/settings-navigation'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
-
-const LOGIN_PATH = '/login'
 
 /**
  * The shell for a live session, in the organization this request's shell belongs to: the legacy
@@ -38,7 +37,16 @@ export async function LiveShell({
   ])
   if (surface.status !== 'ok') {
     // The proxy sends a request with no session cookie to login, so this one's cookie is stale.
-    if (surface.status === 'unauthenticated') return <StaleSession loginHref={LOGIN_PATH} />
+    if (surface.status === 'unauthenticated')
+      return (
+        <StaleSession
+          loginHref={
+            location
+              ? loginHref(`${location.pathname}${location.query.size ? `?${location.query}` : ''}`)
+              : '/login'
+          }
+        />
+      )
     if (surface.status === 'denied')
       return <AccessDenied workspacesHref={OUTSIDE_ORGANIZATION_HREF} />
     return <SurfaceUnavailable />

@@ -10,7 +10,7 @@ import { SIM_MCP_ROUTE_PATH } from '@/lib/api/mcp/urls'
 import { getBrowserExtensionOrigins } from '@/lib/core/security/extension'
 import { isMarketingPath } from '@/lib/landing/routes'
 import { isAuthSurfacePath } from '@/lib/navigation/auth-surfaces'
-import { APP_ENTRY_PATH, isAppSurfacePath, isNoindexPath } from '@/lib/navigation/paths'
+import { APP_ENTRY_PATH, isAppSurfacePath, isNoindexPath, loginHref } from '@/lib/navigation/paths'
 import {
   SHELL_PATH_HEADER,
   SHELL_SCOPE_HEADER,
@@ -435,8 +435,7 @@ export function proxy(request: NextRequest) {
     // A fixture build's example data renders with no sign-in. The condition is inlined when the
     // app is built (`lib/core/config/platform-fixtures.ts`), so a normal build always redirects.
     if (!hasActiveSession && process.env.SIM_PLATFORM_FIXTURES !== '1') {
-      const login = new URL('/login', request.url)
-      login.searchParams.set('callbackUrl', `${url.pathname}${url.search}`)
+      const login = new URL(loginHref(`${url.pathname}${url.search}`), request.url)
       return applyIndexingPolicy(request, NextResponse.redirect(login))
     }
     const requestHeaders = new Headers(request.headers)

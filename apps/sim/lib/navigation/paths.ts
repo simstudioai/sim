@@ -12,6 +12,11 @@
  */
 export const APP_ENTRY_PATH = '/home'
 
+/** Login, returning to `callbackUrl` (a same-origin path and query) once the viewer signs in. */
+export function loginHref(callbackUrl: string): string {
+  return `/login?${new URLSearchParams({ callbackUrl })}`
+}
+
 /** Keeps the landing page visible even when the viewer is signed in. */
 export const LANDING_HREF = '/?home'
 
