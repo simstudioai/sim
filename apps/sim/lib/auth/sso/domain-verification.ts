@@ -1,8 +1,10 @@
 import { Resolver } from 'node:dns/promises'
+import { isIP } from 'node:net'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import type { OrganizationDomain } from '@/lib/api/contracts/organization'
+import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('SSODomainVerification')
 
@@ -54,7 +56,24 @@ const TXT_VALUE_PREFIX = 'sim-domain-verification='
 
 /** Public nameservers used for the challenge lookup, so verification does not
  * depend on (or get poisoned by) the host's local resolver/split-horizon DNS. */
-const VERIFICATION_NAMESERVERS = ['1.1.1.1', '8.8.8.8']
+const DEFAULT_VERIFICATION_NAMESERVERS = ['1.1.1.1', '8.8.8.8']
+
+/**
+ * `DOMAIN_VERIFICATION_NAMESERVERS` replaces the public resolvers for deployments whose
+ * outbound DNS only reaches an internal resolver. An entry that is not an IP address is
+ * skipped rather than failing every verification.
+ */
+function resolveVerificationNameservers(): string[] {
+  const configured = (env.DOMAIN_VERIFICATION_NAMESERVERS ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+  const usable = configured.filter((entry) => isIP(entry) !== 0)
+  if (usable.length < configured.length) {
+    logger.error('Ignoring DOMAIN_VERIFICATION_NAMESERVERS entries that are not IP addresses')
+  }
+  return usable.length > 0 ? usable : DEFAULT_VERIFICATION_NAMESERVERS
+}
 
 /**
  * Per-attempt timeout. c-ares multiplies this across servers and retries by
@@ -74,12 +93,12 @@ const DNS_TIMEOUT_MS = 2000
 const RECORD_ABSENT_DNS_CODES = new Set(['ENODATA', 'ENOTFOUND', 'NXDOMAIN'])
 
 /**
- * Shared resolver pinned to the public nameservers. Its config is fully static
+ * Shared resolver pinned to the verification nameservers. Its config is fully static
  * and `resolveTxt` is safe to call concurrently, so a single module-scope
  * instance avoids re-allocating one per verification.
  */
 const verificationResolver = new Resolver({ timeout: DNS_TIMEOUT_MS, tries: 1 })
-verificationResolver.setServers(VERIFICATION_NAMESERVERS)
+verificationResolver.setServers(resolveVerificationNameservers())
 
 /** The fully-qualified host an org must create the TXT record on. */
 export function buildChallengeHost(domain: string): string {

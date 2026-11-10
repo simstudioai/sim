@@ -16,6 +16,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { getAwsCredentials } from '@/lib/core/config/aws'
+import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 import { validateAwsRegion } from '@/lib/core/security/input-validation'
 import type { IterationToolCall, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -165,6 +166,7 @@ export const bedrockProvider: ProviderConfig = {
         request.bedrockAccessKeyId && request.bedrockSecretKey
           ? { accessKeyId: request.bedrockAccessKeyId, secretAccessKey: request.bedrockSecretKey }
           : getAwsCredentials(),
+      requestHandler: awsRequestHandler(),
     }
 
     // Key on the full credential (access key id + secret) so a corrected secret
