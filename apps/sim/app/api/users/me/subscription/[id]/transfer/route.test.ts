@@ -69,6 +69,7 @@ describe('POST /api/users/me/subscription/[id]/transfer', () => {
   })
 
   it('rejects transfers for non-organization subscriptions', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ role: 'owner' }])
     dbChainMockFns.for.mockResolvedValueOnce([
       { id: 'sub-1', referenceId: 'user-1', plan: 'pro', status: 'active' },
     ])

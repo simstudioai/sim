@@ -26,6 +26,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
 import { getOrganizationBillingSummary } from '@/lib/billing/application/organization-billing/get-organization-billing-summary'
+import { transferSubscriptionToOrganization } from '@/lib/billing/application/subscription-transfer'
 import {
   assertBillingAttributionSnapshot,
   resolveOrganizationBillingAttribution,
@@ -39,6 +40,7 @@ import {
   removeUserFromOrganization,
 } from '@/lib/billing/organizations/membership'
 import { resolveStorageBillingContext } from '@/lib/billing/storage/context'
+import { OrganizationMembershipNotFoundError } from '@/lib/core/application/organization-authorization'
 import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
 import { deletePersonalOrganizationOfRemovedUser } from '@/lib/organizations/deletion'
 import { provisionPersonalOrganization } from '@/lib/organizations/provision-personal'
@@ -966,6 +968,28 @@ describe('forking a workspace in a personal organization', () => {
 })
 
 describe('billing settings of a personal organization', () => {
+  it('refuses an outsider a subscription transfer without saying the organization is personal', async () => {
+    const ownerId = await createUser()
+    const outsiderId = await createUser()
+    const provisioned = await provisionPersonalOrganization(ownerId)
+    if (provisioned.status !== 'provisioned') throw new Error('expected provisioning')
+    const teamSubscriptionId = generateId()
+    await db.insert(subscription).values({
+      id: teamSubscriptionId,
+      plan: 'team',
+      referenceId: outsiderId,
+      status: 'active',
+      seats: 5,
+    })
+
+    await expect(
+      transferSubscriptionToOrganization.execute({
+        principal: createSessionPrincipal({ userId: outsiderId }),
+        input: { subscriptionId: teamSubscriptionId, organizationId: provisioned.organizationId },
+      })
+    ).rejects.toBeInstanceOf(OrganizationMembershipNotFoundError)
+  })
+
   it('reads the owner’s own subscription, usage limit and upgrade workspace', async () => {
     const ownerId = await createUser()
     const workspaceId = await createLegacyPersonalWorkspace(ownerId, 'Billed personally')
