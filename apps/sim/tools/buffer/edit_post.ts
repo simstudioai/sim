@@ -5,6 +5,7 @@ import {
   bufferStringList,
   POST_OUTPUT_PROPERTIES,
 } from '@/tools/buffer/types'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const bufferEditPostTool: InternalToolConfig<BufferEditPostParams, BufferPostResponse> = {
@@ -13,6 +14,7 @@ export const bufferEditPostTool: InternalToolConfig<BufferEditPostParams, Buffer
   description:
     'Edit an existing Buffer post — update its text, schedule, or media. Attaching new media replaces the existing attachments',
   version: '1.0.0',
+  oauth: BUFFER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

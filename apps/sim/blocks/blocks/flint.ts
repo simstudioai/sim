@@ -1,6 +1,7 @@
 import { FlintIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 /**
  * Coerces the publish switch value to an explicit boolean, preserving an
@@ -15,6 +16,8 @@ function coercePublish(value: unknown): boolean | undefined {
 
 export const FlintBlock: BlockConfig = {
   type: 'flint',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'flint_v2' },
   name: 'Flint',
   description: 'Run background agent tasks on your Flint sites',
   longDescription:
@@ -321,3 +324,17 @@ export const FlintBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const FlintV2Block: BlockConfig = {
+  ...FlintBlock,
+  type: 'flint_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(FlintBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'flint',
+    title: 'Flint Credential',
+  }),
+}

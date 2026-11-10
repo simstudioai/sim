@@ -1,4 +1,5 @@
 import type { RdsDeleteParams, RdsDeleteResponse } from '@/tools/rds/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const deleteTool: InternalToolConfig<RdsDeleteParams, RdsDeleteResponse> = {
@@ -6,6 +7,7 @@ export const deleteTool: InternalToolConfig<RdsDeleteParams, RdsDeleteResponse> 
   name: 'RDS Delete',
   description: 'Delete data from an Amazon RDS table using the Data API',
   version: '1.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

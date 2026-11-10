@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TailscaleSetUserRoleParams,
   TailscaleSetUserRoleResponse,
@@ -14,6 +15,7 @@ export const tailscaleSetUserRoleTool: ToolConfig<
   name: 'Tailscale Set User Role',
   description: 'Change a tailnet user’s role',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TextractAnalyzeIdOutput, TextractAnalyzeIdV2Input } from '@/tools/textract/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -13,6 +14,7 @@ export const textractAnalyzeIdTool: InternalToolConfig<
   name: 'AWS Textract Analyze ID',
   description: 'Extract identity document fields using AWS Textract AnalyzeID',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     accessKeyId: {

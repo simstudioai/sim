@@ -323,6 +323,12 @@ export async function createCredentialRecord(
           fingerprint: params.fingerprint,
           privateKeyPassphrase: params.privateKeyPassphrase,
           region: params.region,
+          owner: {
+            ...(scope.kind === 'workspace'
+              ? { workspaceId: scope.workspaceId }
+              : { organizationId: scope.organizationId }),
+            actorUserId: userId,
+          },
         })
         resolvedProviderId = secret.providerId
         resolvedAccountId = null

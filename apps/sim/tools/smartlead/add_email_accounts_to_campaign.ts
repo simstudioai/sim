@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SmartleadActionResponse, SmartleadCampaignIdParams } from '@/tools/smartlead/types'
 import {
   actionOutputs,
@@ -25,6 +26,7 @@ export const addEmailAccountsToCampaignTool: ToolConfig<
   description:
     'Attaches sending email accounts to a Smartlead campaign. A campaign needs at least one attached account before it can start.',
   version: '1.0.0',
+  oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,

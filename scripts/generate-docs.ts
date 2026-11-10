@@ -771,19 +771,26 @@ function biomeSortCompare(a: string, b: string): number {
   return a.length - b.length
 }
 
+/**
+ * Adds a bare-name alias for each versioned block type (`github_v2` → `github`)
+ * so lookups by base type resolve: trigger provider names on the docs side, and
+ * template icon clusters (`otherBlockTypes` are base types) in the app.
+ */
+function withBareNameAliases(iconMapping: Record<string, IconRef>): Record<string, IconRef> {
+  const withAliases: Record<string, IconRef> = { ...iconMapping }
+  for (const [blockType, iconRef] of Object.entries(iconMapping)) {
+    const baseType = stripVersionSuffix(blockType)
+    if (baseType !== blockType && !withAliases[baseType]) {
+      withAliases[baseType] = iconRef
+    }
+  }
+  return withAliases
+}
+
 function writeIconMapping(iconMapping: Record<string, IconRef>, coreBlockTypes: string[]): void {
   try {
     const iconMappingPath = path.join(rootDir, 'apps/docs/components/ui/icon-mapping.ts')
-
-    // Add bare-name aliases for versioned block types so trigger provider names resolve correctly.
-    // e.g. github_v2 → github, fireflies_v2 → fireflies, gmail_v2 → gmail
-    const withAliases: Record<string, IconRef> = { ...iconMapping }
-    for (const [blockType, iconRef] of Object.entries(iconMapping)) {
-      const baseType = stripVersionSuffix(blockType)
-      if (baseType !== blockType && !withAliases[baseType]) {
-        withAliases[baseType] = iconRef
-      }
-    }
+    const withAliases = withBareNameAliases(iconMapping)
 
     const imports = renderIconImports(Object.values(withAliases))
     const coreTypeEntries = coreBlockTypes.map((type) => `  '${type}',`).join('\n')
@@ -1051,6 +1058,15 @@ function findMapperBodyRanges(scannable: string): [number, number][] {
       if (argsEnd === -1) continue
 
       const afterArgs = scannable.slice(argsEnd, configEnd)
+      // An expression body that delegates to a builder: `(params) => buildParams(params)`.
+      const callMatch = /^\s*=>\s*[A-Za-z_$][\w$]*\s*\(/.exec(afterArgs)
+      if (callMatch) {
+        const callOpen = argsEnd + callMatch[0].length - 1
+        const callEnd = findMatchingClose(scannable, callOpen, '(', ')')
+        if (callEnd === -1) continue
+        ranges.push([argsEnd + callMatch[0].search(/[A-Za-z_$]/), callEnd])
+        break
+      }
       const bodyMatch = /^\s*(?::[^=({]*)?(?:=>\s*)?([({])/.exec(afterArgs)
       if (!bodyMatch) continue
       const open = bodyMatch[1] as '(' | '{'
@@ -1138,51 +1154,95 @@ function collectShorthandPropertyNames(body: string, into: Set<string>): void {
  * Scanning runs on the blanked copy, so a commented-out or string-embedded mapper cannot
  * contribute names.
  */
-export function extractMapperWrittenParamIds(blockContent: string): string[] {
+export function extractMapperWrittenParamIds(blockContent: string, fileContent?: string): string[] {
   const scannable = blankStringsAndComments(blockContent)
   if (scannable === null) return []
   const ids = new Set<string>()
 
   for (const [start, end] of findMapperBodyRanges(scannable)) {
-    const body = scannable.slice(start, end)
-
-    const assignmentRegex = /(?:^|[^.\w$])[A-Za-z_$][\w$]*\.([A-Za-z_$][\w$]*)\s*=(?!=)/g
-    let match: RegExpExecArray | null
-    while ((match = assignmentRegex.exec(body)) !== null) ids.add(match[1])
-
-    const keyRegex = /(?:^|[^?.\w$])([A-Za-z_$][\w$]*)\s*:/g
-    while ((match = keyRegex.exec(body)) !== null) ids.add(match[1])
-
-    /**
-     * Quoted keys survive blanking only as their delimiters, so the name is read back from
-     * the original content at the same index — `blankStringsAndComments` is length-preserving.
-     */
-    const quotedKeyRegex = /(['"])[^'"\n]*\1\s*:/g
-    while ((match = quotedKeyRegex.exec(body)) !== null) {
-      const keyStart = start + match.index
-      const original = blockContent.slice(keyStart, keyStart + match[0].length)
-      const name = /(['"])([A-Za-z_$][\w$]*)\1/.exec(original)?.[2]
-      if (name) ids.add(name)
-    }
-
-    /**
-     * A computed write (`result['file'] = …`) supplies a param exactly as `result.file = …`
-     * does. Like the quoted keys above, the name only survives blanking as its delimiters and
-     * is read back from the original content at the matched index.
-     */
-    const bracketAssignmentRegex =
-      /(?:^|[^.\w$])[A-Za-z_$][\w$]*\s*\[\s*(['"])[^'"\n]*\1\s*\]\s*=(?!=)/g
-    while ((match = bracketAssignmentRegex.exec(body)) !== null) {
-      const matchStart = start + match.index
-      const original = blockContent.slice(matchStart, matchStart + match[0].length)
-      const name = /\[\s*(['"])([A-Za-z_$][\w$]*)\1\s*\]/.exec(original)?.[2]
-      if (name) ids.add(name)
-    }
-
-    collectShorthandPropertyNames(body, ids)
+    collectWrittenParamIds(blockContent, scannable, start, end, ids)
+    if (fileContent) collectDelegatedParamIds(scannable.slice(start, end), fileContent, ids)
   }
 
   return [...ids]
+}
+
+/**
+ * A mapper that delegates to a builder declared in the same file
+ * (`params: (params) => s3ToolParams(params)`) writes whatever that builder
+ * writes, so the builder's body is scanned too. One level deep, which is as far
+ * as the delegation pattern goes.
+ */
+function collectDelegatedParamIds(mapperBody: string, fileContent: string, ids: Set<string>) {
+  const scannableFile = blankStringsAndComments(fileContent)
+  if (scannableFile === null) return
+  const calleeRegex = /(?:^|[^.\w$])([A-Za-z_$][\w$]*)\s*\(/g
+  const callees = new Set<string>()
+  let match: RegExpExecArray | null
+  while ((match = calleeRegex.exec(mapperBody)) !== null) callees.add(match[1])
+
+  for (const callee of callees) {
+    const declaration = new RegExp(`\\bfunction\\s+${callee}\\s*\\(`).exec(scannableFile)
+    if (!declaration) continue
+    const argsEnd = findMatchingClose(
+      scannableFile,
+      declaration.index + declaration[0].length - 1,
+      '(',
+      ')'
+    )
+    if (argsEnd === -1) continue
+    const bodyStart = scannableFile.indexOf('{', argsEnd)
+    if (bodyStart === -1) continue
+    const bodyEnd = findMatchingClose(scannableFile, bodyStart)
+    if (bodyEnd === -1) continue
+    collectWrittenParamIds(fileContent, scannableFile, bodyStart, bodyEnd, ids)
+  }
+}
+
+/** Adds the param names one mapper body writes, read from its blanked copy. */
+function collectWrittenParamIds(
+  original: string,
+  scannable: string,
+  start: number,
+  end: number,
+  ids: Set<string>
+) {
+  const body = scannable.slice(start, end)
+
+  const assignmentRegex = /(?:^|[^.\w$])[A-Za-z_$][\w$]*\.([A-Za-z_$][\w$]*)\s*=(?!=)/g
+  let match: RegExpExecArray | null
+  while ((match = assignmentRegex.exec(body)) !== null) ids.add(match[1])
+
+  const keyRegex = /(?:^|[^?.\w$])([A-Za-z_$][\w$]*)\s*:/g
+  while ((match = keyRegex.exec(body)) !== null) ids.add(match[1])
+
+  /**
+   * Quoted keys survive blanking only as their delimiters, so the name is read back from
+   * the original content at the same index — `blankStringsAndComments` is length-preserving.
+   */
+  const quotedKeyRegex = /(['"])[^'"\n]*\1\s*:/g
+  while ((match = quotedKeyRegex.exec(body)) !== null) {
+    const keyStart = start + match.index
+    const text = original.slice(keyStart, keyStart + match[0].length)
+    const name = /(['"])([A-Za-z_$][\w$]*)\1/.exec(text)?.[2]
+    if (name) ids.add(name)
+  }
+
+  /**
+   * A computed write (`result['file'] = …`) supplies a param exactly as `result.file = …`
+   * does. Like the quoted keys above, the name only survives blanking as its delimiters and
+   * is read back from the original content at the matched index.
+   */
+  const bracketAssignmentRegex =
+    /(?:^|[^.\w$])[A-Za-z_$][\w$]*\s*\[\s*(['"])[^'"\n]*\1\s*\]\s*=(?!=)/g
+  while ((match = bracketAssignmentRegex.exec(body)) !== null) {
+    const matchStart = start + match.index
+    const text = original.slice(matchStart, matchStart + match[0].length)
+    const name = /\[\s*(['"])([A-Za-z_$][\w$]*)\1\s*\]/.exec(text)?.[2]
+    if (name) ids.add(name)
+  }
+
+  collectShorthandPropertyNames(body, ids)
 }
 
 /** What {@link extractBlockSuppliedParamIds} could and could not read off a block. */
@@ -1218,7 +1278,8 @@ export interface BlockSuppliedParams {
  */
 export function extractBlockSuppliedParamIds(
   blockContent: string,
-  blockName = 'block'
+  blockName = 'block',
+  fileContent?: string
 ): BlockSuppliedParams {
   /**
    * A source the blanking scanner cannot get through — it ends inside an unterminated string,
@@ -1235,7 +1296,7 @@ export function extractBlockSuppliedParamIds(
     }
   }
 
-  const mapperIds = extractMapperWrittenParamIds(blockContent)
+  const mapperIds = extractMapperWrittenParamIds(blockContent, fileContent)
 
   try {
     const settableIds = extractUserSettableParamIds(blockContent, blockName)
@@ -1917,12 +1978,11 @@ async function buildTriggerRegistry(): Promise<Map<string, TriggerInfo>> {
  * Write the icon mapping TypeScript file for the shared integrations data
  * directory (`apps/sim/lib/integrations`). Mirrors `writeIconMapping` (the
  * docs-app variant) but targets the sim app so it imports from
- * `@/components/icons`. Unlike the docs variant, no bare-name aliasing is
- * applied because consumers always look up by the canonical (possibly
- * versioned) `integration.type` emitted into `integrations.json`.
+ * `@/components/icons`.
  */
-function writeIntegrationsIconMapping(iconMapping: Record<string, IconRef>): void {
+function writeIntegrationsIconMapping(rawIconMapping: Record<string, IconRef>): void {
   try {
+    const iconMapping = withBareNameAliases(rawIconMapping)
     if (!fs.existsSync(INTEGRATIONS_DATA_PATH)) {
       fs.mkdirSync(INTEGRATIONS_DATA_PATH, { recursive: true })
     }
@@ -2354,7 +2414,8 @@ function extractBlockConfigFromContent(
       if (declaration) {
         baseConfig = extractBlockConfigFromContent(
           declaration.content,
-          spreadBase.replace(/Block$/, '')
+          spreadBase.replace(/Block$/, ''),
+          fileContent
         )
       }
     }
@@ -2383,7 +2444,10 @@ function extractBlockConfigFromContent(
     const iconName = extractIconNameFromContent(blockContent) || (baseConfig as any)?.iconName || ''
 
     const ownOutputs = extractOutputsFromContent(blockContent)
-    const inheritsOutputs = /\boutputs\s*:\s*\{\s*\.\.\.\w+Block\.outputs\b/.test(blockContent)
+    // A spread-inheriting block with no outputs of its own (`{ ...XBlock, type }`) keeps the base's.
+    const inheritsOutputs =
+      /\boutputs\s*:\s*\{\s*\.\.\.\w+Block\.outputs\b/.test(blockContent) ||
+      (spreadBase !== null && !/\boutputs\s*:/.test(blockContent))
     const omittedOutputs = extractOmittedOutputs(blockContent, baseConfig?.outputs)
     const outputs = omittedOutputs
       ? { ...omittedOutputs, ...ownOutputs }
@@ -2426,7 +2490,7 @@ function extractBlockConfigFromContent(
           ? baseOperations
           : extractSpreadSubBlocksOperations(blockContent, fileContent)
     const triggerIds = extractTriggersAvailable(blockContent, fileContent)
-    const supplied = extractBlockSuppliedParamIds(blockContent, blockName)
+    const supplied = extractBlockSuppliedParamIds(blockContent, blockName, fileContent)
     /**
      * `null` on the base means the base's own scan failed, which is not the same as a block
      * with no base at all (`undefined`) — the fields the base contributes are unknown, so
@@ -2495,12 +2559,11 @@ function extractBlockConfigFromContent(
       null
     // Tags live on the block's `<BlockName>BlockMeta` export. For spread-inheriting
     // blocks (e.g. `ConfluenceV2Block` extending `ConfluenceBlock`), also try the
-    // spread base's meta so V2 variants inherit tags.
+    // spread base's tags (its own meta, or its base's) so V2+ variants inherit them.
     const tags =
       (fileContent ? extractTagsFromBlockMeta(fileContent, blockName) : null) ||
-      (fileContent && spreadBase
-        ? extractTagsFromBlockMeta(fileContent, spreadBase.replace(/Block$/, ''))
-        : null)
+      baseConfig?.tags ||
+      null
 
     return {
       type: blockType,
@@ -4208,7 +4271,9 @@ function hasWrappedToolBase(toolName: string, content: string): boolean {
 
 export async function getToolInfo(
   toolName: string,
-  userSettableParamIds: readonly string[] | null = null
+  userSettableParamIds: readonly string[] | null = null,
+  /** The block signs in with a saved credential, so params that credential supplies are not inputs. */
+  credentialOnly = false
 ): Promise<{
   description: string
   params: Array<{ name: string; type: string; required: boolean; description: string }>
@@ -4362,8 +4427,11 @@ export async function getToolInfo(
      * authoritative form of the check; the source-side filter remains for tools with no metadata
      * entry. A null set means the block's subBlocks could not be read, so nothing is filtered.
      */
+    const credentialSupplied = new Set(
+      credentialOnly ? (metadata.oauth?.credentialSuppliedParams ?? []) : []
+    )
     const params = Object.entries(metadata.params ?? {})
-      .filter(([name]) => name !== 'accessToken')
+      .filter(([name]) => name !== 'accessToken' && !credentialSupplied.has(name))
       .filter(
         ([name, param]) =>
           userSettableParamIdSet === null ||
@@ -4593,7 +4661,7 @@ async function generateMarkdownForBlock(
       toolsSection += `${actionHeading} ${heading ?? stripVersionSuffix(tool)}\n\n`
 
       console.log(`Getting info for tool: ${tool}`)
-      const toolInfo = await getToolInfo(tool, userSettableParamIds)
+      const toolInfo = await getToolInfo(tool, userSettableParamIds, Boolean(oauthCredential))
 
       if (toolInfo) {
         if (toolInfo.description && toolInfo.description !== 'No description available') {

@@ -6,6 +6,7 @@ import {
   buildBrexHeaders,
   parseBrexJson,
 } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brexListUsersTool: ToolConfig<BrexListUsersParams, BrexListUsersResponse> = {
@@ -13,6 +14,7 @@ export const brexListUsersTool: ToolConfig<BrexListUsersParams, BrexListUsersRes
   name: 'Brex List Users',
   description: 'List users in the Brex account, optionally filtered by email',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

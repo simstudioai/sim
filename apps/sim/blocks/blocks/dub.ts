@@ -2,6 +2,7 @@ import { omit } from '@sim/utils/object'
 import { DubIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 const GET_LINK_FIELD = ['linkId', 'getLinkExternalId', 'getLinkKey'] as const
 const BULK_UPDATE_TARGET_FIELD = ['bulkUpdateLinkIds', 'bulkUpdateExternalIds'] as const
@@ -12,7 +13,7 @@ export const DubBlock = {
   type: 'dub',
   name: 'Dub (Legacy)',
   hideFromToolbar: true,
-  sunset: { status: 'legacy', replacedBy: 'dub_v2' },
+  sunset: { status: 'legacy', replacedBy: 'dub_v3' },
   description: 'Link management with Dub',
   authMode: AuthMode.ApiKey,
   longDescription:
@@ -1285,8 +1286,8 @@ export const DubV2Block: BlockConfig = {
   ...DubBlock,
   type: 'dub_v2',
   name: 'Dub',
-  hideFromToolbar: false,
-  sunset: undefined,
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'dub_v3' },
   tools: {
     ...DubBlock.tools,
     access: DubBlock.tools.access.map((toolId) =>
@@ -1406,3 +1407,17 @@ export const DubBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const DubV3Block: BlockConfig = {
+  ...DubV2Block,
+  type: 'dub_v3',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(DubV2Block, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'dub',
+    title: 'Dub Credential',
+  }),
+}

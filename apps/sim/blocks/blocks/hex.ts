@@ -1,9 +1,12 @@
 import { HexIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const HexBlock: BlockConfig = {
   type: 'hex',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'hex_v2' },
   name: 'Hex',
   description: 'Run and manage Hex projects',
   longDescription:
@@ -932,3 +935,19 @@ export const HexBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const HexV2Block: BlockConfig = {
+  ...HexBlock,
+  type: 'hex_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Run projects, check run status, manage collections and groups (including membership and deactivating users), list users, and view data connections.',
+  ...withSavedCredential(HexBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'hex',
+    title: 'Hex Credential',
+  }),
+}

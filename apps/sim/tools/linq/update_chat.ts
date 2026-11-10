@@ -1,5 +1,6 @@
 import type { LinqUpdateChatParams, LinqUpdateChatResult } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const linqUpdateChatTool: ToolConfig<LinqUpdateChatParams, LinqUpdateChatResult> = {
@@ -7,6 +8,7 @@ export const linqUpdateChatTool: ToolConfig<LinqUpdateChatParams, LinqUpdateChat
   name: 'Update Chat',
   description: 'Update chat properties such as group display name and icon',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

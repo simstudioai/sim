@@ -1,5 +1,6 @@
 import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
 import type { SendMailParams, SendMailResult } from '@/tools/sendgrid/types'
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const sendGridSendMailTool: InternalToolConfig<SendMailParams, SendMailResult> = {
@@ -7,6 +8,7 @@ export const sendGridSendMailTool: InternalToolConfig<SendMailParams, SendMailRe
   name: 'SendGrid Send Mail',
   description: 'Send an email using SendGrid API',
   version: '1.0.0',
+  oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

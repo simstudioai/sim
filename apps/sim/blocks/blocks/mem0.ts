@@ -1,10 +1,93 @@
 import { toError } from '@sim/utils/errors'
 import { Mem0Icon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { parseMem0Messages } from '@/tools/mem0/utils'
+
+function mem0ToolParams(params: Record<string, any>, requireApiKey: boolean) {
+  const errors: string[] = []
+  const operation = params.operation || 'add'
+
+  if (requireApiKey && !params.apiKey) {
+    errors.push('API Key is required')
+  }
+
+  if (operation === 'search') {
+    if (!params.query || params.query.trim() === '') {
+      errors.push('Search Query is required')
+    }
+
+    if (!params.userId) {
+      errors.push('User ID is required')
+    }
+  }
+
+  if (operation === 'add') {
+    if (!params.userId) {
+      errors.push('User ID is required')
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(`Mem0 Block Error: ${errors.join(', ')}`)
+  }
+
+  const result: Record<string, any> = {
+    apiKey: params.apiKey,
+  }
+
+  if (params.userId) result.userId = params.userId
+
+  if (params.limit) result.limit = Number(params.limit)
+
+  switch (operation) {
+    case 'add':
+      try {
+        result.messages = parseMem0Messages(params.messages)
+      } catch (error) {
+        throw new Error(`Mem0 Block Error: ${toError(error).message}`)
+      }
+      break
+    case 'search':
+      if (params.query) {
+        result.query = params.query
+
+        if (!params.userId) {
+          errors.push('Search requires a User ID')
+          throw new Error('Mem0 Block Error: Search requires a User ID')
+        }
+      } else {
+        errors.push('Search requires a query parameter')
+        throw new Error('Mem0 Block Error: Search requires a query parameter')
+      }
+
+      break
+    case 'get':
+      if (params.memoryId) {
+        result.memoryId = params.memoryId
+      }
+
+      if (params.page) {
+        result.page = Number(params.page)
+      }
+
+      if (params.startDate) {
+        result.startDate = params.startDate
+      }
+
+      if (params.endDate) {
+        result.endDate = params.endDate
+      }
+      break
+  }
+
+  return result
+}
 
 export const Mem0Block: BlockConfig = {
   type: 'mem0',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'mem0_v2' },
   name: 'Mem0',
   description: 'Agent memory management',
   authMode: AuthMode.ApiKey,
@@ -186,85 +269,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return 'mem0_add_memories'
         }
       },
-      params: (params: Record<string, any>) => {
-        const errors: string[] = []
-        const operation = params.operation || 'add'
-
-        if (!params.apiKey) {
-          errors.push('API Key is required')
-        }
-
-        if (operation === 'search') {
-          if (!params.query || params.query.trim() === '') {
-            errors.push('Search Query is required')
-          }
-
-          if (!params.userId) {
-            errors.push('User ID is required')
-          }
-        }
-
-        if (operation === 'add') {
-          if (!params.userId) {
-            errors.push('User ID is required')
-          }
-        }
-
-        if (errors.length > 0) {
-          throw new Error(`Mem0 Block Error: ${errors.join(', ')}`)
-        }
-
-        const result: Record<string, any> = {
-          apiKey: params.apiKey,
-        }
-
-        if (params.userId) result.userId = params.userId
-
-        if (params.limit) result.limit = Number(params.limit)
-
-        switch (operation) {
-          case 'add':
-            try {
-              result.messages = parseMem0Messages(params.messages)
-            } catch (error) {
-              throw new Error(`Mem0 Block Error: ${toError(error).message}`)
-            }
-            break
-          case 'search':
-            if (params.query) {
-              result.query = params.query
-
-              if (!params.userId) {
-                errors.push('Search requires a User ID')
-                throw new Error('Mem0 Block Error: Search requires a User ID')
-              }
-            } else {
-              errors.push('Search requires a query parameter')
-              throw new Error('Mem0 Block Error: Search requires a query parameter')
-            }
-
-            break
-          case 'get':
-            if (params.memoryId) {
-              result.memoryId = params.memoryId
-            }
-
-            if (params.page) {
-              result.page = Number(params.page)
-            }
-
-            if (params.startDate) {
-              result.startDate = params.startDate
-            }
-
-            if (params.endDate) {
-              result.endDate = params.endDate
-            }
-            break
-        }
-
-        return result
-      },
+      params: (params) => mem0ToolParams(params, true),
     },
   },
   inputs: {
@@ -388,3 +393,16 @@ export const Mem0BlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const Mem0V2Block: BlockConfig = {
+  ...Mem0Block,
+  type: 'mem0_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    Mem0Block,
+    { id: 'credential', type: 'oauth-input', serviceId: 'mem0', title: 'Mem0 Credential' },
+    { params: (params) => mem0ToolParams(params, false) }
+  ),
+}

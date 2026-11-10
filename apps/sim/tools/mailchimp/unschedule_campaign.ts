@@ -1,4 +1,5 @@
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface MailchimpUnscheduleCampaignParams {
@@ -21,6 +22,7 @@ export const mailchimpUnscheduleCampaignTool: ToolConfig<
   name: 'Unschedule Campaign in Mailchimp',
   description: 'Unschedule a previously scheduled Mailchimp campaign',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

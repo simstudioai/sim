@@ -3,6 +3,7 @@ import type {
   LaunchDarklyListEnvironmentsResponse,
 } from '@/tools/launchdarkly/types'
 import { ENVIRONMENT_OUTPUT_PROPERTIES } from '@/tools/launchdarkly/types'
+import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const launchDarklyListEnvironmentsTool: ToolConfig<
@@ -13,6 +14,7 @@ export const launchDarklyListEnvironmentsTool: ToolConfig<
   name: 'LaunchDarkly List Environments',
   description: 'List environments in a LaunchDarkly project.',
   version: '1.0.0',
+  oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

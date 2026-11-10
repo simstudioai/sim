@@ -2,7 +2,7 @@
 title: AWS Systems Manager
 description: Run commands, manage parameters, and audit managed nodes
 integration:
-  type: "ssm"
+  type: "ssm_v2"
   color: "#E7157B"
 ---
 
@@ -10,7 +10,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [AWS Systems Manager](https://aws.amazon.com/systems-manager/) to run commands on managed nodes, read and write Parameter Store values, inspect inventory and compliance, and manage Automation runbooks.
+Use [AWS Systems Manager](https://aws.amazon.com/systems-manager/) to run commands on managed nodes, read and write Parameter Store values, inspect inventory and compliance, and manage Automation runbooks. Connect with a saved [AWS credential](/integrations/aws-credentials).
 
 The following notes explain how secret values appear in workflow inputs, outputs, and run logs.
 
@@ -40,8 +40,6 @@ Run an SSM document on managed nodes with AWS Systems Manager Run Command
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `documentName` | string | Yes | Name of the SSM document to run \(e.g., AWS-RunShellScript\) |
 | `instanceIds` | json | No | Managed node IDs to target, as an array of strings \(e.g., \["i-0123456789abcdef0"\]\). Provide instanceIds or targets |
 | `targets` | json | No | Tag or resource-group targets, as an array of \{Key, Values\} objects. Provide instanceIds or targets |
@@ -94,8 +92,6 @@ List Run Command executions in an AWS account
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `commandId` | string | No | Return only the command with this ID |
 | `instanceId` | string | No | Return only commands sent to this managed node |
 | `filters` | json | No | Filters, as an array of \{key, value\} objects. Valid keys: InvokedAfter, InvokedBefore, Status, ExecutionStage, DocumentName |
@@ -123,8 +119,6 @@ List the per-node invocations of Run Command executions
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `commandId` | string | No | Return only invocations of this command |
 | `instanceId` | string | No | Return only invocations on this managed node |
 | `filters` | json | No | Filters, as an array of \{key, value\} objects. Valid keys: InvokedAfter, InvokedBefore, Status, DocumentName |
@@ -153,8 +147,6 @@ Read the output and status of a Run Command execution on one managed node
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `commandId` | string | Yes | ID of the command, as returned by ssm_send_command |
 | `instanceId` | string | Yes | Managed node the command ran on \(e.g., i-0123456789abcdef0\) |
 | `pluginName` | string | No | Name of the document plugin to read output for; required for documents with more than one plugin |
@@ -193,8 +185,6 @@ Cancel an in-flight Run Command execution
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `commandId` | string | Yes | ID of the command to cancel, as returned by ssm_send_command |
 | `instanceIds` | array | No | Managed node IDs to cancel on \(e.g., \["i-0123456789abcdef0"\]\); omit to cancel on every targeted node |
 
@@ -218,8 +208,6 @@ Read one parameter from AWS Systems Manager Parameter Store
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `name` | string | Yes | Name of the parameter, optionally with a :version or :label suffix |
 | `withDecryption` | boolean | No | Return the decrypted value of a SecureString parameter; ignored for String and StringList parameters |
 
@@ -250,8 +238,6 @@ Read up to ten parameters from AWS Systems Manager Parameter Store by name
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `names` | json | Yes | Parameter names to read, as an array of at most 10 strings |
 | `withDecryption` | boolean | No | Return decrypted values for SecureString parameters; ignored for String and StringList parameters |
 
@@ -276,8 +262,6 @@ Read parameters under a Parameter Store hierarchy path
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `path` | string | Yes | Hierarchy path to read, starting with a slash \(e.g., /prod/app\) |
 | `recursive` | boolean | No | Include parameters in nested paths below the given path |
 | `withDecryption` | boolean | No | Return decrypted values for SecureString parameters; ignored for String and StringList parameters |
@@ -306,8 +290,6 @@ Create or update a parameter in AWS Systems Manager Parameter Store
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `name` | string | Yes | Name of the parameter, optionally using a slash-separated hierarchy |
 | `value` | string | Yes | Value to store |
 | `type` | string | No | Parameter type \(String, StringList, or SecureString\); required when creating a new parameter |
@@ -341,8 +323,6 @@ Delete a parameter from AWS Systems Manager Parameter Store
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `name` | string | Yes | Name of the parameter to delete |
 
 #### Output
@@ -365,8 +345,6 @@ List Parameter Store parameter metadata without reading any values
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `parameterFilters` | json | No | Filters, as an array of \{Key, Option, Values\} objects. Valid keys: Name, Type, KeyId, Path, Tier, DataType, or tag:&lt;key&gt; |
 | `shared` | boolean | No | Return parameters shared with this account instead of parameters it owns |
 | `maxResults` | number | No | Maximum number of parameters to return \(1-50\) |
@@ -393,8 +371,6 @@ List managed nodes registered with AWS Systems Manager and their agent status
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `filters` | json | No | Filters, as an array of \{Key, Values\} objects. Valid keys: InstanceIds, AgentVersion, PingStatus, PlatformTypes, ActivationIds, IamRole, ResourceType, AssociationStatus, SourceIds, SourceTypes, tag-key, or tag:&lt;key&gt; |
 | `maxResults` | number | No | Maximum number of nodes to return \(5-50\) |
 | `nextToken` | string | No | Pagination token from a previous request |
@@ -420,8 +396,6 @@ List the patches reported for one managed node
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `instanceId` | string | Yes | Managed node to report patches for \(e.g., i-0123456789abcdef0\) |
 | `filters` | json | No | Filters, as an array of \{Key, Values\} objects. Valid keys: Classification, KBId, Severity, State |
 | `maxResults` | number | No | Maximum number of patches to return \(10-100\) |
@@ -448,8 +422,6 @@ Read patch compliance summaries for a set of managed nodes
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `instanceIds` | json | Yes | Managed node IDs to summarize, as an array of at most 50 strings |
 | `maxResults` | number | No | Maximum number of patch states to return \(10-100\) |
 | `nextToken` | string | No | Pagination token from a previous request |
@@ -475,8 +447,6 @@ List individual compliance findings reported to AWS Systems Manager
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `resourceIds` | json | No | Resource to report on, as an array holding a single managed node ID |
 | `resourceTypes` | json | No | Resource type to report on, as an array holding a single value; currently only ManagedInstance is supported |
 | `filters` | json | No | Filters, as an array of \{Key, Values, Type\} objects. Type is one of EQUAL, NOT_EQUAL, BEGIN_WITH, LESS_THAN, GREATER_THAN |
@@ -504,8 +474,6 @@ Read compliant and non-compliant counts per compliance type
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `filters` | json | No | Filters, as an array of \{Key, Values, Type\} objects. Type is one of EQUAL, NOT_EQUAL, BEGIN_WITH, LESS_THAN, GREATER_THAN |
 | `maxResults` | number | No | Maximum number of summaries to return \(1-50\) |
 | `nextToken` | string | No | Pagination token from a previous request |
@@ -531,8 +499,6 @@ Start an AWS Systems Manager Automation runbook execution
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `documentName` | string | Yes | Name of the Automation runbook to run \(e.g., AWS-RestartEC2Instance\) |
 | `documentVersion` | string | No | Runbook version to run \($LATEST, $DEFAULT, or a version number\) |
 | `parameters` | json | No | Runbook parameters, as an object mapping each parameter name to an array of string values |
@@ -562,8 +528,6 @@ List Automation runbook executions in an AWS account
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `filters` | json | No | Filters, as an array of \{Key, Values\} objects. Valid keys: DocumentNamePrefix, ExecutionStatus, ExecutionId, ParentExecutionId, CurrentAction, StartTimeBefore, StartTimeAfter, AutomationType, TagKey, TargetResourceGroup, AutomationSubtype, OpsItemId |
 | `maxResults` | number | No | Maximum number of executions to return \(1-50\) |
 | `nextToken` | string | No | Pagination token from a previous request |
@@ -589,8 +553,6 @@ Read the status, outputs, and step results of one Automation execution
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `automationExecutionId` | string | Yes | ID of the execution, as returned by ssm_start_automation_execution |
 
 #### Output
@@ -631,8 +593,6 @@ Stop a running AWS Systems Manager Automation execution
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `automationExecutionId` | string | Yes | ID of the execution to stop, as returned by ssm_start_automation_execution |
 | `stopType` | string | No | How to stop the execution: Cancel to stop it immediately, or Complete to let the current step finish |
 
@@ -656,8 +616,6 @@ List SSM documents and runbooks available to an AWS account
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `filters` | json | No | Filters, as an array of \{Key, Values\} objects. Valid keys: Name, Owner, DocumentType, PlatformTypes, TargetType, or tag:&lt;key&gt; |
 | `maxResults` | number | No | Maximum number of documents to return \(1-50\) |
 | `nextToken` | string | No | Pagination token from a previous request |
@@ -683,8 +641,6 @@ Read the content of an SSM document or Automation runbook
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `name` | string | Yes | Name of the document to read, as returned by ssm_list_documents |
 | `documentVersion` | string | No | Document version to read \($LATEST, $DEFAULT, or a version number\) |
 | `versionName` | string | No | User-defined version name to read |

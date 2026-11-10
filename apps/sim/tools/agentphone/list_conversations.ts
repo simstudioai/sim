@@ -3,6 +3,7 @@ import type {
   AgentPhoneListConversationsParams,
   AgentPhoneListConversationsResult,
 } from '@/tools/agentphone/types'
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentphoneListConversationsTool: ToolConfig<
@@ -13,6 +14,7 @@ export const agentphoneListConversationsTool: ToolConfig<
   name: 'List Conversations',
   description: 'List conversations (message threads) for this AgentPhone account',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

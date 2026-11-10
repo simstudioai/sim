@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SmartleadBaseParams, SmartleadLeadCategoriesResponse } from '@/tools/smartlead/types'
 import {
   leadCategoriesOutputs,
@@ -19,6 +20,7 @@ export const listLeadCategoriesTool: ToolConfig<
   description:
     'Retrieves the lead categories configured on the Smartlead account, with the category IDs needed to categorize a lead.',
   version: '1.0.0',
+  oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,

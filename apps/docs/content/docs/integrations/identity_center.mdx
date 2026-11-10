@@ -2,7 +2,7 @@
 title: AWS Identity Center
 description: Manage account access in AWS IAM Identity Center
 integration:
-  type: "identity_center"
+  type: "identity_center_v2"
   color: "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)"
 ---
 
@@ -10,7 +10,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [AWS IAM Identity Center](https://aws.amazon.com/iam/identity-center/) to assign or revoke permission sets for AWS accounts, resolve users and groups, and inspect account access.
+Use [AWS IAM Identity Center](https://aws.amazon.com/iam/identity-center/) to assign or revoke permission sets for AWS accounts, resolve users and groups, and inspect account access. Connect with a saved [AWS credential](/integrations/aws-credentials).
 
 The same operations support the reverse direction — access review. Starting from an account, an agent can list its assignments, resolve the principals, expand groups into their members, and produce a written report of exactly who can reach that account and through which permission set.
 
@@ -36,8 +36,6 @@ List all AWS IAM Identity Center instances in your account
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `maxResults` | number | No | Maximum number of instances to return \(1-100\) |
 | `nextToken` | string | No | Pagination token from a previous request |
 
@@ -69,8 +67,6 @@ List all AWS accounts in your organization
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `maxResults` | number | No | Maximum number of accounts to return \(1-20; the AWS Organizations ceiling\) |
 | `nextToken` | string | No | Pagination token from a previous request |
 
@@ -101,8 +97,6 @@ Retrieve details about a specific AWS account by its ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `accountId` | string | Yes | AWS account ID to describe |
 
 #### Output
@@ -129,8 +123,6 @@ List all permission sets defined in an IAM Identity Center instance
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `instanceArn` | string | Yes | ARN of the Identity Center instance |
 | `maxResults` | number | No | Maximum number of permission sets to return \(1-100\) |
 | `nextToken` | string | No | Pagination token from a previous request |
@@ -161,8 +153,6 @@ Look up a user in the Identity Store by email address
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `identityStoreId` | string | Yes | Identity Store ID \(from the Identity Center instance\) |
 | `email` | string | Yes | Email address of the user to look up |
 
@@ -188,8 +178,6 @@ Resolve an Identity Store user ID to the user behind it. Use to turn the princip
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `identityStoreId` | string | Yes | Identity Store ID \(e.g., d-1234567890\) |
 | `userId` | string | Yes | Identity Store user ID, such as the principalId on a USER account assignment |
 
@@ -220,8 +208,6 @@ Look up a group in the Identity Store by display name
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `identityStoreId` | string | Yes | Identity Store ID \(from the Identity Center instance\) |
 | `displayName` | string | Yes | Display name of the group to look up |
 
@@ -246,8 +232,6 @@ Resolve an Identity Store group ID to the group behind it. Use to turn the princ
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `identityStoreId` | string | Yes | Identity Store ID \(e.g., d-1234567890\) |
 | `groupId` | string | Yes | Identity Store group ID, such as the principalId on a GROUP account assignment |
 
@@ -275,8 +259,6 @@ List all groups in the Identity Store
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `identityStoreId` | string | Yes | Identity Store ID \(from the Identity Center instance\) |
 | `maxResults` | number | No | Maximum number of groups to return \(1-100\) |
 | `nextToken` | string | No | Pagination token from a previous request |
@@ -308,8 +290,6 @@ List the users who belong to an Identity Store group
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `identityStoreId` | string | Yes | Identity Store ID \(e.g., d-1234567890\) |
 | `groupId` | string | Yes | Identity Store group ID whose members to list |
 | `maxResults` | number | No | Maximum number of memberships to return \(1-100\) |
@@ -339,8 +319,6 @@ Grant a user or group access to an AWS account via a permission set (temporary e
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `instanceArn` | string | Yes | ARN of the Identity Center instance |
 | `accountId` | string | Yes | AWS account ID to grant access to |
 | `permissionSetArn` | string | Yes | ARN of the permission set to assign |
@@ -374,8 +352,6 @@ Revoke a user or group access to an AWS account by removing a permission set ass
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `instanceArn` | string | Yes | ARN of the Identity Center instance |
 | `accountId` | string | Yes | AWS account ID to revoke access from |
 | `permissionSetArn` | string | Yes | ARN of the permission set to remove |
@@ -409,8 +385,6 @@ Check the provisioning status of an account assignment creation request
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `instanceArn` | string | Yes | ARN of the Identity Center instance |
 | `requestId` | string | Yes | Request ID returned from Create Account Assignment. Deletion request IDs are not accepted — use Check Assignment Deletion Status for those. |
 
@@ -441,8 +415,6 @@ Check the deprovisioning status of an account assignment deletion request
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `instanceArn` | string | Yes | ARN of the Identity Center instance |
 | `requestId` | string | Yes | Request ID returned from Delete Account Assignment |
 
@@ -473,8 +445,6 @@ List every account and permission set a specific user or group is assigned. Use 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `instanceArn` | string | Yes | ARN of the Identity Center instance |
 | `principalId` | string | Yes | Identity Store ID of the user or group |
 | `principalType` | string | Yes | Type of principal: USER or GROUP |
@@ -506,8 +476,6 @@ List every principal assigned a specific permission set on a specific AWS accoun
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `instanceArn` | string | Yes | ARN of the Identity Center instance |
 | `accountId` | string | Yes | AWS account ID to list assignments for \(12 digits\) |
 | `permissionSetArn` | string | Yes | ARN of the permission set to list assignments for |

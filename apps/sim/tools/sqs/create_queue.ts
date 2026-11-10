@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SqsCreateQueueParams, SqsCreateQueueResponse } from '@/tools/sqs/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const createQueueTool: InternalToolConfig<SqsCreateQueueParams, SqsCreate
   name: 'SQS Create Queue',
   description: 'Create a standard or FIFO Amazon SQS queue',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

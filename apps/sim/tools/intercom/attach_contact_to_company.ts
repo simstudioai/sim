@@ -1,4 +1,5 @@
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface IntercomAttachContactToCompanyParams {
@@ -62,6 +63,7 @@ export const intercomAttachContactToCompanyV2Tool: ToolConfig<
   name: 'Attach Contact to Company in Intercom',
   description: 'Attach a contact to a company in Intercom',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

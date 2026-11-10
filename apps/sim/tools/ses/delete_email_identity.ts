@@ -2,6 +2,7 @@ import type {
   SESDeleteEmailIdentityParams,
   SESDeleteEmailIdentityResponse,
 } from '@/tools/ses/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const deleteEmailIdentityTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const deleteEmailIdentityTool: InternalToolConfig<
   name: 'SES Delete Email Identity',
   description: 'Delete a verified SES email address or domain identity',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

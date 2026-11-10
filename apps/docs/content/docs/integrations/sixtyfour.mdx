@@ -2,7 +2,7 @@
 title: Sixtyfour AI
 description: Enrich leads and companies with AI-powered research
 integration:
-  type: "sixtyfour"
+  type: "sixtyfour_v2"
   color: "#000000"
 ---
 
@@ -29,7 +29,6 @@ Find phone numbers for a lead using Sixtyfour AI.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sixtyfour API key |
 | `name` | string | Yes | Full name of the person |
 | `company` | string | No | Company name |
 | `linkedinUrl` | string | No | LinkedIn profile URL |
@@ -57,7 +56,6 @@ Find email addresses for a lead using Sixtyfour AI.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sixtyfour API key |
 | `name` | string | Yes | Full name of the person |
 | `company` | string | No | Company name |
 | `linkedinUrl` | string | No | LinkedIn profile URL |
@@ -96,7 +94,6 @@ Enrich lead information with contact details, social profiles, and company data 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sixtyfour API key |
 | `leadInfo` | string | Yes | Lead information as JSON object with key-value pairs \(e.g. name, company, title, linkedin\) |
 | `struct` | string | Yes | Fields to collect as JSON object. Keys are field names, values are descriptions \(e.g. \{"email": "The individual's email address", "phone": "Phone number"\}\) |
 | `researchPlan` | string | No | Optional research plan to guide enrichment strategy |
@@ -122,7 +119,6 @@ Enrich company data with additional information and find associated people using
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sixtyfour API key |
 | `targetCompany` | string | Yes | Company data as JSON object \(e.g. \{"name": "Acme Inc", "domain": "acme.com"\}\) |
 | `struct` | string | Yes | Fields to collect as JSON object. Keys are field names, values are descriptions \(e.g. \{"website": "Company website URL", "num_employees": "Employee count"\}\) |
 | `findPeople` | boolean | No | Whether to find people associated with the company |

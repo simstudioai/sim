@@ -11,6 +11,7 @@ import {
   requireId,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityBatchUpdateListEntryFieldsTool: ToolConfig<
@@ -22,6 +23,7 @@ export const affinityBatchUpdateListEntryFieldsTool: ToolConfig<
   description:
     'Write up to 100 field values on one list row in a single request. Requires the "Export data from Lists" permission.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

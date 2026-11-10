@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TailscaleSetAclParams, TailscaleSetAclResponse } from '@/tools/tailscale/types'
 import { assertTailscaleResponse } from '@/tools/tailscale/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -8,6 +9,7 @@ export const tailscaleSetAclTool: ToolConfig<TailscaleSetAclParams, TailscaleSet
   name: 'Tailscale Set ACL',
   description: 'Replace the tailnet policy file',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

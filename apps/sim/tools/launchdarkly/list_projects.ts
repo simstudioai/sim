@@ -3,6 +3,7 @@ import type {
   LaunchDarklyListProjectsResponse,
 } from '@/tools/launchdarkly/types'
 import { PROJECT_OUTPUT_PROPERTIES } from '@/tools/launchdarkly/types'
+import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const launchDarklyListProjectsTool: ToolConfig<
@@ -13,6 +14,7 @@ export const launchDarklyListProjectsTool: ToolConfig<
   name: 'LaunchDarkly List Projects',
   description: 'List all projects in your LaunchDarkly account.',
   version: '1.0.0',
+  oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

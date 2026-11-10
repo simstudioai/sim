@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CancelInvoiceParams, InvoiceResponse } from '@/tools/square/types'
 import {
   INVOICE_METADATA_OUTPUT_PROPERTIES,
@@ -13,6 +14,7 @@ export const squareCancelInvoiceTool: ToolConfig<CancelInvoiceParams, InvoiceRes
   name: 'Square Cancel Invoice',
   description: 'Cancel a published invoice that is unpaid or partially paid',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {

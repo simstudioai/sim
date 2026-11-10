@@ -33,12 +33,16 @@ import {
 import { getServiceAccountCoverageSentence } from '@/lib/integrations/credential-display'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+  AWS_SERVICE_ACCOUNT_PROVIDER_ID,
+  DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
+import { AwsAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/aws-account-modal'
 import { ClientCredentialAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/client-credential-account-modal'
+import { DatabricksAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/databricks-account-modal'
 import { OracleDatabaseAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/oracle-database-account-modal'
 import { TokenServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/token-service-account-modal'
 import { ConnectSlackBotModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-slack-bot-modal/connect-slack-bot-modal'
@@ -56,6 +60,8 @@ export type ServiceAccountProviderId =
   | typeof SLACK_CUSTOM_BOT_PROVIDER_ID
   | typeof OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof AWS_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID
   | TokenServiceAccountProviderId
   | ClientCredentialAccountProviderId
 
@@ -177,6 +183,36 @@ export function ConnectServiceAccountModal({
   onSubmitCredentials,
   submitPending,
 }: ConnectServiceAccountModalProps) {
+  if (serviceAccountProviderId === DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID) {
+    return (
+      <DatabricksAccountModal
+        open={open}
+        onOpenChange={onOpenChange}
+        workspaceId={workspaceId}
+        organizationId={organizationId}
+        serviceIcon={serviceIcon}
+        credentialId={credentialId}
+        initialDisplayName={credentialDisplayName}
+        initialDescription={credentialDescription}
+        onCreated={onCreated}
+      />
+    )
+  }
+  if (serviceAccountProviderId === AWS_SERVICE_ACCOUNT_PROVIDER_ID) {
+    return (
+      <AwsAccountModal
+        open={open}
+        onOpenChange={onOpenChange}
+        workspaceId={workspaceId}
+        organizationId={organizationId}
+        serviceIcon={serviceIcon}
+        credentialId={credentialId}
+        initialDisplayName={credentialDisplayName}
+        initialDescription={credentialDescription}
+        onCreated={onCreated}
+      />
+    )
+  }
   if (serviceAccountProviderId === ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID) {
     return (
       <OracleDatabaseAccountModal

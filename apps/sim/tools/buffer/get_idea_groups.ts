@@ -8,6 +8,7 @@ import {
   mapBufferIdeaGroup,
   parseBufferGraphQLResponse,
 } from '@/tools/buffer/types'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const GET_IDEA_GROUPS_QUERY = `
@@ -29,6 +30,7 @@ export const bufferGetIdeaGroupsTool: ToolConfig<
   description:
     'List idea groups (board columns) in a Buffer organization, including the group IDs used when creating ideas',
   version: '1.0.0',
+  oauth: BUFFER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

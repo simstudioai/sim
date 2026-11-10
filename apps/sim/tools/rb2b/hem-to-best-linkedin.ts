@@ -1,5 +1,6 @@
 import type { Rb2bIdentifierParams, Rb2bLinkedinUrlResponse } from '@/tools/rb2b/types'
 import { buildIdentifierBody, RB2B_API_BASE, rb2bHeaders } from '@/tools/rb2b/utils'
+import { RB2B_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rb2bHemToBestLinkedinTool: ToolConfig<Rb2bIdentifierParams, Rb2bLinkedinUrlResponse> =
@@ -9,6 +10,7 @@ export const rb2bHemToBestLinkedinTool: ToolConfig<Rb2bIdentifierParams, Rb2bLin
     description:
       'Return the most recently active LinkedIn profile URL for an email address or MD5-hashed email.',
     version: '1.0.0',
+    oauth: RB2B_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

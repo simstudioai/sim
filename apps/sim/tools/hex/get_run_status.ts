@@ -1,5 +1,6 @@
 import type { HexGetRunStatusParams, HexGetRunStatusResponse } from '@/tools/hex/types'
 import { HEX_RUN_STATUS_OUTPUT_PROPERTIES } from '@/tools/hex/types'
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getRunStatusTool: ToolConfig<HexGetRunStatusParams, HexGetRunStatusResponse> = {
@@ -7,6 +8,7 @@ export const getRunStatusTool: ToolConfig<HexGetRunStatusParams, HexGetRunStatus
   name: 'Hex Get Run Status',
   description: 'Check the status of a Hex project run by its run ID.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

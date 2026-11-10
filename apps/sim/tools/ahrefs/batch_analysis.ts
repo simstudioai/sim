@@ -1,4 +1,5 @@
 import type { AhrefsBatchAnalysisParams, AhrefsBatchAnalysisResponse } from '@/tools/ahrefs/types'
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const SELECT_FIELDS =
@@ -11,6 +12,7 @@ export const batchAnalysisTool: ToolConfig<AhrefsBatchAnalysisParams, AhrefsBatc
     description:
       'Get bulk SEO metrics (Domain Rating, backlinks, referring domains, organic traffic, and more) for multiple domains or URLs in a single request. Useful for comparing many competitors at once.',
     version: '1.0.0',
+    oauth: AHREFS_CREDENTIAL_OAUTH,
 
     params: {
       targets: {

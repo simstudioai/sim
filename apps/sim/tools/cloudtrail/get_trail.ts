@@ -1,4 +1,5 @@
 import type { CloudTrailGetTrailParams, CloudTrailGetTrailResponse } from '@/tools/cloudtrail/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getTrailTool: InternalToolConfig<
@@ -9,6 +10,7 @@ export const getTrailTool: InternalToolConfig<
   name: 'CloudTrail Get Trail',
   description: 'Retrieve the settings of a single CloudTrail trail by name or ARN',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

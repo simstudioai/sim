@@ -2,6 +2,7 @@ import type {
   CloudTrailLookupEventsParams,
   CloudTrailLookupEventsResponse,
 } from '@/tools/cloudtrail/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const lookupEventsTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const lookupEventsTool: InternalToolConfig<
   description:
     'Look up AWS CloudTrail management or Insights events from the last 90 days in a Region',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

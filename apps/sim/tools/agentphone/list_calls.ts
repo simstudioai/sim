@@ -3,6 +3,7 @@ import type {
   AgentPhoneListCallsParams,
   AgentPhoneListCallsResult,
 } from '@/tools/agentphone/types'
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentphoneListCallsTool: ToolConfig<
@@ -13,6 +14,7 @@ export const agentphoneListCallsTool: ToolConfig<
   name: 'List Calls',
   description: 'List voice calls for this AgentPhone account',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

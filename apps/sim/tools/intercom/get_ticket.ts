@@ -1,4 +1,5 @@
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface IntercomGetTicketParams {
@@ -59,6 +60,7 @@ export const intercomGetTicketTool: ToolConfig<IntercomGetTicketParams, Intercom
     name: 'Get Ticket from Intercom',
     description: 'Retrieve a single ticket by ID from Intercom',
     version: '1.0.0',
+    oauth: INTERCOM_CREDENTIAL_OAUTH,
 
     ...getTicketBase,
 
@@ -133,6 +135,7 @@ export const intercomGetTicketV2Tool: ToolConfig<
   name: 'Get Ticket from Intercom',
   description: 'Retrieve a single ticket by ID from Intercom. Returns API-aligned fields only.',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

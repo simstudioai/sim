@@ -2,6 +2,7 @@ import type {
   AgentPhoneCreateNumberParams,
   AgentPhoneCreateNumberResult,
 } from '@/tools/agentphone/types'
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentphoneCreateNumberTool: ToolConfig<
@@ -12,6 +13,7 @@ export const agentphoneCreateNumberTool: ToolConfig<
   name: 'Create Phone Number',
   description: 'Provision a new SMS- and voice-enabled phone number',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

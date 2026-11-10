@@ -8,6 +8,7 @@ import {
   linqHeaders,
   mapWebhookSubscription,
 } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const linqCreateWebhookSubscriptionTool: ToolConfig<
@@ -18,6 +19,7 @@ export const linqCreateWebhookSubscriptionTool: ToolConfig<
   name: 'Create Webhook Subscription',
   description: 'Subscribe an HTTPS endpoint to Linq webhook events',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

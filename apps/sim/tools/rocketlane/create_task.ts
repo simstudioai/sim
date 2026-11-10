@@ -8,6 +8,7 @@ import {
   rocketlaneHeaders,
   TASK_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneCreateTaskTool: ToolConfig<
@@ -18,6 +19,7 @@ export const rocketlaneCreateTaskTool: ToolConfig<
   name: 'Rocketlane Create Task',
   description: 'Create a new task in a Rocketlane project',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

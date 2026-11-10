@@ -1,3 +1,4 @@
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   defineSquareKeyedSite,
   resolveSquareIdempotencyKey,
@@ -23,6 +24,7 @@ export const squareCreateCatalogImageTool: InternalToolConfig<
   name: 'Square Create Catalog Image',
   description: 'Upload an image and attach it to the catalog, optionally to a specific item',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

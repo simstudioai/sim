@@ -5,6 +5,7 @@ import type {
   FlintGeneratePagesResponse,
 } from '@/tools/flint/types'
 import { FLINT_API_BASE_URL, flintBaseParamFields, flintHeaders } from '@/tools/flint/utils'
+import { FLINT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const MAX_ITEMS = 10
@@ -68,6 +69,7 @@ export const flintGeneratePagesTool: ToolConfig<
   description:
     'Start a background Flint agent task that generates up to 10 pages from a template page.',
   version: '1.0.0',
+  oauth: FLINT_CREDENTIAL_OAUTH,
 
   params: {
     ...flintBaseParamFields,

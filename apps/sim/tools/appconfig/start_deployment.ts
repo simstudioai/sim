@@ -2,6 +2,7 @@ import type {
   AppConfigStartDeploymentParams,
   AppConfigStartDeploymentResponse,
 } from '@/tools/appconfig/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const startDeploymentTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const startDeploymentTool: InternalToolConfig<
   name: 'AppConfig Start Deployment',
   description: 'Start deploying a configuration version to an AWS AppConfig environment',
   version: '1.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

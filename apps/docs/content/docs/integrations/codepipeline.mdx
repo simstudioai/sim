@@ -2,7 +2,7 @@
 title: CodePipeline
 description: Run, monitor, and approve AWS CodePipeline pipelines
 integration:
-  type: "codepipeline"
+  type: "codepipeline_v2"
   color: "linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
 ---
 
@@ -10,12 +10,12 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [AWS CodePipeline](https://aws.amazon.com/codepipeline/) to inspect release pipelines and execution history, start or stop runs, retry stages, and approve or reject manual approval actions. Stage transitions can be disabled or re-enabled to control pipeline flow.
+Use [AWS CodePipeline](https://aws.amazon.com/codepipeline/) to inspect release pipelines and execution history, start or stop runs, retry stages, and approve or reject manual approval actions. Stage transitions can be disabled or re-enabled to control pipeline flow. Connect with a saved [AWS credential](/integrations/aws-credentials).
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
 
-Start, stop, and monitor pipeline executions, retry failed stages, and approve or reject manual approval actions. Requires AWS access key and secret access key.
+Start, stop, and monitor pipeline executions, retry failed stages, and approve or reject manual approval actions.
 
 ## Actions
 
@@ -30,8 +30,6 @@ List all CodePipeline pipelines in an AWS account and region
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `maxResults` | number | No | Maximum number of pipelines to return \(1-1000\) |
 | `nextToken` | string | No | Pagination token from a previous call |
 
@@ -61,8 +59,6 @@ Get the structure of a CodePipeline pipeline, including its stages, actions, and
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `pipelineName` | string | Yes | Name of the pipeline |
 | `version` | number | No | Pipeline version to retrieve \(defaults to the current version\) |
 
@@ -101,8 +97,6 @@ Get the current state of a CodePipeline pipeline, including stage and action sta
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `pipelineName` | string | Yes | Name of the pipeline |
 
 #### Output
@@ -133,8 +127,6 @@ Get details of a CodePipeline execution, including status, trigger, source revis
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `pipelineName` | string | Yes | Name of the pipeline |
 | `pipelineExecutionId` | string | Yes | ID of the pipeline execution |
 
@@ -174,8 +166,6 @@ List recent executions of a CodePipeline pipeline with status and source revisio
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `pipelineName` | string | Yes | Name of the pipeline |
 | `maxResults` | number | No | Maximum number of executions to return \(1-100, default 100\) |
 | `nextToken` | string | No | Pagination token from a previous call |
@@ -213,8 +203,6 @@ List action-level execution history for a CodePipeline pipeline, including per-a
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `pipelineName` | string | Yes | Name of the pipeline |
 | `pipelineExecutionId` | string | No | Only return action executions for this pipeline execution |
 | `maxResults` | number | No | Maximum number of action executions to return \(1-100, default 100\) |
@@ -254,8 +242,6 @@ Start a CodePipeline pipeline execution, optionally overriding pipeline variable
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `pipelineName` | string | Yes | Name of the pipeline to start |
 | `clientRequestToken` | string | No | Idempotency token to identify a unique execution request |
 | `variables` | json | No | Pipeline variable overrides as an array of \{ name, value \} objects |
@@ -279,8 +265,6 @@ Stop a CodePipeline pipeline execution, either finishing in-progress actions or 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `pipelineName` | string | Yes | Name of the pipeline |
 | `pipelineExecutionId` | string | Yes | ID of the pipeline execution to stop |
 | `abandon` | boolean | No | Abandon in-progress actions instead of letting them finish \(default false\) |
@@ -305,8 +289,6 @@ Retry the failed actions (or all actions) of a failed CodePipeline stage
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `pipelineName` | string | Yes | Name of the pipeline |
 | `stageName` | string | Yes | Name of the failed stage to retry |
 | `pipelineExecutionId` | string | Yes | ID of the pipeline execution in the failed stage |
@@ -331,8 +313,6 @@ Approve or reject a pending CodePipeline manual approval action. The approval to
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `pipelineName` | string | Yes | Name of the pipeline |
 | `stageName` | string | Yes | Name of the stage containing the approval action |
 | `actionName` | string | Yes | Name of the manual approval action |
@@ -360,8 +340,6 @@ Prevent artifacts from transitioning into or out of a CodePipeline stage, freezi
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `pipelineName` | string | Yes | Name of the pipeline |
 | `stageName` | string | Yes | Name of the stage to disable the transition for |
 | `transitionType` | string | Yes | Inbound to block artifacts entering the stage, Outbound to block artifacts leaving it |
@@ -388,8 +366,6 @@ Re-enable artifacts transitioning into or out of a CodePipeline stage after it w
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `pipelineName` | string | Yes | Name of the pipeline |
 | `stageName` | string | Yes | Name of the stage to enable the transition for |
 | `transitionType` | string | Yes | Inbound to allow artifacts entering the stage, Outbound to allow artifacts leaving it |

@@ -9,6 +9,7 @@ import {
   mapWarehouse,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -20,6 +21,7 @@ export const getWarehouseTool: ToolConfig<
   name: 'Databricks Get Warehouse',
   description: 'Get the configuration, state, and scaling settings of a SQL warehouse.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     warehouseId: {

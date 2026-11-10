@@ -1,4 +1,5 @@
 import type { DiscordLeaveThreadParams, DiscordLeaveThreadResponse } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const discordLeaveThreadTool: ToolConfig<
@@ -9,6 +10,7 @@ export const discordLeaveThreadTool: ToolConfig<
   name: 'Discord Leave Thread',
   description: 'Leave a thread in Discord',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

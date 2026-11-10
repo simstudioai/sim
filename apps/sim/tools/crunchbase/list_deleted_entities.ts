@@ -14,6 +14,7 @@ import {
   readJson,
 } from '@/tools/crunchbase/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { CRUNCHBASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface CrunchbaseDeletedEntity {
@@ -47,6 +48,7 @@ export const crunchbaseListDeletedEntitiesTool: ToolConfig<
   description:
     'List entities Crunchbase has deleted, so a mirrored copy can be pruned in step with the source.',
   version: '1.0.0',
+  oauth: CRUNCHBASE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.CRUNCHBASE_ERRORS,
 
   params: {

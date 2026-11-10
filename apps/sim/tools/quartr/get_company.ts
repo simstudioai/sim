@@ -6,6 +6,7 @@ import {
   type QuartrSingleDto,
 } from '@/tools/quartr/types'
 import { buildQuartrUrl, mapQuartrCompany, parseQuartrResponse } from '@/tools/quartr/utils'
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const quartrGetCompanyTool: ToolConfig<QuartrGetCompanyParams, QuartrGetCompanyResponse> = {
@@ -13,6 +14,7 @@ export const quartrGetCompanyTool: ToolConfig<QuartrGetCompanyParams, QuartrGetC
   name: 'Quartr Get Company',
   description: 'Retrieve a single company from Quartr by its company ID.',
   version: '1.0.0',
+  oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

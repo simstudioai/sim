@@ -1,6 +1,7 @@
 import { ProfoundIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 const CATEGORY_REPORT_OPS = [
   'visibility_report',
@@ -60,6 +61,8 @@ const FILTER_OPS = [...ALL_REPORT_OPS, 'prompt_volume'] as const
 
 export const ProfoundBlock: BlockConfig = {
   type: 'profound',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'profound_v2' },
   name: 'Profound',
   description: 'AI visibility and analytics with Profound',
   longDescription:
@@ -587,3 +590,17 @@ export const ProfoundBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const ProfoundV2Block: BlockConfig = {
+  ...ProfoundBlock,
+  type: 'profound_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(ProfoundBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'profound',
+    title: 'Profound Credential',
+  }),
+}

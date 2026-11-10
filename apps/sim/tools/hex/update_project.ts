@@ -1,4 +1,5 @@
 import type { HexUpdateProjectParams, HexUpdateProjectResponse } from '@/tools/hex/types'
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateProjectTool: ToolConfig<HexUpdateProjectParams, HexUpdateProjectResponse> = {
@@ -7,6 +8,7 @@ export const updateProjectTool: ToolConfig<HexUpdateProjectParams, HexUpdateProj
   description:
     'Update a Hex project status label (e.g., endorsement or custom workspace statuses).',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

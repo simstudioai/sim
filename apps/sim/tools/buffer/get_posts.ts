@@ -14,6 +14,7 @@ import {
   POST_OUTPUT_PROPERTIES,
   parseBufferGraphQLResponse,
 } from '@/tools/buffer/types'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const GET_POSTS_QUERY = `
@@ -49,6 +50,7 @@ export const bufferGetPostsTool: ToolConfig<BufferGetPostsParams, BufferPostsRes
   description:
     'List posts in a Buffer organization, optionally filtered by channel and status (draft, needs_approval, scheduled, sending, sent, error)',
   version: '1.0.0',
+  oauth: BUFFER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

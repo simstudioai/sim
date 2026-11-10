@@ -1,4 +1,5 @@
 import type { GetInboxParams, GetInboxResult } from '@/tools/agentmail/types'
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentmailGetInboxTool: ToolConfig<GetInboxParams, GetInboxResult> = {
@@ -6,6 +7,7 @@ export const agentmailGetInboxTool: ToolConfig<GetInboxParams, GetInboxResult> =
   name: 'Get Inbox',
   description: 'Get details of a specific email inbox in AgentMail',
   version: '1.0.0',
+  oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

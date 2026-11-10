@@ -8,6 +8,7 @@ import {
   cloudflareHeaders,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -19,6 +20,7 @@ export const deleteRulesetTool: ToolConfig<
   name: 'Cloudflare Delete Ruleset',
   description: 'Deletes all versions of an existing zone ruleset.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     zoneId: {
       type: 'string',

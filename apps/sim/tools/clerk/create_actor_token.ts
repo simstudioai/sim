@@ -5,6 +5,7 @@ import type {
   ClerkCreateActorTokenParams,
   ClerkCreateActorTokenResponse,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkCreateActorToken')
@@ -18,6 +19,7 @@ export const clerkCreateActorTokenTool: ToolConfig<
   description:
     'Create an actor token to impersonate a user (God Mode / act-as-user), e.g. for support tooling',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

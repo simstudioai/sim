@@ -2,6 +2,7 @@ import type {
   LambdaGetFunctionRecursionConfigParams,
   LambdaGetFunctionRecursionConfigResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getFunctionRecursionConfigTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const getFunctionRecursionConfigTool: InternalToolConfig<
   name: 'Lambda Get Recursion Config',
   description: 'Get the recursive loop detection setting of a function',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

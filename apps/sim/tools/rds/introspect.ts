@@ -1,4 +1,5 @@
 import type { RdsIntrospectParams, RdsIntrospectResponse } from '@/tools/rds/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const introspectTool: InternalToolConfig<RdsIntrospectParams, RdsIntrospectResponse> = {
@@ -7,6 +8,7 @@ export const introspectTool: InternalToolConfig<RdsIntrospectParams, RdsIntrospe
   description:
     'Introspect Amazon RDS Aurora database schema to retrieve table structures, columns, and relationships',
   version: '1.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

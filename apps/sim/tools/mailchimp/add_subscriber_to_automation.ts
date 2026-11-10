@@ -1,5 +1,6 @@
 import type { MailchimpMember } from '@/tools/mailchimp/types'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface MailchimpAddSubscriberToAutomationParams {
@@ -25,6 +26,7 @@ export const mailchimpAddSubscriberToAutomationTool: ToolConfig<
   name: 'Add Subscriber to Automation in Mailchimp',
   description: 'Manually add a subscriber to a workflow email queue',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

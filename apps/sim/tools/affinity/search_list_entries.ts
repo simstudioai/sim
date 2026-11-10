@@ -12,6 +12,7 @@ import {
   transformCollection,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinitySearchListEntriesTool: ToolConfig<
@@ -23,6 +24,7 @@ export const affinitySearchListEntriesTool: ToolConfig<
   description:
     'Search the rows of one list by filters, sorts, and a free-text term. Requires the "Export data from Lists" permission.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

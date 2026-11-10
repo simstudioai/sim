@@ -4,6 +4,7 @@ import {
   type Mem0AddMemoriesResponse,
 } from '@/tools/mem0/types'
 import { parseMem0Messages } from '@/tools/mem0/utils'
+import { MEM0_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 function rebuildMem0Messages(
@@ -35,6 +36,7 @@ export const mem0AddMemoriesTool: ToolConfig<Mem0AddMemoriesParams, Mem0AddMemor
   name: 'Add Memories',
   description: 'Add memories to Mem0 for persistent storage and retrieval',
   version: '1.0.0',
+  oauth: MEM0_CREDENTIAL_OAUTH,
 
   params: {
     userId: {

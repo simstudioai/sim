@@ -1,4 +1,5 @@
 import type { RdsInsertParams, RdsInsertResponse } from '@/tools/rds/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const insertTool: InternalToolConfig<RdsInsertParams, RdsInsertResponse> = {
@@ -6,6 +7,7 @@ export const insertTool: InternalToolConfig<RdsInsertParams, RdsInsertResponse> 
   name: 'RDS Insert',
   description: 'Insert data into an Amazon RDS table using the Data API',
   version: '1.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

@@ -1,5 +1,6 @@
 import type { LinqGetContactCardParams, LinqGetContactCardResult } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const linqGetContactCardTool: ToolConfig<
@@ -10,6 +11,7 @@ export const linqGetContactCardTool: ToolConfig<
   name: 'Get Contact Card',
   description: 'Retrieve contact cards, optionally filtered by phone number',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

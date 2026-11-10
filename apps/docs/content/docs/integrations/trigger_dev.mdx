@@ -2,7 +2,7 @@
 title: Trigger.dev
 description: Trigger tasks and manage runs and schedules
 integration:
-  type: "trigger_dev"
+  type: "trigger_dev_v2"
   color: "#000000"
 ---
 
@@ -33,7 +33,6 @@ Trigger a Trigger.dev task by its identifier with an optional JSON payload. Retu
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `taskIdentifier` | string | Yes | Identifier of the task to trigger \(e.g., "send-welcome-email"\) |
 | `payload` | json | No | JSON payload passed to the task run. Example: \{"userId": "user_123"\} |
 | `idempotencyKey` | string | No | Idempotency key that ensures the task is only triggered once per key |
@@ -62,7 +61,6 @@ Batch trigger a Trigger.dev task with up to 1,000 payloads. All items in the bat
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `taskIdentifier` | string | Yes | Identifier of the task to batch trigger \(e.g., "send-welcome-email"\) |
 | `items` | json | Yes | JSON array of batch items \(max 1,000\). Each item is an object with a "payload" and optional "options" \(queue, concurrencyKey, idempotencyKey, ttl, delay, tags, machine\). Example: \[\{"payload": \{"userId": "user_1"\}\}, \{"payload": \{"userId": "user_2"\}, "options": \{"delay": "1h"\}\}\] |
 
@@ -85,7 +83,6 @@ Retrieve a Trigger.dev batch by its ID, including its status, run IDs, and succe
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `batchId` | string | Yes | ID of the batch to retrieve \(starts with batch_\) |
 
 #### Output
@@ -119,7 +116,6 @@ Retrieve the execution results of every run in a Trigger.dev batch, including ou
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `batchId` | string | Yes | ID of the batch to retrieve results for \(starts with batch_\) |
 
 #### Output
@@ -141,7 +137,6 @@ Retrieve a Trigger.dev run by its ID, including status, payload, output, attempt
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `runId` | string | Yes | ID of the run to retrieve \(starts with run_\) |
 
 #### Output
@@ -222,7 +217,6 @@ Retrieve the result of a Trigger.dev run: whether it succeeded, its output, and 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `runId` | string | Yes | ID of the run to retrieve the result for \(starts with run_\) |
 
 #### Output
@@ -303,7 +297,6 @@ Retrieve the log and span events of a Trigger.dev run, including messages, level
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `runId` | string | Yes | ID of the run to retrieve events for \(starts with run_\) |
 
 #### Output
@@ -340,7 +333,6 @@ Retrieve the OpenTelemetry trace of a Trigger.dev run as a tree of spans with ti
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `runId` | string | Yes | ID of the run to retrieve the trace for \(starts with run_\) |
 
 #### Output
@@ -362,7 +354,6 @@ List Trigger.dev runs in the environment of the API key, with optional filters f
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `status` | string | No | Comma-separated run statuses to filter by: PENDING_VERSION, DELAYED, QUEUED, EXECUTING, REATTEMPTING, FROZEN, COMPLETED, CANCELED, FAILED, CRASHED, INTERRUPTED, SYSTEM_FAILURE |
 | `taskIdentifier` | string | No | Comma-separated task identifiers to filter by |
 | `version` | string | No | Comma-separated worker versions to filter by \(e.g., "20240101.1"\) |
@@ -397,7 +388,6 @@ Cancel an in-progress Trigger.dev run. Has no effect if the run is already compl
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `runId` | string | Yes | ID of the run to cancel \(starts with run_\) |
 
 #### Output
@@ -418,7 +408,6 @@ Replay a Trigger.dev run, creating a new run with the same payload and options a
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `runId` | string | Yes | ID of the run to replay \(starts with run_\) |
 
 #### Output
@@ -439,7 +428,6 @@ Reschedule a delayed Trigger.dev run with a new delay. Only valid while the run 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `runId` | string | Yes | ID of the delayed run to reschedule \(starts with run_\) |
 | `delay` | string | Yes | New delay for the run, as a duration \("30m", "1h", "2d"\) or an ISO 8601 date to delay until |
 
@@ -521,7 +509,6 @@ Add tags to an existing Trigger.dev run. Runs can have up to 10 tags.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `runId` | string | Yes | ID of the run to tag \(starts with run_\) |
 | `tags` | string | Yes | Comma-separated tags to add to the run \(max 10 total, each under 128 characters\) |
 
@@ -543,7 +530,6 @@ Replace the metadata of a Trigger.dev run with a new JSON object.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `runId` | string | Yes | ID of the run to update \(starts with run_\) |
 | `metadata` | json | Yes | JSON object to set as the run metadata. Example: \{"stage": "approved"\} |
 
@@ -565,7 +551,6 @@ Create an imperative cron schedule that triggers a Trigger.dev task on a recurri
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `task` | string | Yes | Identifier of the task to schedule \(e.g., "daily-report"\) |
 | `cron` | string | Yes | Cron expression defining when the task runs \(e.g., "0 0 * * *"\) |
 | `timezone` | string | No | IANA timezone the cron expression is evaluated in \(e.g., "America/New_York"\). Defaults to UTC |
@@ -650,7 +635,6 @@ Retrieve a Trigger.dev schedule by its ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `scheduleId` | string | Yes | ID of the schedule to retrieve \(starts with sched_\) |
 
 #### Output
@@ -731,7 +715,6 @@ List Trigger.dev schedules in the project, with page-based pagination.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `page` | number | No | Page number to return \(default 1\) |
 | `perPage` | number | No | Number of schedules per page |
 
@@ -771,7 +754,6 @@ Update an imperative Trigger.dev schedule by its ID, replacing its task, cron ex
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `scheduleId` | string | Yes | ID of the schedule to update \(starts with sched_\) |
 | `task` | string | Yes | Identifier of the task the schedule triggers \(e.g., "daily-report"\) |
 | `cron` | string | Yes | Cron expression defining when the task runs \(e.g., "0 0 * * *"\) |
@@ -856,7 +838,6 @@ Delete an imperative Trigger.dev schedule by its ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `scheduleId` | string | Yes | ID of the schedule to delete \(starts with sched_\) |
 
 #### Output
@@ -878,7 +859,6 @@ Activate an imperative Trigger.dev schedule so it resumes triggering its task.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `scheduleId` | string | Yes | ID of the schedule to activate \(starts with sched_\) |
 
 #### Output
@@ -959,7 +939,6 @@ Deactivate an imperative Trigger.dev schedule so it stops triggering its task.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `scheduleId` | string | Yes | ID of the schedule to deactivate \(starts with sched_\) |
 
 #### Output
@@ -1040,7 +1019,6 @@ List the environment variables of a Trigger.dev project environment. Values are 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `projectRef` | string | Yes | External ref of the project, from the project settings \(starts with proj_\) |
 | `environment` | string | Yes | Environment to list variables for: dev, staging, or prod |
 
@@ -1064,7 +1042,6 @@ Create an environment variable in a Trigger.dev project environment.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `projectRef` | string | Yes | External ref of the project, from the project settings \(starts with proj_\) |
 | `environment` | string | Yes | Environment to create the variable in: dev, staging, or prod |
 | `name` | string | Yes | Name of the environment variable \(e.g., "SLACK_API_KEY"\) |
@@ -1089,7 +1066,6 @@ Retrieve an environment variable from a Trigger.dev project environment. The val
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `projectRef` | string | Yes | External ref of the project, from the project settings \(starts with proj_\) |
 | `environment` | string | Yes | Environment to read the variable from: dev, staging, or prod |
 | `name` | string | Yes | Name of the environment variable \(e.g., "SLACK_API_KEY"\) |
@@ -1113,7 +1089,6 @@ Update the value of an environment variable in a Trigger.dev project environment
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `projectRef` | string | Yes | External ref of the project, from the project settings \(starts with proj_\) |
 | `environment` | string | Yes | Environment the variable belongs to: dev, staging, or prod |
 | `name` | string | Yes | Name of the environment variable to update \(e.g., "SLACK_API_KEY"\) |
@@ -1138,7 +1113,6 @@ Delete an environment variable from a Trigger.dev project environment.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `projectRef` | string | Yes | External ref of the project, from the project settings \(starts with proj_\) |
 | `environment` | string | Yes | Environment the variable belongs to: dev, staging, or prod |
 | `name` | string | Yes | Name of the environment variable to delete \(e.g., "SLACK_API_KEY"\) |
@@ -1162,7 +1136,6 @@ Upload multiple environment variables to a Trigger.dev project environment in on
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `projectRef` | string | Yes | External ref of the project, from the project settings \(starts with proj_\) |
 | `environment` | string | Yes | Environment to upload the variables to: dev, staging, or prod |
 | `variables` | json | Yes | JSON array of environment variables to upload. Example: \[\{"name": "SLACK_API_KEY", "value": "slack_123"\}\] |
@@ -1187,7 +1160,6 @@ Retrieve a Trigger.dev queue by ID, task identifier, or custom queue name, inclu
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `queueName` | string | Yes | Queue ID \(starts with queue_\), task identifier, or custom queue name, depending on the queue type |
 | `queueType` | string | No | How to interpret the queue name: "id" \(default\) for a queue ID, "task" for a task identifier, or "custom" for a custom queue name |
 
@@ -1269,7 +1241,6 @@ List the queues in the environment of the API key, including running and queued 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `page` | number | No | Page number to return \(default 1\) |
 | `perPage` | number | No | Number of queues per page |
 
@@ -1307,7 +1278,6 @@ Pause a Trigger.dev queue so no new runs start. Runs that are currently executin
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `queueName` | string | Yes | Queue ID \(starts with queue_\), task identifier, or custom queue name, depending on the queue type |
 | `queueType` | string | No | How to interpret the queue name: "id" \(default\) for a queue ID, "task" for a task identifier, or "custom" for a custom queue name |
 
@@ -1389,7 +1359,6 @@ Resume a paused Trigger.dev queue so new runs can start again.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `queueName` | string | Yes | Queue ID \(starts with queue_\), task identifier, or custom queue name, depending on the queue type |
 | `queueType` | string | No | How to interpret the queue name: "id" \(default\) for a queue ID, "task" for a task identifier, or "custom" for a custom queue name |
 
@@ -1471,7 +1440,6 @@ Override the concurrency limit of a Trigger.dev queue with a new value.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `queueName` | string | Yes | Queue ID \(starts with queue_\), task identifier, or custom queue name, depending on the queue type |
 | `queueType` | string | No | How to interpret the queue name: "id" \(default\) for a queue ID, "task" for a task identifier, or "custom" for a custom queue name |
 | `concurrencyLimit` | number | Yes | New concurrency limit for the queue \(0 to 100000\) |
@@ -1554,7 +1522,6 @@ Reset the concurrency limit of a Trigger.dev queue back to its base value, remov
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `queueName` | string | Yes | Queue ID \(starts with queue_\), task identifier, or custom queue name, depending on the queue type |
 | `queueType` | string | No | How to interpret the queue name: "id" \(default\) for a queue ID, "task" for a task identifier, or "custom" for a custom queue name |
 
@@ -1636,7 +1603,6 @@ List Trigger.dev deployments in the environment of the API key, with optional st
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `status` | string | No | Deployment status to filter by: PENDING, BUILDING, DEPLOYING, DEPLOYED, FAILED, CANCELED, or TIMED_OUT |
 | `period` | string | No | Only return deployments created in the given period \(e.g., "1h", "7d"\) |
 | `from` | string | No | Only return deployments created on or after this ISO 8601 timestamp |
@@ -1664,7 +1630,6 @@ Retrieve a Trigger.dev deployment by its ID, including its status, version, and 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `deploymentId` | string | Yes | ID of the deployment to retrieve |
 
 #### Output
@@ -1745,7 +1710,6 @@ Retrieve the latest Trigger.dev deployment in the environment of the API key.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 
 #### Output
 
@@ -1825,7 +1789,6 @@ Promote a Trigger.dev deployment version so new runs execute on it (e.g., to rol
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `version` | string | Yes | Deployment version to promote \(e.g., "20250228.1"\) |
 
 #### Output
@@ -1848,7 +1811,6 @@ Execute a TRQL (SQL-like) query against Trigger.dev run data for reporting and a
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `query` | string | Yes | TRQL query to execute \(e.g., "SELECT run_id, status, triggered_at FROM runs WHERE status = 'Failed' LIMIT 10"\) |
 | `scope` | string | No | Scope of data to query: environment \(default\), project, or organization |
 | `period` | string | No | Time period shorthand \(e.g., "1h", "7d", "30d"\). Cannot be combined with from/to |
@@ -1875,7 +1837,6 @@ Retrieve the TRQL query schema: the tables and columns available for Execute Que
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 
 #### Output
 
@@ -1905,7 +1866,6 @@ Create a Trigger.dev waitpoint token that a task can wait on until it is complet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `timeout` | string | No | How long before the token times out, as a duration \("30s", "1m", "2h", "3d"\) or an ISO 8601 date |
 | `idempotencyKey` | string | No | Idempotency key; passing the same key before it expires returns the original token |
 | `idempotencyKeyTTL` | string | No | How long the idempotency key is valid, as a duration \("30s", "1m", "2h", "3d"\) |
@@ -1931,7 +1891,6 @@ Complete a Trigger.dev waitpoint token, resuming any task waiting on it and pass
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `waitpointId` | string | Yes | ID of the waitpoint token to complete \(starts with waitpoint_\) |
 | `data` | json | No | JSON data passed back to the waiting run as the token result. Example: \{"status": "approved"\} |
 
@@ -1953,7 +1912,6 @@ Retrieve a Trigger.dev waitpoint token by its ID, including its status, timeout,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `waitpointId` | string | Yes | ID of the waitpoint token to retrieve \(starts with waitpoint_\) |
 
 #### Output
@@ -2034,7 +1992,6 @@ List Trigger.dev waitpoint tokens in the environment of the API key, with option
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `status` | string | No | Waitpoint status to filter by: WAITING, COMPLETED, or TIMED_OUT |
 | `idempotencyKey` | string | No | Idempotency key to filter by |
 | `tags` | string | No | Comma-separated tags to filter by |
@@ -2066,7 +2023,6 @@ List the IANA timezones supported by Trigger.dev schedules, for use as the timez
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
 | `excludeUtc` | string | No | Set to "true" to exclude UTC from the returned timezones |
 
 #### Output

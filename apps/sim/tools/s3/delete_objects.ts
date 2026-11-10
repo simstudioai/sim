@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const s3DeleteObjectsTool: InternalToolConfig = {
@@ -5,6 +6,7 @@ export const s3DeleteObjectsTool: InternalToolConfig = {
   name: 'S3 Delete Objects',
   description: 'Delete multiple objects from an AWS S3 bucket in a single batch request',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     accessKeyId: {

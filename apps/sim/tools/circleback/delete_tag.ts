@@ -9,6 +9,7 @@ import {
   mapTag,
   throwCirclebackError,
 } from '@/tools/circleback/utils'
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -18,6 +19,7 @@ export const deleteTagTool: ToolConfig<CirclebackDeleteTagParams, CirclebackTagR
   description:
     'Permanently deletes a Circleback tag and removes it from every meeting it was applied to.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

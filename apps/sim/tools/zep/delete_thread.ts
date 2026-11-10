@@ -1,3 +1,4 @@
+import { ZEP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ZepResponse } from '@/tools/zep/types'
 
@@ -6,6 +7,7 @@ export const zepDeleteThreadTool: ToolConfig<any, ZepResponse> = {
   name: 'Delete Thread',
   description: 'Delete a conversation thread from Zep',
   version: '1.0.0',
+  oauth: ZEP_CREDENTIAL_OAUTH,
 
   params: {
     threadId: {

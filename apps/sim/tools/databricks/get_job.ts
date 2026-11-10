@@ -1,6 +1,7 @@
 import type { DatabricksGetJobParams, DatabricksGetJobResponse } from '@/tools/databricks/types'
 import { JOB_CLUSTERS_OUTPUT, JOB_TASK_OUTPUT } from '@/tools/databricks/types'
 import { databricksUrl } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getJobTool: ToolConfig<DatabricksGetJobParams, DatabricksGetJobResponse> = {
@@ -8,6 +9,7 @@ export const getJobTool: ToolConfig<DatabricksGetJobParams, DatabricksGetJobResp
   name: 'Databricks Get Job',
   description: 'Get the full definition and settings of a single Databricks job by its job ID.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     includeTriggerState: {

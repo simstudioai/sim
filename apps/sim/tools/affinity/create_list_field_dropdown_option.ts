@@ -12,6 +12,7 @@ import {
   transformEntity,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityCreateListFieldDropdownOptionTool: ToolConfig<
@@ -23,6 +24,7 @@ export const affinityCreateListFieldDropdownOptionTool: ToolConfig<
   description:
     'Add a selectable option to a dropdown field on a list. A ranked or status option also needs a rank and a color.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

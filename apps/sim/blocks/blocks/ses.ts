@@ -1,9 +1,12 @@
 import { SESIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const SESBlock: BlockConfig = {
   type: 'ses',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'ses_v2' },
   name: 'AWS SES',
   description: 'Send emails and manage templates with AWS Simple Email Service',
   longDescription:
@@ -1131,3 +1134,17 @@ export const SESBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const SESV2Block: BlockConfig = {
+  ...SESBlock,
+  type: 'ses_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(SESBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

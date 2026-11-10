@@ -2,6 +2,7 @@ import type {
   SecretsManagerGetSecretParams,
   SecretsManagerGetSecretResponse,
 } from '@/tools/secrets_manager/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getSecretTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const getSecretTool: InternalToolConfig<
   name: 'Secrets Manager Get Secret',
   description: 'Retrieve a secret value from AWS Secrets Manager',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

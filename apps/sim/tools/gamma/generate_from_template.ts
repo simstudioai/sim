@@ -2,6 +2,7 @@ import type {
   GammaGenerateFromTemplateParams,
   GammaGenerateFromTemplateResponse,
 } from '@/tools/gamma/types'
+import { GAMMA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const generateFromTemplateTool: ToolConfig<
@@ -12,6 +13,7 @@ export const generateFromTemplateTool: ToolConfig<
   name: 'Gamma Generate from Template',
   description: 'Generate a new Gamma by adapting an existing template with a prompt.',
   version: '1.0.0',
+  oauth: GAMMA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

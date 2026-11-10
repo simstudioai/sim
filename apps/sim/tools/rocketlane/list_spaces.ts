@@ -9,6 +9,7 @@ import {
   rocketlaneHeaders,
   SPACE_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneListSpacesTool: ToolConfig<
@@ -20,6 +21,7 @@ export const rocketlaneListSpacesTool: ToolConfig<
   description:
     'List spaces in a Rocketlane project, with optional filters, sorting, and pagination',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -3,10 +3,11 @@ import {
   AuthMode,
   type BlockConfig,
   type BlockMeta,
+  type BlockToolParams,
   IntegrationType,
   type SubBlockType,
 } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 
 const LEGACY_DOCUMENT_FIELD = ['fileUpload', 'filePath', 's3Uri'] as const
 const DOCUMENT_FIELD = ['fileUpload', 'fileReference', 's3Uri'] as const
@@ -17,7 +18,7 @@ export const TextractBlock: BlockConfig = {
   name: 'AWS Textract',
   description: 'Extract text, tables, and forms from documents',
   hideFromToolbar: true,
-  sunset: { status: 'legacy', replacedBy: 'textract_v2' },
+  sunset: { status: 'legacy', replacedBy: 'textract_v3' },
   authMode: AuthMode.ApiKey,
   longDescription: `Integrate AWS Textract into your workflow to extract text, tables, forms, and key-value pairs from documents. Single-page mode supports JPEG, PNG, and single-page PDF. Multi-page mode supports multi-page PDF and TIFF.`,
   docsLink: 'https://docs.sim.ai/integrations/textract',
@@ -239,25 +240,91 @@ function resolveDocumentParam(value: unknown): { file?: object; filePath?: strin
   return {}
 }
 
-function requireAwsCredentials(params: Record<string, unknown>) {
+interface AwsAccessKeys {
+  accessKeyId: string
+  secretAccessKey: string
+}
+
+function requireAwsAccessKeys(params: Record<string, unknown>): AwsAccessKeys {
   const accessKeyId = typeof params.accessKeyId === 'string' ? params.accessKeyId.trim() : ''
   const secretAccessKey =
     typeof params.secretAccessKey === 'string' ? params.secretAccessKey.trim() : ''
-  const region = typeof params.region === 'string' ? params.region.trim() : ''
 
   if (!accessKeyId) throw new Error('AWS Access Key ID is required')
   if (!secretAccessKey) throw new Error('AWS Secret Access Key is required')
-  if (!region) throw new Error('AWS Region is required')
 
-  return { accessKeyId, secretAccessKey, region }
+  return { accessKeyId, secretAccessKey }
+}
+
+function requireAwsRegion(params: Record<string, unknown>): string {
+  const region = typeof params.region === 'string' ? params.region.trim() : ''
+  if (!region) throw new Error('AWS Region is required')
+  return region
+}
+
+/**
+ * Tool params for a Textract v2+ operation. `accessKeys` is empty when a saved
+ * AWS credential supplies them server-side.
+ */
+function textractToolParams(params: BlockToolParams, accessKeys: Partial<AwsAccessKeys>) {
+  const region = requireAwsRegion(params)
+  const operation = params.operation || 'analyze_document'
+
+  if (operation === 'analyze_id') {
+    const front = resolveDocumentParam(params.document)
+    if (!front.file && !front.filePath) throw new Error('Identity document is required')
+
+    const parameters: Record<string, unknown> = {
+      ...accessKeys,
+      region,
+      ...front,
+    }
+    const back = resolveDocumentParam(params.documentBack)
+    if (back.file) parameters.fileBack = back.file
+    else if (back.filePath) parameters.filePathBack = back.filePath
+    return parameters
+  }
+
+  const processingMode = params.processingMode || 'sync'
+  const parameters: Record<string, unknown> = {
+    ...accessKeys,
+    region,
+    processingMode,
+  }
+
+  if (processingMode === 'async') {
+    if (!params.s3Uri || params.s3Uri.trim() === '') {
+      throw new Error('S3 URI is required for multi-page processing')
+    }
+    parameters.s3Uri = params.s3Uri.trim()
+  } else if (operation === 'analyze_expense') {
+    const resolved = resolveDocumentParam(params.document)
+    if (!resolved.file && !resolved.filePath) throw new Error('Document file is required')
+    Object.assign(parameters, resolved)
+  } else {
+    const file = normalizeFileInput(params.document, { single: true })
+    if (!file) throw new Error('Document file is required')
+    parameters.file = file
+  }
+
+  if (operation === 'analyze_expense') return parameters
+
+  const featureTypes: string[] = []
+  if (params.extractTables) featureTypes.push('TABLES')
+  if (params.extractForms) featureTypes.push('FORMS')
+  if (params.detectSignatures) featureTypes.push('SIGNATURES')
+  if (params.analyzeLayout) featureTypes.push('LAYOUT')
+  if (featureTypes.length > 0) parameters.featureTypes = featureTypes
+
+  return parameters
 }
 
 export const TextractV2Block: BlockConfig = {
   ...TextractBlock,
-  sunset: undefined,
+  sunset: { status: 'legacy', replacedBy: 'textract_v3' },
   type: 'textract_v2',
   name: 'AWS Textract',
-  hideFromToolbar: false,
+  hideFromToolbar: true,
   canvasPresentation: {
     defaultTitle: 'AWS Textract',
     sentences: {
@@ -418,60 +485,7 @@ export const TextractV2Block: BlockConfig = {
         if (operation === 'analyze_id') return 'textract_analyze_id'
         return 'textract_parser_v2'
       },
-      params: (params) => {
-        const { accessKeyId, secretAccessKey, region } = requireAwsCredentials(params)
-        const operation = params.operation || 'analyze_document'
-
-        if (operation === 'analyze_id') {
-          const front = resolveDocumentParam(params.document)
-          if (!front.file && !front.filePath) throw new Error('Identity document is required')
-
-          const parameters: Record<string, unknown> = {
-            accessKeyId,
-            secretAccessKey,
-            region,
-            ...front,
-          }
-          const back = resolveDocumentParam(params.documentBack)
-          if (back.file) parameters.fileBack = back.file
-          else if (back.filePath) parameters.filePathBack = back.filePath
-          return parameters
-        }
-
-        const processingMode = params.processingMode || 'sync'
-        const parameters: Record<string, unknown> = {
-          accessKeyId,
-          secretAccessKey,
-          region,
-          processingMode,
-        }
-
-        if (processingMode === 'async') {
-          if (!params.s3Uri || params.s3Uri.trim() === '') {
-            throw new Error('S3 URI is required for multi-page processing')
-          }
-          parameters.s3Uri = params.s3Uri.trim()
-        } else if (operation === 'analyze_expense') {
-          const resolved = resolveDocumentParam(params.document)
-          if (!resolved.file && !resolved.filePath) throw new Error('Document file is required')
-          Object.assign(parameters, resolved)
-        } else {
-          const file = normalizeFileInput(params.document, { single: true })
-          if (!file) throw new Error('Document file is required')
-          parameters.file = file
-        }
-
-        if (operation === 'analyze_expense') return parameters
-
-        const featureTypes: string[] = []
-        if (params.extractTables) featureTypes.push('TABLES')
-        if (params.extractForms) featureTypes.push('FORMS')
-        if (params.detectSignatures) featureTypes.push('SIGNATURES')
-        if (params.analyzeLayout) featureTypes.push('LAYOUT')
-        if (featureTypes.length > 0) parameters.featureTypes = featureTypes
-
-        return parameters
-      },
+      params: (params) => textractToolParams(params, requireAwsAccessKeys(params)),
     },
   },
   inputs: {
@@ -521,6 +535,19 @@ export const TextractV2Block: BlockConfig = {
       description: 'Version of the Textract model used for processing',
     },
   },
+}
+
+export const TextractV3Block: BlockConfig = {
+  ...TextractV2Block,
+  type: 'textract_v3',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    TextractV2Block,
+    { id: 'credential', type: 'oauth-input', serviceId: 'aws', title: 'AWS Credential' },
+    { params: (params) => textractToolParams(params, {}) }
+  ),
 }
 
 export const TextractBlockMeta = {

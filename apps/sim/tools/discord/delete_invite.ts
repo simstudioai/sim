@@ -1,4 +1,5 @@
 import type { DiscordDeleteInviteParams, DiscordDeleteInviteResponse } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const discordDeleteInviteTool: ToolConfig<
@@ -9,6 +10,7 @@ export const discordDeleteInviteTool: ToolConfig<
   name: 'Discord Delete Invite',
   description: 'Delete a Discord invite',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

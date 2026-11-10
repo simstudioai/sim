@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ListLocationsParams, LocationListResponse } from '@/tools/square/types'
 import { LOCATION_OUTPUT, SQUARE_BASE_URL, squareHeaders } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -8,6 +9,7 @@ export const squareListLocationsTool: ToolConfig<ListLocationsParams, LocationLi
   name: 'Square List Locations',
   description: 'List all locations associated with the Square account',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {

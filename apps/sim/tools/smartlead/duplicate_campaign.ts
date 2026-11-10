@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SmartleadCampaignIdParams,
   SmartleadDuplicateCampaignResponse,
@@ -24,6 +25,7 @@ export const duplicateCampaignTool: ToolConfig<
   description:
     'Copies a Smartlead campaign, including its sequences and settings. The copy is named "<original> - copy" and starts in DRAFTED status.',
   version: '1.0.0',
+  oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,

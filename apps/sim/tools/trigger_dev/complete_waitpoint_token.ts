@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TriggerDevCompleteWaitpointTokenParams,
   TriggerDevCompleteWaitpointTokenResponse,
@@ -18,6 +19,7 @@ export const triggerDevCompleteWaitpointTokenTool: ToolConfig<
   description:
     'Complete a Trigger.dev waitpoint token, resuming any task waiting on it and passing it optional JSON data.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

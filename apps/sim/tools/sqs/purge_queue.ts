@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SqsMessageResponse, SqsPurgeQueueParams } from '@/tools/sqs/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const purgeQueueTool: InternalToolConfig<SqsPurgeQueueParams, SqsMessageR
   name: 'SQS Purge Queue',
   description: 'Delete every message in an Amazon SQS queue while keeping the queue itself',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

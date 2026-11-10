@@ -4,6 +4,7 @@ import type {
 } from '@/tools/databricks/types'
 import { GENIE_QUERY_RESULT_OUTPUTS } from '@/tools/databricks/types'
 import { databricksUrl, mapStatementResult, parseDatabricksJson } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const executeSqlTool: ToolConfig<DatabricksExecuteSqlParams, DatabricksExecuteSqlResponse> =
@@ -13,6 +14,7 @@ export const executeSqlTool: ToolConfig<DatabricksExecuteSqlParams, DatabricksEx
     description:
       'Execute a SQL statement against a Databricks SQL warehouse and return results inline. Supports parameterized queries and Unity Catalog.',
     version: '1.0.0',
+    oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
     params: {
       host: {

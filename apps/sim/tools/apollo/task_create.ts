@@ -1,4 +1,5 @@
 import type { ApolloTaskCreateParams, ApolloTaskCreateResponse } from '@/tools/apollo/types'
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apolloTaskCreateTool: ToolConfig<ApolloTaskCreateParams, ApolloTaskCreateResponse> = {
@@ -6,6 +7,7 @@ export const apolloTaskCreateTool: ToolConfig<ApolloTaskCreateParams, ApolloTask
   name: 'Apollo Create Task',
   description: 'Create one or more tasks in Apollo (one task per contact_id, master key required)',
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -6,6 +6,7 @@ import {
   type QuartrPaginatedDto,
 } from '@/tools/quartr/types'
 import { buildQuartrUrl, mapQuartrEventType, parseQuartrResponse } from '@/tools/quartr/utils'
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const quartrListEventTypesTool: ToolConfig<
@@ -17,6 +18,7 @@ export const quartrListEventTypesTool: ToolConfig<
   description:
     'List the event types available in Quartr (e.g., earnings calls), useful for filtering events by type ID.',
   version: '1.0.0',
+  oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

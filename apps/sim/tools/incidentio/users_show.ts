@@ -2,6 +2,7 @@ import type {
   IncidentioUsersShowParams,
   IncidentioUsersShowResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const usersShowTool: ToolConfig<IncidentioUsersShowParams, IncidentioUsersShowResponse> = {
@@ -10,6 +11,7 @@ export const usersShowTool: ToolConfig<IncidentioUsersShowParams, IncidentioUser
   description:
     'Get detailed information about a specific user in your Incident.io workspace by their ID.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

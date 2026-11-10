@@ -4,6 +4,7 @@ import {
   handleMailchimpError,
   type MailchimpCampaign,
 } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('MailchimpUpdateCampaign')
@@ -32,6 +33,7 @@ export const mailchimpUpdateCampaignTool: ToolConfig<
   name: 'Update Campaign in Mailchimp',
   description: 'Update an existing campaign in Mailchimp',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,4 +1,5 @@
 import type { ApolloOpportunityGetParams, ApolloOpportunityGetResponse } from '@/tools/apollo/types'
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apolloOpportunityGetTool: ToolConfig<
@@ -9,6 +10,7 @@ export const apolloOpportunityGetTool: ToolConfig<
   name: 'Apollo Get Opportunity',
   description: 'Retrieve complete details of a specific deal/opportunity by ID',
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

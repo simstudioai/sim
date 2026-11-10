@@ -1,4 +1,5 @@
 import type { RipplingDeleteCustomSettingParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingDeleteCustomSettingTool: ToolConfig<RipplingDeleteCustomSettingParams> = {
@@ -6,6 +7,7 @@ export const ripplingDeleteCustomSettingTool: ToolConfig<RipplingDeleteCustomSet
   name: 'Rippling Delete Custom Setting',
   description: 'Delete a custom setting',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

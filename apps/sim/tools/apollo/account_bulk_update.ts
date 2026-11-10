@@ -2,6 +2,7 @@ import type {
   ApolloAccountBulkUpdateParams,
   ApolloAccountBulkUpdateResponse,
 } from '@/tools/apollo/types'
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apolloAccountBulkUpdateTool: ToolConfig<
@@ -13,6 +14,7 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
   description:
     'Update up to 1000 existing accounts at once in your Apollo database (higher limit than contacts!). Each account must include an id field. Master key required.',
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

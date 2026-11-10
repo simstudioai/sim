@@ -3,6 +3,7 @@ import type {
   AgentPhoneGetCallResult,
   AgentPhoneTranscriptTurn,
 } from '@/tools/agentphone/types'
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentphoneGetCallTool: ToolConfig<AgentPhoneGetCallParams, AgentPhoneGetCallResult> = {
@@ -10,6 +11,7 @@ export const agentphoneGetCallTool: ToolConfig<AgentPhoneGetCallParams, AgentPho
   name: 'Get Call',
   description: 'Fetch a call and its full transcript',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

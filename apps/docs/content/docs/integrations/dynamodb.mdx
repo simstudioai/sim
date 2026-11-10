@@ -2,7 +2,7 @@
 title: Amazon DynamoDB
 description: Get, put, query, scan, update, and delete items in Amazon DynamoDB tables
 integration:
-  type: "dynamodb"
+  type: "dynamodb_v2"
   color: "linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
 ---
 
@@ -10,7 +10,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-[Amazon DynamoDB](https://aws.amazon.com/dynamodb/) stores items in tables identified by primary keys. Use Get to read an item, Put to insert or replace one, Update to change attributes, and Delete to remove it. Query a table or index by key conditions; use Scan when you need to inspect items across the table. The integration also reads table metadata and uses AWS access-key credentials.
+[Amazon DynamoDB](https://aws.amazon.com/dynamodb/) stores items in tables identified by primary keys. Use Get to read an item, Put to insert or replace one, Update to change attributes, and Delete to remove it. Query a table or index by key conditions; use Scan when you need to inspect items across the table. The integration also reads table metadata and signs in with a saved [AWS credential](/integrations/aws-credentials).
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
@@ -30,8 +30,6 @@ Get an item from a DynamoDB table by primary key
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
 | `key` | json | Yes | Primary key of the item to retrieve \(e.g., \{"pk": "USER#123"\} or \{"pk": "ORDER#456", "sk": "ITEM#789"\}\) |
 | `consistentRead` | boolean | No | Use strongly consistent read |
@@ -56,8 +54,6 @@ Put an item into a DynamoDB table
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
 | `item` | json | Yes | Item to put into the table \(e.g., \{"pk": "USER#123", "name": "John", "email": "john@example.com"\}\) |
 | `conditionExpression` | string | No | Condition that must be met for the put to succeed \(e.g., "attribute_not_exists\(pk\)" to prevent overwrites\) |
@@ -84,8 +80,6 @@ Query items from a DynamoDB table using key conditions
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
 | `keyConditionExpression` | string | Yes | Key condition expression \(e.g., "pk = :pk" or "pk = :pk AND sk BEGINS_WITH :prefix"\) |
 | `filterExpression` | string | No | Filter expression for results \(e.g., "age &gt; :minAge AND #status = :status"\) |
@@ -118,8 +112,6 @@ Scan all items in a DynamoDB table
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
 | `filterExpression` | string | No | Filter expression for results \(e.g., "age &gt; :minAge AND #status = :status"\) |
 | `projectionExpression` | string | No | Attributes to retrieve \(e.g., "pk, sk, #name, email"\) |
@@ -150,8 +142,6 @@ Update an item in a DynamoDB table
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
 | `key` | json | Yes | Primary key of the item to update \(e.g., \{"pk": "USER#123"\} or \{"pk": "ORDER#456", "sk": "ITEM#789"\}\) |
 | `updateExpression` | string | Yes | Update expression \(e.g., "SET #name = :name, age = :age" or "SET #count = #count + :inc"\) |
@@ -179,8 +169,6 @@ Delete an item from a DynamoDB table
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
 | `key` | json | Yes | Primary key of the item to delete \(e.g., \{"pk": "USER#123"\} or \{"pk": "ORDER#456", "sk": "ITEM#789"\}\) |
 | `conditionExpression` | string | No | Condition that must be met for the delete to succeed \(e.g., "attribute_exists\(pk\)"\) |
@@ -206,8 +194,6 @@ Introspect DynamoDB to list tables or get detailed schema information for a spec
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `tableName` | string | No | Optional table name to get detailed schema \(e.g., "Users", "Orders"\). If not provided, lists all tables. |
 
 #### Output

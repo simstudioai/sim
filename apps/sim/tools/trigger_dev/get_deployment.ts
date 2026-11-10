@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TriggerDevDeploymentResponse,
   TriggerDevGetDeploymentParams,
@@ -19,6 +20,7 @@ export const triggerDevGetDeploymentTool: ToolConfig<
   description:
     'Retrieve a Trigger.dev deployment by its ID, including its status, version, and registered tasks.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

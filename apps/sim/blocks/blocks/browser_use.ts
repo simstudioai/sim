@@ -1,8 +1,11 @@
 import { BrowserUseIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const BrowserUseBlock: BlockConfig = {
   type: 'browser_use',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'browser_use_v2' },
   name: 'Browser Use',
   description: 'Run browser automation tasks',
   authMode: AuthMode.ApiKey,
@@ -318,3 +321,17 @@ export const BrowserUseBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const BrowserUseV2Block: BlockConfig = {
+  ...BrowserUseBlock,
+  type: 'browser_use_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(BrowserUseBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'browser_use',
+    title: 'Browser Use Credential',
+  }),
+}

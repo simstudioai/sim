@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { STSAssumeRoleParams, STSAssumeRoleResponse } from '@/tools/sts/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const assumeRoleTool: InternalToolConfig<STSAssumeRoleParams, STSAssumeRo
   name: 'STS Assume Role',
   description: 'Assume an IAM role and receive temporary security credentials',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

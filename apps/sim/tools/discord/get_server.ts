@@ -3,6 +3,7 @@ import type {
   DiscordGetServerResponse,
   DiscordGuild,
 } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGetServerResponse> = {
@@ -10,6 +11,7 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
   name: 'Discord Get Server',
   description: 'Retrieve information about a Discord server (guild)',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

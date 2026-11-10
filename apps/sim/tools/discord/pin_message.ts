@@ -1,4 +1,5 @@
 import type { DiscordPinMessageParams, DiscordPinMessageResponse } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const discordPinMessageTool: ToolConfig<DiscordPinMessageParams, DiscordPinMessageResponse> =
@@ -7,6 +8,7 @@ export const discordPinMessageTool: ToolConfig<DiscordPinMessageParams, DiscordP
     name: 'Discord Pin Message',
     description: 'Pin a message in a Discord channel',
     version: '1.0.0',
+    oauth: DISCORD_CREDENTIAL_OAUTH,
 
     params: {
       botToken: {

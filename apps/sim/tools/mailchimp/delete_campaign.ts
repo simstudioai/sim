@@ -1,4 +1,5 @@
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface MailchimpDeleteCampaignParams {
@@ -18,6 +19,7 @@ export const mailchimpDeleteCampaignTool: ToolConfig<
   name: 'Delete Campaign from Mailchimp',
   description: 'Delete a campaign from Mailchimp',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

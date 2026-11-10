@@ -2,6 +2,7 @@ import type {
   SecretsManagerDeleteSecretParams,
   SecretsManagerDeleteSecretResponse,
 } from '@/tools/secrets_manager/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const deleteSecretTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const deleteSecretTool: InternalToolConfig<
   name: 'Secrets Manager Delete Secret',
   description: 'Delete a secret from AWS Secrets Manager',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

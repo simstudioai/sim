@@ -1,4 +1,5 @@
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface IntercomCreateMessageParams {
@@ -145,6 +146,7 @@ export const intercomCreateMessageTool: ToolConfig<
   name: 'Create Message in Intercom',
   description: 'Create and send a new admin-initiated message in Intercom',
   version: '1.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...createMessageBase,
 
@@ -205,6 +207,7 @@ export const intercomCreateMessageV2Tool: ToolConfig<
   description:
     'Create and send a new admin-initiated message in Intercom. Returns API-aligned fields only.',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

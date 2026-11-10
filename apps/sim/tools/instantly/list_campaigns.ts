@@ -12,6 +12,7 @@ import {
   mapCampaign,
   parseInstantlyResponse,
 } from '@/tools/instantly/utils'
+import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listCampaignsTool: ToolConfig<
@@ -22,6 +23,7 @@ export const listCampaignsTool: ToolConfig<
   name: 'Instantly List Campaigns',
   description: 'Retrieves Instantly V2 campaigns with search, status, tag, and pagination filters.',
   version: '1.0.0',
+  oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,
     limit: {

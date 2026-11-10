@@ -2,9 +2,12 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { SQSIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const SQSBlock: BlockConfig = {
   type: 'sqs',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'sqs_v2' },
   name: 'Amazon SQS',
   description: 'Connect to Amazon SQS',
   longDescription:
@@ -1067,3 +1070,17 @@ export const SQSBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const SQSV2Block: BlockConfig = {
+  ...SQSBlock,
+  type: 'sqs_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(SQSBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

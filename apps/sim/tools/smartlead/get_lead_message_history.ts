@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SmartleadCampaignLeadParams,
   SmartleadMessageHistoryResponse,
@@ -24,6 +25,7 @@ export const getLeadMessageHistoryTool: ToolConfig<
   description:
     'Retrieves the sent-and-received message history for a lead in a Smartlead campaign.',
   version: '1.0.0',
+  oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,

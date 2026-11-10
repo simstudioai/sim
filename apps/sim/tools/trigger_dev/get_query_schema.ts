@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TriggerDevBaseParams, TriggerDevQuerySchemaResponse } from '@/tools/trigger_dev/types'
 import { buildTriggerDevHeaders, TRIGGER_DEV_API_BASE } from '@/tools/trigger_dev/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -11,6 +12,7 @@ export const triggerDevGetQuerySchemaTool: ToolConfig<
   description:
     'Retrieve the TRQL query schema: the tables and columns available for Execute Query, with types and allowed values.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

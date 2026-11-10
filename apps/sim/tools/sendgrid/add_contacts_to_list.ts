@@ -1,4 +1,5 @@
 import type { AddContactsToListParams, SendGridContactObject } from '@/tools/sendgrid/types'
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 export const sendGridAddContactsToListTool: ToolConfig<AddContactsToListParams, ToolResponse> = {
@@ -7,6 +8,7 @@ export const sendGridAddContactsToListTool: ToolConfig<AddContactsToListParams, 
   description:
     'Add or update contacts and assign them to a list in SendGrid (uses PUT /v3/marketing/contacts)',
   version: '1.0.0',
+  oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

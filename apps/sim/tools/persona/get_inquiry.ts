@@ -7,6 +7,7 @@ import {
   PERSONA_API_BASE,
   parsePersonaResponse,
 } from '@/tools/persona/utils'
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const personaGetInquiryTool: ToolConfig<PersonaGetInquiryParams, PersonaInquiryResponse> = {
@@ -15,6 +16,7 @@ export const personaGetInquiryTool: ToolConfig<PersonaGetInquiryParams, PersonaI
   description:
     'Retrieve a single identity verification inquiry by ID, including its status, collected fields, and decision timestamps.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

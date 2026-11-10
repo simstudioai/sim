@@ -5,6 +5,7 @@ import type {
   ClerkCreateOrganizationResponse,
   ClerkOrganization,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkCreateOrganization')
@@ -17,6 +18,7 @@ export const clerkCreateOrganizationTool: ToolConfig<
   name: 'Create Organization in Clerk',
   description: 'Create a new organization in your Clerk application',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

@@ -7,6 +7,7 @@ import {
   rocketlaneHeaders,
   SPACE_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneGetSpaceTool: ToolConfig<RocketlaneGetSpaceParams, RocketlaneSpaceResponse> =
@@ -15,6 +16,7 @@ export const rocketlaneGetSpaceTool: ToolConfig<RocketlaneGetSpaceParams, Rocket
     name: 'Rocketlane Get Space',
     description: 'Retrieve a Rocketlane space by its ID',
     version: '1.0.0',
+    oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

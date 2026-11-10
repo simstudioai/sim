@@ -1,4 +1,5 @@
 import type { RipplingDeleteCustomObjectFieldParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingDeleteCustomObjectFieldTool: ToolConfig<RipplingDeleteCustomObjectFieldParams> =
@@ -7,6 +8,7 @@ export const ripplingDeleteCustomObjectFieldTool: ToolConfig<RipplingDeleteCusto
     name: 'Rippling Delete Custom Object Field',
     description: 'Delete a field from a custom object',
     version: '1.0.0',
+    oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {
         type: 'string',

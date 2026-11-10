@@ -2,6 +2,7 @@ import type {
   AhrefsOrganicCompetitorsParams,
   AhrefsOrganicCompetitorsResponse,
 } from '@/tools/ahrefs/types'
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const SELECT_FIELDS =
@@ -16,6 +17,7 @@ export const organicCompetitorsTool: ToolConfig<
   description:
     'Get domains that compete with a target domain or URL for the same organic keywords, ranked by keyword overlap.',
   version: '1.0.0',
+  oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {
     target: {

@@ -2,6 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { LambdaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 type ParamKind = 'string' | 'number' | 'boolean' | 'json' | 'array' | 'jsonArray'
 
@@ -403,6 +404,8 @@ function parseJson(value: unknown, name: string): unknown {
 
 export const LambdaBlock: BlockConfig = {
   type: 'lambda',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'lambda_v2' },
   name: 'Lambda',
   description: 'Invoke, deploy, and manage AWS Lambda functions',
   longDescription:
@@ -2292,3 +2295,19 @@ export const LambdaBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const LambdaV2Block: BlockConfig = {
+  ...LambdaBlock,
+  type: 'lambda_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Invoke functions and read their response payload, create and update functions from Amazon S3 packages or container images, publish versions and aliases, wire up event source mappings, manage concurrency, function URLs, layers, permissions, and tags.',
+  ...withSavedCredential(LambdaBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

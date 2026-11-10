@@ -15,6 +15,9 @@
       "integration": "attio",
       "title": "API keys"
     },
+    "aws-credentials": {
+      "title": "AWS credentials"
+    },
     "box-service-account": {
       "integration": "box",
       "title": "Service accounts"
@@ -26,6 +29,10 @@
     "clickup-service-account": {
       "integration": "clickup",
       "title": "API tokens"
+    },
+    "databricks-credentials": {
+      "integration": "databricks",
+      "title": "Databricks connections"
     },
     "google-service-account": {
       "title": "Google service accounts"

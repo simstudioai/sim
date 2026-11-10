@@ -1,5 +1,6 @@
 import type { RipplingListTeamsParams } from '@/tools/rippling/types'
 import { TEAM_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingListTeamsTool: ToolConfig<RipplingListTeamsParams> = {
@@ -7,6 +8,7 @@ export const ripplingListTeamsTool: ToolConfig<RipplingListTeamsParams> = {
   name: 'Rippling List Teams',
   description: 'List all teams',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

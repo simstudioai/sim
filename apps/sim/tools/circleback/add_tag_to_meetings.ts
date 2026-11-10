@@ -10,6 +10,7 @@ import {
   throwCirclebackError,
   toStringList,
 } from '@/tools/circleback/utils'
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const addTagToMeetingsTool: ToolConfig<
@@ -21,6 +22,7 @@ export const addTagToMeetingsTool: ToolConfig<
   description:
     'Applies an existing Circleback tag to one or more meetings and returns the updated meetings.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

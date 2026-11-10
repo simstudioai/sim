@@ -1,5 +1,6 @@
 import type { RipplingQueryCustomObjectRecordsParams } from '@/tools/rippling/types'
 import { CUSTOM_OBJECT_RECORD_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingQueryCustomObjectRecordsTool: ToolConfig<RipplingQueryCustomObjectRecordsParams> =
@@ -8,6 +9,7 @@ export const ripplingQueryCustomObjectRecordsTool: ToolConfig<RipplingQueryCusto
     name: 'Rippling Query Custom Object Records',
     description: 'Query custom object records with filters',
     version: '1.0.0',
+    oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {
         type: 'string',

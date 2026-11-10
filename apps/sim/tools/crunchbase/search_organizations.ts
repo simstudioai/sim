@@ -7,6 +7,7 @@ import {
   transformSearchResponse,
 } from '@/tools/crunchbase/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { CRUNCHBASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const crunchbaseSearchOrganizationsTool: ToolConfig<
@@ -18,6 +19,7 @@ export const crunchbaseSearchOrganizationsTool: ToolConfig<
   description:
     'Search Crunchbase companies, investors, and schools with filter predicates on funding, headcount, location, category, and rank.',
   version: '1.0.0',
+  oauth: CRUNCHBASE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.CRUNCHBASE_ERRORS,
 
   params: {

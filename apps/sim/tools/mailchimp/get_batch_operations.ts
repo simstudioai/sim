@@ -1,5 +1,6 @@
 import type { MailchimpBatchOperation } from '@/tools/mailchimp/types'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface MailchimpGetBatchOperationsParams {
@@ -25,6 +26,7 @@ export const mailchimpGetBatchOperationsTool: ToolConfig<
   name: 'Get Batch Operations from Mailchimp',
   description: 'Retrieve a list of batch operations from Mailchimp',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

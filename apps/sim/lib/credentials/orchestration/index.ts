@@ -51,6 +51,8 @@ import { invalidateEffectiveDecryptedEnvCache } from '@/lib/environment/utils'
 import { findSlackSearchInstallation } from '@/lib/knowledge/application/slack-search/repository'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+  AWS_SERVICE_ACCOUNT_PROVIDER_ID,
+  DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_SECRET_TYPE,
@@ -235,7 +237,11 @@ export interface PerformCredentialResult {
 export type UpdateCredentialRecordParams = Omit<
   PerformUpdateCredentialParams,
   'userId' | 'actorName' | 'actorEmail' | 'allowedTypes' | 'reason' | 'request'
-> & { credential: CredentialRow }
+> & {
+  credential: CredentialRow
+  /** The person saving the change; binds owner-scoped secrets such as a keyless subject. */
+  actorUserId: string
+}
 
 /** Updates one already-authorized credential without surface authorization or audit. */
 export async function updateCredentialRecord(
@@ -334,6 +340,10 @@ export async function updateCredentialRecord(
         providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID &&
         params.atlassianProduct === undefined
       const needsStoredUsername = params.username === undefined && isMultiGrantProvider
+      // A keyless AWS role or Databricks principal keeps its trusted subject across reconnects.
+      const needsStoredBoundSubject =
+        providerId === AWS_SERVICE_ACCOUNT_PROVIDER_ID ||
+        providerId === DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID
 
       // Rotating to a key that belongs to a different principal makes an
       // identity-derived label (a Google `client_email`, a Slack team name)
@@ -351,7 +361,8 @@ export async function updateCredentialRecord(
         needsStoredAuthMethod ||
         needsStoredUsername ||
         needsStoredIdentity ||
-        needsStoredAtlassianProduct
+        needsStoredAtlassianProduct ||
+        needsStoredBoundSubject
           ? await readStoredSecretBlob(params.credential.id)
           : null
 
@@ -431,6 +442,13 @@ export async function updateCredentialRecord(
           fingerprint: params.fingerprint,
           privateKeyPassphrase: params.privateKeyPassphrase,
           region: params.region,
+          owner: {
+            ...(params.credential.organizationId
+              ? { organizationId: params.credential.organizationId }
+              : { workspaceId: params.credential.workspaceId ?? undefined }),
+            actorUserId: params.actorUserId,
+            storedSecret: storedBlob,
+          },
         })
         updates.encryptedServiceAccountKey = secret.encryptedServiceAccountKey
         rotatedSlackBotUserId = secret.botUserId
@@ -571,7 +589,11 @@ export async function performUpdateCredential(
     }
   }
 
-  const result = await updateCredentialRecord({ ...params, credential: access.credential })
+  const result = await updateCredentialRecord({
+    ...params,
+    credential: access.credential,
+    actorUserId: params.userId,
+  })
   if (!result.success) return result
 
   recordAudit({

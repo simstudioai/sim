@@ -1,10 +1,13 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { CloudFormationIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const CloudFormationBlock: BlockConfig = {
   type: 'cloudformation',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'cloudformation_v2' },
   name: 'CloudFormation',
   description: 'Manage and inspect AWS CloudFormation stacks, resources, and drift',
   longDescription:
@@ -881,3 +884,19 @@ export const CloudFormationBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const CloudFormationV2Block: BlockConfig = {
+  ...CloudFormationBlock,
+  type: 'cloudformation_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Create, update, and delete stacks, preview changes with change sets, describe stacks, list resources, detect drift, view stack events, and retrieve or validate templates.',
+  ...withSavedCredential(CloudFormationBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

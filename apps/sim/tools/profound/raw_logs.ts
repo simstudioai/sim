@@ -1,3 +1,4 @@
+import { PROFOUND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ProfoundRawLogsParams, ProfoundRawLogsResponse } from './types'
 
@@ -6,6 +7,7 @@ export const profoundRawLogsTool: ToolConfig<ProfoundRawLogsParams, ProfoundRawL
   name: 'Profound Raw Logs',
   description: 'Get raw traffic logs with filters for a domain in Profound',
   version: '1.0.0',
+  oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

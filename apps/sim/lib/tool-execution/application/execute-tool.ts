@@ -63,8 +63,9 @@ export interface ExecuteToolResult {
  *
  * Mirrors `injectHostedKeyIfNeeded`'s tests, in its order, so the two cannot
  * disagree about whether a value is coming: the tool declares `hosting`, the
- * deployment hosts keys, any `enabled` predicate accepts these params, and the
- * caller has not brought a key of their own — which wins where present.
+ * deployment hosts keys, any `enabled` predicate accepts these params, no saved
+ * credential supplies the key, and the caller has not brought a key of their
+ * own — which wins where present.
  *
  * Pre-dispatch only: the required-input exemption (a parameter Sim will fill is
  * not missing) and usage admission. It is deliberately NOT the metering gate —
@@ -77,6 +78,12 @@ function hostedKeyParamFor(
 ): string | undefined {
   if (!isHosted || !tool.hosting) return undefined
   if (tool.hosting.enabled && !tool.hosting.enabled(params)) return undefined
+  if (
+    (params.credential || params.oauthCredential) &&
+    tool.oauth?.credentialSuppliedParams?.includes(tool.hosting.apiKeyParam)
+  ) {
+    return undefined
+  }
   const supplied = params[tool.hosting.apiKeyParam]
   if (typeof supplied === 'string' && supplied.trim().length > 0) return undefined
   return tool.hosting.apiKeyParam
@@ -240,15 +247,19 @@ function assertNoUndeclaredInputs(
 function assertRequiredCallerInputsPresent(
   tool: ExecutableToolConfig,
   toolId: string,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  hasCredential: boolean
 ): void {
   const hostedKeyParam = hostedKeyParamFor(tool, params)
+  // A saved credential fills these server-side; the caller does not pass them.
+  const credentialSupplied = new Set(hasCredential ? tool.oauth?.credentialSuppliedParams : [])
 
   const missing = Object.entries(tool.params ?? {})
     .filter(([name, declaration]) => {
       if (!declaration?.required) return false
       if (declaration.visibility === 'hidden') return false
       if (name === hostedKeyParam) return false
+      if (credentialSupplied.has(name)) return false
       const value = params[name]
       return value === undefined || value === null || value === ''
     })
@@ -343,7 +354,7 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
       ...input.input,
       ...(input.credentialId ? { [selector ?? 'credential']: input.credentialId } : {}),
     }
-    assertRequiredCallerInputsPresent(tool, toolId, callerParams)
+    assertRequiredCallerInputsPresent(tool, toolId, callerParams, Boolean(input.credentialId))
 
     const userId = principalUserId(principal)
     if (!userId) {

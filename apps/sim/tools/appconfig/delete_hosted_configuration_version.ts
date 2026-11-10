@@ -2,6 +2,7 @@ import type {
   AppConfigDeleteHostedConfigurationVersionParams,
   AppConfigDeleteHostedConfigurationVersionResponse,
 } from '@/tools/appconfig/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const deleteHostedConfigurationVersionTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const deleteHostedConfigurationVersionTool: InternalToolConfig<
   name: 'AppConfig Delete Hosted Configuration Version',
   description: 'Delete a specific hosted configuration version from an AppConfig profile',
   version: '1.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

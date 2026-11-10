@@ -1,7 +1,7 @@
 import { LinqIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const CHAT_ID_OPS = [
@@ -65,6 +65,8 @@ const splitHandles = (value: unknown): string[] =>
 
 export const LinqBlock: BlockConfig = {
   type: 'linq',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'linq_v2' },
   name: 'Linq',
   description: 'Send iMessage, SMS, and RCS messages and manage conversations with Linq',
   longDescription:
@@ -1112,3 +1114,19 @@ export const LinqBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const LinqV2Block: BlockConfig = {
+  ...LinqBlock,
+  type: 'linq_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Reach people on iMessage, SMS, and RCS through Linq. Start chats, send messages with media, links, effects, and replies, send voice memos, react with tapbacks, manage group participants, check iMessage/RCS capability, configure contact cards, and subscribe to webhook events.',
+  ...withSavedCredential(LinqBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'linq',
+    title: 'Linq Credential',
+  }),
+}

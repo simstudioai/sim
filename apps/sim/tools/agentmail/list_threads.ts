@@ -1,4 +1,5 @@
 import type { ListThreadsParams, ListThreadsResult } from '@/tools/agentmail/types'
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentmailListThreadsTool: ToolConfig<ListThreadsParams, ListThreadsResult> = {
@@ -6,6 +7,7 @@ export const agentmailListThreadsTool: ToolConfig<ListThreadsParams, ListThreads
   name: 'List Threads',
   description: 'List email threads in AgentMail',
   version: '1.0.0',
+  oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

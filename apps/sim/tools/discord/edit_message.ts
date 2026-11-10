@@ -1,4 +1,5 @@
 import type { DiscordEditMessageParams, DiscordEditMessageResponse } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const discordEditMessageTool: ToolConfig<
@@ -9,6 +10,7 @@ export const discordEditMessageTool: ToolConfig<
   name: 'Discord Edit Message',
   description: 'Edit an existing message in a Discord channel',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

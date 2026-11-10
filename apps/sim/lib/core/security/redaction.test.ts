@@ -29,6 +29,8 @@ describe('isSensitiveKey', () => {
     'hasSecret',
     'searchApiKey',
     'exa_api_key',
+    'secretAccessKey',
+    'awsSecretAccessKey',
     `${'a'.repeat(10000)}password`,
   ])('treats %s as sensitive', (key) => {
     expect(isSensitiveKey(key)).toBe(true)

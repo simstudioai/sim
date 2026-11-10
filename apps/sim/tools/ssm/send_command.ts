@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SsmSendCommandParams, SsmSendCommandResponse } from '@/tools/ssm/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const sendCommandTool: InternalToolConfig<SsmSendCommandParams, SsmSendCo
   name: 'SSM Send Command',
   description: 'Run an SSM document on managed nodes with AWS Systems Manager Run Command',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

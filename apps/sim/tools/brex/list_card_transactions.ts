@@ -11,6 +11,7 @@ import {
   parseBrexJson,
   toBrexDateTime,
 } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brexListCardTransactionsTool: ToolConfig<
@@ -21,6 +22,7 @@ export const brexListCardTransactionsTool: ToolConfig<
   name: 'Brex List Card Transactions',
   description: 'List settled card transactions for all Brex card accounts',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { OrderListResponse, SearchOrdersParams } from '@/tools/square/types'
 import {
   LIST_METADATA_OUTPUT_PROPERTIES,
@@ -13,6 +14,7 @@ export const squareSearchOrdersTool: ToolConfig<SearchOrdersParams, OrderListRes
   name: 'Square Search Orders',
   description: 'Search orders across one or more locations using filters and sorting',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {

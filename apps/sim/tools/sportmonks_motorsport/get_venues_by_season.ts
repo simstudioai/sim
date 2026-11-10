@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   appendSportmonksQuery,
   buildSportmonksHeaders,
@@ -36,6 +37,7 @@ export const sportmonksMotorsportGetVenuesBySeasonTool: ToolConfig<
   description:
     'Retrieve all motorsport venues (racing tracks) for a season by season ID from Sportmonks',
   version: '1.0.0',
+  oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

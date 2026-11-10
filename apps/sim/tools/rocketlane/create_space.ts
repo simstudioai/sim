@@ -7,6 +7,7 @@ import {
   rocketlaneHeaders,
   SPACE_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneCreateSpaceTool: ToolConfig<
@@ -17,6 +18,7 @@ export const rocketlaneCreateSpaceTool: ToolConfig<
   name: 'Rocketlane Create Space',
   description: 'Create a new space in a Rocketlane project',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

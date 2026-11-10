@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CustomerListResponse, SearchCustomersParams } from '@/tools/square/types'
 import {
   CUSTOMER_OUTPUT,
@@ -13,6 +14,7 @@ export const squareSearchCustomersTool: ToolConfig<SearchCustomersParams, Custom
   name: 'Square Search Customers',
   description: 'Search customer profiles using filters such as email, phone, or creation date',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {

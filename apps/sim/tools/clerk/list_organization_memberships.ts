@@ -5,6 +5,7 @@ import type {
   ClerkListOrganizationMembershipsResponse,
   ClerkOrganizationMembership,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkListOrganizationMemberships')
@@ -17,6 +18,7 @@ export const clerkListOrganizationMembershipsTool: ToolConfig<
   name: 'List Organization Memberships from Clerk',
   description: 'List members of a Clerk organization with optional filtering and pagination',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

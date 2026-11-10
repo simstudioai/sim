@@ -2,6 +2,7 @@ import type {
   AgentPhoneCreateContactParams,
   AgentPhoneCreateContactResult,
 } from '@/tools/agentphone/types'
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentphoneCreateContactTool: ToolConfig<
@@ -12,6 +13,7 @@ export const agentphoneCreateContactTool: ToolConfig<
   name: 'Create Contact',
   description: 'Create a new contact in AgentPhone',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

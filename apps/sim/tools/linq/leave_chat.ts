@@ -1,5 +1,6 @@
 import type { LinqChatActionParams, LinqQueuedResult } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const linqLeaveChatTool: ToolConfig<LinqChatActionParams, LinqQueuedResult> = {
@@ -8,6 +9,7 @@ export const linqLeaveChatTool: ToolConfig<LinqChatActionParams, LinqQueuedResul
   description:
     'Leave an iMessage group chat (4+ active participants; not supported for direct chats)',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -7,6 +7,7 @@ import {
   transformEntity,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityGetSavedViewTool: ToolConfig<
@@ -17,6 +18,7 @@ export const affinityGetSavedViewTool: ToolConfig<
   name: 'Affinity Get Saved View',
   description: 'Read one saved view — its name, kind, and creation date.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

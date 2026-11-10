@@ -2,12 +2,15 @@ import { Mail } from '@sim/emcn/icons'
 import { MailchimpIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 /** Upsert and unarchive identify the member by either address field; first filled wins. */
 const MEMBER_EMAIL_FIELD = ['subscriberEmail', 'emailAddress'] as const
 
 export const MailchimpBlock: BlockConfig = {
   type: 'mailchimp',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'mailchimp_v2' },
   name: 'Mailchimp',
   description: 'Manage audiences, campaigns, and marketing automation in Mailchimp',
   longDescription:
@@ -1849,3 +1852,17 @@ export const MailchimpBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const MailchimpV2Block: BlockConfig = {
+  ...MailchimpBlock,
+  type: 'mailchimp_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(MailchimpBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'mailchimp',
+    title: 'Mailchimp Credential',
+  }),
+}

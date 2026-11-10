@@ -1,4 +1,5 @@
 import type { RipplingGetCustomObjectParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingGetCustomObjectTool: ToolConfig<RipplingGetCustomObjectParams> = {
@@ -6,6 +7,7 @@ export const ripplingGetCustomObjectTool: ToolConfig<RipplingGetCustomObjectPara
   name: 'Rippling Get Custom Object',
   description: 'Get a custom object by API name',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

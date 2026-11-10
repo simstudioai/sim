@@ -2,6 +2,7 @@ import type {
   CloudFormationCreateStackParams,
   CloudFormationCreateStackResponse,
 } from '@/tools/cloudformation/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const createStackTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const createStackTool: InternalToolConfig<
   name: 'CloudFormation Create Stack',
   description: 'Create a new CloudFormation stack from a template',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

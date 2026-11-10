@@ -3,7 +3,7 @@ import { FirefliesIcon } from '@/components/icons'
 import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const AUDIO_FILE_FIELD = ['audioFile', 'audioFileReference'] as const
@@ -13,7 +13,7 @@ export const FirefliesBlock: BlockConfig = {
   name: 'Fireflies (Legacy)',
   description: 'Interact with Fireflies.ai meeting transcripts and recordings',
   hideFromToolbar: true,
-  sunset: { status: 'legacy', replacedBy: 'fireflies_v2' },
+  sunset: { status: 'legacy', replacedBy: 'fireflies_v3' },
   authMode: AuthMode.ApiKey,
   triggerAllowed: true,
   longDescription:
@@ -702,11 +702,11 @@ const firefliesV2Inputs = FirefliesBlock.inputs ? omit(FirefliesBlock.inputs, ['
 
 export const FirefliesV2Block: BlockConfig = {
   ...FirefliesBlock,
-  sunset: undefined,
+  sunset: { status: 'legacy', replacedBy: 'fireflies_v3' },
   type: 'fireflies_v2',
   name: 'Fireflies',
   description: 'Interact with Fireflies.ai meeting transcripts and recordings',
-  hideFromToolbar: false,
+  hideFromToolbar: true,
   integrationType: IntegrationType.Productivity,
   subBlocks: firefliesV2SubBlocks,
   tools: {
@@ -851,3 +851,17 @@ export const FirefliesV2BlockMeta = {
   tags: ['meeting', 'note-taking'],
   url: 'https://fireflies.ai',
 } as const satisfies BlockMeta
+
+export const FirefliesV3Block: BlockConfig = {
+  ...FirefliesV2Block,
+  type: 'fireflies_v3',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(FirefliesV2Block, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'fireflies',
+    title: 'Fireflies Credential',
+  }),
+}

@@ -3,6 +3,7 @@ import {
   handleMailchimpError,
   type MailchimpCampaignContent,
 } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface MailchimpGetCampaignContentParams {
@@ -25,6 +26,7 @@ export const mailchimpGetCampaignContentTool: ToolConfig<
   name: 'Get Campaign Content from Mailchimp',
   description: 'Retrieve the HTML and plain-text content for a Mailchimp campaign',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

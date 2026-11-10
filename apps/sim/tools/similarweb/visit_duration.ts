@@ -1,3 +1,4 @@
+import { SIMILARWEB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SimilarwebVisitDurationParams,
   SimilarwebVisitDurationResponse,
@@ -12,6 +13,7 @@ export const similarwebVisitDurationTool: ToolConfig<
   name: 'SimilarWeb Visit Duration',
   description: 'Get average desktop visit duration over time (in seconds)',
   version: '1.0.0',
+  oauth: SIMILARWEB_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

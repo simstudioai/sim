@@ -160,6 +160,18 @@ Google, GitHub, and Microsoft sign-in, their callback URLs, and the `DISABLE_*_A
 
 OAuth integrations require a provider application and its credentials on a self-hosted deployment. API-key integrations use the keys supplied in their blocks. The full table, redirect-URI format, and setup steps are in [Integrations and OAuth](/platform/self-hosting/integrations-oauth).
 
+### Keyless cloud credentials [#workload-identity]
+
+Saved AWS and Databricks credentials can trust Sim through OpenID Connect instead of storing keys. Leave these unset to offer only key- and secret-based credentials.
+
+| Variable | Description |
+| --- | --- |
+| `WORKLOAD_IDENTITY_SIGNING_KEY` | PKCS#8 PEM RSA private key that signs Sim's workload-identity tokens: `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048` |
+| `WORKLOAD_IDENTITY_ISSUER` | Issuer URL clouds trust. Defaults to `<NEXT_PUBLIC_APP_URL>/oidc/workload` and must be reachable from the public internet. Never change it once trust policies reference it. |
+| `WORKLOAD_IDENTITY_PREVIOUS_KEY` | During rotation, the retiring key (private or public PEM), still published so tokens it signed keep verifying |
+
+See [AWS credentials](/integrations/aws-credentials#self-hosted-deployments).
+
 ## Access control
 
 Who may sign up and sign in — the allowlists, blocklists, `DISABLE_REGISTRATION`, `DISABLE_INVITATIONS`, `DISABLE_PUBLIC_API`, and `DISABLE_AUTH` — is documented in [Authentication](/platform/self-hosting/authentication).

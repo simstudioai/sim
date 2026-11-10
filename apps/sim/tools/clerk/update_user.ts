@@ -7,6 +7,7 @@ import type {
   ClerkUpdateUserResponse,
   ClerkUser,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkUpdateUser')
@@ -16,6 +17,7 @@ export const clerkUpdateUserTool: ToolConfig<ClerkUpdateUserParams, ClerkUpdateU
   name: 'Update User in Clerk',
   description: 'Update an existing user in your Clerk application',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

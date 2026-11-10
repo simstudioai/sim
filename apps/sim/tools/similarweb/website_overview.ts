@@ -1,3 +1,4 @@
+import { SIMILARWEB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SimilarwebWebsiteOverviewParams,
   SimilarwebWebsiteOverviewResponse,
@@ -12,6 +13,7 @@ export const similarwebWebsiteOverviewTool: ToolConfig<
   name: 'SimilarWeb Website Overview',
   description: 'Get website traffic, rankings, engagement, and traffic sources.',
   version: '1.0.0',
+  oauth: SIMILARWEB_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

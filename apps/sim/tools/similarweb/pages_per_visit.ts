@@ -1,3 +1,4 @@
+import { SIMILARWEB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SimilarwebPagesPerVisitParams,
   SimilarwebPagesPerVisitResponse,
@@ -12,6 +13,7 @@ export const similarwebPagesPerVisitTool: ToolConfig<
   name: 'SimilarWeb Pages Per Visit',
   description: 'Get average pages per visit over time (desktop and mobile combined)',
   version: '1.0.0',
+  oauth: SIMILARWEB_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

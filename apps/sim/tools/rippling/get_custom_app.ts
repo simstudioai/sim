@@ -1,4 +1,5 @@
 import type { RipplingGetCustomAppParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingGetCustomAppTool: ToolConfig<RipplingGetCustomAppParams> = {
@@ -6,6 +7,7 @@ export const ripplingGetCustomAppTool: ToolConfig<RipplingGetCustomAppParams> = 
   name: 'Rippling Get CustomApp',
   description: 'Get a specific custom app',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

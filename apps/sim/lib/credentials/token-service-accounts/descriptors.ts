@@ -85,6 +85,65 @@ export const FLOW_SERVICE_ACCOUNT_PROVIDER_ID = 'flow-service-account' as const
 export const CODA_SERVICE_ACCOUNT_PROVIDER_ID = 'coda-service-account' as const
 export const GAUGE_SERVICE_ACCOUNT_PROVIDER_ID = 'gauge-service-account' as const
 export const HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID = 'higgsfield-service-account' as const
+export const FLINT_SERVICE_ACCOUNT_PROVIDER_ID = 'flint-service-account' as const
+export const REDUCTO_SERVICE_ACCOUNT_PROVIDER_ID = 'reducto-service-account' as const
+export const QUIVER_SERVICE_ACCOUNT_PROVIDER_ID = 'quiver-service-account' as const
+export const PULSE_SERVICE_ACCOUNT_PROVIDER_ID = 'pulse-service-account' as const
+export const INTERCOM_SERVICE_ACCOUNT_PROVIDER_ID = 'intercom-service-account' as const
+export const FIREFLIES_SERVICE_ACCOUNT_PROVIDER_ID = 'fireflies-service-account' as const
+export const EXTEND_SERVICE_ACCOUNT_PROVIDER_ID = 'extend-service-account' as const
+export const DUB_SERVICE_ACCOUNT_PROVIDER_ID = 'dub-service-account' as const
+export const CURSOR_SERVICE_ACCOUNT_PROVIDER_ID = 'cursor-service-account' as const
+export const DISCORD_SERVICE_ACCOUNT_PROVIDER_ID = 'discord-service-account' as const
+export const ZEP_SERVICE_ACCOUNT_PROVIDER_ID = 'zep-service-account' as const
+export const MEM0_SERVICE_ACCOUNT_PROVIDER_ID = 'mem0-service-account' as const
+export const YOUTUBE_SERVICE_ACCOUNT_PROVIDER_ID = 'youtube-service-account' as const
+export const YOUCOM_SERVICE_ACCOUNT_PROVIDER_ID = 'youcom-service-account' as const
+export const UPTIMEROBOT_SERVICE_ACCOUNT_PROVIDER_ID = 'uptimerobot-service-account' as const
+export const TRIGGER_DEV_SERVICE_ACCOUNT_PROVIDER_ID = 'trigger-dev-service-account' as const
+export const TAILSCALE_SERVICE_ACCOUNT_PROVIDER_ID = 'tailscale-service-account' as const
+export const SQUARE_SERVICE_ACCOUNT_PROVIDER_ID = 'square-service-account' as const
+export const SPORTMONKS_SERVICE_ACCOUNT_PROVIDER_ID = 'sportmonks-service-account' as const
+export const SMARTLEAD_SERVICE_ACCOUNT_PROVIDER_ID = 'smartlead-service-account' as const
+export const SIXTYFOUR_SERVICE_ACCOUNT_PROVIDER_ID = 'sixtyfour-service-account' as const
+export const SIMILARWEB_SERVICE_ACCOUNT_PROVIDER_ID = 'similarweb-service-account' as const
+export const SENDGRID_SERVICE_ACCOUNT_PROVIDER_ID = 'sendgrid-service-account' as const
+export const ROCKETLANE_SERVICE_ACCOUNT_PROVIDER_ID = 'rocketlane-service-account' as const
+export const RIPPLING_SERVICE_ACCOUNT_PROVIDER_ID = 'rippling-service-account' as const
+export const RB2B_SERVICE_ACCOUNT_PROVIDER_ID = 'rb2b-service-account' as const
+export const QUARTR_SERVICE_ACCOUNT_PROVIDER_ID = 'quartr-service-account' as const
+export const PROFOUND_SERVICE_ACCOUNT_PROVIDER_ID = 'profound-service-account' as const
+export const PERSONA_SERVICE_ACCOUNT_PROVIDER_ID = 'persona-service-account' as const
+export const OTTER_SERVICE_ACCOUNT_PROVIDER_ID = 'otter-service-account' as const
+export const MAILCHIMP_SERVICE_ACCOUNT_PROVIDER_ID = 'mailchimp-service-account' as const
+export const LUMA_SERVICE_ACCOUNT_PROVIDER_ID = 'luma-service-account' as const
+export const LOOPS_SERVICE_ACCOUNT_PROVIDER_ID = 'loops-service-account' as const
+export const LINQ_SERVICE_ACCOUNT_PROVIDER_ID = 'linq-service-account' as const
+export const LAUNCHDARKLY_SERVICE_ACCOUNT_PROVIDER_ID = 'launchdarkly-service-account' as const
+export const LANGSMITH_SERVICE_ACCOUNT_PROVIDER_ID = 'langsmith-service-account' as const
+export const INSTANTLY_SERVICE_ACCOUNT_PROVIDER_ID = 'instantly-service-account' as const
+export const INCIDENTIO_SERVICE_ACCOUNT_PROVIDER_ID = 'incidentio-service-account' as const
+export const HUGGINGFACE_SERVICE_ACCOUNT_PROVIDER_ID = 'huggingface-service-account' as const
+export const HEX_SERVICE_ACCOUNT_PROVIDER_ID = 'hex-service-account' as const
+export const GAMMA_SERVICE_ACCOUNT_PROVIDER_ID = 'gamma-service-account' as const
+export const ENRICH_SERVICE_ACCOUNT_PROVIDER_ID = 'enrich-service-account' as const
+export const ELEVENLABS_SERVICE_ACCOUNT_PROVIDER_ID = 'elevenlabs-service-account' as const
+export const DAYTONA_SERVICE_ACCOUNT_PROVIDER_ID = 'daytona-service-account' as const
+export const CRUNCHBASE_SERVICE_ACCOUNT_PROVIDER_ID = 'crunchbase-service-account' as const
+export const CLOUDFLARE_SERVICE_ACCOUNT_PROVIDER_ID = 'cloudflare-service-account' as const
+export const CLERK_SERVICE_ACCOUNT_PROVIDER_ID = 'clerk-service-account' as const
+export const CIRCLEBACK_SERVICE_ACCOUNT_PROVIDER_ID = 'circleback-service-account' as const
+export const BUFFER_SERVICE_ACCOUNT_PROVIDER_ID = 'buffer-service-account' as const
+export const BROWSER_USE_SERVICE_ACCOUNT_PROVIDER_ID = 'browser-use-service-account' as const
+export const BRIGHTDATA_SERVICE_ACCOUNT_PROVIDER_ID = 'brightdata-service-account' as const
+export const BREX_SERVICE_ACCOUNT_PROVIDER_ID = 'brex-service-account' as const
+export const APOLLO_SERVICE_ACCOUNT_PROVIDER_ID = 'apollo-service-account' as const
+export const APIFY_SERVICE_ACCOUNT_PROVIDER_ID = 'apify-service-account' as const
+export const AHREFS_SERVICE_ACCOUNT_PROVIDER_ID = 'ahrefs-service-account' as const
+export const AGENTPHONE_SERVICE_ACCOUNT_PROVIDER_ID = 'agentphone-service-account' as const
+export const AGENTMAIL_SERVICE_ACCOUNT_PROVIDER_ID = 'agentmail-service-account' as const
+export const AFFINITY_SERVICE_ACCOUNT_PROVIDER_ID = 'affinity-service-account' as const
+export const TAVILY_SERVICE_ACCOUNT_PROVIDER_ID = 'tavily-service-account' as const
 
 const SHOPIFY_DOMAIN_HINT_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i
 
@@ -116,6 +175,65 @@ export type TokenServiceAccountProviderId =
   | typeof CODA_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof GAUGE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof FLINT_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof REDUCTO_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof QUIVER_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof PULSE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof INTERCOM_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof FIREFLIES_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof EXTEND_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof DUB_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof CURSOR_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof DISCORD_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ZEP_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof MEM0_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof YOUTUBE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof YOUCOM_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof UPTIMEROBOT_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof TRIGGER_DEV_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof TAILSCALE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof SQUARE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof SPORTMONKS_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof SMARTLEAD_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof SIXTYFOUR_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof SIMILARWEB_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof SENDGRID_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ROCKETLANE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof RIPPLING_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof RB2B_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof QUARTR_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof PROFOUND_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof PERSONA_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof OTTER_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof MAILCHIMP_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof LUMA_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof LOOPS_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof LINQ_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof LAUNCHDARKLY_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof LANGSMITH_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof INSTANTLY_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof INCIDENTIO_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof HUGGINGFACE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof HEX_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof GAMMA_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ENRICH_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ELEVENLABS_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof DAYTONA_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof CRUNCHBASE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof CLOUDFLARE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof CLERK_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof CIRCLEBACK_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof BUFFER_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof BROWSER_USE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof BRIGHTDATA_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof BREX_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof APOLLO_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof APIFY_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof AHREFS_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof AGENTPHONE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof AGENTMAIL_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof AFFINITY_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof TAVILY_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof FLOW_SERVICE_ACCOUNT_PROVIDER_ID
 
 export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
@@ -522,6 +640,841 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/snowflake-service-account',
     invalidCredentialsHelp:
       'Snowflake rejected this token. Check that it belongs to a user on this exact account host, that it has not expired or been revoked, that a network policy allows Sim to reach the account, and that the SQL API is enabled for the account.',
+  },
+  [TAVILY_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: TAVILY_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Tavily',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'tvly-...',
+        secret: true,
+        hintPattern: /^tvly-/,
+        hintMessage: 'Tavily API keys start with tvly-.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/tavily',
+  },
+  [AFFINITY_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: AFFINITY_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Affinity',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your Affinity API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/affinity',
+  },
+  [AGENTMAIL_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: AGENTMAIL_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'AgentMail',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your AgentMail API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/agentmail',
+  },
+  [AGENTPHONE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: AGENTPHONE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'AgentPhone',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your AgentPhone API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/agentphone',
+  },
+  [AHREFS_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: AHREFS_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Ahrefs',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Ahrefs API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/ahrefs',
+    helpText: 'The key needs access to the Ahrefs API v3 endpoints you plan to use.',
+  },
+  [APIFY_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: APIFY_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Apify',
+    tokenNoun: 'API token',
+    connectNoun: 'API token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API token',
+        placeholder: 'Paste your Apify API token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/apify',
+    helpText: 'Find your API token in Apify Console under Settings, then API & Integrations.',
+  },
+  [APOLLO_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: APOLLO_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Apollo',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Apollo API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/apollo',
+    helpText: 'Account, bulk, deal creation, and email account operations need a master API key.',
+  },
+  [BREX_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: BREX_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Brex',
+    tokenNoun: 'user token',
+    connectNoun: 'user token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'User token',
+        placeholder: 'Paste your Brex user token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/brex',
+    helpText: 'The user token needs the Brex scopes for the data your workflows read or write.',
+  },
+  [BRIGHTDATA_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: BRIGHTDATA_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Bright Data',
+    tokenNoun: 'API token',
+    connectNoun: 'API token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API token',
+        placeholder: 'Paste your Bright Data API token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/brightdata',
+  },
+  [BROWSER_USE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: BROWSER_USE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Browser Use',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [{ id: 'apiToken', label: 'API key', placeholder: 'bu_...', secret: true }],
+    docsUrl: 'https://docs.sim.ai/integrations/browser_use',
+  },
+  [BUFFER_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: BUFFER_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Buffer',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Buffer API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/buffer',
+  },
+  [CIRCLEBACK_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: CIRCLEBACK_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Circleback',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'cb_...',
+        secret: true,
+        hintPattern: /^cb_/,
+        hintMessage: 'Circleback API keys start with cb_.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/circleback',
+    helpText: 'Create an API key in Circleback under Settings, then API keys.',
+  },
+  [CLERK_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: CLERK_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Clerk',
+    tokenNoun: 'secret key',
+    connectNoun: 'secret key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Secret key',
+        placeholder: 'sk_live_...',
+        secret: true,
+        hintPattern: /^sk_(live|test)_/,
+        hintMessage: 'Clerk secret keys start with sk_live_ or sk_test_.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/clerk',
+    helpText:
+      'Copy the secret key from API keys in the Clerk Dashboard for the instance you want to manage.',
+  },
+  [CLOUDFLARE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: CLOUDFLARE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Cloudflare',
+    tokenNoun: 'API token',
+    connectNoun: 'API token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API token',
+        placeholder: 'Paste your Cloudflare API token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/cloudflare',
+    helpText:
+      'Use a scoped API token, not the Global API Key. Grant it the permissions for the zones and accounts your workflows manage.',
+  },
+  [CRUNCHBASE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: CRUNCHBASE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Crunchbase',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your Crunchbase API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/crunchbase',
+  },
+  [DAYTONA_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: DAYTONA_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Daytona',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Daytona API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/daytona',
+  },
+  [ELEVENLABS_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: ELEVENLABS_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'ElevenLabs',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your ElevenLabs API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/elevenlabs',
+    helpText:
+      'A restricted key needs User read access to be verified, plus access to each endpoint your workflows call.',
+    invalidCredentialsHelp:
+      'ElevenLabs rejected this key. A restricted key needs User read access, which Sim uses to check it.',
+  },
+  [ENRICH_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: ENRICH_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Enrich',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Enrich API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/enrich',
+  },
+  [GAMMA_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: GAMMA_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Gamma',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'sk-gamma-...',
+        secret: true,
+        hintPattern: /^sk-gamma-/,
+        hintMessage: 'Gamma API keys start with sk-gamma-.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/gamma',
+    helpText: 'Create a key under Settings > API Keys in Gamma.',
+  },
+  [HEX_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: HEX_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Hex',
+    tokenNoun: 'API token',
+    connectNoun: 'API token',
+    fields: [
+      { id: 'apiToken', label: 'API token', placeholder: 'Paste your Hex API token', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/hex',
+    helpText: 'Sim checks the token by listing projects, so it needs Read projects access.',
+  },
+  [HUGGINGFACE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: HUGGINGFACE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Hugging Face',
+    tokenNoun: 'access token',
+    connectNoun: 'access token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Access token',
+        placeholder: 'Paste your Hugging Face access token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/huggingface',
+  },
+  [INCIDENTIO_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: INCIDENTIO_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'incident.io',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your incident.io API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/incidentio',
+    helpText: 'Create a key in incident.io under Settings, API keys.',
+  },
+  [INSTANTLY_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: INSTANTLY_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Instantly',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your Instantly API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/instantly',
+    helpText:
+      'Sim checks the key by listing campaigns, so it needs campaign read access (or an all-access scope).',
+  },
+  [LANGSMITH_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: LANGSMITH_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'LangSmith',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your LangSmith API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/langsmith',
+  },
+  [LAUNCHDARKLY_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: LAUNCHDARKLY_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'LaunchDarkly',
+    tokenNoun: 'access token',
+    connectNoun: 'access token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Access token',
+        placeholder: 'Paste your LaunchDarkly access token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/launchdarkly',
+  },
+  [LINQ_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: LINQ_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Linq',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Linq API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/linq',
+  },
+  [LOOPS_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: LOOPS_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Loops',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Loops API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/loops',
+  },
+  [LUMA_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: LUMA_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Luma',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Luma API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/luma',
+  },
+  [MAILCHIMP_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: MAILCHIMP_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Mailchimp',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'abc123...-us21',
+        secret: true,
+        hintPattern: /-[a-z]+[0-9]+$/,
+        hintMessage: 'Mailchimp API keys end with your data center, like -us21.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/mailchimp',
+    helpText: 'Use the full key, including the data center suffix after the dash.',
+  },
+  [OTTER_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: OTTER_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Otter.ai',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your Otter.ai API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/otter',
+    helpText: 'The Otter API is available on Enterprise workspaces only.',
+  },
+  [PERSONA_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: PERSONA_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Persona',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Persona API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/persona',
+    helpText: 'Grant the key the permissions your workflows need in Persona.',
+  },
+  [PROFOUND_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: PROFOUND_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Profound',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your Profound API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/profound',
+  },
+  [QUARTR_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: QUARTR_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Quartr',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Quartr API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/quartr',
+  },
+  [RB2B_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: RB2B_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'RB2B',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your RB2B API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/rb2b',
+  },
+  [RIPPLING_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: RIPPLING_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Rippling',
+    tokenNoun: 'API token',
+    connectNoun: 'API token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API token',
+        placeholder: 'Paste your Rippling API token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/rippling',
+    helpText: 'Grant the token the scopes your workflows need.',
+  },
+  [ROCKETLANE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: ROCKETLANE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Rocketlane',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your Rocketlane API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/rocketlane',
+  },
+  [SENDGRID_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: SENDGRID_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'SendGrid',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your SendGrid API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/sendgrid',
+    helpText:
+      'Create a key in SendGrid under Settings > API Keys. A restricted key only works for the actions it is scoped to.',
+  },
+  [SIMILARWEB_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: SIMILARWEB_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Similarweb',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your Similarweb API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/similarweb',
+  },
+  [SIXTYFOUR_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: SIXTYFOUR_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Sixtyfour',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your Sixtyfour API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/sixtyfour',
+  },
+  [SMARTLEAD_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: SMARTLEAD_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Smartlead',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your Smartlead API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/smartlead',
+  },
+  [SPORTMONKS_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: SPORTMONKS_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Sportmonks',
+    tokenNoun: 'API token',
+    connectNoun: 'API token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API token',
+        placeholder: 'Paste your Sportmonks API token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/sportmonks',
+  },
+  [SQUARE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: SQUARE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Square',
+    tokenNoun: 'access token',
+    connectNoun: 'access token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Access token',
+        placeholder: 'Paste your Square production access token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/square',
+    helpText:
+      'Use a production access token from your app in the Square Developer Console; sandbox tokens are not supported.',
+  },
+  [TAILSCALE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: TAILSCALE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Tailscale',
+    tokenNoun: 'API access token',
+    connectNoun: 'access token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API access token',
+        placeholder: 'Paste your Tailscale API access token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/tailscale',
+    helpText:
+      "Generate an API access token in the Tailscale admin console under Settings > Keys. OAuth access tokens expire after an hour, so don't save one here.",
+  },
+  [TRIGGER_DEV_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: TRIGGER_DEV_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Trigger.dev',
+    tokenNoun: 'secret API key',
+    connectNoun: 'secret key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Secret API key',
+        placeholder: 'tr_prod_...',
+        secret: true,
+        hintPattern: /^tr_(dev|stg|prod|preview)_/,
+        hintMessage:
+          'Trigger.dev secret keys start with tr_dev_, tr_stg_, tr_prod_, or tr_preview_.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/trigger_dev',
+    helpText:
+      'Each secret key belongs to one project environment; copy it from the API Keys page of that environment.',
+  },
+  [UPTIMEROBOT_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: UPTIMEROBOT_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'UptimeRobot',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your UptimeRobot API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/uptimerobot',
+    helpText:
+      "Use the main API key from Integrations > API in UptimeRobot; read-only keys can't make changes.",
+  },
+  [YOUCOM_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: YOUCOM_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'You.com',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your You.com API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/youcom',
+  },
+  [YOUTUBE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: YOUTUBE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'YouTube',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your YouTube Data API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/youtube',
+    helpText: 'Create an API key in Google Cloud Console with the YouTube Data API v3 enabled.',
+  },
+  [MEM0_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: MEM0_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Mem0',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Mem0 API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/mem0',
+  },
+  [ZEP_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: ZEP_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Zep',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your Zep project API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/zep',
+  },
+  [DISCORD_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: DISCORD_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Discord',
+    tokenNoun: 'bot token',
+    connectNoun: 'bot token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Bot token',
+        placeholder: 'Paste your Discord bot token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/discord',
+    helpText:
+      'Create a bot in the Discord Developer Portal and copy its token. The bot must be added to the servers your workflows use.',
+  },
+  [CURSOR_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: CURSOR_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Cursor',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Cursor API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/cursor',
+    helpText: 'Create an API key in the Cursor dashboard under API Keys.',
+  },
+  [DUB_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: DUB_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Dub',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'dub_...',
+        secret: true,
+        hintPattern: /^dub_/,
+        hintMessage: 'Dub API keys start with dub_.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/dub',
+  },
+  [EXTEND_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: EXTEND_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Extend',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Extend API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/extend',
+  },
+  [FIREFLIES_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: FIREFLIES_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Fireflies',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your Fireflies API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/fireflies',
+  },
+  [INTERCOM_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: INTERCOM_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Intercom',
+    tokenNoun: 'access token',
+    connectNoun: 'access token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Access token',
+        placeholder: 'Paste your Intercom access token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/intercom',
+    helpText: "Create it in the Intercom Developer Hub, on your app's Authentication page.",
+  },
+  [PULSE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: PULSE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Pulse',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Pulse API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/pulse',
+    helpText: 'Get your key from the Pulse Platform at platform.runpulse.com.',
+  },
+  [QUIVER_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: QUIVER_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Quiver',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your QuiverAI API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/quiver',
+  },
+  [REDUCTO_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: REDUCTO_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Reducto',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Reducto API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/reducto',
+  },
+  [FLINT_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: FLINT_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Flint',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [{ id: 'apiToken', label: 'API key', placeholder: 'ak_...', secret: true }],
+    docsUrl: 'https://docs.sim.ai/integrations/flint',
+    helpText: 'Create a key in your Flint team settings. It needs at least the member role.',
   },
 }
 

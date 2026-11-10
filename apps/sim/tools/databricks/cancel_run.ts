@@ -3,6 +3,7 @@ import type {
   DatabricksCancelRunResponse,
 } from '@/tools/databricks/types'
 import { databricksUrl } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const cancelRunTool: ToolConfig<DatabricksCancelRunParams, DatabricksCancelRunResponse> = {
@@ -11,6 +12,7 @@ export const cancelRunTool: ToolConfig<DatabricksCancelRunParams, DatabricksCanc
   description:
     'Cancel a running or pending Databricks job run. Cancellation is asynchronous; poll the run status to confirm termination.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     host: {

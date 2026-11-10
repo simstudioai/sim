@@ -5,6 +5,7 @@ import {
   LINQ_API_BASE,
   linqHeaders,
 } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const linqSendMessageTool: ToolConfig<LinqSendMessageParams, LinqSendMessageResult> = {
@@ -12,6 +13,7 @@ export const linqSendMessageTool: ToolConfig<LinqSendMessageParams, LinqSendMess
   name: 'Send Message',
   description: 'Send a message to an existing chat, with optional media, link, effect, or reply',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

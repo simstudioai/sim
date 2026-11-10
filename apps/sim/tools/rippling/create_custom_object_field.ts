@@ -1,4 +1,5 @@
 import type { RipplingCreateCustomObjectFieldParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingCreateCustomObjectFieldTool: ToolConfig<RipplingCreateCustomObjectFieldParams> =
@@ -7,6 +8,7 @@ export const ripplingCreateCustomObjectFieldTool: ToolConfig<RipplingCreateCusto
     name: 'Rippling Create Custom Object Field',
     description: 'Create a field on a custom object',
     version: '1.0.0',
+    oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {
         type: 'string',

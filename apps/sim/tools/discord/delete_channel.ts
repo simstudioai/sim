@@ -2,6 +2,7 @@ import type {
   DiscordDeleteChannelParams,
   DiscordDeleteChannelResponse,
 } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const discordDeleteChannelTool: ToolConfig<
@@ -12,6 +13,7 @@ export const discordDeleteChannelTool: ToolConfig<
   name: 'Discord Delete Channel',
   description: 'Delete a Discord channel',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

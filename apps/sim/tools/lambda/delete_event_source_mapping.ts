@@ -2,6 +2,7 @@ import type {
   LambdaDeleteEventSourceMappingParams,
   LambdaDeleteEventSourceMappingResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const deleteEventSourceMappingTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const deleteEventSourceMappingTool: InternalToolConfig<
   name: 'Lambda Delete Event Source Mapping',
   description: 'Delete an event source mapping',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

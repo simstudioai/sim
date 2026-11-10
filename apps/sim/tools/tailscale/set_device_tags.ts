@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TailscaleSetDeviceTagsParams,
   TailscaleSetDeviceTagsResponse,
@@ -14,6 +15,7 @@ export const tailscaleSetDeviceTagsTool: ToolConfig<
   name: 'Tailscale Set Device Tags',
   description: 'Replace the tags assigned to a device',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SqsReceiveMessageParams, SqsReceiveMessageResponse } from '@/tools/sqs/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const receiveMessageTool: InternalToolConfig<
   name: 'SQS Receive Message',
   description: 'Receive up to 10 messages from an Amazon SQS queue, with optional long polling',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

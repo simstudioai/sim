@@ -2,7 +2,7 @@
 title: S3
 description: Upload, download, list, and manage S3 files and buckets
 integration:
-  type: "s3"
+  type: "s3_v2"
   color: "linear-gradient(45deg, #1B660F 0%, #6CAE3E 100%)"
 ---
 
@@ -10,12 +10,12 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [Amazon S3](https://aws.amazon.com/s3/) to manage objects and buckets from a workflow. Upload, download, copy, or delete objects, inspect metadata, and create time-limited presigned URLs. Configure an AWS access key and secret access key.
+Use [Amazon S3](https://aws.amazon.com/s3/) to manage objects and buckets from a workflow. Upload, download, copy, or delete objects, inspect metadata, and create time-limited presigned URLs. Connect with a saved [AWS credential](/integrations/aws-credentials).
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
 
-Upload, download, copy, and delete objects (individually or in batches), inspect object metadata, generate time-limited presigned URLs, list bucket contents, and create, list, or delete buckets. Requires AWS access key and secret access key.
+Upload, download, copy, and delete objects (individually or in batches), inspect object metadata, generate time-limited presigned URLs, list bucket contents, and create, list, or delete buckets.
 
 ## Actions
 
@@ -29,8 +29,6 @@ Upload a file to an AWS S3 bucket
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | Yes | Your AWS Access Key ID |
-| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `bucketName` | string | Yes | S3 bucket name \(e.g., my-bucket\) |
 | `objectKey` | string | Yes | Object key/path in S3 \(e.g., folder/filename.ext\) |
@@ -59,8 +57,6 @@ Retrieve an object from an AWS S3 bucket
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | Yes | Your AWS Access Key ID |
-| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
 | `region` | string | No | Optional region override when URL does not include region \(e.g., us-east-1, eu-west-1\) |
 | `s3Uri` | string | Yes | S3 Object URL \(e.g., https://bucket.s3.region.amazonaws.com/path/to/file) |
 
@@ -84,8 +80,6 @@ List objects in an AWS S3 bucket
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | Yes | Your AWS Access Key ID |
-| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `bucketName` | string | Yes | S3 bucket name \(e.g., my-bucket\) |
 | `prefix` | string | No | Prefix to filter objects \(e.g., folder/, images/2024/\) |
@@ -115,8 +109,6 @@ Delete an object from an AWS S3 bucket
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | Yes | Your AWS Access Key ID |
-| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `bucketName` | string | Yes | S3 bucket name \(e.g., my-bucket\) |
 | `objectKey` | string | Yes | Object key/path to delete \(e.g., folder/file.txt\) |
@@ -140,8 +132,6 @@ Copy an object within or between AWS S3 buckets
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | Yes | Your AWS Access Key ID |
-| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `sourceBucket` | string | Yes | Source bucket name \(e.g., my-bucket\) |
 | `sourceKey` | string | Yes | Source object key/path \(e.g., folder/file.txt\) |
@@ -169,8 +159,6 @@ List the S3 buckets owned by the authenticated AWS account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | Yes | Your AWS Access Key ID |
-| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
 | `region` | string | Yes | AWS region to address the request to \(e.g., us-east-1\) |
 | `prefix` | string | No | Limit the response to bucket names that begin with this prefix |
 | `maxBuckets` | number | No | Maximum number of buckets to return \(1-10000\) |
@@ -198,8 +186,6 @@ Retrieve metadata for an S3 object without downloading its body
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | Yes | Your AWS Access Key ID |
-| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `bucketName` | string | Yes | S3 bucket name \(e.g., my-bucket\) |
 | `objectKey` | string | Yes | Object key/path to inspect \(e.g., folder/file.txt\) |
@@ -224,8 +210,6 @@ Create a new AWS S3 bucket in the specified region
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | Yes | Your AWS Access Key ID |
-| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
 | `region` | string | Yes | AWS region to create the bucket in \(e.g., us-east-1\) |
 | `bucketName` | string | Yes | Name for the new S3 bucket \(must be globally unique\) |
 | `acl` | string | No | Canned ACL for the bucket \(e.g., private, public-read\) |
@@ -248,8 +232,6 @@ Delete an empty AWS S3 bucket
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | Yes | Your AWS Access Key ID |
-| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
 | `region` | string | Yes | AWS region where the bucket is located \(e.g., us-east-1\) |
 | `bucketName` | string | Yes | Name of the S3 bucket to delete \(must be empty\) |
 
@@ -272,8 +254,6 @@ Generate a time-limited presigned URL to download or upload an S3 object
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | Yes | Your AWS Access Key ID |
-| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
 | `region` | string | Yes | AWS region where the bucket is located \(e.g., us-east-1\) |
 | `bucketName` | string | Yes | S3 bucket name \(e.g., my-bucket\) |
 | `objectKey` | string | Yes | Object key/path for the presigned URL \(e.g., folder/file.txt\) |
@@ -300,8 +280,6 @@ Delete multiple objects from an AWS S3 bucket in a single batch request
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | Yes | Your AWS Access Key ID |
-| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `bucketName` | string | Yes | S3 bucket name \(e.g., my-bucket\) |
 | `keys` | json | Yes | Array of object keys to delete \(e.g., \["a.txt", "folder/b.txt"\]\). Max 1000. |

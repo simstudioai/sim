@@ -1606,7 +1606,6 @@
     "apps/sim/lib/pptx-renderer/shapes/presets.ts": 4,
     "apps/sim/lib/selectors/server/credentials.ts": 1,
     "apps/sim/lib/selectors/server/internal.ts": 3,
-    "apps/sim/lib/selectors/server/providers/cloudwatch.ts": 2,
     "apps/sim/lib/selectors/server/providers/credential-bundle.ts": 1,
     "apps/sim/lib/selectors/server/providers/planetscale.test.ts": 2,
     "apps/sim/lib/selectors/server/providers/planetscale.ts": 3,

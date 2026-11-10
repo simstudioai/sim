@@ -1,5 +1,6 @@
 import type { MailchimpMergeField } from '@/tools/mailchimp/types'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface MailchimpCreateMergeFieldParams {
@@ -26,6 +27,7 @@ export const mailchimpCreateMergeFieldTool: ToolConfig<
   name: 'Create Merge Field in Mailchimp Audience',
   description: 'Create a new merge field in a Mailchimp audience',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

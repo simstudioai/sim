@@ -1,4 +1,5 @@
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface IntercomDeleteContactParams {
@@ -53,6 +54,7 @@ export const intercomDeleteContactTool: ToolConfig<
   name: 'Delete Contact from Intercom',
   description: 'Delete a contact from Intercom by ID',
   version: '1.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...intercomDeleteContactBase,
 
@@ -108,6 +110,7 @@ export const intercomDeleteContactV2Tool: ToolConfig<
   name: 'Delete Contact from Intercom',
   description: 'Delete a contact from Intercom by ID. Returns API-aligned fields only.',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

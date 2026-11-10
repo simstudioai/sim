@@ -1,6 +1,7 @@
 import { TailscaleIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 const SWITCH_DEFAULTS = {
   authorize_device: { authorized: true },
@@ -13,6 +14,8 @@ const SWITCH_DEFAULTS = {
 
 export const TailscaleBlock: BlockConfig = {
   type: 'tailscale',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'tailscale_v2' },
   name: 'Tailscale',
   description: 'Manage devices and network settings in your Tailscale tailnet',
   longDescription:
@@ -1039,14 +1042,14 @@ export const TailscaleBlockMeta = {
       description:
         'List every device in the tailnet and flag stale, unauthorized, or update-pending nodes.',
       content:
-        '# Audit Tailnet Devices\n\nProduce a clean inventory of the devices on your tailnet and surface the ones that need attention.\n\n## Steps\n1. Use the List Devices operation with your API key and tailnet (use "-" for the default tailnet).\n2. For each device review lastSeen, authorized, updateAvailable, and the assigned tags.\n3. Flag nodes not seen in 30+ days, devices still pending authorization, and any with an update available.\n4. Use Get Device with a deviceId to pull full detail on anything suspicious.\n\n## Output\nReturn a table of devices with hostname, user, OS, last seen, and authorization status, plus a short list of nodes that need review.',
+        '# Audit Tailnet Devices\n\nProduce a clean inventory of the devices on your tailnet and surface the ones that need attention.\n\n## Steps\n1. Use the List Devices operation with your tailnet (use "-" for the default tailnet).\n2. For each device review lastSeen, authorized, updateAvailable, and the assigned tags.\n3. Flag nodes not seen in 30+ days, devices still pending authorization, and any with an update available.\n4. Use Get Device with a deviceId to pull full detail on anything suspicious.\n\n## Output\nReturn a table of devices with hostname, user, OS, last seen, and authorization status, plus a short list of nodes that need review.',
     },
     {
       name: 'provision-auth-key',
       description:
         'Create a scoped Tailscale auth key with the right tags, reusability, and expiry for onboarding.',
       content:
-        '# Provision a Tailscale Auth Key\n\nGenerate an auth key so a new device or user can join the tailnet with the correct access.\n\n## Steps\n1. Use the Create Auth Key operation with your API key and tailnet.\n2. Set Tags (for example tag:server,tag:production) so devices joining with the key get the intended ACL access.\n3. Choose Reusable, Ephemeral, and Preauthorized values to match the use case (ephemeral for short-lived CI nodes).\n4. Set an Expiry in seconds (for example 7776000 for 90 days) and a clear Description.\n\n## Output\nReturn the generated key value once (it is only shown at creation), the key ID, its tags, and the expiry timestamp.',
+        '# Provision a Tailscale Auth Key\n\nGenerate an auth key so a new device or user can join the tailnet with the correct access.\n\n## Steps\n1. Use the Create Auth Key operation with your tailnet.\n2. Set Tags (for example tag:server,tag:production) so devices joining with the key get the intended ACL access.\n3. Choose Reusable, Ephemeral, and Preauthorized values to match the use case (ephemeral for short-lived CI nodes).\n4. Set an Expiry in seconds (for example 7776000 for 90 days) and a clear Description.\n\n## Output\nReturn the generated key value once (it is only shown at creation), the key ID, its tags, and the expiry timestamp.',
     },
     {
       name: 'offboard-device',
@@ -1071,3 +1074,17 @@ export const TailscaleBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const TailscaleV2Block: BlockConfig = {
+  ...TailscaleBlock,
+  type: 'tailscale_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(TailscaleBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'tailscale',
+    title: 'Tailscale Credential',
+  }),
+}

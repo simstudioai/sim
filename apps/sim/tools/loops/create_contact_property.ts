@@ -2,6 +2,7 @@ import type {
   LoopsCreateContactPropertyParams,
   LoopsCreateContactPropertyResponse,
 } from '@/tools/loops/types'
+import { LOOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const loopsCreateContactPropertyTool: ToolConfig<
@@ -13,6 +14,7 @@ export const loopsCreateContactPropertyTool: ToolConfig<
   description:
     'Create a new custom contact property in your Loops account. The property name must be in camelCase format.',
   version: '1.0.0',
+  oauth: LOOPS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

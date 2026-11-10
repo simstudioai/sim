@@ -1,4 +1,5 @@
 import type { DubGetAnalyticsParams, DubGetAnalyticsResponse } from '@/tools/dub/types'
+import { DUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getAnalyticsTool: ToolConfig<DubGetAnalyticsParams, DubGetAnalyticsResponse> = {
@@ -7,6 +8,7 @@ export const getAnalyticsTool: ToolConfig<DubGetAnalyticsParams, DubGetAnalytics
   description:
     'Retrieve analytics for links including clicks, leads, and sales. Supports filtering by link, time range, and grouping by various dimensions.',
   version: '1.0.0',
+  oauth: DUB_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

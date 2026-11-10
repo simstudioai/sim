@@ -7,6 +7,7 @@ import {
   rocketlaneError,
   rocketlaneHeaders,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneImportTemplateTool: ToolConfig<
@@ -17,6 +18,7 @@ export const rocketlaneImportTemplateTool: ToolConfig<
   name: 'Rocketlane Import Template',
   description: 'Import a project template into an existing Rocketlane project',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -8,6 +8,7 @@ import {
   GENIE_READ_RETRY,
   genieAttachmentPath,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieDownloadVisualizationTool: ToolConfig<
@@ -19,6 +20,7 @@ export const genieDownloadVisualizationTool: ToolConfig<
   description:
     'Download a chart Genie generated as a PNG image, for example to post it to Slack. The message must be COMPLETED and asked with visualization enabled. Not supported on Private Link workspaces.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     ...GENIE_MESSAGE_PARAMS,

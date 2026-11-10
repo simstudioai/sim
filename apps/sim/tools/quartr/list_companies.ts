@@ -12,6 +12,7 @@ import {
   normalizeQuartrCommaList,
   parseQuartrResponse,
 } from '@/tools/quartr/utils'
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const quartrListCompaniesTool: ToolConfig<
@@ -23,6 +24,7 @@ export const quartrListCompaniesTool: ToolConfig<
   description:
     'List companies covered by Quartr, filterable by ticker, ISIN, CIK, OpenFIGI, country, and exchange.',
   version: '1.0.0',
+  oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

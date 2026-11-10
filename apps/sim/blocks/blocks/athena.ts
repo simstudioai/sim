@@ -1,6 +1,7 @@
 import { AthenaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 /**
  * Normalizes a switch value that may arrive as a boolean or as the strings 'true' / 'false'.
@@ -14,6 +15,8 @@ function parseBoolean(value: unknown): boolean | undefined {
 
 export const AthenaBlock: BlockConfig = {
   type: 'athena',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'athena_v2' },
   name: 'Athena',
   description: 'Run SQL queries on data in Amazon S3 using AWS Athena',
   longDescription:
@@ -1395,3 +1398,19 @@ export const AthenaBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const AthenaV2Block: BlockConfig = {
+  ...AthenaBlock,
+  type: 'athena_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Execute SQL queries against data in S3, check query status and runtime statistics, retrieve results, manage named queries and prepared statements, and inspect data catalogs, databases, tables, and workgroups.',
+  ...withSavedCredential(AthenaBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

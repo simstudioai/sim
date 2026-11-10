@@ -1,3 +1,4 @@
+import { TAVILY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { MapResponse, TavilyMapParams } from '@/tools/tavily/types'
 import { TAVILY_MAP_RESULT_OUTPUT_PROPERTIES } from '@/tools/tavily/types'
 import type { ToolConfig } from '@/tools/types'
@@ -8,6 +9,7 @@ export const mapTool: ToolConfig<TavilyMapParams, MapResponse> = {
   description:
     "Discover and visualize website structure using Tavily's map API. Maps out all accessible URLs from a base URL with depth control, path filtering, and domain restrictions.",
   version: '1.0.0',
+  oauth: TAVILY_CREDENTIAL_OAUTH,
 
   params: {
     url: {

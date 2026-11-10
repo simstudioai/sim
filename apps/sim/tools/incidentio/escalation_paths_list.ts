@@ -2,6 +2,7 @@ import type {
   IncidentioEscalationPathsListParams,
   IncidentioEscalationPathsListResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const escalationPathsListTool: ToolConfig<
@@ -12,6 +13,7 @@ export const escalationPathsListTool: ToolConfig<
   name: 'List Escalation Paths',
   description: 'List escalation paths in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -5,6 +5,7 @@ import type {
   ClerkRevokeSessionResponse,
   ClerkSession,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkRevokeSession')
@@ -17,6 +18,7 @@ export const clerkRevokeSessionTool: ToolConfig<
   name: 'Revoke Session in Clerk',
   description: 'Revoke a session to immediately invalidate it',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

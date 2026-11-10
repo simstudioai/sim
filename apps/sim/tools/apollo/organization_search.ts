@@ -2,6 +2,7 @@ import type {
   ApolloOrganizationSearchParams,
   ApolloOrganizationSearchResponse,
 } from '@/tools/apollo/types'
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apolloOrganizationSearchTool: ToolConfig<
@@ -12,6 +13,7 @@ export const apolloOrganizationSearchTool: ToolConfig<
   name: 'Apollo Organization Search',
   description: "Search Apollo's database for companies using filters",
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

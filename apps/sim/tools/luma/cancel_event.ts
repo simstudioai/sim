@@ -1,4 +1,5 @@
 import type { LumaCancelEventParams, LumaCancelEventResponse } from '@/tools/luma/types'
+import { LUMA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const cancelEventTool: ToolConfig<LumaCancelEventParams, LumaCancelEventResponse> = {
@@ -7,6 +8,7 @@ export const cancelEventTool: ToolConfig<LumaCancelEventParams, LumaCancelEventR
   description:
     'Cancel a Luma event. This is irreversible and notifies all registered guests. Requires a cancellation token obtained from the Request Event Cancellation endpoint.',
   version: '1.0.0',
+  oauth: LUMA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

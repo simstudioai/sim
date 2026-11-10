@@ -1,5 +1,6 @@
 import type { Ec2AssociateAddressParams, Ec2AssociateAddressResponse } from '@/tools/ec2/types'
 import { ec2ConnectionInput, suppliedParams } from '@/tools/ec2/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const associateAddressTool: InternalToolConfig<
@@ -10,6 +11,7 @@ export const associateAddressTool: InternalToolConfig<
   name: 'EC2 Associate Address',
   description: 'Associate an Elastic IP address with an instance or network interface',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

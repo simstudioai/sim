@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   buildSportmonksHeaders,
   handleSportmonksError,
@@ -22,6 +23,7 @@ export const sportmonksCoreGetTimezonesTool: ToolConfig<
   name: 'Get Timezones',
   description: 'Retrieve all supported time zones (IANA names) from the Sportmonks Core API',
   version: '1.0.0',
+  oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

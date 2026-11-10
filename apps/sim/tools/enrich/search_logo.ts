@@ -1,4 +1,5 @@
 import type { EnrichSearchLogoParams, EnrichSearchLogoResponse } from '@/tools/enrich/types'
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchLogoTool: ToolConfig<EnrichSearchLogoParams, EnrichSearchLogoResponse> = {
@@ -6,6 +7,7 @@ export const searchLogoTool: ToolConfig<EnrichSearchLogoParams, EnrichSearchLogo
   name: 'Enrich Search Logo',
   description: 'Get a company logo image URL by domain.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

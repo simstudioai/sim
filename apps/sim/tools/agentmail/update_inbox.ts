@@ -1,4 +1,5 @@
 import type { UpdateInboxParams, UpdateInboxResult } from '@/tools/agentmail/types'
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentmailUpdateInboxTool: ToolConfig<UpdateInboxParams, UpdateInboxResult> = {
@@ -6,6 +7,7 @@ export const agentmailUpdateInboxTool: ToolConfig<UpdateInboxParams, UpdateInbox
   name: 'Update Inbox',
   description: 'Update the display name of an email inbox in AgentMail',
   version: '1.0.0',
+  oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

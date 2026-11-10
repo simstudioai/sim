@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TriggerDevRunIdParams, TriggerDevRunResponse } from '@/tools/trigger_dev/types'
 import {
   buildTriggerDevHeaders,
@@ -13,6 +14,7 @@ export const triggerDevGetRunTool: ToolConfig<TriggerDevRunIdParams, TriggerDevR
   description:
     'Retrieve a Trigger.dev run by its ID, including status, payload, output, attempts, and timing details.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

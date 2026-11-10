@@ -1,6 +1,7 @@
 import { CloudWatchIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 /*
  * Canonical basic/advanced pairs, shared by the card sentences below. Listing
@@ -14,6 +15,8 @@ const LOG_STREAM_FIELD = ['logStreamNameSelector', 'logStreamNameInput'] as cons
 
 export const CloudWatchBlock: BlockConfig = {
   type: 'cloudwatch',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'cloudwatch_v2' },
   name: 'CloudWatch',
   description: 'Query and monitor AWS CloudWatch logs, metrics, and alarms',
   longDescription:
@@ -1316,3 +1319,23 @@ export const CloudWatchBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const CloudWatchV2Block: BlockConfig = {
+  ...CloudWatchBlock,
+  type: 'cloudwatch_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Run Log Insights queries, list log groups, retrieve log events, list and get metrics, and monitor alarms.',
+  ...withSavedCredential(
+    CloudWatchBlock,
+    { id: 'credential', type: 'oauth-input', serviceId: 'aws', title: 'AWS Credential' },
+    {
+      selectorKeys: {
+        'cloudwatch.logGroups': 'cloudwatch.savedLogGroups',
+        'cloudwatch.logStreams': 'cloudwatch.savedLogStreams',
+      },
+    }
+  ),
+}

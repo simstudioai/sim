@@ -1,4 +1,5 @@
 import type { RipplingGetBusinessPartnerGroupParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingGetBusinessPartnerGroupTool: ToolConfig<RipplingGetBusinessPartnerGroupParams> =
@@ -7,6 +8,7 @@ export const ripplingGetBusinessPartnerGroupTool: ToolConfig<RipplingGetBusiness
     name: 'Rippling Get Business Partner Group',
     description: 'Get a specific business partner group by ID',
     version: '1.0.0',
+    oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {
         type: 'string',

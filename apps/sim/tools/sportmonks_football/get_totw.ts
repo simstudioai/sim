@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   appendSportmonksQuery,
   buildSportmonksHeaders,
@@ -29,6 +30,7 @@ export const sportmonksGetTotwTool: ToolConfig<SportmonksGetTotwParams, Sportmon
     name: 'Get All Team of the Week',
     description: 'Retrieve all available Team of the Week (TOTW) entries from Sportmonks',
     version: '1.0.0',
+    oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

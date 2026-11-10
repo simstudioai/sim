@@ -2,6 +2,7 @@ import type {
   CloudWatchUnmuteAlarmParams,
   CloudWatchUnmuteAlarmResponse,
 } from '@/tools/cloudwatch/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const unmuteAlarmTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const unmuteAlarmTool: InternalToolConfig<
   name: 'CloudWatch Unmute Alarm',
   description: 'Delete a CloudWatch alarm mute rule, restoring alarm notifications',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

@@ -10,6 +10,7 @@ import {
   transformCollection,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityListSavedViewsTool: ToolConfig<
@@ -20,6 +21,7 @@ export const affinityListSavedViewsTool: ToolConfig<
   name: 'Affinity List Saved Views',
   description: 'List the saved views on a list that the caller can view.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

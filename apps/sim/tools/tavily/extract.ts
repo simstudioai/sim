@@ -1,3 +1,4 @@
+import { TAVILY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TavilyExtractParams, TavilyExtractResponse } from '@/tools/tavily/types'
 import {
   TAVILY_EXTRACT_RESULT_OUTPUT_PROPERTIES,
@@ -11,6 +12,7 @@ export const extractTool: ToolConfig<TavilyExtractParams, TavilyExtractResponse>
   description:
     "Extract raw content from multiple web pages simultaneously using Tavily's extraction API. Supports basic and advanced extraction depths with detailed error reporting for failed URLs.",
   version: '1.0.0',
+  oauth: TAVILY_CREDENTIAL_OAUTH,
 
   params: {
     urls: {

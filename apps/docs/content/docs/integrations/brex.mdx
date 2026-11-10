@@ -2,7 +2,7 @@
 title: Brex
 description: Manage expenses, receipts, transactions, and team data in Brex
 integration:
-  type: "brex"
+  type: "brex_v2"
   color: "#171717"
 ---
 
@@ -37,7 +37,6 @@ List expenses in the Brex account with optional filters for user, status, paymen
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `userIds` | string | No | Comma-separated user IDs to filter expenses by owner |
 | `statuses` | string | No | Comma-separated expense statuses to filter by: DRAFT, SUBMITTED, APPROVED, OUT_OF_POLICY, VOID, CANCELED, SPLIT, SETTLED |
 | `paymentStatuses` | string | No | Comma-separated payment statuses to filter by: NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED |
@@ -103,7 +102,6 @@ Get a single Brex expense by its ID, including merchant, user, and receipt detai
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `expenseId` | string | Yes | ID of the expense to fetch |
 
 #### Output
@@ -170,7 +168,6 @@ Update the memo of a Brex card expense
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `expenseId` | string | Yes | ID of the card expense to update |
 | `memo` | string | Yes | New memo for the expense |
 
@@ -206,7 +203,6 @@ Upload a receipt file and attach it to a specific Brex card expense
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `expenseId` | string | Yes | ID of the card expense to attach the receipt to |
 | `file` | file | Yes | Receipt file to upload \(max 50 MB\) |
 | `receiptName` | string | No | Receipt file name including extension \(defaults to the uploaded file name\) |
@@ -231,7 +227,6 @@ Upload a receipt file and let Brex automatically match it with existing expenses
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `file` | file | Yes | Receipt file to upload \(max 50 MB\) |
 | `receiptName` | string | No | Receipt file name including extension \(defaults to the uploaded file name\) |
 
@@ -255,7 +250,6 @@ List settled card transactions for all Brex card accounts
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `userIds` | string | No | Comma-separated user IDs to filter transactions by cardholder |
 | `postedAtStart` | string | No | Only include transactions posted at or after this ISO 8601 timestamp |
 | `cursor` | string | No | Pagination cursor from a previous response |
@@ -294,7 +288,6 @@ List transactions for a Brex cash account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `accountId` | string | Yes | ID of the cash account to list transactions for |
 | `postedAtStart` | string | No | Only include transactions posted at or after this ISO 8601 timestamp |
 | `cursor` | string | No | Pagination cursor from a previous response |
@@ -328,7 +321,6 @@ List all Brex card accounts with balances and limits
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 
 #### Output
 
@@ -360,7 +352,6 @@ List all Brex cash accounts with balances and account details
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `cursor` | string | No | Pagination cursor from a previous response |
 | `limit` | string | No | Number of accounts to return \(default 100, max 1000\) |
 
@@ -395,7 +386,6 @@ Get a Brex cash account by ID, or the primary cash account when no ID is provide
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `accountId` | string | No | ID of the cash account \(defaults to the primary cash account\) |
 
 #### Output
@@ -427,7 +417,6 @@ List finalized statements for the primary Brex card account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `cursor` | string | No | Pagination cursor from a previous response |
 | `limit` | string | No | Number of statements to return \(default 100, max 1000\) |
 
@@ -458,7 +447,6 @@ List finalized statements for a Brex cash account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `accountId` | string | Yes | ID of the cash account to list statements for |
 | `cursor` | string | No | Pagination cursor from a previous response |
 | `limit` | string | No | Number of statements to return \(default 100, max 1000\) |
@@ -490,7 +478,6 @@ List users in the Brex account, optionally filtered by email
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `email` | string | No | Filter users by exact email address |
 | `cursor` | string | No | Pagination cursor from a previous response |
 | `limit` | string | No | Number of users to return \(default 100, max 1000\) |
@@ -523,7 +510,6 @@ Get a Brex user by their ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `userId` | string | Yes | ID of the user to fetch |
 
 #### Output
@@ -552,7 +538,6 @@ Get the Brex user associated with the API token
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 
 #### Output
 
@@ -580,7 +565,6 @@ List departments in the Brex account, optionally filtered by name
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `name` | string | No | Filter departments by name |
 | `cursor` | string | No | Pagination cursor from a previous response |
 | `limit` | string | No | Number of departments to return \(default 100, max 1000\) |
@@ -607,7 +591,6 @@ List locations in the Brex account, optionally filtered by name
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `name` | string | No | Filter locations by name |
 | `cursor` | string | No | Pagination cursor from a previous response |
 | `limit` | string | No | Number of locations to return \(default 100, max 1000\) |
@@ -634,7 +617,6 @@ List job titles in the Brex account, optionally filtered by name
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `name` | string | No | Filter titles by name |
 | `cursor` | string | No | Pagination cursor from a previous response |
 | `limit` | string | No | Number of titles to return \(default 100, max 1000\) |
@@ -660,7 +642,6 @@ List cards in the Brex account, optionally filtered by card owner
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `userId` | string | No | Filter cards by the ID of the card owner |
 | `cursor` | string | No | Pagination cursor from a previous response |
 | `limit` | string | No | Number of cards to return \(default 100, max 1000\) |
@@ -695,7 +676,6 @@ Get the Brex company associated with the API token
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 
 #### Output
 
@@ -718,7 +698,6 @@ List budgets in the Brex account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `cursor` | string | No | Pagination cursor from a previous response |
 | `limit` | string | No | Number of budgets to return \(default 100, max 1000\) |
 
@@ -755,7 +734,6 @@ Get a Brex budget by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `budgetId` | string | Yes | ID of the budget to fetch |
 
 #### Output
@@ -789,7 +767,6 @@ Create a new budget in the Brex account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `name` | string | Yes | Name for the budget |
 | `description` | string | Yes | Description of what the budget is used for |
 | `parentBudgetId` | string | Yes | ID of the parent budget |
@@ -831,7 +808,6 @@ Archive a Brex budget, making any spend limits beneath it unusable for future ex
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `budgetId` | string | Yes | ID of the budget to archive |
 
 #### Output
@@ -853,7 +829,6 @@ List spend limits in the Brex account, optionally filtered by member user
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `memberUserIds` | string | No | Comma-separated user IDs to filter spend limits by member |
 | `cursor` | string | No | Pagination cursor from a previous response |
 | `limit` | string | No | Number of spend limits to return \(default 100, max 1000\) |
@@ -901,7 +876,6 @@ Get a Brex spend limit by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `spendLimitId` | string | Yes | ID of the spend limit to fetch |
 
 #### Output
@@ -945,7 +919,6 @@ Create a new spend limit (hard-authorization card program) in the Brex account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `name` | string | Yes | Name for the spend limit |
 | `periodRecurrenceType` | string | Yes | Period type of the spend limit \(PER_WEEK, PER_MONTH, PER_QUARTER, PER_YEAR, ONE_TIME\) |
 | `spendType` | string | Yes | Whether the spend limit can only be spent from cards it provisions \(BUDGET_PROVISIONED_CARDS_ONLY, NON_BUDGET_PROVISIONED_CARDS_ALLOWED\) |
@@ -1009,7 +982,6 @@ List vendors in the Brex account, optionally filtered by name
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `name` | string | No | Filter vendors by name |
 | `cursor` | string | No | Pagination cursor from a previous response |
 | `limit` | string | No | Number of vendors to return \(default 100, max 1000\) |
@@ -1038,7 +1010,6 @@ Get a Brex vendor by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `vendorId` | string | Yes | ID of the vendor to fetch |
 
 #### Output
@@ -1063,7 +1034,6 @@ Create a new vendor in the Brex account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `companyName` | string | Yes | Name for the vendor \(must be unique\) |
 | `email` | string | No | Email address for the vendor |
 | `phone` | string | No | Phone number for the vendor |
@@ -1090,7 +1060,6 @@ Update an existing vendor in the Brex account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `vendorId` | string | Yes | ID of the vendor to update |
 | `companyName` | string | No | New name for the vendor |
 | `email` | string | No | New email address for the vendor |
@@ -1118,7 +1087,6 @@ List money transfers in the Brex account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `cursor` | string | No | Pagination cursor from a previous response |
 | `limit` | string | No | Number of transfers to return \(default 100, max 1000\) |
 
@@ -1158,7 +1126,6 @@ Get a Brex money transfer by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `transferId` | string | Yes | ID of the transfer to fetch |
 
 #### Output
@@ -1195,7 +1162,6 @@ Create a money transfer from a Brex cash account to a vendor
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
 | `cashAccountId` | string | Yes | ID of the Brex cash account to send the transfer from \(found via the /accounts endpoint\) |
 | `vendorPaymentInstrumentId` | string | Yes | ID of the vendor's payment instrument to send the transfer to \(from the vendor's payment_accounts\) |
 | `amount` | number | Yes | Amount to transfer, in the smallest unit of the currency \(e.g., cents for USD\) |

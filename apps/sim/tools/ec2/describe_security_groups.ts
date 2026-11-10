@@ -5,6 +5,7 @@ import {
   type Ec2DescribeSecurityGroupsResponse,
 } from '@/tools/ec2/types'
 import { ec2ConnectionInput, suppliedParams } from '@/tools/ec2/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeSecurityGroupsTool: InternalToolConfig<
@@ -15,6 +16,7 @@ export const describeSecurityGroupsTool: InternalToolConfig<
   name: 'EC2 Describe Security Groups',
   description: 'List security groups with their inbound and outbound rules',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

@@ -2,7 +2,7 @@
 title: Luma
 description: Manage events and guests on Luma
 integration:
-  type: "luma"
+  type: "luma_v2"
   color: "#000000"
 ---
 
@@ -31,7 +31,6 @@ Retrieve details of a Luma event including name, time, location, hosts, and visi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Luma API key |
 | `eventId` | string | Yes | Event ID \(starts with evt-\) |
 
 #### Output
@@ -76,7 +75,6 @@ Create a new event on Luma with a name, start time, timezone, and optional detai
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Luma API key |
 | `name` | string | Yes | Event name/title |
 | `startAt` | string | Yes | Event start time in ISO 8601 format \(e.g., 2025-03-15T18:00:00Z\) |
 | `timezone` | string | Yes | IANA timezone \(e.g., America/New_York, Europe/London\) |
@@ -129,7 +127,6 @@ Update an existing Luma event. Only the fields you provide will be changed; all 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Luma API key |
 | `eventId` | string | Yes | Event ID to update \(starts with evt-\) |
 | `name` | string | No | New event name/title |
 | `startAt` | string | No | New start time in ISO 8601 format \(e.g., 2025-03-15T18:00:00Z\) |
@@ -183,7 +180,6 @@ List events from your Luma calendar with optional date range filtering, sorting,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Luma API key |
 | `after` | string | No | Return events after this ISO 8601 datetime \(e.g., 2025-01-01T00:00:00Z\) |
 | `before` | string | No | Return events before this ISO 8601 datetime \(e.g., 2025-12-31T23:59:59Z\) |
 | `paginationLimit` | number | No | Maximum number of events to return per page |
@@ -228,7 +224,6 @@ Look up an event by its public URL or event ID to resolve its canonical ID, API 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Luma API key |
 | `url` | string | No | Public event URL on lu.ma \(provide this or an event ID\) |
 | `eventId` | string | No | Event ID to look up \(starts with evt-\). Provide this or a URL. |
 | `platform` | string | No | Event platform to look up: luma or external \(defaults to luma\) |
@@ -254,7 +249,6 @@ Cancel a Luma event. This is irreversible and notifies all registered guests. Re
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Luma API key |
 | `eventId` | string | Yes | Event ID to cancel \(starts with evt-\) |
 | `cancellationToken` | string | Yes | Cancellation token from the Request Event Cancellation endpoint \(POST /v1/event/cancel/request\) |
 | `shouldRefund` | boolean | No | Whether to refund paid guests. Required if the event has paid registrations. |
@@ -277,7 +271,6 @@ Retrieve the guest list for a Luma event with optional filtering by approval sta
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Luma API key |
 | `eventId` | string | Yes | Event ID \(starts with evt-\) |
 | `approvalStatus` | string | No | Filter by approval status: approved, session, pending_approval, invited, declined, or waitlist |
 | `paginationLimit` | number | No | Maximum number of guests to return per page |
@@ -316,7 +309,6 @@ Retrieve a single guest's details on a Luma event, including approval status, re
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Luma API key |
 | `eventId` | string | Yes | Event ID the guest belongs to \(starts with evt-\) |
 | `guestIdentifier` | string | Yes | Guest ID \(gst-...\), guest key \(g-...\), ticket key, or the guest's email address |
 
@@ -349,7 +341,6 @@ Add guests to a Luma event by email. Guests are added with Going (approved) stat
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Luma API key |
 | `eventId` | string | Yes | Event ID \(starts with evt-\) |
 | `guests` | string | Yes | JSON array of guest objects. Each guest requires an "email" field and optionally "name", "first_name", "last_name". Example: \[\{"email": "user@example.com", "name": "John Doe"\}\] |
 
@@ -371,7 +362,6 @@ Send email invitations to guests for a Luma event. Unlike Add Guests (which regi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Luma API key |
 | `eventId` | string | Yes | Event ID to invite guests to \(starts with evt-\) |
 | `guests` | string | Yes | JSON array of guest objects. Each guest requires an "email" field and optionally "name". Example: \[\{"email": "user@example.com", "name": "John Doe"\}\] |
 | `message` | string | No | Optional custom message included in the invite email \(max 200 characters\) |
@@ -394,7 +384,6 @@ Update a guest's approval status on a Luma event — approve, decline, waitlist,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Luma API key |
 | `eventId` | string | No | Event ID the guest belongs to \(starts with evt-\) |
 | `guestIdentifier` | string | Yes | Guest email address or guest ID \(gst-...\). Values containing '@' are treated as emails; otherwise as a guest ID. |
 | `status` | string | Yes | New approval status: approved, declined, pending_approval, or waitlist |

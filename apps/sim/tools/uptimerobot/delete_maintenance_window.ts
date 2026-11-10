@@ -1,3 +1,4 @@
+import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import {
   UPTIMEROBOT_API_BASE,
@@ -15,6 +16,7 @@ export const uptimeRobotDeleteMaintenanceWindowTool: ToolConfig<
   name: 'UptimeRobot Delete Maintenance Window',
   description: 'Permanently delete an UptimeRobot maintenance window by ID',
   version: '1.0.0',
+  oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

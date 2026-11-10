@@ -1,6 +1,7 @@
 import { ClerkIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -14,6 +15,8 @@ const FULL_NAME_FIELD = ['firstName', 'lastName'] as const
 
 export const ClerkBlock: BlockConfig = {
   type: 'clerk',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'clerk_v2' },
   name: 'Clerk',
   description: 'Manage users, organizations, and sessions in Clerk',
   longDescription:
@@ -1140,3 +1143,17 @@ export const ClerkBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const ClerkV2Block: BlockConfig = {
+  ...ClerkBlock,
+  type: 'clerk_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(ClerkBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'clerk',
+    title: 'Clerk Credential',
+  }),
+}

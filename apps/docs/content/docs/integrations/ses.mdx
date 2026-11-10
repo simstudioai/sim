@@ -2,7 +2,7 @@
 title: AWS SES
 description: Send emails and manage templates with AWS Simple Email Service
 integration:
-  type: "ses"
+  type: "ses_v2"
   color: "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)"
 ---
 
@@ -10,7 +10,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [Amazon SES](https://aws.amazon.com/ses/) to send simple, templated, or bulk emails and manage templates, identities, configuration sets, and suppression lists. Account and identity actions report sending configuration and quotas.
+Use [Amazon SES](https://aws.amazon.com/ses/) to send simple, templated, or bulk emails and manage templates, identities, configuration sets, and suppression lists. Account and identity actions report sending configuration and quotas. Connect with a saved [AWS credential](/integrations/aws-credentials).
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
@@ -30,8 +30,6 @@ Send an email via AWS SES using simple or HTML content
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `fromAddress` | string | Yes | Verified sender email address |
 | `toAddresses` | string | Yes | Comma-separated list of recipient email addresses |
 | `subject` | string | Yes | Email subject line |
@@ -61,8 +59,6 @@ Send an email using an SES email template with dynamic template data
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `fromAddress` | string | Yes | Verified sender email address |
 | `toAddresses` | string | Yes | Comma-separated list of recipient email addresses |
 | `templateName` | string | Yes | Name of the SES email template to use |
@@ -90,8 +86,6 @@ Send emails to multiple recipients using an SES template with per-recipient data
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `fromAddress` | string | Yes | Verified sender email address |
 | `templateName` | string | Yes | Name of the SES email template to use |
 | `destinations` | string | Yes | JSON array of destination objects with toAddresses \(string\[\]\) and optional templateData \(JSON string\); falls back to defaultTemplateData when omitted |
@@ -119,8 +113,6 @@ List all verified email identities (email addresses and domains) in your SES acc
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `pageSize` | number | No | Maximum number of identities to return \(1-1000\) |
 | `nextToken` | string | No | Pagination token from a previous list response |
 
@@ -145,8 +137,6 @@ Get SES account sending quota and status information
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 
 #### Output
 
@@ -170,8 +160,6 @@ Create a new SES email template for use with templated email sending
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `templateName` | string | Yes | Unique name for the email template |
 | `subjectPart` | string | Yes | Subject line template \(supports \{\{variable\}\} substitution\) |
 | `textPart` | string | No | Plain text version of the template body |
@@ -196,8 +184,6 @@ Retrieve the content and details of an SES email template
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `templateName` | string | Yes | Name of the template to retrieve |
 
 #### Output
@@ -222,8 +208,6 @@ List all SES email templates in your account
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `pageSize` | number | No | Maximum number of templates to return |
 | `nextToken` | string | No | Pagination token from a previous list response |
 
@@ -248,8 +232,6 @@ Delete an existing SES email template
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `templateName` | string | Yes | Name of the template to delete |
 
 #### Output
@@ -271,8 +253,6 @@ Update the subject, HTML, and text content of an existing SES email template
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `templateName` | string | Yes | The name of the template to update |
 | `subjectPart` | string | Yes | The subject line of the template |
 | `htmlPart` | string | No | The HTML body of the template |
@@ -297,8 +277,6 @@ Add an email address to the account-level SES suppression list
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `emailAddress` | string | Yes | The email address to add to the suppression list |
 | `reason` | string | Yes | The reason the address is suppressed: BOUNCE or COMPLAINT |
 
@@ -321,8 +299,6 @@ Remove an email address from the account-level SES suppression list
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `emailAddress` | string | Yes | The email address to remove from the suppression list |
 
 #### Output
@@ -344,8 +320,6 @@ Retrieve details for a specific email address on the SES suppression list
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `emailAddress` | string | Yes | The suppressed email address to look up |
 
 #### Output
@@ -371,8 +345,6 @@ List email addresses on the account-level SES suppression list
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `reasons` | string | No | Comma-separated suppression reasons to filter by: BOUNCE, COMPLAINT |
 | `startDate` | string | No | Only include addresses suppressed after this ISO 8601 date |
 | `endDate` | string | No | Only include addresses suppressed before this ISO 8601 date |
@@ -400,8 +372,6 @@ Start verification of a new SES email address or domain identity
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `emailIdentity` | string | Yes | The email address or domain to verify |
 | `dkimSigningAttributes` | json | No | Bring-your-own-DKIM signing attributes as JSON \(domainSigningSelector, domainSigningPrivateKey, nextSigningKeyLength\). Domain identities only. |
 | `tags` | json | No | JSON array of tags to associate with the identity: \[\{"key":"","value":""\}\] |
@@ -428,8 +398,6 @@ Delete a verified SES email address or domain identity
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `emailIdentity` | string | Yes | The email address or domain identity to delete |
 
 #### Output
@@ -451,8 +419,6 @@ Retrieve verification status, DKIM, Mail-From, and policy details for an SES ide
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `emailIdentity` | string | Yes | The email address or domain identity to look up |
 
 #### Output
@@ -483,8 +449,6 @@ Create an SES configuration set to control tracking, delivery, reputation, sendi
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `configurationSetName` | string | Yes | Name of the configuration set \(letters, numbers, hyphens, underscores\) |
 | `customRedirectDomain` | string | No | Custom domain to use for open/click tracking links |
 | `httpsPolicy` | string | No | HTTPS policy for tracking links: REQUIRE, REQUIRE_OPEN_ONLY, or OPTIONAL |
@@ -514,8 +478,6 @@ Send a branded custom verification email to an address using a custom verificati
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `emailAddress` | string | Yes | The email address to verify |
 | `templateName` | string | Yes | The name of the custom verification email template to use |
 | `configurationSetName` | string | No | Configuration set to use when sending the verification email |

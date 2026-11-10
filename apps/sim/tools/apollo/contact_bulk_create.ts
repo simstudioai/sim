@@ -2,6 +2,7 @@ import type {
   ApolloContactBulkCreateParams,
   ApolloContactBulkCreateResponse,
 } from '@/tools/apollo/types'
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apolloContactBulkCreateTool: ToolConfig<
@@ -13,6 +14,7 @@ export const apolloContactBulkCreateTool: ToolConfig<
   description:
     'Create up to 100 contacts at once in your Apollo database. Supports deduplication to prevent creating duplicate contacts. Master key required.',
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -5,6 +5,7 @@ import type {
   ReductoParserOutput,
   ReductoParserV2Input,
 } from '@/tools/reducto/types'
+import { REDUCTO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const reductoParserTool: InternalToolConfig<ReductoParserInput, ReductoParserOutput> = {
@@ -12,6 +13,7 @@ export const reductoParserTool: InternalToolConfig<ReductoParserInput, ReductoPa
   name: 'Reducto PDF Parser',
   description: 'Parse PDF documents using Reducto OCR API',
   version: '1.0.0',
+  oauth: REDUCTO_CREDENTIAL_OAUTH,
 
   params: {
     filePath: {

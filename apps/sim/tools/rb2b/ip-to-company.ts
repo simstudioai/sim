@@ -4,6 +4,7 @@ import {
   type Rb2bIpToCompanyResponse,
 } from '@/tools/rb2b/types'
 import { RB2B_API_BASE, rb2bHeaders } from '@/tools/rb2b/utils'
+import { RB2B_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rb2bIpToCompanyTool: ToolConfig<Rb2bIpToCompanyParams, Rb2bIpToCompanyResponse> = {
@@ -11,6 +12,7 @@ export const rb2bIpToCompanyTool: ToolConfig<Rb2bIpToCompanyParams, Rb2bIpToComp
   name: 'RB2B IP to Company',
   description: 'Identify the company domains associated with an IP address, ranked by confidence.',
   version: '1.0.0',
+  oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
