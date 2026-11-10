@@ -638,7 +638,6 @@
   "apps/sim/hooks/queries/kb/connectors.ts#searchIndexKeys",
   "apps/sim/hooks/queries/kb/knowledge.ts#KNOWLEDGE_CHUNK_LIST_STALE_TIME",
   "apps/sim/hooks/queries/kb/knowledge.ts#KNOWLEDGE_CHUNK_SEARCH_STALE_TIME",
-  "apps/sim/hooks/queries/kb/knowledge.ts#KNOWLEDGE_DOCUMENT_DETAIL_STALE_TIME",
   "apps/sim/hooks/queries/kb/knowledge.ts#KNOWLEDGE_DOCUMENT_LIST_STALE_TIME",
   "apps/sim/hooks/queries/kb/knowledge.ts#KNOWLEDGE_DOCUMENT_TAG_DEFINITION_LIST_STALE_TIME",
   "apps/sim/hooks/queries/kb/knowledge.ts#KNOWLEDGE_TAG_DEFINITION_LIST_STALE_TIME",
