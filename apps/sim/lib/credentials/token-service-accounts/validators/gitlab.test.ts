@@ -51,6 +51,14 @@ describe('GitLab saved token verification', () => {
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
   })
 
+  it('reports a malformed token lookup as GitLab misbehaving, not as a bad token', async () => {
+    fetch.mockResolvedValue(new Response('<html>', { status: 200 }))
+
+    await expect(
+      validateGitLabServiceAccount({ apiToken: 'glpat-x', domain: 'gitlab.com' })
+    ).rejects.toMatchObject({ code: 'provider_unavailable' })
+  })
+
   it('reports an unreachable GitLab instance as unavailable, not as a bad token', async () => {
     fetch.mockResolvedValue(jsonResponse({ message: 'Bad Gateway' }, 502))
 

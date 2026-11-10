@@ -62,7 +62,16 @@ export async function validateGitLabServiceAccount(
       { step: 'verify' }
     )
   }
-  const token = toRecord(await response.json().catch(() => null))
+  let body: unknown
+  try {
+    body = await response.json()
+  } catch {
+    throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+      step: 'verify',
+      reason: 'GitLab returned a malformed token lookup',
+    })
+  }
+  const token = toRecord(body)
   const scopes = toArray(token.scopes)
   if (
     token.active !== true ||

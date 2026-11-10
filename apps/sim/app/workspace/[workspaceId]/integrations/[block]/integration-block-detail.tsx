@@ -250,32 +250,40 @@ function IntegrationBlockDetailContent({ integration, workspaceId }: Integration
     setConnectMode,
   ])
 
-  const connectOptions = oauthService
-    ? [
-        ...(oauthAvailable
-          ? [
-              {
-                value: CONNECT_MODE.oauth,
-                label: 'Connect with OAuth',
-                icon: oauthService.serviceIcon,
-              },
-            ]
-          : []),
-        ...(hasServiceAccount
-          ? [
-              {
-                value: CONNECT_MODE.serviceAccount,
-                label: serviceAccountConnectLabel,
-                icon: serviceAccountTarget?.serviceIcon ?? oauthService.serviceIcon,
-              },
-            ]
-          : []),
-      ]
-    : []
+  const connectOptions = [
+    ...(personalTokenAvailable
+      ? [
+          {
+            value: CONNECT_MODE.personalToken,
+            label: 'Add personal token',
+            icon: oauthService?.serviceIcon ?? Icon,
+          },
+        ]
+      : []),
+    ...(oauthService && oauthAvailable
+      ? [
+          {
+            value: CONNECT_MODE.oauth,
+            label: 'Connect with OAuth',
+            icon: oauthService.serviceIcon,
+          },
+        ]
+      : []),
+    ...(oauthService && hasServiceAccount
+      ? [
+          {
+            value: CONNECT_MODE.serviceAccount,
+            label: serviceAccountConnectLabel,
+            icon: serviceAccountTarget?.serviceIcon ?? oauthService.serviceIcon,
+          },
+        ]
+      : []),
+  ]
 
   const handleSelectConnectOption = (value: string) => {
     if (value === CONNECT_MODE.oauth) setOAuthOpen(true)
     else if (value === CONNECT_MODE.serviceAccount) setServiceAccountOpen(true)
+    else if (value === CONNECT_MODE.personalToken) setPersonalTokenOpen(true)
   }
 
   const handleAddInChat = () => {
@@ -290,22 +298,22 @@ function IntegrationBlockDetailContent({ integration, workspaceId }: Integration
           Integrations
         </ChipLink>
         <div className={cn('ml-auto', HEADER_ACTION_CLUSTER)}>
-          {personalTokenAvailable ? (
+          {connectOptions.length > 1 ? (
+            <ChipDropdown
+              variant='primary'
+              leftIcon={Plus}
+              placeholder='Add to Sim'
+              showSelectedCheck={false}
+              options={connectOptions}
+              onChange={handleSelectConnectOption}
+              matchTriggerWidth={false}
+            />
+          ) : personalTokenAvailable ? (
             <Chip variant='primary' leftIcon={Plus} onClick={() => setPersonalTokenOpen(true)}>
               Add personal token
             </Chip>
           ) : oauthService ? (
-            connectOptions.length > 1 ? (
-              <ChipDropdown
-                variant='primary'
-                leftIcon={Plus}
-                placeholder='Add to Sim'
-                showSelectedCheck={false}
-                options={connectOptions}
-                onChange={handleSelectConnectOption}
-                matchTriggerWidth={false}
-              />
-            ) : oauthAvailable ? (
+            oauthAvailable ? (
               <Chip variant='primary' leftIcon={Plus} onClick={() => setOAuthOpen(true)}>
                 Add to Sim
               </Chip>

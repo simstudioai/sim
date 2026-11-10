@@ -72,13 +72,16 @@ async function loadPreviousPublicJwk(): Promise<JWK | null> {
 
 /**
  * AWS and Databricks fetch discovery and keys from the issuer over https on the
- * default port, so any other issuer can never be trusted; keyless stays off
+ * default port, and discovery appends paths to it, so any other issuer (or one
+ * with a query or fragment) can never be trusted; keyless stays off
  * rather than advertising an issuer no relying party accepts.
  */
 function assertPublicIssuer(issuer: string): void {
   const url = new URL(issuer)
-  if (url.protocol !== 'https:' || url.port) {
-    throw new Error('Workload identity issuer must be an https URL without a port')
+  if (url.protocol !== 'https:' || url.port || url.search || url.hash) {
+    throw new Error(
+      'Workload identity issuer must be an https URL without a port, query, or fragment'
+    )
   }
   if (!env.WORKLOAD_IDENTITY_ISSUER?.trim()) {
     logger.warn(
