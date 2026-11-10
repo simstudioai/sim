@@ -20,10 +20,11 @@ vi.mock('@/platform/lib/data/shell-scope', () => ({
   readWorkspaceShellOrganizationId: vi.fn(),
 }))
 
-import { WORKSPACES_PATH } from '@/lib/navigation/paths'
+import { APP_ENTRY_PATH, WORKSPACES_PATH } from '@/lib/navigation/paths'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import {
   blockedWorkspaceEntryHref,
+  deniedSurfaceHref,
   type RouteContext,
   resolveProductRedirect,
 } from '@/platform/lib/data/route-resolution'
@@ -185,7 +186,7 @@ describe('resolveProductRedirect', () => {
   })
 
   it('sends a member without chat from a chat page where Home sends them', () => {
-    for (const href of ['/o/org-1/chat', '/o/org-1/chat/chat-1']) {
+    for (const href of ['/o/org-1/chat', '/o/org-1/chat/chat-1', '/o/org-1/chat/chat-1/extra']) {
       expect(resolve(href)).toBeNull()
       expect(resolve(href, { access: { mothershipAvailable: false } })?.href).toBe(
         '/o/org-1/search'
@@ -231,6 +232,17 @@ describe('resolveProductRedirect', () => {
     ).toEqual({ href: '/o/org-2/settings/billing', permanent: true })
   })
 
+  it('leaves the legacy upgrade page to decide whose plans the viewer may change', () => {
+    expect(resolve('/workspace/ws-1/upgrade', { workspaceOrganizationId: 'org-2' })).toBeNull()
+  })
+
+  it('sends bare workspace Settings to the organization’s General section in one permanent hop', () => {
+    expect(resolve('/workspace/ws-1/settings', { workspaceOrganizationId: 'org-2' })).toEqual({
+      href: '/o/org-2/settings/general',
+      permanent: true,
+    })
+  })
+
   it('leaves a legacy URL of a workspace the viewer cannot open to its page', () => {
     expect(resolve('/workspace/ws-1/settings/subscription')).toBeNull()
   })
@@ -267,6 +279,7 @@ describe('the organization gate, its landing and the workspace entry', () => {
     '/o/org-1/people',
     '/o/org-1/chat',
     '/o/org-1/chat/chat-1',
+    '/o/org-1/chat/chat-1/extra',
     '/o/org-1/settings',
     WORKSPACES_PATH,
     `${WORKSPACES_PATH}?redirect=settings`,
@@ -300,5 +313,17 @@ describe('the organization gate, its landing and the workspace entry', () => {
               )?.href ?? null)
       }
     }
+  })
+})
+
+describe('an organization the viewer can no longer open', () => {
+  it('sends them from a retired one to the app entry, which the table never sends back', () => {
+    expect(deniedSurfaceHref(true)).toBe(APP_ENTRY_PATH)
+    expect(resolve(APP_ENTRY_PATH)).toBeNull()
+    expect(resolve(APP_ENTRY_PATH, { access: NO_SURFACE })).toBeNull()
+  })
+
+  it('answers not found from one that excludes them', () => {
+    expect(deniedSurfaceHref(false)).toBeNull()
   })
 })

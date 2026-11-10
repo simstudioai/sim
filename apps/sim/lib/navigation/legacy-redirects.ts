@@ -178,6 +178,8 @@ export function mapLegacyWorkspaceUrl({
     return withQuery(routes.account(rest[1]), inWorkspace(query, workspaceId))
   if (head === 'integrations' && rest.length === 1)
     return withQuery(routes.integration(rest[0]), inWorkspace(query, workspaceId))
+  if (head === 'settings' && rest.length === 0)
+    return withQuery(routes.settingsSection('general'), query)
   if (head === 'upgrade' && rest.length === 0)
     return withQuery(routes.settingsSection('billing/plans'), query)
 

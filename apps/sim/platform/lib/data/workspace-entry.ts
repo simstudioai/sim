@@ -12,7 +12,6 @@ import { listViewerWorkspaces } from '@/lib/workspaces/application/viewer-worksp
 import { blockedWorkspaceEntryHref } from '@/platform/lib/data/route-resolution'
 import { asRouteResponse, requireSessionViewer } from '@/platform/lib/data/server-read'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
-import { DEFAULT_WORKSPACE_SETTING } from '@/platform/lib/data/workspace-settings'
 
 const logger = createLogger('PlatformWorkspaceEntry')
 
@@ -39,8 +38,7 @@ function workspaceDestination(workspaceId: string, query: WorkspaceEntryQuery): 
     const path = workspacePath(workspaceId, 'upgrade')
     return isUpgradeReason(query.reason) ? `${path}?${UPGRADE_REASON_PARAM}=${query.reason}` : path
   }
-  if (query.redirect === 'settings')
-    return workspacePath(workspaceId, `settings/${DEFAULT_WORKSPACE_SETTING}`)
+  if (query.redirect === 'settings') return workspacePath(workspaceId, 'settings')
   return workspaceEntry(workspaceId)
 }
 

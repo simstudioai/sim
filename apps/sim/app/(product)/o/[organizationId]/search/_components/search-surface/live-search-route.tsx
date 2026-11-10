@@ -5,7 +5,11 @@ import { SearchSurface } from '@/app/(product)/o/[organizationId]/search/_compon
 import { readOpenChat } from '@/platform/lib/data/chat-gate'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { prefetchSearch } from '@/platform/lib/data/prefetch-search'
-import { followProductRoute, productLocation } from '@/platform/lib/data/route-resolution'
+import {
+  deniedSurfaceHref,
+  followProductRoute,
+  productLocation,
+} from '@/platform/lib/data/route-resolution'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 
 interface LiveSearchRouteProps {
@@ -17,7 +21,11 @@ interface LiveSearchRouteProps {
 export async function LiveSearchRoute({ chatId, searchParams = {} }: LiveSearchRouteProps) {
   const surface = await readOrganizationSurface()
   // A tab left open on an organization the viewer has left, such as a retired personal one.
-  if (surface.status === 'denied') notFound()
+  if (surface.status === 'denied') {
+    const href = deniedSurfaceHref(surface.retired)
+    if (href) redirect(href)
+    notFound()
+  }
   if (surface.status !== 'ok') return null
   const { organization } = surface
   const path = chatId ? `/search/chat/${encodeURIComponent(chatId)}` : '/search'

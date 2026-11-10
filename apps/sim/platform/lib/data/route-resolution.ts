@@ -4,6 +4,7 @@ import { permanentRedirect, redirect } from 'next/navigation'
 import { resourceParam } from '@/lib/mothership/chat/search-params'
 import { mapLegacyWorkspaceUrl } from '@/lib/navigation/legacy-redirects'
 import {
+  APP_ENTRY_PATH,
   decodePathSegments,
   organizationRoutes,
   searchParamsQuery,
@@ -122,6 +123,16 @@ export function blockedWorkspaceEntryHref(
   return redirect === 'settings' ? surfaceHref(organization, '/settings') : landing
 }
 
+/**
+ * Where a page sends a viewer whose organization surface is denied: from an organization that no
+ * longer exists (a personal organization retired when its owner joined a team) to the app entry,
+ * which lands them in the organization they belong to now; `null` (not found) from one that
+ * excludes them.
+ */
+export function deniedSurfaceHref(retired: boolean): string | null {
+  return retired ? APP_ENTRY_PATH : null
+}
+
 /** Where a member without chat goes from Home or a chat page: Search, otherwise their workspace. */
 function chatlessHref(organization: PlatformOrganization): string {
   return organization.searchAccess.memberScoped
@@ -196,7 +207,7 @@ export function resolveProductRedirect(
       return temporary(withQuery(organizationLandingHref(organization) ?? WORKSPACES_PATH, query))
     if (section === 'home' && !subpath.length)
       return temporary(resolveHomeEntry(organization, query))
-    if (section === 'chat' && subpath.length <= 1)
+    if (section === 'chat')
       return temporary(organization.mothershipAvailable ? null : chatlessHref(organization))
     if (section === 'search' && (!subpath.length || subpath[0] === 'chat'))
       return temporary(
@@ -214,6 +225,8 @@ export function resolveProductRedirect(
     const workspaceId = decodePathSegments([id])?.[0]
     if (!workspaceId) return null
     if (!segments.length) return temporary(workspaceRootHref(workspaceId, 'live', query))
+    /** Who manages the workspace's plan is a record its page reads before it redirects. */
+    if (segments[0] === 'upgrade') return null
     const href = mapLegacyWorkspaceUrl({
       workspaceId,
       segments,

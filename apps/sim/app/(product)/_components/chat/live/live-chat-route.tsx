@@ -4,7 +4,11 @@ import { ChatScreen } from '@/app/(product)/_components/chat/conversation/chat-s
 import { LiveChat } from '@/app/(product)/_components/chat/live/live-chat'
 import { readOpenChat } from '@/platform/lib/data/chat-gate'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { followProductRoute, productLocation } from '@/platform/lib/data/route-resolution'
+import {
+  deniedSurfaceHref,
+  followProductRoute,
+  productLocation,
+} from '@/platform/lib/data/route-resolution'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 
 interface LiveChatRouteProps {
@@ -19,7 +23,11 @@ interface LiveChatRouteProps {
 export async function LiveChatRoute({ chatId, searchParams }: LiveChatRouteProps) {
   const surface = await readOrganizationSurface()
   // A tab left open on an organization the viewer has left, such as a retired personal one.
-  if (surface.status === 'denied') notFound()
+  if (surface.status === 'denied') {
+    const href = deniedSurfaceHref(surface.retired)
+    if (href) redirect(href)
+    notFound()
+  }
   if (surface.status !== 'ok') return null
   const { organization } = surface
   await followProductRoute(

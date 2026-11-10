@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
-import { notFound, redirect } from 'next/navigation'
-import { matchPathPattern, searchParamsQuery, workspacePath } from '@/lib/navigation/paths'
+import { notFound } from 'next/navigation'
+import { matchPathPattern } from '@/lib/navigation/paths'
 import { WORKSPACE_SETTINGS_SUBPATHS } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
 import {
   LiveWorkspaceSettings,
@@ -8,7 +8,6 @@ import {
 } from '@/app/(product)/workspace/[workspaceId]/settings/_components/workspace-settings/workspace-settings'
 import { WorkspaceSettingsSection } from '@/app/(product)/workspace/[workspaceId]/settings/_components/workspace-settings-section/workspace-settings-section'
 import {
-  DEFAULT_WORKSPACE_SETTING,
   isWorkspaceSettingsKey,
   workspaceSettingTitle,
 } from '@/platform/lib/data/workspace-settings'
@@ -38,13 +37,9 @@ export default async function Page({
     return <WorkspaceSettings workspace={workspace} />
   }
   const [key, ...subpath] = path
-  if (!key) {
-    const params = searchParamsQuery(query)
-    const destination = workspacePath(workspaceId, `settings/${DEFAULT_WORKSPACE_SETTING}`)
-    redirect(params.size ? `${destination}?${params}` : destination)
-  }
-  if (!isWorkspaceSettingsKey(key)) {
-    // A section that moved, such as one now in organization Settings, redirects; others 404.
+  if (!key || !isWorkspaceSettingsKey(key)) {
+    // Bare Settings opens the organization's General section; a section that moved, such as one
+    // now in organization Settings, redirects; others 404.
     const { redirectLegacyWorkspaceUrl } = await import('@/platform/lib/data/legacy-redirects')
     return redirectLegacyWorkspaceUrl(workspaceId, ['settings', ...path], query)
   }
