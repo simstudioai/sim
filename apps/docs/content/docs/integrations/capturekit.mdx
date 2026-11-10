@@ -1,0 +1,148 @@
+---
+title: CaptureKit
+description: Capture screenshots and extract content from web pages
+integration:
+  type: "capturekit"
+  color: "#FFFFFF"
+---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
+
+{/* MANUAL-CONTENT-START:intro */}
+[CaptureKit](https://www.capturekit.dev/) is a screenshot and web content API that runs the browsers for you.
+
+With the CaptureKit block, you can:
+
+- **Take screenshots**: capture a page as a PNG, JPEG, WebP image or a PDF, full page or by CSS selector, on 17+ emulated devices, without cookie banners and ads
+- **Extract content**: get a page's title, metadata, internal, external and social links, and its Markdown
+- **Fetch HTML**: get a page's raw HTML without a browser
+- **Analyze websites**: get an AI summary of what a site offers, its audience, features and contact details
+
+Create an API key in the [CaptureKit dashboard](https://app.capturekit.dev/) and paste it into the block.
+
+In Sim, the CaptureKit block lets your agents archive pages for compliance, track competitor pages and turn websites into clean input for research.
+{/* MANUAL-CONTENT-END */}
+
+## Use the block [#usage-instructions]
+
+Capture any web page as a PNG, JPEG, WebP image or a PDF, by viewport, full page or CSS selector on 17+ emulated devices; extract a page's metadata, links and Markdown; fetch raw HTML; and get an AI summary of what a website offers.
+
+## Actions
+
+### CaptureKit Take Screenshot
+
+Capture a public web page as a PNG, JPEG, WebP image or a PDF, by viewport, full page or CSS selector, and store it as a file.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | URL of the page \(e.g., "https://example.com") |
+| `format` | string | No | Output format: png, jpeg, webp or pdf \(defaults to "png"\) |
+| `fullPage` | boolean | No | Capture the entire page instead of the visible viewport |
+| `device` | string | No | Device to emulate \(e.g., "iphone_14_pro"\) |
+| `selector` | string | No | CSS selector of one element to capture \(e.g., "#pricing"\) |
+| `viewportWidth` | number | No | Width of the browser viewport in pixels \(defaults to 1280\) |
+| `viewportHeight` | number | No | Height of the browser viewport in pixels \(defaults to 1024\) |
+| `delay` | number | No | Seconds to wait before capturing \(defaults to 0\) |
+| `removeCookieBanners` | boolean | No | Remove cookie banners before capturing |
+| `removeAds` | boolean | No | Remove ads before capturing |
+| `apiKey` | string | Yes | CaptureKit API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Screenshot or PDF of the page, stored in the execution files |
+
+</ReferenceDetails>
+
+### CaptureKit Extract Content
+
+Render a web page and get its title, description, favicon, Open Graph image, internal, external and social links, and optionally its Markdown.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | URL of the page \(e.g., "https://example.com") |
+| `includeMarkdown` | boolean | No | Include the page content as Markdown |
+| `removeCookieBanners` | boolean | No | Remove cookie banners before capturing |
+| `removeAds` | boolean | No | Remove ads before capturing |
+| `apiKey` | string | Yes | CaptureKit API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `metadata` | object | Page metadata |
+|   ↳ `title` | string | Page title |
+|   ↳ `description` | string | Meta description |
+|   ↳ `favicon` | string | Favicon URL |
+|   ↳ `ogImage` | string | Open Graph image URL |
+| `links` | object | Links found on the page |
+|   ↳ `internal` | array | Links to the same site |
+|   ↳ `external` | array | Links to other sites |
+|   ↳ `social` | array | Links to social profiles |
+| `markdown` | string | Page content as Markdown, when requested |
+
+</ReferenceDetails>
+
+### CaptureKit Fetch HTML
+
+Fetch the raw HTML of a public page over plain HTTP, without a browser.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | URL of the page, with http or https \(e.g., "https://example.com") |
+| `apiKey` | string | Yes | CaptureKit API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `html` | string | Raw HTML of the page |
+
+</ReferenceDetails>
+
+### CaptureKit Analyze Website
+
+Read a website and get an AI summary of its value proposition, business type, key features, categories, use cases, audience and contact details.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | URL of the page \(e.g., "https://example.com") |
+| `customPrompt` | string | No | Extra instructions for the analysis \(e.g., "Focus on pricing"\) |
+| `apiKey` | string | Yes | CaptureKit API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `summary` | string | Summary of what the website offers |
+| `valueProposition` | string | Value proposition of the website |
+| `businessType` | string | Type of business |
+| `targetAudience` | string | Audience the website addresses |
+| `callToAction` | string | Main call to action of the website |
+| `keyFeatures` | array | Key features of the product or service |
+| `categories` | array | Categories of the website |
+| `useCases` | array | Use cases the website describes |
+| `emails` | array | Email addresses found on the website |
+| `phoneNumbers` | array | Phone numbers found on the website |
+
+</ReferenceDetails>
+
+
