@@ -93,11 +93,27 @@ describe('Search MCP protocol', () => {
       expect(JSON.parse(searchContent.text)).toMatchObject({
         results: [{ documentId, queryIndexes: [0] }],
       })
-      const read = await client.callTool({ name: 'read_document', arguments: { documentId } })
+      const read = await client.callTool({
+        name: 'read_document',
+        arguments: { documentId, limit: 8 },
+      })
       expect(read.isError).not.toBe(true)
+      expect(mocks.liveRead.mock.lastCall?.[0].input).toMatchObject({
+        limit: 8,
+        scaledWindow: { documentsInCall: 1 },
+      })
       expect(read.content).toEqual([
         { type: 'text', text: expect.stringContaining('Read evidence') },
       ])
+      const batchRead = await client.callTool({
+        name: 'read_document',
+        arguments: { documentIds: [documentId, `${documentId}b`], limit: 8 },
+      })
+      expect(batchRead.isError).not.toBe(true)
+      expect(mocks.liveRead.mock.lastCall?.[0].input).toMatchObject({
+        limit: 8,
+        scaledWindow: { documentsInCall: 2 },
+      })
       const offsetless = await client.callTool({
         name: 'search',
         arguments: {

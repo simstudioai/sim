@@ -1189,6 +1189,89 @@ describe('authorized live retrieval', () => {
       })
     ).rejects.toBe('user_stop:test')
   })
+  describe('read window', () => {
+    const content = 'x'.repeat(30_000)
+    async function readWindow(extra: Record<string, unknown>, text = content) {
+      const [result] = (await searchLiveKnowledge.execute({ principal, input })).results
+      if (!result) throw new Error('Expected the search fixture to return a result')
+      mocks.read.mockResolvedValue({ ...document, content: text })
+      const read = await readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          documentId: result.documentId,
+          limit: 3,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+          ...extra,
+        },
+      })
+      const [chunk] = read.chunks
+      if (!chunk) throw new Error('Expected the read to return a window')
+      return {
+        length: chunk.content.length,
+        encoded: JSON.stringify(chunk.content).length - 2,
+        next: read.next,
+      }
+    }
+
+    const scaled = (documentsInCall: number) => ({ scaledWindow: { documentsInCall } })
+
+    it('returns a proportionally longer window when a scaling caller asks for more chunks', async () => {
+      const { length, next } = await readWindow({ limit: 8, ...scaled(1) })
+      expect(length).toBe(21_333)
+      expect(next).toEqual({ startChunkIndex: 0, startOffset: 21_333 })
+    })
+
+    it('continues a longer window from where the previous one ended', async () => {
+      const { length, next } = await readWindow({ limit: 8, ...scaled(1), startOffset: 21_333 })
+      expect(length).toBe(30_000 - 21_333)
+      expect(next).toBeNull()
+    })
+
+    it.each([
+      [5, 1, 13_333],
+      [8, 2, 20_000],
+      [8, 3, 13_333],
+      [8, 4, 10_000],
+    ])(
+      'shares one call budget: limit %i across %i documents reads %i characters each',
+      async (limit, documentsInCall, expected) => {
+        expect((await readWindow({ limit, ...scaled(documentsInCall) })).length).toBe(expected)
+      }
+    )
+
+    it.each([
+      [1, 21_333],
+      [2, 20_000],
+    ])(
+      'keeps a quote-heavy window within its share once JSON-encoded, across %i documents',
+      async (documentsInCall, share) => {
+        const quotes = '"'.repeat(30_000)
+        const { length, encoded, next } = await readWindow(
+          { limit: 8, ...scaled(documentsInCall) },
+          quotes
+        )
+        expect(encoded).toBeLessThanOrEqual(share)
+        expect(length).toBeGreaterThanOrEqual(8_000)
+        expect(next).toEqual({ startChunkIndex: 0, startOffset: length })
+      }
+    )
+
+    it('keeps the standard window for quote-heavy text at the default limit', async () => {
+      const { length } = await readWindow({ limit: 3, ...scaled(1) }, '"'.repeat(30_000))
+      expect(length).toBe(8_000)
+    })
+
+    it.each([
+      ['at the default limit', { limit: 3, ...scaled(1) }],
+      ['below the default limit', { limit: 1, ...scaled(1) }],
+      ['when the call budget is spread over five documents', { limit: 8, ...scaled(5) }],
+      ['when the call budget is spread over ten documents', { limit: 8, ...scaled(10) }],
+      ['for a caller that does not scale', { limit: 8 }],
+    ])('keeps the standard window %s', async (_, extra) => {
+      expect((await readWindow(extra)).length).toBe(8_000)
+    })
+  })
   it('refuses a chunk index other than zero before reading the document from its provider', async () => {
     const [result] = (await searchLiveKnowledge.execute({ principal, input })).results
     if (!result) throw new Error('Expected the search fixture to return a result')
