@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { HELP_REQUEST_TYPES } from '@/lib/api/contracts/common'
@@ -33,22 +34,26 @@ function useOrganizationActions(organization: PlatformOrganization): ShellOrgani
   const { id } = organization.organization
   const { mutateAsync: renameOrganization } = useRenameOrganization()
   const { mutateAsync: uploadLogo } = useUploadOrganizationLogo(id)
-  return {
-    canEditIdentity: organization.viewer.isAdmin,
-    canInvite: organization.viewer.canInviteMembers,
-    logoAccept: LOGO_ACCEPT_ATTRIBUTE,
-    async rename(name) {
-      await renameOrganization({ orgId: id, name })
-    },
-    async uploadLogo(file) {
-      try {
-        await uploadLogo(file)
-        router.refresh()
-      } catch (error) {
-        toast.error(getErrorMessage(error, 'Failed to upload logo'))
-      }
-    },
-  }
+  const { isAdmin, canInviteMembers } = organization.viewer
+  return useMemo<ShellOrganizationActions>(
+    () => ({
+      canEditIdentity: isAdmin,
+      canInvite: canInviteMembers,
+      logoAccept: LOGO_ACCEPT_ATTRIBUTE,
+      async rename(name) {
+        await renameOrganization({ orgId: id, name })
+      },
+      async uploadLogo(file) {
+        try {
+          await uploadLogo(file)
+          router.refresh()
+        } catch (error) {
+          toast.error(getErrorMessage(error, 'Failed to upload logo'))
+        }
+      },
+    }),
+    [id, isAdmin, canInviteMembers, renameOrganization, uploadLogo, router]
+  )
 }
 
 const SUPPORT: ShellHelp['support'] = {
@@ -76,27 +81,30 @@ function canInstallMacApp() {
 function useHelp(organization: PlatformOrganization): ShellHelp {
   const updateState = useDesktopUpdateState()
   const { hosted } = organization.deployment
-  return {
-    documentationUrl: DOCS_URL,
-    slackUrl: SLACK_COMMUNITY_URL,
-    downloadUrl: hosted && canInstallMacApp() ? '/api/desktop/update/download' : undefined,
-    desktopUpdate: hasAvailableDesktopUpdate(updateState)
-      ? {
-          label: desktopUpdateActionLabel(updateState),
-          disabled: updateState.status === 'downloading',
-          run: () => {
-            const updates = getDesktopUpdates()
-            if (updateState.status === 'ready') updates?.install()
-            else if (updateState.status === 'available') updates?.check()
-          },
-        }
-      : undefined,
-    support: SUPPORT,
-    onLinkOpened: (link) =>
-      link === 'documentation'
-        ? captureClientEvent('docs_opened', { source: 'help_menu' })
-        : captureClientEvent('slack_community_opened', { source: 'help_menu' }),
-  }
+  return useMemo<ShellHelp>(
+    () => ({
+      documentationUrl: DOCS_URL,
+      slackUrl: SLACK_COMMUNITY_URL,
+      downloadUrl: hosted && canInstallMacApp() ? '/api/desktop/update/download' : undefined,
+      desktopUpdate: hasAvailableDesktopUpdate(updateState)
+        ? {
+            label: desktopUpdateActionLabel(updateState),
+            disabled: updateState.status === 'downloading',
+            run: () => {
+              const updates = getDesktopUpdates()
+              if (updateState.status === 'ready') updates?.install()
+              else if (updateState.status === 'available') updates?.check()
+            },
+          }
+        : undefined,
+      support: SUPPORT,
+      onLinkOpened: (link) =>
+        link === 'documentation'
+          ? captureClientEvent('docs_opened', { source: 'help_menu' })
+          : captureClientEvent('slack_community_opened', { source: 'help_menu' }),
+    }),
+    [updateState, hosted]
+  )
 }
 
 /** The shell actions that need no list: identity, account, help and leaving Settings. */
@@ -109,16 +117,20 @@ export function useLiveAccountActions(
   const landing =
     destinations.find((item) => item.id !== 'settings')?.value ??
     surfaceHref(organization, '/settings')
-  return {
-    organization: organizationActions,
-    help,
-    signOut: organization.navFlags.anonymous
-      ? undefined
-      : () =>
-          void signOutAndLeave('/login?fromLogout=true').then((left) => {
-            if (!left) toast.error('Failed to sign out. Please try again.')
-          }),
-    requestLeave: requestSettingsLeave,
-    settingsLanding: landing,
-  }
+  const { anonymous } = organization.navFlags
+  return useMemo(
+    () => ({
+      organization: organizationActions,
+      help,
+      signOut: anonymous
+        ? undefined
+        : () =>
+            void signOutAndLeave('/login?fromLogout=true').then((left) => {
+              if (!left) toast.error('Failed to sign out. Please try again.')
+            }),
+      requestLeave: requestSettingsLeave,
+      settingsLanding: landing,
+    }),
+    [organizationActions, help, anonymous, landing]
+  )
 }

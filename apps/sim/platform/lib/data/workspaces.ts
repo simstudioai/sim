@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { toast } from '@/lib/toast/sink'
 import { useLeaveWorkspace } from '@/hooks/queries/invitations'
 import {
@@ -22,20 +23,23 @@ export function useWorkspaceActions(
   const { mutateAsync: leaveWorkspace } = useLeaveWorkspace()
   const { mutateAsync: updateWorkspace } = useUpdateWorkspace()
   const { mutate: togglePin } = useToggleWorkspacePin()
-  return {
-    async create(name) {
-      const workspace = await createWorkspace({ name, organizationId })
-      return hrefFor(workspace.id)
-    },
-    async rename(workspaceId, name) {
-      await updateWorkspace({ workspaceId, name })
-    },
-    ...(viewerId && {
-      async leave(workspaceId: string) {
-        await leaveWorkspace({ userId: viewerId, workspaceId })
+  return useMemo<Omit<ShellWorkspaceActions, 'retry'>>(
+    () => ({
+      async create(name) {
+        const workspace = await createWorkspace({ name, organizationId })
+        return hrefFor(workspace.id)
       },
+      async rename(workspaceId, name) {
+        await updateWorkspace({ workspaceId, name })
+      },
+      ...(viewerId && {
+        async leave(workspaceId: string) {
+          await leaveWorkspace({ userId: viewerId, workspaceId })
+        },
+      }),
+      setPinned: (workspaceId, pinned) =>
+        togglePin({ workspaceId, pinned }, { onError: (error) => void toast.error(error.message) }),
     }),
-    setPinned: (workspaceId, pinned) =>
-      togglePin({ workspaceId, pinned }, { onError: (error) => void toast.error(error.message) }),
-  }
+    [organizationId, hrefFor, viewerId, createWorkspace, leaveWorkspace, updateWorkspace, togglePin]
+  )
 }

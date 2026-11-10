@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import type { Workspace, WorkspaceCreationPolicy } from '@/lib/api/contracts'
 import type { UserProfile } from '@/hooks/queries/current-user-data'
 import { useGeneralSettings } from '@/hooks/queries/general-settings'
@@ -10,7 +11,12 @@ import {
   useWorkspaceCreationPolicy,
 } from '@/hooks/queries/workspace'
 import { useCanOpenOrganizationChat, useChatListActions } from '@/platform/lib/data/chat-list'
-import type { ShellChat, ShellData, ShellWorkspace } from '@/platform/lib/data/models/shell'
+import type {
+  ShellActions,
+  ShellChat,
+  ShellData,
+  ShellWorkspace,
+} from '@/platform/lib/data/models/shell'
 import { useNavWarmers } from '@/platform/lib/data/nav-warmers'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { type SurfaceScope, surfaceHref } from '@/platform/lib/data/organization-model'
@@ -105,43 +111,72 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
   const workspaceActions = useWorkspaceActions(organizationId, liveWorkspaceHome, profile.data?.id)
   const accountActions = useLiveAccountActions(organization, navigation.destinations)
   const navWarmers = useNavWarmers()
-  return {
-    data: {
-      appearance: settings.data?.theme,
+
+  const theme = settings.data?.theme
+  const workspaceRows = workspaces.data
+  const pinned = pinnedIds.data
+  const viewer = profile.data
+  const chatRows = chats.data
+  const workspacesStatus = workspaces.isRefetchError ? 'success' : workspaces.status
+  const chatsStatus = !chatsAvailable || chats.isRefetchError ? 'success' : chats.status
+  const profileStatus = profile.status
+  const policy = creationPolicy.data
+  const data = useMemo<ShellData>(
+    () => ({
+      appearance: theme,
       organization: organization.organization,
-      user: toShellUser(profile.data),
+      user: toShellUser(viewer),
       // A viewer belongs to one organization, the only one whose shell they can open, and every
       // workspace they can open renders in it (`readWorkspaceShell`): its own, an
       // organization-less one, and another team's they collaborate on.
-      workspaces: (workspaces.data ?? []).map((workspace) =>
-        toShellWorkspace(workspace, pinnedIds.data, profile.data?.id)
+      workspaces: (workspaceRows ?? []).map((workspace) =>
+        toShellWorkspace(workspace, pinned, viewer?.id)
       ),
-      chats: (chats.data ?? []).filter(canOpenChat).map((chat) => toShellChat(organization, chat)),
+      chats: (chatRows ?? []).filter(canOpenChat).map((chat) => toShellChat(organization, chat)),
       inbox: [],
       notifications: [],
       unbacked: ['inbox'],
-      status: {
-        workspaces: workspaces.isRefetchError ? 'success' : workspaces.status,
-        chats: !chatsAvailable || chats.isRefetchError ? 'success' : chats.status,
-        profile: profile.status,
-      },
-      workspaceCreation: toWorkspaceCreation(creationPolicy.data),
+      status: { workspaces: workspacesStatus, chats: chatsStatus, profile: profileStatus },
+      workspaceCreation: toWorkspaceCreation(policy),
       workspacePageSize: SIDEBAR_PAGE_SIZE,
       chatPageSize: SIDEBAR_PAGE_SIZE,
       chatsAvailable,
       surface: organization,
       destinations: navigation.destinations,
       settingsNavigation: navigation.settingsNavigation,
-    },
-    actions: {
+    }),
+    [
+      theme,
+      organization,
+      viewer,
+      workspaceRows,
+      pinned,
+      chatRows,
+      canOpenChat,
+      workspacesStatus,
+      chatsStatus,
+      profileStatus,
+      policy,
+      chatsAvailable,
+      navigation,
+    ]
+  )
+
+  const { refetch: refetchChats } = chats
+  const { refetch: refetchWorkspaces } = workspaces
+  const actions = useMemo<ShellActions>(
+    () => ({
       ...accountActions,
       warmDestination(destinationId) {
         navWarmers.schedule(destinationId)
         return navWarmers.cancel
       },
       warmSettings: navWarmers.warmSettings,
-      chats: { ...chatActions, retry: () => void chats.refetch() },
-      workspaces: { ...workspaceActions, retry: () => void workspaces.refetch() },
-    },
-  }
+      chats: { ...chatActions, retry: () => void refetchChats() },
+      workspaces: { ...workspaceActions, retry: () => void refetchWorkspaces() },
+    }),
+    [accountActions, navWarmers, chatActions, workspaceActions, refetchChats, refetchWorkspaces]
+  )
+
+  return useMemo(() => ({ data, actions }), [data, actions])
 }
