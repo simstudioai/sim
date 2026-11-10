@@ -151,8 +151,8 @@ const serverSeamHelpers: ReasonedAllowlist = {
   'lib/workspaces/application/workspace-shell':
     "The workspace shell use case behind the shell's scope",
   'lib/workspaces/list': 'listWorkspacesForViewer, the workspaces a viewer may open',
-  'lib/workspaces/create':
-    'listWorkspacesEnsuringDefault, the workspaces a viewer may open, their default one created first',
+  'lib/workspaces/application/viewer-workspaces':
+    'listViewerWorkspaces, the workspaces a viewer may open, their default one created first',
   'lib/workspaces/seed-workspace-list': 'The workspace list the shell seeds for the sidebar',
   'lib/catalog/application/list-workspace-apps':
     "The use case that resolves the access policy a workspace's Integrations directory applies",
