@@ -20,6 +20,7 @@ import {
   workspace,
   workspaceFiles,
 } from '@sim/db/schema'
+import { resolveEffectiveWorkspacePermission } from '@sim/platform-authz/workspace'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
@@ -45,6 +46,7 @@ import { deleteUserAccount, getAccountDeletionPlan } from '@/lib/users/account-d
 import { createWorkspaceInTransaction } from '@/lib/workspaces/create'
 import { getUsersWithPermissions } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceCreationPolicy } from '@/lib/workspaces/policy'
+import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 
 const userIds: string[] = []
 
@@ -907,6 +909,41 @@ describe('forking a workspace in a personal organization', () => {
       pinOrganization: true,
     })
     expect(unpinned.canCreate).toBe(false)
+  })
+
+  it('gives the source owner no hidden admin on a collaborator fork in their personal organization', async () => {
+    const ownerId = await createUser()
+    const collaboratorId = await createUser()
+    const ownerPersonal = await provisionPersonalOrganization(ownerId)
+    const collaboratorPersonal = await provisionPersonalOrganization(collaboratorId)
+    if (ownerPersonal.status !== 'provisioned' || collaboratorPersonal.status !== 'provisioned') {
+      throw new Error('expected provisioning')
+    }
+    const fork = await db.transaction((tx) =>
+      createWorkspaceInTransaction(tx, {
+        userId: collaboratorId,
+        name: 'Fork',
+        organizationId: ownerPersonal.organizationId,
+        observedOrganizationId: collaboratorPersonal.organizationId,
+        governingPermissionGroupOrganizationId: null,
+        workspaceMode: 'personal',
+        billedAccountUserId: collaboratorId,
+        skipDefaultWorkflow: true,
+      })
+    )
+
+    expect(
+      await resolveEffectiveWorkspacePermission(ownerId, fork.id, ownerPersonal.organizationId)
+    ).toBeNull()
+    const listed = await listAccessibleWorkspaceRowsForUser(ownerId)
+    expect(listed.map((row) => row.workspace.id)).not.toContain(fork.id)
+    expect(
+      await resolveEffectiveWorkspacePermission(
+        collaboratorId,
+        fork.id,
+        ownerPersonal.organizationId
+      )
+    ).toBe('admin')
   })
 
   it('keeps an organization-less source fork organization-less, as before', async () => {

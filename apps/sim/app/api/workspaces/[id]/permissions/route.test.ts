@@ -125,6 +125,8 @@ function queueOrgWorkspace(
     id: WORKSPACE_ID,
     ...workspaceRow,
   })
+  /** A team organization: only its admins inherit workspace admin. */
+  queueTableRows(schemaMock.organization, [{ id: ORG_ID }])
   queueTableRows(schemaMock.member, orgAdminTargets)
   queueTableRows(schemaMock.member, lockedMembers)
   queueTableRows(schemaMock.permissions, existing)
