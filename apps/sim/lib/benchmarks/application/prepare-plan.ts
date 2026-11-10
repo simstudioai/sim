@@ -6,10 +6,7 @@ import {
 import { requireBenchmarkCaseAccess } from '@/lib/benchmarks/application/cases'
 import { benchmarkOperations } from '@/lib/benchmarks/application/operations'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import {
-  createOrganizationChatRecord,
-  requireOrganizationBuildPermission,
-} from '@/lib/mothership/chat/organization-chats'
+import { createOrganizationChatRecord } from '@/lib/mothership/chat/organization-chats'
 import { isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 
 /** Checks the selected user's current Plan permission without creating another conversation. */
@@ -18,7 +15,6 @@ export async function authorizeBenchmarkPlanTarget(
   input: { organizationId: string; runAsUserId: string }
 ) {
   const target = await authorizeBenchmarkTarget(principal, input)
-  await requireOrganizationBuildPermission(target)
   if (!(await isPlanModeEnabled(target.userId)))
     throw new OrchestrationError('not_found', 'Plan mode is unavailable')
   return target

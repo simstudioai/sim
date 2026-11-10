@@ -12,7 +12,6 @@ import {
   resolveOwnedChatContext,
 } from '@/lib/mothership/chat/application/context'
 import { conversationModeSelection } from '@/lib/mothership/chat/intent'
-import { requireOrganizationBuildPermission } from '@/lib/mothership/chat/organization-chats'
 import { isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import type {
   RecallChatsRequest,
@@ -111,12 +110,9 @@ export const readRecallChats = defineAuthorizedChatUseCase({
     }
     const planEnabled = await isPlanModeEnabled(context.userId)
     if (context.organizationId) {
-      const { role } = await authorizeOrganizationOperation(
-        principal,
-        readRecallChatsOrganizationOperation,
-        { organizationId: context.organizationId }
-      )
-      await requireOrganizationBuildPermission({ organizationId: context.organizationId, role })
+      await authorizeOrganizationOperation(principal, readRecallChatsOrganizationOperation, {
+        organizationId: context.organizationId,
+      })
       if (context.mode === 'plan' && !planEnabled)
         throw new OrchestrationError('not_found', 'Plan mode is unavailable')
     } else {

@@ -128,7 +128,7 @@ async function resolveOrganizationSurfaceGate(
         !capabilityDeniedBy('oauth_apps.use', config),
     },
     connectedAccountsAvailable,
-    ...projectOrganizationChatAccess({ role: access.role, config, searchAccess }),
+    ...projectOrganizationChatAccess({ config, searchAccess }),
     deployment: getDeploymentShape(),
   }
 }

@@ -148,14 +148,14 @@ describe('organization turn admission through current private-chat authorization
     await expect(turnDesktopDevice(principal, undefined)).resolves.toBeNull()
   })
   it.each(['agent', 'assistant', 'plan'] as const)(
-    'switches the same chat to %s atomically with turn admission',
+    "switches a plain member's chat to %s atomically with turn admission",
     async (mode) => {
       setEnvFlags({ isMothershipBenchmarkEnabled: true })
       queueTableRows(user, [{ role: 'admin' }])
       queueTableRows(settings, [{ superUserModeEnabled: true }])
       queueTableRows(copilotChats, [{ ...chat, mode: mode === 'agent' ? 'assistant' : 'agent' }])
-      queueTableRows(member, [{ role: 'owner' }])
-      if (mode !== 'assistant') queueTableRows(member, [{ role: 'owner' }])
+      queueTableRows(member, [{ role: 'member' }])
+      if (mode !== 'assistant') queueTableRows(member, [{ role: 'member' }])
       dbChainMockFns.returning
         .mockResolvedValueOnce([{ model: null }])
         .mockResolvedValueOnce([{ id: 'run-1' }])
@@ -198,19 +198,6 @@ describe('organization turn admission through current private-chat authorization
       const config = dbChainMockFns.set.mock.calls[0][0].config.toSQL()
       expect(config.sql.includes("jsonb_build_object('effort'")).toBe(recorded)
       expect(config.params.includes('low')).toBe(recorded)
-    }
-  )
-  it.each(['agent', 'plan'] as const)(
-    'denies switching to %s without current workspace-create permission before any mutation',
-    async (mode) => {
-      queueTableRows(copilotChats, [chat])
-      queueTableRows(member, [{ role: 'member' }])
-      queueTableRows(member, [{ role: 'member' }])
-      await expect(admitChatTurn.execute({ principal, input: input(mode) })).rejects.toThrow(
-        'Build requires permission'
-      )
-      expect(dbChainMockFns.set).not.toHaveBeenCalled()
-      expect(mocks.append).not.toHaveBeenCalled()
     }
   )
   it('denies switching to Search after its availability is revoked', async () => {

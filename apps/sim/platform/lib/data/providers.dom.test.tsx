@@ -47,7 +47,6 @@ const SURFACE = {
     canUseSearchMcp: false,
   },
   mothershipAvailable: false,
-  canBuild: true,
   searchAccess: { sourceMirrored: false, memberScoped: false },
   connectedAccountsAvailable: false,
   settingsFeatures: {

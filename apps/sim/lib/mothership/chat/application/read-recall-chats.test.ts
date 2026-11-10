@@ -2,10 +2,7 @@
 import { copilotChats, member, workspace } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { authBanMock, authBanMockFns } from '@sim/testing/mocks/auth-ban.mock'
-import {
-  mothershipOrganizationChatsMock,
-  mothershipOrganizationChatsMockFns,
-} from '@sim/testing/mocks/mothership-organization-chats.mock'
+import { mothershipOrganizationChatsMock } from '@sim/testing/mocks/mothership-organization-chats.mock'
 import {
   permissionGroupsResolveMock,
   permissionGroupsResolveMockFns,
@@ -35,8 +32,6 @@ vi.mock('@/lib/mothership/feature-flags', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/mothership/feature-flags')>()),
   isPlanModeEnabled: mocks.plan,
 }))
-
-const build = mothershipOrganizationChatsMockFns.mockRequireOrganizationBuildPermission
 
 const input = { chatId: 'chat-1', limit: 50 }
 const listed = [
@@ -102,7 +97,6 @@ describe("a chat's other chats", () => {
     )
     workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
     mocks.capability.mockResolvedValue(undefined)
-    build.mockReset()
     mocks.plan.mockReset().mockResolvedValue(true)
   })
 
@@ -113,13 +107,14 @@ describe("a chat's other chats", () => {
       expect(await readRecallChats.execute({ principal: organizationPrincipal(), input })).toEqual(
         expected
       )
-      expect(build).toHaveBeenCalledWith({ organizationId: 'org-1', role: 'member' })
     }
   )
 
-  it('lists nothing an organization member without build permission could open', async () => {
+  it('lists nothing for a member whose permission group withholds Chat', async () => {
     queueOrganizationChat()
-    build.mockRejectedValue(new OrchestrationError('forbidden', 'Build requires permission'))
+    permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue({
+      hideCopilot: true,
+    })
     await expect(
       readRecallChats.execute({ principal: organizationPrincipal(), input })
     ).rejects.toMatchObject({ code: 'forbidden' })
@@ -181,7 +176,6 @@ describe("a chat's other chats", () => {
         .execute({ principal: caller, input })
         .catch((caught: unknown) => caught)
       expect(['forbidden', 'not_found']).toContain(code(error))
-      expect(build).not.toHaveBeenCalled()
     }
   )
 
@@ -211,7 +205,6 @@ describe("a chat's other chats", () => {
     await expect(
       readRecallChats.execute({ principal: organizationPrincipal(), input })
     ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(build).not.toHaveBeenCalled()
   })
 })
 

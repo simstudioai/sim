@@ -124,7 +124,7 @@ export function useLiveChatRuntime({
   onSummaryConsumed,
 }: LiveChatOptions) {
   const surface = useOrganization()
-  const { organization, canBuild } = surface
+  const { organization } = surface
   const pathFor = chatPath ?? ((id: string) => surfaceHref(surface, `/chat/${id}`))
   const organizationId = organization.id
   const router = useRouter()
@@ -313,7 +313,6 @@ export function useLiveChatRuntime({
     loadFailed: clock.loadFailed && !chat.messages.length,
     turns,
     send: (draft) => {
-      if (requestMode !== 'assistant' && !canBuild) return false
       if (draft.attachments.some((attachment) => attachment.uploading)) return false
       const { files, contexts } = draftToSend(draft)
       if (!draft.text && !files.length) return false

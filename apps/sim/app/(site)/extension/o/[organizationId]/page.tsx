@@ -17,11 +17,7 @@ export default async function ExtensionOrganizationPage({
   const session = await getSession()
   if (!session?.user) return <ExtensionSessionExpired />
   const context = await getOrganizationSurfaceContext(organizationId, session.user.id)
-  if (
-    !context ||
-    !context.mothershipAvailable ||
-    (!context.canBuild && !context.searchAccess.memberScoped)
-  ) {
+  if (!context?.mothershipAvailable) {
     return <ExtensionUnavailable scope='organization' />
   }
   return (

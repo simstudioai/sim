@@ -53,7 +53,7 @@ export class MockWorkspaceCreationCapabilityWithheldError extends MockWorkspaceC
  * Controllable mock functions for `@/lib/workspaces/policy`.
  *
  * Loaders, lock helpers, and the billing-flag-dependent evaluators
- * (`canCreateOrganizationWorkspace`, `evaluateWorkspaceInvitePolicy`) are bare `vi.fn()`s
+ * (`evaluateWorkspaceInvitePolicy`) are bare `vi.fn()`s
  * (return `undefined`). The pure helpers port the real logic:
  * - `mockIsOrganizationWorkspace(ws)` is true when `workspaceMode === 'organization'` and
  *   `organizationId` is a non-empty string.
@@ -69,7 +69,6 @@ export class MockWorkspaceCreationCapabilityWithheldError extends MockWorkspaceC
  * ```
  */
 export const workspacesPolicyMockFns = {
-  mockCanCreateOrganizationWorkspace: vi.fn(),
   mockResolveInviteFlags: vi.fn(
     (invitePolicy: MockWorkspaceInvitePolicy, callerIsBilledUser: boolean) => ({
       inviteMembersEnabled: invitePolicy.allowed,
@@ -115,7 +114,6 @@ export const workspacesPolicyMock = {
   WorkspaceOwnerMissingError: MockWorkspaceOwnerMissingError,
   WorkspaceCreationContextChangedError: MockWorkspaceCreationContextChangedError,
   WorkspaceCreationCapabilityWithheldError: MockWorkspaceCreationCapabilityWithheldError,
-  canCreateOrganizationWorkspace: workspacesPolicyMockFns.mockCanCreateOrganizationWorkspace,
   resolveInviteFlags: workspacesPolicyMockFns.mockResolveInviteFlags,
   resolveGoverningPermissionGroupOrganization:
     workspacesPolicyMockFns.mockResolveGoverningPermissionGroupOrganization,

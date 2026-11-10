@@ -92,15 +92,27 @@ describe('Build and Plan Generic Secrets delegation', () => {
     expect(mocks.execute).not.toHaveBeenCalled()
   })
   it.each(['agent', 'plan'])(
-    'rechecks Build permission before mounting in %s',
+    'mounts in %s for a plain member whatever the workspace creation policy',
     async (requestMode) => {
+      resetDbChainMock()
+      queueTableRows(user, [{ role: 'admin' }])
+      queueTableRows(settings, [{ superUserModeEnabled: true }])
+      queueTableRows(member, [{ role: 'member' }])
+      queueTableRows(copilotChats, [{ id: 'chat' }])
       mocks.config.mockResolvedValue({ disableWorkspaceCreation: true })
-      await expect(
-        executeOrganizationSecretUseCase({ ...context, requestMode }, useCase, { names: ['TOKEN'] })
-      ).rejects.toThrow('Build requires permission')
-      expect(mocks.execute).not.toHaveBeenCalled()
+      await executeOrganizationSecretUseCase({ ...context, requestMode }, useCase, {
+        names: ['TOKEN'],
+      })
+      expect(mocks.execute).toHaveBeenCalled()
     }
   )
+  it('refuses a member whose permission group withholds Chat', async () => {
+    mocks.config.mockResolvedValue({ hideCopilot: true })
+    await expect(
+      executeOrganizationSecretUseCase(context, useCase, { names: ['TOKEN'] })
+    ).rejects.toThrow()
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
   it('rejects a copied operation even with the same ID', async () => {
     await expect(
       executeOrganizationSecretUseCase(

@@ -89,22 +89,22 @@ export function resolveOrganizationGate(organization: PlatformOrganization): str
 
 /** Where the organization's bare URL sends a viewer: the legacy organization root's priority chain. */
 function organizationLandingPath(organization: PlatformOrganization): string {
-  const { mothershipAvailable, canBuild, searchAccess, navFlags } = organization
+  const { mothershipAvailable, searchAccess, navFlags } = organization
   const routes = organizationRoutes(organization.organization.id)
-  if (mothershipAvailable && canBuild) return routes.home
+  if (mothershipAvailable) return routes.home
   if (searchAccess.memberScoped) return routes.search
   if (navFlags.people) return routes.people
   return navFlags.simLinks ? routes.simLinks : WORKSPACES_PATH
 }
 
 /**
- * The legacy Home page's gate (a member who cannot build goes to Search, otherwise to their
- * workspace), then its resource panel: Home with `?resource=` was a new chat with that panel, which
- * the new chat owns.
+ * The legacy Home page's gate (a member without chat goes to Search, otherwise to their workspace),
+ * then its resource panel: Home with `?resource=` was a new chat with that panel, which the new chat
+ * owns.
  */
 function resolveHomeEntry(organization: PlatformOrganization, query: URLSearchParams) {
-  const { mothershipAvailable, canBuild, searchAccess } = organization
-  if (!mothershipAvailable || !canBuild)
+  const { mothershipAvailable, searchAccess } = organization
+  if (!mothershipAvailable)
     return searchAccess.memberScoped ? surfaceHref(organization, '/search') : WORKSPACES_PATH
   if (!query.get(resourceParam.key)) return null
   return `${surfaceHref(organization, '/chat')}?${query}`

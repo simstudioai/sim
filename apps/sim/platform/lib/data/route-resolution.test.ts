@@ -24,7 +24,6 @@ import { type RouteContext, resolveProductRedirect } from '@/platform/lib/data/r
 
 interface Access {
   mothershipAvailable?: boolean
-  canBuild?: boolean
   memberScoped?: boolean
   people?: boolean
   simLinks?: boolean
@@ -32,7 +31,6 @@ interface Access {
 
 function organization({
   mothershipAvailable = true,
-  canBuild = true,
   memberScoped = true,
   people = false,
   simLinks = false,
@@ -49,7 +47,6 @@ function organization({
       canUseSearchMcp: false,
     },
     mothershipAvailable,
-    canBuild,
     searchAccess: { sourceMirrored: memberScoped, memberScoped },
     connectedAccountsAvailable: false,
     settingsFeatures: {
@@ -96,7 +93,7 @@ function organization({
   }
 }
 
-/** A member whose permission group denies `copilot.use`, with no Search, People or Links. */
+/** A member without chat (`copilot.use` denied, or chat off), with no Search, People or Links. */
 const NO_SURFACE: Access = { mothershipAvailable: false, memberScoped: false }
 
 function resolve(href: string, context: Partial<RouteContext> & { access?: Access } = {}) {
@@ -139,9 +136,13 @@ describe('resolveProductRedirect', () => {
 
   it.each([
     [{}, '/o/org-1/home'],
-    [{ canBuild: false }, '/o/org-1/search'],
-    [{ canBuild: false, memberScoped: false, people: true }, '/o/org-1/people'],
-    [{ canBuild: false, memberScoped: false, simLinks: true }, '/o/org-1/settings/links'],
+    [{ memberScoped: false }, '/o/org-1/home'],
+    [{ mothershipAvailable: false }, '/o/org-1/search'],
+    [{ mothershipAvailable: false, memberScoped: false, people: true }, '/o/org-1/people'],
+    [
+      { mothershipAvailable: false, memberScoped: false, simLinks: true },
+      '/o/org-1/settings/links',
+    ],
   ])('opens the organization root for %o on %s', (access, expected) => {
     expect(resolve('/o/org-1', { access })?.href).toBe(expected)
   })
@@ -151,10 +152,14 @@ describe('resolveProductRedirect', () => {
       '/o/org-1/chat?resource=file-1&q=x'
     )
     expect(resolve('/o/org-1/home')).toBeNull()
-    expect(resolve('/o/org-1/home', { access: { canBuild: false } })?.href).toBe('/o/org-1/search')
+    expect(resolve('/o/org-1/home', { access: { memberScoped: false } })).toBeNull()
+    expect(resolve('/o/org-1/home', { access: { mothershipAvailable: false } })?.href).toBe(
+      '/o/org-1/search'
+    )
     expect(
-      resolve('/o/org-1/home', { access: { canBuild: false, memberScoped: false, people: true } })
-        ?.href
+      resolve('/o/org-1/home', {
+        access: { mothershipAvailable: false, memberScoped: false, people: true },
+      })?.href
     ).toBe(WORKSPACES_PATH)
   })
 

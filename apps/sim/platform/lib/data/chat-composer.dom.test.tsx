@@ -41,7 +41,6 @@ const BUILDER_SURFACE = {
     canUseSearchMcp: false,
   },
   mothershipAvailable: true,
-  canBuild: true,
   searchAccess: { sourceMirrored: true, memberScoped: true },
   connectedAccountsAvailable: true,
   settingsFeatures: {

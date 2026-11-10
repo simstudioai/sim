@@ -40,7 +40,7 @@ const ORGANIZATION_ID = 'org-narrow'
 /** The cookie Search remembers the viewer's last mode in, `<userId>:<mode>`. */
 const SEARCH_MODE_COOKIE = `search_mode_${ORGANIZATION_ID}`
 
-/** A member in a restrictive permission group: Search only, no build, no workspaces. */
+/** A member in a restrictive permission group, with Search and no workspaces. */
 const NARROW_MEMBER_SURFACE = {
   organization: { id: ORGANIZATION_ID, name: 'Org', slug: 'org', logo: null, memberCount: 5 },
   routePrefix: `/o/${ORGANIZATION_ID}`,
@@ -53,7 +53,6 @@ const NARROW_MEMBER_SURFACE = {
     canUseSearchMcp: true,
   },
   mothershipAvailable: true,
-  canBuild: false,
   searchAccess: { sourceMirrored: true, memberScoped: true },
   connectedAccountsAvailable: true,
   settingsFeatures: {

@@ -35,7 +35,6 @@ function organization({
       canUseSearchMcp: true,
     },
     mothershipAvailable: true,
-    canBuild: true,
     searchAccess: { sourceMirrored: memberScoped, memberScoped },
     connectedAccountsAvailable,
     settingsFeatures: {

@@ -17,8 +17,7 @@ export function surfaceHref({ routePrefix }: SurfaceScope, path: string): string
 /** Where a viewer outside the organization goes instead: their workspaces. */
 export const OUTSIDE_ORGANIZATION_HREF = WORKSPACES_PATH
 
-/** The legacy sidebar's rule for its Chats section; the list read answers 403 outside it. */
+/** The sidebar lists chats for whoever may use chat; the list read refuses anyone else. */
 export function canListOrganizationChats(organization: PlatformOrganization): boolean {
-  const { mothershipAvailable, canBuild, searchAccess } = organization
-  return mothershipAvailable && (canBuild || searchAccess.memberScoped)
+  return organization.mothershipAvailable
 }

@@ -10,8 +10,6 @@ import { requireBenchmarkSourceAccess } from '@/lib/benchmarks/application/cases
 import { benchmarkOperations } from '@/lib/benchmarks/application/operations'
 import { canUseBenchmarks } from '@/lib/benchmarks/config'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
-import { canCreateOrganizationWorkspace } from '@/lib/workspaces/policy'
 
 const PAGE_SIZE = 50
 interface SelectionInput {
@@ -156,13 +154,10 @@ export const listBenchmarkWorkspaces = defineAuthorizedBenchmarkUseCase({
           throw error
       }
     }
-    const config = await getUserPermissionConfigForOrganization(target.organizationId)
     return {
       workspaces,
       nextCursor: result.nextCursor,
-      canPlan:
-        canCreateOrganizationWorkspace(target.role, config) &&
-        (await canUseBenchmarks(target.userId)),
+      canPlan: await canUseBenchmarks(target.userId),
     }
   },
 })
