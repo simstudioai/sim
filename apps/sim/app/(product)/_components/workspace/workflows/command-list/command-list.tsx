@@ -4,6 +4,7 @@ import { useCallback } from 'react'
 import { Icon, type IconName } from '@sim/emcn/icon'
 import { useRouter } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
+import { dispatchAddBlock } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-canvas/add-block-event'
 import styles from '@/app/(product)/_components/workspace/workflows/command-list/command-list.module.css'
 import { useInvokeGlobalCommand } from '@/app/(product)/_components/workspace/workflows/global-commands/global-commands'
 import { createLogger, usePreventZoom, useWorkflowScope } from '@/platform/lib/data/workflows'
@@ -70,10 +71,7 @@ export function CommandList() {
       try {
         switch (label) {
           case 'New Agent': {
-            const event = new CustomEvent('add-block-from-toolbar', {
-              detail: { type: 'agent', enableTriggerMode: false },
-            })
-            window.dispatchEvent(event)
+            dispatchAddBlock({ type: 'agent', enableTriggerMode: false })
             return
           }
           case 'Logs': {

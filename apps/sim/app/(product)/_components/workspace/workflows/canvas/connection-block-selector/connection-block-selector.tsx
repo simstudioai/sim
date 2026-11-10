@@ -26,6 +26,7 @@ import {
 } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-block/border'
 import { CanvasTooltip } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-block/canvas-tooltip'
 import { OverflowSpan } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-block/overflow-span'
+import { dispatchAddBlock } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-canvas/add-block-event'
 import {
   buildBlockSearchIndex,
   captureEvent,
@@ -546,15 +547,7 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
 
   const dispatchSelection = useCallback(
     (type: string, resultType: 'block' | 'tool' | 'tool_operation', presetOperation?: string) => {
-      window.dispatchEvent(
-        new CustomEvent('add-block-from-toolbar', {
-          detail: {
-            type,
-            presetOperation,
-            pendingConnect: data.pendingConnect,
-          },
-        })
-      )
+      dispatchAddBlock({ type, presetOperation, pendingConnect: data.pendingConnect })
       captureEvent(posthog, 'search_result_selected', {
         result_type: resultType,
         query_length: deferredSearch.length,

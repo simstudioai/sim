@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
+import { dispatchAddBlock } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-canvas/add-block-event'
 import { useRegisterGlobalCommands } from '@/app/(product)/_components/workspace/workflows/global-commands/global-commands'
 import { useChatHandoff } from '@/platform/lib/data/chat-handoff'
 import { useTerminalConsoleStore } from '@/platform/lib/data/workflow-deploy/terminal'
@@ -27,11 +28,7 @@ export function EditorShortcuts({ workspaceId, canEdit, onNewWorkflow }: EditorS
     createCommand({
       id: 'add-agent',
       handler: () => {
-        window.dispatchEvent(
-          new CustomEvent('add-block-from-toolbar', {
-            detail: { type: 'agent', enableTriggerMode: false },
-          })
-        )
+        dispatchAddBlock({ type: 'agent', enableTriggerMode: false })
       },
     }),
     createCommand({

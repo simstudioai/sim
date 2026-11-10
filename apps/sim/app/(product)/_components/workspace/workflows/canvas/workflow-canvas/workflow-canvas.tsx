@@ -47,6 +47,10 @@ import { Cursors } from '@/app/(product)/_components/workspace/workflows/canvas/
 import type { SubflowNodeData } from '@/app/(product)/_components/workspace/workflows/canvas/subflow-node/subflow-node'
 import { normalizeCursorSourceHandleId } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-block/source-handle'
 import {
+  ADD_BLOCK_EVENT,
+  type AddBlockDetail,
+} from '@/app/(product)/_components/workspace/workflows/canvas/workflow-canvas/add-block-event'
+import {
   BLOCK_Z_BASE,
   CANVAS_Z_INDEX_MODE,
   CONNECTION_PICKER_Z,
@@ -290,13 +294,6 @@ interface BlockData {
   id: string
   type: string
   position: { x: number; y: number }
-}
-
-interface AddBlockFromToolbarDetail {
-  type?: unknown
-  enableTriggerMode?: unknown
-  presetOperation?: unknown
-  pendingConnect?: PendingConnect
 }
 
 interface WorkflowCanvasProps {
@@ -2167,7 +2164,9 @@ const WorkflowContent = memo(function WorkflowContent({
 
   /** Handles toolbar block click events to add blocks to the canvas. */
   useEffect(() => {
-    const handleAddBlockFromToolbar = (event: CustomEvent<AddBlockFromToolbarDetail>) => {
+    const handleAddBlockFromToolbar = (
+      event: CustomEvent<Partial<Record<keyof AddBlockDetail, unknown>>>
+    ) => {
       if (!effectivePermissions.canEdit) {
         return
       }
@@ -2261,13 +2260,10 @@ const WorkflowContent = memo(function WorkflowContent({
       )
     }
 
-    window.addEventListener('add-block-from-toolbar', handleAddBlockFromToolbar as EventListener)
+    window.addEventListener(ADD_BLOCK_EVENT, handleAddBlockFromToolbar as EventListener)
 
     return () => {
-      window.removeEventListener(
-        'add-block-from-toolbar',
-        handleAddBlockFromToolbar as EventListener
-      )
+      window.removeEventListener(ADD_BLOCK_EVENT, handleAddBlockFromToolbar as EventListener)
     }
   }, [
     getViewportCenter,
