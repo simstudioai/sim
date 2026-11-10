@@ -104,8 +104,6 @@ interface ConnectSlackBotModalProps {
   credentialId?: string
   /** Existing display name, seeded into the bot-name field on reconnect. */
   initialDisplayName?: string
-  /** Existing description, seeded into the description field on reconnect. */
-  initialDescription?: string
   /** Called with the credential id after a successful create or reconnect. */
   onCreated?: (credentialId: string) => void
 }
@@ -125,7 +123,6 @@ export function ConnectSlackBotModal({
   organizationId,
   credentialId: reconnectCredentialId,
   initialDisplayName,
-  initialDescription,
   onCreated,
 }: ConnectSlackBotModalProps) {
   const scope = resourceScopeFromOwner({ workspaceId, organizationId })
@@ -134,7 +131,7 @@ export function ConnectSlackBotModal({
   const [step, setStep] = useState(0)
   const [credentialId, setCredentialId] = useState(() => reconnectCredentialId ?? generateId())
   const [appName, setAppName] = useState(initialDisplayName ?? '')
-  const [appDescription, setAppDescription] = useState(initialDescription ?? '')
+  const [appDescription, setAppDescription] = useState('')
   const [selected, setSelected] = useState<Set<string>>(() => new Set(DEFAULT_CAPABILITIES))
   const [slashCommands, setSlashCommands] = useState<SlackSlashCommandDraft[]>([])
   const [signingSecret, setSigningSecret] = useState('')
@@ -149,7 +146,7 @@ export function ConnectSlackBotModal({
     if (open) return
     setStep(0)
     setAppName(initialDisplayName ?? '')
-    setAppDescription(initialDescription ?? '')
+    setAppDescription('')
     setSelected(new Set(DEFAULT_CAPABILITIES))
     setSlashCommands([])
     setSigningSecret('')
@@ -165,7 +162,7 @@ export function ConnectSlackBotModal({
       if (!isReconnect) setCredentialId(generateId())
       setCreated(false)
     }
-  }, [open, created, isReconnect, initialDisplayName, initialDescription])
+  }, [open, created, isReconnect, initialDisplayName])
 
   // Shared server-side derivation: uses the app public base (not
   // window.location.origin) so Slack's servers can reach it.

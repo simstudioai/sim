@@ -92,7 +92,6 @@ interface ClientCredentialAccountModalProps {
   /** When set, reconnect (rotate the secrets on) this credential in place. */
   credentialId?: string
   initialDisplayName?: string
-  initialDescription?: string
   /** Called with the credential id after a successful create or reconnect. */
   onCreated?: (credentialId: string) => void
   onSubmitCredentials?: (
@@ -134,14 +133,13 @@ function ClientCredentialAccountModalForm({
   serviceIcon: ServiceIcon,
   credentialId,
   initialDisplayName,
-  initialDescription,
   onCreated,
   onSubmitCredentials,
   submitPending,
 }: ClientCredentialAccountModalProps) {
   const [values, setValues] = useState<FieldValues>({})
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
-  const [description, setDescription] = useState(initialDescription ?? '')
+  const [description, setDescription] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const createCredential = useCreateScopedCredential()

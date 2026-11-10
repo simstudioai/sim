@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, Suspense, useMemo } from 'react'
+import { Suspense, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { CsvTablePreview } from '@/components/file-viewer/csv-table-preview'
 import { resolveFileCategory } from '@/components/file-viewer/file-category'
@@ -109,10 +109,6 @@ interface FileViewerProps extends FileEditingProps {
    * editor without its controls, a previewable text file in its preview and any other in plain text.
    */
   readOnly?: boolean
-  /** Replaces the file's own preview pane, for an owner with a richer view of the file. */
-  preview?: ReactNode
-  /** Which side of a split the source takes; `end` puts it after the preview. */
-  sourceSide?: 'start' | 'end'
   /** Offers the file itself where there is nothing to show of it here. */
   onDownload?: () => void
   /** Live collaborative editing, for markdown. */
@@ -160,8 +156,6 @@ function FileViewerContent({
   onDeriveTitleFromHeading,
   enableFind,
   onSaveError,
-  preview,
-  sourceSide,
   ...editing
 }: Omit<FileViewerProps, 'contentSource'>) {
   const category = resolveFileCategory(file.type, file.name)
@@ -213,8 +207,6 @@ function FileViewerContent({
         canEdit={canEdit}
         previewMode={previewMode}
         onSaveError={onSaveError}
-        preview={preview}
-        sourceSide={sourceSide}
         {...editing}
       />
     )

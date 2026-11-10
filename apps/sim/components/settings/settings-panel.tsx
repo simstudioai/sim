@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, type ReactNode, type Ref, useContext } from 'react'
+import { createContext, type ReactNode, useContext } from 'react'
 import { getSettingsSectionMeta, type SettingsPlane } from '@/components/settings/navigation'
 import {
   type SettingsAction,
@@ -42,8 +42,6 @@ interface SettingsPanelBaseProps {
   children?: ReactNode
   actions?: SettingsAction[]
   search?: SettingsHeaderSearch
-  docsLink?: string
-  scrollContainerRef?: Ref<HTMLDivElement>
 }
 
 type SettingsPanelProps = SettingsPanelBaseProps &
@@ -67,8 +65,6 @@ export function SettingsPanel({
   search,
   title,
   description,
-  docsLink,
-  scrollContainerRef,
 }: SettingsPanelProps) {
   const context = useContext(SettingsSectionContext)
   const meta =
@@ -78,11 +74,10 @@ export function SettingsPanel({
   useSettingsHeader({
     title: title ?? meta?.label,
     description: title !== undefined ? description : (description ?? meta?.description),
-    docsLink: docsLink ?? meta?.docsLink,
+    docsLink: meta?.docsLink,
     back,
     actions,
     search,
-    scrollContainerRef,
   })
 
   return <>{children}</>

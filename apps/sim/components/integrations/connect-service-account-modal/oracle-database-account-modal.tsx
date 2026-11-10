@@ -32,7 +32,6 @@ interface OracleDatabaseAccountModalProps {
   serviceIcon: ComponentType<{ className?: string }>
   credentialId?: string
   initialDisplayName?: string
-  initialDescription?: string
   onCreated?: (credentialId: string) => void
 }
 
@@ -68,7 +67,6 @@ function OracleDatabaseAccountForm({
   serviceIcon: ServiceIcon,
   credentialId,
   initialDisplayName,
-  initialDescription,
   onCreated,
 }: OracleDatabaseAccountModalProps) {
   const [values, setValues] = useState<ConnectionFields>({
@@ -84,7 +82,7 @@ function OracleDatabaseAccountForm({
     walletPassword: '',
   })
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
-  const [description, setDescription] = useState(initialDescription ?? '')
+  const [description, setDescription] = useState('')
   const [error, setError] = useState<string | null>(null)
   const createCredential = useCreateScopedCredential()
   const updateCredential = useUpdateScopedCredential()

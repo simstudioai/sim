@@ -1,12 +1,6 @@
 import { type ReactNode, useId } from 'react'
 import { cn, OverflowText } from '@sim/emcn-legacy'
-import { ArrowRight } from '@sim/emcn-legacy/icons'
-import Link from 'next/link'
-import {
-  RESOURCE_TILE_BASE,
-  RESOURCE_TILE_FILL,
-  RESOURCE_TILE_PLAIN,
-} from '@/components/resource-tile'
+import { RESOURCE_TILE_BASE, RESOURCE_TILE_PLAIN } from '@/components/resource-tile'
 
 /**
  * The canonical settings "resource row": a rounded-bordered icon tile, a
@@ -20,8 +14,7 @@ import {
  */
 interface SettingsResourceRowProps {
   /**
-   * Icon node centered in the tile; a `<svg>` is normalized to 20px, an `<img>` to
-   * 20px (or the full tile when `iconFill`). Omit it for rows whose resource has no
+   * Icon node centered in the tile; a `<svg>` or `<img>` is normalized to 20px. Omit it for rows whose resource has no
    * identity glyph (an API key, a permission group) — the row then leads with text.
    */
   icon?: ReactNode
@@ -33,17 +26,6 @@ interface SettingsResourceRowProps {
    * must supply their own tile (e.g. the brand-tinted `IntegrationTile`).
    */
   iconVariant?: 'tile' | 'plain' | 'custom'
-  /**
-   * Let an image icon fill the tile edge-to-edge instead of clamping to 20px.
-   * Use for uploaded image/logo icons (e.g. custom blocks); glyph `<svg>`s still
-   * normalize to 20px so a fallback icon doesn't balloon. Tile variant only.
-   */
-  iconFill?: boolean
-  /**
-   * Fills the tile like the skills/tools resource tiles instead of the default
-   * page-background tile, so a settings list can match its gallery counterpart.
-   */
-  iconFilled?: boolean
   /** Primary line — truncates. */
   title: ReactNode
   /** Secondary muted line — truncates. */
@@ -70,30 +52,14 @@ interface SettingsResourceRowProps {
    * wrapper `<button>`, which is invalid HTML.
    */
   onClick?: () => void
-  /**
-   * Navigates on activation instead of calling `onClick`. Prefer this over
-   * `onClick` + `router.push` so the row keeps real link semantics — prefetch,
-   * middle-click, open-in-new-tab.
-   */
-  href?: string
-  /** Accessible name for the activatable cluster. Required alongside `onClick`/`href`. */
+  /** Accessible name for the activatable cluster. Required alongside `onClick`. */
   clickLabel?: string
-  /**
-   * Appends the canonical navigation chevron after `trailing`. Set it on rows that
-   * open a detail page; leave it off for rows whose `onClick` performs an action
-   * in place. The row owns the glyph so callers never pick an arrow themselves.
-   */
-  navigable?: boolean
   /**
    * Drops the row's `-mx-2` bleed and padding. For a row that is not in a list —
    * a detail heading — or one inside a fixed-height `overflow-y-auto` box, where
    * the bleed would force a horizontal scrollbar.
    */
   flush?: boolean
-  /** Compact single-line controls retain a 40px row without changing the default resource layout. */
-  density?: 'default' | 'compact'
-  /** Renders the row as unavailable without an activation target. */
-  disabled?: boolean
 }
 
 /** The one navigation chevron for every settings resource row. */
@@ -111,23 +77,16 @@ const PLAIN_BASE =
 export function SettingsResourceRow({
   icon,
   iconVariant = 'tile',
-  iconFill = false,
-  iconFilled = false,
   title,
   description,
   trailing,
   badge,
   onClick,
-  href,
   clickLabel,
-  navigable = false,
   flush = false,
-  density = 'default',
-  disabled = false,
 }: SettingsResourceRowProps) {
   const describedById = useId()
   const isTile = iconVariant === 'tile'
-  const isActivatable = !disabled && Boolean(onClick || href)
   const cluster = (
     <>
       {icon == null ? null : iconVariant === 'custom' ? (
@@ -135,13 +94,7 @@ export function SettingsResourceRow({
       ) : (
         <div
           className={
-            isTile
-              ? cn(
-                  RESOURCE_TILE_BASE,
-                  iconFilled ? RESOURCE_TILE_FILL : RESOURCE_TILE_PLAIN,
-                  iconFill ? '[&_img]:size-full' : '[&_img]:size-5'
-                )
-              : PLAIN_BASE
+            isTile ? cn(RESOURCE_TILE_BASE, RESOURCE_TILE_PLAIN, '[&_img]:size-5') : PLAIN_BASE
           }
         >
           {icon}
@@ -152,7 +105,7 @@ export function SettingsResourceRow({
           <OverflowText
             label={title}
             className='text-[var(--text-body)] text-sm'
-            focusTarget={isActivatable ? 'nearest-interactive' : undefined}
+            focusTarget={onClick ? 'nearest-interactive' : undefined}
           />
         ) : (
           <span className='truncate text-[var(--text-body)] text-sm'>{title}</span>
@@ -177,28 +130,21 @@ export function SettingsResourceRow({
     'flex min-w-0 items-center',
     iconVariant === 'plain' ? 'gap-2' : 'gap-2.5'
   )
-  const hasEnd = badge != null || trailing != null || navigable
-  // Decoration and the chevron stay click-through so the row's right edge never
+  const hasEnd = badge != null || trailing != null
+  // Decoration stays click-through so the row's right edge never
   // becomes a dead zone; only `trailing` takes pointer events back.
   const end = hasEnd ? (
     <div className='pointer-events-none relative z-20 flex shrink-0 items-center gap-2'>
       {badge}
       {trailing != null && <div className='pointer-events-auto flex items-center'>{trailing}</div>}
-      {navigable && <ArrowRight className={RESOURCE_ROW_ARROW_CLASSES} />}
     </div>
   ) : null
 
   // Row geometry is identical whether or not the row is activatable, so a list
   // mixing clickable and static rows keeps one height and one inset.
-  const rowClass = cn(
-    'flex items-center justify-between gap-2.5',
-    !flush && '-mx-2 rounded-lg',
-    !flush && (density === 'compact' ? 'px-2' : 'p-2'),
-    density === 'compact' && 'min-h-10 max-md:pointer-coarse:min-h-11',
-    disabled && 'opacity-50'
-  )
+  const rowClass = cn('flex items-center justify-between gap-2.5', !flush && '-mx-2 rounded-lg p-2')
 
-  if (disabled || (!onClick && !href)) {
+  if (!onClick) {
     return (
       <div className={rowClass}>
         <div className={clusterClass}>{cluster}</div>
@@ -221,26 +167,15 @@ export function SettingsResourceRow({
         'group relative transition-colors hover-hover:bg-[var(--surface-active)]'
       )}
     >
-      {href ? (
-        <Link
-          href={href}
-          aria-label={clickLabel}
-          aria-describedby={description != null ? describedById : undefined}
-          className={controlClass}
-        >
-          {cluster}
-        </Link>
-      ) : (
-        <button
-          type='button'
-          onClick={onClick}
-          aria-label={clickLabel}
-          aria-describedby={description != null ? describedById : undefined}
-          className={controlClass}
-        >
-          {cluster}
-        </button>
-      )}
+      <button
+        type='button'
+        onClick={onClick}
+        aria-label={clickLabel}
+        aria-describedby={description != null ? describedById : undefined}
+        className={controlClass}
+      >
+        {cluster}
+      </button>
       {end}
     </div>
   )

@@ -54,7 +54,6 @@ interface TokenServiceAccountModalProps {
   /** When set, reconnect (rotate the secret on) this credential in place. */
   credentialId?: string
   initialDisplayName?: string
-  initialDescription?: string
   /** Called with the credential id after a successful create or reconnect. */
   onCreated?: (credentialId: string) => void
   onSubmitCredentials?: (
@@ -90,7 +89,6 @@ function TokenServiceAccountModalForm({
   serviceIcon: ServiceIcon,
   credentialId,
   initialDisplayName,
-  initialDescription,
   onCreated,
   onSubmitCredentials,
   submitPending,
@@ -99,7 +97,7 @@ function TokenServiceAccountModalForm({
   const [domain, setDomain] = useState('')
   const [providerWorkspaceId, setProviderWorkspaceId] = useState('')
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
-  const [description, setDescription] = useState(initialDescription ?? '')
+  const [description, setDescription] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const createCredential = useCreateScopedCredential()

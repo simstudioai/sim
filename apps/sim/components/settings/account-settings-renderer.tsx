@@ -27,7 +27,7 @@ export function AccountSettingsRenderer({ section }: AccountSettingsRendererProp
 
   if (section === 'general') return <General />
   if (section === 'billing') return <Billing />
-  if (section === 'api-keys') return <ApiKeys scope='personal' />
+  if (section === 'api-keys') return <ApiKeys />
   if (section === 'admin') return <Admin />
   return <Mothership />
 }
