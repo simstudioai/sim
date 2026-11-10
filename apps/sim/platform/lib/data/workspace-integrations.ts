@@ -6,6 +6,7 @@ import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { canReadMemberIntegrations } from '@/lib/credential-groups/member-integrations-access'
 import { getWorkspaceCredentialUseCase } from '@/lib/credentials/application/crud'
 import { resolveIntegrationAccess } from '@/lib/integrations/access'
+import { resolveWorkspaceShellOrganizationId } from '@/lib/workspaces/application/workspace-shell'
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import { readIntegrationLinks } from '@/platform/lib/data/integration-links'
 import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
@@ -28,9 +29,11 @@ interface IntegrationsWorkspace {
 }
 
 /**
- * The viewer's workspaces whose credentials this organization's Integrations page manages: the
- * organization's own, and organization-less ones, which render in whichever organization they open.
- * Most recently visited first, as the workspace list orders them.
+ * The viewer's workspaces whose credentials this organization's Integrations page manages: those
+ * that open in this organization's shell. That is the organization's own, and any the viewer reaches
+ * from outside it (organization-less ones, a guest's, an external collaborator's on another team's
+ * workspace), which open in their landing organization, as `/workspace/<id>` URLs do. Most recently
+ * visited first, as the workspace list orders them.
  */
 async function readIntegrationsWorkspaces(
   organizationId: string
@@ -40,11 +43,25 @@ async function readIntegrationsWorkspaces(
     listWorkspacesContract,
     await listWorkspacesForViewer({ userId: principal.userId, activeOrganizationId })
   )
-  return workspaces
-    .filter(
-      (workspace) =>
-        workspace.organizationId === organizationId || workspace.organizationId === null
+  // The shell depends only on the workspace's organization, so each one is resolved once.
+  const shells = new Map<string | null, Promise<string | null>>()
+  const shellOf = (workspaceOrganizationId: string | null) => {
+    let shell = shells.get(workspaceOrganizationId)
+    if (!shell) {
+      shell = resolveWorkspaceShellOrganizationId(workspaceOrganizationId, principal.userId)
+      shells.set(workspaceOrganizationId, shell)
+    }
+    return shell
+  }
+  const opensHere = await Promise.all(
+    workspaces.map(
+      async (workspace) =>
+        workspace.organizationId === organizationId ||
+        (await shellOf(workspace.organizationId)) === organizationId
     )
+  )
+  return workspaces
+    .filter((_, index) => opensHere[index])
     .map((workspace) => ({ id: workspace.id, name: workspace.name }))
 }
 
@@ -94,8 +111,9 @@ export type IntegrationsSection =
 /**
  * Decides what an Integrations URL shows: the index or an app page over the member's own accounts,
  * where the organization keeps them, and one workspace's catalog, credentials and skills. A
- * `workspace` the viewer cannot list canonicalizes to their first workspace, a legacy slug to the
- * app's id, and a link from before providers had pages to its provider's page.
+ * `workspace` that does not open in this organization is not found, never swapped for another; a
+ * legacy slug canonicalizes to the app's id, and a link from before providers had pages to its
+ * provider's page.
  */
 export async function resolveIntegrationsSection(
   organization: PlatformOrganization,
@@ -114,14 +132,7 @@ export async function resolveIntegrationsSection(
     : searchParams.workspace
   const workspace =
     requested === undefined ? workspaces[0] : workspaces.find((item) => item.id === requested)
-  if (requested !== undefined && !workspace)
-    return {
-      kind: 'redirect',
-      href: integrationsPath(organization, section, {
-        ...searchParams,
-        workspace: workspaces[0]?.id,
-      }),
-    }
+  if (requested !== undefined && !workspace) return { kind: 'notFound' }
   const [apps, state] = await Promise.all([
     workspace ? readWorkspaceApps(workspace.id) : [],
     member ? prefetchIntegrations(organization) : undefined,
