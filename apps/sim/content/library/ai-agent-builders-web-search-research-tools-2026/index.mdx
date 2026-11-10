@@ -31,7 +31,7 @@ faq:
   - q: "Does Sim support the Parallel Task API?"
     a: "Sim supports Parallel AI through a dedicated integration that can add asynchronous, task-oriented research to an agent workflow."
   - q: "Does Sim support the Tavily API?"
-    a: "Sim supports Tavily through a dedicated integration for search, extraction, crawling, mapping, and research operations."
+    a: "Sim supports Tavily through a dedicated integration for search, extraction, crawling, and mapping operations."
   - q: "What is the difference between Serper and Exa?"
     a: "Serper is primarily suited to Google-style search results, while Exa is designed for semantic discovery and retrieval based on the meaning of a query."
   - q: "What is the difference between Exa Research and Tavily Extract?"
@@ -61,7 +61,7 @@ faq:
   - q: "Can Dify combine web search with a knowledge base?"
     a: "Dify can combine marketplace search tools with its knowledge retrieval features inside an LLM application or workflow."
   - q: "Can Flowise combine web search with vector databases?"
-    a: "The archived Flowise project can combine search tools with retrievers and vector stores in developer-configured agent flows, but teams should account for its wind-down status."
+    a: "The archived Flowise project can combine search tools with retrievers and vector stores, which find documents by meaning, in developer-configured agent flows. Teams should account for its wind-down status."
   - q: "How should I compare AI agent research costs?"
     a: "Teams should compare the total cost per completed, cited answer by adding builder usage, model tokens, search calls, extraction, deep-research tasks, retries, storage, and human review."
 ---
@@ -81,7 +81,7 @@ The comparison covers the web-search and research options documented by Sim, n8n
 | **Sim** | Dedicated integrations for [Serper](https://docs.sim.ai/integrations/serper), [Exa](https://docs.sim.ai/integrations/exa), [Parallel AI](https://docs.sim.ai/integrations/parallel_ai), You.com, and Tavily | Provider-specific search and extraction operations can be placed directly in workflows | Web results and Sim knowledge-base retrieval can feed the same model step | [Workspace BYOK works on every Sim Cloud plan](https://docs.sim.ai/platform/costs) | Preserve source titles and URLs, then require the final model step to cite them |
 | **n8n** | Its AI nodes include search services, although the built-in [SerpApi node is deprecated in favor of a verified community node](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolserpapi/) | App nodes and API calls can add extraction or crawling | Search nodes can be combined with a [Vector Store Retriever](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.retrievervectorstore/) | Users connect provider credentials, while [n8n Cloud pricing is based on workflow executions](https://n8n.io/pricing/) | Workflows must carry source metadata into the final answer |
 | **Dify** | [Tool plugins](https://docs.dify.ai/en/cloud/use-dify/workspace/tools) can provide web search and content processing | Available capabilities depend on installed plugins | Tools can be combined with Dify knowledge retrieval | A workspace can [connect its own model-provider accounts and keys](https://docs.dify.ai/en/cloud/use-dify/workspace/model-providers) | Citation behavior depends on retrieval and answer configuration |
-| **Flowise** | The archived project documents [LangChain tools](https://docs.flowiseai.com/integrations/langchain), including search tools | Tool nodes and document loaders support extraction and ingestion | Search tools can be combined with retrievers and vector stores | Self-hosted deployments use user-supplied credentials | Source documents and URLs must be retained and requested in the final answer |
+| **Flowise** | The archived project documents [LangChain tools](https://docs.flowiseai.com/integrations/langchain), including search tools | Tool nodes and document loaders support extraction and ingestion | Search tools can be combined with retrievers and vector stores that find documents by meaning | Self-hosted teams supply their own credentials | Source documents and URLs must be retained and requested in the final answer |
 | **Zapier Agents** | [Zapier Agents](https://zapier.com/agents) can use company knowledge, public links, and actions across connected apps | App actions can collect external information | Agents can combine supplied knowledge with connected business applications | Core agent access and app connections are managed through Zapier | Instructions must require the agent to preserve and present source references |
 | **Make AI Agents** | [Make AI Agents](https://www.make.com/ai-agents) can use connected apps, including a community-maintained [Tavily connector](https://www.make.com/en/integrations/tavily-community) | Make scenarios can call search, extraction, and crawling modules | Agents can combine tools with [knowledge files](https://help.make.com/input-files-and-knowledge-files-for-ai-agents) | [Custom AI-provider connections are available on paid plans, and Make meters activity in credits](https://help.make.com/credits) | Source fields must be mapped into the final response |
 
@@ -176,7 +176,7 @@ Sim fits this pattern because a workflow can keep provider outputs visible, tran
 
 ## Can I use my own search API and model keys?
 
-Sim supports bring-your-own-key workflows for model providers and lets users connect credentials for supported search and research integrations. Workspace BYOK keys work on every Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise as of November 2026.
+Sim supports bring-your-own-key workflows for model providers and lets teams connect credentials for supported search and research integrations. Workspace BYOK keys work on every Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise as of November 2026.
 
 BYOK matters because research agents often incur separate variable costs for model inference and external search, extraction, or research calls. Connecting provider credentials directly makes those relationships easier to inspect than a single bundled allowance.
 
@@ -211,7 +211,7 @@ These facts were checked against vendor-owned pages as of November 2026.
 
 ## Which builder should you choose?
 
-Sim fits a source-aware research agent that must search the web, query internal knowledge, and expose each step in a visual workflow. n8n fits teams embedding search inside general automation, Dify fits plugin-based LLM applications, and Zapier or Make fit teams centered on their respective SaaS ecosystems. Flowise is included for existing users, but its archived status makes migration planning more relevant than new adoption.
+Sim fits a source-aware research agent that must search the web, query internal knowledge, and expose each step in a visual workflow. n8n fits teams embedding search inside general automation, Dify fits plugin-based LLM applications, and Zapier or Make fit teams centered on their respective SaaS ecosystems. Flowise is included for teams with existing deployments, but its archived status makes migration planning more relevant than new adoption.
 
 Use this decision rule:
 
