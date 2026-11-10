@@ -17,6 +17,7 @@ import {
 import {
   artifactDirectory,
   beginWalk,
+  CONTENT_DEADLINE_MS,
   DESKTOP,
   org,
   type Persona,
@@ -125,6 +126,21 @@ export async function fullPageScreenshot(page: Page, path: string, viewport: Vie
   await page.setViewportSize({ width: viewport.width, height: viewport.height })
 }
 
+/**
+ * Runs in the page: the length of the page's own text. The rail and page header paint on every
+ * route, so their text does not count.
+ */
+function pageTextLength() {
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+  let length = 0
+  while (walker.nextNode()) {
+    const { parentElement, textContent } = walker.currentNode
+    if (parentElement?.closest('aside, nav, header, script, style, noscript')) continue
+    length += textContent?.trim().length ?? 0
+  }
+  return length
+}
+
 /** Long enough for a persona's walk to list every route that failed. */
 const WALK_ERROR_LIMIT = 16_000
 
@@ -147,6 +163,12 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
             failures.push(`${route.name}: ${getErrorMessage(error)}`)
             return null
           })
+          // A section paints nothing while its first reads start, so a page that went quiet in that
+          // gap is still given the content deadline to show text before it counts as empty.
+          const text = await page
+            .waitForFunction(pageTextLength, undefined, { timeout: CONTENT_DEADLINE_MS })
+            .then((handle) => handle.jsonValue())
+            .catch(() => 0)
           if (route.name === 'home')
             await composer(page)
               .waitFor({ timeout: 20_000 })
@@ -176,17 +198,6 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
             font: getComputedStyle(document.body).fontFamily,
             overflow: document.documentElement.scrollWidth - innerWidth,
             surfaces: document.querySelectorAll('[data-platform-ui]').length,
-            // The rail and page header paint on every route, so only the page's own text counts.
-            text: (() => {
-              const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
-              let length = 0
-              while (walker.nextNode()) {
-                const { parentElement, textContent } = walker.currentNode
-                if (parentElement?.closest('aside, nav, header, script, style, noscript')) continue
-                length += textContent?.trim().length ?? 0
-              }
-              return length
-            })(),
           }))
           routes.push({
             persona: persona.key,
@@ -210,7 +221,7 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
           if (facts.dark !== (theme === 'dark')) failures.push(`${route.name} wrong theme`)
           if (/Times/.test(facts.font)) failures.push(`${route.name} has no stylesheet`)
           if (facts.overflow > 1) failures.push(`${route.name} overflows by ${facts.overflow}px`)
-          if (facts.text === 0) failures.push(`${route.name} rendered an empty shell`)
+          if (text === 0) failures.push(`${route.name} rendered an empty shell`)
           if (facts.surfaces === 0) failures.push(`${route.name} mounted no design-system surface`)
         }
         assert.deepEqual(failures, [])

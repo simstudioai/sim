@@ -145,7 +145,7 @@ const ENVIRONMENT_CONSOLE_NOISE = [
   /^Access to fetch at 'https:\/\/sim-sim\.inth\.app\/init' from origin /,
 ]
 /** How long a route may keep showing a first read before the walk fails it as stuck. */
-const CONTENT_DEADLINE_MS = 20_000
+export const CONTENT_DEADLINE_MS = 20_000
 /** How soon a skeleton with no read behind it is looked at again. */
 const SKELETON_RECHECK_MS = 100
 const LOADING_STATUS = /^(Loading|Checking|Searching|Updating)\b/
