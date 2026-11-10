@@ -3736,7 +3736,11 @@ export async function bulkDocumentOperation(
 export async function bulkDocumentOperationByFilter(
   knowledgeBaseId: string,
   operation: 'enable' | 'disable' | 'delete',
-  enabledFilter: 'all' | 'enabled' | 'disabled' | undefined,
+  filters: {
+    enabledFilter?: 'all' | 'enabled' | 'disabled'
+    search?: string
+    tagFilters?: TagFilterCondition[]
+  },
   access: KnowledgeReadAccess,
   requestId: string
 ): Promise<{
@@ -3748,12 +3752,13 @@ export async function bulkDocumentOperationByFilter(
     deletedAt?: Date | null
   }>
 }> {
+  const { enabledFilter, search, tagFilters } = filters
   logger.info(
     `Starting bulk ${operation} operation on all documents (filter: ${enabledFilter || 'all'}) in knowledge base ${knowledgeBaseId}`,
     { requestId }
   )
 
-  const whereConditions = [
+  const whereConditions: SQL[] = [
     eq(document.knowledgeBaseId, knowledgeBaseId),
     eq(document.userExcluded, false),
     isNull(document.archivedAt),
@@ -3764,6 +3769,15 @@ export async function bulkDocumentOperationByFilter(
     whereConditions.push(eq(document.enabled, true))
   } else if (enabledFilter === 'disabled') {
     whereConditions.push(eq(document.enabled, false))
+  }
+
+  const searchCondition = search ? searchFilter(document.filename, search) : undefined
+  if (searchCondition) whereConditions.push(searchCondition)
+
+  for (const filter of tagFilters ?? []) {
+    const condition = buildTagFilterCondition(filter)
+    if (!condition) throw uncompilableTagFilterError(filter)
+    whereConditions.push(condition)
   }
 
   const updateResult: Array<{

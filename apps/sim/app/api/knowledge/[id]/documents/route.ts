@@ -85,6 +85,8 @@ export const PATCH = defineInternalJsonRoute({
     documentIds: body.documentIds,
     selectAll: body.selectAll,
     enabledFilter: body.enabledFilter,
+    search: body.search,
+    tagFilters: body.tagFilters,
   }),
   useCase: bulkUpdateKnowledgeDocuments,
   present: (result) => ({ success: true as const, data: result }),

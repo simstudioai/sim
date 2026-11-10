@@ -239,6 +239,10 @@ export interface BulkKnowledgeDocumentsInput extends UploadKnowledgeDocumentAdmi
   documentIds?: string[]
   selectAll?: boolean
   enabledFilter?: 'all' | 'enabled' | 'disabled'
+  /** With `selectAll`: the filename search the list applies. */
+  search?: string
+  /** With `selectAll`: the slot-addressed tag filters the list applies. */
+  tagFilters?: TagFilterCondition[]
 }
 
 export interface UpsertKnowledgeDocumentInput extends UploadKnowledgeDocumentAdmissionInput {
@@ -937,7 +941,11 @@ export const bulkUpdateKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
       ? await bulkDocumentOperationByFilter(
           context.knowledgeBaseId,
           input.operation,
-          input.enabledFilter,
+          {
+            enabledFilter: input.enabledFilter,
+            search: input.search,
+            tagFilters: input.tagFilters,
+          },
           context.access,
           generateRequestId()
         )

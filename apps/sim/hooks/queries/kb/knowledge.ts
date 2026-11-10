@@ -609,6 +609,8 @@ interface BulkDocumentOperationParams {
   documentIds?: string[]
   selectAll?: boolean
   enabledFilter?: 'all' | 'enabled' | 'disabled'
+  search?: string
+  tagFilters?: DocumentTagFilter[]
 }
 
 async function bulkDocumentOperation({
@@ -617,11 +619,13 @@ async function bulkDocumentOperation({
   documentIds,
   selectAll,
   enabledFilter,
+  search,
+  tagFilters,
 }: BulkDocumentOperationParams): Promise<BulkDocumentOperationData> {
   const result = await requestJson(bulkKnowledgeDocumentsContract, {
     params: { id: knowledgeBaseId },
     body: selectAll
-      ? { operation, selectAll: true, enabledFilter }
+      ? { operation, selectAll: true, enabledFilter, search, tagFilters }
       : { operation, documentIds: documentIds ?? [] },
   })
 

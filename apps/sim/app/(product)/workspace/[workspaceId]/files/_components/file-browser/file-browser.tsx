@@ -888,7 +888,8 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
     }
     const { file } = entry
     const owner = memberById.get(file.uploadedBy)
-    const archive = isArchiveFileName(file.name)
+    // Only an editor can unzip; a reader opens an archive like any other file.
+    const archive = canEdit && isArchiveFileName(file.name)
     return {
       id: file.id,
       name: file.name,

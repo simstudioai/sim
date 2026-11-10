@@ -936,6 +936,7 @@ export function KnowledgeList({ workspaceId }: KnowledgeListProps) {
             if (!open) setTagsFor(null)
           }}
           knowledgeBaseId={tagsFor}
+          canEdit={canEdit}
         />
       )}
       <ConfirmDialog

@@ -71,6 +71,8 @@ interface BaseTagsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   knowledgeBaseId: string
+  /** A reader sees the tags and their documents; only an editor creates or deletes one. */
+  canEdit: boolean
 }
 
 /**
@@ -78,7 +80,12 @@ interface BaseTagsModalProps {
  * documents behind a tag, deleting a tag with the documents it leaves, and creating one in a free
  * slot of its type.
  */
-export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsModalProps) {
+export function BaseTagsModal({
+  open,
+  onOpenChange,
+  knowledgeBaseId,
+  canEdit,
+}: BaseTagsModalProps) {
   const definitions = useTagDefinitionsQuery(knowledgeBaseId)
   const usage = useTagUsageQuery(knowledgeBaseId, { enabled: open })
   const createTag = useCreateTagDefinition()
@@ -139,7 +146,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
 
   return (
     <>
-      {view.kind === 'create' ? (
+      {view.kind === 'create' && canEdit ? (
         <Modal
           open={open}
           onOpenChange={(next) => {
@@ -216,12 +223,16 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
           }}
           title='Tags'
           cancelLabel='Close'
-          footerStartAction={{
-            label: 'New tag',
-            variant: 'secondary',
-            disabled: available.length === 0,
-            onClick: startCreate,
-          }}
+          footerStartAction={
+            canEdit
+              ? {
+                  label: 'New tag',
+                  variant: 'secondary',
+                  disabled: available.length === 0,
+                  onClick: startCreate,
+                }
+              : undefined
+          }
         >
           {definitions.error && !definitions.data ? (
             <FailureNotice
@@ -232,7 +243,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
           ) : definitions.status === 'success' && tags.length === 0 ? (
             <EmptyState
               title='No tags yet'
-              description='Create a tag to organize and filter documents.'
+              description={canEdit ? 'Create a tag to organize and filter documents.' : undefined}
             />
           ) : (
             <>
@@ -260,16 +271,20 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                           label: 'View documents',
                           onSelect: () => showDocuments(tag),
                         },
-                        {
-                          id: 'delete',
-                          label: 'Delete tag',
-                          destructive: true,
-                          separatorBefore: true,
-                          onSelect: () => {
-                            void usage.refetch()
-                            setDeleting(tag)
-                          },
-                        },
+                        ...(canEdit
+                          ? [
+                              {
+                                id: 'delete',
+                                label: 'Delete tag',
+                                destructive: true,
+                                separatorBefore: true,
+                                onSelect: () => {
+                                  void usage.refetch()
+                                  setDeleting(tag)
+                                },
+                              },
+                            ]
+                          : []),
                       ]}
                     />
                   ),

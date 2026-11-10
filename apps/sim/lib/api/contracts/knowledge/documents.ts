@@ -262,7 +262,10 @@ export const bulkDocumentOperationBodySchema = z
     operation: z.enum(['enable', 'disable', 'delete']),
     documentIds: z.array(z.string()).min(1).max(100).optional(),
     selectAll: z.boolean().optional(),
+    /** With `selectAll`, the list's own filters, so the operation reaches exactly what it shows. */
     enabledFilter: z.enum(['all', 'enabled', 'disabled']).optional(),
+    search: z.string().optional(),
+    tagFilters: z.array(documentTagFilterSchema).optional(),
   })
   .refine((data) => data.selectAll || (data.documentIds && data.documentIds.length > 0), {
     message: 'Either selectAll must be true or documentIds must be provided',
