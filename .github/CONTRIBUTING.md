@@ -140,22 +140,20 @@ Using clear and consistent commit messages makes it easier for everyone to under
 
 To set up your local development environment:
 
-### Option 1: Using the setup wizard (Simplest)
+### Option 1: Using the Setup Wizard (Simplest)
 
-The easiest way to run Sim locally is the `sim-setup` wizard:
+The easiest way to run Sim locally is the interactive setup wizard:
 
 ```bash
 npx sim-setup
 ```
 
-The wizard checks Docker, ports, memory, and disk space, generates the required secrets, writes `.env` and a Docker Compose file into a new `sim` directory, starts the containers, runs database migrations, and waits for the health checks to pass. When it finishes, open [http://localhost:3000/](http://localhost:3000/) in your browser.
+When it finishes, open [http://localhost:3000/](http://localhost:3000/) in your browser. Inside a cloned Sim repository, run `bun run sim-setup --mode dev` for the local development mode.
 
 #### Requirements
 
-- Node.js 20 or newer
-- Docker with the Compose plugin, installed and running
-
-See the [`sim-setup` README](../packages/sim-setup/README.md) for options and management commands.
+- Node.js 20+
+- Docker must be installed and running on your machine
 
 ### Option 2: Using Docker Compose
 

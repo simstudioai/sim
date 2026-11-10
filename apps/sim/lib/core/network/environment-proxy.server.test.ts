@@ -207,18 +207,23 @@ describe('guarded requests under HTTPS_PROXY', () => {
     ])
   })
 
-  it('caps an uncompressed plain-http body forwarded by the proxy', async () => {
-    const pinned = createPinnedFetchWithDispatcher('1.1.1.1', {
+  it('caps a forwarded plain-http response at maxResponseSize', async () => {
+    const guarded = createSsrfGuardedFetchWithDispatcher({
+      ...options,
       profile: 'selfHostedService',
       maxResponseSize: 4,
     })
     try {
-      const response = await pinned.fetch('http://origin.invalid/plain')
-      await expect(response.text()).rejects.toThrow(/max size/i)
+      const response = await guarded.fetch('http://origin.invalid/plain')
+      await expect(response.text()).rejects.toMatchObject({
+        code: 'UND_ERR_RES_EXCEEDED_MAX_SIZE',
+      })
     } finally {
-      await pinned.dispatcher.destroy()
+      await guarded.dispatcher.destroy()
     }
-    expect(forwarded.map((request) => request.url)).toEqual(['http://origin.invalid/plain'])
+    expect(forwarded).toEqual([
+      { url: 'http://origin.invalid/plain', authorization: PROXY_AUTHORIZATION },
+    ])
   })
 
   it('connects directly, still pinned, when NO_PROXY names the host', async () => {

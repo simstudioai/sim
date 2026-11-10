@@ -18,17 +18,17 @@ const logger = createLogger('FirecrawlCrawlTool')
 const POLL_INTERVAL_MS = 5000
 const MAX_POLL_TIME_MS = DEFAULT_EXECUTION_TIMEOUT_MS
 
-/** Path segments of the start URL, ignoring empty segments and a trailing index file. */
-function startPathDepth(url: string, indexFiles: string[]): number {
-  let pathname: string
-  try {
-    pathname = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(url) ? url : `https://${url}`).pathname
-  } catch {
-    return 0
-  }
-  const segments = pathname.split('/').filter(Boolean)
-  if (indexFiles.includes(segments[segments.length - 1] ?? '')) segments.pop()
-  return segments.length
+/**
+ * Path segments of a URL as Firecrawl v1 counted them: index files add no depth. A URL without
+ * a scheme is read as https, as Firecrawl reads it.
+ */
+function urlPathDepth(url: string): number {
+  const absolute = /^[a-z][a-z\d+.-]*:\/\//i.test(url) ? url : `https://${url}`
+  if (!URL.canParse(absolute)) return 0
+  return new URL(absolute).pathname
+    .split('/')
+    .filter((segment) => segment !== '' && segment !== 'index.html' && segment !== 'index.php')
+    .length
 }
 
 export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse> = {
@@ -55,7 +55,7 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Maximum path depth below the starting URL (e.g., 1 from /docs allows /docs/guide and /docs/guide/index.html). Independent of link discovery depth',
+        'Maximum URL path depth below the starting URL (e.g., from /docs, 1 allows /docs/guide). Independent of link discovery depth',
     },
     formats: {
       type: 'json',
@@ -169,16 +169,17 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       if (params.excludePaths) body.excludePaths = params.excludePaths
       if (params.includePaths) body.includePaths = params.includePaths
       if (params.maxDepth != null) {
-        const maxDepth = Number(params.maxDepth)
-        if (!Number.isSafeInteger(maxDepth) || maxDepth < 0) {
+        const requestedDepth = Number(params.maxDepth)
+        if (!Number.isSafeInteger(requestedDepth) || requestedDepth < 0) {
           throw new Error('maxDepth must be a non-negative integer')
         }
+        // v1 counted depth from the start URL, so the start page itself always passes the filter.
+        const maxDepth = requestedDepth + urlPathDepth(params.url)
 
-        // v1 depth counted URL path segments below the start URL; v2 discovery depth counts link hops.
+        // v1 depth counted URL path segments; v2 discovery depth counts link hops.
         body.regexOnFullURL = false
-        const indexFiles = ['index.html', 'index.php']
-        const depth = maxDepth + startPathDepth(params.url, indexFiles)
         if (params.includePaths?.length) {
+          const indexFiles = ['index.html', 'index.php']
           const nonIndexSegmentPatterns = new Set<string>()
           // Rust regex has no lookarounds, so enumerate incomplete prefixes and first mismatches.
           for (const file of indexFiles) {
@@ -195,15 +196,15 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
               nonIndexSegmentPatterns.add(`${escapedPrefix}[^/${nextCharacters}][^/]*`)
             }
           }
-          const nonIndexBoundary = `^(/+[^/]+){${depth}}/+(${[...nonIndexSegmentPatterns].join('|')})/*$`
+          const nonIndexBoundary = `^(/+[^/]+){${maxDepth}}/+(${[...nonIndexSegmentPatterns].join('|')})/*$`
           body.excludePaths = [
             ...(params.excludePaths ?? []),
-            `^(/+[^/]+){${depth + 2}}|${nonIndexBoundary}`,
+            `^(/+[^/]+){${maxDepth + 2}}|${nonIndexBoundary}`,
           ]
         } else {
           body.includePaths = [
-            `^(/+[^/]+){0,${depth}}/*$`,
-            `^(/+[^/]+){0,${depth}}/+index\\.(html|php)/*$`,
+            `^(/+[^/]+){0,${maxDepth}}/*$`,
+            `^(/+[^/]+){0,${maxDepth}}/+index\\.(html|php)/*$`,
           ]
         }
       }

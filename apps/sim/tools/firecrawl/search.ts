@@ -61,6 +61,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
         limit: params.limit ? Number(params.limit) : 5,
       }
 
+      if (params.sources) body.sources = params.sources
       if (params.categories) body.categories = params.categories
       if (params.tbs) body.tbs = params.tbs
       if (params.location) body.location = params.location

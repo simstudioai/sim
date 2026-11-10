@@ -9,18 +9,18 @@ import { WorkspaceBusyError } from '@/lib/workspaces/permissions/management-stor
 import { WorkspaceBillingAccountRemovalError } from '@/lib/workspaces/utils'
 import { v2CaughtOrchestrationError, v2Error } from '@/app/api/v2/lib/response'
 
+/**
+ * A caller naming a workspace it cannot reach must not be able to tell that
+ * refusal apart from a workspace that does not exist. Both answer
+ * `404 "Workspace not found"` — the message the unknown-workspace path in
+ * `get-public-workspace` and `list-public-workspace-members` already uses, so
+ * the two responses are byte-identical.
+ */
 function isWorkspaceBusyError(error: unknown): error is WorkspaceBusyError {
   return error instanceof WorkspaceBusyError
 }
 
 export const v2WorkspaceErrorPolicies = {
-  /**
-   * A caller naming a workspace it cannot reach must not be able to tell that
-   * refusal apart from a workspace that does not exist. Both answer
-   * `404 "Workspace not found"` — the message the unknown-workspace path in
-   * `get-public-workspace` and `list-public-workspace-members` already uses, so
-   * the two responses are byte-identical.
-   */
   concealWorkspaceAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Workspace not found',
   }),
