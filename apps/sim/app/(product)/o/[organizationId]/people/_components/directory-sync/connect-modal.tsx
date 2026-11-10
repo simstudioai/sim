@@ -5,7 +5,7 @@ import { Button } from '@sim/emcn/button'
 import { TextField } from '@sim/emcn/field'
 import { SecretField } from '@sim/emcn/field/value-fields'
 import { Modal } from '@sim/emcn/modal'
-import { InlineNotice } from '@sim/emcn/status'
+import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import Link from 'next/link'
 import styles from '@/app/(product)/o/[organizationId]/people/_components/directory-sync/directory-sync.module.css'
 import { ExternalLink } from '@/app/(product)/o/[organizationId]/people/_components/external-link/external-link'
@@ -138,15 +138,18 @@ export function ConnectModal({ organizationId, source, onClose, onConnected }: C
           </ExternalLink>
         </>
       )}
-      {source === 'scim' && (
+      {source === 'scim' && provisioning.failed && (
+        <FailureNotice
+          message='Could not read the provisioning connection.'
+          retrying={provisioning.fetching}
+          onRetry={provisioning.refresh}
+        />
+      )}
+      {source === 'scim' && !provisioning.failed && (
         <div className={styles.provisioning} aria-live='polite'>
           {!provisioning.loading && (
             <p data-type='T060'>
-              {provisioning.failed
-                ? 'Could not read the provisioning connection.'
-                : provisioning.ready
-                  ? 'Active'
-                  : 'Enable provisioning before connecting this source.'}
+              {provisioning.ready ? 'Active' : 'Enable provisioning before connecting this source.'}
             </p>
           )}
           <div className={styles.quietActions}>
