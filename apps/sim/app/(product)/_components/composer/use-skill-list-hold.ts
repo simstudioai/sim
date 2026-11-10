@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { toast } from '@/lib/toast/sink'
-import type { ComposerController } from '@/app/(product)/_components/composer/model'
 import { SLASH_TOKEN } from '@/app/(product)/_components/composer/reference-text'
+import type { ComposerController } from '@/platform/lib/data/models/composer'
 
 /**
  * How long a send waits on the skill list. The request layer sets no deadline, so this is the only

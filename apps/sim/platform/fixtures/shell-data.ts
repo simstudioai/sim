@@ -1,6 +1,6 @@
 import 'server-only'
-import type { ShellData } from '@/app/(product)/_components/model'
 import { FIXTURE_ROUTE_PREFIX, type Scenario } from '@/platform/fixtures'
+import type { ShellData } from '@/platform/lib/data/models/shell'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { workspaceHomePath } from '@/platform/lib/workspace-navigation'
 

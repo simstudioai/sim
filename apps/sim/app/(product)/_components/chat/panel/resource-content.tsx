@@ -4,12 +4,12 @@ import { ControlRow } from '@sim/emcn/button/control-row'
 import { EmptyState } from '@sim/emcn/empty-state'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import type { PlatformResource } from '@/app/(product)/_components/chat/model'
 import { BrowserSession } from '@/app/(product)/_components/chat/panel/browser-session/browser-session'
 import { CitedSources } from '@/app/(product)/_components/chat/panel/cited-sources'
 import styles from '@/app/(product)/_components/chat/panel/panels.module.css'
 import { TerminalSession } from '@/app/(product)/_components/chat/panel/terminal-session/terminal-session'
 import { SearchResultsPanel } from '@/app/(product)/_components/search/search-results-host'
+import type { PlatformResource } from '@/platform/lib/data/models/chat'
 
 /** Loaded with the first workspace tab, so a chat that never opens one never downloads its views. */
 const WorkspaceResource = dynamic(

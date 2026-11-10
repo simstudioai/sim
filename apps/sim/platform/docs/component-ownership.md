@@ -24,7 +24,7 @@ Routes compose these owners. The shell owns navigation, window chrome, session s
 
 Integrations uses the page frame, heading and Back link in `app/(product)/_components/resource-directory`; the workspace pages take its heading and Back link inside their own frame. Workspace examples and edits live in the fixture session. Live workspace routes retain the existing workspace access boundary.
 
-Member integrations use ActivityRow links, the shared Icon for provider marks, and shared segmented controls for individual tool permissions, and the same inline ConnectionPrompt as Home Email and Calendar. Its [member inventory contract](organization-integrations.md) covers personal credentials, eligible tool policies and the Phase 3 handoff.
+Member integrations use ActivityRow links, the shared Icon for provider marks, and shared segmented controls for individual tool permissions, and the same inline ConnectionPrompt as Home Email and Calendar. Its [member inventory contract](integration-center.md#member-search-inventory) covers personal credentials and eligible tool policies.
 
 The [Platform time library](../shared/time.ts) formats raw instants, calendar days and elapsed metadata for every feature. Home owns its Build/Search metric and a single selected time window.
 

@@ -6,13 +6,13 @@ import { Button } from '@sim/emcn/button'
 import { InlineNotice } from '@sim/emcn/status'
 import { QuestionCard } from '@/app/(product)/_components/chat/cards/question-card'
 import styles from '@/app/(product)/_components/chat/message/message.module.css'
+import { MarkdownContent } from '@/app/(product)/_components/markdown-content/markdown-content'
+import { useChatHandlers } from '@/app/(product)/_components/session/chat-runtime'
 import type {
   PlatformCredentialRequest,
   PlatformCredentialSubmission,
   PlatformSegment,
-} from '@/app/(product)/_components/chat/model'
-import { MarkdownContent } from '@/app/(product)/_components/markdown-content/markdown-content'
-import { useChatHandlers } from '@/app/(product)/_components/session/chat-runtime'
+} from '@/platform/lib/data/models/chat'
 
 export interface CredentialCardProps {
   items: readonly PlatformCredentialRequest[]

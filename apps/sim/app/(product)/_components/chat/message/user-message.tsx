@@ -4,9 +4,9 @@ import { MessageBubble } from '@sim/emcn-platform/message-bubble'
 import styles from '@/app/(product)/_components/chat/message/message.module.css'
 import { MessageTime } from '@/app/(product)/_components/chat/message/message-time'
 import { PageContext } from '@/app/(product)/_components/chat/message/page-context'
-import type { PlatformTurn } from '@/app/(product)/_components/chat/model'
 import { MessageAttachments } from '@/app/(product)/_components/composer/message-attachments'
 import { useChatHandlers } from '@/app/(product)/_components/session/chat-runtime'
+import type { PlatformTurn } from '@/platform/lib/data/models/chat'
 
 const DELIVERY_LABELS = {
   sending: 'Sending',

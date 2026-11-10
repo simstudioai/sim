@@ -9,7 +9,6 @@ import { ComposerInput } from '@sim/emcn-platform/composer-input'
 import { ComposerSuggestions } from '@sim/emcn-platform/composer-input/suggestions'
 import styles from '@/app/(product)/_components/composer/composer.module.css'
 import { MessageAttachments } from '@/app/(product)/_components/composer/message-attachments'
-import type { ComposerController } from '@/app/(product)/_components/composer/model'
 import { ResourceMenu } from '@/app/(product)/_components/composer/resource-menu'
 import { useComposerReferences } from '@/app/(product)/_components/composer/use-composer-references'
 import {
@@ -18,6 +17,7 @@ import {
 } from '@/app/(product)/_components/composer/use-prompt-history'
 import { useSkillListHold } from '@/app/(product)/_components/composer/use-skill-list-hold'
 import { useComposerFocus } from '@/app/(product)/_components/session/composer-host'
+import type { ComposerController } from '@/platform/lib/data/models/composer'
 
 interface MessageComposerProps {
   composer: ComposerController

@@ -7,7 +7,9 @@
  * Checked:
  *
  * - `path`: a backticked or linked repo path, resolved against the repo root, the document's
- *   directory, and `apps/sim`. A token whose first segment exists in none of those is prose.
+ *   directory, `apps/sim`, `apps/sim/app` and `apps/sim/app/(product)`. A token whose first
+ *   segment exists in none of those is prose. A path with a placeholder segment
+ *   (`app/workspace/[workspaceId]/<page>`) is checked up to its first placeholder.
  * - `script`: `bun run <name>`, `turbo run <name>`, or a bare `check:<x>` / `<x>:check` that no
  *   workspace `package.json` declares; `bun run --cwd <dir> <name>` must be in `<dir>`.
  * - `skill`: `/name` on a line about skills, or `` `name` skill ``, with no `SKILL.md`.
@@ -17,18 +19,18 @@
  * - `identifier`: a backticked CamelCase, camelCase or SCREAMING_SNAKE identifier (`createLogger()`,
  *   `PLATFORM_ALLOWLISTS`, `<SettingsPanel />`) that appears in no tracked source file, read
  *   once into a word index; in a fence, any such word the fence does not declare itself, unless the
- *   fence's info string marks it `example` or `illustrative` (```` ```ts illustrative ````). Names
- *   that are another library's, never this repo's identifiers, are in `NOT_IDENTIFIERS`.
+ *   fence's info string marks it `example` or `illustrative` (```` ```ts illustrative ````) or a
+ *   shell (`bash`, `sh`, `shell`, `console`, `zsh`), whose variables and flags are not source
+ *   names. Names that are another library's, never this repo's identifiers, are in
+ *   `LIBRARY_NAMES` with the reason each is there.
  *
- * Anything containing `<…>`, `{…}`, `*`, or an ellipsis is a placeholder and skipped. The `file`
- * and `identifier` findings that predate those checks are in
- * `scripts/check-guidance-refs.baseline.json` (by document and name), which only shrinks: a new
- * one fails, and so does an entry that no longer occurs (`--update` drops it). Everything else has
- * no baseline: fix the reference, write it as a placeholder, or delete the sentence.
+ * A `<name>` or `<NAME>` placeholder is stripped before identifiers are read; anything else
+ * containing `<…>`, `{…}`, `*`, or an ellipsis is a placeholder and skipped. Nothing has a
+ * baseline: fix the reference, write it as a placeholder, or delete the sentence.
  *
- * Run: `bun run check:guidance-refs [root]` (`-- --update` shrinks the baseline)
+ * Run: `bun run check:guidance-refs [root]`
  */
-import { existsSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { listRepoFiles } from './repo-files'
 import { parseRule } from './sync-skills'
@@ -38,9 +40,11 @@ const ROOT = path.resolve(
     path.resolve(import.meta.dirname, '..')
 )
 const APP_ROOT = path.join(ROOT, 'apps/sim')
+/** Route folders guidance names from inside the app (`workspace/[workspaceId]/…`, `o/[organizationId]/…`). */
+const APP_DIR = path.join(APP_ROOT, 'app')
+const PRODUCT_DIR = path.join(APP_DIR, '(product)')
 const SKILLS_DIR = path.join(ROOT, '.agents/skills')
 const SOURCE_EXTENSIONS = ['', '.ts', '.tsx', '.js', '.mjs', '.json', '.md', '.css']
-const BASELINE = path.join(ROOT, 'scripts/check-guidance-refs.baseline.json')
 /** Tracked files whose words an identifier may name. */
 const SOURCE_FILE = /\.(?:[cm]?[jt]sx?|css|json|ya?ml|sql|sh|py|go|toml)$/
 /** A bare file name with a source extension; `.md` names are checked against nearby folders. */
@@ -69,6 +73,8 @@ const LIBRARY_NAMES: Readonly<Record<string, readonly string[]>> = {
   ],
   'CSS transform functions': ['rotateY', 'translateZ'],
   "lru-cache's option the caching rule warns about": ['ttlAutopurge'],
+  'Claude Code tool the babysit loop paces its waits with': ['ScheduleWakeup'],
+  "GitHub CLI's `gh pr view --json commits` field the PR skills read": ['messageHeadline'],
 }
 const NOT_IDENTIFIERS: ReadonlySet<string> = new Set(Object.values(LIBRARY_NAMES).flat())
 
@@ -152,6 +158,22 @@ function isPlaceholder(ref: string): boolean {
   return /[<>{}*$]|\.\.\.|…|\bfoo\b|\bxxx?\b/i.test(ref)
 }
 
+/**
+ * A `<name>`, `<flag-name>` or `<FLAG_SECRET>` placeholder blanked with the word it is part of
+ * (`<name>MockFns`), so neither is read as an identifier. A PascalCase `<Name>` is a JSX tag and
+ * stays.
+ */
+export function withoutPlaceholders(text: string): string {
+  return text.replace(/\w*<(?:[a-z][\w-]*|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)>\w*/g, ' ')
+}
+
+/** The segments of a placeholder path before its first placeholder segment, joined. */
+export function fixedPrefix(ref: string): string {
+  const segments = ref.split('/')
+  const first = segments.findIndex((segment) => isPlaceholder(segment))
+  return segments.slice(0, first === -1 ? undefined : first).join('/')
+}
+
 /** A file or directory inside the repo; a path escaping the root never resolves. */
 function resolvesFrom(base: string, ref: string): boolean {
   return SOURCE_EXTENSIONS.some((ext) => {
@@ -200,7 +222,7 @@ function pathResolves(ref: string, docDir: string): boolean {
   }
   // A project's `docs/` folder writes paths from that project's root (`platform/docs` → `platform`).
   const project = path.basename(docDir) === 'docs' ? [path.dirname(docDir)] : []
-  const bases = [ROOT, docDir, APP_ROOT, ...project]
+  const bases = [ROOT, docDir, APP_ROOT, APP_DIR, PRODUCT_DIR, ...project]
   const rel = clean.replace(/^\.\//, '')
   const first = rel.split('/')[0]
   const anchored = bases.filter((base) => existsSync(path.join(base, first)))
@@ -284,6 +306,8 @@ const REPO_PATH =
   /(?:^|[\s'"`(=])((?:apps|packages|scripts|\.claude|\.agents|\.github)\/[\w@.()[\]{}<>*/-]+)/g
 const CHECK_TOKEN = /^(check:[\w:-]+|[\w-]+:check)$/
 const PATH_TOKEN = /^\.{0,2}\/?[\w@.()[\]-]+(?:\/[\w@.()[\]-]*)+$/
+/** A path token with a `<name>`, `{name}` or `*` segment, checked up to that segment. */
+const PLACEHOLDER_PATH_TOKEN = /^\.{0,2}\/?[\w@.()[\]-]+(?:\/[\w@.()[\]<>{}*-]*)+$/
 const BARE_DOC = /^[\w.-]+\.md$/
 
 /** Drops sentence punctuation and an unbalanced closing paren from a path found in running text. */
@@ -308,12 +332,15 @@ export function spanIdentifier(span: string): string | undefined {
   return name && isIdentifierShaped(name) && !NOT_IDENTIFIERS.has(name) ? name : undefined
 }
 
+/** A shell fence: its `$VARIABLES`, flags and quoted patterns are not source names. */
+const SHELL_FENCE = /^\s*(?:bash|sh|shell|console|zsh)\b/i
+
 /**
  * The names a fence starting at `from` declares (`const`, `function`, `interface`, …), which its
  * own code may use freely; null when its info string marks it `example` or `illustrative`.
  */
 function fenceDeclarations(lines: readonly string[], from: number, info: string) {
-  if (/\b(?:example|illustrative)\b/i.test(info)) return null
+  if (/\b(?:example|illustrative)\b/i.test(info) || SHELL_FENCE.test(info)) return null
   const end = lines.findIndex((text, at) => at >= from && /^\s*(```|~~~)/.test(text))
   const body = lines.slice(from, end === -1 ? undefined : end).join('\n')
   const declaration = /\b(?:function|const|let|var|class|interface|type|enum)\s+([A-Za-z_]\w*)/g
@@ -370,7 +397,17 @@ function auditDocument(
   }
 
   const checkPath = (line: number, raw: string) => {
-    if (isPlaceholder(raw) || /^[a-z]+:\/\//i.test(raw) || raw.startsWith('~')) return
+    if (/^[a-z]+:\/\//i.test(raw) || raw.startsWith('~')) return
+    if (isPlaceholder(raw)) {
+      const prefix = fixedPrefix(raw)
+      // Only a prefix with a folder in it is a path; `<name>.ts` or `x/<y>` alone says nothing.
+      if (!prefix.includes('/') || raw.startsWith('/')) return
+      const resolves = prefix.startsWith('@/')
+        ? existsSync(path.join(APP_ROOT, prefix.slice(2)))
+        : prefix.startsWith('@sim/') || pathResolves(prefix, docDir)
+      if (!resolves) report(line, 'path', raw)
+      return
+    }
     if (raw.startsWith('@/') || raw.startsWith('@sim/')) {
       if (!importResolves(raw, workspaces.packages)) report(line, 'import', raw)
       return
@@ -408,7 +445,9 @@ function auditDocument(
       if (/\b(?:from|import|require|mock|vi\.mock|doMock)\b/.test(text)) {
         for (const match of text.matchAll(IMPORT_SPEC)) checkPath(line, match[2])
       }
-      for (const [word] of fenceDeclares ? text.matchAll(/[A-Za-z_]\w*/g) : []) {
+      for (const [word] of fenceDeclares
+        ? withoutPlaceholders(text).matchAll(/[A-Za-z_]\w*/g)
+        : []) {
         const name = spanIdentifier(word)
         if (name && !fenceDeclares?.has(name) && !repo.words.has(name))
           report(line, 'identifier', name)
@@ -426,9 +465,9 @@ function auditDocument(
       const token = span.split(/\s/)[0]
       // An import specifier is checked even when prose follows it in the span.
       if (span !== token && !/^@(?:sim)?\//.test(token)) continue
-      const identifier = spanIdentifier(span)
+      const identifier = spanIdentifier(withoutPlaceholders(span).trim())
       if (identifier && !repo.words.has(identifier)) report(line, 'identifier', identifier)
-      if (PATH_TOKEN.test(token)) checkPath(line, token)
+      if (PATH_TOKEN.test(token) || PLACEHOLDER_PATH_TOKEN.test(token)) checkPath(line, token)
       else if (BARE_FILE.test(token) && !/^[a-z]*[A-Z]\w*\./.test(token) && !isPlaceholder(token)) {
         if (!repo.basenames.has(token)) report(line, 'file', token)
       } else if (BARE_DOC.test(token) && !isPlaceholder(token)) {
@@ -472,32 +511,13 @@ function auditDocument(
   return findings
 }
 
-/** A finding's baseline key: its document and name, so editing the document never moves it. */
-const baselineKey = (finding: Finding) => `${finding.file}\t${finding.ref}`
-
 if (import.meta.main) {
   const files = listRepoFiles(ROOT)
   const docs = guidanceFiles(files)
   const workspaces = readWorkspaces(files)
   const index = readIndex(files)
-  const all = docs.flatMap((doc) => auditDocument(doc, workspaces, files, index))
-  const baseline = new Set<string>(
-    existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, 'utf8')) : []
-  )
-  const baselined = (finding: Finding) => finding.kind === 'file' || finding.kind === 'identifier'
-  const identifiers = new Set(all.filter(baselined).map(baselineKey))
-  if (process.argv.includes('--update')) {
-    const kept = [...identifiers].filter(
-      (key) => baseline.has(key) || process.argv.includes('--init')
-    )
-    writeFileSync(BASELINE, `${JSON.stringify(kept.sort(), null, 2)}\n`)
-    console.log(`Wrote ${kept.length} baseline entries to ${path.relative(ROOT, BASELINE)}`)
-    process.exit(0)
-  }
-  const findings = all.filter((f) => !baselined(f) || !baseline.has(baselineKey(f)))
-  const stale = [...baseline].filter((key) => !identifiers.has(key))
-
-  if (findings.length > 0 || stale.length > 0) {
+  const findings = docs.flatMap((doc) => auditDocument(doc, workspaces, files, index))
+  if (findings.length > 0) {
     const fixes: Record<Finding['kind'], string> = {
       path: 'no such file or directory',
       script: 'no package.json declares this script',
@@ -506,27 +526,18 @@ if (import.meta.main) {
       file: 'no tracked file has this name',
       identifier: 'no tracked source file contains this name',
     }
-    if (findings.length)
-      console.error(`Guidance references that do not exist (${findings.length}):\n`)
+    console.error(`Guidance references that do not exist (${findings.length}):\n`)
     for (const finding of findings) {
       console.error(
         `  ${finding.file}:${finding.line}  [${finding.kind}] ${finding.ref} — ${fixes[finding.kind]}`
       )
     }
-    if (findings.length)
-      console.error(
-        '\nPoint each reference at the current path or name, or delete the sentence if the thing is gone.' +
-          '\nWrite a pattern with a placeholder (`<name>`, `{service}`, `*`) when no single file is meant.'
-      )
-    for (const key of stale) console.error(`  fixed: ${key.replace('\t', ' ')}`)
-    if (stale.length)
-      console.error(
-        `\n${stale.length} baseline entr${stale.length === 1 ? 'y is' : 'ies are'} fixed: shrink the baseline with \`bun run check:guidance-refs -- --update\``
-      )
+    console.error(
+      '\nPoint each reference at the current path or name, or delete the sentence if the thing is gone.' +
+        '\nWrite a pattern with a placeholder (`<name>`, `{service}`, `*`) when no single file is meant.'
+    )
     process.exit(1)
   }
 
-  console.log(
-    `Guidance references resolve: ${docs.length} documents checked (${baseline.size} baselined names).`
-  )
+  console.log(`Guidance references resolve: ${docs.length} documents checked.`)
 }

@@ -1,10 +1,10 @@
 'use client'
 
-import type { HomeWidget } from '@/app/(product)/_components/model'
 import { SavedAccountModal } from '@/app/(product)/_components/service-account-modal/saved-account-modal'
 import { useInterfacePreferences } from '@/app/(product)/_components/session/interface-preferences'
 import { ZoneHomeDashboard } from '@/app/(product)/o/[organizationId]/home/_components/home-dashboard/zone-home-dashboard'
 import { useHiddenHomeWidgets, useLiveHome } from '@/platform/lib/data/home'
+import type { HomeWidget } from '@/platform/lib/data/models/shell'
 
 /** Until the viewer's Customize Home choices are known, every widget they could hide stays unread. */
 const UNKNOWN_CHOICES: readonly HomeWidget[] = ['Activity', 'Workspaces', 'Email', 'Calendar']

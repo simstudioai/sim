@@ -9,8 +9,8 @@ import { RecentItems } from '@sim/emcn-platform/recent-items'
 import { WorkspaceList } from '@sim/emcn-platform/workspace-list'
 import { BrowserContent } from '@/app/(product)/_components/chat/panel/browser-content'
 import type { PanelDestination } from '@/app/(product)/_components/chat/panel/chat-panels'
-import type { PanelData, PanelRecent } from '@/app/(product)/_components/chat/panel/model'
 import styles from '@/app/(product)/_components/chat/panel/panels.module.css'
+import type { PanelData, PanelRecent } from '@/platform/lib/data/models/chat-panel'
 import { formatRelativeTime } from '@/platform/shared/time'
 
 interface PanelContentProps {

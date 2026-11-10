@@ -7,12 +7,12 @@ import { Icon } from '@sim/emcn/icon'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { generateId } from '@sim/utils/id'
 import styles from '@/app/(product)/_components/chat/cards/cards.module.css'
-import type { PlatformTool, ToolDecision } from '@/app/(product)/_components/chat/model'
 import { usePlatformNotices } from '@/app/(product)/_components/notification-tray/notification-tray'
 import {
   useChatHandlers,
   useChatInteractions,
 } from '@/app/(product)/_components/session/chat-runtime'
+import type { PlatformTool, ToolDecision } from '@/platform/lib/data/models/chat'
 
 const BROWSER_TOOL = /^browser[_-]/
 

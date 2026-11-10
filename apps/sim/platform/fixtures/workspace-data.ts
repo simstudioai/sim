@@ -1,6 +1,5 @@
 import 'server-only'
 import { workspacePath } from '@/lib/navigation/paths'
-import type { ShellWorkspace } from '@/app/(product)/_components/model'
 import type {
   DashboardContent,
   DashboardData,
@@ -19,6 +18,7 @@ import { FIXTURE_NOW } from '@/platform/fixtures/clock'
 import nina from '@/platform/fixtures/media/attendee-1.jpg'
 import alex from '@/platform/fixtures/media/attendee-2.jpg'
 import maya from '@/platform/fixtures/media/attendee-3.jpg'
+import type { ShellWorkspace } from '@/platform/lib/data/models/shell'
 import { formatCalendarDate } from '@/platform/shared/time'
 import type {
   ChangelogData,
