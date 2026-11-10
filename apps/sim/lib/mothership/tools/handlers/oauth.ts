@@ -16,7 +16,7 @@ import {
   workspaceEntry,
   workspacePath,
 } from '@/lib/navigation/paths'
-import { resolveWorkspaceShellOrganizationId } from '@/lib/workspaces/shell-organization'
+import { resolveAccessibleWorkspaceShellOrganizationId } from '@/lib/workspaces/shell-organization'
 
 export async function executeOAuthGetAuthLink(
   rawParams: Record<string, unknown>,
@@ -95,7 +95,7 @@ export async function executeOAuthGetAuthLink(
       ? (context.chatOrganizationId ??
         (context.workflowId
           ? null
-          : await resolveWorkspaceShellOrganizationId(workspaceId, context.userId)))
+          : await resolveAccessibleWorkspaceShellOrganizationId(workspaceId, context.userId)))
       : null
     const callbackURL = `${baseUrl}${
       context.chatId && chatOrganizationId

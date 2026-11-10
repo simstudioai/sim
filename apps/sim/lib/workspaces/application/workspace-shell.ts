@@ -1,9 +1,11 @@
+import { db } from '@sim/db'
+import { member } from '@sim/db/schema'
+import { and, eq } from 'drizzle-orm'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resolveOrganizationLanding } from '@/lib/organizations/surface'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
-import { isOrganizationMember } from '@/lib/workspaces/shell-organization'
 
 const workspaceShellOperations = {
   // permission-group-exempt: names the organization whose navigation frames a workspace the viewer can already read; it discloses only an organization they belong to
@@ -52,6 +54,15 @@ export const readWorkspaceShell = defineAuthorizedWorkspaceUseCase({
     ),
   }),
 })
+
+async function isOrganizationMember(organizationId: string, userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: member.id })
+    .from(member)
+    .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
+    .limit(1)
+  return Boolean(row)
+}
 
 /**
  * The organization whose shell a workspace in `workspaceOrganizationId` renders in for `userId`, as
