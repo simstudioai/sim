@@ -1,4 +1,5 @@
 import type { GrafanaGetFolderParams, GrafanaGetFolderResponse } from '@/tools/grafana/types'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getFolderTool: ToolConfig<GrafanaGetFolderParams, GrafanaGetFolderResponse> = {
@@ -6,6 +7,7 @@ export const getFolderTool: ToolConfig<GrafanaGetFolderParams, GrafanaGetFolderR
   name: 'Grafana Get Folder',
   description: 'Get a folder by its UID',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -6,6 +6,7 @@ import type {
   OktaUser,
 } from '@/tools/okta/types'
 import { oktaHeaders, parseOktaPagination, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaListGroupMembers')
@@ -18,6 +19,7 @@ export const oktaListGroupMembersTool: ToolConfig<
   name: 'List Group Members from Okta',
   description: 'List all members of a specific group in your Okta organization',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -7,6 +7,7 @@ import {
   leadOutputs,
   mapLead,
 } from '@/tools/emailbison/utils'
+import { EMAILBISON_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getLeadTool: ToolConfig<EmailBisonGetLeadParams, EmailBisonLeadResponse> = {
@@ -14,6 +15,7 @@ export const getLeadTool: ToolConfig<EmailBisonGetLeadParams, EmailBisonLeadResp
   name: 'Email Bison Get Lead',
   description: 'Retrieves a lead by Email Bison lead ID or email address.',
   version: '1.0.0',
+  oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,
     leadId: {

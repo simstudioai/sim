@@ -6,6 +6,7 @@ import {
   requireValue,
   toStringOrNull,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteSubmissionTool: ToolConfig<
@@ -16,6 +17,7 @@ export const deleteSubmissionTool: ToolConfig<
   name: 'Jotform Delete Submission',
   description: 'Delete a single Jotform submission.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

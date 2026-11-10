@@ -1,3 +1,4 @@
+import { TWILIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TwilioGetRecordingOutput, TwilioGetRecordingParams } from '@/tools/twilio_voice/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const getRecordingTool: InternalToolConfig<
   name: 'Twilio Voice Get Recording',
   description: 'Retrieve call recording information and transcription (if enabled via TwiML).',
   version: '1.0.0',
+  oauth: TWILIO_CREDENTIAL_OAUTH,
 
   params: {
     recordingSid: {

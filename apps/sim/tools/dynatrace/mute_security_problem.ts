@@ -9,6 +9,7 @@ import {
   readJsonBody,
 } from '@/tools/dynatrace/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { DYNATRACE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const muteSecurityProblemTool: ToolConfig<
@@ -20,6 +21,7 @@ export const muteSecurityProblemTool: ToolConfig<
   description:
     'Mute a single Dynatrace vulnerability with a reason, for triaging false positives or accepted risk.',
   version: '1.0.0',
+  oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {

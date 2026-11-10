@@ -11,6 +11,7 @@ import {
   readJsonBody,
 } from '@/tools/dynatrace/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { DYNATRACE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getSettingsObjectTool: ToolConfig<
@@ -22,6 +23,7 @@ export const getSettingsObjectTool: ToolConfig<
   description:
     'Get a single settings object with its value and its update token. Read it before updating so the token can guard against a concurrent change.',
   version: '1.0.0',
+  oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {

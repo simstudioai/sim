@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveGetUserByIdParams, ThriveUserResponse } from '@/tools/thrive/types'
 import { THRIVE_USER_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
@@ -8,6 +9,7 @@ export const getUserByIdTool: ToolConfig<ThriveGetUserByIdParams, ThriveUserResp
   name: 'Thrive Get User by ID',
   description: 'Get a single user in Thrive by their ID and return basic user information.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

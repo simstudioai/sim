@@ -1,4 +1,5 @@
 import type { InfisicalGetSecretParams, InfisicalGetSecretResponse } from '@/tools/infisical/types'
+import { INFISICAL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getSecretTool: ToolConfig<InfisicalGetSecretParams, InfisicalGetSecretResponse> = {
@@ -6,6 +7,7 @@ export const getSecretTool: ToolConfig<InfisicalGetSecretParams, InfisicalGetSec
   name: 'Infisical Get Secret',
   description: 'Retrieve a single secret by name from a project environment.',
   version: '1.0.0',
+  oauth: INFISICAL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

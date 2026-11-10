@@ -8,11 +8,13 @@ import { AffinityBlock, AffinityV2Block } from '@/blocks/blocks/affinity'
 import { AgentMailBlock, AgentMailV2Block } from '@/blocks/blocks/agentmail'
 import { AgentPhoneBlock, AgentPhoneV2Block } from '@/blocks/blocks/agentphone'
 import { AhrefsBlock, AhrefsV2Block } from '@/blocks/blocks/ahrefs'
+import { AlgoliaBlock, AlgoliaV2Block } from '@/blocks/blocks/algolia'
 import { ApifyBlock, ApifyV2Block } from '@/blocks/blocks/apify'
 import { ApolloBlock, ApolloV2Block } from '@/blocks/blocks/apollo'
 import { AppConfigBlock, AppConfigV2Block } from '@/blocks/blocks/appconfig'
 import { AshbyBlock, AshbyV2Block } from '@/blocks/blocks/ashby'
 import { AthenaBlock, AthenaV2Block } from '@/blocks/blocks/athena'
+import { AzureDevOpsBlock, AzureDevOpsV2Block } from '@/blocks/blocks/azure_devops'
 import { BrexBlock, BrexV2Block } from '@/blocks/blocks/brex'
 import { BrightDataBlock, BrightDataV2Block } from '@/blocks/blocks/brightdata'
 import { BrowserUseBlock, BrowserUseV2Block } from '@/blocks/blocks/browser_use'
@@ -26,15 +28,19 @@ import { CloudFormationBlock, CloudFormationV2Block } from '@/blocks/blocks/clou
 import { CloudTrailBlock, CloudTrailV2Block } from '@/blocks/blocks/cloudtrail'
 import { CloudWatchBlock, CloudWatchV2Block } from '@/blocks/blocks/cloudwatch'
 import { CodePipelineBlock, CodePipelineV2Block } from '@/blocks/blocks/codepipeline'
+import { ConvexBlock, ConvexV2Block } from '@/blocks/blocks/convex'
 import { CrunchbaseBlock, CrunchbaseV2Block } from '@/blocks/blocks/crunchbase'
 import { CursorV2Block, CursorV3Block } from '@/blocks/blocks/cursor'
 import { DatabricksBlock, DatabricksV2Block } from '@/blocks/blocks/databricks'
 import { DaytonaBlock, DaytonaV2Block } from '@/blocks/blocks/daytona'
+import { DevinBlock, DevinV2Block } from '@/blocks/blocks/devin'
 import { DiscordBlock, DiscordV2Block } from '@/blocks/blocks/discord'
 import { DubV2Block, DubV3Block } from '@/blocks/blocks/dub'
 import { DynamoDBBlock, DynamoDBV2Block } from '@/blocks/blocks/dynamodb'
+import { DynatraceBlock, DynatraceV2Block } from '@/blocks/blocks/dynatrace'
 import { EC2Block, EC2V2Block } from '@/blocks/blocks/ec2'
 import { ElevenLabsBlock, ElevenLabsV2Block } from '@/blocks/blocks/elevenlabs'
+import { EmailBisonBlock, EmailBisonV2Block } from '@/blocks/blocks/emailbison'
 import { EnrichBlock, EnrichV2Block } from '@/blocks/blocks/enrich'
 import { ExtendV2Block, ExtendV3Block } from '@/blocks/blocks/extend'
 import { FathomBlock, FathomV2Block } from '@/blocks/blocks/fathom'
@@ -42,6 +48,7 @@ import { FirefliesV2Block, FirefliesV3Block } from '@/blocks/blocks/fireflies'
 import { FlintBlock, FlintV2Block } from '@/blocks/blocks/flint'
 import { GammaBlock, GammaV2Block } from '@/blocks/blocks/gamma'
 import { GitLabBlock, GitLabV2Block } from '@/blocks/blocks/gitlab'
+import { GrafanaBlock, GrafanaV2Block } from '@/blocks/blocks/grafana'
 import { GrainV2Block, GrainV3Block } from '@/blocks/blocks/grain'
 import { GranolaBlock, GranolaV2Block } from '@/blocks/blocks/granola'
 import { HexBlock, HexV2Block } from '@/blocks/blocks/hex'
@@ -49,20 +56,28 @@ import { HuggingFaceBlock, HuggingFaceV2Block } from '@/blocks/blocks/huggingfac
 import { IAMBlock, IAMV2Block } from '@/blocks/blocks/iam'
 import { IdentityCenterBlock, IdentityCenterV2Block } from '@/blocks/blocks/identity_center'
 import { IncidentioBlock, IncidentioV2Block } from '@/blocks/blocks/incidentio'
+import { InfisicalBlock, InfisicalV2Block } from '@/blocks/blocks/infisical'
 import { InstantlyBlock, InstantlyV2Block } from '@/blocks/blocks/instantly'
 import { IntercomV2Block, IntercomV3Block } from '@/blocks/blocks/intercom'
+import { JotformBlock, JotformV2Block } from '@/blocks/blocks/jotform'
+import { JupyterV2Block, JupyterV3Block } from '@/blocks/blocks/jupyter'
 import { LambdaBlock, LambdaV2Block } from '@/blocks/blocks/lambda'
 import { LangsmithBlock, LangsmithV2Block } from '@/blocks/blocks/langsmith'
 import { LaunchDarklyBlock, LaunchDarklyV2Block } from '@/blocks/blocks/launchdarkly'
 import { LemlistBlock, LemlistV2Block } from '@/blocks/blocks/lemlist'
 import { LinqBlock, LinqV2Block } from '@/blocks/blocks/linq'
+import { LogfireBlock, LogfireV2Block } from '@/blocks/blocks/logfire'
 import { LoopsBlock, LoopsV2Block } from '@/blocks/blocks/loops'
 import { LumaBlock, LumaV2Block } from '@/blocks/blocks/luma'
 import { MailchimpBlock, MailchimpV2Block } from '@/blocks/blocks/mailchimp'
+import { MailgunBlock, MailgunV2Block } from '@/blocks/blocks/mailgun'
 import { Mem0Block, Mem0V2Block } from '@/blocks/blocks/mem0'
+import { NewRelicBlock, NewRelicV2Block } from '@/blocks/blocks/new_relic'
+import { OktaBlock, OktaV2Block } from '@/blocks/blocks/okta'
 import { OtterBlock, OtterV2Block } from '@/blocks/blocks/otter'
 import { PagerDutyBlock, PagerDutyV2Block } from '@/blocks/blocks/pagerduty'
 import { PersonaBlock, PersonaV2Block } from '@/blocks/blocks/persona'
+import { PlaneBlock, PlaneV2Block } from '@/blocks/blocks/plane'
 import { ProfoundBlock, ProfoundV2Block } from '@/blocks/blocks/profound'
 import { PulseV2Block, PulseV3Block } from '@/blocks/blocks/pulse'
 import { QuartrBlock, QuartrV2Block } from '@/blocks/blocks/quartr'
@@ -88,12 +103,18 @@ import { SquareBlock, SquareV2Block } from '@/blocks/blocks/square'
 import { SSMBlock, SSMV2Block } from '@/blocks/blocks/ssm'
 import { StripeBlock, StripeV2Block } from '@/blocks/blocks/stripe'
 import { STSBlock, STSV2Block } from '@/blocks/blocks/sts'
+import { SupabaseBlock, SupabaseV2Block } from '@/blocks/blocks/supabase'
 import { TailscaleBlock, TailscaleV2Block } from '@/blocks/blocks/tailscale'
 import { TavilyBlock, TavilyV2Block } from '@/blocks/blocks/tavily'
 import { TelegramBlock, TelegramV2Block } from '@/blocks/blocks/telegram'
 import { TextractBlock, TextractV2Block, TextractV3Block } from '@/blocks/blocks/textract'
+import { ThriveBlock, ThriveV2Block } from '@/blocks/blocks/thrive'
+import { TinybirdBlock, TinybirdV2Block } from '@/blocks/blocks/tinybird'
 import { TriggerDevBlock, TriggerDevV2Block } from '@/blocks/blocks/trigger_dev'
+import { TwilioSMSBlock, TwilioSMSV2Block } from '@/blocks/blocks/twilio'
+import { TwilioVoiceBlock, TwilioVoiceV2Block } from '@/blocks/blocks/twilio_voice'
 import { TypeformBlock, TypeformV2Block } from '@/blocks/blocks/typeform'
+import { UpstashBlock, UpstashV2Block } from '@/blocks/blocks/upstash'
 import { UptimeRobotBlock, UptimeRobotV2Block } from '@/blocks/blocks/uptimerobot'
 import { VercelBlock, VercelV2Block } from '@/blocks/blocks/vercel'
 import { WhatsAppBlock, WhatsAppV2Block } from '@/blocks/blocks/whatsapp'
@@ -269,6 +290,75 @@ const VERSIONS: Array<{
     legacy: GitLabBlock,
     successor: GitLabV2Block,
     secretIds: ['accessToken', 'host'],
+    optionalIds: ['host'],
+  },
+  { legacy: GrafanaBlock, successor: GrafanaV2Block, secretIds: ['baseUrl', 'apiKey'] },
+  { legacy: JupyterV2Block, successor: JupyterV3Block, secretIds: ['serverUrl', 'token'] },
+  { legacy: ConvexBlock, successor: ConvexV2Block, secretIds: ['deploymentUrl', 'deployKey'] },
+  { legacy: TinybirdBlock, successor: TinybirdV2Block, secretIds: ['token', 'base_url'] },
+  {
+    legacy: DynatraceBlock,
+    successor: DynatraceV2Block,
+    secretIds: ['apiToken', 'environmentUrl'],
+  },
+  {
+    legacy: NewRelicBlock,
+    successor: NewRelicV2Block,
+    secretIds: ['apiKey', 'region'],
+    optionalIds: ['region'],
+  },
+  {
+    legacy: LogfireBlock,
+    successor: LogfireV2Block,
+    secretIds: ['apiKey', 'host', 'region'],
+    optionalIds: ['host', 'region'],
+  },
+  {
+    legacy: MailgunBlock,
+    successor: MailgunV2Block,
+    secretIds: ['apiKey', 'region'],
+    optionalIds: ['region'],
+  },
+  {
+    legacy: JotformBlock,
+    successor: JotformV2Block,
+    secretIds: ['apiKey', 'region'],
+    optionalIds: ['region'],
+  },
+  {
+    legacy: PlaneBlock,
+    successor: PlaneV2Block,
+    secretIds: ['apiKey', 'baseUrl'],
+    optionalIds: ['baseUrl'],
+  },
+  {
+    legacy: AzureDevOpsBlock,
+    successor: AzureDevOpsV2Block,
+    secretIds: ['accessToken', 'organization'],
+    optionalIds: ['organization'],
+  },
+  { legacy: TwilioSMSBlock, successor: TwilioSMSV2Block, secretIds: ['accountSid', 'authToken'] },
+  {
+    legacy: TwilioVoiceBlock,
+    successor: TwilioVoiceV2Block,
+    secretIds: ['accountSid', 'authToken'],
+  },
+  { legacy: AlgoliaBlock, successor: AlgoliaV2Block, secretIds: ['applicationId', 'apiKey'] },
+  { legacy: UpstashBlock, successor: UpstashV2Block, secretIds: ['restUrl', 'restToken'] },
+  { legacy: EmailBisonBlock, successor: EmailBisonV2Block, secretIds: ['apiKey'] },
+  { legacy: DevinBlock, successor: DevinV2Block, secretIds: ['apiKey'] },
+  { legacy: OktaBlock, successor: OktaV2Block, secretIds: ['apiKey'] },
+  {
+    legacy: InfisicalBlock,
+    successor: InfisicalV2Block,
+    secretIds: ['apiKey', 'baseUrl'],
+    optionalIds: ['baseUrl'],
+  },
+  { legacy: SupabaseBlock, successor: SupabaseV2Block, secretIds: ['apiKey', 'projectId'] },
+  {
+    legacy: ThriveBlock,
+    successor: ThriveV2Block,
+    secretIds: ['tenantId', 'apiKey', 'host'],
     optionalIds: ['host'],
   },
 ]

@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveDeleteAudienceParams, ThriveDeleteResponse } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const deleteAudienceTool: ToolConfig<ThriveDeleteAudienceParams, ThriveDe
   name: 'Thrive Delete Audience',
   description: 'Delete an audience in Thrive (only if it has no child audiences).',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

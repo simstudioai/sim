@@ -1,5 +1,5 @@
 import { CloudTrailClient } from '@aws-sdk/client-cloudtrail'
-import { awsClientCredentials } from '@/lib/internal/aws/credentials'
+import { awsClientConfig } from '@/lib/internal/aws/credentials'
 
 export interface CloudTrailConnectionConfig {
   region: string
@@ -25,8 +25,7 @@ export function createCloudTrailClient(
   options: CreateCloudTrailClientOptions = {}
 ): CloudTrailClient {
   return new CloudTrailClient({
-    region: config.region,
-    credentials: awsClientCredentials(config.accessKeyId, config.secretAccessKey),
+    ...awsClientConfig(config.region, config.accessKeyId, config.secretAccessKey),
     ...(options.throttleSensitive
       ? { retryMode: 'adaptive', maxAttempts: THROTTLE_SENSITIVE_MAX_ATTEMPTS }
       : {}),

@@ -457,6 +457,17 @@ describe('ordinary tool credential binding', () => {
     })
   })
 
+  it('refuses to release a service-account secret without a tool to bind it to', async () => {
+    const result = await resolveCredentialAccessToken({
+      requestId: 'binding-test',
+      credentialId: 'credential-1',
+      authenticate,
+    })
+
+    expect(result).toMatchObject({ ok: false, status: 400, code: 'SERVICE_ACCOUNT_TOOL_REQUIRED' })
+    expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
+  })
+
   it.each(['vanta', 'oracle-epm-service-account', 'unknown-provider'])(
     'rejects an authorized %s credential before minting a Fusion token',
     async (providerId) => {

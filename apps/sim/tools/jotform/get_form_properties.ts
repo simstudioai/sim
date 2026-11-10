@@ -10,6 +10,7 @@ import {
   requireValue,
   trimOrUndefined,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getFormPropertiesTool: ToolConfig<
@@ -21,6 +22,7 @@ export const getFormPropertiesTool: ToolConfig<
   description:
     'Get the settings of a form: layout, limits, redirect behavior, notification emails, and validation strings. Supply a property key to read just one.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -2,6 +2,7 @@ import type {
   GrafanaCreateContactPointParams,
   GrafanaCreateContactPointResponse,
 } from '@/tools/grafana/types'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createContactPointTool: ToolConfig<
@@ -12,6 +13,7 @@ export const createContactPointTool: ToolConfig<
   name: 'Grafana Create Contact Point',
   description: 'Create a notification contact point (e.g., Slack, email, PagerDuty)',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,5 +1,5 @@
 import { AthenaClient } from '@aws-sdk/client-athena'
-import { awsClientCredentials } from '@/lib/internal/aws/credentials'
+import { awsClientConfig } from '@/lib/internal/aws/credentials'
 
 export interface AthenaConnectionConfig {
   region: string
@@ -9,7 +9,6 @@ export interface AthenaConnectionConfig {
 
 export function createAthenaClient(config: AthenaConnectionConfig): AthenaClient {
   return new AthenaClient({
-    region: config.region,
-    credentials: awsClientCredentials(config.accessKeyId, config.secretAccessKey),
+    ...awsClientConfig(config.region, config.accessKeyId, config.secretAccessKey),
   })
 }

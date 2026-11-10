@@ -2,6 +2,7 @@ import type {
   JupyterInterruptKernelParams,
   JupyterInterruptKernelResponse,
 } from '@/tools/jupyter/types'
+import { JUPYTER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const jupyterInterruptKernelTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const jupyterInterruptKernelTool: InternalToolConfig<
   name: 'Jupyter Interrupt Kernel',
   description: 'Interrupt a running kernel on a Jupyter server',
   version: '1.0.0',
+  oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {
     serverUrl: {

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { TINYBIRD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TinybirdQueryPipeParams, TinybirdQueryPipeResponse } from '@/tools/tinybird/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -47,6 +48,7 @@ export const queryPipeTool: ToolConfig<TinybirdQueryPipeParams, TinybirdQueryPip
   description:
     'Call a published Tinybird Pipe API Endpoint by name, passing dynamic parameters and receiving structured JSON results.',
   version: '1.0.0',
+  oauth: TINYBIRD_CREDENTIAL_OAUTH,
   errorExtractor: 'nested-error-object',
 
   params: {

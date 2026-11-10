@@ -5,6 +5,7 @@ import type {
   OktaRemoveGroupFromAppResponse,
 } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaRemoveGroupFromApp')
@@ -18,6 +19,7 @@ export const oktaRemoveGroupFromAppTool: ToolConfig<
   description:
     'Unassign a group from an Okta application. Destructive: every member who had access only through this group loses access to the app.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

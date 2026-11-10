@@ -1,4 +1,5 @@
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { SUPABASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   STORAGE_MESSAGE_OUTPUT_PROPERTIES,
   type SupabaseStorageUpdateBucketParams,
@@ -14,6 +15,7 @@ export const storageUpdateBucketTool: InternalToolConfig<
   name: 'Supabase Storage Update Bucket',
   description: 'Update the configuration of an existing Supabase storage bucket',
   version: '1.0.0',
+  oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {

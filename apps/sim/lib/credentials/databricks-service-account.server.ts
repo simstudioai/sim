@@ -12,6 +12,7 @@ import {
 } from '@/lib/credentials/token-service-accounts/errors'
 import { WORKLOAD_IDENTITY_AUDIENCES } from '@/lib/credentials/workload-identity/audiences'
 import {
+  MAX_WORKLOAD_IDENTITY_TOKEN_TTL_SECONDS,
   mintWorkloadIdentityToken,
   type WorkloadIdentityOwner,
 } from '@/lib/credentials/workload-identity/issuer'
@@ -182,6 +183,8 @@ async function resolveDatabricksAccessToken(
     subject: config.subject,
     audience: DATABRICKS_WORKLOAD_IDENTITY_AUDIENCE,
     owner,
+    // Databricks' token expires with this one, and Genie polls for up to five minutes.
+    ttlSeconds: MAX_WORKLOAD_IDENTITY_TOKEN_TTL_SECONDS,
   })
   return requestWorkspaceToken(
     config.host,

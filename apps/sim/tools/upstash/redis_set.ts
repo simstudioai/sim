@@ -1,3 +1,4 @@
+import { UPSTASH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { UpstashRedisSetParams, UpstashRedisSetResponse } from '@/tools/upstash/types'
 
@@ -7,6 +8,7 @@ export const upstashRedisSetTool: ToolConfig<UpstashRedisSetParams, UpstashRedis
   description:
     'Set the value of a key in Upstash Redis with an optional expiration time in seconds.',
   version: '1.0.0',
+  oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {
     restUrl: {

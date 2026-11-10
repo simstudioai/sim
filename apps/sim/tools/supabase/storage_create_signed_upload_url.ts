@@ -1,3 +1,4 @@
+import { SUPABASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SupabaseStorageCreateSignedUploadUrlParams,
   SupabaseStorageCreateSignedUploadUrlResponse,
@@ -14,6 +15,7 @@ export const storageCreateSignedUploadUrlTool: ToolConfig<
   description:
     'Create a temporary signed URL a client can use to upload directly to a Supabase storage bucket',
   version: '1.0.0',
+  oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {

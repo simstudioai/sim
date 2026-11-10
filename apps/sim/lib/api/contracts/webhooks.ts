@@ -52,15 +52,15 @@ export const webhookIdParamsSchema = z.object({
   id: z.string().min(1),
 })
 
+/**
+ * Pauses or resumes a webhook trigger. Re-enabling always clears the failure
+ * count, so the count is not caller-settable; `failedCount: 0` is still
+ * accepted and ignored so an editor loaded before that change keeps working.
+ */
 export const webhookPatchBodySchema = z
   .object({
-    isActive: z.boolean().optional(),
-    failedCount: z
-      .number({ error: 'failedCount must be a number' })
-      .finite('failedCount must be a valid number')
-      .int('failedCount must be an integer')
-      .min(0, 'failedCount must be at least 0')
-      .optional(),
+    isActive: z.boolean({ error: 'isActive must be a boolean' }),
+    failedCount: z.literal(0).optional(),
   })
   .strict()
 export type WebhookPatchBody = z.input<typeof webhookPatchBodySchema>

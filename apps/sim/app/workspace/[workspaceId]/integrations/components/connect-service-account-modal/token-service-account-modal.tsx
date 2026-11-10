@@ -110,7 +110,7 @@ function TokenServiceAccountModalForm({
   const workspaceField = descriptor.fields.find((field) => field.id === 'providerWorkspaceId')
 
   const trimmedToken = apiToken.trim()
-  const normalizedDomain = normalizeDomainInput(domain)
+  const normalizedDomain = domainField?.url ? domain.trim() : normalizeDomainInput(domain)
   const isPending =
     createCredential.isPending || updateCredential.isPending || submitPending === true
   const isDisabled =

@@ -849,7 +849,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "algolia",
+      "type": "algolia_v2",
       "slug": "algolia",
       "name": "Algolia",
       "description": "Search and manage Algolia indices",
@@ -926,11 +926,12 @@
       "operationCount": 16,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "algolia",
       "category": "tools",
       "integrationType": "search",
       "tags": ["vector-search", "knowledge-base"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "dynamodb_v2",
@@ -3265,7 +3266,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "azure_devops",
+      "type": "azure_devops_v2",
       "slug": "azure-devops",
       "name": "Azure DevOps",
       "description": "Interact with Azure DevOps pipelines, builds, and work items",
@@ -3358,11 +3359,12 @@
         }
       ],
       "triggerCount": 3,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "azure_devops",
       "category": "tools",
       "integrationType": "devops",
       "tags": ["version-control", "ci-cd", "project-management"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "bitbucket",
@@ -6979,7 +6981,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "convex",
+      "type": "convex_v2",
       "slug": "convex",
       "name": "Convex",
       "description": "Use Convex database",
@@ -7020,11 +7022,12 @@
       "operationCount": 7,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "convex",
       "category": "tools",
       "integrationType": "databases",
       "tags": ["cloud"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "crowdstrike",
@@ -7907,7 +7910,7 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "devin",
+      "type": "devin_v2",
       "slug": "devin",
       "name": "Devin",
       "description": "Autonomous AI software engineer",
@@ -7964,11 +7967,12 @@
       "operationCount": 11,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "devin",
       "category": "tools",
       "integrationType": "devops",
       "tags": ["agentic", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "discord_v2",
@@ -8523,7 +8527,7 @@
       "updatedAt": "2026-10-02"
     },
     {
-      "type": "dynatrace",
+      "type": "dynatrace_v2",
       "slug": "dynatrace",
       "name": "Dynatrace",
       "description": "Manage Dynatrace problems, metrics, entities, logs, SLOs, settings, and security",
@@ -8724,11 +8728,12 @@
       "operationCount": 47,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "dynatrace",
       "category": "tools",
       "integrationType": "observability",
       "tags": ["monitoring", "incident-management", "error-tracking"],
-      "updatedAt": "2026-08-18"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "elasticsearch",
@@ -8864,7 +8869,7 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "emailbison",
+      "type": "emailbison_v2",
       "slug": "email-bison",
       "name": "Email Bison",
       "description": "Manage Email Bison leads, campaigns, replies, and tags",
@@ -9015,11 +9020,12 @@
         }
       ],
       "triggerCount": 17,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "emailbison",
       "category": "tools",
       "integrationType": "email",
       "tags": ["sales-engagement", "email-marketing", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "embeddings",
@@ -12430,7 +12436,7 @@
       "updatedAt": "2026-08-18"
     },
     {
-      "type": "grafana",
+      "type": "grafana_v2",
       "slug": "grafana",
       "name": "Grafana",
       "description": "Interact with Grafana dashboards, alerts, and annotations",
@@ -12563,11 +12569,12 @@
       "operationCount": 30,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "grafana",
       "category": "tools",
       "integrationType": "observability",
       "tags": ["monitoring", "data-analytics"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "grain_v3",
@@ -14149,11 +14156,11 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "infisical",
+      "type": "infisical_v2",
       "slug": "infisical",
       "name": "Infisical",
       "description": "Manage secrets with Infisical",
-      "longDescription": "List, get, create, update, and delete secrets across project environments.",
+      "longDescription": "List, get, create, update, and delete secrets across project environments on Infisical Cloud or a self-hosted instance.",
       "bgColor": "#F7FE62",
       "iconName": "InfisicalIcon",
       "docsUrl": "https://docs.sim.ai/integrations/infisical",
@@ -14182,11 +14189,12 @@
       "operationCount": 5,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "infisical",
       "category": "tools",
       "integrationType": "security",
       "tags": ["secrets-management"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "instantly_v2",
@@ -15200,7 +15208,7 @@
       "updatedAt": "2026-08-18"
     },
     {
-      "type": "jotform",
+      "type": "jotform_v2",
       "slug": "jotform",
       "name": "Jotform",
       "description": "Read submissions, manage forms, and wire up webhooks in Jotform",
@@ -15391,14 +15399,15 @@
         }
       ],
       "triggerCount": 1,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "jotform",
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["forms", "automation", "webhooks"],
-      "updatedAt": "2026-08-18"
+      "updatedAt": "2026-11-10"
     },
     {
-      "type": "jupyter_v2",
+      "type": "jupyter_v3",
       "slug": "jupyter",
       "name": "Jupyter",
       "description": "Manage files, notebooks, kernels, and sessions on a Jupyter server",
@@ -15475,11 +15484,12 @@
       "operationCount": 16,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "jupyter",
       "category": "tools",
       "integrationType": "devops",
       "tags": ["automation", "data-analytics"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "kalshi_v2",
@@ -16782,7 +16792,7 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "logfire",
+      "type": "logfire_v2",
       "slug": "logfire",
       "name": "Logfire",
       "description": "Query traces, logs, and metrics in Pydantic Logfire",
@@ -16811,11 +16821,12 @@
       "operationCount": 4,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "logfire",
       "category": "tools",
       "integrationType": "observability",
       "tags": ["monitoring", "error-tracking", "incident-management"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "logrocket",
@@ -17354,7 +17365,7 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "mailgun",
+      "type": "mailgun_v2",
       "slug": "mailgun",
       "name": "Mailgun",
       "description": "Send emails and manage mailing lists with Mailgun",
@@ -17399,11 +17410,12 @@
       "operationCount": 8,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "mailgun",
       "category": "tools",
       "integrationType": "email",
       "tags": ["messaging", "email-marketing"],
-      "updatedAt": "2026-10-20"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "manageengine_sdp",
@@ -18705,7 +18717,7 @@
       "updatedAt": "2026-08-18"
     },
     {
-      "type": "new_relic",
+      "type": "new_relic_v2",
       "slug": "new-relic",
       "name": "New Relic",
       "description": "Query observability data and record deployments in New Relic",
@@ -18734,11 +18746,12 @@
       "operationCount": 4,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "new_relic",
       "category": "tools",
       "integrationType": "observability",
       "tags": ["monitoring", "error-tracking", "incident-management"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "notion_v2",
@@ -18960,7 +18973,7 @@
       "updatedAt": "2026-08-18"
     },
     {
-      "type": "okta",
+      "type": "okta_v2",
       "slug": "okta",
       "name": "Okta",
       "description": "Manage users, groups, apps, and MFA in Okta",
@@ -19149,11 +19162,12 @@
       "operationCount": 44,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "okta",
       "category": "tools",
       "integrationType": "security",
       "tags": ["identity", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "onedrive",
@@ -20652,7 +20666,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "plane",
+      "type": "plane_v2",
       "slug": "plane",
       "name": "Plane",
       "description": "Manage projects and work items in Plane",
@@ -21154,11 +21168,12 @@
         }
       ],
       "triggerCount": 44,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "plane",
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["project-management", "ticketing"],
-      "updatedAt": "2026-10-06"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "planetscale",
@@ -21873,7 +21888,7 @@
       "category": "tools",
       "integrationType": "databases",
       "tags": ["vector-search", "knowledge-base"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "quartr_v2",
@@ -28310,7 +28325,7 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "supabase",
+      "type": "supabase_v2",
       "slug": "supabase",
       "name": "Supabase",
       "description": "Use Supabase database",
@@ -28427,11 +28442,12 @@
       "operationCount": 26,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "supabase",
       "category": "tools",
       "integrationType": "databases",
       "tags": ["cloud", "data-warehouse", "vector-search"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "tailscale_v2",
@@ -28855,7 +28871,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "thrive",
+      "type": "thrive_v2",
       "slug": "thrive",
       "name": "Thrive",
       "description": "Manage users, audiences, learning and CPD on Thrive",
@@ -29056,11 +29072,12 @@
       "operationCount": 47,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "thrive",
       "category": "tools",
       "integrationType": "hr",
       "tags": ["content-management", "knowledge-base", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "tiktok",
@@ -29135,7 +29152,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "tinybird",
+      "type": "tinybird_v2",
       "slug": "tinybird",
       "name": "Tinybird",
       "description": "Send events, query data, and manage Data Sources with Tinybird",
@@ -29176,11 +29193,12 @@
       "operationCount": 7,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "tinybird",
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["data-warehouse", "data-analytics"],
-      "updatedAt": "2026-08-18"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "tinyfish",
@@ -29541,7 +29559,7 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "twilio_sms",
+      "type": "twilio_sms_v2",
       "slug": "twilio-sms",
       "name": "Twilio SMS",
       "description": "Send SMS messages",
@@ -29569,14 +29587,15 @@
         }
       ],
       "triggerCount": 2,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "twilio",
       "category": "tools",
       "integrationType": "communication",
       "tags": ["messaging", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
-      "type": "twilio_voice",
+      "type": "twilio_voice_v2",
       "slug": "twilio-voice",
       "name": "Twilio Voice",
       "description": "Make and manage phone calls",
@@ -29607,11 +29626,12 @@
         }
       ],
       "triggerCount": 1,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "twilio",
       "category": "tools",
       "integrationType": "communication",
       "tags": ["messaging", "text-to-speech"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "typeform_v2",
@@ -29673,7 +29693,7 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "upstash",
+      "type": "upstash_v2",
       "slug": "upstash",
       "name": "Upstash",
       "description": "Serverless Redis with Upstash",
@@ -29750,11 +29770,12 @@
       "operationCount": 16,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "upstash",
       "category": "tools",
       "integrationType": "databases",
       "tags": ["cloud"],
-      "updatedAt": "2026-08-18"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "uptimerobot_v2",

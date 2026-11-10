@@ -2,6 +2,7 @@ import type {
   InfisicalCreateSecretParams,
   InfisicalCreateSecretResponse,
 } from '@/tools/infisical/types'
+import { INFISICAL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createSecretTool: ToolConfig<
@@ -12,6 +13,7 @@ export const createSecretTool: ToolConfig<
   name: 'Infisical Create Secret',
   description: 'Create a new secret in a project environment.',
   version: '1.0.0',
+  oauth: INFISICAL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

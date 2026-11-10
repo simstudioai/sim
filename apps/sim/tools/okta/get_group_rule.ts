@@ -6,6 +6,7 @@ import type {
   OktaGroupRule,
 } from '@/tools/okta/types'
 import { mapOktaGroupRule, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaGetGroupRule')
@@ -16,6 +17,7 @@ export const oktaGetGroupRuleTool: ToolConfig<OktaGetGroupRuleParams, OktaGetGro
   description:
     'Retrieve a single Okta group rule by ID, including the expression that decides which users it matches and the groups those users are assigned to.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -4,6 +4,14 @@
  */
 export const THRIVE_DEFAULT_HOST = 'public.api.learn.link'
 
+/** Every Thrive API host: production and staging, each in the default and MEA regions. */
+export const THRIVE_HOSTS: ReadonlySet<string> = new Set([
+  THRIVE_DEFAULT_HOST,
+  'public.api.mea.learn.tech',
+  'public.api.learnstaging.link',
+  'public.api.meastaging.learn.tech',
+])
+
 /**
  * Builds the base REST URL for a Thrive API request.
  *

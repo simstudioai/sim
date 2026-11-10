@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveAddUsersResponse, ThriveAudienceManagersParams } from '@/tools/thrive/types'
 import { THRIVE_ADD_USERS_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import {
@@ -17,6 +18,7 @@ export const replaceAudienceManagersTool: ToolConfig<
   description:
     "Replace a Thrive audience's entire manager list with the given managers (does not support an empty array).",
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

@@ -9,6 +9,7 @@ import {
   toJsonObject,
   trimOrUndefined,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createQuestionTool: ToolConfig<JotformCreateQuestionParams, JotformQuestionResponse> =
@@ -17,6 +18,7 @@ export const createQuestionTool: ToolConfig<JotformCreateQuestionParams, Jotform
     name: 'Jotform Create Question',
     description: 'Add a question to an existing Jotform form.',
     version: '1.0.0',
+    oauth: JOTFORM_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

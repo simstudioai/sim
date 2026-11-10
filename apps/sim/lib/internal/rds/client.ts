@@ -5,13 +5,12 @@ import {
   RDSDataClient,
   type SqlParameter,
 } from '@aws-sdk/client-rds-data'
-import { awsClientCredentials } from '@/lib/internal/aws/credentials'
+import { awsClientConfig } from '@/lib/internal/aws/credentials'
 import type { RdsConnectionConfig } from '@/tools/rds/types'
 
 export function createRdsClient(config: RdsConnectionConfig): RDSDataClient {
   return new RDSDataClient({
-    region: config.region,
-    credentials: awsClientCredentials(config.accessKeyId, config.secretAccessKey),
+    ...awsClientConfig(config.region, config.accessKeyId, config.secretAccessKey),
   })
 }
 

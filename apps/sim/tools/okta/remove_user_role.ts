@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaRemoveUserRoleParams, OktaRemoveUserRoleResponse } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaRemoveUserRole')
@@ -15,6 +16,7 @@ export const oktaRemoveUserRoleTool: ToolConfig<
   description:
     'Revoke an administrator role from a user. Destructive: the user immediately loses the admin permissions that role granted. Takes the role assignment ID, not the role type, which List User Roles returns as the role id field.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

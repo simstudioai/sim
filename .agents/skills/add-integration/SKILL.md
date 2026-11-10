@@ -66,6 +66,42 @@ Use explicit permission choices when the supported operations have different acc
 region and permission selections on reconnect unless the user changes them. Verify documented
 identity endpoints rather than guessing which person a client-credentials token represents.
 
+### Token credentials (API key, personal access token, token + host)
+
+A service authenticated by a pasted key or token takes it through a saved token credential, never an
+inline `password` field, so one shared, verified credential serves every block. Wire it by the
+service id:
+
+1. `apps/sim/lib/credentials/token-service-accounts/descriptors.ts`: a provider id and descriptor.
+   Fields are `apiToken`, plus `domain` for a host, instance URL, or region and
+   `providerWorkspaceId` for an account or org id; every listed field is required. Set `url: true`
+   on a `domain` that is a URL whose scheme or path matters, so the connect form sends it as typed.
+2. `validators/token-checks.ts`: one `tokenCheckValidator` declaration (register it in
+   `server.ts`). Make one cheap, documented read on the tools' own host with the tools' own auth,
+   reusing their header and URL builders. `domain` and `workspaceId` normalize to exactly the form
+   the tools build URLs from and throw for anything that could steer the host or path
+   (`normalizeHttpBaseUrl`, `allowedDomain`, `refuseUrlCredentials`); the normalized domain is what
+   the credential stores. Set `egress` when the user chooses the host. Add `forbiddenMeansScoped`,
+   `rejectsKey`, or `provesKey` only for documented replies (probe a fake key to see how a bad one
+   answers), and `errorBodyEchoesToken` when an error body echoes the token.
+3. `apps/sim/lib/oauth/oauth.ts` and `types.ts`: the service entry (`authType: 'service_account'`,
+   `serviceAccountProviderId`).
+4. `apps/sim/tools/shared/saved-credentials.ts`: `tokenCredentialOAuth('<service>', { <toolParam>:
+   'accessToken' | 'domain' | 'providerWorkspaceId' })`, listed in `SAVED_CREDENTIAL_OAUTH`, and set
+   as `oauth` on every tool. Map every param that decides the request host; the executor overwrites
+   mapped params after authorizing the credential, and `check-block-registry` probes the tools' real
+   URL builders and fails on a host-steering param left unmapped.
+5. A credential-only block (including a successor) uses `authMode: AuthMode.OAuth`, so the
+   generated catalog maps the service; a token-only block that keeps `AuthMode.ApiKey`, as Coda
+   does, registers in `tokenCredentialIntegrationTypes` instead (see below). The credential picker
+   sits directly under the operation dropdown (`add-block` → OAuth/Credentials). An existing block that already takes the secret inline is never edited in
+   place: add a credential-only successor (`add-block` → Credential-only successor).
+
+Then run `generate-docs`, `generate:block-successors`, `generate:deployment-config`, and
+`generate:tool-metadata`, and `check-block-registry.ts origin/staging`. This pattern does not fit
+hosted-key tools, model-provider keys, two-secret or username/password logins, or a host chosen
+per call.
+
 ### Pair saved credentials with block and resource selectors
 
 `oauth-input` is the shared saved-credential picker, including for service accounts that never

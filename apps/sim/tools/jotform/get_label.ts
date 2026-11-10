@@ -6,6 +6,7 @@ import {
   parseJotformResponse,
   requireValue,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getLabelTool: ToolConfig<JotformGetLabelParams, JotformLabelResponse> = {
@@ -13,6 +14,7 @@ export const getLabelTool: ToolConfig<JotformGetLabelParams, JotformLabelRespons
   name: 'Jotform Get Label',
   description: 'Get the name, color, and owner of a single Jotform label.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

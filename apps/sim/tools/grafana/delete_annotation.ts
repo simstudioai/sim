@@ -2,6 +2,7 @@ import type {
   GrafanaDeleteAnnotationParams,
   GrafanaDeleteAnnotationResponse,
 } from '@/tools/grafana/types'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteAnnotationTool: ToolConfig<
@@ -12,6 +13,7 @@ export const deleteAnnotationTool: ToolConfig<
   name: 'Grafana Delete Annotation',
   description: 'Delete an annotation by its ID',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

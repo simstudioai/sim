@@ -46,6 +46,8 @@ const STRING_PLACEHOLDERS = [
   'example.com',
   'https://example.com',
   'dbc-00000000-0000.cloud.databricks.com',
+  // A Twilio account SID: Twilio tools refuse to build a URL without one.
+  'AC00000000000000000000000000000000',
 ]
 
 function placeholderFor(param: ProbeableParam, text: string): unknown {
