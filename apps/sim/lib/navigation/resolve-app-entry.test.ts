@@ -59,13 +59,17 @@ describe('organization rollout during impersonation', () => {
       }
       mocks.appConfig.mockResolvedValue(flags)
 
-      await expect(resolveAppEntryPath({ user: { id: 'platform-admin' } })).resolves.toBe(
-        '/o/admin-org/home'
-      )
+      await expect(
+        resolveAppEntryPath({ user: { id: 'platform-admin' }, session: { id: 'admin-session' } })
+      ).resolves.toBe('/o/admin-org/home')
 
       const impersonatedSession = {
         user: { id: 'customer-member' },
-        session: { impersonatedBy: 'platform-admin', activeOrganizationId: 'customer-org' },
+        session: {
+          id: 'impersonation-session',
+          impersonatedBy: 'platform-admin',
+          activeOrganizationId: 'customer-org',
+        },
       }
       await expect(resolveAppEntryPath(impersonatedSession)).resolves.toBe('/o/customer-org/home')
       expect(mocks.landing).toHaveBeenLastCalledWith('customer-member', 'customer-org')
