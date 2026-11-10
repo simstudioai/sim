@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import {
   MENTION_FAMILIES,
   type MentionFamily,
+  type MentionListFamily,
   type MentionRow,
 } from '@/lib/api/contracts/organization-mentions'
 import {
@@ -10,7 +11,6 @@ import {
   type OrganizationUseCaseContext,
 } from '@/lib/core/application/authorized-organization-use-case'
 import type { ApplicationOperation } from '@/lib/core/application/operation'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { dashboardOperations } from '@/lib/dashboards/application/operations'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { folderOperations } from '@/lib/folders/application/operations'
@@ -44,17 +44,12 @@ const logger = createLogger('SearchMentions')
 interface SearchMentionsInput {
   organizationId: string
   query: string
-  workspaceId?: string
-  family?: MentionFamily
-  folderId?: string
-  cursor?: string
+  family?: MentionListFamily
   limit: number
 }
 
 export interface SearchMentionsResult {
   rows: MentionRow[]
-  families?: { family: MentionFamily; nextCursor?: string }[]
-  nextCursor?: string
   unavailableWorkspaces: { id: string; name: string }[]
   unavailableFamilies: MentionFamily[]
 }
@@ -234,9 +229,8 @@ function workspaceRows(workspaces: readonly MentionWorkspace[], query: string, l
 
 /**
  * What a composer may mention across the viewer's workspaces in one organization: an `@` query's
- * best rows per family (the most recently updated when empty), the organization's workspaces, one
- * browsed workspace's families and first pages, one family's next page in a workspace or folder,
- * or every skill. Each family is one query across the workspaces its operation allows.
+ * best rows per family (the most recently updated when empty), the organization's workspaces, or
+ * every skill. Each family is one query across the workspaces its operation allows.
  */
 export const searchMentions = defineAuthorizedOrganizationUseCase({
   operation: mentionOperations.search,
@@ -249,16 +243,11 @@ export const searchMentions = defineAuthorizedOrganizationUseCase({
       'active',
       context.organizationId
     )
-    const all = accessible.map(({ workspace }) => ({
+    const workspaces = accessible.map(({ workspace }) => ({
       id: workspace.id,
       name: workspace.name,
       updatedAt: workspace.updatedAt,
     }))
-    const workspaces = input.workspaceId
-      ? all.filter((workspace) => workspace.id === input.workspaceId)
-      : all
-    if (input.workspaceId && !workspaces.length)
-      throw new OrchestrationError('not_found', 'Workspace not found')
     const query = input.query.toLowerCase()
 
     if (input.family === 'workspaces')
@@ -268,7 +257,7 @@ export const searchMentions = defineAuthorizedOrganizationUseCase({
         unavailableFamilies: [],
       }
 
-    const names = new Map(all.map(({ id, name }) => [id, name]))
+    const names = new Map(workspaces.map(({ id, name }) => [id, name]))
     const matchedWorkspaceIds = query
       ? workspaces
           .filter((workspace) => workspace.name.toLowerCase().includes(query))
@@ -277,8 +266,6 @@ export const searchMentions = defineAuthorizedOrganizationUseCase({
     const families: readonly ResourceFamily[] = input.family ? [input.family] : AT_FAMILIES
     const readContext = { userId: context.userId, organizationId: context.organizationId }
     const access = await readableWorkspaces(readContext, workspaces, families)
-    const browsing = Boolean(input.workspaceId) || input.family === 'skills'
-    const offset = input.cursor ? Number(input.cursor) : 0
     const unavailableFamilies: MentionFamily[] = []
     const read = new Map<ResourceFamily, MentionRecord[]>(
       await Promise.all(
@@ -291,9 +278,7 @@ export const searchMentions = defineAuthorizedOrganizationUseCase({
                   workspaceIds: access.workspaceIdsFor(family),
                   query,
                   matchedWorkspaceIds,
-                  // A browse page reads one row past its end to know whether another follows.
-                  limit: browsing ? input.limit + 1 : input.limit,
-                  page: browsing ? { offset, folderId: input.folderId } : undefined,
+                  limit: input.limit,
                 },
                 readContext
               ),
@@ -306,29 +291,13 @@ export const searchMentions = defineAuthorizedOrganizationUseCase({
         })
       )
     )
-    const page = (family: ResourceFamily) => {
-      const records = read.get(family) ?? []
-      return {
-        rows: records.slice(0, input.limit).map((record) => toRow(family, record, names)),
-        nextCursor: records.length > input.limit ? String(offset + input.limit) : undefined,
-      }
-    }
+    const rows = (family: ResourceFamily) =>
+      (read.get(family) ?? []).map((record) => toRow(family, record, names))
     const status = { unavailableWorkspaces: access.unavailableWorkspaces, unavailableFamilies }
 
-    if (input.family) return { ...page(input.family), ...status }
-    if (input.workspaceId) {
-      const present = families.filter((family) => (read.get(family) ?? []).length > 0)
-      return {
-        rows: present.flatMap((family) => page(family).rows),
-        families: present.map((family) => ({ family, nextCursor: page(family).nextCursor })),
-        ...status,
-      }
-    }
+    if (input.family) return { rows: rows(input.family), ...status }
     return {
-      rows: [
-        ...workspaceRows(workspaces, query, input.limit),
-        ...families.flatMap((family) => page(family).rows),
-      ],
+      rows: [...workspaceRows(workspaces, query, input.limit), ...families.flatMap(rows)],
       ...status,
     }
   },

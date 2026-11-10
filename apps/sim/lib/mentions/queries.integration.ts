@@ -3,8 +3,7 @@
  * workspaces its caller authorized, so its predicates carry the whole boundary. Failure modes: a
  * row from a workspace outside the passed set; an archived, deleted, foreign-context or other
  * user's row that the family's own list excludes; a weaker name match ranked above a stronger one
- * or a limit overrun; a browse page that repeats or skips rows; and a file found by anything but
- * its name.
+ * or a limit overrun; and a file found by anything but its name.
  */
 import { db } from '@sim/db'
 import {
@@ -19,7 +18,7 @@ import {
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray } from 'drizzle-orm'
+import { inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   type MentionReadSpec,
@@ -286,33 +285,5 @@ describe('an @ query', () => {
   it('finds a file by its name and only by its name', async () => {
     expect(names(await readFileMentions(spec({ query: 'FILE-A' })))).toEqual(['file-a.txt'])
     expect(await readFileMentions(spec({ query: 'mentions/' }))).toEqual([])
-  })
-})
-
-describe('browse pages', () => {
-  it('walk a family in name order with neither repeats nor gaps', async () => {
-    const [, b] = inScope
-    for (const name of ['Paged d', 'Paged a', 'Paged c', 'Paged b', 'Paged e'])
-      await seedWorkflow(b, name)
-    const workspaceIds = [b]
-    const pages: string[] = []
-    for (let offset = 0; offset < 10; offset += 2) {
-      const page = await readWorkflowMentions(spec({ workspaceIds, limit: 2, page: { offset } }))
-      pages.push(...page.map((row) => row.name))
-    }
-    expect(pages).toEqual(['Paged a', 'Paged b', 'Paged c', 'Paged d', 'Paged e', 'Workflow b'])
-  })
-
-  it('keep a folder page to that folder', async () => {
-    const [, b] = inScope
-    const [parent] = await db
-      .select({ id: folder.id })
-      .from(folder)
-      .where(eq(folder.name, 'Workflow folder b'))
-    await seedWorkflow(b, 'Filed workflow', { folderId: parent.id })
-    const rows = await readWorkflowMentions(
-      spec({ workspaceIds: [b], page: { offset: 0, folderId: parent.id } })
-    )
-    expect(rows.map((row) => row.name)).toEqual(['Filed workflow'])
   })
 })

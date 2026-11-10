@@ -4,9 +4,8 @@
  * The organization-wide mention read batches each family across workspaces, so the per-workspace
  * gates its families' own routes apply must hold inside it. Failure modes: a family read in a
  * workspace whose permission group withholds it, a workspace whose access cannot be read taking
- * the search down or vanishing silently, a failing family taking the others with it, a workspace
- * outside the viewer's access being read, dashboards read while switched off, and a browse page
- * that never reports its next page.
+ * the search down or vanishing silently, a failing family taking the others with it, and
+ * dashboards read while switched off.
  */
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import {
@@ -41,10 +40,9 @@ vi.mock('@/lib/mentions/queries', () => {
     const rows = (seeded.rows.get(family) ?? []).filter((row) =>
       spec.workspaceIds.includes(row.workspaceId)
     )
-    const start = spec.page?.offset ?? 0
     return rows
-      .slice(start, start + spec.limit)
-      .map((row): MentionRecord => ({ ...row, updatedAt: new Date(0), parentId: null }))
+      .slice(0, spec.limit)
+      .map((row): MentionRecord => ({ ...row, updatedAt: new Date(0) }))
   }
   return {
     readWorkflowMentions: reader('workflows'),
@@ -148,37 +146,5 @@ describe('dashboards switched off for the organization', () => {
     featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(false)
     const result = await search()
     expect(result.rows.filter((row) => row.family === 'dashboards')).toEqual([])
-  })
-})
-
-describe('browsing', () => {
-  it('refuses a workspace outside the viewer access', async () => {
-    await expect(search({ workspaceId: 'ws-other' })).rejects.toMatchObject({ code: 'not_found' })
-  })
-
-  it('pages a family to its end, reporting each next page', async () => {
-    seed('workflows', 'ws-a', 4)
-    const first = await search({ workspaceId: 'ws-a', family: 'workflows', limit: 3 })
-    expect(first.rows).toHaveLength(3)
-    expect(first.nextCursor).toBe('3')
-    const second = await search({
-      workspaceId: 'ws-a',
-      family: 'workflows',
-      limit: 3,
-      cursor: first.nextCursor,
-    })
-    expect(second.rows.map((row) => row.id)).toEqual(['workflows-ws-a-2', 'workflows-ws-a-3'])
-    expect(second.nextCursor).toBeUndefined()
-  })
-
-  it("lists a workspace's families with the cursor of any family past its first page", async () => {
-    seed('files', 'ws-a', 3)
-    const result = await search({ workspaceId: 'ws-a', limit: 2 })
-    expect(result.families).toEqual(
-      expect.arrayContaining([
-        { family: 'tables', nextCursor: undefined },
-        { family: 'files', nextCursor: '2' },
-      ])
-    )
   })
 })

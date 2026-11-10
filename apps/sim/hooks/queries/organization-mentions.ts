@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
-  type MentionFamily,
+  type MentionListFamily,
   searchOrganizationMentionsContract,
 } from '@/lib/api/contracts/organization-mentions'
 
@@ -11,10 +11,7 @@ const ORGANIZATION_MENTIONS_STALE_TIME = 10 * 1000
 
 interface MentionRequest {
   query: string
-  workspaceId?: string
-  family?: MentionFamily
-  folderId?: string
-  cursor?: string
+  family?: MentionListFamily
   limit: number
 }
 
@@ -26,10 +23,7 @@ const organizationMentionKeys = {
       ...organizationMentionKeys.searches(),
       organizationId,
       request.query,
-      request.workspaceId ?? '',
       request.family ?? '',
-      request.folderId ?? '',
-      request.cursor ?? '',
       request.limit,
     ] as const,
 }

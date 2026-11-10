@@ -170,8 +170,7 @@ interface MentionInventoryWanted {
 /**
  * What the composer can mention across the viewer's workspaces in this organization, from one
  * server read per question: the `@` query's matches (the most recent rows when empty), every
- * skill for `/`, and the resource menu's workspaces, each opened workspace's families, or the
- * menu's own search. Each is read only once `wanted` asks for it, so a `/` alone reads no
+ * skill for `/`, and the resource menu's workspaces or its own search. Each is read only once `wanted` asks for it, so a `/` alone reads no
  * resource list.
  */
 export function useMentionInventory(
