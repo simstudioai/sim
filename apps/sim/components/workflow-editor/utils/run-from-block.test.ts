@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { getRunFromBlockDependencyState } from '@/components/workflow-editor/utils/run-from-block'
+import {
+  getRunFromBlockDependencyState,
+  selectRunFromBlockDependenciesSatisfied,
+} from '@/components/workflow-editor/utils/run-from-block'
 
 describe('getRunFromBlockDependencyState', () => {
   it('requires a snapshot before running a downstream block', () => {
@@ -32,5 +35,45 @@ describe('getRunFromBlockDependencyState', () => {
       isEntryBlock: false,
       dependenciesSatisfied: true,
     })
+  })
+})
+
+/**
+ * The store selector every canvas block runs answers what the full rule answers. Failure modes: an
+ * entry block refused, a downstream block allowed before its predecessors ran, and a cached index
+ * served for edges or a snapshot it was not built from.
+ */
+describe('selectRunFromBlockDependenciesSatisfied', () => {
+  const edges = [
+    { source: 'trigger', target: 'producer' },
+    { source: 'producer', target: 'consumer' },
+    { source: 'trigger', target: 'consumer' },
+  ]
+  const snapshots = [
+    undefined,
+    { executedBlocks: [] },
+    { executedBlocks: ['trigger'] },
+    { executedBlocks: ['trigger', 'producer'] },
+  ]
+
+  it('agrees with the full rule for every block and snapshot', () => {
+    for (const snapshot of snapshots)
+      for (const blockId of ['trigger', 'producer', 'consumer', 'detached'])
+        expect(selectRunFromBlockDependenciesSatisfied(blockId, edges, snapshot)).toBe(
+          getRunFromBlockDependencyState(blockId, edges, snapshot).dependenciesSatisfied
+        )
+  })
+
+  it('reads new edges and a new snapshot, never the index built for earlier ones', () => {
+    const ran = { executedBlocks: ['trigger'] }
+    expect(selectRunFromBlockDependenciesSatisfied('consumer', edges, ran)).toBe(false)
+    const rewired = [{ source: 'trigger', target: 'consumer' }]
+    expect(selectRunFromBlockDependenciesSatisfied('consumer', rewired, ran)).toBe(true)
+    expect(selectRunFromBlockDependenciesSatisfied('producer', edges, ran)).toBe(true)
+    expect(
+      selectRunFromBlockDependenciesSatisfied('consumer', edges, {
+        executedBlocks: ['trigger', 'producer'],
+      })
+    ).toBe(true)
   })
 })
