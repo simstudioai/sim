@@ -72,7 +72,7 @@ describe('organization logo concurrency and retention', () => {
   beforeAll(async () => {
     const connection = fixture.connection!
     await connection`CREATE SCHEMA ${connection(fixture.schema)}`
-    for (const table of ['user', 'member', 'organization', 'upload_session']) {
+    for (const table of ['user', 'member', 'organization', 'workspace', 'upload_session']) {
       await connection`CREATE TABLE ${connection(table)} (LIKE ${connection(`public.${table}`)} INCLUDING ALL)`
     }
     await db.insert(organization).values({
