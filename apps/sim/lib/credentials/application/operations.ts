@@ -350,10 +350,6 @@ export const credentialUserOperations = {
     'credentials.memberships.leave',
     'integrations.manage'
   ),
-  listOAuthConnections: defineCredentialUserOperation(
-    'credentials.oauth_connections.list',
-    'integrations.manage'
-  ),
   listConnectedAccounts: defineCredentialUserOperation(
     'credentials.accounts.list',
     'integrations.manage'

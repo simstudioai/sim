@@ -1,29 +1,9 @@
 /**
- * On-demand / pooled usage display and toggle math.
+ * On-demand toggle math for the billing settings toggle.
  *
  * DB values are dollars; these helpers operate on dollars and are the single
- * source of truth shared by the credits chip and the billing settings toggle so
- * the two surfaces can never disagree about what "remaining" or "on-demand on"
- * means.
+ * source of truth for what "on-demand on" means.
  */
-
-import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
-
-/**
- * Dollars of pooled plan allowance still available before usage is capped.
- *
- * Mirrors enforcement exactly — `buildUsageData` in usage-monitor blocks when
- * `currentUsage >= limit`, so remaining is `limit - currentUsage` and nothing
- * more. Goodwill credits are already folded into `usageLimit` by
- * `setUsageLimitForCredits`, so they must NOT be added back here; doing so
- * double-counts the balance and overstates what's left. The unlimited sentinel
- * short-circuits to itself — rendered as ∞ — instead of subtracting usage from
- * the sentinel value.
- */
-export function getPooledCreditsRemaining(usageLimit: number, currentUsage: number): number {
-  if (usageLimit >= ON_DEMAND_UNLIMITED) return ON_DEMAND_UNLIMITED
-  return Math.max(0, usageLimit - currentUsage)
-}
 
 /**
  * The maximum usage that is never billed: the plan's included allowance

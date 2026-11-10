@@ -3,7 +3,6 @@
 import { useEffect, useRef } from 'react'
 import { generateId } from '@sim/utils/id'
 import {
-  isServer,
   type QueryClient,
   queryOptions,
   useInfiniteQuery,
@@ -12,7 +11,6 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
 import type { UpdateCredentialGroupBody } from '@/lib/api/contracts/credential-groups'
@@ -22,9 +20,7 @@ import {
   ensureOrganizationAccountsContract,
   getOrganizationAccountsContract,
   getWorkspaceOrganizationAccountsContract,
-  listOrganizationAccountPeopleContract,
   listPersonalOrganizationAccountsContract,
-  type OrganizationAccountPeopleQuery,
   reconnectPersonalOrganizationAccountContract,
   type StartOrganizationAccountConnectionBody,
   startOrganizationAccountConnectionContract,
@@ -266,41 +262,5 @@ export function useWorkspaceOrganizationAccounts(workspaceId?: string, enabled =
         signal,
       })
     },
-  })
-}
-export function useOrganizationAccountPeople(
-  organizationId: string,
-  search?: OrganizationAccountPeopleQuery['search'],
-  options?: { enabled?: boolean; optionId?: OrganizationAccountPeopleQuery['optionId'] }
-) {
-  const normalizedSearch = search?.trim() || undefined
-  return useInfiniteQuery({
-    queryKey: organizationAccountsKeys.peopleList(
-      organizationId,
-      normalizedSearch,
-      options?.optionId
-    ),
-    enabled: Boolean(organizationId) && (options?.enabled ?? true),
-    staleTime: ORGANIZATION_ACCOUNTS_STALE_TIME,
-    retry: (failureCount, error) =>
-      !isServer &&
-      failureCount < 1 &&
-      (!isApiClientError(error) ||
-        error.status === 408 ||
-        error.status === 429 ||
-        error.status >= 500),
-    initialPageParam: undefined as string | undefined,
-    queryFn: ({ signal, pageParam }) =>
-      requestJson(listOrganizationAccountPeopleContract, {
-        params: { id: organizationId },
-        query: {
-          limit: 50,
-          cursor: pageParam,
-          search: normalizedSearch,
-          ...(options?.optionId ? { optionId: options.optionId } : {}),
-        },
-        signal,
-      }),
-    getNextPageParam: (page) => page.nextCursor ?? undefined,
   })
 }

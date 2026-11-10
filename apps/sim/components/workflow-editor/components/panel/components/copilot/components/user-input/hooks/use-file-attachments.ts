@@ -75,17 +75,6 @@ export interface AttachedFile {
   previewUrl?: string
 }
 
-/**
- * Message file attachment structure (for API)
- */
-export interface MessageFileAttachment {
-  id: string
-  key: string
-  filename: string
-  media_type: string
-  size: number
-}
-
 interface UseFileAttachmentsProps {
   userId?: string
   workspaceId?: string

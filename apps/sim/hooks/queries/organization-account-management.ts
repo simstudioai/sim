@@ -74,7 +74,6 @@ export function useUpdateOrganizationAccountWorkspaceAccess() {
 }
 
 export function useInviteOrganizationAccountPeople() {
-  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({
       organizationId,
@@ -86,13 +85,10 @@ export function useInviteOrganizationAccountPeople() {
         params: { id: organizationId },
         body,
       }),
-    onSuccess: (_, { organizationId }) =>
-      queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.people(organizationId) }),
   })
 }
 
 export function useResendOrganizationAccountInvitation() {
-  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({
       organizationId,
@@ -106,8 +102,6 @@ export function useResendOrganizationAccountInvitation() {
         params: { id: organizationId, enrollmentId },
         query,
       }),
-    onSuccess: (_, { organizationId }) =>
-      queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.people(organizationId) }),
   })
 }
 

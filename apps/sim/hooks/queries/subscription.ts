@@ -18,7 +18,6 @@ import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
 
 export type { SubscriptionApiResponse }
 
-export const USAGE_LIMIT_STALE_TIME = 30 * 1000
 export const INVOICES_STALE_TIME = 5 * 60 * 1000
 
 interface UseSubscriptionDataOptions {

@@ -27,5 +27,3 @@ export const CORE_TRIGGER_TYPES = [
 ] as const
 
 export type CoreTriggerType = (typeof CORE_TRIGGER_TYPES)[number]
-
-export type LogViewMode = 'logs' | 'dashboard'
