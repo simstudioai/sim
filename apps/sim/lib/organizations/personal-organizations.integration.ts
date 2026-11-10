@@ -11,6 +11,7 @@ import {
   member,
   mothershipMemorySpaces,
   organization,
+  outboxEvent,
   permissions,
   project,
   simLink,
@@ -23,7 +24,7 @@ import {
 import { resolveEffectiveWorkspacePermission } from '@sim/platform-authz/workspace'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
 import { getOrganizationBillingSummary } from '@/lib/billing/application/organization-billing/get-organization-billing-summary'
 import { transferSubscriptionToOrganization } from '@/lib/billing/application/subscription-transfer'
@@ -43,6 +44,7 @@ import { resolveStorageBillingContext } from '@/lib/billing/storage/context'
 import { OrganizationMembershipNotFoundError } from '@/lib/core/application/organization-authorization'
 import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
 import { deletePersonalOrganizationOfRemovedUser } from '@/lib/organizations/deletion'
+import { PERSONAL_ORGANIZATION_AUDIT_EVENT } from '@/lib/organizations/lifecycle-audit-event'
 import { provisionPersonalOrganization } from '@/lib/organizations/provision-personal'
 import { deleteUserAccount, getAccountDeletionPlan } from '@/lib/users/account-deletion'
 import { createWorkspaceInTransaction } from '@/lib/workspaces/create'
@@ -761,6 +763,20 @@ describe('leaving a team', () => {
   })
 })
 
+/** The lifecycle changes queued for the organization's audit trail. */
+async function lifecycleChanges(organizationId: string): Promise<string[]> {
+  const rows = await db
+    .select({ change: sql<string>`${outboxEvent.payload} ->> 'change'` })
+    .from(outboxEvent)
+    .where(
+      and(
+        eq(outboxEvent.eventType, PERSONAL_ORGANIZATION_AUDIT_EVENT),
+        sql`${outboxEvent.payload} ->> 'organizationId' = ${organizationId}`
+      )
+    )
+  return rows.map((row) => row.change)
+}
+
 describe('deleting an account', () => {
   it('is not blocked by the personal organization and leaves nothing of it behind', async () => {
     const ownerId = await createUser()
@@ -776,6 +792,7 @@ describe('deleting an account', () => {
     await deleteUserAccount(ownerId, { recordIdentity: false })
 
     expect(await organizationExists(provisioned.organizationId)).toBe(false)
+    expect(await lifecycleChanges(provisioned.organizationId)).toContain('deleted')
     const [privateRow] = await db
       .select({ id: workspace.id })
       .from(workspace)
@@ -799,6 +816,7 @@ describe('deleting an account', () => {
     await db.delete(user).where(eq(user.id, ownerId))
 
     expect(await organizationExists(provisioned.organizationId)).toBe(false)
+    expect(await lifecycleChanges(provisioned.organizationId)).toContain('deleted')
   })
 })
 
