@@ -4,6 +4,7 @@ import { crawlTool } from '@/tools/firecrawl/crawl'
 
 function crawlBody(options: {
   maxDepth: number
+  url?: string
   maxDiscoveryDepth?: number
   includePaths?: string[]
   excludePaths?: string[]
@@ -64,6 +65,30 @@ describe('Firecrawl legacy crawl depth', () => {
     const body = crawlBody({ maxDepth, includePaths: ['^/'] })
     const patterns = (body.excludePaths as string[]).map((pattern) => new RegExp(pattern))
     expect(patterns.some((pattern) => pattern.test(path))).toBe(excluded)
+  })
+
+  it.each<[string, string, boolean]>([
+    ['https://example.com/docs/guide', '/docs/guide', true],
+    ['https://example.com/docs/guide/', '/docs/guide/setup', true],
+    ['https://example.com/docs/guide/index.html', '/docs/guide/setup', true],
+    ['https://example.com/docs/guide', '/docs/guide/setup/advanced', false],
+  ])('counts depth from the start URL %s for %s', (url, path, accepted) => {
+    const body = crawlBody({ maxDepth: 1, url })
+    const patterns = (body.includePaths as string[]).map((pattern) => new RegExp(pattern))
+    expect(patterns.some((pattern) => pattern.test(path))).toBe(accepted)
+  })
+
+  it('counts depth from the start URL alongside existing path filters', () => {
+    const body = crawlBody({
+      maxDepth: 1,
+      url: 'https://example.com/docs/guide',
+      includePaths: ['^/docs'],
+    })
+    const patterns = (body.excludePaths as string[]).map((pattern) => new RegExp(pattern))
+    const excludes = (path: string) => patterns.some((pattern) => pattern.test(path))
+    expect(excludes('/docs/guide')).toBe(false)
+    expect(excludes('/docs/guide/setup')).toBe(false)
+    expect(excludes('/docs/guide/setup/advanced')).toBe(true)
   })
 
   it.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
