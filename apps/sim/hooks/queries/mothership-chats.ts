@@ -2,7 +2,6 @@ import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter } from '@sim/utils/retry'
 import {
-  keepPreviousData,
   MutationObserver,
   mutationOptions,
   type QueryClient,
@@ -42,6 +41,7 @@ import {
 import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/mothership/request/session/types'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { toast } from '@/lib/toast/sink'
+import { keepPreviousDataWithin } from '@/hooks/queries/utils/placeholder'
 import { recentlyDeletedKeys } from '@/hooks/queries/utils/recently-deleted-keys'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import { useMothershipOutgoingStore } from '@/stores/mothership-outgoing/store'
@@ -342,7 +342,7 @@ export function useMothershipChats(
       ? ({ signal }) => fetchMothershipChats(workspaceId, scope, signal)
       : skipToken,
     enabled: options?.enabled ?? true,
-    placeholderData: keepPreviousData,
+    placeholderData: keepPreviousDataWithin(mothershipChatKeys.workspaceLists(workspaceId)),
     staleTime: MOTHERSHIP_CHAT_LIST_STALE_TIME,
   })
 }

@@ -21,7 +21,12 @@ import {
   recordWorkspaceVisitContract,
 } from '@/lib/api/contracts'
 import { workspaceKeys } from '@/hooks/queries/utils/workspace-keys'
-import { useToggleWorkspacePin, useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
+import { WorkspaceListOrganizationContext } from '@/hooks/queries/utils/workspace-list-organization'
+import {
+  useToggleWorkspacePin,
+  useWorkspacePermissionsQuery,
+  useWorkspacesQuery,
+} from '@/hooks/queries/workspace'
 import { useRecordWorkspaceVisit } from '@/hooks/queries/workspace-visit'
 
 const mockRequestJson = apiClientRequestMockFns.mockRequestJson
@@ -92,6 +97,50 @@ function apiError(status: number) {
 afterEach(() => {
   act(() => {
     for (const root of mountedRoots.splice(0)) root.unmount()
+  })
+})
+
+describe('useWorkspacesQuery', () => {
+  it("never shows one organization's workspaces in another organization's shell", async () => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const root = createRoot(document.createElement('div'))
+    mountedRoots.push(root)
+    const listFor = (id: string) => ({
+      workspaces: [{ id, name: id, permissions: 'admin' }],
+      lastActiveWorkspaceId: null,
+      pinnedWorkspaceIds: [],
+      creationPolicy: null,
+    })
+    mockRequestJson.mockImplementation((_contract, { query }) =>
+      Promise.resolve(listFor(`ws-of-${query.organizationId}`))
+    )
+    let seen: string[] | undefined
+
+    function Probe() {
+      seen = useWorkspacesQuery().data?.map((workspace) => workspace.id)
+      return null
+    }
+    function renderIn(organizationId: string) {
+      act(() => {
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <WorkspaceListOrganizationContext.Provider value={organizationId}>
+              <Probe />
+            </WorkspaceListOrganizationContext.Provider>
+          </QueryClientProvider>
+        )
+      })
+    }
+
+    renderIn('org-a')
+    await flush()
+    expect(seen).toEqual(['ws-of-org-a'])
+
+    mockRequestJson.mockReturnValue(new Promise<never>(() => {}))
+    renderIn('org-b')
+    await flush()
+    expect(seen).toBeUndefined()
   })
 })
 

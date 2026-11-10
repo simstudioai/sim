@@ -1,11 +1,5 @@
 import { createLogger } from '@sim/logger'
-import {
-  keepPreviousData,
-  queryOptions,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   deleteSkillContract,
@@ -56,7 +50,6 @@ export function getSkillsQueryOptions(workspaceId: string) {
     queryFn: ({ signal }) => fetchSkills(workspaceId, signal),
     enabled: !!workspaceId,
     staleTime: SKILL_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
