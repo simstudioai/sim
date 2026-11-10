@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { FieldFrame, TextField } from '@sim/emcn/field'
 import { Modal } from '@sim/emcn/modal'
-import { InlineNotice } from '@sim/emcn/status'
+import { FailureNotice, InlineNotice } from '@sim/emcn/status'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { workspaceEntry } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
@@ -140,6 +141,13 @@ export function ForkWorkspaceModal({
         autoComplete='off'
         required
       />
+      {resources.isError && !data && (
+        <FailureNotice
+          message={getErrorMessage(resources.error, 'Failed to load workspace resources')}
+          retrying={resources.isFetching}
+          onRetry={() => void resources.refetch()}
+        />
+      )}
       {data && selection && availableKinds.length > 0 && (
         <FieldFrame label='Copy resources'>
           <div className={styles.group}>

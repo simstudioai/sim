@@ -11,7 +11,8 @@ import {
 import { Button } from '@sim/emcn/button'
 import { Icon } from '@sim/emcn/icon'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
-import { InlineNotice } from '@sim/emcn/status'
+import { FailureNotice, InlineNotice } from '@sim/emcn/status'
+import { getErrorMessage } from '@sim/utils/errors'
 import { OAuthConnectModal } from '@/app/(product)/_components/oauth-connect-modal/oauth-connect-modal'
 import { ServiceAccountModal } from '@/app/(product)/_components/service-account-modal/service-account-modal'
 import { useActiveSearchTarget } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/active-search-target/active-search-target'
@@ -116,6 +117,9 @@ export function CredentialSelector({
   const credentialsLoading = isAllCredentials
     ? workspaceCredentials.isFetching
     : oauthCredentials.isFetching
+
+  const activeCredentials = isAllCredentials ? workspaceCredentials : oauthCredentials
+  const credentialsFailed = activeCredentials.isError && activeCredentials.data === undefined
 
   const credentialKind = subBlock.credentialKind
   const isMergedKinds = credentialKind === 'any'
@@ -317,6 +321,14 @@ export function CredentialSelector({
           onCreate={createAction?.run}
         />
       </div>
+
+      {credentialsFailed && (
+        <FailureNotice
+          message={getErrorMessage(activeCredentials.error, 'Failed to load credentials')}
+          retrying={activeCredentials.isFetching}
+          onRetry={() => void refetch()}
+        />
+      )}
 
       {needsUpdate && (
         <InlineNotice

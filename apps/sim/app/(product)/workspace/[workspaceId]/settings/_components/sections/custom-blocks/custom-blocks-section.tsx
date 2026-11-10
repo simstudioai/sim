@@ -43,7 +43,8 @@ export default function CustomBlocksSection({ workspaceId }: WorkspaceSettingsSe
   )
   const access = useCanPublishCustomBlock(workspaceId)
   const { data: blocks = [] } = useCustomBlocks(workspaceId)
-  const { data: workspaces = [] } = useWorkspacesQuery()
+  const workspacesQuery = useWorkspacesQuery()
+  const workspaces = workspacesQuery.data ?? []
   // A block without an uploaded icon shows the host organization's logo, as the legacy branding did.
   const { data: whitelabel } = useWhitelabelSettings(
     hostContext?.viewer.isHostOrganizationMember
@@ -114,6 +115,13 @@ export default function CustomBlocksSection({ workspaceId }: WorkspaceSettingsSe
           />
         }
       />
+      {workspacesQuery.isError && workspacesQuery.data === undefined && (
+        <FailureNotice
+          message={getErrorMessage(workspacesQuery.error, 'Failed to load your workspaces')}
+          retrying={workspacesQuery.isFetching}
+          onRetry={() => void workspacesQuery.refetch()}
+        />
+      )}
       <SettingsSection title='Blocks'>
         {blocks.length === 0 ? (
           <EmptyState

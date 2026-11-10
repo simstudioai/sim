@@ -4,9 +4,9 @@ import { type ComponentProps, useEffect, useRef, useState } from 'react'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { Modal } from '@sim/emcn/modal'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
-import { InlineNotice } from '@sim/emcn/status'
+import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/lib/toast/sink'
 import { CreateApiKeyModal } from '@/app/(product)/workspace/[workspaceId]/_components/create-api-key-modal/create-api-key-modal'
@@ -162,8 +162,10 @@ function DeployDialog({
   const createKeyDisabled =
     isLoadingKeys || isLoadingSettings || (!allowPersonalApiKeys && !canManageWorkspaceKeys)
 
-  const { data: deploymentInfo, isLoading: isLoadingDeploymentInfo } = useDeploymentInfo(workflowId)
-  const { data: versionsData } = useDeploymentVersions(workflowId)
+  const deploymentInfoQuery = useDeploymentInfo(workflowId)
+  const { data: deploymentInfo, isLoading: isLoadingDeploymentInfo } = deploymentInfoQuery
+  const versionsQuery = useDeploymentVersions(workflowId)
+  const versionsData = versionsQuery.data
   const versions = versionsData?.versions ?? []
   const chatInfo = useChatDeploymentInfo(workflowId)
   const { data: mcpServers = [] } = useWorkflowMcpServers(workspaceId)
@@ -480,12 +482,30 @@ function DeployDialog({
                         onPromote={(version) => setPromoteTarget({ workflowId, version })}
                         onLoad={(version) => setLoadTarget({ workflowId, version })}
                       />
+                    ) : versionsData ? (
+                      <EmptyState title='No deployments yet' />
                     ) : (
-                      versionsData && <EmptyState title='No deployments yet' />
+                      versionsQuery.isError && (
+                        <FailureNotice
+                          message={getErrorMessage(versionsQuery.error, 'Failed to load versions')}
+                          retrying={versionsQuery.isFetching}
+                          onRetry={() => void versionsQuery.refetch()}
+                        />
+                      )
                     )}
                   </>
                 )}
-                {entry.id === 'api' && (
+                {entry.id === 'api' && deploymentInfoQuery.isError && !deploymentInfo && (
+                  <FailureNotice
+                    message={getErrorMessage(
+                      deploymentInfoQuery.error,
+                      'Failed to load deployment status'
+                    )}
+                    retrying={deploymentInfoQuery.isFetching}
+                    onRetry={() => void deploymentInfoQuery.refetch()}
+                  />
+                )}
+                {entry.id === 'api' && (deploymentInfo || !deploymentInfoQuery.isError) && (
                   <ApiTab
                     workflowId={workflowId}
                     isDeployed={Boolean(deploymentInfo?.isDeployed)}
