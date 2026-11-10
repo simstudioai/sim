@@ -6,7 +6,6 @@ import { Modal } from '@sim/emcn/modal'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { SettingsRow } from '@sim/emcn/settings-section'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import { toast } from '@/lib/toast/sink'
 import { FieldStack } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { CredentialGroups } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/credential-groups'
@@ -14,7 +13,7 @@ import type { CredentialGroupActions } from '@/platform/lib/data/credential-grou
 import type { CredentialGroupsData } from '@/platform/lib/data/models/connected-accounts'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useSettingsFixtureDraft } from '@/platform/lib/data/settings-providers'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 interface FixtureSlackSetupProps {
@@ -26,7 +25,7 @@ interface FixtureSlackSetupProps {
 
 /** The example's Slack setup: choosing the installed workspace adds the provider to the draft. */
 function FixtureSlackSetup({ slackTeams, configured, onAdd, onClose }: FixtureSlackSetupProps) {
-  const params = useSearchParams()
+  const hrefFor = usePlatformHref()
   const scope = useSurfaceScope()
   const [team, setTeam] = useState<string | null>(null)
   const selectedTeam = team ?? (slackTeams.length === 1 ? slackTeams[0] : null)
@@ -69,11 +68,7 @@ function FixtureSlackSetup({ slackTeams, configured, onAdd, onClose }: FixtureSl
             description='Verify member permissions. Members will need to reconnect if their app or permissions change.'
           />
         )}
-        <Button
-          render={
-            <Link href={platformHref(surfaceHref(scope, '/settings/search-slack'), params)} />
-          }
-        >
+        <Button render={<Link href={hrefFor(surfaceHref(scope, '/settings/search-slack'))} />}>
           {selectedTeam ? 'Manage Sim Search app' : 'Install Sim Search'}
         </Button>
       </FieldStack>

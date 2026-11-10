@@ -6,6 +6,7 @@ import styles from '@/app/(product)/o/[organizationId]/integrations/_components/
 import type { AppSummary, IntegrationResource } from '@/platform/lib/integrations/center-model'
 import { credentialDescription } from '@/platform/lib/integrations/credential-display'
 import { peopleSummary } from '@/platform/lib/integrations/people-summary'
+import { compareText } from '@/platform/shared/time'
 
 interface AppGroupProps {
   title: string
@@ -95,7 +96,7 @@ export function ResourceGroup({
 }: ResourceGroupProps) {
   if (!resources.length && !links.length) return null
   const entries = [...resources, ...links].sort(
-    (a, b) => (order === 'asc' ? 1 : -1) * a.name.localeCompare(b.name)
+    (a, b) => (order === 'asc' ? 1 : -1) * compareText(a.name, b.name)
   )
   return (
     <section className={styles.group} aria-label={title}>

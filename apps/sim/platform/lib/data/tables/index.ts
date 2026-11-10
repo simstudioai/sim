@@ -1,7 +1,7 @@
 /**
  * The Tables tab's logic seam. The list and the grid read the legacy table hooks, the column-type
- * registry, the query builder and the grid's pure helpers unchanged; only their views are ported
- * into the zone. Values the zone needs from `@/lib/table` come from its leaf modules, never the
+ * registry, the query builder and the grid's pure helpers unchanged; the views are Platform's.
+ * Values Platform needs from `@/lib/table` come from its leaf modules, never the
  * barrel, which reaches server code.
  */
 

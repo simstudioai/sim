@@ -602,7 +602,6 @@ const seamHelpers: ReasonedAllowlist = {
       'components/workspace-providers/provider-models-loader',
       'components/workspace-providers/settings-loader',
       'components/workspace-providers/workflow-scope-provider',
-      'components/workspace-providers/workspace-host-context',
       'components/workspace-providers/workspace-permissions-provider',
       'components/workspace-providers/workspace-scope-sync',
       'lib/global-commands/commands',
@@ -634,7 +633,7 @@ const seamHelpers: ReasonedAllowlist = {
       'components/workflow-editor/utils/node-position',
       'components/workflow-editor/utils/run-from-block',
       'components/workflow-editor/utils/workflow-canvas-helpers',
-      'components/workspace-sidebar/components/search-modal/utils',
+      'lib/search/fuzzy',
       'hooks/workflow-actions/use-can-delete',
       'hooks/workflow-actions/use-delete-selection',
       'hooks/workflow-actions/use-export-selection',
@@ -908,6 +907,8 @@ const LIVE_ONLY_ROUTES: ReasonedAllowlist = {
 const FIXTURE_BRANCH_VIEWS: ReasonedAllowlist = {
   'platform/lib/navigation.ts':
     'platformHref keeps fixture scenario params on links only in a fixture build, inlined at build time',
+  'platform/lib/platform-href.ts':
+    'usePlatformHref reads the query string only in a fixture build, chosen when the app is built',
   [`${PRODUCT_ROUTES}_components/product-shell.tsx`]:
     'The one product shell picks the fixture or live session around every page',
   [`${ORGANIZATION_ROUTES}settings/_components/sections/preferences/preferences-section.tsx`]:

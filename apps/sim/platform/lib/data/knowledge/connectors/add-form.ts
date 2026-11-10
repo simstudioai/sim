@@ -34,7 +34,10 @@ import { useConnectorSetupStore } from '@/stores/connector-setup/store'
 const CONNECTOR_ENTRIES = Object.entries(CONNECTOR_META_REGISTRY)
 
 /** The settings a new connector's form starts from; a Search source adds its own defaults. */
-function startingSourceConfig(meta: ConnectorMeta | null | undefined, isSearchIndex: boolean) {
+export function startingSourceConfig(
+  meta: Pick<ConnectorMeta, 'defaultSourceConfig' | 'searchDefaultSourceConfig'> | null | undefined,
+  isSearchIndex: boolean | undefined
+): Record<string, string> {
   return {
     ...meta?.defaultSourceConfig,
     ...(isSearchIndex ? meta?.searchDefaultSourceConfig : undefined),

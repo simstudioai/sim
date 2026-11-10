@@ -86,7 +86,7 @@ interface DeployModalProps {
 /**
  * The deployment dialog: General (deploy, update, undeploy and the versions), API, MCP and Chat,
  * each with its own footer actions. It mounts only while open, so closing resets every draft and
- * abandons an in-flight deploy's follow-ups, as legacy's close did.
+ * abandons an in-flight deploy's follow-ups.
  */
 export function DeployModal(props: DeployModalProps) {
   if (!props.open || !props.workflowId) return null

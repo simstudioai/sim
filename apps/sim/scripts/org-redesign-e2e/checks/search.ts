@@ -78,7 +78,7 @@ export async function searchChecks() {
       await stubSearch(page)
       await page.goto(searchUrl({ mode: 'search' }))
       const field = searchField(page)
-      // Emir's one-line Input, not a growing textarea.
+      // A one-line Input, not a growing textarea.
       expect(await field.evaluate((element) => element.tagName)).toBe('INPUT')
       await field.fill('Parts recall')
       await field.press('Enter')

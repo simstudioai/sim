@@ -3,9 +3,8 @@
 import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 interface UpgradeNoticeProps {
@@ -18,7 +17,7 @@ interface UpgradeNoticeProps {
 
 /** A section the workspace's plan does not include, with the way to Billing for those who may upgrade. */
 export function UpgradeNotice({ title, description, canUpgrade }: UpgradeNoticeProps) {
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const scope = useSurfaceScope()
   return (
     <EmptyState
@@ -28,9 +27,7 @@ export function UpgradeNotice({ title, description, canUpgrade }: UpgradeNoticeP
         canUpgrade ? (
           <Button
             variant='primary'
-            render={
-              <Link href={platformHref(surfaceHref(scope, '/settings/billing/plans'), search)} />
-            }
+            render={<Link href={hrefFor(surfaceHref(scope, '/settings/billing/plans'))} />}
           >
             Upgrade to Max
           </Button>

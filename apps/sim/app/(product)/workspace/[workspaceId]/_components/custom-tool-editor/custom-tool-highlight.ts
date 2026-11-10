@@ -1,8 +1,5 @@
-import { escapeRegExp } from '@sim/utils/string'
-import {
-  escapeHtml,
-  highlightSyntax,
-} from '@/app/(product)/workspace/[workspaceId]/_components/code-field/highlight'
+import { escapeHtml, escapeRegExp } from '@sim/utils/string'
+import { highlightSyntax } from '@/app/(product)/workspace/[workspaceId]/_components/code-field/highlight'
 import {
   createEnvVarPattern,
   createWorkflowVariablePattern,

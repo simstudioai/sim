@@ -1,7 +1,7 @@
 import type { getDesktopBridge } from '@/lib/desktop'
 
 /**
- * The shell's types, named from the bridge `lib/desktop` returns: the zone reaches the desktop only
+ * The shell's types, named from the bridge `lib/desktop` returns: Platform reaches the desktop only
  * through that accessor, so a change to the bridge's shape surfaces here.
  */
 export type DesktopApi = NonNullable<ReturnType<typeof getDesktopBridge>>
@@ -28,7 +28,7 @@ export type ComputerUseAppPermission = Awaited<
   ReturnType<NonNullable<DesktopApi['computerUse']>['listAppPermissions']>
 >[number]
 
-/** The shell's zoom steps (`DESKTOP_ZOOM_PERCENTS`), which the zone may not import directly. */
+/** The shell's zoom steps (`DESKTOP_ZOOM_PERCENTS`), which Platform may not import directly. */
 export const DESKTOP_ZOOM_PERCENTS = [
   67, 75, 80, 90, 100, 110, 125, 150, 175, 200,
 ] as const satisfies readonly DesktopZoomPercent[]

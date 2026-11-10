@@ -20,7 +20,7 @@ interface PersonalTokenModalProps {
 
 /**
  * Connects the viewer's own GitLab account from a personal access token, or replaces the token of
- * one already connected, as legacy's personal token form did. Only its owner can use it.
+ * one already connected. Only its owner can use it.
  */
 export function PersonalTokenModal({ workspaceId, replacing, onClose }: PersonalTokenModalProps) {
   const [host, setHost] = useState(

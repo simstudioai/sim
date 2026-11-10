@@ -3,7 +3,7 @@
 import { type RefObject, useCallback, useEffect, useMemo, useState } from 'react'
 import { IconButton } from '@sim/emcn/button'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
-import { escapeRegExp } from '@sim/utils/string'
+import { escapeHtml, escapeRegExp } from '@sim/utils/string'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import Prism from 'prismjs'
 import 'prismjs/components/prism-python'
@@ -26,15 +26,6 @@ interface CollapsibleRegion {
   startLine: number
   endLine: number
   type: 'block' | 'string'
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;')
 }
 
 /**

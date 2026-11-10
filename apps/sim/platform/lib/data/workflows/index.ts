@@ -1,7 +1,7 @@
 /**
  * The Workflows tab's logic seam. The workflow canvas runs the legacy editor's own stores, socket
- * provider, collaborative hook, execution and layout logic unchanged; only its views are ported into
- * the zone. This barrel names every module they read, so `check:platform-design` can walk the
+ * provider, collaborative hook, execution and layout logic unchanged; only its views are Platform's.
+ * This barrel names every module they read, so `check:platform-design` can walk the
  * closure (blocks and tools registry included, by the exception scoped to this folder).
  */
 
@@ -152,13 +152,10 @@ export {
   useWorkflowScope,
   WorkflowScopeProvider,
 } from '@/components/workspace-providers/workflow-scope-provider'
-/** The read-only preview's last workspace fallback; nothing in the zone provides it yet. */
-export { useOptionalWorkspaceHostContext } from '@/components/workspace-providers/workspace-host-context'
 export {
   useUserPermissionsContext,
   useWorkspacePermissionsContext,
 } from '@/components/workspace-providers/workspace-permissions-provider'
-export { filterAndCap } from '@/components/workspace-sidebar/components/search-modal/utils'
 export { useSession } from '@/lib/auth/client'
 export { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
 export { useDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -170,6 +167,7 @@ export { createMcpToolId } from '@/lib/mcp/shared'
 export { getProviderIdFromServiceId } from '@/lib/oauth'
 export { OPERATION_SUBBLOCK_ID } from '@/lib/permission-groups/operation-access'
 export { captureClientEvent, captureClientException, captureEvent } from '@/lib/posthog/client'
+export { filterAndCap } from '@/lib/search/fuzzy'
 export { createSortParams } from '@/lib/url-state'
 export {
   DEFAULT_HORIZONTAL_SPACING,

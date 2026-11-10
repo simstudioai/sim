@@ -3,11 +3,12 @@
 import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
+import { dispatchAddBlock } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-canvas/add-block-event'
 import { useRegisterGlobalCommands } from '@/app/(product)/_components/workspace/workflows/global-commands/global-commands'
 import { useChatHandoff } from '@/platform/lib/data/chat-handoff'
 import { useTerminalConsoleStore } from '@/platform/lib/data/workflow-deploy/terminal'
 import { createCommand } from '@/platform/lib/data/workflows'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 
 interface EditorShortcutsProps {
   workspaceId: string
@@ -18,30 +19,22 @@ interface EditorShortcutsProps {
 /**
  * The editor's shortcuts the empty canvas's command list and the canvas menu advertise: Mod+Shift+A
  * adds an Agent block, Mod+L opens the workspace's logs and Mod+Shift+P creates a workflow (for an
- * editor), as legacy's workflow layout registered them.
+ * editor).
  */
 export function EditorShortcuts({ workspaceId, canEdit, onNewWorkflow }: EditorShortcutsProps) {
   const router = useRouter()
+  const hrefFor = usePlatformHref()
   useRegisterGlobalCommands(() => [
     createCommand({
       id: 'add-agent',
       handler: () => {
-        window.dispatchEvent(
-          new CustomEvent('add-block-from-toolbar', {
-            detail: { type: 'agent', enableTriggerMode: false },
-          })
-        )
+        dispatchAddBlock({ type: 'agent', enableTriggerMode: false })
       },
     }),
     createCommand({
       id: 'goto-logs',
       handler: () => {
-        router.push(
-          platformHref(
-            workspacePath(workspaceId, 'logs'),
-            new URLSearchParams(window.location.search)
-          )
-        )
+        router.push(hrefFor(workspacePath(workspaceId, 'logs')))
       },
     }),
     createCommand({

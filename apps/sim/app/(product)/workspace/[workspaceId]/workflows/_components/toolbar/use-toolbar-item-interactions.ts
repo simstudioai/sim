@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react'
+import { dispatchAddBlock } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-canvas/add-block-event'
 import {
   createDragPreview,
   type DragItemInfo,
@@ -105,13 +106,7 @@ export function useToolbarItemInteractions({
       if (type === 'connectionBlock' || disabled) return
 
       try {
-        const event = new CustomEvent('add-block-from-toolbar', {
-          detail: {
-            type,
-            enableTriggerMode,
-          },
-        })
-        window.dispatchEvent(event)
+        dispatchAddBlock({ type, enableTriggerMode })
       } catch (error) {
         logger.error('Failed to dispatch add-block event:', error)
       }

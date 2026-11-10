@@ -299,7 +299,7 @@ export function useLiveChatRuntime({
     }
   }, [chatId, organizationId, requestMode, sendMessage, assistantOptions])
 
-  /** A new chat reopens the results tab its address selects, as legacy Home did; closing it clears the URL. */
+  /** A new chat reopens the results tab its address selects; closing it clears the URL. */
   const { q, source, updated, from, to } = searchState
   const hasChat = Boolean(chatId) || chat.messages.length > 0
   const { addResourceFromUser } = panel

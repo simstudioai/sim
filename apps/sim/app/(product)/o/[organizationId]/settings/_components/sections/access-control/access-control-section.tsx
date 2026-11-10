@@ -13,7 +13,6 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import {
   ResourceList,
   SectionStack,
@@ -28,7 +27,7 @@ import {
   usePermissionGroups,
 } from '@/platform/lib/data/access-control'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { plural } from '@/platform/shared/plural'
 
 function groupSummary(group: PermissionGroup): string {
@@ -124,7 +123,7 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
   const groups = usePermissionGroups(organizationId)
   const workspaces = useOrganizationWorkspaces(organizationId)
   const params = useAccessControlParams()
-  const searchParams = useSearchParams()
+  const hrefFor = usePlatformHref()
   const [creating, setCreating] = useState(false)
   const permissionGroups = groups.data ?? []
   const organizationWorkspaces = workspaces.data ?? []
@@ -221,11 +220,7 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
         <SettingsRow label='Access requests'>
           <Button
             size='compact'
-            render={
-              <Link
-                href={platformHref(surfaceHref(organization, '/settings/requests'), searchParams)}
-              />
-            }
+            render={<Link href={hrefFor(surfaceHref(organization, '/settings/requests'))} />}
           >
             Review requests
           </Button>

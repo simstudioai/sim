@@ -29,7 +29,7 @@ export interface WorkspaceAppScope {
 }
 
 /**
- * One app's credentials in one workspace, as legacy's workspace integration page served them: the
+ * One app's credentials in one workspace: the
  * methods this deployment can complete, which dialog is open, and each connected credential in the
  * credential page's vocabulary. `WorkspaceAppDialogs` renders the dialogs it opens.
  */

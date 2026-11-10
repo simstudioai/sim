@@ -7,7 +7,7 @@ import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { SearchField } from '@sim/emcn/search-field'
 import { DestinationTabs } from '@sim/emcn-platform/destination-tabs'
 import Link from 'next/link'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { type Nullable, useQueryStates } from 'nuqs'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
 import { DirectoryBack } from '@/app/(product)/_components/resource-directory/resource-directory'
@@ -32,7 +32,7 @@ import {
   serializeIntegrationsPage,
 } from '@/platform/lib/integrations/center-navigation'
 import { clearCredentialView } from '@/platform/lib/integrations/credential-navigation'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { compareText } from '@/platform/shared/time'
 
 interface ResourceLibrary {
@@ -90,7 +90,7 @@ export function IntegrationCenter({
 }: IntegrationCenterProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const [view, setView] = useQueryStates(integrationsPageParams, {
     history: 'replace',
     shallow: true,
@@ -107,7 +107,7 @@ export function IntegrationCenter({
           (tab.id === 'mcps' && mcps)
       )
   const current: IntegrationTab = tabs.some((tab) => tab.id === view.tab) ? view.tab : 'apps'
-  const base = platformHref(pathname, search)
+  const base = hrefFor(pathname)
   const linkTo = (change: Partial<Nullable<typeof view>>) =>
     serializeIntegrationsPage(base, { ...view, ...change })
   const destinations = tabs.map((tab) => ({

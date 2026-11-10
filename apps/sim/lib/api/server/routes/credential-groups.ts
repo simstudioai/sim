@@ -1,13 +1,17 @@
 import {
-  createInternalResourceConcealmentPolicy,
   type InternalErrorPolicy,
   internalErrorResponse,
   internalOrchestrationErrorPolicy,
-} from '@/lib/api/server/routes'
+} from '@/lib/api/server/routes/internal-json-route'
+import { createInternalResourceConcealmentPolicy } from '@/lib/api/server/routes/resource-concealment'
 import { CredentialGroupEnrollmentError } from '@/lib/credential-groups/enrollments'
 import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
 import { CredentialGroupInvitationRateLimitError } from '@/lib/credential-groups/rate-limit'
 
+/**
+ * The internal routes' error policy for Credential Group operations, which workspace credential-group
+ * routes and the organization connected-accounts and Home routes share.
+ */
 export function createCredentialGroupInternalErrorPolicy(
   unhandledMessage: string,
   notFoundMessage = 'Credential group not found'

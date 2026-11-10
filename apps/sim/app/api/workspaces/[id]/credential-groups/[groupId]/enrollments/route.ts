@@ -4,10 +4,10 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { createCredentialGroupInternalErrorPolicy } from '@/lib/api/server/routes/credential-groups'
 import { inviteCredentialGroupEnrollmentsSettings } from '@/lib/credential-groups/application/manage-enrollments'
 import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
 import { enforceCredentialGroupInvitationRouteRateLimit } from '@/lib/credential-groups/rate-limit'
-import { createCredentialGroupInternalErrorPolicy } from '@/app/api/workspaces/[id]/credential-groups/error-policy'
 
 export const POST = defineInternalJsonRoute({
   contract: inviteCredentialGroupEnrollmentsContract,

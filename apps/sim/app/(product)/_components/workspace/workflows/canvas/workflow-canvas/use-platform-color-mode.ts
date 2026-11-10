@@ -9,8 +9,8 @@ const SYSTEM_DARK_QUERY = '(prefers-color-scheme: dark)'
 /**
  * The color mode the canvas paints in, taken from the closest Platform surface around it: its
  * `data-theme` is `light`, `dark` or `system`, and `system` follows the color-scheme preference.
- * React Flow stamps the result on its wrapper and the canvas tokens pick their dark set from it, the
- * way legacy followed `<html class="dark">`. Read before paint so a dark surface never flashes the
+ * React Flow stamps the result on its wrapper and the canvas tokens pick their dark set from it.
+ * Read before paint so a dark surface never flashes the
  * light canvas.
  */
 export function usePlatformColorMode(elementRef: RefObject<HTMLElement | null>): CanvasColorMode {

@@ -1,18 +1,18 @@
 'use client'
 
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
 import { SecretsEditor } from '@/app/(product)/_components/secrets-editor/secrets-editor'
 import type { WorkspaceSettingsSectionProps } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
 import { SecretDetail } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/secrets/secret-detail'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 
 /** The workspace's and the viewer's secrets, or one secret's details at `secrets/<credentialId>`. */
 export default function SecretsSection({ workspaceId, subpath }: WorkspaceSettingsSectionProps) {
   const router = useRouter()
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const [credentialId] = subpath
-  const listHref = platformHref(workspacePath(workspaceId, 'settings/secrets'), search)
+  const listHref = hrefFor(workspacePath(workspaceId, 'settings/secrets'))
 
   if (credentialId)
     return (
@@ -30,10 +30,7 @@ export default function SecretsSection({ workspaceId, subpath }: WorkspaceSettin
         workspaceId,
         onViewDetails: (id) =>
           router.push(
-            platformHref(
-              workspacePath(workspaceId, `settings/secrets/${encodeURIComponent(id)}`),
-              search
-            )
+            hrefFor(workspacePath(workspaceId, `settings/secrets/${encodeURIComponent(id)}`))
           ),
       }}
     />

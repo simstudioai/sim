@@ -16,14 +16,9 @@ import {
 } from '@sim/testing/mocks/workspaces-policy.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCreateWorkspace,
-  mockListWorkspacesEnsuringDefault,
-  mockResolveSessionOrganizationLanding,
-} = vi.hoisted(() => ({
+const { mockCreateWorkspace, mockListWorkspacesEnsuringDefault } = vi.hoisted(() => ({
   mockCreateWorkspace: vi.fn(),
   mockListWorkspacesEnsuringDefault: vi.fn(),
-  mockResolveSessionOrganizationLanding: vi.fn(),
 }))
 
 vi.mock('@/lib/organizations/application/viewer-organization', () => ({
@@ -37,10 +32,6 @@ vi.mock('@/lib/workspaces/create', () => ({
 
 vi.mock('@/lib/workspaces/list', () => ({
   listWorkspacesForViewer: vi.fn(),
-}))
-
-vi.mock('@/lib/organizations/surface', () => ({
-  resolveSessionOrganizationLanding: mockResolveSessionOrganizationLanding,
 }))
 
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
@@ -105,39 +96,5 @@ describe('POST /api/workspaces capability refusal', () => {
 
     expect(response.status).toBe(401)
     await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' })
-  })
-})
-
-describe('GET /api/workspaces blocked viewer forwarding', () => {
-  const blockedList = {
-    workspaces: [],
-    lastActiveWorkspaceId: null,
-    pinnedWorkspaceIds: [],
-    creationPolicy: {
-      canCreate: false,
-      workspaceMode: 'personal',
-      organizationId: null,
-      maxWorkspaces: null,
-      currentWorkspaceCount: 0,
-      reason: null,
-    },
-  }
-  const routeContext = { params: Promise.resolve({}) }
-  const listRequest = () =>
-    createMockRequest('GET', undefined, {}, 'http://localhost/api/workspaces')
-
-  beforeEach(() => {
-    mockGetSession.mockResolvedValue({
-      user: { id: 'user-1', name: 'A', email: 'a@example.com' },
-      session: { id: 'session-1' },
-    })
-    mockListWorkspacesEnsuringDefault.mockResolvedValue(blockedList)
-  })
-
-  it('still returns the list when the organization lookup fails', async () => {
-    mockResolveSessionOrganizationLanding.mockRejectedValue(new Error('down'))
-    const response = await GET(listRequest(), routeContext)
-    expect(response.status).toBe(200)
-    expect(await response.json()).not.toHaveProperty('forwardOrganizationId')
   })
 })

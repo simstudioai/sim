@@ -110,7 +110,7 @@ function NoteColorMenu({
     if (next) onNoteColorMenuOpen?.()
   }
 
-  /* Arrow keys move between swatches, as the legacy radio group's menu did. */
+  /* Arrow keys move between swatches. */
   const handleSwatchKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
     const options = Array.from(

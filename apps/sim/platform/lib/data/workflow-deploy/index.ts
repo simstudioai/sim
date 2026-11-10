@@ -1,7 +1,7 @@
 /**
  * The workflow editor's deploy seam. Deploy, redeploy, undeploy, versions, the public API, chat and
  * MCP deployments run the legacy deploy hooks, query hooks and comparison logic unchanged; only the
- * views are rebuilt in the zone. The Terminal and Variables tabs keep their own subfolders.
+ * views are Platform's. The Terminal and Variables tabs keep their own subfolders.
  */
 
 export { useIdentifierValidation } from '@/components/workflow-editor/components/panel/components/deploy/components/deploy-modal/components/chat/hooks/use-identifier-validation'

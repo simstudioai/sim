@@ -4,8 +4,8 @@ import { getKnowledgeChunkContract } from '@/lib/api/contracts/knowledge'
 
 /**
  * A chunk's stored content, read fresh rather than from the list's cache, so an editor that was in
- * the background can tell whether someone else changed it. `null` when the read is refused or
- * aborted: the editor keeps what it has.
+ * the background can tell whether someone else changed it. `null` when the read is aborted or the
+ * chunk is refused or gone: the editor keeps what it has. Any other failure rejects.
  */
 export async function readChunkContent(
   knowledgeBaseId: string,
@@ -20,7 +20,8 @@ export async function readChunkContent(
     })
     return result.data.content ?? ''
   } catch (error) {
-    if (signal.aborted || isApiClientError(error)) return null
+    if (signal.aborted) return null
+    if (isApiClientError(error) && (error.status === 403 || error.status === 404)) return null
     throw error
   }
 }

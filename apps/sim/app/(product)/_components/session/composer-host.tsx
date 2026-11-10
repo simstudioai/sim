@@ -12,7 +12,7 @@ import {
   useState,
 } from 'react'
 import { generateId } from '@sim/utils/id'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { draftTitle, userTurn } from '@/app/(product)/_components/composer/user-turn'
 import { useDesktopHost } from '@/app/(product)/_components/desktop/desktop-host'
 import { useChatChanges } from '@/app/(product)/_components/session/chat-changes'
@@ -26,7 +26,7 @@ import type {
   ComposerOptions,
 } from '@/platform/lib/data/models/composer'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { LOCALE } from '@/platform/shared/time'
 
@@ -104,12 +104,12 @@ function useMemoryComposer({
 
 function useMemoryStartChat() {
   const router = useRouter()
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const scope = useSurfaceScope()
   const { createChat } = useChatChanges()
   return (draft: ComposerDraft): undefined => {
     const id = createChat(draftTitle(draft), [userTurn(draft)])
-    router.push(platformHref(surfaceHref(scope, `/chat/${id}`), search))
+    router.push(hrefFor(surfaceHref(scope, `/chat/${id}`)))
   }
 }
 
@@ -194,13 +194,13 @@ export function useHomePrompt() {
   const preferences = useInterfacePreferences()
   const focus = useContext(FocusContext)
   const router = useRouter()
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const scope = useSurfaceScope()
   if (!append) return null
   return (prompt: string) => {
     append(prompt)
     preferences?.setHomeMode('Build')
     focus?.request('home')
-    router.push(platformHref(surfaceHref(scope, '/home'), search))
+    router.push(hrefFor(surfaceHref(scope, '/home')))
   }
 }

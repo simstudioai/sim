@@ -1,4 +1,5 @@
 import type { CheckboxTreeNode } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/forks/fork-checkbox-tree'
+import { compareText } from '@/platform/shared/time'
 
 interface CopyableItem {
   id: string
@@ -35,7 +36,7 @@ export function copyKindNode(
       folders.set(file.folderId, folder)
     } else rootFiles.push(leaf)
   }
-  const byLabel = (a: CheckboxTreeNode, b: CheckboxTreeNode) => a.label.localeCompare(b.label)
+  const byLabel = (a: CheckboxTreeNode, b: CheckboxTreeNode) => compareText(a.label, b.label)
   const sortedFolders = Array.from(folders.values()).sort(byLabel)
   for (const folder of sortedFolders) folder.children.sort(byLabel)
   return { id: kind, label, children: [...sortedFolders, ...rootFiles.sort(byLabel)] }

@@ -47,6 +47,10 @@ import { Cursors } from '@/app/(product)/_components/workspace/workflows/canvas/
 import type { SubflowNodeData } from '@/app/(product)/_components/workspace/workflows/canvas/subflow-node/subflow-node'
 import { normalizeCursorSourceHandleId } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-block/source-handle'
 import {
+  ADD_BLOCK_EVENT,
+  type AddBlockDetail,
+} from '@/app/(product)/_components/workspace/workflows/canvas/workflow-canvas/add-block-event'
+import {
   BLOCK_Z_BASE,
   CANVAS_Z_INDEX_MODE,
   CONNECTION_PICKER_Z,
@@ -162,7 +166,7 @@ import {
   validateTriggerPaste,
   WORKFLOW_TARGET_HANDLE_ID,
 } from '@/platform/lib/data/workflows'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 
 const logger = createLogger('Workflow')
 
@@ -192,11 +196,6 @@ const getRegularBlockWidth = (type: string) =>
   type === 'note' || type === 'noteBlock'
     ? BLOCK_DIMENSIONS.NOTE_WIDTH
     : BLOCK_DIMENSIONS.FIXED_WIDTH
-
-/** The zone's address for a legacy workspace path, keeping the Platform preview parameters. */
-function zoneHref(path: string): string {
-  return platformHref(path, new URLSearchParams(window.location.search))
-}
 
 /**
  * Calculates the offset to paste blocks at viewport center
@@ -297,12 +296,9 @@ interface BlockData {
   position: { x: number; y: number }
 }
 
-interface AddBlockFromToolbarDetail {
-  type?: unknown
-  enableTriggerMode?: unknown
-  presetOperation?: unknown
-  pendingConnect?: PendingConnect
-}
+/** An add-block request as received: checked before use, except the drag-release it hands over. */
+type ReceivedAddBlock = Partial<Record<Exclude<keyof AddBlockDetail, 'pendingConnect'>, unknown>> &
+  Pick<AddBlockDetail, 'pendingConnect'>
 
 interface WorkflowCanvasProps {
   workspaceId: string
@@ -335,6 +331,7 @@ const WorkflowContent = memo(function WorkflowContent({
   const { handleCanvasMouseDown, selectionProps } = useShiftSelectionLock({ isHandMode })
 
   const router = useRouter()
+  const hrefFor = usePlatformHref()
   const invokeGlobalCommand = useInvokeGlobalCommand()
   const colorMode = usePlatformColorMode(canvasContainerRef)
   const reactFlowInstance = useReactFlow()
@@ -1399,11 +1396,11 @@ const WorkflowContent = memo(function WorkflowContent({
 
   const handleContextOpenLogs = useCallback(() => {
     router.push(
-      zoneHref(
+      hrefFor(
         `${workspacePath(workspaceId, 'logs')}?workflow=${encodeURIComponent(workflowIdParam)}`
       )
     )
-  }, [router, workspaceId, workflowIdParam])
+  }, [router, hrefFor, workspaceId, workflowIdParam])
 
   const handleContextOpenSearchReplace = useCallback(() => {
     useWorkflowSearchReplaceStore.getState().open()
@@ -2171,7 +2168,7 @@ const WorkflowContent = memo(function WorkflowContent({
 
   /** Handles toolbar block click events to add blocks to the canvas. */
   useEffect(() => {
-    const handleAddBlockFromToolbar = (event: CustomEvent<AddBlockFromToolbarDetail>) => {
+    const handleAddBlockFromToolbar = (event: CustomEvent<ReceivedAddBlock>) => {
       if (!effectivePermissions.canEdit) {
         return
       }
@@ -2265,13 +2262,10 @@ const WorkflowContent = memo(function WorkflowContent({
       )
     }
 
-    window.addEventListener('add-block-from-toolbar', handleAddBlockFromToolbar as EventListener)
+    window.addEventListener(ADD_BLOCK_EVENT, handleAddBlockFromToolbar as EventListener)
 
     return () => {
-      window.removeEventListener(
-        'add-block-from-toolbar',
-        handleAddBlockFromToolbar as EventListener
-      )
+      window.removeEventListener(ADD_BLOCK_EVENT, handleAddBlockFromToolbar as EventListener)
     }
   }, [
     getViewportCenter,
@@ -2438,8 +2432,8 @@ const WorkflowContent = memo(function WorkflowContent({
    * workflow optimistically before it navigates, so a not-found page would flash first.
    */
   useEffect(() => {
-    if (workflowMissing) router.replace(zoneHref(workspacePath(workspaceId, 'workflows')))
-  }, [workflowMissing, router, workspaceId])
+    if (workflowMissing) router.replace(hrefFor(workspacePath(workspaceId, 'workflows')))
+  }, [workflowMissing, router, hrefFor, workspaceId])
 
   const workflowLoadError = workflowMapFailed
     ? getErrorMessage(workflowMap.error, 'Workflows could not be loaded.')
@@ -4857,7 +4851,7 @@ const WorkflowContent = memo(function WorkflowContent({
 
 /**
  * The workflow editor's canvas: the legacy `WorkflowContent` with its every handler, shortcut,
- * window event, drag and drop rule, context menu, deep link and OAuth flow, drawn by the zone's
+ * window event, drag and drop rule, context menu, deep link and OAuth flow, drawn by Platform's
  * canvas views. The editor route provides the workflow scope, the React Flow provider and the one
  * global command registry (run, toolbar search, and the canvas's own shortcuts) above it.
  */

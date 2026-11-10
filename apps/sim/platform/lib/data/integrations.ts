@@ -61,7 +61,7 @@ export function useMemberIntegrations(organizationId: string | undefined) {
 
 /**
  * Connects, reconnects and disconnects the member's own accounts. An account the member saves by
- * hand opens `savedConnection` in place instead, as the legacy saved-credential dialog did, for the
+ * hand opens `savedConnection` in place instead, for the
  * surface to render with `SavedAccountModal`.
  */
 export function useIntegrationActions(organizationId: string, options?: { enabled?: boolean }) {

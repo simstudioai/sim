@@ -9,7 +9,7 @@ import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { workspaceEntry } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import {
@@ -39,7 +39,7 @@ import {
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { requestSettingsLeave } from '@/platform/lib/data/settings-guard'
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 /** The sync page carries the mapping editors, which reach the block registry: loaded when opened. */
@@ -73,7 +73,7 @@ function lineagePartnerNames(
  */
 export default function ForksSection({ workspaceId }: WorkspaceSettingsSectionProps) {
   const router = useRouter()
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const scope = useSurfaceScope()
   const { canMutate } = useWorkspaceSettingsSection(workspaceId, 'forks')
   const { billingEnabled } = useDeploymentShape()
@@ -95,7 +95,7 @@ export default function ForksSection({ workspaceId }: WorkspaceSettingsSectionPr
   const undoableRun = lineage.data?.undoableRun ?? null
 
   const openWorkspace = (id: string) =>
-    requestSettingsLeave(() => router.push(platformHref(workspaceEntry(id), search)))
+    requestSettingsLeave(() => router.push(hrefFor(workspaceEntry(id))))
 
   async function runRollback() {
     if (!undoableRun) return
@@ -275,8 +275,7 @@ export default function ForksSection({ workspaceId }: WorkspaceSettingsSectionPr
           sourceWorkspaceName={workspaceName || 'Workspace'}
           canFork={creationPolicy?.canCreate ?? true}
           onUpgrade={() => {
-            if (billingEnabled)
-              router.push(platformHref(surfaceHref(scope, '/settings/billing/plans'), search))
+            if (billingEnabled) router.push(hrefFor(surfaceHref(scope, '/settings/billing/plans')))
           }}
           onClose={() => setForking(false)}
         />

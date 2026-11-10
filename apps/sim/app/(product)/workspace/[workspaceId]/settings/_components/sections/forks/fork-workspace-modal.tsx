@@ -5,7 +5,7 @@ import { FieldFrame, TextField } from '@sim/emcn/field'
 import { Modal } from '@sim/emcn/modal'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { workspaceEntry } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { CheckboxTree } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/forks/fork-checkbox-tree'
@@ -16,7 +16,7 @@ import {
   useForkResources,
   useForkWorkspace,
 } from '@/platform/lib/data/forks'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 
 type ResourceKey = Exclude<keyof GetForkResourcesResponse, 'deployedWorkflowCount'>
 type ResourceSelection = Record<ResourceKey, ReadonlySet<string>>
@@ -66,7 +66,7 @@ export function ForkWorkspaceModal({
   onClose,
 }: ForkWorkspaceModalProps) {
   const router = useRouter()
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const forkWorkspace = useForkWorkspace()
   const resources = useForkResources(sourceWorkspaceId)
   const [name, setName] = useState(`${sourceWorkspaceName} (fork)`)
@@ -110,7 +110,7 @@ export function ForkWorkspaceModal({
     toast.success(`Forked into "${result.workspace.name}"`, {
       action: {
         label: 'Open fork',
-        onClick: () => router.push(platformHref(workspaceEntry(result.workspace.id), search)),
+        onClick: () => router.push(hrefFor(workspaceEntry(result.workspace.id))),
       },
     })
   }

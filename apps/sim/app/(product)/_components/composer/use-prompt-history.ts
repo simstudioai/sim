@@ -22,7 +22,7 @@ function draftSignature({ text, attachments }: ComposerDraft): string {
 
 /**
  * Up and Down at the draft's edges browse the conversation's sent messages, starting only from an
- * empty draft and stopping as soon as a recalled draft is edited, as legacy's prompt history did.
+ * empty draft and stopping as soon as a recalled draft is edited.
  * Down past the newest message empties the draft again.
  */
 export function usePromptHistory(

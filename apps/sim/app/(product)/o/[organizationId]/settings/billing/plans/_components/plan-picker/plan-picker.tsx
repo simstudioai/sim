@@ -7,7 +7,7 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import {
   DirectoryBack,
   DirectoryHeading,
@@ -15,7 +15,7 @@ import {
 } from '@/app/(product)/_components/resource-directory/resource-directory'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { usePlanHost, usePlanPicker } from '@/platform/lib/data/plans'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 interface PlanPickerProps {
@@ -26,9 +26,9 @@ interface PlanPickerProps {
 
 /** The organization's plans, reached from Billing's Explore plans and from usage-limit prompts. */
 export function PlanPicker({ organizationId, header }: PlanPickerProps) {
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const scope = useSurfaceScope()
-  const billingHref = platformHref(surfaceHref(scope, '/settings/billing'), search)
+  const billingHref = hrefFor(surfaceHref(scope, '/settings/billing'))
   const host = usePlanHost(organizationId)
   return (
     <DirectoryPage>

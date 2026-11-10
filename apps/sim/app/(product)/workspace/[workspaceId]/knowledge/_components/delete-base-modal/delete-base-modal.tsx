@@ -7,12 +7,10 @@ interface DeleteBaseModalProps {
   /** The base to delete; the dialog is open while it is set. */
   base: Pick<KnowledgeBaseData, 'id' | 'name'> | null
   onClose: () => void
-  /** Runs once the base is gone, such as leaving its page. */
-  onDeleted?: () => void
 }
 
 /** Asks before a knowledge base and everything indexed in it is deleted. */
-export function DeleteBaseModal({ base, onClose, onDeleted }: DeleteBaseModalProps) {
+export function DeleteBaseModal({ base, onClose }: DeleteBaseModalProps) {
   const deleteBase = useDeleteKnowledgeBase()
   return (
     <ConfirmDialog
@@ -26,7 +24,6 @@ export function DeleteBaseModal({ base, onClose, onDeleted }: DeleteBaseModalPro
       pendingLabel='Deleting…'
       onConfirm={async (target) => {
         await deleteBase.mutateAsync({ knowledgeBaseId: target.id })
-        onDeleted?.()
       }}
     />
   )

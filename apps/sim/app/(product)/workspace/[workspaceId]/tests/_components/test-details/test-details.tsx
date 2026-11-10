@@ -7,7 +7,6 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { InlineNotice, StatusText } from '@sim/emcn/status'
 import dynamic from 'next/dynamic'
-import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import type { PreviewMode } from '@/components/file-viewer/types'
 import { workspacePath } from '@/lib/navigation/paths'
@@ -32,7 +31,7 @@ import {
   useWorkflowTestsAccess,
   type WorkflowTestDetail,
 } from '@/platform/lib/data/workflow-tests'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { TEST_RETURN_PARAM } from '@/platform/shared/test-return'
 import { formatRelativeTime, LOCALE } from '@/platform/shared/time'
 
@@ -52,7 +51,7 @@ const TestSource = dynamic(
 )
 
 /**
- * The layout one press of the layout action moves to, as legacy's test page cycled: results, then
+ * The layout one press of the layout action moves to: results, then
  * the source alone, then the source beside the results, then back to the results.
  */
 function nextLayoutAction(layout: PreviewMode, canEdit: boolean) {
@@ -127,7 +126,7 @@ function frozenWorkflowHref(
   workspaceId: string,
   testName: string,
   workflow: RunDetail['ranAgainst'][number],
-  search: Parameters<typeof platformHref>[1]
+  hrefFor: (path: string) => string
 ) {
   if (workflow.name === null) return undefined
   const path = workflow.draft
@@ -138,9 +137,8 @@ function frozenWorkflowHref(
       ? null
       : `workflows/${encodeURIComponent(workflow.workflowId)}/versions/${workflow.version}`
   if (path === null) return undefined
-  return platformHref(
-    `${workspacePath(workspaceId, path)}?${TEST_RETURN_PARAM}=${encodeURIComponent(testName)}`,
-    search
+  return hrefFor(
+    `${workspacePath(workspaceId, path)}?${TEST_RETURN_PARAM}=${encodeURIComponent(testName)}`
   )
 }
 
@@ -169,7 +167,7 @@ interface TestDetailsProps {
  * that version.
  */
 export function TestDetails({ workspaceId, name }: TestDetailsProps) {
-  const searchParams = useSearchParams()
+  const hrefFor = usePlatformHref()
   const now = useMinuteClock()
   const { canEdit } = useWorkflowTestsAccess(workspaceId)
   const query = useWorkflowTest(workspaceId, name)
@@ -189,7 +187,7 @@ export function TestDetails({ workspaceId, name }: TestDetailsProps) {
   const unsaved = layout !== 'preview' && sourceDirty
 
   const back = {
-    href: platformHref(workspacePath(workspaceId, 'tests'), searchParams),
+    href: hrefFor(workspacePath(workspaceId, 'tests')),
     label: 'Tests',
   }
   const read: WorkspaceRead = query.isError
@@ -408,7 +406,7 @@ export function TestDetails({ workspaceId, name }: TestDetailsProps) {
               cells: {
                 state: workflow.stale ? <StatusText label='Out of date' intent='warning' /> : null,
               },
-              href: frozenWorkflowHref(workspaceId, name, workflow, searchParams),
+              href: frozenWorkflowHref(workspaceId, name, workflow, hrefFor),
             }))}
           />
         </DetailSection>

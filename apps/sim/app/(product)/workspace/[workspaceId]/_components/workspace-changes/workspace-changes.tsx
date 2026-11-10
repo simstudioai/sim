@@ -2,9 +2,8 @@
 
 import { ActivityRow } from '@sim/emcn/activity-row'
 import { Icon } from '@sim/emcn/icon'
-import { useSearchParams } from 'next/navigation'
 import styles from '@/app/(product)/workspace/[workspaceId]/_components/workspace-changes/workspace-changes.module.css'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import type { WorkspaceChange } from '@/platform/shared/workspace-records'
 
 interface WorkspaceChangesProps {
@@ -22,7 +21,7 @@ function changeGlyph(change: WorkspaceChange) {
 
 /** The workspace items a change touched; each one with a page links to it. */
 export function WorkspaceChanges({ title = 'Workspace changes', changes }: WorkspaceChangesProps) {
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   if (!changes.length) return null
   return (
     <section className={styles.changes} aria-label={title}>
@@ -36,7 +35,7 @@ export function WorkspaceChanges({ title = 'Workspace changes', changes }: Works
               title={change.name}
               detail={change.type}
               leading={leading}
-              href={platformHref(change.href, search)}
+              href={hrefFor(change.href)}
             />
           ) : (
             <ActivityRow

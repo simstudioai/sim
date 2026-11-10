@@ -6,7 +6,6 @@ import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { SearchField } from '@sim/emcn/search-field'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useSearchParams } from 'next/navigation'
 import {
   ResourceList,
   SectionToolbar,
@@ -19,7 +18,7 @@ import {
   useInboxTasks,
 } from '@/platform/lib/data/inbox'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { formatRelativeTime } from '@/platform/shared/time'
 
@@ -70,7 +69,7 @@ interface InboxTaskListProps {
 
 /** Email tasks this workspace received; a finished one opens its chat. */
 export function InboxTaskList({ workspaceId, address }: InboxTaskListProps) {
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const scope = useSurfaceScope()
   const filters = useInboxTaskFilters()
   const tasks = useInboxTasks(workspaceId, { status: filters.status })
@@ -139,7 +138,7 @@ export function InboxTaskList({ workspaceId, address }: InboxTaskListProps) {
                 title={task.subject}
                 detail={detail}
                 textMetadata={metadata}
-                href={platformHref(surfaceHref(scope, `/chat/${task.chatId}`), search)}
+                href={hrefFor(surfaceHref(scope, `/chat/${task.chatId}`))}
               />
             ) : (
               <ActivityRow

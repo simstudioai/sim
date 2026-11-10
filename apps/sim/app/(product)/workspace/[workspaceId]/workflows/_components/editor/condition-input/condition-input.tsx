@@ -16,6 +16,7 @@ import { useActiveSearchTarget } from '@/app/(product)/workspace/[workspaceId]/w
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/condition-input/condition-input.module.css'
 import { RouteDescription } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/condition-input/route-description'
 import { FieldLabelRow } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/field-label-row/field-label-row'
+import { placeCaret } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/caret'
 import { highlightCode } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/code-highlight'
 import { getActiveWorkflowSearchHighlight } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/search-highlight'
 import { TagDropdown } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/tag-dropdown/tag-dropdown'
@@ -45,16 +46,6 @@ import {
 
 /** How long a branch keeps its pickers after losing focus, so a click into one still lands. */
 const BLUR_SETTLE_MS = 150
-
-/** Puts the caret back after React commits a picker's insertion, so it lands after the text. */
-function placeCaret(textarea: HTMLTextAreaElement | null, position: number) {
-  setTimeout(() => {
-    if (!textarea) return
-    textarea.focus()
-    textarea.selectionStart = position
-    textarea.selectionEnd = position
-  })
-}
 
 interface SyncedValue {
   blockId: string

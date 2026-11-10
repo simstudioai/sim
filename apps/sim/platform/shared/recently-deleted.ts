@@ -1,5 +1,6 @@
 'use client'
 
+import { compareStrings } from '@sim/utils/string'
 import { toast } from '@/lib/toast/sink'
 import {
   useOrganizationMothershipChats,
@@ -7,7 +8,7 @@ import {
 } from '@/hooks/queries/mothership-chats'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
 import { queryView } from '@/platform/shared/query-view'
-import { formatInstantDate } from '@/platform/shared/time'
+import { compareText, formatInstantDate } from '@/platform/shared/time'
 
 export function useDeletedChats(organizationId: string) {
   const [search, setSearch] = useSettingsSearch()
@@ -25,8 +26,8 @@ export function useDeletedChats(organizationId: string) {
       .sort(
         (a, b) =>
           (b.deletedAt?.getTime() ?? 0) - (a.deletedAt?.getTime() ?? 0) ||
-          a.name.localeCompare(b.name) ||
-          a.id.localeCompare(b.id)
+          compareText(a.name, b.name) ||
+          compareStrings(a.id, b.id)
       )
       .map((chat) => ({
         id: chat.id,

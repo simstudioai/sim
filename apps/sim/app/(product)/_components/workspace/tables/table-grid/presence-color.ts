@@ -1,7 +1,7 @@
 import { getUserColor, USER_COLORS } from '@/platform/lib/data/tables'
 
 /**
- * The zone's version of the shared identity palette, in the same order, so a collaborator keeps
+ * Platform's version of the shared identity palette, in the same order, so a collaborator keeps
  * the color the legacy surfaces give them. The legacy values name host-only variables.
  */
 const ZONE_USER_COLORS = [

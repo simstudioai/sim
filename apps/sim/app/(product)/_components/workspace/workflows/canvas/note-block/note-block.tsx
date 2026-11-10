@@ -232,7 +232,7 @@ const NOTE_COMPONENTS = {
   h3: ({ children }: { children?: ReactNode }) => <h3 className={styles.h3}>{children}</h3>,
   h4: ({ children }: { children?: ReactNode }) => <h4 className={styles.h4}>{children}</h4>,
   /* Streamdown's own `h5`, `h6`, `hr`, `sup` and `sub` paint Tailwind classes the legacy app compiled;
-     the zone compiles none, so their rules travel here. */
+     Platform compiles none, so their rules travel here. */
   h5: ({ children }: { children?: ReactNode }) => (
     <h5 className={styles.h5} data-streamdown='heading-5'>
       {children}
