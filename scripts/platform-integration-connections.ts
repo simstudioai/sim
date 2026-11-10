@@ -246,35 +246,39 @@ function serviceAccountConnection(providerId: string): CredentialConnection | nu
   }
 }
 
+/** GitLab's personal token: a person's own connection, offered beside the service's methods. */
+const GITLAB_PERSONAL_TOKEN: CredentialConnection = {
+  id: 'gitlab-personal-token',
+  kind: 'personal_token',
+  label: 'Add personal token',
+  providerId: 'gitlab',
+  setup: 'fields',
+  personalOnly: true,
+  fields: [
+    {
+      id: 'domain',
+      label: 'GitLab host',
+      placeholder: 'gitlab.example.com',
+      defaultValue: 'gitlab.com',
+    },
+    {
+      id: 'apiToken',
+      label: 'Personal access token',
+      placeholder: 'glpat-…',
+      secret: true,
+      hint: 'Only you can use this connection.',
+    },
+  ],
+}
+
 /** Project only declared enrollment methods; a catalog API-key label creates no form by itself. */
 export function integrationConnections(integration: CatalogSource): CredentialConnection[] {
   const type = integration.type.replace(/_v\d+$/, '')
-  if (type === 'gitlab')
-    return [
-      {
-        id: 'gitlab-personal-token',
-        kind: 'personal_token',
-        label: 'Add personal token',
-        providerId: 'gitlab',
-        setup: 'fields',
-        personalOnly: true,
-        fields: [
-          {
-            id: 'domain',
-            label: 'GitLab host',
-            placeholder: 'gitlab.example.com',
-            defaultValue: 'gitlab.com',
-          },
-          {
-            id: 'apiToken',
-            label: 'Personal access token',
-            placeholder: 'glpat-…',
-            secret: true,
-            hint: 'Only you can use this connection.',
-          },
-        ],
-      },
-    ]
+  const connections = serviceConnections(integration, type)
+  return type === 'gitlab' ? [GITLAB_PERSONAL_TOKEN, ...connections] : connections
+}
+
+function serviceConnections(integration: CatalogSource, type: string): CredentialConnection[] {
   const service = services.get(integration.oauthServiceId ?? type)
   if (!service) {
     if (!isManagedMcpConnectorId(type)) return []
