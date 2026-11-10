@@ -1,9 +1,6 @@
 /**
- * Shared sidebar spacing tokens.
- *
- * Apply these Tailwind class names so the sidebar and any related surfaces
- * (e.g. the workspace search modal) stay visually aligned. When the sidebar
- * rhythm changes, update these values and every consumer follows.
+ * Settings sidebar spacing tokens. When the sidebar rhythm changes, update these values and every
+ * consumer follows.
  */
 
 /** Vertical gap between sibling sidebar sections (16px). */

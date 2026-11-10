@@ -21,15 +21,15 @@ import {
   type SettingsSection,
 } from '@/components/settings/navigation'
 import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
-import { usePendingSettingsSelection } from '@/components/settings/use-pending-settings-selection'
-import { SidebarSection } from '@/components/workspace-sidebar/components/sidebar-section'
 import {
   SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
   SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
   SIDEBAR_ITEM_GAP_CLASS,
   SIDEBAR_RAIL_CHIP_CLASS,
   SIDEBAR_SECTION_GAP_CLASS,
-} from '@/components/workspace-sidebar/constants'
+} from '@/components/settings/sidebar-layout'
+import { SidebarSection } from '@/components/settings/sidebar-section'
+import { usePendingSettingsSelection } from '@/components/settings/use-pending-settings-selection'
 import { APP_ENTRY_PATH, LANDING_HREF } from '@/lib/navigation/paths'
 import { popSettingsReturnUrl } from '@/lib/navigation/settings-return'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'

@@ -153,7 +153,6 @@ export {
   useUserPermissionsContext,
   useWorkspacePermissionsContext,
 } from '@/components/workspace-providers/workspace-permissions-provider'
-export { filterAndCap } from '@/components/workspace-sidebar/components/search-modal/utils'
 export { useSession } from '@/lib/auth/client'
 export { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
 export { useDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -165,6 +164,7 @@ export { createMcpToolId } from '@/lib/mcp/shared'
 export { getProviderIdFromServiceId } from '@/lib/oauth'
 export { OPERATION_SUBBLOCK_ID } from '@/lib/permission-groups/operation-access'
 export { captureClientEvent, captureClientException, captureEvent } from '@/lib/posthog/client'
+export { filterAndCap } from '@/lib/search/fuzzy'
 export { createSortParams } from '@/lib/url-state'
 export {
   DEFAULT_HORIZONTAL_SPACING,

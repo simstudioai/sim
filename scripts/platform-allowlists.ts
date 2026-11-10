@@ -627,7 +627,7 @@ const seamHelpers: ReasonedAllowlist = {
       'components/workflow-editor/utils/node-position',
       'components/workflow-editor/utils/run-from-block',
       'components/workflow-editor/utils/workflow-canvas-helpers',
-      'components/workspace-sidebar/components/search-modal/utils',
+      'lib/search/fuzzy',
       'hooks/workflow-actions/use-can-delete',
       'hooks/workflow-actions/use-delete-selection',
       'hooks/workflow-actions/use-export-selection',
