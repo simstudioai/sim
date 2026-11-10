@@ -401,10 +401,6 @@
   "apps/sim/app/api/v2/workflows/[workflowId]/versions/[version]/route.test.ts": {
     "TS2345": 1
   },
-  "apps/sim/app/api/webhooks/[id]/reactivation-gate.test.ts": {
-    "TS2322": 1,
-    "TS2345": 1
-  },
   "apps/sim/app/api/webhooks/agentmail/route.test.ts": {
     "TS2554": 6
   },

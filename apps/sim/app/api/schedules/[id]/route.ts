@@ -2,19 +2,24 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { workflowSchedule } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import {
-  assertWorkflowMutable,
-  authorizeWorkflowByWorkspacePermission,
-  WorkflowLockedError,
-} from '@sim/platform-authz/workflow'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getScheduleByIdContract, updateScheduleContract } from '@/lib/api/contracts/schedules'
 import { parseRequest } from '@/lib/api/server'
+import {
+  createInternalResourceConcealmentPolicy,
+  defineInternalJsonRoute,
+  internalErrorResponse,
+  internalOrchestrationErrorPolicy,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { validateCronExpression } from '@/lib/workflows/schedules/utils'
+import { workflowOperations } from '@/lib/workflows/application/operations'
+import { setWorkflowTriggerEnabled } from '@/lib/workflows/application/triggers'
 
 const logger = createLogger('ScheduleAPI')
 
@@ -97,124 +102,48 @@ export const GET = withRouteHandler(
   }
 )
 
-export const PUT = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-
-    try {
-      const session = await getSession()
-      if (!session?.user?.id) {
-        logger.warn('Unauthorized schedule update attempt')
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+/**
+ * Disables or reactivates a workflow schedule through the same use case as
+ * `PATCH /api/v2/workflows/{workflowId}/triggers/{blockId}`. The id must name
+ * the live deployment's row: a schedule of an older version answers 404
+ * instead of being revived.
+ */
+export const PUT = defineInternalJsonRoute({
+  contract: updateScheduleContract,
+  auth: internalSessionAuth,
+  operation: workflowOperations.setTriggerEnabled,
+  rateLimit: internalRateLimits.none({
+    reason: 'Schedule enablement retains its existing session admission policy.',
+  }),
+  errorPolicy: createInternalResourceConcealmentPolicy({
+    notFoundMessage: 'Schedule not found',
+    base: {
+      project: internalOrchestrationErrorPolicy.project,
+      unhandled: () => internalErrorResponse(500, { error: 'Failed to update schedule' }),
+    },
+  }),
+  parseOptions: {
+    validationErrorResponse: () =>
+      NextResponse.json({ error: 'Invalid request body' }, { status: 400 }),
+  },
+  mapInput: ({ params, body }) => ({
+    target: { kind: 'schedule_row' as const, scheduleId: params.id },
+    enabled: body.action === 'reactivate',
+  }),
+  useCase: setWorkflowTriggerEnabled,
+  present: ({ trigger, changed }, { input }) => {
+    if (!input.enabled) {
+      return {
+        message: changed ? 'Schedule disabled successfully' : 'Schedule is already disabled',
       }
-
-      const parsed = await parseRequest(updateScheduleContract, request, context, {
-        validationErrorResponse: () =>
-          NextResponse.json({ error: 'Invalid request body' }, { status: 400 }),
-      })
-      if (!parsed.success) return parsed.response
-
-      const { id: scheduleId } = parsed.data.params
-      const validatedBody = parsed.data.body
-
-      const result = await fetchAndAuthorize(requestId, scheduleId, session.user.id, 'write')
-      if (result instanceof NextResponse) return result
-      const { schedule, workspaceId } = result
-      if (schedule.workflowId) {
-        await assertWorkflowMutable(schedule.workflowId)
-      }
-
-      const { action } = validatedBody
-
-      if (action === 'disable') {
-        if (schedule.status === 'disabled') {
-          return NextResponse.json({ message: 'Schedule is already disabled' })
-        }
-
-        await db
-          .update(workflowSchedule)
-          .set({ status: 'disabled', nextRunAt: null, lastQueuedAt: null, updatedAt: new Date() })
-          .where(and(eq(workflowSchedule.id, scheduleId), isNull(workflowSchedule.archivedAt)))
-
-        logger.info(`Disabled schedule: ${scheduleId}`)
-
-        recordAudit({
-          workspaceId,
-          actorId: session.user.id,
-          actorName: session.user.name,
-          actorEmail: session.user.email,
-          action: AuditAction.SCHEDULE_UPDATED,
-          resourceType: AuditResourceType.SCHEDULE,
-          resourceId: scheduleId,
-          resourceName: schedule.jobTitle ?? undefined,
-          description: `Disabled schedule "${schedule.jobTitle ?? scheduleId}"`,
-          metadata: {
-            operation: 'disable',
-            sourceType: schedule.sourceType,
-            previousStatus: schedule.status,
-          },
-          request,
-        })
-
-        return NextResponse.json({ message: 'Schedule disabled successfully' })
-      }
-
-      // reactivate
-      if (schedule.status === 'active') {
-        return NextResponse.json({ message: 'Schedule is already active' })
-      }
-
-      if (!schedule.cronExpression) {
-        logger.error(`Schedule has no cron expression: ${scheduleId}`)
-        return NextResponse.json({ error: 'Schedule has no cron expression' }, { status: 400 })
-      }
-
-      const cronResult = validateCronExpression(schedule.cronExpression, schedule.timezone || 'UTC')
-      if (!cronResult.isValid || !cronResult.nextRun) {
-        logger.error(`Invalid cron expression for schedule: ${scheduleId}`)
-        return NextResponse.json({ error: 'Schedule has invalid cron expression' }, { status: 400 })
-      }
-
-      const now = new Date()
-      const nextRunAt = cronResult.nextRun
-
-      await db
-        .update(workflowSchedule)
-        .set({ status: 'active', failedCount: 0, infraRetryCount: 0, updatedAt: now, nextRunAt })
-        .where(and(eq(workflowSchedule.id, scheduleId), isNull(workflowSchedule.archivedAt)))
-
-      logger.info(`Reactivated schedule: ${scheduleId}`)
-
-      recordAudit({
-        workspaceId,
-        actorId: session.user.id,
-        actorName: session.user.name,
-        actorEmail: session.user.email,
-        action: AuditAction.SCHEDULE_UPDATED,
-        resourceType: AuditResourceType.SCHEDULE,
-        resourceId: scheduleId,
-        resourceName: schedule.jobTitle ?? undefined,
-        description: `Reactivated schedule "${schedule.jobTitle ?? scheduleId}"`,
-        metadata: {
-          operation: 'reactivate',
-          sourceType: schedule.sourceType,
-          cronExpression: schedule.cronExpression,
-          timezone: schedule.timezone,
-        },
-        request,
-      })
-
-      return NextResponse.json({ message: 'Schedule activated successfully', nextRunAt })
-    } catch (error) {
-      if (error instanceof WorkflowLockedError) {
-        return NextResponse.json({ error: error.message }, { status: error.status })
-      }
-
-      logger.error('Error updating schedule', error)
-      return NextResponse.json({ error: 'Failed to update schedule' }, { status: 500 })
     }
-  }
-)
+    if (!changed) return { message: 'Schedule is already active' }
+    return {
+      message: 'Schedule activated successfully',
+      ...(trigger.nextRunAt ? { nextRunAt: trigger.nextRunAt.toISOString() } : {}),
+    }
+  },
+})
 
 export const DELETE = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
