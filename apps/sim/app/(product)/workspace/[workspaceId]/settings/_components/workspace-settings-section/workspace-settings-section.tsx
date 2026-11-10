@@ -102,12 +102,11 @@ export function WorkspaceSettingsSection({
   section,
   workspaceId,
   subpath,
-  query,
 }: WorkspaceSettingsSectionViewProps) {
   const Section = SECTIONS[section]
   return (
     <Suspense fallback={null}>
-      <Section workspaceId={workspaceId} subpath={subpath} query={query} />
+      <Section workspaceId={workspaceId} subpath={subpath} />
     </Suspense>
   )
 }

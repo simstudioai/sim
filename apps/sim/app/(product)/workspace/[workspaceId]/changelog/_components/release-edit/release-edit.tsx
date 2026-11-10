@@ -8,12 +8,11 @@ import { type ReleaseFields, useReleaseEdit } from '@/platform/lib/data/changelo
 interface ReleaseEditProps {
   workspaceId: string
   release: ReleaseFields
-  open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-/** Edits a release's title, version label and reason under the revision it was read at. */
-export function ReleaseEdit({ workspaceId, release, open, onOpenChange }: ReleaseEditProps) {
+/** Edits a release's title, version label and reason under the revision it was read at; open while mounted. */
+export function ReleaseEdit({ workspaceId, release, onOpenChange }: ReleaseEditProps) {
   const [title, setTitle] = useState(release.title)
   const [version, setVersion] = useState(release.version)
   const [bumpReason, setBumpReason] = useState(release.bumpReason)
@@ -23,7 +22,7 @@ export function ReleaseEdit({ workspaceId, release, open, onOpenChange }: Releas
   const empty = !title.trim() || !version.trim() || !bumpReason.trim()
   return (
     <Modal
-      open={open}
+      open
       onOpenChange={onOpenChange}
       title='Edit release'
       confirmLabel={edit.isPending ? 'Saving…' : 'Save'}

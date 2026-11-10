@@ -37,7 +37,6 @@ function ErrorUI() {
 
 interface ErrorBoundaryProps {
   children: ReactNode
-  fallback?: ReactNode
 }
 
 interface ErrorBoundaryState {
@@ -101,7 +100,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   public render() {
     if (this.state.hasError) {
-      return this.props.fallback || <ErrorUI />
+      return <ErrorUI />
     }
 
     return this.props.children

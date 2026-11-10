@@ -39,8 +39,3 @@
   justify-content: space-between;
   gap: var(--ui-action-gap);
 }
-.apply {
-  display: flex;
-  align-items: center;
-  gap: var(--ui-action-gap);
-}

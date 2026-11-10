@@ -846,9 +846,7 @@ export function TableRoute({ workspaceId, tableId }: TableRouteProps) {
                 key={filterSeed}
                 columns={columns}
                 filter={effectiveFilter}
-                autoApply
                 onChange={setFilter}
-                onClose={() => setFilterOpen(false)}
               />
             </div>
           )}

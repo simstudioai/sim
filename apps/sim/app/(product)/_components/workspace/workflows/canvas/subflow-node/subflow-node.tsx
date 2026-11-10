@@ -16,7 +16,6 @@ import {
   type NodeProps,
   Position,
   type ReactFlowState,
-  useReactFlow,
   useStore as useReactFlowStore,
   useStoreApi as useReactFlowStoreApi,
   useUpdateNodeInternals,
@@ -104,8 +103,6 @@ interface SubflowNodeViewProps {
   isExecutionHighlighted?: boolean
   /** Diff state when comparing workflow versions. */
   diffStatus?: SubflowDiffStatus
-  /** Depth in the parent container hierarchy (drives nesting styling). */
-  nestingLevel: number
   canEditWorkflow: boolean
   /** Selects this subflow in the editor panel. */
   onSelect?: () => void
@@ -356,7 +353,6 @@ export function SubflowNodeView({
   isRunning = false,
   isExecutionHighlighted = false,
   diffStatus,
-  nestingLevel,
   canEditWorkflow,
   onSelect,
   actionBar,
@@ -572,7 +568,6 @@ export function SubflowNodeView({
         }}
         data-node-id={id}
         data-type='subflowNode'
-        data-nesting-level={nestingLevel}
       >
         <div
           aria-hidden='true'
@@ -728,7 +723,6 @@ type SubflowNode = Node<SubflowNodeData, 'subflowNode'>
  * the legacy container pixels — injecting the editor-only {@link ActionBar}.
  */
 export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<SubflowNode>) => {
-  const { getNodes } = useReactFlow()
   const userPermissions = useUserPermissionsContext()
   const canEditWorkflow = userPermissions.canEdit && !data.isWorkflowLocked
 
@@ -752,25 +746,6 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
   const isRunning = useIsBlockActive(id)
   const isExecutionHighlighted = useIsBlockInActiveExecutionHandoff(id)
 
-  /**
-   * Nesting depth, walking the parent chain so the view can apply nested
-   * container styling.
-   */
-  const nestingLevel = useMemo(() => {
-    let level = 0
-    let currentParentId = data?.parentId
-
-    while (currentParentId) {
-      level++
-      const parentNode = getNodes().find((n) => n.id === currentParentId)
-      if (!parentNode) break
-      currentParentId =
-        typeof parentNode.data?.parentId === 'string' ? parentNode.data.parentId : undefined
-    }
-
-    return level
-  }, [data?.parentId, getNodes])
-
   return (
     <SubflowNodeView
       id={id}
@@ -781,7 +756,6 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
       isFocused={isFocused}
       isRunning={isRunning}
       isExecutionHighlighted={isExecutionHighlighted}
-      nestingLevel={nestingLevel}
       canEditWorkflow={canEditWorkflow}
       onSelect={() => setCurrentBlockId(id)}
       actionBar={
@@ -789,7 +763,6 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
           blockId={id}
           blockType={data.kind}
           disabled={!canEditWorkflow}
-          variant='swell'
           isRunning={isRunning}
           isWorkflowRunning={isWorkflowRunning}
         />

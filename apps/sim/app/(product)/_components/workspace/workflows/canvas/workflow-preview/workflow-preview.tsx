@@ -88,16 +88,12 @@ function calculateNestingDepth(
 interface WorkflowPreviewProps {
   workflowState: WorkflowState
   workspaceId?: string
-  className?: string
   height?: string | number
   width?: string | number
   isPannable?: boolean
-  defaultPosition?: { x: number; y: number }
   defaultZoom?: number
   fitPadding?: number
   onNodeClick?: (blockId: string, mousePosition: { x: number; y: number }) => void
-  /** Callback when a node is right-clicked */
-  onNodeContextMenu?: (blockId: string, mousePosition: { x: number; y: number }) => void
   /** Callback when the canvas (empty area) is clicked */
   onPaneClick?: () => void
   /** Cursor style to show when hovering the canvas */
@@ -196,15 +192,12 @@ interface WorkflowPreviewContentProps extends Omit<WorkflowPreviewProps, 'worksp
 
 function WorkflowPreviewContent({
   workflowState,
-  className,
   height = '100%',
   width = '100%',
   isPannable = true,
-  defaultPosition,
   defaultZoom = 0.8,
   fitPadding = 0.25,
   onNodeClick,
-  onNodeContextMenu,
   onPaneClick,
   cursorStyle = 'grab',
   executedBlocks,
@@ -631,8 +624,7 @@ function WorkflowPreviewContent({
         className={cn(
           styles.root,
           CURSOR_CLASS[cursorStyle],
-          onNodeClick && styles.interactiveNodes,
-          className
+          onNodeClick && styles.interactiveNodes
         )}
       >
         <ReactFlow
@@ -650,8 +642,8 @@ function WorkflowPreviewContent({
           zoomOnScroll={false}
           draggable={false}
           defaultViewport={{
-            x: defaultPosition?.x ?? 0,
-            y: defaultPosition?.y ?? 0,
+            x: 0,
+            y: 0,
             zoom: defaultZoom ?? 1,
           }}
           minZoom={0.1}
@@ -665,15 +657,6 @@ function WorkflowPreviewContent({
               ? (event, node) => {
                   logger.debug('Node clicked', { nodeId: node.id, event })
                   onNodeClick(node.id, { x: event.clientX, y: event.clientY })
-                }
-              : undefined
-          }
-          onNodeContextMenu={
-            onNodeContextMenu
-              ? (event, node) => {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  onNodeContextMenu(node.id, { x: event.clientX, y: event.clientY })
                 }
               : undefined
           }

@@ -8,11 +8,10 @@ import type { ShellHelp } from '@/platform/lib/data/models/shell'
 import { openLinkInNewTab } from '@/platform/shared/row-links'
 
 interface HelpMenuProps {
-  iconOnly?: boolean
   help?: ShellHelp
 }
 
-export function HelpMenu({ iconOnly, help = SESSION_HELP }: HelpMenuProps) {
+export function HelpMenu({ help = SESSION_HELP }: HelpMenuProps) {
   const [contacting, setContacting] = useState(false)
   const { support, desktopUpdate, downloadUrl, slackUrl } = help
   const actions: MenuAction[] = [
@@ -81,12 +80,7 @@ export function HelpMenu({ iconOnly, help = SESSION_HELP }: HelpMenuProps) {
   ]
   return (
     <>
-      <ActionMenu
-        label='Help'
-        triggerSize='row'
-        icon={iconOnly ? 'I047' : null}
-        actions={actions}
-      />
+      <ActionMenu label='Help' triggerSize='row' icon='I047' actions={actions} />
       {support.submit && contacting && (
         <SupportModal support={support} onClose={() => setContacting(false)} />
       )}

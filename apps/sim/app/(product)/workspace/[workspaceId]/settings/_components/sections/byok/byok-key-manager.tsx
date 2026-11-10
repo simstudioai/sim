@@ -18,10 +18,10 @@ import {
 } from '@/app/(product)/_components/settings-parts/settings-parts'
 import styles from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/byok/byok.module.css'
 import {
-  type ByokProvider,
   PROVIDER_SECTIONS,
+  PROVIDERS,
 } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/byok/providers'
-import type { BYOKProviderId } from '@/platform/lib/data/byok'
+import { type BYOKProviderId, MAX_BYOK_KEYS_PER_PROVIDER } from '@/platform/lib/data/byok'
 
 /** A stored key, in rotation order within its provider. */
 export interface ByokManagerKey {
@@ -38,11 +38,9 @@ export interface ByokManagerCapabilities {
 }
 
 interface ByokKeyManagerProps {
-  providers: readonly ByokProvider[]
   /** Providers whose key this workspace inherits from its organization. */
   inheritedProviderIds: ReadonlySet<BYOKProviderId>
   keysByProvider: ReadonlyMap<string, readonly ByokManagerKey[]>
-  maxKeysPerProvider: number
   capabilities: ByokManagerCapabilities
   searchTerm: string
   /** The scope named in the key dialog's copy. */
@@ -74,10 +72,8 @@ const NO_KEYS: readonly ByokManagerKey[] = []
  * add, update and delete keys, and see a provider's pool in its own dialog.
  */
 export function ByokKeyManager({
-  providers,
   inheritedProviderIds,
   keysByProvider,
-  maxKeysPerProvider,
   capabilities,
   searchTerm,
   scopeLabel,
@@ -95,18 +91,16 @@ export function ByokKeyManager({
 
   const term = searchTerm.trim().toLowerCase()
   const filteredIds = new Set(
-    providers
-      .filter(
-        (provider) =>
-          !term ||
-          provider.name.toLowerCase().includes(term) ||
-          provider.description.toLowerCase().includes(term)
-      )
-      .map((provider) => provider.id)
+    PROVIDERS.filter(
+      (provider) =>
+        !term ||
+        provider.name.toLowerCase().includes(term) ||
+        provider.description.toLowerCase().includes(term)
+    ).map((provider) => provider.id)
   )
   const providerKeys = (providerId: string) => keysByProvider.get(providerId) ?? NO_KEYS
-  const editingMeta = providers.find((provider) => provider.id === editing?.providerId)
-  const managingMeta = providers.find((provider) => provider.id === managingProviderId)
+  const editingMeta = PROVIDERS.find((provider) => provider.id === editing?.providerId)
+  const managingMeta = PROVIDERS.find((provider) => provider.id === managingProviderId)
   const managingKeys = managingProviderId ? providerKeys(managingProviderId) : NO_KEYS
   const isUpdatingExistingKey = Boolean(editing?.keyId)
   const canSaveEditingKey = isUpdatingExistingKey ? capabilities.update : capabilities.add
@@ -138,7 +132,7 @@ export function ByokKeyManager({
 
   const visibleSections = PROVIDER_SECTIONS.map((section) => ({
     label: section.label,
-    rows: providers.filter(
+    rows: PROVIDERS.filter(
       (provider) => section.ids.includes(provider.id) && filteredIds.has(provider.id)
     ),
   })).filter((section) => section.rows.length > 0)
@@ -200,7 +194,7 @@ export function ByokKeyManager({
         title={managingMeta ? `${managingMeta.name} API Keys` : 'API Keys'}
         description='Requests are distributed evenly across these keys. Your keys are encrypted and stored securely.'
         confirmLabel={capabilities.add ? 'Add key' : undefined}
-        confirmDisabled={managingKeys.length >= maxKeysPerProvider}
+        confirmDisabled={managingKeys.length >= MAX_BYOK_KEYS_PER_PROVIDER}
         onConfirm={() => {
           if (managingProviderId) openEditModal(managingProviderId)
         }}
@@ -230,8 +224,8 @@ export function ByokKeyManager({
             </SettingsRow>
           ))}
         </RowStack>
-        {capabilities.add && managingKeys.length >= maxKeysPerProvider && (
-          <Muted>{`Key limit reached (${maxKeysPerProvider} keys per provider).`}</Muted>
+        {capabilities.add && managingKeys.length >= MAX_BYOK_KEYS_PER_PROVIDER && (
+          <Muted>{`Key limit reached (${MAX_BYOK_KEYS_PER_PROVIDER} keys per provider).`}</Muted>
         )}
       </Modal>
 
@@ -280,7 +274,7 @@ export function ByokKeyManager({
         onClose={() => setDeleteConfirm(null)}
         title='Delete API Key'
         description={(target) => {
-          const name = providers.find((provider) => provider.id === target.providerId)?.name
+          const name = PROVIDERS.find((provider) => provider.id === target.providerId)?.name
           const consequence =
             providerKeys(target.providerId).length === 1
               ? lastKeyDeleteMessage

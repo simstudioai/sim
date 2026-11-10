@@ -91,13 +91,6 @@ const FOLDER_OVERRIDES: SelectorOverrides = {
   },
 }
 
-/** The modal-launching sub-blocks, by `modalId`. */
-const MODAL_REGISTRY: Readonly<
-  Record<string, (props: { blockId: string; isPreview?: boolean; disabled?: boolean }) => ReactNode>
-> = {
-  'slack-setup-wizard': SlackSetupWizard,
-}
-
 /** The basic/advanced swap a canonical pair shows on its label row. */
 export interface CanonicalToggle {
   mode: 'basic' | 'advanced'
@@ -703,16 +696,14 @@ function SubBlockComponent({
             }
           />
         )
-      case 'modal': {
-        const ModalComponent = config.modalId ? MODAL_REGISTRY[config.modalId] : undefined
-        if (!ModalComponent)
+      case 'modal':
+        if (config.modalId !== 'slack-setup-wizard')
           return (
             <p className={styles.unknown} data-type='T060'>
               Unknown modal: {String(config.modalId)}
             </p>
           )
-        return <ModalComponent blockId={blockId} isPreview={isPreview} disabled={isDisabled} />
-      }
+        return <SlackSetupWizard blockId={blockId} isPreview={isPreview} disabled={isDisabled} />
       case 'model-fallback-list':
         return (
           <ModelFallbackList

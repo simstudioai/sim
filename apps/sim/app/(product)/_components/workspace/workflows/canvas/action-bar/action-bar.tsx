@@ -191,8 +191,6 @@ interface ActionBarProps {
   blockType: string
   /** Whether the action bar is disabled */
   disabled?: boolean
-  /** Places the actions inside the workflow card's border swell. */
-  variant?: 'floating' | 'swell'
   /** Whether this block is currently executing. */
   isRunning?: boolean
   /** Whether any block in the current workflow is executing. */
@@ -213,7 +211,6 @@ export const ActionBar = memo(
     blockId,
     blockType,
     disabled = false,
-    variant = 'floating',
     isRunning = false,
     isWorkflowRunning = false,
     noteColor = DEFAULT_NOTE_COLOR,
@@ -294,7 +291,6 @@ export const ActionBar = memo(
     const canStopWorkflow = isWorkflowRunning && !disabled
     const canRunBlock =
       !isWorkflowRunning && canRunFromBlock && !disabled && !isLocked && !isParentLocked
-    const isSwell = variant === 'swell'
     const firstActionId: ActionId = isNoteBlock
       ? 'color'
       : !isInsideSubflow || isWorkflowRunning
@@ -344,16 +340,15 @@ export const ActionBar = memo(
 
       return cn(
         styles.button,
-        isSwell && styles.swellButton,
+        styles.swellButton,
         !isWorkflowRunning &&
           ((actionId === 'enabled' && !isEnabled) || (actionId === 'lock' && isLocked)) &&
           styles.toggled,
         actionId === 'run' && isRunning && styles.running,
-        isSwell && actionId === firstActionId && styles.first,
-        isSwell &&
-          actionId === firstActionId &&
+        actionId === firstActionId && styles.first,
+        actionId === firstActionId &&
           (actionId === 'run' || actionId === 'color' ? styles.firstWide : styles.firstNarrow),
-        isSwell && actionId === 'delete' && styles.last,
+        actionId === 'delete' && styles.last,
         /*
          * A bystander card's actions dim mid-run because they are not available
          * — but `run` is Stop while the workflow runs, and `canStopWorkflow` is
@@ -399,11 +394,8 @@ export const ActionBar = memo(
     })()
 
     return (
-      <div
-        data-workflow-action-bar-swell={isSwell ? '' : undefined}
-        className={cn(styles.bar, isSwell ? styles.swell : styles.floating)}
-      >
-        <div className={cn(styles.row, isSwell && styles.rowSwell)}>
+      <div data-workflow-action-bar-swell='' className={cn(styles.bar, styles.swell)}>
+        <div className={cn(styles.row, styles.rowSwell)}>
           {/*
             Painted behind the row rather than into each slot, so the hatch has a
             single phase across the whole span. The run/stop button keeps an
@@ -411,10 +403,7 @@ export const ActionBar = memo(
             other slot is transparent mid-run, so it shows through.
           */}
           {isSweeping && (
-            <span
-              aria-hidden='true'
-              className={cn(styles.hatch, isSwell ? styles.hatchSwell : styles.hatchPlain)}
-            >
+            <span aria-hidden='true' className={cn(styles.hatch, styles.hatchSwell)}>
               <span className={styles.hatchFill} />
             </span>
           )}
@@ -620,7 +609,6 @@ export const ActionBar = memo(
       prevProps.blockId === nextProps.blockId &&
       prevProps.blockType === nextProps.blockType &&
       prevProps.disabled === nextProps.disabled &&
-      prevProps.variant === nextProps.variant &&
       prevProps.isRunning === nextProps.isRunning &&
       prevProps.isWorkflowRunning === nextProps.isWorkflowRunning &&
       prevProps.noteColor === nextProps.noteColor &&
