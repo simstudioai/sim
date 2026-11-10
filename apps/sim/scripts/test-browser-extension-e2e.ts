@@ -2266,8 +2266,9 @@ try {
     async () => {
       assert(userId)
       const viewer = userId
-      // A workspace of its own, owned by someone else and shared with the viewer, so revoking the
-      // share leaves the viewer no other way in.
+      // A workspace of the viewer's organization, owned by someone else and shared with the viewer.
+      // Organization owners inherit admin on its workspaces, so access is gone only once the share
+      // is revoked and the viewer is demoted to a plain member.
       const scopedWorkspaceId = generateId()
       const scopedChatId = generateId()
       await sql.begin(async (tx) => {
@@ -2288,10 +2289,13 @@ try {
             response.request().method() === 'POST' &&
             new URL(response.url()).pathname === '/api/mothership/chat'
         )
-      const runs = () =>
-        sql<{ workspaceId: string | null; organizationId: string | null }[]>`
-          select workspace_id as "workspaceId", organization_id as "organizationId"
-          from copilot_runs where chat_id = ${scopedChatId}`
+      const runs = async () =>
+        (
+          await sql<{ workspaceId: string | null; organizationId: string | null }[]>`
+            select workspace_id as "workspaceId", organization_id as "organizationId"
+            from copilot_runs where chat_id = ${scopedChatId}`
+        ).map(({ workspaceId, organizationId }) => ({ workspaceId, organizationId }))
+      let demoted = false
       try {
         await navigate(`${base.origin}/extension/o/${organizationId}?chat=${scopedChatId}`)
         await expect(frame().getByText('QA scoped response.', { exact: true })).toBeVisible()
@@ -2321,12 +2325,20 @@ try {
           .toMatch(/^(?!active$)\w+$/)
         assert.deepEqual(await runs(), [{ workspaceId: scopedWorkspaceId, organizationId: null }])
 
-        await sql`delete from permissions where entity_type = 'workspace' and entity_id = ${scopedWorkspaceId} and user_id = ${viewer}`
+        await sql.begin(async (tx) => {
+          await tx`delete from permissions where entity_type = 'workspace' and entity_id = ${scopedWorkspaceId} and user_id = ${viewer}`
+          await tx`update member set role = 'member' where organization_id = ${organizationId} and user_id = ${viewer}`
+        })
+        demoted = true
         const followUp = chatPost()
         await composer.fill('QA scoped follow-up')
         await composer.press('Enter')
         const refusal = (await followUp).status()
-        assert(refusal === 403 || refusal === 404, `The follow-up was answered ${refusal}`)
+        // The chat route answers a workspace the sender cannot reach with 400, before any run.
+        assert(
+          refusal === 400 || refusal === 403 || refusal === 404,
+          `The follow-up was answered ${refusal}`
+        )
         // Refused, not re-scoped: no run under the organization, and the chat keeps its workspace.
         assert.deepEqual(await runs(), [{ workspaceId: scopedWorkspaceId, organizationId: null }])
         const [chat] = await sql<{ workspaceId: string | null; organizationId: string | null }[]>`
@@ -2334,6 +2346,8 @@ try {
           from copilot_chats where id = ${scopedChatId}`
         assert.deepEqual(chat, { workspaceId: scopedWorkspaceId, organizationId: null })
       } finally {
+        if (demoted)
+          await sql`update member set role = 'owner' where organization_id = ${organizationId} and user_id = ${viewer}`
         await sql`delete from permissions where entity_type = 'workspace' and entity_id = ${scopedWorkspaceId}`
         await sql`delete from workspace where id = ${scopedWorkspaceId}`
       }
