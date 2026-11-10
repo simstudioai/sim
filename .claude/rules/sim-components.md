@@ -8,7 +8,7 @@ paths:
 
 ## Structure
 
-```typescript
+```typescript illustrative
 'use client' // only when the component uses hooks or browser-only APIs
 
 const CONFIG = { SPACING: 8 } as const

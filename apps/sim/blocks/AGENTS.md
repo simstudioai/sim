@@ -171,7 +171,7 @@ the run and their header already says so, so a sentence would only repeat it.
    basic picker and an advanced raw-id input; an advanced-mode user has only the
    second filled. List every member:
    `field: ['tableSelector', 'manualTableId']`. Three naming conventions are in
-   use (`xSelector`/`x`, `xSelector`/`manualX`, `uploadX`/`xRef`), so take the
+   use (`<x>Selector`/`<x>`, `<x>Selector`/`manual<X>`, `upload<X>`/`<x>Ref`), so take the
    membership from the spec's `canonicalGroups` — you cannot derive it from the
    canonical id.
 

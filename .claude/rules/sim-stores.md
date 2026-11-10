@@ -11,7 +11,7 @@ Stores live in `stores/`. Complex stores split into `store.ts` + `types.ts`.
 
 ## Basic Store
 
-```typescript
+```typescript illustrative
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import type { FeatureState } from '@/stores/<feature>/types'
@@ -33,7 +33,7 @@ export const useFeatureStore = create<FeatureState>()(
 
 ## Persisted Store
 
-```typescript
+```typescript illustrative
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
@@ -58,15 +58,15 @@ export const useFeatureStore = create<FeatureState>()(
 
 1. Wrap new stores in `devtools` with a `name`
 2. Use `persist` only when data should survive reload
-3. `persist` MUST use `partialize` with an explicit whitelist of the durable fields. Exclude transient flags (`isResizing`, drag/hover state) and `_hasHydrated` from the whitelist, and never spread the whole state (`{ ...state }`) — it leaks actions and transient state into storage
+3. `persist` MUST use `partialize` with an explicit whitelist of the durable fields. Exclude transient flags (resize, drag and hover state) and `_hasHydrated` from the whitelist, and never spread the whole state (`{ ...state }`) — it leaks actions and transient state into storage
 4. `_hasHydrated` pattern for persisted stores needing hydration tracking
 5. Immutable updates only
 6. `set((state) => ...)` when depending on previous state
-7. A store holding user- or session-scoped data defines `reset()` and registers it at module scope with `registerUserDataReset('<store-id>', () => useFeatureStore.getState().reset())` from `@/stores/user-data-reset-registry`, so `clearUserData()` (sign-out and other identity changes) resets it
+7. A store holding user- or session-scoped data defines `reset()` and registers it at module scope with `registerUserDataReset('<store-id>', () => use<Feature>Store.getState().reset())` from `@/stores/user-data-reset-registry`, so `clearUserData()` (sign-out and other identity changes) resets it
 
 ## Outside React
 
-```typescript
+```typescript illustrative
 const items = useFeatureStore.getState().items
 useFeatureStore.setState({ items: newItems })
 ```

@@ -40,7 +40,7 @@ contracts, and demonstrated regressions.
 | `apps/desktop/e2e/*.spec.ts` | the packaged Electron app | Playwright | desktop E2E workflow |
 | `apps/sim/scripts/test-*-e2e.ts` | a running app over HTTP | its `package.json` script when one exists (`bun run test:scim:e2e`; `test:workflow-version-compare:e2e` adds `--no-env-file`), else `bun scripts/test-<suite>-e2e.ts` from apps/sim | `e2e` jobs (`.github/scripts/http-e2e.sh`) |
 
-- A unit test lives next to its source: `feature.ts` → `feature.test.ts`. No network, no database,
+- A unit test lives next to its source: `<feature>.ts` → `<feature>.test.ts`. No network, no database,
   no real timers.
 - Integration mode installs **no** global mocks: `vitest.integration.setup.ts` validates the env
   contract, scrubs application env, and sets fixture env. Declare every fixture the suite needs with
@@ -161,7 +161,7 @@ hooks. Create `vi.spyOn`/`vi.stubEnv`/`vi.stubGlobal` in `beforeEach` or the tes
 module scope or in `beforeAll` is undone before the first test. Integration mode keeps per-file
 fixtures (restore/unstub off). Node is the default environment — add
 `/** @vitest-environment jsdom */` only when the test needs the DOM. A source that needs both
-node and jsdom tests keeps them in `x.test.ts` and `x.dom.test.ts(x)`; the docblock, not the
+node and jsdom tests keeps them in `<name>.test.ts` and `<name>.dom.test.ts(x)`; the docblock, not the
 suffix, sets the environment.
 
 Those resets clear call history and undo spies, but not an implementation you install on a central
