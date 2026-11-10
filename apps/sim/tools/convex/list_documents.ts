@@ -4,6 +4,7 @@ import type {
   ConvexListSnapshotApiResponse,
 } from '@/tools/convex/types'
 import { convexApiUrl, convexAuthHeaders, parseConvexResponse } from '@/tools/convex/utils'
+import { CONVEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listDocumentsTool: ToolConfig<ConvexListDocumentsParams, ConvexListDocumentsResponse> =
@@ -13,6 +14,7 @@ export const listDocumentsTool: ToolConfig<ConvexListDocumentsParams, ConvexList
     description:
       'List documents from a Convex table via a paginated snapshot. Pass the returned snapshot and page cursor back in to fetch the next page. Requires streaming export, available on Convex paid plans.',
     version: '1.0.0',
+    oauth: CONVEX_CREDENTIAL_OAUTH,
 
     params: {
       deploymentUrl: {

@@ -2,6 +2,7 @@ import type {
   InfisicalUpdateSecretParams,
   InfisicalUpdateSecretResponse,
 } from '@/tools/infisical/types'
+import { INFISICAL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateSecretTool: ToolConfig<
@@ -12,6 +13,7 @@ export const updateSecretTool: ToolConfig<
   name: 'Infisical Update Secret',
   description: 'Update an existing secret in a project environment.',
   version: '1.0.0',
+  oauth: INFISICAL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

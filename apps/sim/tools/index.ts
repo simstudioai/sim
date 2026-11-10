@@ -2160,17 +2160,21 @@ async function executeToolImplementation(
           ) {
             contextParams.providerWorkspaceId = data.providerWorkspaceId
           }
-          if (data.instanceUrl) {
-            contextParams.instanceUrl = data.instanceUrl
-          }
-          if (data.apiDomain && !contextParams.apiDomain) {
-            contextParams.apiDomain = data.apiDomain
-          }
-          if (data.cloudId && !contextParams.cloudId) {
-            contextParams.cloudId = data.cloudId
-          }
-          if (data.domain && !contextParams.domain) {
-            contextParams.domain = data.domain
+          // A policy that maps credential fields (`credentialParams`) is the only way they reach
+          // the tool; a same-named param it leaves unmapped is the user's own data, not the host.
+          if (!credentialTool.oauth?.credentialParams) {
+            if (data.instanceUrl) {
+              contextParams.instanceUrl = data.instanceUrl
+            }
+            if (data.apiDomain && !contextParams.apiDomain) {
+              contextParams.apiDomain = data.apiDomain
+            }
+            if (data.cloudId && !contextParams.cloudId) {
+              contextParams.cloudId = data.cloudId
+            }
+            if (data.domain && !contextParams.domain) {
+              contextParams.domain = data.domain
+            }
           }
           if (data.realmId && credentialTool.oauth?.authoritativeParams?.includes('realmId')) {
             contextParams.realmId = data.realmId

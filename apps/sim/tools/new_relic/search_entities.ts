@@ -9,6 +9,7 @@ import {
   normalizeNewRelicEntity,
   parseNerdGraphResponse,
 } from '@/tools/new_relic/utils'
+import { NEW_RELIC_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface SearchEntitiesData {
@@ -32,6 +33,7 @@ export const newRelicSearchEntitiesTool: ToolConfig<
   name: 'New Relic Search Entities',
   description: 'Search New Relic entities by name, GUID, domain type, tags, or reporting state.',
   version: '1.0.0',
+  oauth: NEW_RELIC_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

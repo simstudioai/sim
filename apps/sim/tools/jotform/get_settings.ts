@@ -6,6 +6,7 @@ import {
   parseJotformResponse,
   trimOrUndefined,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getSettingsTool: ToolConfig<JotformGetSettingsParams, JotformUserResponse> = {
@@ -14,6 +15,7 @@ export const getSettingsTool: ToolConfig<JotformGetSettingsParams, JotformUserRe
   description:
     'Read the account settings behind the API key, including time zone, language, and contact details.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

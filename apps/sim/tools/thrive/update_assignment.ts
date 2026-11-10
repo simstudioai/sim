@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveAssignmentResponse, ThriveUpdateAssignmentParams } from '@/tools/thrive/types'
 import { THRIVE_ASSIGNMENT_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import {
@@ -16,6 +17,7 @@ export const updateAssignmentTool: ToolConfig<
   name: 'Thrive Update Assignment',
   description: 'Update a compliance assignment in Thrive.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

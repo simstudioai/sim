@@ -1,3 +1,4 @@
+import { DEVIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { DevinGetSessionTagsParams, DevinSessionTagsResponse } from './types'
 
@@ -9,6 +10,7 @@ export const devinGetSessionTagsTool: ToolConfig<
   name: 'Devin Get Session Tags',
   description: 'Retrieve the tags currently applied to a Devin session.',
   version: '1.0.0',
+  oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

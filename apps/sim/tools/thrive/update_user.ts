@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveUpdateUserParams, ThriveUserResponse } from '@/tools/thrive/types'
 import { THRIVE_USER_LIFECYCLE_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import {
@@ -13,6 +14,7 @@ export const updateUserTool: ToolConfig<ThriveUpdateUserParams, ThriveUserRespon
   name: 'Thrive Update User',
   description: 'Update an existing user in Thrive by ref. Only the fields provided are changed.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

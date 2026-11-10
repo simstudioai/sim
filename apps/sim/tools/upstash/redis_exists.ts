@@ -1,3 +1,4 @@
+import { UPSTASH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { UpstashRedisExistsParams, UpstashRedisExistsResponse } from '@/tools/upstash/types'
 
@@ -10,6 +11,7 @@ export const upstashRedisExistsTool: ToolConfig<
   description:
     'Check if a key exists in Upstash Redis. Returns true if the key exists, false otherwise.',
   version: '1.0.0',
+  oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {
     restUrl: {

@@ -8,6 +8,7 @@ import {
   readJsonBody,
 } from '@/tools/dynatrace/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { DYNATRACE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getMetricTool: ToolConfig<DynatraceGetMetricParams, DynatraceGetMetricResponse> = {
@@ -16,6 +17,7 @@ export const getMetricTool: ToolConfig<DynatraceGetMetricParams, DynatraceGetMet
   description:
     'Get the descriptor of a single Dynatrace metric — its unit, dimensions, supported aggregations, and transformations.',
   version: '1.0.0',
+  oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {

@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveAddUsersResponse, ThriveAudienceManagersParams } from '@/tools/thrive/types'
 import { THRIVE_ADD_USERS_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import {
@@ -16,6 +17,7 @@ export const addAudienceManagersTool: ToolConfig<
   name: 'Thrive Add Audience Managers',
   description: 'Add managers to a Thrive audience with their permissions.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

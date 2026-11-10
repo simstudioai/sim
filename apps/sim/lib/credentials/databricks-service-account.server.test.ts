@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/credentials/workload-identity/issuer', () => ({
+  MAX_WORKLOAD_IDENTITY_TOKEN_TTL_SECONDS: 3600,
   mintWorkloadIdentityToken: async ({ subject }: { subject: string }) => `token-for:${subject}`,
 }))
 

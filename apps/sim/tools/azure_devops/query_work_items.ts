@@ -4,7 +4,8 @@ import type {
   QueryWorkItemsResponse,
 } from '@/tools/azure_devops/types'
 import type { AzureDevOpsRawWorkItem } from '@/tools/azure_devops/utils'
-import { formatWorkItem, mapWorkItem } from '@/tools/azure_devops/utils'
+import { azureDevOpsProjectUrl, formatWorkItem, mapWorkItem } from '@/tools/azure_devops/utils'
+import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const queryWorkItemsTool: ToolConfig<QueryWorkItemsParams, QueryWorkItemsResponse> = {
@@ -13,6 +14,7 @@ export const queryWorkItemsTool: ToolConfig<QueryWorkItemsParams, QueryWorkItems
   description:
     'Execute a WIQL query to search for work items in Azure DevOps and return full field details. Use TOP N in your query to limit results (Azure enforces a 200-item maximum per batch fetch).',
   version: '1.0.0',
+  oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {
     organization: {
@@ -43,8 +45,7 @@ export const queryWorkItemsTool: ToolConfig<QueryWorkItemsParams, QueryWorkItems
   },
 
   request: {
-    url: (params) =>
-      `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/wit/wiql?api-version=7.2-preview.2`,
+    url: (params) => `${azureDevOpsProjectUrl(params)}/_apis/wit/wiql?api-version=7.2-preview.2`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -77,7 +78,7 @@ export const queryWorkItemsTool: ToolConfig<QueryWorkItemsParams, QueryWorkItems
     for (let i = 0; i < allIds.length; i += BATCH_SIZE) {
       const chunk = allIds.slice(i, i + BATCH_SIZE)
       const detailsUrl = new URL(
-        `https://dev.azure.com/${organization}/${project}/_apis/wit/workitems`
+        `${azureDevOpsProjectUrl({ organization, project })}/_apis/wit/workitems`
       )
       detailsUrl.searchParams.set('ids', chunk.join(','))
       detailsUrl.searchParams.set('$expand', 'all')

@@ -1,3 +1,4 @@
+import { UPSTASH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { UpstashRedisSetnxParams, UpstashRedisSetnxResponse } from '@/tools/upstash/types'
 
@@ -8,6 +9,7 @@ export const upstashRedisSetnxTool: ToolConfig<UpstashRedisSetnxParams, UpstashR
     description:
       'Set the value of a key only if it does not already exist. Returns true if the key was set, false if it already existed.',
     version: '1.0.0',
+    oauth: UPSTASH_CREDENTIAL_OAUTH,
 
     params: {
       restUrl: {

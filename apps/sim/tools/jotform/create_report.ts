@@ -8,6 +8,7 @@ import {
   toFormBody,
   trimOrUndefined,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createReportTool: ToolConfig<JotformCreateReportParams, JotformReportResponse> = {
@@ -16,6 +17,7 @@ export const createReportTool: ToolConfig<JotformCreateReportParams, JotformRepo
   description:
     'Create a shareable report of a form, choosing the report type and which submission fields it shows.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

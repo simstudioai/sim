@@ -1,4 +1,5 @@
 import { toArray, toRecord } from '@sim/utils/object'
+import { validateOktaDomain, validateSupabaseProjectId } from '@/lib/core/security/input-validation'
 import {
   fetchProvider,
   TokenServiceAccountValidationError,
@@ -9,12 +10,33 @@ import type {
   TokenServiceAccountValidationResult,
 } from '@/lib/credentials/token-service-accounts/server'
 import {
+  allowedDomain,
+  normalizeHttpBaseUrl,
   readJsonBody,
+  refuseUnsafeTypedUrl,
   tokenCheckValidator,
 } from '@/lib/credentials/token-service-accounts/validators/http'
+import { buildJupyterAuthHeaders, normalizeJupyterServerUrl } from '@/lib/internal/jupyter/protocol'
 import { ashbyAuthHeaders } from '@/tools/ashby/utils'
 import { checkrHeaders } from '@/tools/checkr/utils'
+import { convexApiUrl, convexAuthHeaders } from '@/tools/convex/utils'
+import { buildDynatraceUrl, dynatraceHeaders } from '@/tools/dynatrace/utils'
+import { normalizeEmailBisonBaseUrl } from '@/tools/emailbison/utils'
+import { normalizeGitLabHost } from '@/tools/gitlab/utils'
 import { GRANOLA_API_BASE, granolaHeaders } from '@/tools/granola/utils'
+import { buildJotformHeaders, buildJotformUrl, JOTFORM_REGION_HOSTS } from '@/tools/jotform/utils'
+import {
+  getLogfireBaseUrl,
+  LOGFIRE_READ_TOKEN_INFO_PATH,
+  logfireHeaders,
+} from '@/tools/logfire/utils'
+import type { MailgunRegion } from '@/tools/mailgun/types'
+import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
+import { getNerdGraphEndpoint, newRelicHeaders } from '@/tools/new_relic/utils'
+import { oktaHeaders } from '@/tools/okta/utils'
+import { planeApiUrl, planeHeaders } from '@/tools/plane/utils'
+import { supabaseBaseUrl } from '@/tools/supabase/utils'
+import { getThriveBaseUrl, getThriveHeaders, THRIVE_HOSTS } from '@/tools/thrive/utils'
 import { WHATSAPP_GRAPH_VERSION } from '@/tools/whatsapp/utils'
 
 /**
@@ -24,6 +46,9 @@ import { WHATSAPP_GRAPH_VERSION } from '@/tools/whatsapp/utils'
  * unknown-id lookup) sit alongside. Kept in one module so each new provider
  * costs a declaration, not a module, in every graph that verifies credentials.
  */
+
+/** Regions for vendors with one US and one EU API host. */
+const US_OR_EU: ReadonlySet<string> = new Set(['us', 'eu'])
 
 /** Affinity's whoami endpoint answers 200 for a valid key and 401 otherwise. */
 export const validateAffinityServiceAccount = tokenCheckValidator({
@@ -59,6 +84,42 @@ export const validateAhrefsServiceAccount = tokenCheckValidator({
     url: 'https://api.ahrefs.com/v3/subscription-info/limits-and-usage',
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
+})
+
+/** Algolia application IDs are alphanumeric; anything else could rewrite the tools' host. */
+const ALGOLIA_APPLICATION_ID = /^[A-Za-z0-9]{1,32}$/
+
+/**
+ * Algolia's get-API-key endpoint lets any key read its own permissions, at the
+ * `https://{applicationId}.algolia.net` host the tools use: 200 with the key's `acl`
+ * for a valid key, a JSON 403 ("Invalid Application-ID or API key") otherwise.
+ */
+export const validateAlgoliaServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Algolia',
+  workspaceId: ({ providerWorkspaceId }) => {
+    const applicationId = (providerWorkspaceId ?? '').trim()
+    if (!ALGOLIA_APPLICATION_ID.test(applicationId)) {
+      throw new Error('Algolia application IDs contain only letters and numbers')
+    }
+    return applicationId
+  },
+  request: ({ apiToken, providerWorkspaceId = '' }) => ({
+    url: `https://${providerWorkspaceId}.algolia.net/1/keys/${encodeURIComponent(apiToken)}`,
+    headers: {
+      'x-algolia-application-id': providerWorkspaceId,
+      'x-algolia-api-key': apiToken,
+      Accept: 'application/json',
+    },
+  }),
+  acceptsBody: (body) => {
+    if (!Array.isArray(toRecord(body).acl)) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'Algolia returned an unexpected key lookup',
+      })
+    }
+    return true
+  },
 })
 
 /** Apify's current-user endpoint answers 200 for a valid token and 401 otherwise. */
@@ -111,6 +172,43 @@ export const validateAshbyServiceAccount = tokenCheckValidator({
       typeof entry === 'string' ? entry : toRecord(entry).message
     )
     return [toRecord(errorInfo).code, ...messages].includes('missing_endpoint_permission')
+  },
+})
+
+/** Azure DevOps organization names: letters, digits, and hyphens, up to 50 characters. */
+const AZURE_DEVOPS_ORGANIZATION = /^[A-Za-z0-9][A-Za-z0-9-]{0,49}$/
+/** The identity Azure DevOps reports when a request carries no usable credential. */
+const AZURE_DEVOPS_ANONYMOUS_ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+
+/**
+ * Azure DevOps' connection-data endpoint (what the official clients call on connect) answers any
+ * PAT valid for the organization with its user, and 401 for an unknown PAT or one issued for
+ * another organization once the sign-in redirect is suppressed. A public organization answers a
+ * bad PAT with 200 and the anonymous identity, so the body must name a real user.
+ */
+export const validateAzureDevOpsServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Azure DevOps',
+  workspaceId: ({ providerWorkspaceId }) => {
+    const organization = (providerWorkspaceId ?? '').trim()
+    if (!AZURE_DEVOPS_ORGANIZATION.test(organization)) throw new Error('invalid organization')
+    return organization
+  },
+  request: ({ apiToken, providerWorkspaceId }) => ({
+    url: `https://dev.azure.com/${providerWorkspaceId}/_apis/connectionData`,
+    headers: {
+      Authorization: `Basic ${Buffer.from(`:${apiToken}`).toString('base64')}`,
+      'X-TFS-FedAuthRedirect': 'Suppress',
+      Accept: 'application/json',
+    },
+  }),
+  acceptsBody: (body) => {
+    const user = toRecord(toRecord(body).authenticatedUser)
+    return (
+      typeof user.id === 'string' &&
+      user.id.length > 0 &&
+      user.id !== AZURE_DEVOPS_ANONYMOUS_ID &&
+      !(typeof user.descriptor === 'string' && user.descriptor.startsWith('System:PublicAccess'))
+    )
   },
 })
 
@@ -222,6 +320,29 @@ export const validateCloudflareServiceAccount = tokenCheckValidator({
   }),
 })
 
+/**
+ * Listing table schemas is a read the List Tables tool already makes: a bad Convex deploy
+ * key gets 401, a key minted for another deployment gets 403 `BadDeployKey`, and any other
+ * JSON 403 is a valid key whose permissions exclude data reads. The deployment URL is
+ * normalized and SSRF-checked by the tools' own `convexApiUrl`.
+ */
+export const validateConvexServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Convex',
+  domain: ({ domain }) => {
+    const deploymentUrl = convexApiUrl(domain ?? '', '')
+    const parsed = new URL(deploymentUrl)
+    if (parsed.username || parsed.password) throw new Error('credentials in URL')
+    return deploymentUrl
+  },
+  egress: 'configuredEndpoint',
+  request: ({ apiToken, domain = '' }) => ({
+    url: convexApiUrl(domain, '/api/json_schemas?format=json'),
+    headers: { ...convexAuthHeaders(apiToken), Accept: 'application/json' },
+  }),
+  forbiddenMeansScoped: true,
+  rejectsKey: (errorBody) => toRecord(errorBody).code === 'BadDeployKey',
+})
+
 /** Crunchbase's autocomplete endpoint answers 200 for a valid user key and 401 otherwise. */
 export const validateCrunchbaseServiceAccount = tokenCheckValidator({
   serviceLabel: 'Crunchbase',
@@ -252,6 +373,25 @@ export const validateDaytonaServiceAccount = tokenCheckValidator({
   }),
 })
 
+/**
+ * Listing one session of the organization is the tools' own read on their host and auth: 200
+ * proves the key and its access to that organization. Devin answers an unknown key, or a key
+ * from another organization, with a problem+json 403, so a 403 rejects. The id must survive
+ * URL encoding unchanged, so it can never steer the tools' unencoded path.
+ */
+export const validateDevinServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Devin',
+  workspaceId: ({ providerWorkspaceId }) => {
+    const orgId = (providerWorkspaceId ?? '').trim()
+    if (!/^[A-Za-z0-9_-]+$/.test(orgId)) throw new Error('invalid organization id')
+    return orgId
+  },
+  request: ({ apiToken, providerWorkspaceId }) => ({
+    url: `https://api.devin.ai/v3/organizations/${providerWorkspaceId}/sessions?first=1`,
+    headers: { Authorization: `Bearer ${apiToken.trim()}`, Accept: 'application/json' },
+  }),
+})
+
 /** Discord returns the bot's own user for a valid bot token and 401 otherwise. */
 export const validateDiscordServiceAccount = tokenCheckValidator({
   serviceLabel: 'Discord',
@@ -275,6 +415,32 @@ export const validateDubServiceAccount = tokenCheckValidator({
 })
 
 /**
+ * Dynatrace's token lookup accepts an access token with any scope and returns its own
+ * metadata, including whether it is enabled; an unknown token gets 401.
+ */
+export const validateDynatraceServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Dynatrace',
+  domain: ({ domain }) => normalizeHttpBaseUrl(domain).replace(/\/api\/v[12]$/, ''),
+  egress: 'configuredEndpoint',
+  request: ({ apiToken, domain = '' }) => ({
+    url: buildDynatraceUrl(domain, '/apiTokens/lookup'),
+    method: 'POST',
+    headers: dynatraceHeaders(apiToken),
+    body: JSON.stringify({ token: apiToken }),
+  }),
+  acceptsBody: (body) => {
+    const token = toRecord(body)
+    if (typeof token.enabled !== 'boolean') {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'Dynatrace returned an unexpected token lookup',
+      })
+    }
+    return token.enabled
+  },
+})
+
+/**
  * ElevenLabs returns the key owner's account for a valid key and 400/401 for a bad one. A key
  * without the user permission gets a 401 naming `missing_permissions`, or a 403, both of which
  * still prove it authenticated.
@@ -287,6 +453,25 @@ export const validateElevenLabsServiceAccount = tokenCheckValidator({
   }),
   forbiddenMeansScoped: true,
   provesKey: (errorBody) => toRecord(toRecord(errorBody).detail).status === 'missing_permissions',
+})
+
+/**
+ * Email Bison's `GET /api/users` returns the token's user on the instance it was typed with
+ * (dedi.emailbison.com or a white-labeled host), stored as the HTTPS origin the tools use; an
+ * unknown token answers 401. A 200 without Email Bison's user envelope is some other site.
+ */
+export const validateEmailBisonServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Email Bison',
+  domain: ({ domain }) => normalizeEmailBisonBaseUrl(refuseUnsafeTypedUrl(domain)),
+  egress: 'configuredEndpoint',
+  request: ({ apiToken, domain }) => ({
+    url: `${domain}/api/users`,
+    headers: { Authorization: `Bearer ${apiToken.trim()}`, Accept: 'application/json' },
+  }),
+  acceptsBody: (body) => {
+    const user = toRecord(toRecord(body).data)
+    return user.id !== undefined && user.id !== null
+  },
 })
 
 /** Enrich's credit-balance endpoint costs no credits and succeeds only for a valid key. */
@@ -392,6 +577,64 @@ export const validateGammaServiceAccount = tokenCheckValidator({
   }),
 })
 
+/** Scopes that let the GitLab tools call the REST API. */
+const GITLAB_API_SCOPES = new Set(['api', 'read_api'])
+
+/**
+ * GitLab's token self-lookup answers for a personal, project, or group access token at the
+ * instance it was typed with (gitlab.com or self-managed); the token must be active and carry an
+ * API scope. A reply that isn't a token lookup is the instance misbehaving, not a bad token.
+ */
+export const validateGitLabServiceAccount = tokenCheckValidator({
+  serviceLabel: 'GitLab',
+  domain: ({ domain }) => normalizeGitLabHost(domain),
+  egress: 'configuredEndpoint',
+  request: ({ apiToken, domain }) => ({
+    url: `https://${domain}/api/v4/personal_access_tokens/self`,
+    headers: { 'PRIVATE-TOKEN': apiToken, Accept: 'application/json' },
+  }),
+  acceptsBody: (body) => {
+    const token = toRecord(body)
+    if (typeof token.active !== 'boolean' || !Array.isArray(token.scopes)) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'GitLab returned an unexpected token lookup',
+      })
+    }
+    const usable =
+      token.active &&
+      token.revoked !== true &&
+      token.scopes.some((scope) => GITLAB_API_SCOPES.has(String(scope)))
+    const name = typeof token.name === 'string' ? token.name.trim() : ''
+    return usable && name ? { displayName: name } : usable
+  },
+})
+
+/**
+ * Grafana's `GET /api/user` needs a signed-in, non-anonymous identity but no role, so it
+ * answers 200 for any valid service account token and 401 for a bad one, even where
+ * anonymous access lets most reads answer 200 to any token.
+ */
+export const validateGrafanaServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Grafana',
+  domain: ({ domain }) => normalizeHttpBaseUrl(domain),
+  egress: 'configuredEndpoint',
+  request: ({ apiToken, domain }) => ({
+    url: `${domain}/api/user`,
+    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+  }),
+  acceptsBody: (body) => {
+    const login = toRecord(body).login
+    if (typeof login !== 'string' || !login.trim()) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'Grafana returned an unexpected user lookup',
+      })
+    }
+    return true
+  },
+})
+
 /**
  * Grain's list-teams endpoint (a read-only POST, as the tools call it) answers 200 for a valid
  * access token and 401 `invalid_token` otherwise.
@@ -451,6 +694,31 @@ export const validateIncidentioServiceAccount = tokenCheckValidator({
 })
 
 /**
+ * Infisical's `GET /api/v1/identities/details`, called with a machine identity's own access token
+ * on its instance (US, EU, or self-hosted), needs no project permission and answers the identity's
+ * organization; a malformed, expired, or wrong-instance token gets a JSON 403 TokenError.
+ */
+export const validateInfisicalServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Infisical',
+  domain: ({ domain }) => normalizeHttpBaseUrl(domain),
+  egress: 'configuredEndpoint',
+  request: ({ apiToken, domain }) => ({
+    url: `${domain}/api/v1/identities/details`,
+    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+  }),
+  acceptsBody: (body) => {
+    const organization = toRecord(toRecord(toRecord(body).identityDetails).organization)
+    if (typeof organization.id !== 'string' || !organization.id) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'Infisical returned unexpected identity details',
+      })
+    }
+    return true
+  },
+})
+
+/**
  * Instantly's campaign list (the one the Instantly tools call) answers 200 for a valid key and
  * 401 for a bad one; a valid key without the campaigns scope gets 403.
  */
@@ -474,6 +742,45 @@ export const validateIntercomServiceAccount = tokenCheckValidator({
       'Intercom-Version': '2.14',
     },
   }),
+})
+
+/**
+ * Jotform's account endpoint on the region's host (via the tools' URL builder) answers 200 for a
+ * valid key and 401 otherwise; a key only works on the host that issued it, so a wrong region is
+ * refused too. Jotform reports some failures inside a 200, so `responseCode` must also be 200.
+ */
+export const validateJotformServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Jotform',
+  domain: allowedDomain(new Set(Object.keys(JOTFORM_REGION_HOSTS))),
+  request: ({ apiToken, domain }) => ({
+    url: buildJotformUrl({ apiKey: apiToken, region: domain }, 'user').toString(),
+    headers: { ...buildJotformHeaders(apiToken), Accept: 'application/json' },
+  }),
+  acceptsBody: (body) => Number(toRecord(body).responseCode) === 200,
+})
+
+/**
+ * Jupyter's `GET /api/status` is authenticated and answers a bad token with 403, never a
+ * login redirect. The server URL is normalized as the tools normalize it and reached
+ * under the same `selfHostedService` egress profile.
+ */
+export const validateJupyterServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Jupyter',
+  domain: ({ domain }) => normalizeJupyterServerUrl(refuseUnsafeTypedUrl(domain)),
+  egress: 'selfHostedService',
+  request: ({ apiToken, domain }) => ({
+    url: `${domain}/api/status`,
+    headers: { ...buildJupyterAuthHeaders(apiToken), Accept: 'application/json' },
+  }),
+  acceptsBody: (body) => {
+    if (typeof toRecord(body).started !== 'string') {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'Jupyter returned an unexpected status',
+      })
+    }
+    return true
+  },
 })
 
 /** LangSmith's workspace list answers 200 for a valid API key and 401/403 otherwise. */
@@ -516,6 +823,45 @@ export const validateLinqServiceAccount = tokenCheckValidator({
     url: 'https://api.linqapp.com/api/partner/v3/phone_numbers',
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
+})
+
+const LOGFIRE_CLOUD_REGIONS = new Set(['auto', 'us', 'eu'])
+
+/**
+ * Logfire's read-token-info endpoint answers any read token with its organization and
+ * project, and 401 for an unknown token (including one from the other region). The
+ * region or host field resolves through the tools' own `getLogfireBaseUrl` (`us`/`eu`
+ * picks that Cloud region, `auto` reads it from the token's prefix, anything else is a
+ * self-hosted base URL), and the stored base URL fills the tools' `host`, which wins.
+ */
+export const validateLogfireServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Logfire',
+  domain: ({ apiToken, domain }) => {
+    const typed = (domain ?? '').trim()
+    if (!typed) throw new Error('missing region or host')
+    const region = typed.toLowerCase()
+    if (LOGFIRE_CLOUD_REGIONS.has(region)) {
+      return getLogfireBaseUrl(apiToken, region as 'auto' | 'us' | 'eu')
+    }
+    // A self-hosted base URL names a domain, a port, or a scheme; a bare word is a mistyped region.
+    if (!/[.:]/.test(typed)) throw new Error('unknown region')
+    return getLogfireBaseUrl(apiToken, 'auto', refuseUnsafeTypedUrl(typed))
+  },
+  egress: 'configuredEndpoint',
+  request: ({ apiToken, domain }) => ({
+    url: `${domain}${LOGFIRE_READ_TOKEN_INFO_PATH}`,
+    headers: logfireHeaders(apiToken),
+  }),
+  acceptsBody: (body) => {
+    const project = toRecord(body).project_name
+    if (typeof project !== 'string' || !project.trim()) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'Logfire returned an unexpected token lookup',
+      })
+    }
+    return true
+  },
 })
 
 /** Loops' API-key test endpoint answers 200 for a valid key and 401 otherwise. */
@@ -561,6 +907,25 @@ export const validateMailchimpServiceAccount = tokenCheckValidator({
   },
 })
 
+/**
+ * Listing one domain on the region's host answers 200 for a valid account API key and 401
+ * ("Invalid private key") otherwise; a key from the other region is refused the same way, so the
+ * check also proves the region. The region is checked first because the tools send any value
+ * other than `eu` to the US host. A role-restricted key's JSON 403 still proves the key.
+ */
+export const validateMailgunServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Mailgun',
+  domain: allowedDomain(US_OR_EU),
+  forbiddenMeansScoped: true,
+  request: ({ apiToken, domain }) => ({
+    url: `${getMailgunApiBaseUrl(domain as MailgunRegion)}/domains?limit=1`,
+    headers: {
+      Authorization: `Basic ${Buffer.from(`api:${apiToken}`).toString('base64')}`,
+      Accept: 'application/json',
+    },
+  }),
+})
+
 /** Mem0's ping endpoint (the one its SDK calls on startup) answers 200 for a valid key and 401 otherwise. */
 export const validateMem0ServiceAccount = tokenCheckValidator({
   serviceLabel: 'Mem0',
@@ -568,6 +933,49 @@ export const validateMem0ServiceAccount = tokenCheckValidator({
     url: 'https://api.mem0.ai/v1/ping/',
     headers: { Authorization: `Token ${apiToken}`, Accept: 'application/json' },
   }),
+})
+
+/**
+ * A New Relic User API key is bound to its data center, so it is checked against the
+ * NerdGraph host of the region typed with it (`us` or `eu`, stored lower-cased because
+ * the tools send anything but `eu` to the US host). An unknown key, or one from the other
+ * region, gets 401; NerdGraph can also answer 200 with an `errors` array, so only a
+ * resolved user proves the key.
+ */
+export const validateNewRelicServiceAccount = tokenCheckValidator({
+  serviceLabel: 'New Relic',
+  domain: allowedDomain(US_OR_EU),
+  request: ({ apiToken, domain }) => ({
+    url: getNerdGraphEndpoint(domain as 'us' | 'eu'),
+    method: 'POST',
+    headers: { ...newRelicHeaders(apiToken), Accept: 'application/json' },
+    body: JSON.stringify({ query: '{ actor { user { id } } }' }),
+  }),
+  acceptsBody: (body) => toRecord(toRecord(toRecord(body).data).actor).user != null,
+})
+
+/**
+ * With an API token, Okta's `GET /api/v1/users/me` returns the admin the token acts as on the
+ * org whose Okta-owned domain the tools' `validateOktaDomain` accepts; a bad or revoked token
+ * gets 401 `E0000011`. A reply without a user id is Okta misbehaving, not a bad token.
+ */
+export const validateOktaServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Okta',
+  domain: ({ domain }) => validateOktaDomain(domain ?? ''),
+  request: ({ apiToken, domain }) => ({
+    url: `https://${domain}/api/v1/users/me`,
+    headers: oktaHeaders(apiToken.trim()),
+  }),
+  acceptsBody: (body) => {
+    const id = toRecord(body).id
+    if (typeof id !== 'string' || !id) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'Okta returned an unexpected user',
+      })
+    }
+    return true
+  },
 })
 
 /** Otter's workspace endpoint answers 200 for a valid key and 401 otherwise. */
@@ -607,6 +1015,50 @@ export const validatePersonaServiceAccount = tokenCheckValidator({
       Accept: 'application/json',
     },
   }),
+})
+
+/**
+ * The instance URL in the form the tools build on: an http(s) origin plus any reverse-proxy path
+ * prefix, without a trailing slash; a bare host is taken as https. `planeApiUrl` applies the tools'
+ * own checks (no credentials, query, fragment, dot segments, or /api/vN suffix).
+ */
+function normalizePlaneInstanceUrl(raw: string | undefined): string {
+  const base = normalizeHttpBaseUrl(raw)
+  // The tools' own checks: no dot segments or /api/vN suffix.
+  planeApiUrl(base, '/api/v1/users/me/')
+  return base
+}
+
+/**
+ * Plane's documented current-user read, served under /api/v1 by Plane Cloud and Community
+ * Edition, answers 200 with the user for a valid token on the instance it was typed with, and 401
+ * or 403 for a bad one. A reply without a user id is the instance misbehaving.
+ */
+export const validatePlaneServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Plane',
+  domain: ({ domain }) => normalizePlaneInstanceUrl(domain),
+  egress: 'configuredEndpoint',
+  request: ({ apiToken, domain }) => {
+    let headers: Record<string, string>
+    try {
+      headers = planeHeaders(apiToken)
+    } catch {
+      throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+        step: 'verify',
+        reason: 'invalid Plane API token',
+      })
+    }
+    return { url: planeApiUrl(domain, '/api/v1/users/me/'), headers }
+  },
+  acceptsBody: (body) => {
+    if (typeof toRecord(body).id !== 'string') {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'Plane returned an unexpected current user',
+      })
+    }
+    return true
+  },
 })
 
 /** Profound's organization categories endpoint answers 200 for a valid key and 401 otherwise. */
@@ -795,6 +1247,33 @@ export const validateStripeServiceAccount = tokenCheckValidator({
 })
 
 /**
+ * Reduces a typed Supabase project to the bare ref the tools take as `projectId`: the ref, its
+ * `<ref>.supabase.co` host, or the project URL, which must then pass `validateSupabaseProjectId`.
+ */
+function normalizeSupabaseProjectRef(raw: string | undefined): string {
+  const typed = (raw ?? '').trim().toLowerCase()
+  const host = /^https?:\/\//.test(typed) ? new URL(typed).hostname : typed.replace(/\/+$/, '')
+  const ref = host.endsWith('.supabase.co') ? host.slice(0, -'.supabase.co'.length) : host
+  const result = validateSupabaseProjectId(ref)
+  if (!result.isValid || !result.sanitized) throw new Error('invalid project ref')
+  return result.sanitized
+}
+
+/**
+ * The API gateway key-checks every `/auth/v1/` route but a few open ones, so Auth's settings read
+ * on `<ref>.supabase.co` (host built by the tools' `supabaseBaseUrl`) answers 200 for any key of
+ * that project (anon, publishable, secret, or service_role) and 401 for a key it doesn't know.
+ */
+export const validateSupabaseServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Supabase',
+  domain: ({ domain }) => normalizeSupabaseProjectRef(domain),
+  request: ({ apiToken, domain }) => ({
+    url: `${supabaseBaseUrl(domain ?? '')}/auth/v1/settings`,
+    headers: { apikey: apiToken, Accept: 'application/json' },
+  }),
+})
+
+/**
  * Listing devices in the token's default tailnet (`-`) answers 200 for a valid token and 401 for a
  * bad one; an OAuth token without the devices scope gets 403.
  */
@@ -825,12 +1304,75 @@ export const validateTelegramServiceAccount = tokenCheckValidator({
   }),
 })
 
+/**
+ * Listing Thrive tags is a read with the same Basic `tenantId:apiKey` auth the tools send, on the
+ * region host the key belongs to; a bad key or tenant gets 401.
+ */
+export const validateThriveServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Thrive',
+  domain: allowedDomain(THRIVE_HOSTS),
+  workspaceId: ({ providerWorkspaceId }) => {
+    const tenantId = (providerWorkspaceId ?? '').trim()
+    // The tenant id is the Basic-auth username: printable ASCII, and no colon, which would split it.
+    if (!/^[\x21-\x39\x3b-\x7e]+$/.test(tenantId)) throw new Error('invalid tenant id')
+    return tenantId
+  },
+  request: ({ apiToken, domain, providerWorkspaceId = '' }) => ({
+    url: `${getThriveBaseUrl(domain, 'v1')}/tags`,
+    headers: { ...getThriveHeaders(providerWorkspaceId, apiToken), Accept: 'application/json' },
+  }),
+})
+
+/**
+ * `SELECT 1` on Tinybird's Query API touches no resource and answers 200 for a token with a read
+ * scope at the base URL it was typed with. An unknown or other-region token gets a 403 naming an
+ * invalid authentication token (and echoing it); any other JSON 403 is a valid token without a
+ * read scope, such as an append-only token.
+ */
+export const validateTinybirdServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Tinybird',
+  domain: ({ domain }) => normalizeHttpBaseUrl(domain),
+  egress: 'configuredEndpoint',
+  errorBodyEchoesToken: true,
+  forbiddenMeansScoped: true,
+  rejectsKey: (errorBody) =>
+    String(toRecord(errorBody).error ?? '').includes('invalid authentication token'),
+  request: ({ apiToken, domain }) => ({
+    url: `${domain}/v0/sql?q=${encodeURIComponent('SELECT 1 FORMAT JSON')}`,
+    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+  }),
+})
+
 /** Listing one run needs a valid environment secret key; Trigger.dev answers 401 for any other. */
 export const validateTriggerDevServiceAccount = tokenCheckValidator({
   serviceLabel: 'Trigger.dev',
   request: ({ apiToken }) => ({
     url: 'https://api.trigger.dev/api/v1/runs?page%5Bsize%5D=1',
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+  }),
+})
+
+/** Twilio Account SIDs: AC followed by 32 lowercase hex digits. */
+const TWILIO_ACCOUNT_SID = /^AC[0-9a-f]{32}$/
+
+/**
+ * Fetching the account resource with the SID and auth token as Basic auth (the tools' scheme)
+ * answers 200 for a matching pair and 401 (code 20003) for a wrong token, an unknown SID, or a SID
+ * the token doesn't belong to. The SID is checked first so it can never rewrite the path.
+ */
+export const validateTwilioServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Twilio',
+  workspaceId: ({ providerWorkspaceId }) => {
+    const accountSid = (providerWorkspaceId ?? '').trim()
+    if (!TWILIO_ACCOUNT_SID.test(accountSid)) throw new Error('invalid Account SID')
+    return accountSid
+  },
+  request: ({ apiToken, providerWorkspaceId }) => ({
+    url: `https://api.twilio.com/2010-04-01/Accounts/${providerWorkspaceId}.json`,
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${providerWorkspaceId}:${apiToken}`).toString('base64')}`,
+      Accept: 'application/json',
+    },
   }),
 })
 
@@ -845,6 +1387,32 @@ export const validateTypeformServiceAccount = tokenCheckValidator({
     url: 'https://api.typeform.com/forms?page_size=1',
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
+})
+
+/**
+ * PING answers `{"result":"PONG"}` for a standard token; a bad token gets 401. A token whose
+ * ACL doesn't allow PING (a read-only or ACL-user token) gets a NOPERM error, which still
+ * proves it authenticated. Any http(s) origin is accepted, as the legacy block accepted any
+ * URL, so the check goes through the guarded egress.
+ */
+export const validateUpstashServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Upstash',
+  domain: ({ domain }) => normalizeHttpBaseUrl(domain),
+  egress: 'configuredEndpoint',
+  request: ({ apiToken, domain }) => ({
+    url: `${domain}/ping`,
+    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+  }),
+  provesKey: (errorBody) => /^NOPERM/i.test(String(toRecord(errorBody).error ?? '')),
+  acceptsBody: (body) => {
+    if (toRecord(body).result !== 'PONG') {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'Upstash returned an unexpected PING reply',
+      })
+    }
+    return true
+  },
 })
 
 /** UptimeRobot's v3 user/me returns the key owner's profile, so it succeeds only for a valid key. */

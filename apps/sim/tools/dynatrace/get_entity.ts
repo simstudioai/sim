@@ -8,6 +8,7 @@ import {
   readJsonBody,
 } from '@/tools/dynatrace/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { DYNATRACE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getEntityTool: ToolConfig<DynatraceGetEntityParams, DynatraceGetEntityResponse> = {
@@ -16,6 +17,7 @@ export const getEntityTool: ToolConfig<DynatraceGetEntityParams, DynatraceGetEnt
   description:
     'Get the properties, tags, management zones, and relationships of a single monitored entity.',
   version: '1.0.0',
+  oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {

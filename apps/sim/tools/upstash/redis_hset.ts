@@ -1,3 +1,4 @@
+import { UPSTASH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { UpstashRedisHSetParams, UpstashRedisHSetResponse } from '@/tools/upstash/types'
 
@@ -6,6 +7,7 @@ export const upstashRedisHSetTool: ToolConfig<UpstashRedisHSetParams, UpstashRed
   name: 'Upstash Redis HSET',
   description: 'Set a field in a hash stored at a key in Upstash Redis.',
   version: '1.0.0',
+  oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {
     restUrl: {

@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveActivityResponse, ThriveGetActivityParams } from '@/tools/thrive/types'
 import { THRIVE_ACTIVITY_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
@@ -8,6 +9,7 @@ export const getActivityTool: ToolConfig<ThriveGetActivityParams, ThriveActivity
   name: 'Thrive Get Activity',
   description: 'Get a single activity record in Thrive by its ID.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

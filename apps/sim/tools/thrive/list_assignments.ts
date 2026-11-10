@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   ThriveListAssignmentsParams,
   ThriveListAssignmentsResponse,
@@ -19,6 +20,7 @@ export const listAssignmentsTool: ToolConfig<
   name: 'Thrive List Assignments',
   description: 'List compliance assignments in Thrive, optionally filtered by audience.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

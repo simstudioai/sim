@@ -10,6 +10,7 @@ import {
   requireValue,
   toJsonObject,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateFormPropertiesTool: ToolConfig<
@@ -21,6 +22,7 @@ export const updateFormPropertiesTool: ToolConfig<
   description:
     'Update form settings such as the thank-you redirect, submission limit, width, or styles. Only the supplied keys change.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

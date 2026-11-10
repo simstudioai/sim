@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveMessageResponse, ThriveRemoveUserTagsParams } from '@/tools/thrive/types'
 import {
   getThriveBaseUrl,
@@ -12,6 +13,7 @@ export const removeUserTagsTool: ToolConfig<ThriveRemoveUserTagsParams, ThriveMe
   name: 'Thrive Remove User Tags',
   description: 'Remove one or more tags from a learner in Thrive.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

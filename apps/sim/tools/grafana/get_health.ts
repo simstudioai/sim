@@ -1,4 +1,5 @@
 import type { GrafanaHealthCheckParams, GrafanaHealthCheckResponse } from '@/tools/grafana/types'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getHealthTool: ToolConfig<GrafanaHealthCheckParams, GrafanaHealthCheckResponse> = {
@@ -6,6 +7,7 @@ export const getHealthTool: ToolConfig<GrafanaHealthCheckParams, GrafanaHealthCh
   name: 'Grafana Get Health',
   description: 'Check the health of the Grafana instance (version, database status)',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

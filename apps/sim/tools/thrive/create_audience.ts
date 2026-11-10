@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveAudienceResponse, ThriveCreateAudienceParams } from '@/tools/thrive/types'
 import { THRIVE_AUDIENCE_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
@@ -8,6 +9,7 @@ export const createAudienceTool: ToolConfig<ThriveCreateAudienceParams, ThriveAu
   name: 'Thrive Create Audience',
   description: 'Create a new audience or structure in Thrive.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

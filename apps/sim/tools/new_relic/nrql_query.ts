@@ -5,6 +5,7 @@ import {
   newRelicHeaders,
   parseNerdGraphResponse,
 } from '@/tools/new_relic/utils'
+import { NEW_RELIC_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface NrqlQueryData {
@@ -23,6 +24,7 @@ export const newRelicNrqlQueryTool: ToolConfig<NewRelicNrqlQueryParams, NewRelic
     name: 'New Relic NRQL Query',
     description: 'Run a NRQL query against a New Relic account using NerdGraph.',
     version: '1.0.0',
+    oauth: NEW_RELIC_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

@@ -11,6 +11,7 @@ import {
   emailBisonUrl,
   jsonBody,
 } from '@/tools/emailbison/utils'
+import { EMAILBISON_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const attachTagsToLeadsTool: ToolConfig<
@@ -21,6 +22,7 @@ export const attachTagsToLeadsTool: ToolConfig<
   name: 'Email Bison Attach Tags to Leads',
   description: 'Attaches Email Bison tags to one or more leads.',
   version: '1.0.0',
+  oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,
     tagIds: {

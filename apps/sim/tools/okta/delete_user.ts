@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaDeleteUserParams, OktaDeleteUserResponse } from '@/tools/okta/types'
 import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaDeleteUser')
@@ -12,6 +13,7 @@ export const oktaDeleteUserTool: ToolConfig<OktaDeleteUserParams, OktaDeleteUser
   description:
     'Permanently delete a user from your Okta organization. Can only be performed on DEPROVISIONED users. If the user is active, this will first deactivate them and a second call is needed to delete.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

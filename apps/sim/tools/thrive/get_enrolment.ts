@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveEnrolmentResponse, ThriveGetEnrolmentParams } from '@/tools/thrive/types'
 import { THRIVE_ENROLMENT_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
@@ -8,6 +9,7 @@ export const getEnrolmentTool: ToolConfig<ThriveGetEnrolmentParams, ThriveEnrolm
   name: 'Thrive Get Enrolment',
   description: 'Get a single enrolment for a compliance assignment in Thrive.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

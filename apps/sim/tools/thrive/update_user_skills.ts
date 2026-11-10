@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveMessageResponse, ThriveUpdateUserSkillsParams } from '@/tools/thrive/types'
 import {
   getThriveBaseUrl,
@@ -13,6 +14,7 @@ export const updateUserSkillsTool: ToolConfig<ThriveUpdateUserSkillsParams, Thri
     name: 'Thrive Update User Skills',
     description: 'Update skills and levels for a learner in Thrive.',
     version: '1.0.0',
+    oauth: THRIVE_CREDENTIAL_OAUTH,
 
     params: {
       tenantId: {

@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveSuspendUserParams, ThriveUserResponse } from '@/tools/thrive/types'
 import { THRIVE_USER_LIFECYCLE_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
@@ -8,6 +9,7 @@ export const suspendUserTool: ToolConfig<ThriveSuspendUserParams, ThriveUserResp
   name: 'Thrive Suspend User',
   description: 'Suspend a user in Thrive by ref, marking the account inactive.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

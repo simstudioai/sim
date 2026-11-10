@@ -1,3 +1,4 @@
+import { SUPABASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   STORAGE_MESSAGE_OUTPUT_PROPERTIES,
   type SupabaseStorageEmptyBucketParams,
@@ -15,6 +16,7 @@ export const storageEmptyBucketTool: ToolConfig<
   description:
     'Delete all objects inside a Supabase storage bucket without deleting the bucket itself',
   version: '1.0.0',
+  oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {

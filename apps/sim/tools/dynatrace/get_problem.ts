@@ -11,6 +11,7 @@ import {
   readJsonBody,
 } from '@/tools/dynatrace/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { DYNATRACE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 /**
@@ -26,6 +27,7 @@ export const getProblemTool: ToolConfig<DynatraceGetProblemParams, DynatraceGetP
   description:
     'Get the full details of a single Dynatrace problem, including root cause, affected entities, and optionally its evidence and impact analysis.',
   version: '1.0.0',
+  oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {

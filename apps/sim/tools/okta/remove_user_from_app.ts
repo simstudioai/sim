@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaRemoveUserFromAppParams, OktaRemoveUserFromAppResponse } from '@/tools/okta/types'
 import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaRemoveUserFromApp')
@@ -15,6 +16,7 @@ export const oktaRemoveUserFromAppTool: ToolConfig<
   description:
     'Unassign a user from an Okta application, revoking their access. Destructive and irreversible: the app profile for that user is permanently removed, and if provisioning is enabled the downstream account is deactivated.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

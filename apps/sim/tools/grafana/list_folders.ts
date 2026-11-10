@@ -1,4 +1,5 @@
 import type { GrafanaListFoldersParams, GrafanaListFoldersResponse } from '@/tools/grafana/types'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listFoldersTool: ToolConfig<GrafanaListFoldersParams, GrafanaListFoldersResponse> = {
@@ -6,6 +7,7 @@ export const listFoldersTool: ToolConfig<GrafanaListFoldersParams, GrafanaListFo
   name: 'Grafana List Folders',
   description: 'List all folders in Grafana',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

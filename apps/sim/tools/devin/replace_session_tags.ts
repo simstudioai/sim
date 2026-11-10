@@ -1,3 +1,4 @@
+import { DEVIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { DevinReplaceSessionTagsParams, DevinSessionTagsResponse } from './types'
 import { normalizeTags } from './utils'
@@ -10,6 +11,7 @@ export const devinReplaceSessionTagsTool: ToolConfig<
   name: 'Devin Replace Session Tags',
   description: 'Replace all tags on a Devin session with a new set of tags (max 50 tags).',
   version: '1.0.0',
+  oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
