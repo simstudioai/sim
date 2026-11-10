@@ -13,11 +13,16 @@
  * reverted account sees Access denied until the previous release is live. The run prints its
  * elapsed time and organizations per second to size that window.
  *
- * A personal organization holding content of its own (organization chats, memory spaces, Search,
- * go links, ...) is skipped and reported with the first table found, because deleting it would
- * delete that content; `--delete-content` deletes it with the organization instead (stored objects
- * and chat backends queued for cleanup in the same transaction). Workspace chats never moved into
- * personal organizations and are untouched.
+ * Organization chats are never deleted: each personal organization's chats (with their runs, which
+ * are stopped, and the private attachments they name) move first into the owner's oldest live
+ * personal workspace it holds, or into a default workspace created for them in the same
+ * transaction when they own none, and a queued outbox event moves the worker's copy of them too
+ * (`rehomePersonalOrganizationChatsTx`, the same move joining a team makes). A personal
+ * organization still holding other content of its own (memory spaces, Search, go links, ...) is
+ * skipped and reported with the first table found, the chat move rolled back with it, because
+ * deleting it would delete that content; `--delete-content` deletes that content with the
+ * organization instead (stored objects queued for cleanup in the same transaction). Workspace
+ * chats never moved into personal organizations and are untouched.
  *
  * Each personal organization is reverted in one short transaction under the same workspace
  * invitation, organization and billing-identity locks the backfill and every attach path take,
@@ -36,7 +41,8 @@
  *
  * Options:
  *   --apply              Perform the writes. Omit to count candidates only.
- *   --delete-content     Also revert personal organizations holding content, deleting it.
+ *   --delete-content     Also revert personal organizations holding content other than chats,
+ *                        deleting it (chats always move to the owner's workspace).
  *   --batch-size <n>     Organizations read per page (default 200, max 2000).
  *   --after <orgId>      Resume after this organization id (the cursor a previous run printed).
  *   --report <path>      Write a JSON report of the run.
@@ -55,20 +61,35 @@ import {
   acquireUserBillingIdentityLock,
 } from '@/lib/billing/organizations/membership'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
+import { chatRescopeOutboxHandlers } from '@/lib/mothership/chat/rescope-outbox'
 import { enqueuePersonalOrganizationAuditTx } from '@/lib/organizations/lifecycle-audit'
 import {
   detachPersonalOrganizationWorkspacesTx,
   findCascadingOrganizationContentTx,
   releasePersonalOrganizationInvitationsTx,
 } from '@/lib/organizations/personal'
+import { rehomePersonalOrganizationChatsTx } from '@/lib/organizations/personal-chats'
 import { enqueueOrganizationResourceCleanup } from '@/lib/organizations/resource-cleanup'
 import { parseBatchSize } from '@/scripts/backfill-personal-organizations'
 
 const logger = createLogger('RevertPersonalOrganizations', { enabled: true, logLevel: 'INFO' })
 
 export type RevertPersonalOrganizationResult =
-  | { status: 'reverted'; detachedWorkspaceIds: string[]; deletedContent: boolean }
+  | {
+      status: 'reverted'
+      detachedWorkspaceIds: string[]
+      deletedContent: boolean
+      /** The owner's workspace their chats moved into, and how many; null and 0 with none. */
+      chatWorkspaceId: string | null
+      rehomedChatCount: number
+      /**
+       * Worker rescope events the run could not finish inline, left to the outbox. The previous
+       * release has no handler for them, so replay them after rolling forward again.
+       */
+      pendingRescopeEventIds: string[]
+    }
   /** Holds content of its own; `table` is the first table found holding it. */
   | { status: 'holds-content'; table: string }
   | { status: 'gone' }
@@ -82,7 +103,11 @@ interface RevertReport {
   reverted: number
   detachedWorkspaces: number
   withContentDeleted: number
+  /** Organization chats moved into their owners' workspaces, and the organizations they came from. */
+  rehomedChats: number
+  organizationsWithRehomedChats: number
   skippedWithContent: Array<{ organizationId: string; table: string }>
+  pendingRescopeEvents: Array<{ organizationId: string; eventIds: string[] }>
   failures: Array<{ organizationId: string; error: string }>
   lastCursor: string | null
   /** Seconds spent reverting, to size the rollback window. */
@@ -103,8 +128,11 @@ function personalOrganizationsWhere(cursor: string | null) {
 }
 
 /**
- * Reverts one personal organization: detaches its workspaces, releases its invitations and
- * deletes it with its owner membership, unless it holds content and `deleteContent` is off.
+ * Reverts one personal organization: moves its chats into the owner's workspace, detaches its
+ * workspaces, releases its invitations and deletes it with its owner membership, unless it holds
+ * other content and `deleteContent` is off, in which case nothing changes. Once it commits, the
+ * worker-side move of the chats runs inline rather than waiting for the outbox: the rollback deploys
+ * the previous release straight after, and that release cannot run the event.
  */
 export async function revertPersonalOrganization(
   organizationId: string,
@@ -123,7 +151,7 @@ export async function revertPersonalOrganization(
     .where(eq(workspace.organizationId, organizationId))
     .orderBy(asc(workspace.id))
 
-  return db
+  const result = await db
     .transaction(async (tx) => {
       await acquireInvitationMutationLocks(tx, {
         invitationIds: [],
@@ -138,6 +166,10 @@ export async function revertPersonalOrganization(
         .for('update')
       if (!locked) return { status: 'gone' } as const
 
+      const chats = await rehomePersonalOrganizationChatsTx(tx, {
+        organizationId,
+        userId: owner.userId,
+      })
       const detachedWorkspaceIds = await detachPersonalOrganizationWorkspacesTx(tx, organizationId)
       await releasePersonalOrganizationInvitationsTx(tx, organizationId)
       const table = await findCascadingOrganizationContentTx(tx, organizationId)
@@ -149,17 +181,46 @@ export async function revertPersonalOrganization(
         change: 'reverted',
         organizationId,
         userId: owner.userId,
-        metadata: { detachedWorkspaceIds, deletedContent: table !== null },
+        metadata: {
+          detachedWorkspaceIds,
+          deletedContent: table !== null,
+          chatWorkspaceId: chats.workspaceId,
+          rehomedChatCount: chats.chatCount,
+        },
       })
       await tx.delete(member).where(eq(member.organizationId, organizationId))
       await tx.delete(organization).where(eq(organization.id, organizationId))
-      return { status: 'reverted', detachedWorkspaceIds, deletedContent: table !== null } as const
+      return {
+        status: 'reverted',
+        detachedWorkspaceIds,
+        deletedContent: table !== null,
+        chatWorkspaceId: chats.workspaceId,
+        rehomedChatCount: chats.chatCount,
+        rescopeEventIds: chats.rescopeEventIds,
+      } as const
     })
     .catch((error: unknown) => {
       if (error instanceof HoldsContent)
         return { status: 'holds-content', table: error.table } as const
       throw error
     })
+  if (result.status !== 'reverted') return result
+  const { rescopeEventIds, ...reverted } = result
+  const pendingRescopeEventIds: string[] = []
+  for (const eventId of rescopeEventIds) {
+    const outcome = await processOutboxEventById(eventId, chatRescopeOutboxHandlers).catch(
+      (error: unknown) => {
+        logger.warn('Worker chat rescope did not run inline', {
+          organizationId,
+          eventId,
+          error: getErrorMessage(error),
+        })
+        return 'failed' as const
+      }
+    )
+    if (outcome !== 'completed') pendingRescopeEventIds.push(eventId)
+  }
+  return { ...reverted, pendingRescopeEventIds }
 }
 
 function readOptions() {
@@ -202,7 +263,10 @@ async function main(): Promise<void> {
     reverted: 0,
     detachedWorkspaces: 0,
     withContentDeleted: 0,
+    rehomedChats: 0,
+    organizationsWithRehomedChats: 0,
     skippedWithContent: [],
+    pendingRescopeEvents: [],
     failures: [],
     lastCursor: options.after,
     elapsedSeconds: 0,
@@ -243,6 +307,13 @@ async function main(): Promise<void> {
             report.reverted += 1
             report.detachedWorkspaces += result.detachedWorkspaceIds.length
             if (result.deletedContent) report.withContentDeleted += 1
+            report.rehomedChats += result.rehomedChatCount
+            if (result.rehomedChatCount > 0) report.organizationsWithRehomedChats += 1
+            if (result.pendingRescopeEventIds.length > 0)
+              report.pendingRescopeEvents.push({
+                organizationId,
+                eventIds: result.pendingRescopeEventIds,
+              })
           } else if (result.status === 'holds-content') {
             report.skippedWithContent.push({ organizationId, table: result.table })
           }
@@ -262,6 +333,7 @@ async function main(): Promise<void> {
         cursor,
         reverted: report.reverted,
         detachedWorkspaces: report.detachedWorkspaces,
+        rehomedChats: report.rehomedChats,
         skippedWithContent: report.skippedWithContent.length,
         failures: report.failures.length,
         elapsedSeconds: report.elapsedSeconds,
@@ -281,6 +353,9 @@ async function main(): Promise<void> {
     reverted: report.reverted,
     detachedWorkspaces: report.detachedWorkspaces,
     withContentDeleted: report.withContentDeleted,
+    rehomedChats: report.rehomedChats,
+    organizationsWithRehomedChats: report.organizationsWithRehomedChats,
+    pendingRescopeEvents: report.pendingRescopeEvents.length,
     skippedWithContent: report.skippedWithContent.length,
     failures: report.failures.length,
     lastCursor: report.lastCursor,
