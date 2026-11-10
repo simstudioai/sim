@@ -91,10 +91,10 @@ service id:
    as `oauth` on every tool. Map every param that decides the request host; the executor overwrites
    mapped params after authorizing the credential, and `check-block-registry` probes the tools' real
    URL builders and fails on a host-steering param left unmapped.
-5. The block uses `authMode: AuthMode.OAuth`, so the generated catalog maps the service (the
-   `tokenCredentialIntegrationTypes` list below is only for blocks that keep `AuthMode.ApiKey`),
-   and its credential picker sits directly under the operation dropdown (`add-block` →
-   OAuth/Credentials). An existing block that already takes the secret inline is never edited in
+5. A credential-only block (including a successor) uses `authMode: AuthMode.OAuth`, so the
+   generated catalog maps the service; a token-only block that keeps `AuthMode.ApiKey`, as Coda
+   does, registers in `tokenCredentialIntegrationTypes` instead (see below). The credential picker
+   sits directly under the operation dropdown (`add-block` → OAuth/Credentials). An existing block that already takes the secret inline is never edited in
    place: add a credential-only successor (`add-block` → Credential-only successor).
 
 Then run `generate-docs`, `generate:block-successors`, `generate:deployment-config`, and

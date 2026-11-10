@@ -89,9 +89,10 @@ export const {serviceName}{Action}Tool: ToolConfig<
     provider: '{service}',            // Must match the service id in OAUTH_PROVIDERS
     // credentialKind: 'service-account', // service-account-only integrations
   },
-  // A token credential (API key, PAT, token + host) uses its shared policy instead:
-  // oauth: SERVICE_CREDENTIAL_OAUTH, from tools/shared/saved-credentials.ts. It maps the tool's
-  // own token/host/account params, which the executor fills after authorizing the credential.
+  // A token credential (API key, PAT, token + host) instead uses the service's shared policy from
+  // tools/shared/saved-credentials.ts, built with tokenCredentialOAuth('{service}', { apiKey:
+  // 'accessToken' }). Its keys are the tool's own token/host/account params, which the executor
+  // fills after authorizing the credential.
 
   params: {
     // Hidden params (system-injected, e.g. the OAuth accessToken)
