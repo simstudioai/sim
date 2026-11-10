@@ -149,6 +149,18 @@ test('a pending invite resends and revokes from its row', async ({ page }) => {
   await expect(page.getByRole('menuitem', { name: 'Resend invite' })).toHaveCount(0)
   await row.getByRole('button', { name: /^Actions for/ }).click()
   await page.getByRole('menuitem', { name: 'Revoke invite' }).click()
+  const confirm = page.getByRole('dialog', { name: 'Revoke invite' })
+  await expect(confirm).toContainText(email)
+  const [revoked] = await Promise.all([
+    page.waitForResponse(
+      (candidate) =>
+        candidate.request().method() === 'DELETE' &&
+        /^\/api\/invitations\/[^/]+$/.test(new URL(candidate.url()).pathname)
+    ),
+    confirm.getByRole('button', { name: 'Revoke', exact: true }).click(),
+  ])
+  expect(revoked.ok(), 'Revoke invite was refused').toBe(true)
+  await expect(confirm).toBeHidden()
   await expect(page.getByText(email)).toHaveCount(0)
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Members', level: 1 })).toBeVisible()
