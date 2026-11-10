@@ -100,8 +100,13 @@ export async function sidebarChecks() {
   await check('hover warms Integrations through its own reads', async () => {
     await withSession(MEMBER, async (session) => {
       const { page } = session
-      await page.goto(url(org.home))
+      // Home reads the member's accounts itself, so the hover starts from Search, which does not.
+      await page.goto(url(org.search))
       await session.settle()
+      assert(
+        !session.requests.some(({ path }) => path.includes('/connected-accounts')),
+        'Search must not read the accounts the hover is meant to warm'
+      )
       session.requests.length = 0
       await mainNav(page).getByRole('link', { name: 'Integrations', exact: true }).hover()
       await expect
@@ -134,11 +139,13 @@ export async function sidebarChecks() {
         await page.reload()
         await expect(rail).toBeHidden()
         await expect(opener).toBeVisible()
-        // The server renders the attribute, so only this says the shortcut is listening.
-        await expect(composer(page)).toBeFocused()
+        // The server renders the collapsed rail before the shortcut listens, so a press before
+        // hydration does nothing: press again only while the rail is still hidden.
         await page.locator('body').click({ position: { x: 700, y: 20 } })
-        await page.keyboard.press('Control+b')
-        await expect(rail).toBeVisible()
+        await expect(async () => {
+          if (await rail.isHidden()) await page.keyboard.press('Control+b')
+          await expect(rail).toBeVisible({ timeout: 1_000 })
+        }).toPass()
         await composer(page).click()
         await page.keyboard.press('Control+b')
         await expect(rail).toBeVisible()
