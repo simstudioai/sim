@@ -15,9 +15,11 @@ interface Fiber {
  * holds its dehydrated markup. A press or pointer move on markup React has not hydrated reaches
  * no handler and is lost, and Playwright's actionability checks cannot see the difference: on a
  * production build the live suite lost a tab click this way. The app exposes no hydration signal
- * of its own, so this reads React's.
+ * of its own, so this reads React's. Given the app's origin, a document that has since left it,
+ * such as one a redirect to another site replaced after the load returned, has nothing to wait for.
  */
-function isHydrated() {
+function isHydrated(appOrigin: string | undefined) {
+  if (appOrigin !== undefined && location.origin !== appOrigin) return true
   const key = Object.keys(document).find((name) => name.startsWith('__reactContainer$'))
   if (!key) return false
   const container: { stateNode: { current: Fiber } } | undefined = Reflect.get(document, key)
@@ -50,7 +52,7 @@ export async function waitUntilHydrated(page: Page, timeout?: number) {
 
 async function waitForHydration(page: Page, appOrigin: string) {
   if (new URL(page.url()).origin !== appOrigin) return
-  await waitUntilHydrated(page)
+  await page.waitForFunction(isHydrated, appOrigin, { polling: 100 })
 }
 
 /**
