@@ -255,6 +255,7 @@ Configure at least one. Every configured provider stays active and is tried in o
 | `EGRESS_ALLOWED_HOSTS` | unset | Comma-separated hostnames outbound requests may reach on a private network. Leading wildcard allowed, e.g. `host.docker.internal,*.svc.cluster.local`. Not honored for URLs harvested from content or a third-party response, nor for an HTTP block's `proxyUrl` |
 | `EGRESS_ALLOWED_IP_RANGES` | unset | Comma-separated CIDRs or IPs outbound requests may reach on a private network, e.g. `10.0.0.0/8`. Same exclusions |
 | `ALLOW_PRIVATE_DATABASE_HOSTS` | unset | **Deprecated.** Vouches for the entire private address space, for database, cache, and mail connector hosts only. Replace it with the two settings above naming specific destinations |
+| `DOMAIN_VERIFICATION_NAMESERVERS` | `1.1.1.1,8.8.8.8` | Comma-separated nameserver IPs that SSO domain verification sends its TXT lookup to. Set it when the network only allows DNS to an internal resolver. Entries that are not IP addresses are ignored |
 
 A malformed entry in either allowlist stops the app at startup with a message naming the setting. See [the SSRF boundary](/platform/self-hosting/security#the-ssrf-boundary) for the accepted syntax and for what the allowlist does and does not reach.
 
