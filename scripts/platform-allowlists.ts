@@ -164,6 +164,8 @@ const serverSeamHelpers: ReasonedAllowlist = {
   'lib/workspaces/application/workspace-shell':
     "The workspace shell use case behind the shell's scope",
   'lib/workspaces/list': 'listWorkspacesForViewer, the workspaces a viewer may open',
+  'lib/workspaces/host-context':
+    'getWorkspaceHostContextForViewer, who bills a workspace, which the legacy upgrade URL answers with',
   'lib/workspaces/application/viewer-workspaces':
     'listViewerWorkspaces, the workspaces a viewer may open, their default one created first',
   'lib/workspaces/seed-workspace-list': 'The workspace list the shell seeds for the sidebar',
@@ -863,6 +865,8 @@ const LIVE_ONLY_ROUTES: ReasonedAllowlist = {
     'Search answers from live sources and has no example data',
   [`${ORGANIZATION_ROUTES}settings/billing/plans/page.tsx`]:
     "Plans read the organization's live subscription",
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/upgrade/page.tsx`]:
+    "Who manages a workspace's plan is read from its live billing",
   [`${PRODUCT_ROUTES}workspace/[workspaceId]/files/[fileId]/page.tsx`]:
     "Files reads the workspace's live storage",
   [`${PRODUCT_ROUTES}workspace/[workspaceId]/files/page.tsx`]:

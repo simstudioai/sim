@@ -1,7 +1,10 @@
 import 'server-only'
 import { notFound, permanentRedirect } from 'next/navigation'
+import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { mapLegacyWorkspaceUrl } from '@/lib/navigation/legacy-redirects'
 import { decodePathSegments, searchParamsQuery } from '@/lib/navigation/paths'
+import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
+import { requireSessionViewer } from '@/platform/lib/data/server-read'
 import { readWorkspaceShellOrganizationId } from '@/platform/lib/data/shell-scope'
 
 /**
@@ -28,4 +31,26 @@ export async function redirectLegacyWorkspaceUrl(
   })
   if (!target) notFound()
   permanentRedirect(target)
+}
+
+/** Who may change a workspace's plan, when the viewer may not: its organization's admins, or its owner. */
+export type WorkspacePlanManager = { workspaceName: string; managedBy: 'organization' | 'owner' }
+
+/**
+ * Whether the viewer may change this workspace's plan. `null` sends them on to plans; otherwise the
+ * workspace bills an account they do not manage, and they are told who does, as the legacy upgrade
+ * page did, instead of opening plans that are not this workspace's.
+ */
+export async function readWorkspacePlanManager(
+  encodedWorkspaceId: string
+): Promise<WorkspacePlanManager | null> {
+  const [workspaceId] = decodePathSegments([encodedWorkspaceId]) ?? []
+  if (!workspaceId) notFound()
+  const { principal } = await requireSessionViewer()
+  const hostContext = await getWorkspaceHostContextForViewer(workspaceId, principal.userId)
+  if (!hostContext || canManageWorkspaceBilling(hostContext, principal.userId)) return null
+  return {
+    workspaceName: hostContext.workspace.name,
+    managedBy: hostContext.hostOrganizationId ? 'organization' : 'owner',
+  }
 }
