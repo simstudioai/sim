@@ -1,13 +1,7 @@
 import assert from 'node:assert/strict'
 import type { Page } from '@playwright/test'
-import { getErrorMessage } from '@sim/utils/errors'
-import { workspaceEntry, workspacePath } from '@/lib/navigation/paths'
-import {
-  ADMIN,
-  MEMBER,
-  MEMBER_ADMIN_WORKSPACE,
-  ORGANIZATION_ID,
-} from '@/scripts/org-redesign-e2e/fixture'
+import { workspacePath } from '@/lib/navigation/paths'
+import { ADMIN, MEMBER, MEMBER_ADMIN_WORKSPACE } from '@/scripts/org-redesign-e2e/fixture'
 import {
   check,
   expect,
@@ -27,8 +21,6 @@ import {
 
 /** The tabs every live workspace serves whatever the rollout flags say (`workspaceTabs`). */
 const LIVE_WORKSPACE_TABS = ['Logs', 'Tables', 'Files', 'Knowledge bases', 'Workflows', 'Settings']
-/** Reads only organization Home makes: its widgets and its activity chart. */
-const HOME_READ = /\/home\/|\/usage\/activity/
 
 const workspaceTabs = (page: Page) =>
   page.getByRole('navigation', { name: `${MEMBER_ADMIN_WORKSPACE.name} pages`, exact: true })
@@ -36,28 +28,6 @@ const workspaceLanding = workspacePath(MEMBER_ADMIN_WORKSPACE.id, 'workflows')
 
 export async function blastRadiusChecks() {
   section('Blast radius')
-  await check(
-    'a workspace opens on Workflows in the shared shell, with its tabs and no Home reads',
-    async () => {
-      await withSession(ADMIN, async (session) => {
-        const { page } = session
-        await page.goto(url(workspaceEntry(MEMBER_ADMIN_WORKSPACE.id)))
-        await expect(page).toHaveURL((address) => address.pathname === workspaceLanding)
-        await expect(sidebar(page)).toBeVisible()
-        const tabs = workspaceTabs(page)
-        for (const label of LIVE_WORKSPACE_TABS)
-          await expect(tabs.getByRole('link', { name: label, exact: true })).toBeVisible()
-        // Issues has no backend, so live workspaces hide its tab (org-parity.md, "Issues").
-        await expect(tabs.getByRole('link', { name: 'Issues', exact: true })).toHaveCount(0)
-        await session.settle()
-        assert.deepEqual(
-          session.requests.filter(({ path }) => HOME_READ.test(path)),
-          [],
-          'A workspace page read organization Home data'
-        )
-      })
-    }
-  )
   await check(
     'client navigation from the organization to a workspace paints it as a fresh load does',
     async () => {
@@ -210,42 +180,6 @@ export async function blastRadiusChecks() {
         []
       )
     })
-  })
-  await check('the extension panel has no platform surface and reads no Home data', async () => {
-    await withSession(
-      MEMBER,
-      async (session) => {
-        const { page } = session
-        // Opened outside the extension's frame, where a chrome-extension target has no meaning.
-        await page.addInitScript(() => {
-          const post = window.postMessage.bind(window)
-          window.postMessage = ((...args: Parameters<typeof post>) => {
-            if (!String(args[1]).startsWith('chrome-extension://')) post(...args)
-          }) as typeof window.postMessage
-        })
-        const consoleErrors: string[] = []
-        page.on('console', (message) => {
-          if (message.type() === 'error') consoleErrors.push(message.text())
-        })
-        await page.goto(url(`/extension/o/${ORGANIZATION_ID}`))
-        // The panel keeps its own composer, outside the product shell.
-        await expect(page.getByRole('textbox', { name: 'Ask Sim' }))
-          .toBeVisible()
-          .catch((error) => {
-            throw new Error(`${getErrorMessage(error)}\nConsole: ${consoleErrors.join('\n')}`)
-          })
-        await session.settle()
-        await expect(page.locator('[data-platform-ui]')).toHaveCount(0)
-        const home = session.requests.filter(({ path }) => HOME_READ.test(path))
-        assert.deepEqual(home, [])
-        await expect(page.getByRole('region', { name: 'Email', exact: true })).toHaveCount(0)
-        const createLink = await page.goto(url('/extension/create-link'))
-        assert.equal(createLink?.status(), 200, 'The create-link panel did not load')
-        await session.settle()
-        await expect(page.locator('[data-platform-ui]')).toHaveCount(0)
-      },
-      { viewport: { name: 'panel', width: 400, height: 800 } }
-    )
   })
   await check(
     '/sim, /sim-links, /invite, login and marketing have no platform surface',

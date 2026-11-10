@@ -1,12 +1,10 @@
 import assert from 'node:assert/strict'
 import {
-  ADMIN,
   ADMIN_CHATS,
   MEMBER,
   MEMBER_CHATS,
   NARROW,
   OUTSIDER,
-  OWNER,
   PASSWORD,
 } from '@/scripts/org-redesign-e2e/fixture'
 import {
@@ -44,7 +42,9 @@ export async function landingChecks() {
       await expect(composer(page)).toBeVisible()
     })
   })
-  for (const persona of [ADMIN, OWNER, MEMBER, NARROW]) {
+  // The live suite's landing spec walks the seeded owner, admin and member; only this suite has a
+  // member of a narrower group.
+  for (const persona of [NARROW]) {
     await check(`${persona.key}: /o and /o/[id] and /home reach Home`, async () => {
       await withSession(persona, async ({ page }) => {
         for (const path of ['/o', org.root, '/home', org.home]) {

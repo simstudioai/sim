@@ -1,6 +1,12 @@
 import { expect } from '@playwright/test'
-import { adminEmail, organizationName, signInAsAdmin } from '@/platform/checks/live/session'
-import { withLiveDatabase } from '@/platform/checks/live/support/database'
+import {
+  adminEmail,
+  organizationId,
+  organizationName,
+  signIn,
+  signInAsAdmin,
+} from '@/platform/checks/live/session'
+import { withLiveDatabase, withPerson } from '@/platform/checks/live/support/database'
 import { liveRoute } from '@/platform/checks/routes'
 import { test } from '@/platform/checks/test'
 
@@ -16,14 +22,22 @@ test('a theme chosen here persists across a reload and repaints the shell', asyn
   await page.goto(settings())
   const theme = page.getByRole('button', { name: /^Theme:/ })
   const surface = page.locator('[data-platform-ui]').first()
-  await theme.click()
-  await page.getByRole('menuitemradio', { name: 'Dark', exact: true }).click()
-  await expect(surface).toHaveAttribute('data-theme', 'dark')
-  await page.reload()
-  await expect(surface).toHaveAttribute('data-theme', 'dark')
-  await theme.click()
-  await page.getByRole('menuitemradio', { name: 'System', exact: true }).click()
-  await expect(surface).toHaveAttribute('data-theme', 'system')
+  try {
+    await theme.click()
+    await page.getByRole('menuitemradio', { name: 'Dark', exact: true }).click()
+    await expect(surface).toHaveAttribute('data-theme', 'dark')
+    await page.reload()
+    await expect(surface).toHaveAttribute('data-theme', 'dark')
+    await theme.click()
+    await page.getByRole('menuitemradio', { name: 'System', exact: true }).click()
+    await expect(surface).toHaveAttribute('data-theme', 'system')
+  } finally {
+    // Every later check, and its screenshots, paints in the seeded System theme.
+    await withLiveDatabase(
+      (sql) => sql`update settings set theme = 'system'
+        where user_id = (select id from "user" where email = ${adminEmail()})`
+    )
+  }
 })
 
 test('a display name saves through the profile read', async ({ page }) => {
@@ -173,11 +187,21 @@ test('white-labeling reports its entitlement from the read', async ({ page }) =>
   await expect(page.getByRole('region', { name: 'Brand identity' })).toBeVisible()
 })
 
-test('recently deleted separates an empty list from a loading one', async ({ page }) => {
+test('recently deleted lists the seeded deleted chat, and says so when there is none', async ({
+  page,
+}) => {
   await page.goto(settings('/recently-deleted'))
+  // `scripts/platform-live-seed.ts` deletes the administrator's Retired plan; no check restores it.
   await expect(
-    page
-      .getByRole('heading', { name: 'No deleted chats' })
-      .or(page.getByRole('region', { name: 'Deleted chats' }))
+    page.getByRole('region', { name: 'Deleted chats' }).getByText('Retired plan', { exact: true })
   ).toBeVisible()
+  await withPerson(
+    'nothing-deleted',
+    { organizationId: organizationId(), role: 'admin' },
+    async (person) => {
+      await signIn(page, person.email, settings('/recently-deleted'))
+      await expect(page.getByRole('heading', { name: 'No deleted chats' })).toBeVisible()
+      await expect(page.getByRole('region', { name: 'Deleted chats' })).toHaveCount(0)
+    }
+  )
 })

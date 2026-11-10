@@ -12,7 +12,6 @@ import {
   NARROW,
   ORGANIZATION_ID,
   ORGANIZATION_NAME,
-  OWNER,
   STANDARD_GROUP_ID,
   WORKSPACES,
 } from '@/scripts/org-redesign-e2e/fixture'
@@ -58,12 +57,9 @@ export async function sidebarChecks() {
   section('2 Sidebar: nav')
   // Links is a Settings section on the product, not a nav row (platform/docs/org-parity.md:289).
   // Home is for everyone who may chat, whatever their role (org-parity.md, "Home page gate").
-  for (const [persona, rows] of [
-    [MEMBER, ['Home', 'Search', 'Integrations']],
-    [ADMIN, ['Home', 'Search', 'Integrations']],
-    [OWNER, ['Home', 'Search', 'Integrations']],
-    [NARROW, ['Home', 'Search', 'Integrations']],
-  ] as const) {
+  // The live suite's landing spec checks the seeded owner, admin and member with People on; only
+  // this suite has a member of a narrower group, and People off.
+  for (const [persona, rows] of [[NARROW, ['Home', 'Search', 'Integrations']]] as const) {
     await check(`${persona.key}: nav rows in today's order`, async () => {
       await onHome(persona, async ({ page }) => {
         assert.deepEqual(await navLabels(page), rows)

@@ -161,7 +161,8 @@
       "inputs": [
         "scripts/test-org-redesign-e2e.ts",
         "scripts/org-redesign-seed.ts",
-        "scripts/org-redesign-e2e/**"
+        "scripts/org-redesign-e2e/**",
+        "platform/checks/live/support/scripted-agent.ts"
       ],
       "cache": false
     },
@@ -261,6 +262,7 @@
       "dependsOn": ["ci:server", "ci:ui"],
       "inputs": [
         "scripts/test-browser-extension-e2e.ts",
+        "platform/checks/live/support/scripted-agent.ts",
         "$TURBO_ROOT$/apps/extension/**",
         "$TURBO_ROOT$/packages/browser-extension-protocol/**"
       ],

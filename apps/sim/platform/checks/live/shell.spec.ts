@@ -7,7 +7,7 @@ import {
   signIn,
   signInThroughForm,
 } from '@/platform/checks/live/session'
-import { withLiveDatabase } from '@/platform/checks/live/support/database'
+import { removeWorkspacesNamed, withLiveDatabase } from '@/platform/checks/live/support/database'
 import { liveLoginPattern, liveRoute, liveRoutePattern } from '@/platform/checks/routes'
 import { test } from '@/platform/checks/test'
 
@@ -111,13 +111,18 @@ test('navigation lists what the surface grants, and leaves for legacy routes in 
 test('creating a workspace opens it in the zone, on its Workflows tab', async ({ page }) => {
   await openAsAdmin(page)
   const name = `Live check ${Date.now()}`
-  await page
-    .getByRole('region', { name: 'Workspaces', exact: true })
-    .getByRole('button', { name: 'Add workspace' })
-    .click()
-  await page.getByRole('textbox', { name: 'Workspace name' }).fill(name)
-  await page.getByRole('button', { name: 'Create', exact: true }).click()
-  await expect(page).toHaveURL(/\/workspace\/[^/]+\/workflows/)
+  try {
+    await page
+      .getByRole('region', { name: 'Workspaces', exact: true })
+      .getByRole('button', { name: 'Add workspace' })
+      .click()
+    await page.getByRole('textbox', { name: 'Workspace name' }).fill(name)
+    await page.getByRole('button', { name: 'Create', exact: true }).click()
+    await expect(page).toHaveURL(/\/workspace\/[^/]+\/workflows/)
+  } finally {
+    // Every later check reads the seeded organization's workspaces, and a rerun would list two.
+    await removeWorkspacesNamed(organizationId(), name)
+  }
 })
 
 test('a chat renames and deletes through the real API', async ({ page }) => {
@@ -128,30 +133,34 @@ test('a chat renames and deletes through the real API', async ({ page }) => {
   expect(created.ok()).toBe(true)
   const { id } = (await created.json()) as { id: string }
   const title = `Live chat ${Date.now()}`
+  try {
+    await page.reload()
+    const chats = page.getByRole('region', { name: 'Chats', exact: true })
+    const row = chats.locator(`a[href$="/chat/${id}"]`)
+    await row.click({ button: 'right' })
+    await page.getByRole('menuitem', { name: 'Rename' }).click()
+    await page.getByRole('textbox', { name: 'Chat name' }).fill(title)
+    await page.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(chats.getByRole('link', { name: title })).toBeVisible()
 
-  await page.reload()
-  const chats = page.getByRole('region', { name: 'Chats', exact: true })
-  const row = chats.locator(`a[href$="/chat/${id}"]`)
-  await row.click({ button: 'right' })
-  await page.getByRole('menuitem', { name: 'Rename' }).click()
-  await page.getByRole('textbox', { name: 'Chat name' }).fill(title)
-  await page.getByRole('button', { name: 'Save', exact: true }).click()
-  await expect(chats.getByRole('link', { name: title })).toBeVisible()
+    await page.reload()
+    await expect(chats.getByRole('link', { name: title })).toBeVisible()
 
-  await page.reload()
-  await expect(chats.getByRole('link', { name: title })).toBeVisible()
+    await chats.getByRole('link', { name: title }).click({ button: 'right' })
+    await page.getByRole('menuitem', { name: 'Delete' }).click()
+    await page
+      .getByRole('dialog', { name: 'Delete chat' })
+      .getByRole('button', { name: 'Delete', exact: true })
+      .click()
+    await expect(chats.getByRole('link', { name: title })).toHaveCount(0)
 
-  await chats.getByRole('link', { name: title }).click({ button: 'right' })
-  await page.getByRole('menuitem', { name: 'Delete' }).click()
-  await page
-    .getByRole('dialog', { name: 'Delete chat' })
-    .getByRole('button', { name: 'Delete', exact: true })
-    .click()
-  await expect(chats.getByRole('link', { name: title })).toHaveCount(0)
-
-  await page.reload()
-  await expect(page.getByRole('button', { name: 'Organization menu' })).toBeVisible()
-  await expect(chats.getByRole('link', { name: title })).toHaveCount(0)
+    await page.reload()
+    await expect(page.getByRole('button', { name: 'Organization menu' })).toBeVisible()
+    await expect(chats.getByRole('link', { name: title })).toHaveCount(0)
+  } finally {
+    // Deleting soft-deletes it into Recently deleted, which other checks read.
+    await withLiveDatabase((sql) => sql`delete from copilot_chats where id = ${id}`)
+  }
 })
 
 test('sign out ends the session and the zone returns to login', async ({ page }) => {
