@@ -136,7 +136,7 @@ type UnifiedNavigationSection = 'account' | 'workspace' | 'organization' | 'plat
  */
 type DesktopSettingsSurface = 'settings' | 'browser' | 'terminal'
 
-export interface UnifiedSettingsNavigationItem {
+interface UnifiedSettingsNavigationItem {
   id: UnifiedSettingsSection
   label: string
   description: string
@@ -213,7 +213,7 @@ export interface SettingsSectionRegistryEntry {
  * the same server-provided shape. That is what keeps nav and server agreeing: a section is
  * visible exactly when its API would accept the request.
  */
-export type SelfHostedOverride = 'always' | keyof DeploymentFeatures
+type SelfHostedOverride = 'always' | keyof DeploymentFeatures
 
 type SettingsHrefSearchParams = Pick<URLSearchParams, 'toString'>
 
@@ -793,7 +793,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
  * Keeping an unavailable section in the catalog is what lets the route treat it as a
  * known segment and redirect to General rather than answer 404.
  */
-export function buildUnifiedSettingsCatalog(): UnifiedSettingsNavigationItem[] {
+function buildUnifiedSettingsCatalog(): UnifiedSettingsNavigationItem[] {
   return SETTINGS_SECTION_REGISTRY.flatMap(({ label, icon, docsLink, unified }) => {
     if (!unified) return []
     const { group, ...item } = unified

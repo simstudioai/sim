@@ -20,7 +20,6 @@
  */
 
 import { type ReactNode, act as reactAct, StrictMode, useEffect, useState } from 'react'
-import { flushMacrotask } from '@sim/testing/helpers/async'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { featureFlagsProviderMock } from '@sim/testing/mocks/feature-flags-provider.mock'

@@ -620,7 +620,6 @@ describe('a workspace chat moved into its owner’s personal organization', () =
         userId: ids.personalOwner,
         workspaceId,
         type: 'mothership',
-        mode: 'plan',
         memorySpaceId,
       })
       .returning({ id: copilotChats.id })

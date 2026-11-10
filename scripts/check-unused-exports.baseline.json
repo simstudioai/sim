@@ -362,7 +362,6 @@
   "apps/sim/components/resource/resource.tsx#ResourceCellEditing",
   "apps/sim/components/settings/navigation.ts#SETTINGS_SECTION_REGISTRY",
   "apps/sim/components/settings/navigation.ts#SettingsSectionRegistryEntry",
-  "apps/sim/components/settings/navigation.ts#WorkspaceSettingsEntitlements",
   "apps/sim/components/settings/primitives/settings-header/settings-header.tsx#SettingsBackAction",
   "apps/sim/components/settings/primitives/settings-header/settings-header.tsx#SettingsHeaderConfig",
   "apps/sim/components/settings/primitives/settings-header/settings-header.tsx#SettingsHeaderSearch",
