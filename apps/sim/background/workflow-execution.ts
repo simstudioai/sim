@@ -32,6 +32,7 @@ import {
   RESERVATION_TTL_BUFFER_MS,
 } from '@/lib/core/execution-limits'
 import type { RequestAttribution } from '@/lib/core/utils/request-attribution'
+import { withDatabaseReadRetry } from '@/lib/db/read-retry'
 import {
   isWorkflowStateRejection,
   type PreprocessExecutionError,
@@ -282,14 +283,23 @@ export async function executeWorkflowJob(
         logger.info(`Preprocessing passed. Using actor: ${actorUserId}`, { requestId })
 
         const workflow = preprocessResult.workflowRecord!
+        /**
+         * The version this run executes, loaded once: the core runs this same version's
+         * blocks, so a deploy landing mid-setup cannot pair one version's variables with
+         * another's graph.
+         */
         const pinnedDeploymentVersionId = payload.pinnedDeploymentVersionId
-        const deployedState = pinnedDeploymentVersionId
-          ? await loadWorkflowDeploymentVersionState(
-              workflowId,
-              pinnedDeploymentVersionId,
-              workspaceId
-            )
-          : await loadDeployedWorkflowState(workflowId, workspaceId)
+        const deployedState = await withDatabaseReadRetry(
+          () =>
+            pinnedDeploymentVersionId
+              ? loadWorkflowDeploymentVersionState(
+                  workflowId,
+                  pinnedDeploymentVersionId,
+                  workspaceId
+                )
+              : loadDeployedWorkflowState(workflowId, workspaceId),
+          { label: 'loadDeployedRunState' }
+        )
 
         const metadata: ExecutionMetadata = {
           requestId,
@@ -304,7 +314,7 @@ export async function executeWorkflowJob(
           triggerType: payload.triggerType || 'api',
           triggerBlockId: payload.triggerBlockId,
           useDraftState: false,
-          pinnedDeploymentVersionId,
+          pinnedDeploymentVersionId: deployedState.deploymentVersionId,
           startTime: new Date().toISOString(),
           isClientSession: false,
           enforceCredentialAccess: payload.enforceCredentialAccess ?? false,
