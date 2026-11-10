@@ -3958,7 +3958,6 @@
   "apps/sim/lib/function-execution/sandbox-mounts.ts#MOUNT_URL_MAX_BYTES",
   "apps/sim/lib/function-execution/sandbox-mounts.ts#SandboxInlineMountPayload",
   "apps/sim/lib/github/stars.ts#formatStarCount",
-  "apps/sim/lib/global-commands/commands.ts#COMMAND_DEFINITIONS",
   "apps/sim/lib/guardrails/pii-batching.ts#PII_REQUEST_MAX_BYTES",
   "apps/sim/lib/guardrails/pii-batching.ts#PII_REQUEST_MAX_COUNT",
   "apps/sim/lib/guardrails/pii-entities.ts#NER_PII_ENTITIES",
