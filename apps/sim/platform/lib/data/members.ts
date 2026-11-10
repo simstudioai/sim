@@ -35,6 +35,7 @@ import { useOpenBillingPortal } from '@/hooks/queries/subscription'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
+import { openAcrossOrganizations } from '@/platform/lib/data/session'
 import { useFixtureSettings } from '@/platform/lib/data/settings-providers'
 import { platformHref } from '@/platform/lib/navigation'
 import { toRosterModel, toSeatsModel, type WorkspacePermission } from '@/platform/shared/members'
@@ -177,7 +178,7 @@ function useLeaveOrganization(organization: PlatformOrganization) {
   const search = useSearchParams()
   return () => {
     if (fixture) router.replace(platformHref(surfaceHref(organization, '/home'), search))
-    else window.location.assign(APP_ENTRY_PATH)
+    else openAcrossOrganizations(APP_ENTRY_PATH)
   }
 }
 

@@ -2,7 +2,6 @@
 
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useRouter } from 'next/navigation'
 import type { MyInvitation } from '@/lib/api/contracts/invitations'
 import { getInvitationErrorMessage } from '@/lib/invitations/error-messages'
 import { toast } from '@/lib/toast/sink'
@@ -11,6 +10,7 @@ import {
   useDeclineMyInvitation,
   useMyPendingInvitations,
 } from '@/hooks/queries/invitations'
+import { openAcrossOrganizations } from '@/platform/lib/data/session'
 
 const logger = createLogger('PendingInvitations')
 
@@ -142,7 +142,6 @@ export function usePendingInvitations(open: boolean) {
   const query = useMyPendingInvitations(open)
   const acceptMutation = useAcceptMyInvitation()
   const declineMutation = useDeclineMyInvitation()
-  const router = useRouter()
   const invitations = query.data ?? []
   const busy = acceptMutation.isPending || declineMutation.isPending
   const find = (id: string) => invitations.find((invitation) => invitation.id === id)
@@ -166,7 +165,7 @@ export function usePendingInvitations(open: boolean) {
           disclosedOutcome: invitation.joinPreview?.outcome,
         })
         toast.success(`Joined ${invitationLabel(invitation)}`)
-        router.push(result.redirectPath)
+        openAcrossOrganizations(result.redirectPath)
         return true
       } catch (error) {
         logger.error('Failed to accept invitation', { error })

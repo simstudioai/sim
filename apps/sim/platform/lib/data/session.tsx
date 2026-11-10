@@ -26,6 +26,15 @@ export async function signOutAndLeave(loginUrl: string): Promise<boolean> {
   return true
 }
 
+/**
+ * Opens `href` after the viewer's organizations changed (an accepted invitation, a left
+ * organization) with a document load: the product root reads the organization once per document,
+ * so a client navigation would keep the previous organization's providers, navigation and flags.
+ */
+export function openAcrossOrganizations(href: string) {
+  window.location.assign(href)
+}
+
 function recoverSession() {
   return signOutAndLeave('/login')
 }
