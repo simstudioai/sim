@@ -251,6 +251,11 @@ function projectExecutionStatus(
 export interface ProjectedWorkflowExecutionStatus {
   status: WorkflowExecutionStatusResponse
   projection: LogFieldProjection
+  /**
+   * The execution whose recorded state answered: the run itself, or the parent run a settled
+   * resume attempt continued. Further reads of the run's state (its pause points) use this id.
+   */
+  stateExecutionId: string
 }
 
 /**
@@ -270,14 +275,18 @@ export interface ProjectedWorkflowExecutionStatus {
 export async function getProjectedWorkflowExecutionStatus(
   input: GetWorkflowExecutionStatusInput
 ): Promise<ProjectedWorkflowExecutionStatus | null> {
-  const status = await readWorkflowExecutionStatus(input)
-  if (!status) return null
+  const resolved = await readWorkflowExecutionStatus(input)
+  if (!resolved) return null
   const projection = await resolveLogFieldProjection(
     input.viewerUserId,
     input.workspaceId,
     input.workspaceOrganizationId
   )
-  return { status: projectExecutionStatus(status, projection), projection }
+  return {
+    status: projectExecutionStatus(resolved.status, projection),
+    projection,
+    stateExecutionId: resolved.stateExecutionId,
+  }
 }
 
 /**
@@ -330,9 +339,18 @@ async function readRunDeploymentVersion(
   return row?.version ?? null
 }
 
+/**
+ * A status resource and the execution whose recorded state answered it: the run itself, or
+ * for a settled resume attempt with no log row of its own, the parent run it continued.
+ */
+interface ResolvedExecutionStatus {
+  status: WorkflowExecutionStatusResponse
+  stateExecutionId: string
+}
+
 async function readWorkflowExecutionStatus(
   input: GetWorkflowExecutionStatusInput
-): Promise<WorkflowExecutionStatusResponse | null> {
+): Promise<ResolvedExecutionStatus | null> {
   const { workflowId, executionId, includeOutput, selectedOutputs } = input
 
   const [logRow] = await db
@@ -412,13 +430,16 @@ async function readWorkflowExecutionStatus(
     for (const jobId of queueJobIds) {
       const job = await jobQueue.getJob(jobId)
       if (!job || job.metadata.workflowId !== workflowId) continue
-      return projectQueueJob(job, { executionId, includeOutput, workflowId }, deploymentVersion)
+      return {
+        status: projectQueueJob(job, { executionId, includeOutput, workflowId }, deploymentVersion),
+        stateExecutionId: executionId,
+      }
     }
   }
 
   if (projectedResume) {
     const startedAt = projectedResume.claimedAt ?? projectedResume.queuedAt
-    return {
+    const status: WorkflowExecutionStatusResponse = {
       executionId,
       workflowId,
       status: 'queued',
@@ -434,6 +455,7 @@ async function readWorkflowExecutionStatus(
       finalOutput: null,
       blockOutputs: null,
     }
+    return { status, stateExecutionId: executionId }
   }
 
   if (!logRow) {
@@ -442,7 +464,12 @@ async function readWorkflowExecutionStatus(
       ...input,
       executionId: resumeAttempt.parentExecutionId,
     })
-    return run ? projectSettledResumeAttempt(executionId, resumeAttempt, run) : null
+    return run
+      ? {
+          status: projectSettledResumeAttempt(executionId, resumeAttempt, run.status),
+          stateExecutionId: run.stateExecutionId,
+        }
+      : null
   }
 
   const [pausedRow] = await db
@@ -509,7 +536,10 @@ async function readWorkflowExecutionStatus(
   const readsExecutionData =
     selectedOutputs.length > 0 || statusesReadingExecutionData(includeOutput).includes(status)
   if (!readsExecutionData) {
-    return { ...resource, error: null, finalOutput: null, blockOutputs: null }
+    return {
+      status: { ...resource, error: null, finalOutput: null, blockOutputs: null },
+      stateExecutionId: executionId,
+    }
   }
 
   const requestedBlockIds = [
@@ -538,7 +568,10 @@ async function readWorkflowExecutionStatus(
       ? pickSelectedOutputs(selectedOutputs, materialized.blockOutputs)
       : null
 
-  return { ...resource, error, finalOutput, blockOutputs }
+  return {
+    status: { ...resource, error, finalOutput, blockOutputs },
+    stateExecutionId: executionId,
+  }
 }
 
 /** Most pause points a run detail lists; a run over it lists its earliest registered points. */

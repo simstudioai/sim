@@ -13,6 +13,7 @@ import {
   permissionGroupMember,
   permissionGroupWorkspace,
   permissions,
+  resumeQueue,
   user,
   workflow,
   workflowDeploymentVersion,
@@ -29,6 +30,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { executeWorkflowOperation } from '@/lib/workflows/application/execute-workflow'
 import { readWorkflowRun } from '@/lib/workflows/application/read-workflow-run'
+import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import type { PausePoint } from '@/executor/types'
 
 const organizationId = generateId()
@@ -284,5 +286,31 @@ describe('a deployed run paused at a human-in-the-loop block', () => {
 
     const run = await readRun(restricted, runId, { includeOutput: true })
     expect(run.pausePoints).toEqual([expect.objectContaining({ display: null, inputFields: null })])
+  })
+
+  it('lists the paused parent run points when read by a settled resume attempt id', async () => {
+    const runId = await pausedRun()
+    const attempt = await PauseResumeManager.enqueueOrStartResume({
+      executionId: runId,
+      workflowId,
+      contextId: 'approval',
+      resumeInput: {},
+      userId: ownerId,
+    })
+    /** The attempt settled without finishing the run, which still waits at its pause. */
+    await db
+      .update(resumeQueue)
+      .set({ status: 'completed', completedAt: new Date() })
+      .where(eq(resumeQueue.newExecutionId, attempt.resumeExecutionId))
+
+    const run = await readRun(owner, attempt.resumeExecutionId, { includeOutput: true })
+    expect(run).toMatchObject({ status: 'paused' })
+    expect(run.pausePoints).toEqual([
+      expect.objectContaining({
+        contextId: 'approval',
+        display: REDACTED_DISPLAY,
+        inputFields: INPUT_FIELDS,
+      }),
+    ])
   })
 })

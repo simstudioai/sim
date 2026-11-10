@@ -85,7 +85,7 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
         viewerUserId: logProjectionSubjectUserId(principal),
       })
       if (!projected) throw new OrchestrationError('not_found', 'Run not found')
-      const { status, projection } = projected
+      const { status, projection, stateExecutionId } = projected
 
       /**
        * A run whose `blockOutputs` the viewer's group withholds joins the same
@@ -153,7 +153,9 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
 
       /**
        * Every pause point of a paused run, so a caller can resume any of them by
-       * `contextId`, not only the earliest one `paused` summarizes.
+       * `contextId`, not only the earliest one `paused` summarizes. Read from the
+       * execution whose state answered the status, so a resume attempt reporting its
+       * parent's pause lists the parent's points.
        *
        * A point's `display` is what the block rendered from upstream outputs, so it
        * follows `finalOutput`'s gating: withheld unless output was asked for and the
@@ -168,7 +170,7 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
         ? (
             (await readPausedRunPoints({
               workflowId: context.workflowId,
-              executionId: context.runId,
+              executionId: stateExecutionId,
             })) ?? []
           ).map((point) => ({
             ...point,
