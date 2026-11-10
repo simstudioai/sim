@@ -47,11 +47,13 @@ async function createUser() {
   return id
 }
 
-async function createOrganization() {
+async function createOrganization(kind: 'team' | 'personal' = 'team') {
   const ownerId = await createUser()
   const id = generateId()
   organizationIds.push(id)
-  await db.insert(organization).values({ id, name: `Org ${id}`, slug: id, createdAt: new Date() })
+  await db
+    .insert(organization)
+    .values({ id, name: `Org ${id}`, slug: id, kind, createdAt: new Date() })
   await db
     .insert(member)
     .values({ id: generateId(), organizationId: id, userId: ownerId, role: 'owner' })
@@ -281,6 +283,31 @@ describe('moveWorkspaceToOrganization against PostgreSQL', () => {
     expect(replayed.sourceOrganizationImpact.unpublishedCustomBlocks.map(({ id }) => id)).toEqual([
       outbound.id,
     ])
+  })
+
+  it('refuses a personal organization as the destination', async () => {
+    const ownerId = await createUser()
+    const destination = await createOrganization('personal')
+    const workspaceId = await createWorkspace({ ownerId })
+
+    await expect(getWorkspaceMovePreflight(workspaceId, destination.id)).rejects.toMatchObject<
+      Partial<WorkspaceMoveError>
+    >({ code: 'destination-personal-organization' })
+    await expect(
+      moveWorkspaceToOrganization({
+        workspaceId,
+        destinationOrganizationId: destination.id,
+        adminEmail: 'admin@example.test',
+        expectedOwnerId: ownerId,
+        durableOperationId: newOperationId(),
+      })
+    ).rejects.toMatchObject<Partial<WorkspaceMoveError>>({
+      code: 'destination-personal-organization',
+    })
+    expect(await readWorkspace(workspaceId)).toMatchObject({
+      organizationId: null,
+      workspaceMode: WORKSPACE_MODE.PERSONAL,
+    })
   })
 
   it('refuses a move that would split a fork lineage across organizations', async () => {
