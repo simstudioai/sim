@@ -2669,7 +2669,7 @@
       "patch": {
         "operationId": "updateWorkflowTrigger",
         "summary": "Update workflow trigger",
-        "description": "Enable or disable one trigger of the live deployment without redeploying. Requires workspace write access. Enabling resets `failedCount`, schedules the next run, and clears any polling backoff; a schedule whose cron expression is invalid or has no future runs returns `400`. A permission group that blocks webhook triggers returns `403` when enabling a polling, internal-event, or webhook trigger. Disabling a completed schedule marks it disabled. A block with several live rows switches them together. Requesting the current state changes nothing.\n\nDisabling only stops Sim from accepting the trigger; nothing is removed at the provider. Deliveries to a disabled webhook receive `404`, and some providers disable their subscription after repeated failures, which requires a redeploy to restore.\n\nOAuth scope: `api:write`.",
+        "description": "Enable or disable one trigger of the live deployment without redeploying. Requires workspace write access. Enabling resets `failedCount`, schedules the next run, and clears any polling backoff; a schedule whose cron expression is invalid or has no future runs returns `400`. A permission group that blocks webhook triggers returns `403` when a member it governs enables a polling, internal-event, or webhook trigger; a workspace API key is not governed by permission groups, as with every other capability. Disabling a completed schedule marks it disabled. A block with several live rows switches them together. Requesting the current state changes nothing.\n\nDisabling only stops Sim from accepting the trigger; nothing is removed at the provider. A disable lasts until the next deploy or version activation, which re-enables every trigger, the same way it clears a trigger that disabled itself after repeated failures. Deliveries to a disabled webhook receive `404`, and some providers disable their subscription after repeated failures, which requires a redeploy to restore.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.triggers.set_enabled",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -13032,7 +13032,7 @@
         "properties": {
           "enabled": {
             "type": "boolean",
-            "description": "Whether the trigger should fire."
+            "description": "Whether the trigger should fire. A disable lasts until the next deploy or version activation, which re-enables every trigger."
           }
         },
         "required": ["enabled"],

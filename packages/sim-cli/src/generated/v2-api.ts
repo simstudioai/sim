@@ -25062,7 +25062,12 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Update workflow trigger',
     body: {
-      enabled: { kind: 'boolean', required: true, describe: 'Whether the trigger should fire.' },
+      enabled: {
+        kind: 'boolean',
+        required: true,
+        describe:
+          'Whether the trigger should fire. A disable lasts until the next deploy or version activation, which re-enables every trigger.',
+      },
     },
   },
   updateWorkflowVersion: {

@@ -1395,7 +1395,9 @@ const v2UpdateWorkflowTriggerBodySchema = z
   .object({
     enabled: z
       .boolean({ error: 'enabled must be a boolean' })
-      .describe('Whether the trigger should fire.'),
+      .describe(
+        'Whether the trigger should fire. A disable lasts until the next deploy or version activation, which re-enables every trigger.'
+      ),
   })
   .strict()
   .meta({

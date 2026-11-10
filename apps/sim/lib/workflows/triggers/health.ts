@@ -18,7 +18,11 @@ import {
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { resolveDeployedWebhookUrl } from '@/lib/webhooks/deployed-urls'
 import { POLL_BACKOFF_UNTIL_KEY, POLL_SOURCE_FAILURES_KEY } from '@/lib/webhooks/polling/utils'
-import { isInternalTriggerProvider, isPollingWebhookProvider } from '@/triggers/constants'
+import {
+  isInternalTriggerProvider,
+  isPollingWebhookProvider,
+  POLLING_PROVIDERS,
+} from '@/triggers/constants'
 
 /**
  * How a deployed trigger is fired: on a cron (`schedule`), by Sim polling a
@@ -66,11 +70,9 @@ function activeDeploymentVersionIds(workflowId: string) {
 }
 
 /**
- * The deployment-version test every delivery path and editor read applies: the
- * row belongs to the active version, or the workflow has no active version and
- * the row names none (a deploy that predates versions). The schedule dispatcher
- * additionally skips that versionless case, so such a schedule is listed and
- * switchable, exactly as the editor shows it, but does not fire.
+ * The deployment-version test webhook delivery, polling, and the editor's
+ * reads apply: the row belongs to the active version, or the workflow has no
+ * active version and the row names none (a deploy that predates versions).
  */
 function servedByLiveDeployment(deploymentVersionId: AnyPgColumn, workflowId: string): SQL {
   const predicate = or(
@@ -82,13 +84,24 @@ function servedByLiveDeployment(deploymentVersionId: AnyPgColumn, workflowId: st
 }
 
 /**
+ * Which schedule rows count as live. `dispatched` is the schedule dispatcher's
+ * own test, the active version only: a versionless schedule never fires, so
+ * the v2 surface does not report it. `editor` adds those versionless rows,
+ * which the editor still shows, so the legacy row-id route can keep switching
+ * them as it always has.
+ */
+export type ScheduleLiveness = 'dispatched' | 'editor'
+
+/**
  * The schedule rows the live deployment serves. Job schedules share the table
  * but belong to no workflow deployment, so they are excluded by source.
  */
-function liveSchedulePredicate(workflowId: string): SQL {
+function liveSchedulePredicate(workflowId: string, liveness: ScheduleLiveness): SQL {
   const predicate = and(
     eq(workflowSchedule.workflowId, workflowId),
-    servedByLiveDeployment(workflowSchedule.deploymentVersionId, workflowId),
+    liveness === 'dispatched'
+      ? inArray(workflowSchedule.deploymentVersionId, activeDeploymentVersionIds(workflowId))
+      : servedByLiveDeployment(workflowSchedule.deploymentVersionId, workflowId),
     isNull(workflowSchedule.archivedAt),
     or(eq(workflowSchedule.sourceType, 'workflow'), isNull(workflowSchedule.sourceType)),
     isNotNull(workflowSchedule.blockId)
@@ -115,9 +128,13 @@ function liveWebhookPredicate(workflowId: string): SQL {
   return predicate
 }
 
+/**
+ * An unrecognized status reads as `active`, because the dispatcher fires every
+ * schedule that is neither `disabled` nor `completed` and the editor shows it
+ * as not disabled.
+ */
 function scheduleStatus(status: string): WorkflowTriggerStatus {
-  if (status === 'active' || status === 'disabled' || status === 'completed') return status
-  throw new Error(`Schedule has an unknown status: ${status}`)
+  return status === 'disabled' || status === 'completed' ? status : 'active'
 }
 
 function webhookKind(provider: string | null): Exclude<WorkflowTriggerKind, 'schedule'> {
@@ -174,7 +191,7 @@ export async function listLiveWorkflowTriggers(
   workflowId: string
 ): Promise<LiveWorkflowTriggerRecord[]> {
   const [schedules, webhooks] = await Promise.all([
-    db.select().from(workflowSchedule).where(liveSchedulePredicate(workflowId)),
+    db.select().from(workflowSchedule).where(liveSchedulePredicate(workflowId, 'dispatched')),
     db.select().from(webhook).where(liveWebhookPredicate(workflowId)),
   ])
   const records: LiveWorkflowTriggerRecord[] = [
@@ -224,6 +241,7 @@ export async function findLiveBlockTriggers(input: {
   workflowId: string
   blockId: string
   row?: { table: LiveWorkflowTriggerRecord['table']; id: string }
+  scheduleLiveness: ScheduleLiveness
 }): Promise<LiveWorkflowTriggerRecord[]> {
   const { row } = input
   const [schedules, webhooks] = await Promise.all([
@@ -234,7 +252,7 @@ export async function findLiveBlockTriggers(input: {
           .from(workflowSchedule)
           .where(
             and(
-              liveSchedulePredicate(input.workflowId),
+              liveSchedulePredicate(input.workflowId, input.scheduleLiveness),
               eq(workflowSchedule.blockId, input.blockId),
               row ? eq(workflowSchedule.id, row.id) : undefined
             )
@@ -283,6 +301,7 @@ export async function setLiveTriggersEnabled(input: {
   enabled: boolean
   schedules: { id: string; nextRunAt: Date | null }[]
   webhookIds: string[]
+  scheduleLiveness: ScheduleLiveness
   now: Date
 }): Promise<LiveWorkflowTriggerRecord[]> {
   const { workflowId, enabled, now } = input
@@ -305,7 +324,7 @@ export async function setLiveTriggersEnabled(input: {
         .where(
           and(
             eq(workflowSchedule.id, schedule.id),
-            liveSchedulePredicate(workflowId),
+            liveSchedulePredicate(workflowId, input.scheduleLiveness),
             ne(workflowSchedule.status, enabled ? 'active' : 'disabled')
           )
         )
@@ -314,7 +333,8 @@ export async function setLiveTriggersEnabled(input: {
     }
 
     if (input.webhookIds.length > 0) {
-      const clearedBackoff = sql`(${webhook.providerConfig}::jsonb - ${POLL_BACKOFF_UNTIL_KEY}::text - ${POLL_SOURCE_FAILURES_KEY}::text)::json`
+      /** Only a poller records backoff, and only an object config can hold it. */
+      const clearedBackoff = sql`CASE WHEN ${inArray(webhook.provider, [...POLLING_PROVIDERS])} AND jsonb_typeof(${webhook.providerConfig}::jsonb) = 'object' THEN (${webhook.providerConfig}::jsonb - ${POLL_BACKOFF_UNTIL_KEY}::text - ${POLL_SOURCE_FAILURES_KEY}::text)::json ELSE ${webhook.providerConfig} END`
       const rows = await tx
         .update(webhook)
         .set(

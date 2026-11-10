@@ -17,6 +17,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { createLogger } from '@sim/logger'
 import {
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
@@ -26,6 +27,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, expect, it, vi } from 'vitest'
+import { markWebhookFailed } from '@/lib/webhooks/polling/utils'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import {
   listWorkflowTriggers,
@@ -69,6 +71,8 @@ const pollingWebhookId = generateId()
 const eventWebhookId = generateId()
 const twinWebhookIds = [generateId(), generateId()]
 const versionlessWebhookId = generateId()
+const scalarConfigWebhookId = generateId()
+const flakyWebhookId = generateId()
 const hookPath = `trigger-health-${generateId()}`
 
 const writer = createSessionPrincipal({ userId: writerId })
@@ -386,7 +390,25 @@ beforeAll(async () => {
       blockId: 'twin',
       path: `${hookPath}-twin-${index}`,
       failedCount: 100,
+      providerConfig: { pollSourceFailures: 1 },
     })),
+    {
+      ...dormantWebhook,
+      id: scalarConfigWebhookId,
+      blockId: 'scalar',
+      provider: 'gmail',
+      path: `${hookPath}-scalar`,
+      providerConfig: 'legacy-scalar-config',
+    },
+    {
+      ...dormantWebhook,
+      id: flakyWebhookId,
+      blockId: 'flaky',
+      provider: 'gmail',
+      path: `${hookPath}-flaky`,
+      isActive: true,
+      failedCount: 98,
+    },
     {
       ...dormantWebhook,
       id: versionlessWebhookId,
@@ -418,8 +440,10 @@ check('lists only the live deployment’s rows, disabled ones included', async (
     ['badcron', 'schedule', 'disabled'],
     ['done', 'schedule', 'completed'],
     ['evt', 'event', 'active'],
+    ['flaky', 'polling', 'active'],
     ['hook', 'webhook', 'disabled'],
     ['poll', 'polling', 'disabled'],
+    ['scalar', 'polling', 'disabled'],
     ['sched', 'schedule', 'disabled'],
     ['twin', 'webhook', 'disabled'],
     ['twin', 'webhook', 'disabled'],
@@ -509,6 +533,7 @@ check('the write itself refuses a row that is no longer live', async () => {
     enabled: true,
     schedules: [{ id: oldScheduleId, nextRunAt: new Date(Date.now() + 60_000) }],
     webhookIds: [oldWebhookId, candidateWebhookId],
+    scheduleLiveness: 'editor',
     now: new Date(),
   })
   expect(updated).toEqual([])
@@ -517,15 +542,23 @@ check('the write itself refuses a row that is no longer live', async () => {
   expect((await webhookRow(candidateWebhookId)).isActive).toBe(false)
 })
 
-check('a versionless deploy is switchable exactly as delivery serves it', async () => {
+check('a versionless schedule is hidden from v2 but kept for the editor row id', async () => {
   const { triggers } = await listWorkflowTriggers.execute({
     principal: reader,
     input: { workflowId: versionlessWorkflowId },
   })
-  expect(triggers.map((trigger) => [trigger.blockId, trigger.kind])).toEqual([
-    ['hook', 'webhook'],
-    ['sched', 'schedule'],
-  ])
+  expect(triggers.map((trigger) => [trigger.blockId, trigger.kind])).toEqual([['hook', 'webhook']])
+  await expect(
+    setWorkflowTriggerEnabled.execute({
+      principal: writer,
+      input: {
+        target: { kind: 'block', workflowId: versionlessWorkflowId, blockId: 'sched' },
+        enabled: true,
+      },
+    })
+  ).rejects.toMatchObject({ code: 'not_found' })
+  expect((await scheduleRow(versionlessScheduleId)).status).toBe('disabled')
+
   const schedule = await setWorkflowTriggerEnabled.execute({
     principal: writer,
     input: { target: { kind: 'row', table: 'schedule', id: versionlessScheduleId }, enabled: true },
@@ -555,7 +588,11 @@ check('a block switches every live row together; a row id switches only that row
     [...twinWebhookIds].sort()
   )
   for (const id of twinWebhookIds) {
-    expect(await webhookRow(id)).toMatchObject({ isActive: true, failedCount: 0 })
+    expect(await webhookRow(id)).toMatchObject({
+      isActive: true,
+      failedCount: 0,
+      providerConfig: { pollSourceFailures: 1 },
+    })
   }
   await expect.poll(async () => (await auditRows(second)).length).toBe(1)
 })
@@ -644,6 +681,22 @@ check('enabling a poller clears its failures and backoff but keeps its config', 
   const row = await webhookRow(pollingWebhookId)
   expect(row).toMatchObject({ isActive: true, failedCount: 0 })
   expect(row.providerConfig).toEqual({ labelIds: ['INBOX'] })
+
+  const scalar = await setBlock('scalar', true)
+  expect(scalar.changes).toHaveLength(1)
+  expect((await webhookRow(scalarConfigWebhookId)).providerConfig).toBe('legacy-scalar-config')
+})
+
+check('a poll failure auto-disables at the threshold in the same write', async () => {
+  const logger = createLogger('TriggerHealthIntegration')
+  await markWebhookFailed(flakyWebhookId, logger)
+  expect(await webhookRow(flakyWebhookId)).toMatchObject({ isActive: true, failedCount: 99 })
+  await markWebhookFailed(flakyWebhookId, logger)
+  expect(await webhookRow(flakyWebhookId)).toMatchObject({ isActive: false, failedCount: 100 })
+
+  await setBlock('flaky', true)
+  await markWebhookFailed(flakyWebhookId, logger)
+  expect(await webhookRow(flakyWebhookId)).toMatchObject({ isActive: true, failedCount: 1 })
 })
 
 check('an unknown block is not found', async () => {

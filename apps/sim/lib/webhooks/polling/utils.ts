@@ -145,29 +145,27 @@ export async function recordPollSourceFailure(
   await markWebhookFailed(webhookData.id, logger)
 }
 
-/** Increment the webhook's failure count. Auto-disables after MAX_CONSECUTIVE_FAILURES. */
+/**
+ * Increment the webhook's failure count, auto-disabling it once the count
+ * reaches MAX_CONSECUTIVE_FAILURES. One statement, so an enable that resets the
+ * count concurrently is never followed by a disable decided on the old count.
+ */
 export async function markWebhookFailed(webhookId: string, logger: Logger): Promise<void> {
   try {
-    const result = await db
+    const now = new Date()
+    const reachesLimit = sql`COALESCE(${webhook.failedCount}, 0) + 1 >= ${MAX_CONSECUTIVE_FAILURES}`
+    const [result] = await db
       .update(webhook)
       .set({
         failedCount: sql`COALESCE(${webhook.failedCount}, 0) + 1`,
-        lastFailedAt: new Date(),
-        updatedAt: new Date(),
+        lastFailedAt: now,
+        isActive: sql`CASE WHEN ${reachesLimit} THEN false ELSE ${webhook.isActive} END`,
+        updatedAt: now,
       })
       .where(eq(webhook.id, webhookId))
       .returning({ failedCount: webhook.failedCount })
 
-    const newFailedCount = result[0]?.failedCount || 0
-    if (newFailedCount >= MAX_CONSECUTIVE_FAILURES) {
-      await db
-        .update(webhook)
-        .set({
-          isActive: false,
-          updatedAt: new Date(),
-        })
-        .where(eq(webhook.id, webhookId))
-
+    if ((result?.failedCount ?? 0) >= MAX_CONSECUTIVE_FAILURES) {
       logger.warn(
         `Webhook ${webhookId} auto-disabled after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`
       )
