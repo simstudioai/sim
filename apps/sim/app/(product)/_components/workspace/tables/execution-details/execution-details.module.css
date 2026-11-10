@@ -10,39 +10,6 @@
   color: var(--ui-secondary);
 }
 
-.files {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  min-inline-size: 0;
-  margin: 0;
-  padding: 0;
-  gap: var(--ui-list-gap);
-  list-style: none;
-}
-.file {
-  display: flex;
-  align-items: center;
-  min-inline-size: 0;
-  min-block-size: var(--spacing-40);
-  gap: var(--ui-row-gap);
-}
-.fileText {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-inline-size: 0;
-  gap: var(--ui-stack-gap);
-}
-.fileName {
-  display: flex;
-  min-inline-size: 0;
-  color: var(--ui-ink);
-}
-.fileDetail {
-  color: var(--ui-secondary);
-  overflow-wrap: anywhere;
-}
-
 /* The trace's summary: status, duration, spans and cost, then Jump to error at the end. */
 .traceHeader {
   display: flex;

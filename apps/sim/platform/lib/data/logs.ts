@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { inferParserType } from 'nuqs'
 import { isApiClientError } from '@/lib/api/client/errors'
@@ -20,6 +21,7 @@ import {
 } from '@/lib/billing/credits/conversion'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/time-range'
+import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { useFolderMap } from '@/hooks/queries/folders'
 import {
   type LogFilters,
@@ -40,7 +42,7 @@ import { useTraceVisibility, useTroubleshootRun } from '@/platform/lib/data/tabl
 import { useWorkspaceUserPermissions } from '@/platform/lib/data/tables/permissions'
 import type { runListParams } from '@/platform/lib/workspace-views'
 import { LOCALE } from '@/platform/shared/time'
-import { CORE_TRIGGER_LABELS } from '@/platform/shared/trigger-labels'
+import { CORE_TRIGGER_LABELS, triggerLabel } from '@/platform/shared/trigger-labels'
 import {
   queryRead,
   type RunCost,
@@ -54,6 +56,7 @@ import {
 } from '@/platform/shared/workspace-records'
 import { CORE_TRIGGER_TYPES, type TimeRange } from '@/stores/logs/filters/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import { normalizeToolId } from '@/tools/normalize'
 
 type RunListView = inferParserType<typeof runListParams>
 
@@ -106,8 +109,7 @@ function runTrigger(trigger: string | null): RunTrigger {
   if (!trigger) return { label: 'Unknown' }
   const core = CORE_TRIGGER_TYPES.find((type) => type === trigger)
   if (core) return { label: TRIGGER_LABEL[core] }
-  const words = trigger.replaceAll('_', ' ')
-  return { label: words.charAt(0).toUpperCase() + words.slice(1), providerId: trigger }
+  return { label: triggerLabel(trigger), providerId: trigger }
 }
 
 /** A run's status in the list's terms; a paused run waits, a stop in progress still runs. */
@@ -205,14 +207,14 @@ const WITHHELD: TracePayload = {
 }
 
 /** A step's or run's data as the inspector shows it; withheld when projection omitted it. */
-export function tracePayload(value: unknown, withheld = false): TracePayload | undefined {
+function tracePayload(value: unknown, withheld = false): TracePayload | undefined {
   if (value === undefined) return withheld ? WITHHELD : undefined
   return typeof value === 'string'
     ? { format: 'text', content: value }
     : { format: 'json', content: JSON.stringify(value, null, 2) }
 }
 
-export function spanKind(type: string): TraceSpan['kind'] {
+function spanKind(type: string): TraceSpan['kind'] {
   switch (type) {
     case 'agent':
     case 'model':
@@ -237,51 +239,228 @@ function spanStatus(span: LogTraceSpan): TraceSpan['status'] {
   return 'success'
 }
 
-function spanContext(span: LogTraceSpan): TraceSpan['context'] {
-  const tokens = typeof span.tokens === 'number' ? { total: span.tokens } : span.tokens
-  return [
-    ...(span.type !== spanKind(span.type) ? [{ id: 'type', label: 'Type', value: span.type }] : []),
-    ...(tokens?.input !== undefined
-      ? [{ id: 'input-tokens', label: 'Input tokens', value: tokens.input.toLocaleString(LOCALE) }]
-      : []),
-    ...(tokens?.output !== undefined
-      ? [
-          {
-            id: 'output-tokens',
-            label: 'Output tokens',
-            value: tokens.output.toLocaleString(LOCALE),
-          },
-        ]
-      : []),
-    ...(tokens?.total !== undefined
-      ? [{ id: 'tokens', label: 'Total tokens', value: tokens.total.toLocaleString(LOCALE) }]
-      : []),
-    ...(span.cost?.total !== undefined
-      ? [
-          {
-            id: 'usage',
-            label: 'Compute Units',
-            value: dollarsToCredits(span.cost.total).toLocaleString(LOCALE),
-          },
-        ]
-      : []),
+/** Why a custom block's steps are absent; a joined child run is its own evidence. */
+const CHILD_TRACE_ACCESS_LABEL: Record<string, string> = {
+  missing: 'Not available',
+  truncated: 'Not expanded (nesting limit)',
+  disabled: 'Not traced',
+}
+
+/**
+ * What a recorded span carries beyond the logs contract's typed fields: a model turn's provider,
+ * timing, thinking and requested tool calls, a block's retries and fallbacks, and a custom block's
+ * child-run state. Each is read only when it has the recorded shape.
+ */
+function recordedDetail(span: LogTraceSpan) {
+  const fields: Record<string, unknown> = { ...span }
+  const text = (key: string) => (typeof fields[key] === 'string' ? fields[key] : undefined)
+  const count = (key: string, from: Record<string, unknown> = fields) => {
+    const value = from[key]
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+  }
+  const tokens: Record<string, unknown> =
+    typeof span.tokens === 'object' && span.tokens !== null ? { ...span.tokens } : {}
+  const fallbacks = fields.modelFallbacks
+  return {
+    provider: text('provider'),
+    model: text('model'),
+    finishReason: text('finishReason'),
+    thinking: text('thinking'),
+    childTraceAccess: text('childTraceAccess'),
+    childTraceDisabled: fields.childTraceDisabled === true,
+    ttft: count('ttft'),
+    tries: count('tries'),
+    iterationIndex: count('iterationIndex'),
+    modelFallbacks: Array.isArray(fallbacks)
+      ? fallbacks.filter((model): model is string => typeof model === 'string')
+      : [],
+    modelToolCalls: Array.isArray(fields.modelToolCalls) ? fields.modelToolCalls : [],
+    tokens: {
+      input: typeof span.tokens === 'number' ? undefined : count('input', tokens),
+      output: count('output', tokens),
+      total: typeof span.tokens === 'number' ? span.tokens : count('total', tokens),
+      cacheRead: count('cacheRead', tokens),
+      cacheWrite: count('cacheWrite', tokens),
+      reasoning: count('reasoning', tokens),
+    },
+  }
+}
+
+/**
+ * The bare tool name of an MCP tool id, `mcp-{serverId}-{toolName}`, or null for another id. Kept
+ * here, as the legacy trace keeps it, since the MCP utilities reach server code.
+ */
+function mcpToolName(toolId: string): string | null {
+  if (!toolId.startsWith('mcp-')) return null
+  const parts = toolId.split('-')
+  if (parts.length < 3) return null
+  const name = parts.slice(2).join('-')
+  return name.length > 0 ? name : null
+}
+
+function spanTime(value: string | undefined) {
+  const ms = value ? Date.parse(value) : Number.NaN
+  return Number.isFinite(ms) && ms > 0 ? ms : undefined
+}
+
+function spanDurationMs(span: LogTraceSpan) {
+  const recorded = span.duration ?? span.durationMs
+  if (recorded) return recorded
+  const start = spanTime(span.startTime)
+  const end = spanTime(span.endTime)
+  return start !== undefined && end !== undefined ? Math.max(0, end - start) : 0
+}
+
+function formatCount(value: number | undefined) {
+  return value !== undefined && value > 0 ? value.toLocaleString(LOCALE) : undefined
+}
+
+function formatTtft(ms: number | undefined) {
+  if (ms === undefined || ms < 0) return undefined
+  return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(2)}s`
+}
+
+function formatThroughput(outputTokens: number | undefined, durationMs: number) {
+  if (!outputTokens || outputTokens <= 0 || durationMs <= 0) return undefined
+  const perSecond = Math.round(outputTokens / (durationMs / 1000))
+  return perSecond > 0 ? `${perSecond.toLocaleString(LOCALE)} tok/s` : undefined
+}
+
+/**
+ * The facts the legacy span detail lists, in its order, beyond the step type, status and duration
+ * the inspector leads with, then the step's Compute Units.
+ */
+function spanContext(span: LogTraceSpan, durationMs: number): TraceSpan['context'] {
+  const detail = recordedDetail(span)
+  const facts: { id: string; label: string; value: string | undefined }[] = [
+    {
+      id: 'type',
+      label: 'Type',
+      value:
+        span.type === spanKind(span.type)
+          ? undefined
+          : isCustomBlockType(span.type)
+            ? 'custom block'
+            : span.type,
+    },
+    {
+      id: 'child-run',
+      label: 'Child run',
+      value:
+        CHILD_TRACE_ACCESS_LABEL[
+          detail.childTraceAccess ?? (detail.childTraceDisabled ? 'disabled' : '')
+        ],
+    },
+    { id: 'tries', label: 'Tries', value: detail.tries?.toString() },
+    { id: 'provider', label: 'Provider', value: detail.provider },
+    { id: 'model', label: 'Model', value: detail.model },
+    ...detail.modelFallbacks.map((model, index) => ({
+      id: `failed-model-${index}`,
+      label: 'Failed model',
+      value: model,
+    })),
+    { id: 'finish-reason', label: 'Finish reason', value: detail.finishReason },
+    { id: 'ttft', label: 'TTFT', value: formatTtft(detail.ttft) },
+    {
+      id: 'throughput',
+      label: 'Throughput',
+      value: span.type === 'model' ? formatThroughput(detail.tokens.output, durationMs) : undefined,
+    },
+    { id: 'input-tokens', label: 'Input tokens', value: formatCount(detail.tokens.input) },
+    { id: 'output-tokens', label: 'Output tokens', value: formatCount(detail.tokens.output) },
+    { id: 'tokens', label: 'Total tokens', value: formatCount(detail.tokens.total) },
+    { id: 'cache-read', label: 'Cache read', value: formatCount(detail.tokens.cacheRead) },
+    { id: 'cache-write', label: 'Cache write', value: formatCount(detail.tokens.cacheWrite) },
+    {
+      id: 'reasoning-tokens',
+      label: 'Reasoning tokens',
+      value: formatCount(detail.tokens.reasoning),
+    },
+    {
+      id: 'iteration',
+      label: 'Iteration',
+      value: detail.iterationIndex === undefined ? undefined : String(detail.iterationIndex + 1),
+    },
+    {
+      id: 'usage',
+      label: 'Compute Units',
+      value:
+        span.cost?.total === undefined
+          ? undefined
+          : dollarsToCredits(span.cost.total).toLocaleString(LOCALE),
+    },
   ]
+  return facts.flatMap(({ id, label, value }) => (value ? [{ id, label, value }] : []))
+}
+
+/**
+ * A span's children as the trace shows them, in start order: a legacy span's tool calls become
+ * tool steps, and an agent that called no tool hides its model segments.
+ */
+function displayChildren(span: LogTraceSpan, id: string): LogTraceSpan[] {
+  const children: LogTraceSpan[] = span.children?.length
+    ? [...span.children]
+    : (span.toolCalls ?? []).map((call, index) => ({
+        id: `${id}-tool-${index}`,
+        name: call.name ?? 'Tool call',
+        type: 'tool',
+        duration: call.duration ?? 0,
+        startTime: call.startTime ?? span.startTime,
+        endTime: call.endTime ?? span.endTime,
+        status: call.error ? 'error' : 'success',
+        input: call.input,
+        output: call.error
+          ? { error: call.error, ...(isRecordLike(call.output) ? call.output : {}) }
+          : call.output,
+      }))
+  children.sort((left, right) => (spanTime(left.startTime) ?? 0) - (spanTime(right.startTime) ?? 0))
+  const calledTool = children.some((child) => child.type === 'tool')
+  return span.type === 'agent' && !calledTool
+    ? children.filter((child) => child.type !== 'model')
+    : children
 }
 
 /** A logged span as the Platform's trace reads it, timed from `origin`. */
-export function toTraceSpan(span: LogTraceSpan, origin: number): TraceSpan {
+function toTraceSpan(span: LogTraceSpan, origin: number): TraceSpan {
   const withheld = span.contentWithheld === true
-  const start = span.startTime ? Date.parse(span.startTime) - origin : 0
+  const id = span.id || `span-${span.name}-${span.startTime ?? ''}`
+  const startedAt = spanTime(span.startTime)
+  const endedAt = spanTime(span.endTime)
+  const durationMs = spanDurationMs(span)
+  const detail = recordedDetail(span)
+  const mcpName = span.type === 'tool' ? mcpToolName(span.name) : null
+  const kind = mcpName ? 'mcp' : spanKind(span.type)
+  const providerId =
+    span.type === 'tool'
+      ? mcpName
+        ? undefined
+        : normalizeToolId(span.name).split('_')[0]
+      : span.type === 'model'
+        ? detail.provider
+        : kind === 'block'
+          ? span.type
+          : undefined
+  const thinking = detail.thinking ? tracePayload(detail.thinking) : undefined
+  const toolCalls = detail.modelToolCalls.length ? tracePayload(detail.modelToolCalls) : undefined
+  const children = displayChildren(span, id)
+  const extras = [
+    ...(thinking ? [{ id: 'thinking', label: 'Thinking', payload: thinking }] : []),
+    ...(toolCalls ? [{ id: 'tool-calls', label: 'Tool calls', payload: toolCalls }] : []),
+  ]
   return {
-    id: span.id,
-    name: span.name,
-    kind: spanKind(span.type),
+    id,
+    name: span.type === 'tool' ? (mcpName ?? normalizeToolId(span.name)) : span.name,
+    kind,
+    ...(providerId ? { providerId } : {}),
     status: spanStatus(span),
-    startMs: Math.max(0, span.relativeStartMs ?? start),
-    durationMs: span.duration ?? span.durationMs ?? 0,
-    context: spanContext(span),
+    startMs: Math.max(0, span.relativeStartMs ?? (startedAt ?? origin) - origin),
+    durationMs,
+    context: spanContext(span, durationMs),
     input: tracePayload(span.input, withheld),
     output: tracePayload(span.output, withheld),
+    ...(extras.length ? { extras } : {}),
+    ...(startedAt ? { startedAt } : {}),
+    ...(endedAt ? { endedAt } : {}),
     notice: span.errorMessage
       ? {
           tone: span.errorHandled ? 'warning' : 'danger',
@@ -289,7 +468,7 @@ export function toTraceSpan(span: LogTraceSpan, origin: number): TraceSpan {
           message: span.errorMessage,
         }
       : undefined,
-    children: span.children?.map((child) => toTraceSpan(child, origin)),
+    children: children.length ? children.map((child) => toTraceSpan(child, origin)) : undefined,
   }
 }
 
@@ -393,7 +572,12 @@ function toRunDetail(log: WorkflowLogDetail & { executionId: string }, traced: b
             context: [],
             input: tracePayload(execution.workflowInput),
             output: tracePayload(filterHiddenOutputKeys(execution.finalOutput)),
-            children: spans.map((span) => toTraceSpan(span, summary.startedAt)),
+            startedAt: summary.startedAt,
+            children: [...spans]
+              .sort(
+                (left, right) => (spanTime(left.startTime) ?? 0) - (spanTime(right.startTime) ?? 0)
+              )
+              .map((span) => toTraceSpan(span, summary.startedAt)),
           },
         ]
       : [],
@@ -676,12 +860,17 @@ function useRunLog(workspaceId: string, executionId: string) {
   }
 }
 
-/** One run by its execution: its details, what its commands may do, and whether it has a snapshot. */
+/**
+ * One run by its execution: its details, what its commands may do, and whether it has a snapshot,
+ * with the log it was read from for a surface that shows more of it, such as a table cell's run.
+ */
 export function useLiveRun(workspaceId: string, executionId: string) {
   const { log, traced, read, missing, hasSnapshot } = useRunLog(workspaceId, executionId)
   return {
     read,
     missing,
+    log,
+    traced,
     run: log && toRunDetail(log, traced),
     commands: log && commandsTarget(log),
     hasSnapshot,

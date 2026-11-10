@@ -80,18 +80,8 @@ export type {
   TableFindMatch,
   UpdateWorkflowGroupBodyInput,
 } from '@/lib/api/contracts/tables'
-export { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
-export {
-  apportionCredits,
-  dollarsToCredits,
-  formatCreditCost,
-} from '@/lib/billing/credits/conversion'
+export { formatCreditCost } from '@/lib/billing/credits/conversion'
 export { faviconSrc } from '@/lib/favicon/url'
-export {
-  filterHiddenOutputKeys,
-  hasUnhandledError,
-} from '@/lib/logs/execution/trace-spans/trace-spans'
-export type { TraceSpan } from '@/lib/logs/types'
 export { attachSelectionContextToClipboard } from '@/lib/mothership/chat/selection-clipboard'
 export { captureClientEvent } from '@/lib/posthog/client'
 export { columnMatchesRef, getColumnId } from '@/lib/table/column-keys'
@@ -166,7 +156,6 @@ export { getUserColor, USER_COLORS } from '@/lib/workspaces/colors'
 export { ALL_ENRICHMENTS, getEnrichment } from '@/enrichments/registry'
 export type { EnrichmentConfig } from '@/enrichments/types'
 export { type TimezoneState, useTimezone, useTimezoneState } from '@/hooks/queries/general-settings'
-export { useLogByExecutionId } from '@/hooks/queries/logs'
 export {
   consumeInitiatedExport,
   downloadExportResult,
@@ -214,10 +203,9 @@ export { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
 export { useWorkspaceTablesRoom } from '@/hooks/use-workspace-tables-room'
 /** Add to Chat opens a new chat with the selection as a draft, the same way the Files tab does. */
 export { useAddToChat } from '@/platform/lib/data/files/add-to-chat'
-export { useTraceVisibility, useTroubleshootRun } from '@/platform/lib/data/tables/execution'
+export { useTroubleshootRun } from '@/platform/lib/data/tables/execution'
 export { useWorkspaceUserPermissions } from '@/platform/lib/data/tables/permissions'
 export { useTableRecord } from '@/platform/lib/data/tables/record'
 export { type RemoteTableSelection, useTableRoom } from '@/platform/lib/data/tables/room'
 export type { DeletedRowSnapshot } from '@/stores/table/types'
 export type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-export { normalizeToolId } from '@/tools/normalize'

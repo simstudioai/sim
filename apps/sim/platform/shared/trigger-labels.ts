@@ -19,3 +19,14 @@ export function coreTriggerLabel(trigger: string): string | undefined {
     ? CORE_TRIGGER_LABELS[trigger as keyof typeof CORE_TRIGGER_LABELS]
     : undefined
 }
+
+/** A trigger's label: a core trigger's own, or an integration trigger's id in words, each capitalized. */
+export function triggerLabel(trigger: string): string {
+  return (
+    coreTriggerLabel(trigger) ??
+    trigger
+      .split(/[-_]/)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ')
+  )
+}

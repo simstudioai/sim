@@ -447,7 +447,6 @@ const seamHelpers: ReasonedAllowlist = {
       'lib/block-metadata/names.generated',
       'lib/selectors/manifest',
       'lib/logs/execution/trace-spans/trace-spans',
-      'lib/logs/types',
       'lib/resources',
       'lib/workflows/input-format',
       'lib/workflows/types',

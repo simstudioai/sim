@@ -121,6 +121,11 @@ export interface TraceSpan {
   context: readonly { id: string; label: string; value: string }[]
   input?: TracePayload
   output?: TracePayload
+  /** Data a step carries beyond its input and output, such as a model's thinking and tool calls. */
+  extras?: readonly { id: string; label: string; payload: TracePayload }[]
+  /** When the step started and ended on the wall clock, in epoch ms, where the trace recorded it. */
+  startedAt?: number
+  endedAt?: number
   notice?: { tone: 'neutral' | 'warning' | 'danger'; title: string; message: string }
   children?: readonly TraceSpan[]
 }

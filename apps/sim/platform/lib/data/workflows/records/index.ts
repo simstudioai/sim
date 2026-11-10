@@ -9,7 +9,6 @@ export {
   getBlockExecutionOrder,
 } from '@/lib/workflows/blocks/flatten-outputs'
 export { TriggerUtils } from '@/lib/workflows/triggers/triggers'
-export { isCustomBlockType } from '@/blocks/custom/build-config'
 export { isAnnotationOnlyBlock } from '@/executor/constants'
 export { useDeployedWorkflowState } from '@/hooks/queries/deployments'
 export { useRestoreWorkflow, useWorkflowStates, useWorkflows } from '@/hooks/queries/workflows'

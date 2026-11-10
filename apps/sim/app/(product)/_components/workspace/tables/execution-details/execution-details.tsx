@@ -1,47 +1,48 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, IconButton } from '@sim/emcn/button'
-import { OverflowText } from '@sim/emcn/overflow-text'
-import { PropertyList } from '@sim/emcn/property-list'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
+import { SearchField } from '@sim/emcn/search-field'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
-import { formatDuration } from '@sim/utils/formatting'
 import { isRecordLike } from '@sim/utils/object'
 import { workspacePath } from '@/lib/navigation/paths'
-import { toast } from '@/lib/toast/sink'
+import {
+  findLeafErrorSpan,
+  RunCostList,
+  RunFiles,
+  RunStep,
+  useRunTrace,
+} from '@/app/(product)/_components/workspace/logs/run-details/run-details'
+import { RunStatusText } from '@/app/(product)/_components/workspace/logs/run-status/run-status'
 import {
   type MetadataField,
   MetadataFields,
 } from '@/app/(product)/_components/workspace/metadata-fields/metadata-fields'
 import { Payload } from '@/app/(product)/_components/workspace/span-inspector/span-inspector'
 import styles from '@/app/(product)/_components/workspace/tables/execution-details/execution-details.module.css'
-import { findLeafErrorSpan } from '@/app/(product)/_components/workspace/tables/execution-details/trace'
-import { TraceView } from '@/app/(product)/_components/workspace/tables/execution-details/trace-view'
 import {
   SidePanel,
   SidePanelNote,
   SidePanelSection,
 } from '@/app/(product)/_components/workspace/tables/side-panel/side-panel'
-import { useViewerTimeZone } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
-import { resolveLogWorkflowId, tracePayload } from '@/platform/lib/data/logs'
 import {
-  apportionCredits,
-  BASE_EXECUTION_CHARGE,
-  dollarsToCredits,
-  filterHiddenOutputKeys,
+  TraceToolbar,
+  TraceTree,
+} from '@/app/(product)/_components/workspace/trace-tree/trace-tree'
+import { formatDuration } from '@/app/(product)/_components/workspace/workspace-session/format'
+import { useViewerTimeZone } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
+import { resolveLogWorkflowId, useLiveRun } from '@/platform/lib/data/logs'
+import {
   formatCreditCost,
-  type TraceSpan,
-  useLogByExecutionId,
-  useTraceVisibility,
   useTroubleshootRun,
   type WorkflowLogRow,
 } from '@/platform/lib/data/tables'
 import { formatTimestamp } from '@/platform/shared/time'
-import { coreTriggerLabel } from '@/platform/shared/trigger-labels'
+import type { RunDetail } from '@/platform/shared/workspace-records'
 
 type LogTab = 'overview' | 'trace'
-type LogFile = NonNullable<WorkflowLogRow['files']>[number]
 
 /** The legacy log's level for each raw status; anything settled without failing reads as Info. */
 const LEVEL_LABEL: Record<string, string> = {
@@ -53,151 +54,126 @@ const LEVEL_LABEL: Record<string, string> = {
   failed: 'Error',
 }
 
-const DELETED_WORKFLOW_LABEL = 'Deleted Workflow'
-
-function triggerLabel(trigger: string): string {
-  return (
-    coreTriggerLabel(trigger) ??
-    trigger
-      .split(/[-_]/)
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ')
-  )
-}
-
-function workflowLabel(log: WorkflowLogRow): string {
-  if (log.trigger === 'mothership') return log.jobTitle || 'Untitled Job'
-  return log.workflow?.id || log.workflowId
-    ? log.workflow?.name || 'Unknown'
-    : DELETED_WORKFLOW_LABEL
-}
-
-/** A trace as the log carries it, checked as far as the trace view reads it. */
-function isTraceSpanList(value: unknown): value is TraceSpan[] {
-  return (
-    Array.isArray(value) &&
-    value.every(
-      (span) => isRecordLike(span) && typeof span.name === 'string' && typeof span.type === 'string'
-    )
-  )
+interface RunTraceProps {
+  run: RunDetail
+  /** The run's recorded cost in dollars, so the trace and the overview never show different totals. */
+  costDollars?: number
 }
 
 /**
- * An apportioned credit figure; `dollars` tells a real zero ("0 credits") from a charge that rounds
- * below one credit ("<1 credit").
+ * The run's trace in the panel: a summary of status, duration, steps and cost with Jump to error,
+ * a filter over step names, the tree on the run's clock, and the selected step beneath it. The first
+ * failure is selected to begin with and scrolls into view when selected out of sight.
  */
-function creditLabel(credits: number, dollars: number): string {
-  if (credits <= 0) return dollars > 0 ? '<1 credit' : '0 credits'
-  return `${credits.toLocaleString('en-US')} ${credits === 1 ? 'credit' : 'credits'}`
-}
+function RunTrace({ run, costDollars }: RunTraceProps) {
+  const [query, setQuery] = useState('')
+  const trace = useRunTrace(run.trace, query)
+  const treeElement = useRef<HTMLDivElement | null>(null)
+  const tree = useScrollEdges<HTMLDivElement>('vertical', { viewport: treeElement })
+  const selectedId = trace.selected?.id ?? null
+  const firstErrorId = trace.firstErrorId
+  const cost = formatCreditCost(costDollars, { emptyForZeroOrLess: true })
 
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const index = Math.floor(Math.log(bytes) / Math.log(1024))
-  return `${Number.parseFloat((bytes / 1024 ** index).toFixed(1))} ${sizes[index]}`
-}
+  useEffect(() => {
+    const list = treeElement.current
+    if (!selectedId || !list) return
+    list
+      .querySelector<HTMLElement>(`[data-trace-id="${CSS.escape(selectedId)}"]`)
+      ?.scrollIntoView({ block: 'nearest' })
+  }, [selectedId])
 
-/** An execution file through the app's file route, or a link-only file at its own URL. */
-function openFile(file: LogFile) {
-  if (file.key.startsWith('url/')) {
-    if (file.url) window.open(file.url, '_blank')
-    else toast.error(`${file.name} has no download link`)
-    return
-  }
-  window.open(`/api/files/serve/${encodeURIComponent(file.key)}?context=execution`, '_blank')
-}
-
-interface CostBreakdown {
-  rows: Array<{ key: string; label: string; credits: number; dollars: number }>
-  totalCredits: number
-  totalDollars: number
-  tokens: { input: number; output: number }
-}
-
-/**
- * The run's cost from its usage ledger: line items apportioned once at the total so they always add
- * up. A run from before the ledger shows its total alone.
- */
-function costBreakdown(log: WorkflowLogRow): CostBreakdown | null {
-  const ledger = log.costLedger
-  if (ledger && ledger.items.length > 0) {
-    const credits = apportionCredits(
-      ledger.items.map((item, index) => ({ key: String(index), dollars: item.cost }))
-    )
-    return {
-      rows: ledger.items.map((item, index) => ({
-        key: String(index),
-        label:
-          item.category === 'fixed' && item.description === 'execution_fee'
-            ? 'Base Run'
-            : item.description,
-        credits: credits[String(index)] ?? 0,
-        dollars: item.cost,
-      })),
-      totalCredits: dollarsToCredits(ledger.total),
-      totalDollars: ledger.total,
-      tokens: {
-        input: ledger.items.reduce((sum, item) => sum + (item.inputTokens ?? 0), 0),
-        output: ledger.items.reduce((sum, item) => sum + (item.outputTokens ?? 0), 0),
-      },
-    }
-  }
-  const total = log.cost?.total
-  if (total == null) return null
-  return {
-    rows: [],
-    totalCredits: dollarsToCredits(total),
-    totalDollars: total,
-    tokens: { input: 0, output: 0 },
-  }
+  return (
+    <div className={styles.trace}>
+      <div className={styles.traceHeader} data-type='T052'>
+        <RunStatusText status={run.trace[0]?.status === 'error' ? 'failed' : 'completed'} />
+        <span>{formatDuration(trace.totalMs)}</span>
+        <span>
+          {trace.spanCount} {trace.spanCount === 1 ? 'span' : 'spans'}
+        </span>
+        {cost && <span>{cost}</span>}
+        {firstErrorId && (
+          <span className={styles.traceHeaderAction}>
+            <Button variant='quiet' size='compact' onClick={() => trace.select(firstErrorId)}>
+              Jump to error
+            </Button>
+          </span>
+        )}
+      </div>
+      <TraceToolbar
+        search={
+          <SearchField
+            label='Filter spans'
+            placeholder='Filter spans'
+            variant='quiet'
+            value={query}
+            onValueChange={setQuery}
+          />
+        }
+        copyText={JSON.stringify(run.trace, null, 2)}
+        onExpandAll={trace.expandAll}
+        onCollapseAll={trace.collapseAll}
+      />
+      {trace.rows.length === 0 ? (
+        <p className={styles.note} data-type='T060'>
+          No matching spans
+        </p>
+      ) : (
+        <div ref={tree} className={styles.tree}>
+          <TraceTree
+            label='Trace spans'
+            rows={trace.rows}
+            selectedId={selectedId}
+            onSelect={trace.select}
+            onToggle={trace.toggle}
+          />
+        </div>
+      )}
+      {trace.selected ? (
+        <RunStep key={trace.selected.id} span={trace.selected} />
+      ) : (
+        <p className={styles.note} data-type='T060'>
+          Select a span to see details.
+        </p>
+      )}
+    </div>
+  )
 }
 
 interface ExecutionContentProps {
-  log: WorkflowLogRow
+  log: WorkflowLogRow & { executionId: string }
+  run: RunDetail
   workspaceId: string
   traceShown: boolean
 }
 
-function ExecutionContent({ log, workspaceId, traceShown }: ExecutionContentProps) {
+/**
+ * The run as the Logs adapter maps it, with what a table cell's run adds to the Logs page: the
+ * legacy level, the workflow as a link, the failure with Troubleshoot in Chat, the workflow's input
+ * and output on the overview, Open in Logs, and a trace tab with its summary and filter.
+ */
+function ExecutionContent({ log, run, workspaceId, traceShown }: ExecutionContentProps) {
   const timeZone = useViewerTimeZone()
   const troubleshoot = useTroubleshootRun()
   const [tab, setTab] = useState<LogTab>('overview')
 
   const executionId = log.executionId
-  const isLikelyExecution = Boolean(executionId) && log.trigger !== 'mothership'
-  const loggedSpans: unknown = log.executionData?.traceSpans
-  const traceSpans = isTraceSpanList(loggedSpans) ? loggedSpans : undefined
+  const isLikelyExecution = log.trigger !== 'mothership'
   const isWorkflowExecutionLog =
     (log.trigger === 'manual' && Boolean(log.duration)) || Boolean(log.executionData?.traceSpans)
   const showTraceTab = traceShown && isLikelyExecution
-
-  const workflowOutput = useMemo(() => {
-    const finalOutput = log.executionData?.finalOutput
-    if (!finalOutput) return null
-    return filterHiddenOutputKeys(finalOutput) ?? null
-  }, [log.executionData])
-  const workflowInput = useMemo(() => {
-    const raw = log.executionData?.workflowInput
-    if (raw === undefined || raw === null) return null
-    return isRecordLike(raw) ? raw : { input: raw }
-  }, [log.executionData])
-  const cost = useMemo(() => costBreakdown(log), [log])
+  const root = run.trace[0]
   const showRunPayloads = isWorkflowExecutionLog && traceShown
-  const inputPayload = showRunPayloads && workflowInput ? tracePayload(workflowInput) : undefined
-  const outputPayload =
-    showRunPayloads && workflowOutput != null ? tracePayload(workflowOutput) : undefined
 
   const workflowId = resolveLogWorkflowId(log)
-  const startedAt = Date.parse(log.createdAt)
   const failed = log.status === 'failed'
+  const finalOutput = log.executionData?.finalOutput
   const outputError =
-    traceShown && isRecordLike(workflowOutput) && typeof workflowOutput.error === 'string'
-      ? workflowOutput.error
+    traceShown && isRecordLike(finalOutput) && typeof finalOutput.error === 'string'
+      ? finalOutput.error
       : null
-  const leafError = traceShown && traceSpans ? findLeafErrorSpan(traceSpans) : null
+  const leafError = traceShown ? findLeafErrorSpan(root?.children ?? []) : undefined
   const errorMessage = failed
-    ? (outputError ?? leafError?.errorMessage ?? 'This run failed.')
+    ? (outputError ?? leafError?.notice?.message ?? 'This run failed.')
     : null
 
   const facts: MetadataField[] = [
@@ -205,32 +181,20 @@ function ExecutionContent({ log, workspaceId, traceShown }: ExecutionContentProp
     {
       id: 'workflow',
       label: log.trigger === 'mothership' ? 'Job' : 'Workflow',
-      value: workflowLabel(log),
+      value: run.workflow.name,
       href: workflowId
         ? `${workspacePath(workspaceId, 'workflows')}/${encodeURIComponent(workflowId)}`
         : undefined,
     },
-    { id: 'trigger', label: 'Trigger', value: log.trigger ? triggerLabel(log.trigger) : 'None' },
+    { id: 'trigger', label: 'Trigger', value: log.trigger ? run.trigger.label : 'None' },
     {
       id: 'timestamp',
       label: 'Timestamp',
-      value: Number.isFinite(startedAt) ? formatTimestamp(startedAt, timeZone) : '—',
+      value: Number.isFinite(run.startedAt) ? formatTimestamp(run.startedAt, timeZone) : '—',
     },
-    {
-      id: 'duration',
-      label: 'Duration',
-      value: formatDuration(log.duration, { precision: 2 }) || '—',
-    },
-    ...(log.deploymentVersion
-      ? [
-          {
-            id: 'version',
-            label: 'Version',
-            value: log.deploymentVersionName || `v${log.deploymentVersion}`,
-          },
-        ]
-      : []),
-    ...(executionId ? [{ id: 'run-id', label: 'Run ID', value: executionId, copyable: true }] : []),
+    { id: 'duration', label: 'Duration', value: formatDuration(run.durationMs) },
+    ...(run.version ? [{ id: 'version', label: 'Version', value: run.version }] : []),
+    { id: 'run-id', label: 'Run ID', value: executionId, copyable: true },
   ]
 
   const overview = (
@@ -241,7 +205,7 @@ function ExecutionContent({ log, workspaceId, traceShown }: ExecutionContentProp
           title='Run failed'
           message={errorMessage}
           action={
-            failed && isLikelyExecution && troubleshoot.available && executionId ? (
+            failed && isLikelyExecution && troubleshoot.available ? (
               <Button
                 variant='quiet'
                 size='compact'
@@ -260,80 +224,26 @@ function ExecutionContent({ log, workspaceId, traceShown }: ExecutionContentProp
         />
       )}
       <MetadataFields label='Run facts' fields={facts} />
-      {inputPayload && <Payload label='Workflow input' payload={inputPayload} />}
-      {outputPayload && <Payload label='Workflow output' payload={outputPayload} />}
-      {log.files && log.files.length > 0 && (
-        <SidePanelSection title={`Files (${log.files.length})`}>
-          <ul className={styles.files}>
-            {log.files.map((file, index) => (
-              <li key={file.id || `file-${index}`} className={styles.file}>
-                <span className={styles.fileText}>
-                  <span className={styles.fileName} data-type='T060'>
-                    <OverflowText text={file.name}>{file.name}</OverflowText>
-                  </span>
-                  <span className={styles.fileDetail} data-type='T052'>
-                    {formatFileSize(file.size)} · {file.type}
-                    {file.version === undefined ? '' : ` · v${file.version}`}
-                  </span>
-                </span>
-                <Button
-                  variant='quiet'
-                  size='compact'
-                  icon='I049'
-                  aria-label={`Download ${file.name}`}
-                  onClick={() => openFile(file)}
-                >
-                  Download
-                </Button>
-              </li>
-            ))}
-          </ul>
+      {showRunPayloads && root?.input && <Payload label='Workflow input' payload={root.input} />}
+      {showRunPayloads && root?.output && <Payload label='Workflow output' payload={root.output} />}
+      {run.files && (
+        <SidePanelSection title={`Files (${run.files.length})`}>
+          <RunFiles files={run.files} />
         </SidePanelSection>
       )}
-      {isWorkflowExecutionLog && log.cost && cost && (
+      {run.cost && (
         <SidePanelSection title='Cost'>
-          <PropertyList
-            title='Cost'
-            titleHidden
-            properties={[
-              ...cost.rows.map((row) => ({
-                id: `item-${row.key}`,
-                label: row.label,
-                kind: 'text' as const,
-                value: creditLabel(row.credits, row.dollars),
-              })),
-              {
-                id: 'total',
-                label: 'Total',
-                kind: 'text',
-                value: creditLabel(cost.totalCredits, cost.totalDollars),
-              },
-              ...(cost.tokens.input > 0 || cost.tokens.output > 0
-                ? [
-                    {
-                      id: 'tokens',
-                      label: 'Tokens',
-                      kind: 'text' as const,
-                      value: `${cost.tokens.input} in · ${cost.tokens.output} out`,
-                    },
-                  ]
-                : []),
-            ]}
-          />
-          <p className={styles.note} data-type='T052'>
-            Total includes a {formatCreditCost(BASE_EXECUTION_CHARGE) ?? '—'} base charge plus model
-            and tool usage.
-          </p>
+          <RunCostList cost={run.cost} />
         </SidePanelSection>
       )}
     </div>
   )
 
-  const trace = traceSpans?.length ? (
-    <TraceView traceSpans={traceSpans} runCostDollars={log.cost?.total} />
-  ) : log.executionData ? (
+  const trace = root?.children?.length ? (
+    <RunTrace run={run} costDollars={log.cost?.total} />
+  ) : (
     <SidePanelNote>No trace data available for this run</SidePanelNote>
-  ) : null
+  )
 
   return (
     <ContentTabs
@@ -341,20 +251,18 @@ function ExecutionContent({ log, workspaceId, traceShown }: ExecutionContentProp
       current={showTraceTab ? tab : 'overview'}
       onSelect={(id) => setTab(id === 'trace' ? 'trace' : 'overview')}
       actions={
-        executionId ? (
-          <IconButton
-            label='Open in Logs'
-            icon='I037'
-            tooltip
-            onClick={() =>
-              window.open(
-                `${workspacePath(workspaceId, 'logs')}?executionId=${encodeURIComponent(executionId)}`,
-                '_blank',
-                'noopener,noreferrer'
-              )
-            }
-          />
-        ) : undefined
+        <IconButton
+          label='Open in Logs'
+          icon='I037'
+          tooltip
+          onClick={() =>
+            window.open(
+              `${workspacePath(workspaceId, 'logs')}?executionId=${encodeURIComponent(executionId)}`,
+              '_blank',
+              'noopener,noreferrer'
+            )
+          }
+        />
       }
       items={[
         { id: 'overview', label: 'Overview', content: overview },
@@ -371,17 +279,17 @@ interface ExecutionDetailsPanelProps {
 }
 
 /**
- * A workflow cell's run, as the legacy log details show it: its facts, failure and Troubleshoot in
- * Chat, input and output, files and cost, and the trace with each step's data. The run's canvas
- * snapshot stays on the Logs page, which Open in Logs reaches. Escape closes it.
+ * A workflow cell's run through the Logs page's adapter and run pieces: its facts, failure and
+ * Troubleshoot in Chat, input and output, files and cost, and the trace with each step's data. A
+ * run still going reads again as it does on Logs. The run's canvas snapshot stays on the Logs
+ * page, which Open in Logs reaches. Escape closes it.
  */
 export function ExecutionDetailsPanel({
   workspaceId,
   executionId,
   onClose,
 }: ExecutionDetailsPanelProps) {
-  const log = useLogByExecutionId(workspaceId, executionId)
-  const traceVisibility = useTraceVisibility(workspaceId)
+  const live = useLiveRun(workspaceId, executionId)
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
@@ -393,18 +301,19 @@ export function ExecutionDetailsPanel({
 
   return (
     <SidePanel title='Log details' onClose={onClose}>
-      {log.isError ? (
+      {live.read.status === 'error' ? (
         <FailureNotice
           message='The run could not be loaded.'
-          retrying={log.isFetching}
-          onRetry={() => void log.refetch()}
+          retrying={live.read.retrying}
+          onRetry={live.read.onRetry}
         />
-      ) : log.data && traceVisibility !== 'pending' ? (
+      ) : live.read.status === 'ready' && live.log && live.run ? (
         <ExecutionContent
           key={executionId}
-          log={log.data}
+          log={live.log}
+          run={live.run}
           workspaceId={workspaceId}
-          traceShown={traceVisibility === 'shown'}
+          traceShown={live.traced}
         />
       ) : null}
     </SidePanel>

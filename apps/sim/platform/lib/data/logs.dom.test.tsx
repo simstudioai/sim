@@ -22,7 +22,7 @@ import { useLiveRuns } from '@/platform/lib/data/logs'
 
 const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
-const VIEW = {
+const VIEW: Parameters<typeof useLiveRuns>[1] = {
   view: 'runs',
   period: 'all',
   start: null,
@@ -32,7 +32,7 @@ const VIEW = {
   workflow: [],
   folder: [],
   sort: 'newest',
-} as const
+}
 
 interface ServerRun {
   id: string
