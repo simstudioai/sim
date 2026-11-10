@@ -60,18 +60,12 @@ function SignedInRows({
   const [signingOut, setSigningOut] = useState(false)
   return (
     <>
-      <SettingsRow
-        label={VIEWS['authorized-apps'].title}
-        description={VIEWS['authorized-apps'].description}
-      >
+      <SettingsRow label={VIEWS['authorized-apps'].title}>
         <Button size='compact' render={<Link href={authorizedAppsHref} />}>
           Manage
         </Button>
       </SettingsRow>
-      <SettingsRow
-        label={VIEWS['organization-accounts'].title}
-        description={VIEWS['organization-accounts'].description}
-      >
+      <SettingsRow label={VIEWS['organization-accounts'].title}>
         <Button size='compact' render={<Link href={organizationAccountsHref} />}>
           Manage
         </Button>
