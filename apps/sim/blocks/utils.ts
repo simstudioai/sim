@@ -84,14 +84,24 @@ export function withSavedCredential(
   options: SavedCredentialOptions = {}
 ): Pick<BlockConfig, 'subBlocks' | 'inputs' | 'tools'> {
   const replaced = new Set<string>(INLINE_SECRET_FIELDS[picker.serviceId])
-  const at = legacy.subBlocks.findIndex((subBlock) => replaced.has(subBlock.id))
+  // Trigger fields can share a secret's id (a webhook registers with its own key);
+  // they belong to the trigger, not the tools, so they are left exactly as they are.
+  const isTriggerField = (subBlock: SubBlockConfig) =>
+    subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced'
+  const isReplaced = (subBlock: SubBlockConfig) =>
+    replaced.has(subBlock.id) && !isTriggerField(subBlock)
+  const at = legacy.subBlocks.findIndex(isReplaced)
   if (at === -1) {
     throw new Error(`Block "${legacy.type}" has none of the fields a saved credential replaces`)
   }
 
   const subBlocks = legacy.subBlocks
-    .filter((subBlock) => !replaced.has(subBlock.id))
-    .map((subBlock) => dependOnCredential(subBlock, replaced, options.selectorKeys))
+    .filter((subBlock) => !isReplaced(subBlock))
+    .map((subBlock) =>
+      isTriggerField(subBlock)
+        ? subBlock
+        : dependOnCredential(subBlock, replaced, options.selectorKeys)
+    )
   subBlocks.splice(
     at,
     0,

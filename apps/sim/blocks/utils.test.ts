@@ -58,6 +58,7 @@ vi.mock('@/stores/providers/store', () => ({
 
 vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 
+import type { BlockConfig } from '@/blocks/types'
 import {
   getApiKeyCondition,
   getSerializedModelProviderId,
@@ -65,6 +66,7 @@ import {
   parseOptionalJsonInput,
   parseOptionalNumberInput,
   requiresProviderFamilyCredentials,
+  withSavedCredential,
 } from '@/blocks/utils'
 import { getProviderFromModel } from '@/providers/utils'
 
@@ -254,5 +256,66 @@ describe('getSerializedModelProviderId', () => {
   it('never throws when the resolver rejects the model', () => {
     expect(() => getSerializedModelProviderId('totally-unknown-model')).not.toThrow()
     expect(getSerializedModelProviderId('totally-unknown-model')).toBe('openai')
+  })
+})
+
+describe('withSavedCredential', () => {
+  const picker = {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  } as const
+  const legacy: BlockConfig = {
+    type: 'example',
+    name: 'Example',
+    description: '',
+    category: 'tools',
+    bgColor: '#000',
+    icon: () => null,
+    subBlocks: [
+      { id: 'operation', title: 'Operation', type: 'dropdown', options: [] },
+      { id: 'accessKeyId', title: 'Access Key ID', type: 'short-input', required: true },
+      { id: 'secretAccessKey', title: 'Secret', type: 'short-input', required: true },
+      { id: 'accessKeyId', title: 'Webhook key', type: 'short-input', mode: 'trigger' },
+      {
+        id: 'triggerPicker',
+        title: 'Trigger picker',
+        type: 'short-input',
+        mode: 'trigger',
+        dependsOn: ['accessKeyId'],
+      },
+    ],
+    tools: { access: [] },
+    inputs: { accessKeyId: { type: 'string' }, secretAccessKey: { type: 'string' } },
+    outputs: {},
+  }
+
+  it('keeps trigger fields that share a replaced secret id, untouched', () => {
+    const { subBlocks } = withSavedCredential(legacy, picker)
+    const triggerFields = legacy.subBlocks.filter((subBlock) => subBlock.mode === 'trigger')
+
+    for (const field of triggerFields) expect(subBlocks).toContain(field)
+    expect(
+      subBlocks.filter((subBlock) => subBlock.mode !== 'trigger').map((subBlock) => subBlock.id)
+    ).toEqual(['operation', 'credential', 'manualCredential'])
+  })
+
+  it('refuses a selector that authenticates with a replaced secret but has no twin', () => {
+    const withSelector: BlockConfig = {
+      ...legacy,
+      subBlocks: [
+        ...legacy.subBlocks,
+        {
+          id: 'logGroup',
+          title: 'Log group',
+          type: 'file-selector',
+          selectorKey: 'cloudwatch.logGroups',
+          dependsOn: ['accessKeyId'],
+        },
+      ],
+    }
+
+    expect(() => withSavedCredential(withSelector, picker)).toThrow(/saved-credential twin/)
   })
 })
