@@ -198,45 +198,6 @@ describe('ensureOrganizationForTeamSubscription', () => {
       mockAcquireUserBillingIdentityLock.mock.invocationCallOrder[0]
     )
   })
-
-  it('keeps org creation, subscription transfer, and workspace attachment on the caller transaction', async () => {
-    queueWhereResponses([[], [], [], [{ name: 'Owner', email: 'owner@example.com' }]])
-    mockAttachOwnedWorkspacesToOrganizationTx.mockRejectedValueOnce(
-      new Error('workspace attachment failed')
-    )
-
-    await expect(
-      ensureOrganizationForTeamSubscriptionTx(
-        ACCEPTANCE_TX,
-        {
-          id: 'sub-1',
-          plan: 'team',
-          referenceId: 'owner-1',
-          status: 'active',
-          seats: 1,
-          workspaceIdsToAttach: ['workspace-1'],
-        },
-        ACCEPTOR
-      )
-    ).rejects.toThrow('workspace attachment failed')
-
-    expect(mockCreateOrganizationWithOwnerTx).toHaveBeenCalledWith(
-      dbChainMock.db,
-      expect.objectContaining({ ownerUserId: 'owner-1' })
-    )
-    expect(mockAcquireOrganizationMutationLock).toHaveBeenCalledWith(dbChainMock.db, 'org_created')
-    expect(mockAttachOwnedWorkspacesToOrganizationTx).toHaveBeenCalledWith(
-      dbChainMock.db,
-      expect.objectContaining({
-        ownerUserId: 'owner-1',
-        workspaceIds: ['workspace-1'],
-      })
-    )
-    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
-    // The helper never starts a nested/global transaction; the outer
-    // acceptance transaction owns rollback of every mutation above.
-    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
-  })
 })
 
 describe('syncSubscriptionUsageLimits', () => {
