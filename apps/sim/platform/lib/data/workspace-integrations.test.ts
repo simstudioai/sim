@@ -8,6 +8,10 @@
  * this organization swapped for another instead of answered as not found. Which organization a
  * workspace opens in is proven against PostgreSQL in `personal-organization-shell.integration.ts`.
  */
+import {
+  workspacesUtilsMock,
+  workspacesUtilsMockFns,
+} from '@sim/testing/mocks/workspaces-utils.mock'
 import { beforeEach, expect, it, vi } from 'vitest'
 
 const { shellOrganizations, viewerWorkspaces } = vi.hoisted(() => ({
@@ -24,14 +28,7 @@ vi.mock('@/platform/lib/data/server-read', async (importOriginal) => ({
     activeOrganizationId: 'org-a',
   }),
 }))
-vi.mock('@/lib/workspaces/utils', () => ({
-  listAccessibleWorkspaceRowsForUser: async () =>
-    viewerWorkspaces.current.map((workspace) => ({
-      workspace: { ...workspace, name: workspace.id },
-      permissionType: 'write',
-      viaOrgAdmin: false,
-    })),
-}))
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 vi.mock('@/lib/workspaces/visits', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/workspaces/visits')>()),
   listRecentWorkspaceIds: async () => [],
@@ -128,6 +125,13 @@ beforeEach(() => {
     { id: 'ws-elsewhere', organizationId: 'org-c' },
     { id: 'ws-personal', organizationId: null },
   ]
+  workspacesUtilsMockFns.mockListAccessibleWorkspaceRowsForUser.mockImplementation(async () =>
+    viewerWorkspaces.current.map((workspace) => ({
+      workspace: { ...workspace, name: workspace.id },
+      permissionType: 'write',
+      viaOrgAdmin: false,
+    }))
+  )
 })
 
 it('lists every workspace that opens in this organization, including a collaborator’s', async () => {

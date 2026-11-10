@@ -64,8 +64,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
-  vi.unstubAllGlobals()
-  vi.restoreAllMocks()
 })
 
 function page(children: ReactNode) {
