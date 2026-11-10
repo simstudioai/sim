@@ -19,4 +19,4 @@ Steps:
 
 ## Query-backed forms
 
-When query data supplies the initial values for an editable form, do not copy it into draft state in an Effect. Render loading chrome in an outer component, then mount a keyed form child once data exists and initialize its state lazily from props. Key by the resource identity so every related draft, dialog, and upload state resets together when the resource changes. Keep independent queries in the outer component to preserve parallel fetching.
+When query data supplies the initial values for an editable form, do not copy it into draft state in an Effect. Let an outer component own the read and render its loading state (in the Platform, nothing: loading paints nothing, per `apps/sim/platform/AGENTS.md`), then mount a keyed form child once data exists and initialize its state lazily from props. Key by the resource identity so every related draft, dialog, and upload state resets together when the resource changes. Keep independent queries in the outer component to preserve parallel fetching.

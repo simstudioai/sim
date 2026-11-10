@@ -11,13 +11,6 @@ import { canReadMemberIntegrations } from '@/lib/credential-groups/member-integr
 import { hasSearchIntegrationReady } from '@/lib/credential-groups/search-readiness'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
-import type { HomeWidget } from '@/app/(product)/_components/model'
-import type {
-  AttentionItem,
-  EmailItem,
-  HomeActions,
-  HomeView,
-} from '@/app/(product)/o/[organizationId]/home/_components/model'
 import { useOrganizationAccessRequests } from '@/hooks/queries/access-requests'
 import { useOrganizationMothershipChats } from '@/hooks/queries/mothership-chats'
 import { useHasSearchAuthorization } from '@/hooks/queries/oauth-provider'
@@ -54,6 +47,13 @@ import {
 } from '@/platform/lib/data/home-model'
 import type { SavedSearchConnection } from '@/platform/lib/data/integration-handoff'
 import { useIntegrationActions } from '@/platform/lib/data/integrations'
+import type {
+  AttentionItem,
+  EmailItem,
+  HomeActions,
+  HomeView,
+} from '@/platform/lib/data/models/home'
+import type { HomeWidget } from '@/platform/lib/data/models/shell'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
 import { workspaceHomePath } from '@/platform/lib/workspace-navigation'

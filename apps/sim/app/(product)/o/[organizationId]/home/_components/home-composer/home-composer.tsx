@@ -1,9 +1,9 @@
 'use client'
 
 import { MessageComposer } from '@/app/(product)/_components/composer/message-composer'
-import type { HomeMode } from '@/app/(product)/_components/model'
 import { useComposerHost } from '@/app/(product)/_components/session/composer-host'
-import type { HomeData } from '@/app/(product)/o/[organizationId]/home/_components/model'
+import type { HomeData } from '@/platform/lib/data/models/home'
+import type { HomeMode } from '@/platform/lib/data/models/shell'
 
 interface HomeComposerProps {
   inventory?: HomeData['composerInventory']

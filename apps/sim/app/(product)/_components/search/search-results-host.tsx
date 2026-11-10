@@ -1,7 +1,7 @@
 'use client'
 
 import { type ComponentType, createContext, useContext } from 'react'
-import type { PlatformResource } from '@/app/(product)/_components/chat/model'
+import type { PlatformResource } from '@/platform/lib/data/models/chat'
 
 type SearchTab = ComponentType<{ resource: PlatformResource }>
 

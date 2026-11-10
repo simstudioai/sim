@@ -6,7 +6,6 @@ import { useSearchParams } from 'next/navigation'
 import { SuggestionListProvider } from '@/components/file-viewer/rich-markdown-editor/suggestion-list'
 import { DesktopHost } from '@/app/(product)/_components/desktop/desktop-host'
 import { EditorSuggestions } from '@/app/(product)/_components/editor-suggestions/editor-suggestions'
-import type { SettingsNavGroup, ShellData } from '@/app/(product)/_components/model'
 import { NotificationSession } from '@/app/(product)/_components/notification-tray/notification-tray'
 import { PlatformShell } from '@/app/(product)/_components/platform-shell/platform-shell'
 import { ChatChangesProvider } from '@/app/(product)/_components/session/chat-changes'
@@ -17,6 +16,7 @@ import { IntegrationChanges } from '@/app/(product)/_components/session/integrat
 import { InterfacePreferences } from '@/app/(product)/_components/session/interface-preferences'
 import { SidebarLayout } from '@/app/(product)/_components/sidebar/sidebar-layout'
 import type { Scenario } from '@/platform/fixtures'
+import type { SettingsNavGroup, ShellData } from '@/platform/lib/data/models/shell'
 import { useLiveShellData } from '@/platform/lib/data/shell-context'
 import {
   type Appearance,

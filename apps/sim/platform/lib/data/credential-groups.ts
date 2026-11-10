@@ -8,8 +8,8 @@ import {
 import { getOrganizationAccountWorkspaceAccess } from '@/lib/credential-groups/application/organization-access'
 import { listOrganizationAccountPeople } from '@/lib/credential-groups/application/organization-account-management'
 import { getOrganizationAccountsSettings } from '@/lib/credential-groups/application/organization-accounts'
-import type { CredentialGroupsData } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/model'
 import type { CredentialGroupManagement } from '@/platform/lib/data/credential-group-actions'
+import type { CredentialGroupsData } from '@/platform/lib/data/models/connected-accounts'
 import { asRouteResponse, requireSessionViewer } from '@/platform/lib/data/server-read'
 import { credentialGroupCatalog } from '@/platform/lib/integrations/metadata.generated'
 
