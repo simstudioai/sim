@@ -46,7 +46,11 @@ COPY --chown=pii:pii --chmod=755 docker/pii-entrypoint.sh ./
 # and /tmp (mode 1777), Python's tempfile scratch, stays writable because ECS
 # copies the image's /tmp into a bind volume mounted at a VOLUME path. The
 # VOLUME line stays below the model download, which stages wheels in /tmp.
-ENV PYTHONDONTWRITEBYTECODE=1
+# tldextract (pulled in by Presidio) caches the Public Suffix List under
+# $HOME/.cache by default; point it at /tmp so it caches instead of
+# refetching the list on every start.
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    TLDEXTRACT_CACHE=/tmp/tldextract
 RUN chmod 1777 /tmp
 VOLUME ["/tmp"]
 
