@@ -14,6 +14,7 @@ import {
 } from '@/hooks/queries/organization-mentions'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import type { ChatContext } from '@/platform/lib/data/chat-types'
+import { isWorkspaceTabHidden } from '@/platform/lib/workspace-navigation'
 import { formatTimestamp } from '@/platform/shared/time'
 
 /** The picker group each family lists under. */
@@ -121,10 +122,16 @@ function mentionReference(row: MentionRow): MentionReference {
 /** Whether the `/` list has landed, which a message naming a `/skill` waits for. */
 export type SkillListStatus = 'pending' | 'landed' | 'failed'
 
+/** A dashboard is offered only while the Dashboard tab it opens into is shown. */
+function offered(row: MentionRow) {
+  return row.family !== 'dashboards' || !isWorkspaceTabHidden('dashboards')
+}
+
 /** Mention rows as the pickers list them, in groups by family. */
 export function grouped(rows: readonly MentionRow[] | undefined) {
   const groups = new Map<string, MentionReference[]>()
   for (const row of rows ?? []) {
+    if (!offered(row)) continue
     const group = GROUPS[row.family]
     const items = groups.get(group)
     const item = mentionReference(row)

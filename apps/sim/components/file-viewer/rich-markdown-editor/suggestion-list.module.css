@@ -1,0 +1,77 @@
+/* Fixed beside the suggestion's range, hidden until it is first placed. */
+.positioner {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  z-index: 1;
+  max-inline-size: var(--available-width);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.positioner[data-placed] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.popup {
+  display: flex;
+  flex-direction: column;
+  inline-size: min(var(--spacing-320), var(--available-width));
+  max-block-size: min(var(--container-sidebar), var(--available-height));
+  padding: var(--ui-popup-padding);
+  overflow: hidden;
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-menu-shared);
+  color: var(--ui-ink);
+}
+
+.list {
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--spacing-28);
+  padding-inline: var(--ui-row-inset);
+  color: var(--ui-secondary);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  inline-size: 100%;
+  min-block-size: var(--spacing-app-chip);
+  padding: var(--ui-row-block) var(--ui-row-inset);
+  gap: var(--ui-row-gap);
+  border-radius: var(--ui-control-radius);
+  color: var(--ui-ink);
+  cursor: pointer;
+  text-align: start;
+}
+
+.item[data-highlighted] {
+  background: var(--ui-hover);
+}
+
+.label {
+  flex: 1;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.detail {
+  max-inline-size: 36%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ui-secondary);
+}
+
+.empty {
+  padding: var(--ui-row-block) var(--ui-row-inset);
+  color: var(--ui-secondary);
+}

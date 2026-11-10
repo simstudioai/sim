@@ -1,9 +1,9 @@
 'use client'
 
 import { type KeyboardEvent, memo, type RefObject, useRef, useState } from 'react'
-import { Button, IconButton } from '#emcn/components/button/button'
-import { Input } from '#emcn/components/field/inputs'
-import styles from '#emcn/components/find-bar/find-bar.module.css'
+import { Button, IconButton } from '@sim/emcn/button'
+import { Input } from '@sim/emcn/field/inputs'
+import styles from '@/components/find-bar/find-bar.module.css'
 
 /** Replacing matches, offered only where the content is editable. */
 interface FindReplace {

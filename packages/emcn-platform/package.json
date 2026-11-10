@@ -15,6 +15,8 @@
     "#platform/components/composer-input/composer-input": "./src/components/composer-input/composer-input.tsx",
     "#platform/components/composer-input/composer-input.module.css": "./src/components/composer-input/composer-input.module.css",
     "#platform/components/composer-input/marked-text": "./src/components/composer-input/marked-text.tsx",
+    "#platform/components/composer-input/suggestions": "./src/components/composer-input/suggestions.tsx",
+    "#platform/components/composer-input/suggestions.module.css": "./src/components/composer-input/suggestions.module.css",
     "#platform/components/connection-prompt/connection-prompt": "./src/components/connection-prompt/connection-prompt.tsx",
     "#platform/components/connection-prompt/connection-prompt.module.css": "./src/components/connection-prompt/connection-prompt.module.css",
     "#platform/components/destination-tabs/destination-tabs": "./src/components/destination-tabs/destination-tabs.tsx",
@@ -42,6 +44,7 @@
     "./catalog/variants.json": "./src/catalog/variants.json",
     "./composer-input": "./src/components/composer-input/composer-input.tsx",
     "./composer-input/marked-text": "./src/components/composer-input/marked-text.tsx",
+    "./composer-input/suggestions": "./src/components/composer-input/suggestions.tsx",
     "./connection-prompt": "./src/components/connection-prompt/connection-prompt.tsx",
     "./destination-tabs": "./src/components/destination-tabs/destination-tabs.tsx",
     "./execution-steps": "./src/components/execution-steps/execution-steps.tsx",
@@ -58,6 +61,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@base-ui/react": "1.9.0",
     "@sim/emcn": "workspace:*"
   },
   "peerDependencies": {

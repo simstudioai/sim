@@ -4,6 +4,7 @@ import { workspacePath } from '@/lib/navigation/paths'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { platformHref } from '@/platform/lib/navigation'
 import type { ProductPageProps } from '@/platform/lib/route-props'
+import { isWorkspaceTabHidden } from '@/platform/lib/workspace-navigation'
 import { readTestReturn } from '@/platform/shared/test-return'
 
 export const metadata: Metadata = { title: 'Workflow version' }
@@ -30,7 +31,8 @@ export default async function Page({
   ])
   if (!/^[1-9]\d*$/.test(version)) notFound()
   const search = { get: (key: string) => (typeof query[key] === 'string' ? query[key] : null) }
-  const test = readTestReturn(query)
+  // The Tests tab is held back by design, so a run never returns into it.
+  const test = isWorkspaceTabHidden('tests') ? null : readTestReturn(query)
   return (
     <VersionSnapshot
       workspaceId={workspaceId}

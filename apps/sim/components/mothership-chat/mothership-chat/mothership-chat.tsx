@@ -12,7 +12,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import { FindBar } from '@sim/emcn/find-bar'
 import {
   Chip,
   type ClipboardContent,
@@ -22,6 +21,7 @@ import {
   scrollFadeClass,
   useScrollEdges,
 } from '@sim/emcn-legacy'
+import { FindBar } from '@/components/find-bar/find-bar'
 import '@sim/emcn/styles/global.css'
 import { useQueryClient } from '@tanstack/react-query'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'

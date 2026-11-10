@@ -12,6 +12,14 @@ import type {
   HomeWidgetState,
 } from '@/platform/shared/home'
 
+/**
+ * Home sections held back by design until the designer's pass. Their views stay; Home renders none
+ * of them and the live Home skips their reads.
+ */
+export const HOME_HIDDEN_SECTIONS: ReadonlySet<'Needs your attention'> = new Set([
+  'Needs your attention',
+])
+
 export interface AttentionItem {
   id: string
   title: string
@@ -52,9 +60,6 @@ export interface HomeData {
   connected: boolean
 }
 
-/** A recent chip; one with no mark of its own shows its site's favicon, or a globe without one. */
-type HomeRecentItem = RecentItem & { favicon?: string | null }
-
 export interface HomeView {
   asOf: number
   greeting: string
@@ -63,7 +68,7 @@ export interface HomeView {
   activity: Record<HomeMode, HomeActivityState>
   email: HomeWidgetState<readonly EmailItem[]>
   calendar: HomeWidgetState<HomeCalendarDay>
-  recents: HomeListState<HomeRecentItem>
+  recents: HomeListState<RecentItem>
   getStarted: readonly HomeGetStartedStep[]
   composerInventory?: ComposerInventory
 }

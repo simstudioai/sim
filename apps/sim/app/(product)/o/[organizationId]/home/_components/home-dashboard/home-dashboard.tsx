@@ -8,7 +8,6 @@ import { PageColumn, PageOverflow } from '@sim/emcn-platform/page-column'
 import { RecentItems } from '@sim/emcn-platform/recent-items'
 import { PlatformSurface } from '@sim/emcn-platform/surface/platform-surface'
 import { GetStarted } from '@/app/(product)/_components/get-started/get-started'
-import { LinkIcon } from '@/app/(product)/_components/links-page/link-icon'
 import type { HomeMode, HomeWidget } from '@/app/(product)/_components/model'
 import { usePlatformNotices } from '@/app/(product)/_components/notification-tray/notification-tray'
 import { HomeActivityChart } from '@/app/(product)/o/[organizationId]/home/_components/activity-chart/activity-chart'
@@ -19,17 +18,13 @@ import {
 import { CalendarDay } from '@/app/(product)/o/[organizationId]/home/_components/calendar/calendar-day'
 import { ConnectedWidget } from '@/app/(product)/o/[organizationId]/home/_components/connected-widget/connected-widget'
 import styles from '@/app/(product)/o/[organizationId]/home/_components/home-dashboard/home-dashboard.module.css'
-import type {
-  HomeActions,
-  HomeView,
+import {
+  HOME_HIDDEN_SECTIONS,
+  type HomeActions,
+  type HomeView,
 } from '@/app/(product)/o/[organizationId]/home/_components/model'
 
 const WIDGETS: readonly HomeWidget[] = ['Activity', 'Email', 'Calendar']
-/**
- * Home sections held back by design until the designer's pass. Their views and reads stay; Home
- * renders none of them.
- */
-const HIDDEN_SECTIONS: ReadonlySet<'Needs your attention'> = new Set(['Needs your attention'])
 const ACTIVITY_METRIC_TITLES: Record<HomeMode, string> = { Build: 'Tasks run', Search: 'Searches' }
 
 interface HomeDashboardProps {
@@ -134,11 +129,7 @@ export function HomeDashboard({
                 <div className={styles.recents}>
                   <RecentItems
                     label='Recents'
-                    items={view.recents.items.map((item) =>
-                      item.icon || item.leading
-                        ? item
-                        : { ...item, leading: <LinkIcon src={item.favicon ?? null} /> }
-                    )}
+                    items={view.recents.items}
                     onRemove={actions.removeRecent}
                   />
                 </div>
@@ -166,7 +157,7 @@ export function HomeDashboard({
                   )}
                 </div>
                 <div className={styles.column}>
-                  {!HIDDEN_SECTIONS.has('Needs your attention') && (
+                  {!HOME_HIDDEN_SECTIONS.has('Needs your attention') && (
                     <AttentionList
                       state={view.attention}
                       asOf={view.asOf}

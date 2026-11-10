@@ -61,6 +61,14 @@ export function workspaceTabs(mode: WorkspaceDataMode, flags: WorkspaceTabFlags 
   )
 }
 
+/**
+ * Whether live data holds `section` back by design. Nothing on live data links or opens into a
+ * hidden tab, so un-hiding it in `WORKSPACE_TABS` restores every entry point at once.
+ */
+export function isWorkspaceTabHidden(section: WorkspaceTab): boolean {
+  return WORKSPACE_TABS.some((tab) => tab.section === section && 'hidden' in tab && tab.hidden)
+}
+
 /** The page a workspace opens on: Dashboard on example data, Workflows on live data, as legacy does. */
 function workspaceHome(mode: WorkspaceDataMode): WorkspaceTab {
   return mode === 'live' ? 'workflows' : 'dashboards'

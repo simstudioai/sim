@@ -178,6 +178,8 @@ const platformHostModules: ReasonedAllowlist = {
   'components/file-viewer/rich-markdown-editor/rich-markdown-field':
     'The markdown editor field the file viewer, changelog and workflow notes use',
   'components/dashboard-panel/dashboard-panel': 'The dashboard panel the markdown editor embeds',
+  'components/find-bar/find-bar':
+    'The one in-page find bar, which the legacy chat and file viewer also render',
 }
 
 /**
