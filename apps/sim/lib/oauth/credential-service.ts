@@ -72,6 +72,7 @@ import {
   AWS_SERVICE_ACCOUNT_PROVIDER_ID,
   DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
@@ -94,6 +95,11 @@ export interface CredentialTokenResolutionOptions {
   privacyMode?: 'selector'
   /** GitHub installation content tokens may only address one connector repository. */
   githubRepositoryScope?: GitHubInstallationRepositoryScope
+  /**
+   * The OAuth service of the tool the token is for, set only from the server-validated tool
+   * policy. A Microsoft app credential mints for that service's resource and refuses any other.
+   */
+  toolService?: string
   /**
    * Cancels supported service-account token exchanges and retry waits, and stops this caller
    * waiting on an OAuth refresh without cancelling the refresh other callers share.
@@ -741,6 +747,12 @@ const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolve
   [AWS_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => ({
     accessToken: credentialId,
   }),
+  [MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId, options) => {
+    const { resolveMicrosoftAppCredentialToken } = await import(
+      '@/lib/credentials/microsoft-app-service-account.server'
+    )
+    return resolveMicrosoftAppCredentialToken(credentialId, options.toolService, options.signal)
+  },
   [DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId, options) => {
     const { resolveDatabricksCredentialToken } = await import(
       '@/lib/credentials/databricks-service-account.server'

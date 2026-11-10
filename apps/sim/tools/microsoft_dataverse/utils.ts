@@ -1,3 +1,6 @@
+import { normalizeMicrosoftDataverseEnvironmentUrl } from '@/lib/oauth/microsoft-dataverse'
+import type { OAuthConfig } from '@/tools/types'
+
 /**
  * Registrable domains Microsoft serves Dataverse environments from — commercial and
  * regional clouds (`*.crm[N].dynamics.com`), China (21Vianet), US Government and DoD,
@@ -52,4 +55,52 @@ export function getDataverseBaseUrl(environmentUrl: string): string {
   }
 
   return parsed.origin
+}
+
+/** Shared credential policy for every Dataverse tool. */
+export const DATAVERSE_OAUTH_CONFIG = {
+  required: true,
+  provider: 'microsoft-dataverse',
+  authoritativeParams: ['credentialType', 'instanceUrl'],
+} as const satisfies OAuthConfig
+
+interface DataverseRequestTarget {
+  environmentUrl: string
+  /** Set only by credential resolution (an authoritative param), never by the caller. */
+  credentialType?: unknown
+  /** The environment a saved Microsoft app credential is bound to, from credential resolution. */
+  instanceUrl?: unknown
+}
+
+/**
+ * The Web API base a Dataverse request goes to. A signed-in OAuth account
+ * keeps the block's environment URL exactly as before. A saved Microsoft app
+ * credential's token is minted for its own environment, so the request goes
+ * there and only there: the block's environment URL must name the same
+ * environment, and anything else is refused rather than sent elsewhere.
+ */
+export function getDataverseRequestBaseUrl(params: DataverseRequestTarget): string {
+  if (params.credentialType !== 'service_account') {
+    return getDataverseBaseUrl(params.environmentUrl)
+  }
+  let credentialEnvironment: string
+  try {
+    credentialEnvironment = normalizeMicrosoftDataverseEnvironmentUrl(params.instanceUrl)
+  } catch {
+    throw new Error(
+      'This Microsoft app credential has no Dataverse environment. Reconnect it with the environment URL.'
+    )
+  }
+  let requestedEnvironment: string | undefined
+  try {
+    requestedEnvironment = normalizeMicrosoftDataverseEnvironmentUrl(params.environmentUrl)
+  } catch {
+    requestedEnvironment = undefined
+  }
+  if (requestedEnvironment !== credentialEnvironment) {
+    throw new Error(
+      'The selected Microsoft app credential belongs to a different Dataverse environment. Select a credential for this environment.'
+    )
+  }
+  return credentialEnvironment
 }

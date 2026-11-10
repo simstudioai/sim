@@ -11,6 +11,7 @@ import {
   AWS_SERVICE_ACCOUNT_PROVIDER_ID,
   DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
@@ -37,6 +38,7 @@ export function asServiceAccountProviderId(
     value === ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID ||
     value === AWS_SERVICE_ACCOUNT_PROVIDER_ID ||
     value === DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID ||
+    value === MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID ||
     isTokenServiceAccountProviderId(value) ||
     isClientCredentialAccountProviderId(value)
   ) {
@@ -82,6 +84,7 @@ export function getServiceAccountConnectNoun(providerId: string): string {
   if (providerId === ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID) return 'database connection'
   if (providerId === AWS_SERVICE_ACCOUNT_PROVIDER_ID) return 'AWS credential'
   if (providerId === DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID) return 'Databricks connection'
+  if (providerId === MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID) return 'Microsoft app credential'
   const descriptor =
     getTokenServiceAccountDescriptor(providerId) ?? getClientCredentialAccountDescriptor(providerId)
   return descriptor?.connectNoun ?? 'service account'

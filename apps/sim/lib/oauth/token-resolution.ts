@@ -410,7 +410,11 @@ export async function resolveCredentialToken(
           resolved.credentialId,
           resolved.providerId,
           scopes ?? [],
-          impersonateEmail
+          impersonateEmail,
+          {
+            toolService: toolCredentialPolicy(input.toolId, input.assistantConnectedAccount)
+              ?.provider,
+          }
         )
 
         if (saActorId) {

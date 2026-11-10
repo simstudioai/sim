@@ -88,6 +88,7 @@ import { searchUsersV2Tool } from '@/tools/github/search_users'
 import { jamaDeleteItemTool } from '@/tools/jama/delete_item'
 import { jamaDeleteRelationshipTool } from '@/tools/jama/delete_relationship'
 import { memoryAddTool } from '@/tools/memory/add'
+import { dataverseWhoAmITool } from '@/tools/microsoft_dataverse/whoami'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import { slackListsItemsListTool } from '@/tools/slack_lists/items_list'
 import { cortexAnalystAskTool as snowflakeCortexAnalystAskTool } from '@/tools/snowflake/cortex_analyst_ask'
@@ -3666,6 +3667,64 @@ describe('Internal Route Trust', () => {
     } finally {
       Reflect.deleteProperty(tools, toolId)
     }
+  })
+
+  describe('Dataverse environment authority', () => {
+    beforeEach(() => {
+      ;(tools as Record<string, unknown>)[dataverseWhoAmITool.id] = dataverseWhoAmITool
+    })
+    afterEach(() => {
+      Reflect.deleteProperty(tools, dataverseWhoAmITool.id)
+    })
+
+    async function dataverseRequestUrl(
+      resolved: Record<string, unknown>,
+      callerParams: Record<string, unknown>
+    ) {
+      mockResolveExecutorCredentialToken.mockResolvedValue({ accessToken: 'token', ...resolved })
+      await executeTool(dataverseWhoAmITool.id, {
+        credential: 'dataverse-credential',
+        ...callerParams,
+      })
+      return mockSecureFetchWithPinnedIP.mock.lastCall?.[0]
+    }
+
+    it('keeps a signed-in account on the block environment even when the caller claims an app credential', async () => {
+      const url = await dataverseRequestUrl(
+        { credentialType: 'oauth' },
+        {
+          environmentUrl: 'https://contoso.crm.dynamics.com',
+          credentialType: 'service_account',
+          instanceUrl: 'https://fabrikam.api.crm.dynamics.com',
+        }
+      )
+
+      expect(url).toBe('https://contoso.crm.dynamics.com/api/data/v9.2/WhoAmI()')
+    })
+
+    it('sends an app credential to its own environment, never one the caller names', async () => {
+      mockSecureFetchWithPinnedIP.mockClear()
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'app-token',
+        credentialType: 'service_account',
+        instanceUrl: 'https://contoso.api.crm.dynamics.com',
+      })
+
+      const refused = await executeTool(dataverseWhoAmITool.id, {
+        credential: 'dataverse-credential',
+        environmentUrl: 'https://fabrikam.crm.dynamics.com',
+        instanceUrl: 'https://fabrikam.api.crm.dynamics.com',
+      })
+
+      expect(refused.success).toBe(false)
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+
+      const url = await dataverseRequestUrl(
+        { credentialType: 'service_account', instanceUrl: 'https://contoso.api.crm.dynamics.com' },
+        { environmentUrl: 'https://contoso.crm.dynamics.com' }
+      )
+      expect(url).toBe('https://contoso.api.crm.dynamics.com/api/data/v9.2/WhoAmI()')
+    })
   })
 
   describe('Snowflake token type', () => {

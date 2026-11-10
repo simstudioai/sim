@@ -57,6 +57,9 @@
       "integration": "linear",
       "title": "API keys"
     },
+    "microsoft-app-credentials": {
+      "title": "Microsoft app credentials"
+    },
     "monday-service-account": {
       "integration": "monday",
       "title": "API tokens"

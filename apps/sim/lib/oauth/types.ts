@@ -48,6 +48,12 @@ export const AWS_SERVICE_ACCOUNT_PROVIDER_ID = 'aws-service-account' as const
 /** Saved Databricks connection (PAT, service-principal secret, or keyless OIDC federation). */
 export const DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID = 'databricks-service-account' as const
 
+/**
+ * Saved Microsoft Entra app-only credential (client secret, certificate, or keyless federated
+ * credential), shared by the Microsoft services whose tools run without a signed-in user.
+ */
+export const MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID = 'microsoft-app-service-account' as const
+
 export type OAuthProvider =
   | 'aws'
   | 'databricks'

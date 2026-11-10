@@ -28,6 +28,10 @@ import {
   verifyAndEncryptDatabricksCredential,
 } from '@/lib/credentials/databricks-service-account.server'
 import { slackCustomBotDisplayName } from '@/lib/credentials/display-name'
+import {
+  MicrosoftAppCredentialError,
+  verifyAndEncryptMicrosoftAppCredential,
+} from '@/lib/credentials/microsoft-app-service-account.server'
 import { verifyAndEncryptOciApiKeyCredential } from '@/lib/credentials/oci-api-key-service-account.server'
 import { verifyAndEncryptOracleDatabaseCredential } from '@/lib/credentials/oracledb-service-account.server'
 import {
@@ -57,6 +61,7 @@ import {
   AWS_SERVICE_ACCOUNT_PROVIDER_ID,
   DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
@@ -314,6 +319,42 @@ async function buildDatabricksServiceAccountSecret(
   }
 }
 
+async function buildMicrosoftAppServiceAccountSecret(
+  fields: ServiceAccountSecretFields
+): Promise<ServiceAccountSecretResult> {
+  if (!fields.serviceAccountJson)
+    throw new ServiceAccountSecretError('Microsoft app credential configuration is required')
+  if (!fields.owner)
+    throw new ServiceAccountSecretError('Microsoft app credential owner is required')
+  let result
+  try {
+    result = await verifyAndEncryptMicrosoftAppCredential(fields.serviceAccountJson, fields.owner)
+  } catch (error) {
+    if (error instanceof MicrosoftAppCredentialError) {
+      throw new ServiceAccountSecretError(error.message)
+    }
+    throw new ServiceAccountSecretError(
+      `Could not verify the Microsoft app credential: ${getErrorMessage(error, 'Unknown error')}`
+    )
+  }
+  // The app's service principal is the identity every app-only token acts as.
+  const principal: ServiceAccountPrincipal = {
+    kind: 'user',
+    id: result.servicePrincipalId,
+    label: result.displayName,
+  }
+  return {
+    providerId: MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
+    encryptedServiceAccountKey: result.encryptedServiceAccountKey,
+    displayName: result.displayName,
+    auditMetadata: {
+      microsoftTenantId: result.tenantId,
+      ...serviceAccountPrincipalMetadata(principal),
+    },
+    principal,
+  }
+}
+
 async function buildOracleDatabaseServiceAccountSecret(
   fields: ServiceAccountSecretFields
 ): Promise<ServiceAccountSecretResult> {
@@ -544,6 +585,7 @@ const SERVICE_ACCOUNT_SECRET_BUILDERS: Record<string, ServiceAccountSecretBuilde
   [ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID]: buildOracleDatabaseServiceAccountSecret,
   [AWS_SERVICE_ACCOUNT_PROVIDER_ID]: buildAwsServiceAccountSecret,
   [DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID]: buildDatabricksServiceAccountSecret,
+  [MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID]: buildMicrosoftAppServiceAccountSecret,
   [SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID]: buildSnowflakeServiceAccountSecret,
 }
 

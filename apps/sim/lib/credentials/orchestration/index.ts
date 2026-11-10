@@ -59,6 +59,7 @@ import {
   AWS_SERVICE_ACCOUNT_PROVIDER_ID,
   DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_SECRET_TYPE,
 } from '@/lib/oauth/types'
@@ -346,11 +347,12 @@ export async function updateCredentialRecord(
         providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID &&
         params.atlassianProduct === undefined
       const needsStoredUsername = params.username === undefined && isMultiGrantProvider
-      // A keyless AWS role, Databricks principal, or Snowflake service user keeps its trusted
-      // subject across reconnects.
+      // A keyless AWS role, Databricks principal, Microsoft app, or Snowflake service user keeps
+      // its trusted subject across reconnects.
       const needsStoredBoundSubject =
         providerId === AWS_SERVICE_ACCOUNT_PROVIDER_ID ||
         providerId === DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID ||
+        providerId === MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID ||
         (providerId === SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID &&
           params.serviceAccountJson !== undefined)
 

@@ -37,6 +37,7 @@ import {
   AWS_SERVICE_ACCOUNT_PROVIDER_ID,
   DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
@@ -44,6 +45,7 @@ import {
 import { AwsAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/aws-account-modal'
 import { ClientCredentialAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/client-credential-account-modal'
 import { DatabricksAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/databricks-account-modal'
+import { MicrosoftAppAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/microsoft-app-account-modal'
 import { OracleDatabaseAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/oracle-database-account-modal'
 import { SnowflakeAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/snowflake-account-modal'
 import { TokenServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/token-service-account-modal'
@@ -64,6 +66,7 @@ export type ServiceAccountProviderId =
   | typeof ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof AWS_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID
   | TokenServiceAccountProviderId
   | ClientCredentialAccountProviderId
 
@@ -188,6 +191,21 @@ export function ConnectServiceAccountModal({
   if (serviceAccountProviderId === DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID) {
     return (
       <DatabricksAccountModal
+        open={open}
+        onOpenChange={onOpenChange}
+        workspaceId={workspaceId}
+        organizationId={organizationId}
+        serviceIcon={serviceIcon}
+        credentialId={credentialId}
+        initialDisplayName={credentialDisplayName}
+        initialDescription={credentialDescription}
+        onCreated={onCreated}
+      />
+    )
+  }
+  if (serviceAccountProviderId === MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID) {
+    return (
+      <MicrosoftAppAccountModal
         open={open}
         onOpenChange={onOpenChange}
         workspaceId={workspaceId}

@@ -173,6 +173,7 @@
     "manageengine_sdp",
     "mem0",
     "memory",
+    "microsoft-app-credentials",
     "microsoft_ad",
     "microsoft_dataverse",
     "microsoft_dynamics_365",
