@@ -272,6 +272,8 @@ export const deploymentShapeSchema = z.object({
   chatEnabled: z.boolean(),
   azureConfigured: z.boolean(),
   cohereConfigured: z.boolean(),
+  /** Workspace invitations are off for the whole deployment. */
+  invitationsDisabled: z.boolean(),
   features: deploymentFeaturesSchema,
 })
 

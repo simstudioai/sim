@@ -2,6 +2,8 @@
 
 import { FailureNotice } from '@sim/emcn/status'
 import styles from '@/app/(product)/_components/workspace/knowledge/connector-history/connector-history.module.css'
+import { useMinuteClock } from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
+import { useViewerTimeZone } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
 import {
   CONNECTOR_SYNC_STALE_LOCK_TTL_MS,
   type ConnectorData,
@@ -56,12 +58,13 @@ interface LogRowProps {
 }
 
 function LogRow({ startedAt, state, description, notice }: LogRowProps) {
+  const timeZone = useViewerTimeZone()
   const detail = [description, notice].filter(Boolean).join(' · ')
   return (
     <li className={styles.row}>
       <span className={styles.copy}>
         <time dateTime={startedAt} data-type='T060'>
-          {formatTimestamp(new Date(startedAt).getTime())}
+          {formatTimestamp(new Date(startedAt).getTime(), timeZone)}
         </time>
         {detail && (
           <span className={styles.detail} data-type='T052'>
@@ -223,7 +226,7 @@ interface ConnectorHistoryProps {
 export function ConnectorHistory({ knowledgeBaseId, connector }: ConnectorHistoryProps) {
   const detail = useConnectorDetail(knowledgeBaseId, connector.id)
   const state = getConnectorSyncState(connector)
-  const now = Date.now()
+  const now = useMinuteClock()
   const nextAt = state.nextSyncAt ? new Date(state.nextSyncAt).getTime() : null
   const nextSync =
     nextAt !== null && connector.status === 'active' && !state.syncInFlight

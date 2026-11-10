@@ -30,7 +30,7 @@ export async function seedWorkspaceList(
     )
     /** Strip server-only fields to match the client response. */
     queryClient.setQueryData(
-      workspaceKeys.list('active'),
+      workspaceKeys.list('active', viewer.organizationId),
       normalizeWorkspacesResponse(listWorkspacesContract.response.schema.parse(payload))
     )
   } catch (error) {

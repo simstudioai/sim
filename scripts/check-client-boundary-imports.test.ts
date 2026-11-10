@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { isDeploymentShapeSurface, ratchetDeploymentShape } from './check-client-boundary-imports'
+import {
+  isDeploymentShapeSurface,
+  ratchetDeploymentShape,
+  shapeEnvVariables,
+} from './check-client-boundary-imports'
 
 describe('isDeploymentShapeSurface', () => {
   it.each([
@@ -29,5 +33,22 @@ describe('ratchetDeploymentShape', () => {
         new Set(['b.tsx:isSsoEnabled', 'c.tsx:isHosted'])
       )
     ).toEqual({ fresh: ['a.tsx:isHosted'], stale: ['c.tsx:isHosted'] })
+  })
+})
+
+describe('shapeEnvVariables', () => {
+  it('reads the variables behind shape flags, across lines, and none behind other flags', () => {
+    const source = [
+      "export const isInviteHidden = isTruthy(getEnv('NEXT_PUBLIC_DISABLE_INVITATIONS'))",
+      '',
+      'export const isSsoEnabled =',
+      "  isTruthy(env.SSO_ENABLED) || isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))",
+      '',
+      "export const isPublicApiDisabled = isTruthy(getEnv('NEXT_PUBLIC_DISABLE_PUBLIC_API'))",
+    ].join('\n')
+    expect(shapeEnvVariables(source, new Set(['isInviteHidden', 'isSsoEnabled']))).toEqual([
+      'NEXT_PUBLIC_DISABLE_INVITATIONS',
+      'NEXT_PUBLIC_SSO_ENABLED',
+    ])
   })
 })

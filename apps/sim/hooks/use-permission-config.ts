@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import type { IntegrationAvailabilityResponse } from '@/lib/api/contracts/common'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { resolveIntegrationAccess } from '@/lib/integrations/access'
 import {
@@ -134,10 +135,8 @@ export function usePermissionConfig(): PermissionConfigResult {
     }
   }, [config.allowedModelProviders])
 
-  const isInvitationsDisabled = useMemo(() => {
-    const featureFlagDisabled = isTruthy(getEnv('NEXT_PUBLIC_DISABLE_INVITATIONS'))
-    return featureFlagDisabled || config.disableInvitations
-  }, [config.disableInvitations])
+  const { invitationsDisabled } = useDeploymentShape()
+  const isInvitationsDisabled = invitationsDisabled || config.disableInvitations
 
   const isPublicApiDisabled = useMemo(() => {
     const featureFlagDisabled = isTruthy(getEnv('NEXT_PUBLIC_DISABLE_PUBLIC_API'))

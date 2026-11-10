@@ -55,7 +55,9 @@
  * `@/lib/core/config/deployment-shape`. The flag list is that module's own `env-flags`
  * import, so it cannot drift. A namespace import (`* as flags`) is refused outright: its reads
  * (`flags.x`, `flags['x']`, destructuring) cannot be enumerated, and named imports cover every
- * legitimate use. Same escape hatch as above. Why: CLAUDE.md "Deployment flags
+ * legitimate use. Reading a flag's `NEXT_PUBLIC_*` variable directly (`getEnv('NEXT_PUBLIC_X')`
+ * or `env.NEXT_PUBLIC_X`) is the same read by another route, so the variables those flags are
+ * built from are refused too. Same escape hatch as above. Why: CLAUDE.md "Deployment flags
  * in the browser".
  *
  * Usage:
@@ -142,6 +144,21 @@ async function isDeploymentShapeClient(rel: string, absFile: string): Promise<bo
   if (/^(?:stores|hooks|blocks)\//.test(rel)) return true
   if (!isDeploymentShapeSurface(rel)) return false
   return /(?:^|\/)(?:hooks\/|use-[^/]+\.tsx?$)/.test(rel) || isUseClientModule(absFile)
+}
+
+/**
+ * The `NEXT_PUBLIC_*` variables the given env-flags exports are built from, read off each
+ * `export const` statement (up to the next blank line).
+ */
+export function shapeEnvVariables(envFlagsSource: string, flags: ReadonlySet<string>): string[] {
+  const variables = new Set<string>()
+  for (const match of envFlagsSource.matchAll(
+    /^export const (\w+)\b([\s\S]*?)(?=\n\s*\n|(?![\s\S]))/gm
+  )) {
+    if (!flags.has(match[1])) continue
+    for (const variable of match[2].matchAll(/NEXT_PUBLIC_[A-Z0-9_]+/g)) variables.add(variable[0])
+  }
+  return [...variables]
 }
 
 /** The named members an import clause brings in. */
@@ -383,6 +400,7 @@ async function main() {
       `${DEPLOYMENT_SHAPE_MODULE} no longer imports from env-flags; update this check`
     )
   }
+  const shapeVariables = shapeEnvVariables(await readSource(ENV_FLAGS_MODULE), shapeFlags)
   const shapeViolations: Array<Violation & { flags: string[] }> = []
   for (const absFile of allFiles) {
     if (!absFile.startsWith(`${APP_DIR}${path.sep}`)) continue
@@ -398,6 +416,14 @@ async function main() {
       if (flags.length === 0 || hasAllowDirective(content, imp.line)) continue
       shapeViolations.push({ file: rel, line: imp.line, specifier: imp.specifier, flags })
     }
+    const lines = content.split('\n')
+    lines.forEach((text, index) => {
+      const variables = shapeVariables.filter((variable) =>
+        new RegExp(`getEnv\\(\\s*['"\`]${variable}['"\`]|\\benv\\.${variable}\\b`).test(text)
+      )
+      if (variables.length === 0 || hasAllowDirective(content, index + 1)) return
+      shapeViolations.push({ file: rel, line: index + 1, specifier: 'env', flags: variables })
+    })
   }
 
   const { fresh, stale } = ratchetDeploymentShape(

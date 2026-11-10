@@ -1,6 +1,6 @@
 'use client'
 
-import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
@@ -11,6 +11,7 @@ import { useWorkspacesQuery } from '@/hooks/queries/workspace'
  * projects block availability and would bundle the block registry for one boolean.
  */
 export function useWorkspaceInvitePolicy(workspaceId: string) {
+  const { invitationsDisabled } = useDeploymentShape()
   const config = useUserPermissionConfig(workspaceId).data?.config
   const { data: workspaces } = useWorkspacesQuery()
   const inviteDisabledReason =
@@ -18,8 +19,6 @@ export function useWorkspaceInvitePolicy(workspaceId: string) {
   return {
     inviteDisabledReason,
     isInvitationsDisabled:
-      isTruthy(getEnv('NEXT_PUBLIC_DISABLE_INVITATIONS')) ||
-      Boolean(config?.disableInvitations) ||
-      inviteDisabledReason !== null,
+      invitationsDisabled || Boolean(config?.disableInvitations) || inviteDisabledReason !== null,
   }
 }

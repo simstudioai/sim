@@ -13,7 +13,7 @@ const CALENDAR_STALE_TIME = 5 * 60 * 1000
 
 /** Nested under the organization's accounts, so anything that changes a connection refreshes Home. */
 const organizationHomeKeys = {
-  all: ['organization-home'] as const,
+  all: organizationAccountsKeys.all,
   organization: (organizationId: string) =>
     [...organizationAccountsKeys.detail(organizationId), 'home'] as const,
   email: (organizationId: string) =>

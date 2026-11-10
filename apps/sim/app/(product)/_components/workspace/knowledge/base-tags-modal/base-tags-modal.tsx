@@ -8,6 +8,7 @@ import { ListField } from '@sim/emcn/field/list-field'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { FailureNotice } from '@sim/emcn/status'
 import styles from '@/app/(product)/_components/workspace/knowledge/base-tags-modal/base-tags-modal.module.css'
 import {
   FIELD_TYPE_LABELS,
@@ -87,13 +88,22 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
   const [deleting, setDeleting] = useState<TagDefinitionData | null>(null)
 
   const tags = definitions.data ?? []
-  const usageFor = (tag: TagDefinitionData): TagUsageData =>
-    usage.data?.find((entry) => entry.tagSlot === tag.tagSlot) ?? {
+  /** Undefined until usage has been read, so an unread or failed count never reads as none. */
+  const usageFor = (tag: TagDefinitionData): TagUsageData | undefined =>
+    usage.data &&
+    (usage.data.find((entry) => entry.tagSlot === tag.tagSlot) ?? {
       tagName: tag.displayName,
       tagSlot: tag.tagSlot,
       documentCount: 0,
       documents: [],
-    }
+    })
+  const usageFailure = usage.error && !usage.data && (
+    <FailureNotice
+      message='Could not load which documents use these tags'
+      retrying={usage.isFetching}
+      onRetry={() => void usage.refetch()}
+    />
+  )
   const slots = (type: FieldType) => ({
     used: tags.filter((tag) => tag.fieldType === type).length,
     max: TAG_SLOT_CONFIG[type].maxSlots,
@@ -124,7 +134,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
 
   const viewed = view.kind === 'documents' ? tags.find((tag) => tag.id === view.tagId) : undefined
   const viewedUsage = viewed && usageFor(viewed)
-  const deletingUsage = deleting && usageFor(deleting)
+  const deletingUsage = deleting ? usageFor(deleting) : undefined
 
   return (
     <>
@@ -177,7 +187,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
             error={typeFull ? 'No slots are left for this type. Choose another.' : undefined}
           />
         </Modal>
-      ) : view.kind === 'documents' && viewed && viewedUsage ? (
+      ) : view.kind === 'documents' && viewed ? (
         <Modal
           open={open}
           onOpenChange={(next) => {
@@ -185,13 +195,17 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
           }}
           title={`Documents using “${viewed.displayName}”`}
           description={
-            viewedUsage.documentCount === 0
+            viewedUsage &&
+            (viewedUsage.documentCount === 0
               ? 'No document uses this tag. Deleting it frees its slot.'
-              : `${documentCount(viewedUsage.documentCount)} ${viewedUsage.documentCount === 1 ? 'uses' : 'use'} this tag.`
+              : `${documentCount(viewedUsage.documentCount)} ${viewedUsage.documentCount === 1 ? 'uses' : 'use'} this tag.`)
           }
           onBack={() => setView(LIST)}
         >
-          {viewedUsage.documentCount > 0 && <UsageList label='Documents' usage={viewedUsage} />}
+          {usageFailure}
+          {viewedUsage && viewedUsage.documentCount > 0 && (
+            <UsageList label='Documents' usage={viewedUsage} />
+          )}
         </Modal>
       ) : (
         <Modal
@@ -208,50 +222,59 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
             onClick: startCreate,
           }}
         >
-          {definitions.status === 'success' && tags.length === 0 ? (
+          {definitions.error && !definitions.data ? (
+            <FailureNotice
+              message='Could not load tags'
+              retrying={definitions.isFetching}
+              onRetry={() => void definitions.refetch()}
+            />
+          ) : definitions.status === 'success' && tags.length === 0 ? (
             <EmptyState
               title='No tags yet'
               description='Create a tag to organize and filter documents.'
             />
           ) : (
-            <DataTable
-              title='Tags'
-              titleHidden
-              columns={TAG_COLUMNS}
-              rows={tags.map((tag) => ({
-                id: tag.id,
-                values: {
-                  name: tag.displayName,
-                  type: FIELD_TYPE_LABELS[tag.fieldType] ?? tag.fieldType,
-                  documents: usageFor(tag).documentCount,
-                },
-                onOpen: () => showDocuments(tag),
-                action: (
-                  <ActionMenu
-                    label={`${tag.displayName} options`}
-                    icon='I108'
-                    align='end'
-                    actions={[
-                      {
-                        id: 'documents',
-                        label: 'View documents',
-                        onSelect: () => showDocuments(tag),
-                      },
-                      {
-                        id: 'delete',
-                        label: 'Delete tag',
-                        destructive: true,
-                        separatorBefore: true,
-                        onSelect: () => {
-                          void usage.refetch()
-                          setDeleting(tag)
+            <>
+              {usageFailure}
+              <DataTable
+                title='Tags'
+                titleHidden
+                columns={TAG_COLUMNS}
+                rows={tags.map((tag) => ({
+                  id: tag.id,
+                  values: {
+                    name: tag.displayName,
+                    type: FIELD_TYPE_LABELS[tag.fieldType] ?? tag.fieldType,
+                    documents: usageFor(tag)?.documentCount ?? null,
+                  },
+                  onOpen: () => showDocuments(tag),
+                  action: (
+                    <ActionMenu
+                      label={`${tag.displayName} options`}
+                      icon='I108'
+                      align='end'
+                      actions={[
+                        {
+                          id: 'documents',
+                          label: 'View documents',
+                          onSelect: () => showDocuments(tag),
                         },
-                      },
-                    ]}
-                  />
-                ),
-              }))}
-            />
+                        {
+                          id: 'delete',
+                          label: 'Delete tag',
+                          destructive: true,
+                          separatorBefore: true,
+                          onSelect: () => {
+                            void usage.refetch()
+                            setDeleting(tag)
+                          },
+                        },
+                      ]}
+                    />
+                  ),
+                }))}
+              />
+            </>
           )}
         </Modal>
       )}
@@ -267,6 +290,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         pendingLabel='Deleting…'
         onConfirm={(tag) => deleteTag.mutateAsync({ knowledgeBaseId, tagDefinitionId: tag.id })}
       >
+        {usageFailure}
         {deletingUsage && deletingUsage.documentCount > 0 && (
           <UsageList label='Affected documents' usage={deletingUsage} />
         )}

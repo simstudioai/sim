@@ -1047,6 +1047,12 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
   const failedRead = [fileList, foldersQuery].find(
     (query) => query.isError && query.data === undefined
   )
+  /**
+   * An applied member filter keeps narrowing the list while a failed members read hides its
+   * control, so that failure is the list's own until it reads again.
+   */
+  const failedMembersRead =
+    filters.uploadedBy.length > 0 && membersQuery.isError && membersQuery.data === undefined
   const read: WorkspaceRead = failedRead
     ? {
         status: 'error',
@@ -1054,10 +1060,17 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
         retrying: failedRead.isFetching,
         onRetry: () => void failedRead.refetch(),
       }
-    : !access.settled ||
-        (!access.hidden && (fileList.isPending || !foldersResolved || !preferences.isReady))
-      ? { status: 'pending' }
-      : { status: 'ready' }
+    : failedMembersRead
+      ? {
+          status: 'error',
+          message: 'Workspace members could not be loaded.',
+          retrying: membersQuery.isFetching,
+          onRetry: () => void membersQuery.refetch(),
+        }
+      : !access.settled ||
+          (!access.hidden && (fileList.isPending || !foldersResolved || !preferences.isReady))
+        ? { status: 'pending' }
+        : { status: 'ready' }
 
   const copyText = noResults(search, filtered)
   const empty =

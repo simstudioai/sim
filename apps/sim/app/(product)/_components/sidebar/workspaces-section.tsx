@@ -14,6 +14,7 @@ import type { ShellActions, ShellData, ShellWorkspace } from '@/app/(product)/_c
 import { SidebarSortMenu } from '@/app/(product)/_components/sidebar/collection-order'
 import { openInNewTabAction, pinAction } from '@/app/(product)/_components/sidebar/row-links'
 import { SectionStatus } from '@/app/(product)/_components/sidebar/section-status'
+import { useSeeMore } from '@/app/(product)/_components/sidebar/see-more'
 import styles from '@/app/(product)/_components/sidebar/sidebar-collections.module.css'
 import { useSidebarLayout } from '@/app/(product)/_components/sidebar/sidebar-layout'
 import { platformHref } from '@/platform/lib/navigation'
@@ -39,7 +40,6 @@ export function WorkspacesSection({
   const query = useSearchParams()
   const { workspacesOpen, setWorkspacesOpen, workspaceOrder, setWorkspaceOrder } =
     useSidebarLayout()
-  const [visibleCount, setVisibleCount] = useState(data?.workspacePageSize)
   const [creating, setCreating] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const workspaces = data?.workspaces ?? []
@@ -47,8 +47,7 @@ export function WorkspacesSection({
   const { create, rename, retry, setPinned } = actions.workspaces
   const policy = data?.workspaceCreation
   const canCreate = policy?.canCreate && policy.organizationId === data?.organization.id
-  const pageSize = data?.workspacePageSize
-  const hasMore = visibleCount !== undefined && workspaces.length > visibleCount
+  const page = useSeeMore(workspaces, data?.workspacePageSize)
 
   function rowActions(item: ShellWorkspace): MenuAction[] {
     const href = item.href
@@ -105,7 +104,7 @@ export function WorkspacesSection({
             items='workspaces'
             onRetry={retry}
           />
-          {workspaces.slice(0, visibleCount).map((item) => {
+          {page.visible.map((item) => {
             const rows = rowActions(item)
             return (
               <ContextActionMenu key={item.id} label={`Actions for ${item.name}`} actions={rows}>
@@ -130,11 +129,7 @@ export function WorkspacesSection({
               </ContextActionMenu>
             )
           })}
-          {pageSize !== undefined && workspaces.length > pageSize && (
-            <Chip onClick={() => setVisibleCount(hasMore ? visibleCount + pageSize : pageSize)}>
-              {hasMore ? 'See more' : 'See less'}
-            </Chip>
-          )}
+          {page.control}
         </div>
       </Disclosure>
       {create && (

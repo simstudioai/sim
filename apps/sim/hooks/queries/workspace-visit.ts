@@ -5,6 +5,7 @@ import {
   type WorkspacesResponse,
 } from '@/lib/api/contracts/workspaces'
 import { workspaceKeys } from '@/hooks/queries/utils/workspace-keys'
+import { useWorkspaceListOrganizationId } from '@/hooks/queries/utils/workspace-list-organization'
 
 /** Identifies visits in the mutation cache so `onSettled` can tell whether it is the last one. */
 const WORKSPACE_VISIT_MUTATION_KEY = ['workspace', 'record-visit'] as const
@@ -16,7 +17,7 @@ const WORKSPACE_VISIT_MUTATION_KEY = ['workspace', 'record-visit'] as const
  */
 export function useRecordWorkspaceVisit() {
   const queryClient = useQueryClient()
-  const queryKey = workspaceKeys.list('active')
+  const queryKey = workspaceKeys.list('active', useWorkspaceListOrganizationId())
 
   return useMutation({
     mutationKey: WORKSPACE_VISIT_MUTATION_KEY,

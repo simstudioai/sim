@@ -17,6 +17,7 @@ import {
   CONNECTOR_STATUS,
   connectorMark,
 } from '@/app/(product)/_components/workspace/knowledge/knowledge-base/model'
+import { useMinuteClock } from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
 import {
   CONNECTOR_META_REGISTRY,
   type ConnectorData,
@@ -53,7 +54,7 @@ export function ConnectorsRail({
   onOpen,
 }: ConnectorsRailProps) {
   const scroller = useScrollEdges<HTMLElement>('vertical')
-  const now = Date.now()
+  const now = useMinuteClock()
   return (
     <aside ref={scroller} className={styles.rail} aria-label='Connectors'>
       <h2 className={styles.heading} data-type='T093'>

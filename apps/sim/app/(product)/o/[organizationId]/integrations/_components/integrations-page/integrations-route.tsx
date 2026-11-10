@@ -328,7 +328,11 @@ export function IntegrationsRoute({
               renderToolPermissions={renderToolPermissions}
             />
           ) : (
-            !memberPending && !policies.error && !connections.credentials.error && unavailable
+            !memberPending &&
+            !inventory.error &&
+            !policies.error &&
+            !connections.credentials.error &&
+            unavailable
           ))}
       </IntegrationsPage>
       {actions.savedConnection && (

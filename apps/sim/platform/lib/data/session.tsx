@@ -39,9 +39,18 @@ function recoverSession() {
   return signOutAndLeave('/login')
 }
 
+/** Another tab signed in as someone else: drop this viewer's data and reload as the new user. */
+async function leaveForNewUser() {
+  try {
+    await clearUserData()
+  } finally {
+    window.location.assign(APP_ENTRY_PATH)
+  }
+}
+
 /** The shared expiry rule, recovering through this app's sign-out. */
 export function useSessionRecovery() {
-  return useSessionExpiry(recoverSession)
+  return useSessionExpiry(recoverSession, leaveForNewUser)
 }
 
 export function useImpersonation() {

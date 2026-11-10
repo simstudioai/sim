@@ -130,6 +130,7 @@ export function Sidebar({
               {data?.chatsAvailable !== false && (
                 <ChatsSection
                   chats={chats}
+                  pageSize={data?.chatPageSize}
                   status={data?.status?.chats}
                   activeChat={activeChat}
                   actions={actions.chats}

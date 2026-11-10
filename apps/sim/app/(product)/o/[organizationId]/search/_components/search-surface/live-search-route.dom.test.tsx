@@ -33,6 +33,7 @@ vi.mock('nuqs/adapters/next/app', () => ({
 
 import { ProductSession } from '@/app/(product)/_components/product-session'
 import { SearchSurface } from '@/app/(product)/o/[organizationId]/search/_components/search-surface/search-surface'
+import { workspaceKeys } from '@/hooks/queries/utils/workspace-keys'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { LiveProviders } from '@/platform/lib/data/providers'
 
@@ -69,6 +70,7 @@ const NARROW_MEMBER_SURFACE = {
     chatEnabled: true,
     azureConfigured: false,
     cohereConfigured: false,
+    invitationsDisabled: false,
     features: {
       accessControl: true,
       auditLogs: false,
@@ -107,7 +109,7 @@ const NARROW_MEMBER_SURFACE = {
 /** The session and workspace list `prefetchShell` seeds, under the keys their queries read. */
 function seededSession(): DehydratedState {
   const client = new QueryClient()
-  client.setQueryData(['workspace', 'list', 'user', 'active'], {
+  client.setQueryData(workspaceKeys.list('active', ORGANIZATION_ID), {
     workspaces: [],
     lastActiveWorkspaceId: null,
     pinnedWorkspaceIds: [],

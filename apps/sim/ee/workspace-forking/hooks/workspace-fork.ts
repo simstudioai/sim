@@ -27,12 +27,13 @@ import {
   updateForkMappingContract,
   updateForkSyncDefaultContract,
 } from '@/lib/api/contracts/workspace-fork'
-import type { WorkspacesResponse } from '@/lib/api/contracts/workspaces'
 import { backgroundWorkKeys } from '@/ee/workspace-forking/hooks/background-work'
 import { deploymentKeys } from '@/hooks/queries/utils/deployment-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { workspaceKeys } from '@/hooks/queries/utils/workspace-keys'
+import { useWorkspaceListOrganizationId } from '@/hooks/queries/utils/workspace-list-organization'
+import { mergeIntoActiveWorkspaceList } from '@/hooks/queries/workspace'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 export type ForkDirection = 'push' | 'pull'
@@ -86,28 +87,15 @@ export function useForkLineage(workspaceId?: string, enabled = true) {
 
 export function useForkWorkspace() {
   const queryClient = useQueryClient()
+  const listOrganizationId = useWorkspaceListOrganizationId()
   return useMutation({
     mutationFn: (vars: { workspaceId: string; body: ForkWorkspaceBody }) =>
       requestJson(forkWorkspaceContract, { params: { id: vars.workspaceId }, body: vars.body }),
     onSuccess: (data) => {
       // Merge the new fork into the active list cache before invalidation so the
       // immediate navigation into it can't race a stale list and trip the
-      // not-in-workspaces redirect (mirrors useCreateWorkspace).
-      const newWorkspace = data.workspace
-      queryClient.setQueryData<WorkspacesResponse>(workspaceKeys.list('active'), (previous) => {
-        if (!previous) {
-          return {
-            workspaces: [newWorkspace],
-            lastActiveWorkspaceId: null,
-            pinnedWorkspaceIds: [],
-            creationPolicy: null,
-          }
-        }
-        if (previous.workspaces.some((w) => w.id === newWorkspace.id)) {
-          return previous
-        }
-        return { ...previous, workspaces: [newWorkspace, ...previous.workspaces] }
-      })
+      // not-in-workspaces redirect.
+      mergeIntoActiveWorkspaceList(queryClient, listOrganizationId, data.workspace)
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.adminLists() })
     },

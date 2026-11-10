@@ -1,11 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query'
-import {
-  keepPreviousData,
-  queryOptions,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
@@ -24,6 +18,7 @@ import {
   type WorkspaceQueryScope,
   type WorkspacesResponse,
 } from '@/lib/api/contracts'
+import { keepPreviousDataWithin } from '@/hooks/queries/utils/placeholder'
 import { workspaceKeys } from '@/hooks/queries/utils/workspace-keys'
 import { useWorkspaceListOrganizationId } from '@/hooks/queries/utils/workspace-list-organization'
 import {
@@ -61,12 +56,12 @@ const selectWorkspaces = (data: WorkspacesResponse): Workspace[] => data.workspa
 export function useWorkspacesQuery(enabled = true, scope: WorkspaceQueryScope = 'active') {
   const organizationId = useWorkspaceListOrganizationId()
   return useQuery({
-    queryKey: workspaceKeys.list(scope),
+    queryKey: workspaceKeys.list(scope, organizationId),
     queryFn: ({ signal }) => fetchWorkspaces(scope, organizationId, signal),
     select: selectWorkspaces,
     enabled,
     staleTime: WORKSPACE_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
+    placeholderData: keepPreviousDataWithin(workspaceKeys.organizationLists(organizationId)),
   })
 }
 
@@ -77,7 +72,7 @@ export async function fetchWorkspacesList(
   scope: WorkspaceQueryScope = 'active'
 ) {
   const data = await queryClient.fetchQuery({
-    queryKey: workspaceKeys.list(scope),
+    queryKey: workspaceKeys.list(scope, organizationId),
     queryFn: ({ signal }) => fetchWorkspaces(scope, organizationId, signal),
     staleTime: WORKSPACE_LIST_STALE_TIME,
   })
@@ -91,7 +86,7 @@ export async function fetchWorkspacesList(
 export function useWorkspacesWithMetadata(enabled = true) {
   const organizationId = useWorkspaceListOrganizationId()
   return useQuery({
-    queryKey: workspaceKeys.list('active'),
+    queryKey: workspaceKeys.list('active', organizationId),
     queryFn: ({ signal }) => fetchWorkspaces('active', organizationId, signal),
     enabled,
     staleTime: WORKSPACE_LIST_STALE_TIME,
@@ -101,7 +96,7 @@ export function useWorkspacesWithMetadata(enabled = true) {
 export function useWorkspaceCreationPolicy(enabled = true) {
   const organizationId = useWorkspaceListOrganizationId()
   return useQuery({
-    queryKey: workspaceKeys.list('active'),
+    queryKey: workspaceKeys.list('active', organizationId),
     queryFn: ({ signal }) => fetchWorkspaces('active', organizationId, signal),
     select: (data) => data.creationPolicy,
     enabled,
@@ -129,7 +124,7 @@ function selectOrderedWorkspaces(data: WorkspacesResponse): Workspace[] {
 export function usePinnedWorkspaceIds(enabled = true) {
   const organizationId = useWorkspaceListOrganizationId()
   return useQuery({
-    queryKey: workspaceKeys.list('active'),
+    queryKey: workspaceKeys.list('active', organizationId),
     queryFn: ({ signal }) => fetchWorkspaces('active', organizationId, signal),
     select: selectPinnedWorkspaceIds,
     enabled,
@@ -141,7 +136,7 @@ export function usePinnedWorkspaceIds(enabled = true) {
 export function useOrderedWorkspacesQuery(enabled = true) {
   const organizationId = useWorkspaceListOrganizationId()
   return useQuery({
-    queryKey: workspaceKeys.list('active'),
+    queryKey: workspaceKeys.list('active', organizationId),
     queryFn: ({ signal }) => fetchWorkspaces('active', organizationId, signal),
     select: selectOrderedWorkspaces,
     enabled,
@@ -176,7 +171,7 @@ function applyPinToggle(pinnedWorkspaceIds: string[], workspaceId: string, pinne
  */
 export function useToggleWorkspacePin() {
   const queryClient = useQueryClient()
-  const queryKey = workspaceKeys.list('active')
+  const queryKey = workspaceKeys.list('active', useWorkspaceListOrganizationId())
 
   return useMutation({
     mutationKey: WORKSPACE_PIN_MUTATION_KEY,
@@ -243,6 +238,35 @@ export function useToggleWorkspacePin() {
   })
 }
 
+/**
+ * Merges a just-created workspace into the active list the shell reads, so navigating into it
+ * cannot race a stale list. A workspace created in another organization stays out of this list.
+ */
+export function mergeIntoActiveWorkspaceList(
+  queryClient: QueryClient,
+  listOrganizationId: string | undefined,
+  newWorkspace: Workspace
+) {
+  if (listOrganizationId && newWorkspace.organizationId !== listOrganizationId) return
+  queryClient.setQueryData<WorkspacesResponse>(
+    workspaceKeys.list('active', listOrganizationId),
+    (previous) => {
+      if (!previous) {
+        return {
+          workspaces: [newWorkspace],
+          lastActiveWorkspaceId: null,
+          pinnedWorkspaceIds: [],
+          creationPolicy: null,
+        }
+      }
+      if (previous.workspaces.some((w) => w.id === newWorkspace.id)) {
+        return previous
+      }
+      return { ...previous, workspaces: [newWorkspace, ...previous.workspaces] }
+    }
+  )
+}
+
 type CreateWorkspaceParams = Pick<
   ContractBodyInput<typeof createWorkspaceContract>,
   'name' | 'organizationId'
@@ -255,6 +279,7 @@ type CreateWorkspaceParams = Pick<
  */
 export function useCreateWorkspace() {
   const queryClient = useQueryClient()
+  const listOrganizationId = useWorkspaceListOrganizationId()
 
   return useMutation({
     mutationFn: async ({ name, organizationId }: CreateWorkspaceParams) => {
@@ -262,20 +287,7 @@ export function useCreateWorkspace() {
       return data.workspace
     },
     onSuccess: (newWorkspace) => {
-      queryClient.setQueryData<WorkspacesResponse>(workspaceKeys.list('active'), (previous) => {
-        if (!previous) {
-          return {
-            workspaces: [newWorkspace],
-            lastActiveWorkspaceId: null,
-            pinnedWorkspaceIds: [],
-            creationPolicy: null,
-          }
-        }
-        if (previous.workspaces.some((w) => w.id === newWorkspace.id)) {
-          return previous
-        }
-        return { ...previous, workspaces: [newWorkspace, ...previous.workspaces] }
-      })
+      mergeIntoActiveWorkspaceList(queryClient, listOrganizationId, newWorkspace)
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.adminLists() })
     },
@@ -380,7 +392,6 @@ export function workspaceSettingsQueryOptions(workspaceId: string) {
     queryKey: workspaceKeys.settings(workspaceId),
     queryFn: ({ signal }) => fetchWorkspaceSettings(workspaceId, signal),
     staleTime: WORKSPACE_SETTINGS_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -457,11 +468,10 @@ export function useAdminWorkspaces(
 ) {
   const listOrganizationId = useWorkspaceListOrganizationId()
   return useQuery({
-    queryKey: [...workspaceKeys.adminList(userId), organizationId ?? ''] as const,
+    queryKey: workspaceKeys.adminList(userId, listOrganizationId, organizationId),
     queryFn: ({ signal }) =>
       fetchAdminWorkspaces(userId, organizationId, listOrganizationId, signal),
     enabled: Boolean(userId) && (options?.enabled ?? true),
     staleTime: WORKSPACE_ADMIN_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
