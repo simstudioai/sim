@@ -15,7 +15,11 @@ import {
   getWorkflowRunFiles,
   type WorkflowRunFileDescriptor,
 } from '@/lib/workflows/executor/execution-run-files'
-import { getProjectedWorkflowExecutionStatus } from '@/lib/workflows/executor/execution-status'
+import {
+  getProjectedWorkflowExecutionStatus,
+  type PausedRunPoint,
+  readPausedRunPoints,
+} from '@/lib/workflows/executor/execution-status'
 
 /**
  * Selectors this resource can never answer, so the caller hears about them.
@@ -148,7 +152,18 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
           : []
       }
 
-      return { ...status, files }
+      /**
+       * Every pause point of a paused run, so a caller can resume any of them by
+       * `contextId`, not only the earliest one `paused` summarizes.
+       */
+      const pausePoints: PausedRunPoint[] | null = status.paused
+        ? ((await readPausedRunPoints({
+            workflowId: context.workflowId,
+            executionId: context.runId,
+          })) ?? [])
+        : null
+
+      return { ...status, files, pausePoints }
     } catch (error) {
       if (error instanceof FunctionalOutputsUnavailableError) {
         throw new OrchestrationError('conflict', FUNCTIONAL_OUTPUTS_UNAVAILABLE_MESSAGE)

@@ -1294,7 +1294,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.readRun,
       operationId: 'getWorkflowRunV2',
       summary: 'Get workflow run',
-      description: `Read current run state with workspace read access. Request final output and files with \`includeOutput\`, or block outputs with \`selectedOutputs\`. Organization permission groups can hide output, files, or cost.\n\n\`includeFileBase64\` inlines file bytes. A file or the total above 16 MiB returns \`413\` naming a download path; download large files individually. ${HEAD_MIRRORS_GET}`,
+      description: `Read current run state with workspace read access. Request final output and files with \`includeOutput\`, or block outputs with \`selectedOutputs\`. Organization permission groups can hide output, files, or cost. A paused run lists every pause point in \`paused.points\`, with the fields a human pause asks for and its content with resolved secrets redacted; resume one with Resume workflow run.\n\n\`includeFileBase64\` inlines file bytes. A file or the total above 16 MiB returns \`413\` naming a download path; download large files individually. ${HEAD_MIRRORS_GET}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The workflow run status.'),
     }),
@@ -1364,7 +1364,7 @@ const declaredRoutes = [
       operationId: 'resumeWorkflowRunV2',
       summary: 'Resume workflow run',
       description:
-        'Resume one human-in-the-loop pause with workspace write access. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.',
+        "Resume one human-in-the-loop pause with workspace write access, naming a `contextId` from the run's `paused.points`. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.",
       errors: [...RESOURCE_ERRORS, 'UsageLimitExceeded', 'Conflict', 'PayloadTooLarge'],
       success: {
         byStatus: {

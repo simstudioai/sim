@@ -5,6 +5,7 @@ import {
   workflowDeploymentVersion,
   workflowExecutionLogs,
 } from '@sim/db/schema'
+import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { WorkflowExecutionStatusResponse } from '@/lib/api/contracts/workflows'
 import { getJobQueue } from '@/lib/core/async-jobs'
@@ -20,8 +21,10 @@ import {
   WORKFLOW_EXECUTION_JOB_ID_PREFIX,
 } from '@/lib/workflows/executor/execution-job-ids'
 import { normalizePausePoints } from '@/lib/workflows/executor/execution-state'
+import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paused-execution-metadata'
-import type { PausePoint } from '@/executor/types'
+import type { PauseInputField, PausePoint, ResumeStatus } from '@/executor/types'
+import { extractBaseBlockId } from '@/executor/utils/subflow-node-id-codec'
 
 /**
  * Reads a single execution's status resource — the log row, the paused-state
@@ -503,4 +506,145 @@ async function readWorkflowExecutionStatus(
       : null
 
   return { ...resource, error, finalOutput, blockOutputs }
+}
+
+/** Most pause points a run detail lists; a run over it lists its earliest registered points. */
+const MAX_PAUSED_RUN_POINTS = 100
+
+/** One pause point of a paused run, as a caller reading the run may see it. */
+export interface PausedRunPoint {
+  contextId: string
+  blockId: string
+  blockName: string | null
+  kind: 'human' | 'time'
+  status: ResumeStatus
+  registeredAt: string
+  resumeAt: string | null
+  parallel: { parallelId: string; branchIndex: number; branchTotal: number | null } | null
+  loop: { loopId: string; iteration: number } | null
+  inputFields: PauseInputField[] | null
+  display: unknown
+  queuePosition: number | null
+}
+
+/**
+ * Names of `blockIds` in the deployment version the run executed, read inside the
+ * database so the version's state never leaves it. Empty for a run with no recorded
+ * version (a manual run) or whose version no longer exists.
+ */
+async function readRunBlockNames(
+  workflowId: string,
+  executionId: string,
+  blockIds: string[]
+): Promise<Map<string, string>> {
+  if (blockIds.length === 0) return new Map()
+  const [row] = await db
+    .select({
+      names: sql<Record<string, string | null> | null>`(
+        select jsonb_object_agg(b.key, b.value ->> 'name')
+        from json_each(${workflowDeploymentVersion.state} -> 'blocks') as b
+        where b.key in (${sql.join(
+          blockIds.map((id) => sql`${id}`),
+          sql`, `
+        )})
+      )`,
+    })
+    .from(workflowExecutionLogs)
+    .innerJoin(
+      workflowDeploymentVersion,
+      eq(workflowDeploymentVersion.id, workflowExecutionLogs.deploymentVersionId)
+    )
+    .where(
+      and(
+        eq(workflowExecutionLogs.executionId, executionId),
+        eq(workflowExecutionLogs.workflowId, workflowId)
+      )
+    )
+    .limit(1)
+  const names = new Map<string, string>()
+  for (const [id, name] of Object.entries(row?.names ?? {})) {
+    if (typeof name === 'string' && name) names.set(id, name)
+  }
+  return names
+}
+
+/**
+ * The pause points of a paused run, earliest registered first and capped at
+ * {@link MAX_PAUSED_RUN_POINTS}, or null when the run has no paused record.
+ *
+ * Reads only `pause_points`, never the execution snapshot. `display` and
+ * `inputFields` come only from points scrubbed of the run's resolved secrets when
+ * they were captured; an older point's stored response was never scrubbed, so both
+ * are null for it. Resume links and API-mode response status and headers are never
+ * part of a point.
+ */
+export async function readPausedRunPoints(input: {
+  workflowId: string
+  executionId: string
+}): Promise<PausedRunPoint[] | null> {
+  const { workflowId, executionId } = input
+  const [row] = await db
+    .select({ pausePoints: pausedExecutions.pausePoints })
+    .from(pausedExecutions)
+    .where(
+      and(
+        eq(pausedExecutions.executionId, executionId),
+        eq(pausedExecutions.workflowId, workflowId)
+      )
+    )
+    .limit(1)
+  if (!row) return null
+
+  const pendingResumes = await db
+    .select({
+      contextId: resumeQueue.contextId,
+      status: resumeQueue.status,
+      queuedAt: resumeQueue.queuedAt,
+    })
+    .from(resumeQueue)
+    .where(and(eq(resumeQueue.parentExecutionId, executionId), eq(resumeQueue.status, 'pending')))
+    .orderBy(resumeQueue.queuedAt)
+    .limit(MAX_PAUSED_RUN_POINTS)
+  const queuePositions = PauseResumeManager.computeQueuePositions(
+    pendingResumes.map((entry) => ({
+      contextId: entry.contextId,
+      status: entry.status,
+      queuedAt: entry.queuedAt?.toISOString() ?? null,
+    }))
+  )
+
+  const points = PauseResumeManager.mapPausePoints(row.pausePoints, queuePositions)
+    .sort((a, b) => compareStrings(a.registeredAt ?? '', b.registeredAt ?? ''))
+    .slice(0, MAX_PAUSED_RUN_POINTS)
+  const baseBlockId = (point: PausePoint) => extractBaseBlockId(point.blockId ?? point.contextId)
+  const names = await readRunBlockNames(workflowId, executionId, [
+    ...new Set(points.map(baseBlockId)),
+  ])
+
+  return points.map((point) => {
+    const blockId = baseBlockId(point)
+    const scrubbed = point.displayScrubbed === true
+    return {
+      contextId: point.contextId,
+      blockId,
+      blockName: names.get(blockId) ?? null,
+      kind: point.pauseKind === 'time' ? 'time' : 'human',
+      status: point.resumeStatus,
+      registeredAt: point.registeredAt,
+      resumeAt: point.resumeAt ?? null,
+      parallel: point.parallelScope
+        ? {
+            parallelId: point.parallelScope.parallelId,
+            branchIndex: point.parallelScope.branchIndex,
+            branchTotal: point.parallelScope.branchTotal ?? null,
+          }
+        : null,
+      loop: point.loopScope
+        ? { loopId: point.loopScope.loopId, iteration: point.loopScope.iteration }
+        : null,
+      inputFields: scrubbed ? (point.inputFields ?? null) : null,
+      display: scrubbed ? (point.display ?? null) : null,
+      queuePosition: point.queuePosition ?? null,
+    }
+  })
 }

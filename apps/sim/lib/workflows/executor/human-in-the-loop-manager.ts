@@ -605,6 +605,13 @@ export class PauseResumeManager {
         resumeLinks: point.resumeLinks,
         pauseKind: point.pauseKind,
         resumeAt: point.resumeAt,
+        ...(point.displayScrubbed
+          ? {
+              displayScrubbed: true,
+              display: point.display ?? null,
+              inputFields: point.inputFields ?? null,
+            }
+          : {}),
       }
       return acc
     }, {})
@@ -3791,7 +3798,7 @@ export class PauseResumeManager {
     }
   }
 
-  private static mapPausePoints(
+  static mapPausePoints(
     pausePoints: unknown,
     queuePositions?: Map<string, number | null>,
     latestEntries?: Map<string, ResumeQueueEntrySummary>
@@ -3833,14 +3840,21 @@ export class PauseResumeManager {
         resumeLinks,
         pauseKind: point.pauseKind ?? 'human',
         resumeAt: point.resumeAt,
+        ...(point.displayScrubbed === true
+          ? {
+              displayScrubbed: true,
+              display: point.display ?? null,
+              inputFields: point.inputFields ?? null,
+            }
+          : {}),
         queuePosition,
         latestResumeEntry: latestEntry ?? null,
       }
     })
   }
 
-  private static computeQueuePositions(
-    queueEntries: ResumeQueueEntrySummary[]
+  static computeQueuePositions(
+    queueEntries: Pick<ResumeQueueEntrySummary, 'contextId' | 'status' | 'queuedAt'>[]
   ): Map<string, number | null> {
     const pendingEntries = queueEntries
       .filter((entry) => entry.status === 'pending')

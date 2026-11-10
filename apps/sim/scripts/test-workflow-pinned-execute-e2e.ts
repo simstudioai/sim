@@ -430,34 +430,64 @@ try {
     )
   })
 
-  await check('a pinned run that pauses resumes on the pinned version', async () => {
-    const data = v2ExecuteWorkflowDataSchema.parse(
-      (await execute(paused, { run: { source: 'deployment', version: 1 } })).data
-    )
-    assert.equal(data.status, 'paused', JSON.stringify(data.error))
-    assert.equal(await loggedVersionId(data.runId), paused.versionIds[0])
-    const pausedStatus = await runStatus(paused, data.runId)
-    assert.equal(pausedStatus.version, 1)
-    const contextId = pausedStatus.paused?.contextId
-    assert(contextId, 'The paused run must expose a resumable context')
-    const resumed = v2ExecuteWorkflowDataSchema.parse(
-      (
-        await request('POST', `/api/v2/workflows/${paused.workflowId}/runs/${data.runId}/resume`, {
-          body: { contextId, input: { approved: true } },
-          timeoutMs: ROUTE_COMPILE_TIMEOUT_MS,
-        })
-      ).data
-    )
-    assert.equal(resumed.status, 'completed', JSON.stringify(resumed.error))
-    const settled = await runStatus(
-      paused,
-      data.runId,
-      `?selectedOutputs=${paused.one.id}.status,${paused.two.id}.status`
-    )
-    assert.equal(settled.status, 'completed')
-    assert.equal(settled.version, 1)
-    assert.deepEqual(Object.keys(settled.blockOutputs ?? {}), [`${paused.one.id}.status`])
-  })
+  await check(
+    'a pinned run that pauses lists its pause point and resumes on the pinned version',
+    async () => {
+      const data = v2ExecuteWorkflowDataSchema.parse(
+        (await execute(paused, { run: { source: 'deployment', version: 1 } })).data
+      )
+      assert.equal(data.status, 'paused', JSON.stringify(data.error))
+      assert.equal(await loggedVersionId(data.runId), paused.versionIds[0])
+      const pausedStatus = await runStatus(paused, data.runId)
+      assert.equal(pausedStatus.version, 1)
+      const contextId = pausedStatus.paused?.contextId
+      assert(contextId, 'The paused run must expose a resumable context')
+      const points = pausedStatus.paused?.points ?? []
+      assert.equal(points.length, 1)
+      assert.deepEqual(
+        {
+          contextId: points[0].contextId,
+          blockId: points[0].blockId,
+          blockName: points[0].blockName,
+          kind: points[0].kind,
+          status: points[0].status,
+          parallel: points[0].parallel,
+          loop: points[0].loop,
+        },
+        {
+          contextId,
+          blockId: paused.approval,
+          blockName: 'Approval',
+          kind: 'human',
+          status: 'paused',
+          parallel: null,
+          loop: null,
+        }
+      )
+      assert(Array.isArray(points[0].inputFields), 'A human pause captured now lists its fields')
+      const resumed = v2ExecuteWorkflowDataSchema.parse(
+        (
+          await request(
+            'POST',
+            `/api/v2/workflows/${paused.workflowId}/runs/${data.runId}/resume`,
+            {
+              body: { contextId, input: { approved: true } },
+              timeoutMs: ROUTE_COMPILE_TIMEOUT_MS,
+            }
+          )
+        ).data
+      )
+      assert.equal(resumed.status, 'completed', JSON.stringify(resumed.error))
+      const settled = await runStatus(
+        paused,
+        data.runId,
+        `?selectedOutputs=${paused.one.id}.status,${paused.two.id}.status`
+      )
+      assert.equal(settled.status, 'completed')
+      assert.equal(settled.version, 1)
+      assert.deepEqual(Object.keys(settled.blockOutputs ?? {}), [`${paused.one.id}.status`])
+    }
+  )
 } catch (error) {
   logger.error(failureMessage(error))
   process.exitCode = 1
