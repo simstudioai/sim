@@ -206,5 +206,5 @@ export interface MistralParserV2Output extends ToolResponse {
 }
 
 export interface MistralParserV3Output extends ToolResponse {
-  output: MistralParserV2Output['output'] & { images: UserFile[] }
+  output: MistralParserV2Output['output'] & { images?: UserFile[] }
 }
