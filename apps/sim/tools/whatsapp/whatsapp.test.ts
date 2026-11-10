@@ -28,6 +28,7 @@ describe('WhatsApp request URL and headers', () => {
     'refuses a phone number ID that would leave its path segment (%s)',
     (phoneNumberId) => {
       expect(() => buildMessagesUrl(phoneNumberId)).toThrow(/phoneNumberId/)
+      expect(() => buildMediaUploadUrl(phoneNumberId)).toThrow(/phoneNumberId/)
     }
   )
 })

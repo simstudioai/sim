@@ -175,8 +175,8 @@ function IntegrationBlockDetailContent({ integration, workspaceId }: Integration
   const [oauthOpen, setOAuthOpen] = useState(false)
   const [personalTokenOpen, setPersonalTokenOpen] = useState(false)
   const isGitLab = integration.slug === 'gitlab'
-  const personalTokenAvailable =
-    isGitLab && (availability?.state === 'ready' || availability?.state === 'limited')
+  const deploymentAvailable = availability?.state === 'ready' || availability?.state === 'limited'
+  const personalTokenAvailable = isGitLab && deploymentAvailable
 
   const { data: credentials = [], isPending: credentialsLoading } = useWorkspaceCredentials({
     workspaceId,
@@ -211,12 +211,8 @@ function IntegrationBlockDetailContent({ integration, workspaceId }: Integration
     serviceName: oauthService?.serviceName,
     serviceIcon: oauthService?.serviceIcon,
   })
-  const serviceAccountDeploymentAvailable =
-    availability?.state === 'ready' || availability?.state === 'limited'
   const hasServiceAccount =
-    serviceAccountDeploymentAvailable &&
-    Boolean(serviceAccountTarget) &&
-    !serviceAccountTarget?.hidden
+    deploymentAvailable && Boolean(serviceAccountTarget) && !serviceAccountTarget?.hidden
   const serviceAccountConnectLabel = serviceAccountTarget?.label ?? 'Add service account'
   const hasHandledConnectQueryRef = useRef(false)
 
@@ -280,6 +276,8 @@ function IntegrationBlockDetailContent({ integration, workspaceId }: Integration
       : []),
   ]
 
+  const singleConnectOption = connectOptions.length === 1 ? connectOptions[0] : undefined
+
   const handleSelectConnectOption = (value: string) => {
     if (value === CONNECT_MODE.oauth) setOAuthOpen(true)
     else if (value === CONNECT_MODE.serviceAccount) setServiceAccountOpen(true)
@@ -308,22 +306,18 @@ function IntegrationBlockDetailContent({ integration, workspaceId }: Integration
               onChange={handleSelectConnectOption}
               matchTriggerWidth={false}
             />
-          ) : personalTokenAvailable ? (
-            <Chip variant='primary' leftIcon={Plus} onClick={() => setPersonalTokenOpen(true)}>
-              Add personal token
+          ) : singleConnectOption ? (
+            <Chip
+              variant='primary'
+              leftIcon={Plus}
+              onClick={() => handleSelectConnectOption(singleConnectOption.value)}
+            >
+              {singleConnectOption.value === CONNECT_MODE.oauth
+                ? 'Add to Sim'
+                : singleConnectOption.label}
             </Chip>
           ) : oauthService ? (
-            oauthAvailable ? (
-              <Chip variant='primary' leftIcon={Plus} onClick={() => setOAuthOpen(true)}>
-                Add to Sim
-              </Chip>
-            ) : hasServiceAccount ? (
-              <Chip variant='primary' leftIcon={Plus} onClick={() => setServiceAccountOpen(true)}>
-                {serviceAccountConnectLabel}
-              </Chip>
-            ) : (
-              <Chip disabled>Unavailable</Chip>
-            )
+            <Chip disabled>Unavailable</Chip>
           ) : chatEnabled ? (
             <Chip variant='primary' leftIcon={Plus} onClick={handleAddInChat}>
               Add to Sim

@@ -1,4 +1,4 @@
-import { toArray, toRecord } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
 import {
   type SecureFetchResponse,
   secureFetchWithValidation,
@@ -62,27 +62,17 @@ export async function validateGitLabServiceAccount(
       { step: 'verify' }
     )
   }
-  let body: unknown
-  try {
-    body = await response.json()
-  } catch {
-    throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
-      step: 'verify',
-      reason: 'GitLab returned a malformed token lookup',
-    })
-  }
-  const token = toRecord(body)
+  const token = toRecord(await response.json().catch(() => null))
   if (typeof token.active !== 'boolean' || !Array.isArray(token.scopes)) {
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step: 'verify',
       reason: 'GitLab returned an unexpected token lookup',
     })
   }
-  const scopes = toArray(token.scopes)
   if (
-    token.active !== true ||
+    !token.active ||
     token.revoked === true ||
-    !scopes.some((scope) => API_SCOPES.has(String(scope)))
+    !token.scopes.some((scope) => API_SCOPES.has(String(scope)))
   ) {
     throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
       step: 'verify',
