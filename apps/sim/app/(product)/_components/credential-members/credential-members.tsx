@@ -8,6 +8,7 @@ import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { Modal } from '@sim/emcn/modal'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice } from '@sim/emcn/status'
 import { RecipientField } from '@sim/emcn-platform/workspace-fields'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toast } from '@/lib/toast/sink'
@@ -58,7 +59,8 @@ export function CredentialMembers({
   onLeft,
 }: CredentialMembersProps) {
   const { data: session } = useSession()
-  const { data: members = [], isPending } = useWorkspaceCredentialMembers(credentialId)
+  const roster = useWorkspaceCredentialMembers(credentialId)
+  const members = roster.data ?? []
   const upsertMember = useUpsertWorkspaceCredentialMember()
   const removeMember = useRemoveWorkspaceCredentialMember()
   const leaveCredential = useLeaveCredential()
@@ -90,65 +92,72 @@ export function CredentialMembers({
   }
 
   return (
-    <SettingsSection title={`Members (${activeMembers.length})`}>
-      {isPending
-        ? null
-        : activeMembers.map((member) => {
-            const name = member.userName || member.userEmail || member.userId
-            const lockReason = credentialRoleLockReason(member.roleSource)
-            const roleLocked =
-              member.role === 'admin' &&
-              member.roleSource !== 'workspace-admin' &&
-              explicitAdminCount <= 1
-            const actionDisabled = roleLocked || lockReason !== null
-            const isViewer = member.userId === viewerId
-            return (
-              <SettingsRow
-                key={member.id}
-                label={name}
-                description={member.userEmail || member.userId}
-                leading={<Avatar name={name} src={member.userImage ?? undefined} />}
-              >
-                <span className={styles.controls}>
-                  <ChoiceMenu
-                    label={`Role for ${name}`}
-                    options={MEMBER_ROLE_OPTIONS}
-                    value={member.role}
-                    disabled={!isAdmin || actionDisabled}
-                    disabledReason={lockReason ?? undefined}
-                    onValueChange={(role) => void changeRole(member.userId, toMemberRole(role))}
-                  />
-                  {isViewer ? (
+    <SettingsSection title={roster.data ? `Members (${activeMembers.length})` : 'Members'}>
+      {roster.error ? (
+        <FailureNotice
+          message="Couldn't load members"
+          retrying={roster.isFetching}
+          onRetry={() => void roster.refetch()}
+        />
+      ) : (
+        roster.data &&
+        activeMembers.map((member) => {
+          const name = member.userName || member.userEmail || member.userId
+          const lockReason = credentialRoleLockReason(member.roleSource)
+          const roleLocked =
+            member.role === 'admin' &&
+            member.roleSource !== 'workspace-admin' &&
+            explicitAdminCount <= 1
+          const actionDisabled = roleLocked || lockReason !== null
+          const isViewer = member.userId === viewerId
+          return (
+            <SettingsRow
+              key={member.id}
+              label={name}
+              description={member.userEmail || member.userId}
+              leading={<Avatar name={name} src={member.userImage ?? undefined} />}
+            >
+              <span className={styles.controls}>
+                <ChoiceMenu
+                  label={`Role for ${name}`}
+                  options={MEMBER_ROLE_OPTIONS}
+                  value={member.role}
+                  disabled={!isAdmin || actionDisabled}
+                  disabledReason={lockReason ?? undefined}
+                  onValueChange={(role) => void changeRole(member.userId, toMemberRole(role))}
+                />
+                {isViewer ? (
+                  <Button
+                    size='compact'
+                    variant='quiet'
+                    destructive
+                    disabled={actionDisabled}
+                    disabledReason={
+                      lockReason ??
+                      (roleLocked ? 'Make someone else an admin before leaving' : undefined)
+                    }
+                    onClick={() => setConfirmingLeave(true)}
+                  >
+                    Leave
+                  </Button>
+                ) : (
+                  isAdmin && (
                     <Button
                       size='compact'
                       variant='quiet'
-                      destructive
                       disabled={actionDisabled}
-                      disabledReason={
-                        lockReason ??
-                        (roleLocked ? 'Make someone else an admin before leaving' : undefined)
-                      }
-                      onClick={() => setConfirmingLeave(true)}
+                      disabledReason={lockReason ?? undefined}
+                      onClick={() => void remove(member.userId)}
                     >
-                      Leave
+                      Remove
                     </Button>
-                  ) : (
-                    isAdmin && (
-                      <Button
-                        size='compact'
-                        variant='quiet'
-                        disabled={actionDisabled}
-                        disabledReason={lockReason ?? undefined}
-                        onClick={() => void remove(member.userId)}
-                      >
-                        Remove
-                      </Button>
-                    )
-                  )}
-                </span>
-              </SettingsRow>
-            )
-          })}
+                  )
+                )}
+              </span>
+            </SettingsRow>
+          )
+        })
+      )}
       <ConfirmDialog
         target={confirmingLeave}
         onClose={() => setConfirmingLeave(false)}
