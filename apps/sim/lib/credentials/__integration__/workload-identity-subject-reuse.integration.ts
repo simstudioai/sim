@@ -19,6 +19,7 @@ vi.mock('@/lib/credentials/workload-identity/issuer', async (importOriginal) => 
   mintWorkloadIdentityToken: async ({ subject }: { subject: string }) => `token-for:${subject}`,
 }))
 
+import { encryptSecret } from '@/lib/core/security/encryption'
 import { updateCredentialRecord } from '@/lib/credentials/orchestration'
 import { createCredentialRecord } from '@/lib/credentials/orchestration/credential-create'
 import { issueWorkloadIdentitySubject } from '@/lib/credentials/workload-identity/subject'
@@ -191,4 +192,31 @@ describe('reusing a keyless trust setup', () => {
 
     expect((await create('Successor', keyless(setup))).success).toBe(true)
   })
+
+  it.each([
+    ['ciphertext that does not decrypt', async () => 'not-a-ciphertext'],
+    ['a secret that is not JSON', async () => (await encryptSecret('not json')).encrypted],
+  ])(
+    'refuses a new subject while a sibling holds %s, instead of failing the save',
+    async (_case, sealed) => {
+      const unreadableId = generateId()
+      await db.insert(credential).values({
+        id: unreadableId,
+        workspaceId,
+        type: 'service_account',
+        providerId: DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
+        displayName: 'Unreadable sibling',
+        encryptedServiceAccountKey: await sealed(),
+        createdBy: userId,
+      })
+      try {
+        const result = await create(`Blocked by ${unreadableId}`, keyless(grant()))
+
+        expect(result).toMatchObject({ success: false, errorCode: 'conflict' })
+        expect(result.error).toContain('Unreadable sibling')
+      } finally {
+        await db.delete(credential).where(eq(credential.id, unreadableId))
+      }
+    }
+  )
 })
