@@ -25,17 +25,21 @@ export function groupResultsByDocument(
 /**
  * A result as the source card renders it: the row's second line names the
  * source app, or the knowledge base for an upload. Without an HTTP(S) source
- * URL, the link opens the canonical document in Sim.
+ * URL, the link opens the canonical document in Sim, which only a workspace's
+ * knowledge base has; an organization's search index has no document page, so
+ * its result has no link.
  */
 export function toSource(
   result: WorkspaceKnowledgeSearchResult,
   query: string,
   scope: ResourceScope
-): SourceTagData {
+): Omit<SourceTagData, 'url'> & { url?: string } {
   return {
     url: isHttpUrl(result.sourceUrl)
       ? result.sourceUrl
-      : `${getBaseUrl()}${scope.kind === 'organization' ? `/o/${encodeURIComponent(scope.organizationId)}` : `/workspace/${encodeURIComponent(scope.workspaceId)}`}/knowledge/${encodeURIComponent(result.knowledgeBaseId)}/${encodeURIComponent(result.documentId)}`,
+      : scope.kind === 'workspace'
+        ? `${getBaseUrl()}/workspace/${encodeURIComponent(scope.workspaceId)}/knowledge/${encodeURIComponent(result.knowledgeBaseId)}/${encodeURIComponent(result.documentId)}`
+        : undefined,
     title: result.documentName ?? undefined,
     siteName: result.connectorType
       ? connectorDisplayName(result.connectorType)

@@ -40,6 +40,7 @@ import { useSummaryQueue } from '@/platform/lib/data/search-summary'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 
 type SearchSourceRow = SearchResultsData['rows'][number]
+type LinkedSourceRow = Parameters<SearchResultsData['onOpen']>[0]
 
 const NO_FILTERS: WorkspaceSearchFilters = {}
 /** A tab without a retrieval address runs nothing: an empty query never enables the read. */
@@ -53,7 +54,7 @@ interface SearchReadOptions {
   nativeQueries?: SearchResource['nativeQueries']
   reuseFreshResult?: boolean
   awaitingRange?: boolean
-  onRecordSource?: (row: SearchSourceRow) => void
+  onRecordSource?: (row: LinkedSourceRow) => void
   onSummarize?: (row: SearchSourceRow) => void
 }
 
@@ -85,7 +86,7 @@ function useSearchResults({
         return {
           id: result.documentId,
           url: source.url,
-          title: source.title ?? source.siteName ?? source.url,
+          title: source.title ?? source.siteName ?? source.url ?? result.knowledgeBaseName,
           meta: source.siteName,
           snippet: source.snippet,
         }

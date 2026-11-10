@@ -1,5 +1,7 @@
 import { type ReactNode, Suspense } from 'react'
 import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { loginHref } from '@/lib/navigation/paths'
 import { resolveLiveDestinations } from '@/app/(product)/_components/destinations'
 import { LiveComposerHost } from '@/app/(product)/_components/live-shell/live-composer-host'
 import { StaleSession } from '@/app/(product)/_components/live-shell/stale-session'
@@ -10,11 +12,34 @@ import { LiveSourceLinks } from '@/app/(product)/_components/source-row/live-sou
 import { OUTSIDE_ORGANIZATION_HREF } from '@/platform/lib/data/organization-model'
 import { prefetchShell } from '@/platform/lib/data/prefetch-shell'
 import { LiveProviders } from '@/platform/lib/data/providers'
-import { followProductRoute, readDocumentLocation } from '@/platform/lib/data/route-resolution'
+import {
+  followProductRoute,
+  type ProductLocation,
+  readDocumentLocation,
+} from '@/platform/lib/data/route-resolution'
 import { resolveSettingsNavigation } from '@/platform/lib/data/settings-navigation'
-import { readOrganizationSurface } from '@/platform/lib/data/surface'
+import {
+  readLandingOrganizationSurface,
+  readOrganizationSurface,
+} from '@/platform/lib/data/surface'
 
-const LOGIN_PATH = '/login'
+/**
+ * The same page in the viewer's landing organization, for an `/o/<id>` link whose organization no
+ * longer exists: a personal organization retires when its owner joins a team, and its chats and
+ * settings move with them. `null` when the location is not under an organization or the viewer
+ * lands nowhere.
+ */
+async function retiredOrganizationHref({
+  pathname,
+  query,
+}: ProductLocation): Promise<string | null> {
+  const [, root, , ...rest] = pathname.split('/')
+  if (root !== 'o') return null
+  const landing = await readLandingOrganizationSurface()
+  if (landing.status !== 'ok') return null
+  const path = [landing.organization.routePrefix, ...rest].join('/')
+  return query.size ? `${path}?${query}` : path
+}
 
 /**
  * The shell for a live session, in the organization this request's shell belongs to: the legacy
@@ -38,9 +63,21 @@ export async function LiveShell({
   ])
   if (surface.status !== 'ok') {
     // The proxy sends a request with no session cookie to login, so this one's cookie is stale.
-    if (surface.status === 'unauthenticated') return <StaleSession loginHref={LOGIN_PATH} />
-    if (surface.status === 'denied')
+    if (surface.status === 'unauthenticated')
+      return (
+        <StaleSession
+          loginHref={
+            location
+              ? loginHref(`${location.pathname}${location.query.size ? `?${location.query}` : ''}`)
+              : '/login'
+          }
+        />
+      )
+    if (surface.status === 'denied') {
+      const moved = surface.retired && location ? await retiredOrganizationHref(location) : null
+      if (moved) redirect(moved)
       return <AccessDenied workspacesHref={OUTSIDE_ORGANIZATION_HREF} />
+    }
     return <SurfaceUnavailable />
   }
 

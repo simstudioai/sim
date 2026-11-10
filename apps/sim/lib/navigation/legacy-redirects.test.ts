@@ -32,23 +32,49 @@ describe('mapLegacyWorkspaceUrl', () => {
     ['integrations/github', '/o/org-1/integrations/github?workspace=ws-1'],
     ['integrations/connected/cred-1', '/o/org-1/integrations/accounts/cred-1?workspace=ws-1'],
     ['upgrade', '/o/org-1/settings/billing/plans'],
-    ['upgrade?reason=credits&ref=email', '/o/org-1/settings/billing/plans?reason=credits'],
+    [
+      'upgrade?reason=credits&ref=email',
+      '/o/org-1/settings/billing/plans?reason=credits&ref=email',
+    ],
+    [
+      'upgrade?upgraded=true&session_id=cs_1',
+      '/o/org-1/settings/billing/plans?upgraded=true&session_id=cs_1',
+    ],
     ['settings/general', '/o/org-1/settings/general'],
     ['settings/subscription', '/o/org-1/settings/billing'],
     ['settings/team?tab=pending', '/o/org-1/settings/members?tab=pending'],
     ['settings/privacy', '/o/org-1/settings/general?view=privacy'],
     ['settings/billing/credit-usage', '/o/org-1/settings/billing/credit-usage'],
     ['settings/usage/events?period=7d', '/o/org-1/settings/usage/events?period=7d'],
+    ['settings/access-control', '/o/org-1/settings/access-control'],
     [
-      'settings/access-control?access-view=requests',
-      '/o/org-1/settings/access-control?access-view=requests',
+      'settings/access-control?access-view=requests&request-id=req-1',
+      '/workspace/ws-1/settings/requests?request-id=req-1',
     ],
     ['settings/apikeys', '/workspace/ws-1/settings/api-keys'],
-    ['access-requests?requestId=req-1', '/workspace/ws-1/settings/requests?requestId=req-1'],
+    [
+      'access-requests?requestId=req-1',
+      '/workspace/ws-1/settings/requests?view=requests&requestId=req-1',
+    ],
+    [
+      'access-requests?view=admin&requestId=req-1',
+      '/workspace/ws-1/settings/requests?request-id=req-1&view=review',
+    ],
     ['settings/integrations', '/o/org-1/integrations?workspace=ws-1'],
     ['settings/skills', '/o/org-1/integrations?tab=skills&workspace=ws-1'],
   ])('sends /workspace/ws-1/%s to %s', (path, expected) => {
     expect(map(path)).toBe(expected)
+  })
+
+  it('encodes each decoded id exactly once', () => {
+    expect(
+      mapLegacyWorkspaceUrl({
+        workspaceId: 'ws-1',
+        segments: ['chat', 'a/b c'],
+        query: new URLSearchParams(),
+        organizationId: 'org-1',
+      })
+    ).toBe('/o/org-1/chat/a%2Fb%20c')
   })
 
   it.each(['home', 'chat/chat-1', 'skills', 'integrations', 'upgrade', 'settings/general'])(

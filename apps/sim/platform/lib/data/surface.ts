@@ -3,7 +3,10 @@ import { cache } from 'react'
 import { createLogger } from '@sim/logger'
 import { getOrganizationSurfaceContract } from '@/lib/api/contracts/organization'
 import { OrganizationMembershipNotFoundError } from '@/lib/core/application/organization-authorization'
-import { readOrganizationSurface as readOrganizationSurfaceUseCase } from '@/lib/organizations/application/surface'
+import {
+  OrganizationNotFoundError,
+  readOrganizationSurface as readOrganizationSurfaceUseCase,
+} from '@/lib/organizations/application/surface'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { asRouteResponse, readSessionViewer } from '@/platform/lib/data/server-read'
 import { readShellOrganizationId } from '@/platform/lib/data/shell-scope'
@@ -12,11 +15,13 @@ const logger = createLogger('PlatformSurface')
 
 type OrganizationSurfaceResult =
   | { status: 'ok'; organization: PlatformOrganization }
-  | { status: 'unauthenticated' | 'denied' | 'unavailable' }
+  /** `retired`: the organization no longer exists, rather than excluding the viewer. */
+  | { status: 'denied'; retired: boolean }
+  | { status: 'unauthenticated' | 'unavailable' }
 
 /**
  * The viewer's surface in `organizationId`, shared by the layout and every page under it in one
- * request. An organization the viewer does not belong to is `denied`. `unavailable` is a failed
+ * request. An organization the viewer does not belong to, or one that no longer exists, is `denied`. `unavailable` is a failed
  * read, which must never render as an empty organization.
  */
 const readSurfaceIn = cache(
@@ -36,7 +41,8 @@ const readSurfaceIn = cache(
         organization: { ...surface, routePrefix: `/o/${surface.organization.id}` },
       }
     } catch (error) {
-      if (error instanceof OrganizationMembershipNotFoundError) return { status: 'denied' }
+      if (error instanceof OrganizationMembershipNotFoundError)
+        return { status: 'denied', retired: error instanceof OrganizationNotFoundError }
       logger.error('Could not read the organization surface', { error })
       return { status: 'unavailable' }
     }
@@ -51,4 +57,9 @@ export async function readOrganizationSurface(
   organizationId?: string
 ): Promise<OrganizationSurfaceResult> {
   return readSurfaceIn(organizationId ?? (await readShellOrganizationId()))
+}
+
+/** The viewer's surface in the organization they land in, whatever this request's shell names. */
+export function readLandingOrganizationSurface(): Promise<OrganizationSurfaceResult> {
+  return readSurfaceIn(undefined)
 }

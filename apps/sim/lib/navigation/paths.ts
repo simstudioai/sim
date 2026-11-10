@@ -12,6 +12,11 @@
  */
 export const APP_ENTRY_PATH = '/home'
 
+/** Login, returning to `callbackUrl` (a same-origin path and query) once the viewer signs in. */
+export function loginHref(callbackUrl: string): string {
+  return `/login?${new URLSearchParams({ callbackUrl })}`
+}
+
 /** Keeps the landing page visible even when the viewer is signed in. */
 export const LANDING_HREF = '/?home'
 
@@ -47,7 +52,7 @@ export function organizationRoutes(organizationId: string) {
     root,
     home: `${root}/home`,
     search: `${root}/search`,
-    searchChat: (chatId: string) => `${root}/search/chat/${chatId}`,
+    searchChat: (chatId: string) => `${root}/search/chat/${encodeURIComponent(chatId)}`,
     integrations: `${root}/integrations`,
     integration: (providerId: string) => `${root}/integrations/${encodeURIComponent(providerId)}`,
     /** A connected account's own page: its tool permissions. */
@@ -68,7 +73,7 @@ export function organizationRoutes(organizationId: string) {
     settingsSection: (section: string) => `${root}/settings/${section}`,
     /** A new chat; `chat` opens an existing one. */
     newChat: `${root}/chat`,
-    chat: (chatId: string) => `${root}/chat/${chatId}`,
+    chat: (chatId: string) => `${root}/chat/${encodeURIComponent(chatId)}`,
   } as const
 }
 

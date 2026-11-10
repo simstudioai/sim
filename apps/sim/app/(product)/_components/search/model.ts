@@ -1,4 +1,7 @@
-import type { SourceRowData } from '@/app/(product)/_components/source-row/source-row'
+import type {
+  LinkedSourceRow,
+  SourceRowData,
+} from '@/app/(product)/_components/source-row/source-row'
 
 interface SearchFilterOption {
   id: string
@@ -34,6 +37,6 @@ export interface SearchResultsData {
       onChange: (from: string, to: string) => void
     }
   }
-  onOpen: (row: SourceRowData) => void
+  onOpen: (row: LinkedSourceRow) => void
   onSummarize?: (row: SourceRowData) => void
 }
