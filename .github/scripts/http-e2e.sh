@@ -429,6 +429,12 @@ JS
     )
     export SIM_EXTENSION_KEY="${extension_identity%%$'\n'*}"
     export BROWSER_EXTENSION_IDS="${extension_identity#*$'\n'}"
+    # The scripted worker answers the one turn the suite lets the server admit; every other send is
+    # answered in the browser.
+    export INTERNAL_API_SECRET=browser-extension-ci-local-secret-at-least-32-characters
+    export COPILOT_API_KEY=browser-extension-ci-local-copilot-key MOTHERSHIP_SIM_TRANSPORT=direct
+    export SIM_AGENT_API_URL=http://127.0.0.1:3029
+    start_scripted_agent "$group" 3029
     start_app "$group" 3007 'browser extension' record-http-status
     wait_for_browsers
     EXTENSION_APP_E2E_BASE_URL="$local_app_url" \

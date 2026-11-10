@@ -14,6 +14,7 @@ const report = process.env.PLATFORM_LIVE_REPORT_PATH ?? 'test-results/platform-l
  */
 export default defineConfig({
   testDir: __dirname,
+  globalSetup: path.join(__dirname, 'support/global-setup.ts'),
   workers: 1,
   timeout: 90_000,
   reporter: [['list'], ['json', { outputFile: report }]],
