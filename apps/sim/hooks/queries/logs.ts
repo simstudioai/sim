@@ -246,6 +246,24 @@ export function useLogsSnapshot(
   })
 }
 
+/**
+ * Trims a held snapshot to its first page, so the refetch that follows reads one page instead of
+ * every page read so far; later pages load again as the reader nears the end.
+ */
+export function trimLogsSnapshotToFirstPage(
+  queryClient: QueryClient,
+  workspaceId: string | undefined,
+  filters: LogFilters
+) {
+  queryClient.setQueryData<InfiniteData<LogSnapshotPage, LogSnapshotCursor | null>>(
+    logKeys.snapshot(workspaceId, filters),
+    (data) =>
+      data && data.pages.length > 1
+        ? { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) }
+        : data
+  )
+}
+
 /** Checks older matching rows for late visibility or sort changes, stopping once refresh is needed. */
 export function useLogSnapshotUpdates(
   workspaceId: string | undefined,

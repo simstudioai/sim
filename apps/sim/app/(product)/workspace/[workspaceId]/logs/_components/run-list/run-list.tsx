@@ -1,6 +1,15 @@
 'use client'
 
-import { type ReactNode, useId, useState } from 'react'
+import {
+  Fragment,
+  memo,
+  type ReactNode,
+  useCallback,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { Button } from '@sim/emcn/button'
 import { useClipboard } from '@sim/emcn/feedback/use-clipboard'
 import { ActionMenu, ContextActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
@@ -21,6 +30,10 @@ import {
   RunTriggerLabel,
 } from '@/app/(product)/_components/workspace/logs/run-status/run-status'
 import {
+  useVirtualRows,
+  VirtualSpacer,
+} from '@/app/(product)/_components/workspace/resource-table/virtual-rows'
+import {
   WorkspaceEmpty,
   WorkspaceTabPage,
 } from '@/app/(product)/_components/workspace/workspace-page/workspace-page'
@@ -29,7 +42,10 @@ import {
   formatDuration,
 } from '@/app/(product)/_components/workspace/workspace-session/format'
 import type { WorkspaceRead } from '@/app/(product)/_components/workspace/workspace-session/model'
-import { useRevealRow } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
+import {
+  useRevealedRecord,
+  useRevealRow,
+} from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
 import styles from '@/app/(product)/workspace/[workspaceId]/logs/_components/run-list/run-list.module.css'
 import { platformHref } from '@/platform/lib/navigation'
 import {
@@ -138,6 +154,10 @@ export function RunList({
   const base = workspacePath(workspace.id, 'logs')
   const runPath = (id: string) => `${base}/${encodeURIComponent(id)}`
   const runHref = (id: string) => serializeRunList(platformHref(runPath(id), search), view)
+  const revealedRun = useRevealedRecord()
+  const { listRef, virtualizer, entries, spaceAfter } = useVirtualRows(runs, {
+    pinnedId: revealedRun,
+  })
   const clearFilters = () =>
     void setView({
       period: null,
@@ -194,6 +214,13 @@ export function RunList({
         : []),
     ]
   }
+
+  const latestRowMenu = useRef(rowMenu)
+  useLayoutEffect(() => {
+    latestRowMenu.current = rowMenu
+  })
+  /** One identity for every row, so a memoized row skips renders; it reads the menu as it opens. */
+  const menuFor = useCallback((run: RunSummary) => latestRowMenu.current(run), [])
 
   const controls = (runs.length > 0 || filtered || showDashboard) && (
     <ControlBar
@@ -348,17 +375,21 @@ export function RunList({
             <span className={styles.numeric}>Started</span>
             {rowActions && <span />}
           </div>
-          <ol className={styles.rows} aria-label='Runs'>
-            {runs.map((run) => (
-              <li key={run.id}>
-                <RunRow
-                  run={run}
-                  href={runHref(run.id)}
-                  referenceTime={referenceTime}
-                  actions={rowActions && (() => rowMenu(run))}
-                />
-              </li>
+          <ol ref={listRef} className={styles.rows} aria-label='Runs'>
+            {entries.map(({ key, index, row: run, spaceBefore }) => (
+              <Fragment key={key}>
+                <VirtualSpacer blockSize={spaceBefore} />
+                <li ref={virtualizer.measureElement} data-index={index}>
+                  <RunRow
+                    run={run}
+                    href={runHref(run.id)}
+                    referenceTime={referenceTime}
+                    menu={rowActions ? menuFor : undefined}
+                  />
+                </li>
+              </Fragment>
             ))}
+            <VirtualSpacer blockSize={spaceAfter} />
           </ol>
           <ListEnd
             hasMore={more.hasMore}
@@ -376,15 +407,16 @@ interface RunRowProps {
   run: RunSummary
   href: string
   referenceTime: number | null
-  /** Built when the menu opens, so a closed row builds none of its commands. */
-  actions?: () => readonly MenuAction[]
+  /** A run's menu, built when it opens, so a closed row builds none of its commands. */
+  menu?: (run: RunSummary) => readonly MenuAction[]
 }
 
 /**
  * One run in Paper's RunRow lanes; the workflow name opens it across the whole row. The run last
  * stepped to in its details scrolls into view when the reader returns.
  */
-function RunRow({ run, href, referenceTime, actions }: RunRowProps) {
+const RunRow = memo(function RunRow({ run, href, referenceTime, menu }: RunRowProps) {
+  const actions = menu && (() => menu(run))
   const label = `Actions for the ${run.workflow.name} run`
   const revealRow = useRevealRow(run.id)
   const row = (
@@ -442,4 +474,4 @@ function RunRow({ run, href, referenceTime, actions }: RunRowProps) {
       {row}
     </ContextActionMenu>
   )
-}
+})

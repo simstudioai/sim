@@ -1,14 +1,12 @@
 'use client'
 
 import {
+  Fragment,
   type KeyboardEvent,
   type MouseEvent,
   type ReactNode,
-  useCallback,
   useEffect,
-  useLayoutEffect,
   useRef,
-  useState,
 } from 'react'
 import { Avatar } from '@sim/emcn/avatar'
 import { Button } from '@sim/emcn/button'
@@ -18,21 +16,18 @@ import { Icon, type IconName } from '@sim/emcn/icon'
 import { ActionMenu, ContextActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { escapeRegExp } from '@sim/utils/string'
-import { useVirtualizer } from '@tanstack/react-virtual'
 import Link from 'next/link'
 import { ListEnd } from '@/app/(product)/_components/workspace/list-end/list-end'
 import styles from '@/app/(product)/_components/workspace/resource-table/resource-table.module.css'
 import type { ResourceDrag } from '@/app/(product)/_components/workspace/resource-table/use-resource-drag'
 import type { ResourceSelection } from '@/app/(product)/_components/workspace/resource-table/use-resource-selection'
+import {
+  useVirtualRows,
+  VirtualSpacer,
+} from '@/app/(product)/_components/workspace/resource-table/virtual-rows'
 import { SelectionBar } from '@/app/(product)/_components/workspace/selection-bar/selection-bar'
 import { LOCALE } from '@/platform/shared/time'
 
-/** Rows drawn beyond the viewport, so a fast scroll never shows a blank band. */
-const OVERSCAN = 8
-/** A row's resting height with its list gap, before it is measured. */
-const ROW_ESTIMATE = 42
-const LIST_GAP = 2
-const FIRST_PAINT = { width: 0, height: 960 }
 const NO_TERMS: readonly string[] = []
 
 /** One of the list's typed columns, after the name. */
@@ -137,51 +132,8 @@ export function ResourceTable({
   marks,
   empty,
 }: ResourceTableProps) {
-  const list = useRef<HTMLOListElement>(null)
-  const [scroller, setScroller] = useState<HTMLElement | null>(null)
-  const [margin, setMargin] = useState(0)
+  const { listRef, virtualizer, entries, spaceAfter } = useVirtualRows(rows)
   const hasRows = rows.length > 0
-
-  useLayoutEffect(() => {
-    const element = list.current
-    if (!element) return
-    const viewport = element.closest<HTMLElement>('[data-scroll-axis="vertical"]')
-    setScroller(viewport)
-    if (!viewport) return
-    const measure = () => {
-      const offset =
-        element.getBoundingClientRect().top -
-        viewport.getBoundingClientRect().top +
-        viewport.scrollTop
-      setMargin((current) => (Math.abs(current - offset) < 1 ? current : offset))
-    }
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(viewport)
-    const page = element.closest('main')
-    if (page) observer.observe(page)
-    return () => observer.disconnect()
-  }, [hasRows])
-
-  const getItemKey = useCallback((index: number) => rows[index]?.id ?? index, [rows])
-  const virtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => scroller,
-    estimateSize: () => ROW_ESTIMATE,
-    overscan: OVERSCAN,
-    gap: LIST_GAP,
-    scrollMargin: margin,
-    getItemKey,
-    initialRect: FIRST_PAINT,
-    // Measuring a row as it mounts must not flush a render into a list still mounting.
-    useFlushSync: false,
-  })
-  const items = virtualizer.getVirtualItems()
-  const before = Math.max(0, (items[0]?.start ?? margin) - margin - LIST_GAP)
-  const after = Math.max(
-    0,
-    virtualizer.getTotalSize() - ((items.at(-1)?.end ?? margin) - margin) - LIST_GAP
-  )
 
   const activeFind = find?.activeId
   useEffect(() => {
@@ -226,13 +178,11 @@ export function ResourceTable({
             ))}
             {rowActions && <span className={styles.action} />}
           </div>
-          <ol ref={list} className={styles.rows} aria-label={label}>
-            {before > 0 && <Spacer blockSize={before} />}
-            {items.map((item) => {
-              const row = rows[item.index]
-              if (!row) return null
-              return (
-                <li key={item.key} ref={virtualizer.measureElement} data-index={item.index}>
+          <ol ref={listRef} className={styles.rows} aria-label={label}>
+            {entries.map(({ key, index, row, spaceBefore }) => (
+              <Fragment key={key}>
+                <VirtualSpacer blockSize={spaceBefore} />
+                <li ref={virtualizer.measureElement} data-index={index}>
                   <ResourceRowView
                     row={row}
                     columns={columns}
@@ -244,9 +194,9 @@ export function ResourceTable({
                     terms={terms}
                   />
                 </li>
-              )
-            })}
-            {after > 0 && <Spacer blockSize={after} />}
+              </Fragment>
+            ))}
+            <VirtualSpacer blockSize={spaceAfter} />
           </ol>
           {loadMore && <ListEnd hasMore={loadMore.hasMore} onLoadMore={loadMore.onLoadMore} />}
         </div>
@@ -272,19 +222,6 @@ export function ResourceTable({
         content
       )}
     </div>
-  )
-}
-
-/** Stands in for the rows outside the window, keeping the list's full height. */
-function Spacer({ blockSize }: { blockSize: number }) {
-  return (
-    <li
-      className={styles.spacer}
-      aria-hidden='true'
-      ref={(element) => {
-        element?.style.setProperty('block-size', `${blockSize}px`)
-      }}
-    />
   )
 }
 

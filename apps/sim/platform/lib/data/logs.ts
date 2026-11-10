@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { inferParserType } from 'nuqs'
 import { isApiClientError } from '@/lib/api/client/errors'
 import {
@@ -23,6 +23,7 @@ import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/t
 import { useFolderMap } from '@/hooks/queries/folders'
 import {
   type LogFilters,
+  trimLogsSnapshotToFirstPage,
   useCancelExecution,
   useDashboardStats,
   useExecutionSnapshot,
@@ -460,12 +461,14 @@ export function useRunFilterOptions(workspaceId: string) {
 
 /**
  * The workspace's runs for a list view, paged by the server in the view's order. The list holds a
- * snapshot, as legacy's does, and reads it again on its own once new or changed runs match it, so
- * new runs join without a refresh control. The dashboard view reads none of it.
+ * snapshot, as legacy's does, and reads its first page again on its own once new or changed runs
+ * match it, so new runs join without a refresh control and later pages load again as the reader
+ * nears the end. The dashboard view reads none of it.
  */
 export function useLiveRuns(workspaceId: string, view: RunListView) {
+  const queryClient = useQueryClient()
   const enabled = view.view === 'runs'
-  const filters = listFilters(view)
+  const filters = useMemo(() => listFilters(view), [view])
   const snapshot = useLogsSnapshot(workspaceId, filters, { enabled })
   const first = snapshot.isPlaceholderData ? undefined : snapshot.data?.pages[0]
   const newRuns = useNewLogCount(workspaceId, filters, first?.snapshotAt, { enabled }).data ?? 0
@@ -476,19 +479,28 @@ export function useLiveRuns(workspaceId: string, view: RunListView) {
   const stale = newRuns > 0 || updated === true || changedPage
   const { refetch, isFetching } = snapshot
   useEffect(() => {
-    if (enabled && stale && !isFetching) void refetch()
-  }, [enabled, stale, isFetching, refetch])
+    if (!enabled || !stale || isFetching) return
+    trimLogsSnapshotToFirstPage(queryClient, workspaceId, filters)
+    void refetch()
+  }, [enabled, stale, isFetching, refetch, queryClient, workspaceId, filters])
   const read = queryRead(snapshot, 'Runs could not be loaded.')
-  const logs =
-    snapshot.data?.pages.flatMap((page) =>
-      page.logs.flatMap((log) =>
-        log.executionId ? [{ ...log, executionId: log.executionId }] : []
-      )
-    ) ?? []
+  const pages = snapshot.data?.pages
+  const { runs, commands } = useMemo(() => {
+    const logs =
+      pages?.flatMap((page) =>
+        page.logs.flatMap((log) =>
+          log.executionId ? [{ ...log, executionId: log.executionId }] : []
+        )
+      ) ?? []
+    return {
+      runs: logs.map(toRunSummary),
+      commands: new Map(logs.map((log) => [log.executionId, commandsTarget(log)])),
+    }
+  }, [pages])
   return {
     read,
-    runs: logs.map(toRunSummary),
-    commands: new Map(logs.map((log) => [log.executionId, commandsTarget(log)])),
+    runs,
+    commands,
     more: {
       hasMore: snapshot.hasNextPage,
       loading: snapshot.isFetchingNextPage,

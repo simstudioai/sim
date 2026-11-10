@@ -215,6 +215,20 @@ export function useRevealOnReturn() {
   )
 }
 
+/**
+ * The record this list reveals as the reader returns to it, read once as the list mounts, so a
+ * windowed list keeps that row mounted for `useRevealRow` wherever it sits.
+ */
+export function useRevealedRecord() {
+  const { reveal } = useSession()
+  const [recordId] = useState(() => {
+    const target = reveal.current
+    if (!target || typeof window === 'undefined') return null
+    return target.list === window.location.pathname ? target.recordId : null
+  })
+  return recordId
+}
+
 /** A list row's ref: the row a returning list reveals, when it is the record last stepped to. */
 export function useRevealRow(recordId: string) {
   const { reveal } = useSession()
