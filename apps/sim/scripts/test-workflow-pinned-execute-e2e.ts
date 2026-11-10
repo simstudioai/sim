@@ -25,7 +25,11 @@ import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
  * differ only in which block runs, so a run's block outputs and its recorded
  * `deployment_version_id` show which graph executed. Before the executor honored
  * the pin, a pinned run loaded version 1 for its variables and still executed
- * version 2 — the first check fails on that code.
+ * version 2 — the pinned checks fail on that code.
+ *
+ * Run against a dev stack with `bun run test:workflow-pinned-execute:e2e`, setting
+ * `PINNED_EXECUTE_E2E_BASE_URL` (the loopback app origin), `PINNED_EXECUTE_E2E_DATABASE_URL`
+ * (the disposable database that app uses), and `PINNED_EXECUTE_E2E_REPORT_PATH`.
  */
 const logger = createLogger('WorkflowPinnedExecuteE2E')
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024
