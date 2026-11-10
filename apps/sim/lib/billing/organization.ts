@@ -8,12 +8,10 @@ import { getPlanPricing, isSubscriptionOrgScoped } from '@/lib/billing/core/bill
 import { getOrganizationIdForSubscriptionReference } from '@/lib/billing/core/subscription'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { assertNoCompetingEnterpriseIssuance } from '@/lib/billing/enterprise-outbox'
-import {
-  createOrganizationWithOwner,
-  createOrganizationWithOwnerTx,
-} from '@/lib/billing/organizations/create-organization'
+import { createOrganizationWithOwnerTx } from '@/lib/billing/organizations/create-organization'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
+import { TEAM_PLAN_WORKSPACE_ATTACH_EVENT } from '@/lib/billing/organizations/team-plan-attach-event'
 import { isEnterprise, isOrgPlan, isPaid } from '@/lib/billing/plan-helpers'
 import { SubscriptionReferenceNotFoundError } from '@/lib/billing/subscriptions/errors'
 import {
@@ -21,9 +19,16 @@ import {
   hasPaidSubscriptionStatus,
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal } from '@/lib/billing/utils/decimal'
+import {
+  enqueueOrReschedulePendingOutboxEvent,
+  type OutboxHandlerRegistry,
+} from '@/lib/core/outbox/service'
 import type { DbTransaction } from '@/lib/db/types'
 import type { PersonalOrganizationAuditActor } from '@/lib/organizations/lifecycle-audit'
-import { getPersonalOrganizationId } from '@/lib/organizations/personal'
+import {
+  acquirePersonalOrganizationWorkspaceLocksTx,
+  getPersonalOrganizationId,
+} from '@/lib/organizations/personal'
 import {
   attachOwnedWorkspacesToOrganization,
   attachOwnedWorkspacesToOrganizationTx,
@@ -41,65 +46,11 @@ type SubscriptionData = {
   enterpriseOperationId?: string | null
 }
 
-/** The team organization a user owns; a personal organization never counts. */
-async function getUserOwnedOrganization(userId: string): Promise<string | null> {
-  const [owned] = await db
-    .select({ organizationId: member.organizationId })
-    .from(member)
-    .innerJoin(organization, eq(organization.id, member.organizationId))
-    .where(and(eq(member.userId, userId), eq(member.role, 'owner'), eq(organization.kind, 'team')))
-    .limit(1)
-  return owned?.organizationId ?? null
-}
-
 function teamOrganizationSlug(userId: string): string {
   return `${userId}-team-${generateId()}`
     .toLowerCase()
     .replace(/[^a-z0-9-_]+/g, '-')
     .replace(/^-|-$/g, '')
-}
-
-export async function createOrganizationForTeamPlan(
-  userId: string,
-  actor: PersonalOrganizationAuditActor,
-  userName?: string,
-  userEmail?: string,
-  organizationSlug?: string
-): Promise<string> {
-  try {
-    const existingOrgId = await getUserOwnedOrganization(userId)
-    if (existingOrgId) {
-      return existingOrgId
-    }
-
-    const organizationName = userName || `${userEmail || 'User'}'s Team`
-    const slug = organizationSlug || teamOrganizationSlug(userId)
-
-    const { organizationId: orgId } = await createOrganizationWithOwner({
-      ownerUserId: userId,
-      name: organizationName,
-      slug,
-      metadata: {
-        createdForTeamPlan: true,
-        originalUserId: userId,
-      },
-      actor,
-    })
-
-    logger.info('Created organization for team/enterprise plan', {
-      userId,
-      organizationId: orgId,
-      organizationName,
-    })
-
-    return orgId
-  } catch (error) {
-    logger.error('Failed to create organization for team/enterprise plan', {
-      userId,
-      error,
-    })
-    throw error
-  }
 }
 
 /**
@@ -109,11 +60,39 @@ export async function createOrganizationForTeamPlan(
  */
 const PENDING_WORKSPACE_ATTACH_KEY = 'teamPlanWorkspacesPending'
 
+/** Attaches the buyer's workspaces to their team and clears the pending marker; throws on failure. */
+async function attachAndClearPendingTeamPlanWorkspaces(
+  ownerUserId: string,
+  organizationId: string,
+  actor: PersonalOrganizationAuditActor
+): Promise<void> {
+  await attachOwnedWorkspacesToOrganization({
+    ownerUserId,
+    organizationId,
+    externalMemberPolicy: 'keep-external',
+    includeArchived: true,
+    skipSplitProjects: true,
+    actor,
+  })
+  await db
+    .update(organization)
+    .set({
+      metadata: sql`(${organization.metadata}::jsonb - ${PENDING_WORKSPACE_ATTACH_KEY}::text)::json`,
+    })
+    .where(eq(organization.id, organizationId))
+}
+
+interface TeamPlanWorkspaceAttachPayload {
+  organizationId: string
+  actor: PersonalOrganizationAuditActor
+}
+
 /**
  * Attaches the buyer's workspaces to their team and clears the pending marker. Isolated from the
- * subscription it belongs to: a failure is logged and the marker stays for the next delivery to
- * retry, so it never blocks the seat, usage and billing-interval sync that follows. A workspace
- * whose Project spans another owner stays where it is rather than failing every delivery.
+ * subscription it belongs to: a failure is logged and queues an outbox retry (one per team, while
+ * the marker stays), so it never blocks the seat, usage and billing-interval sync that follows and
+ * does not wait for the next Stripe delivery. A workspace whose Project spans another owner stays
+ * where it is rather than failing every attempt.
  */
 async function attachPendingTeamPlanWorkspaces(
   ownerUserId: string,
@@ -121,27 +100,48 @@ async function attachPendingTeamPlanWorkspaces(
   actor: PersonalOrganizationAuditActor
 ): Promise<void> {
   try {
-    await attachOwnedWorkspacesToOrganization({
-      ownerUserId,
-      organizationId,
-      externalMemberPolicy: 'keep-external',
-      includeArchived: true,
-      skipSplitProjects: true,
-      actor,
-    })
-    await db
-      .update(organization)
-      .set({
-        metadata: sql`(${organization.metadata}::jsonb - ${PENDING_WORKSPACE_ATTACH_KEY}::text)::json`,
-      })
-      .where(eq(organization.id, organizationId))
+    await attachAndClearPendingTeamPlanWorkspaces(ownerUserId, organizationId, actor)
   } catch (error) {
-    logger.error("Failed to attach the Team buyer's workspaces; the next delivery retries", {
+    logger.error("Failed to attach the Team buyer's workspaces; queued a retry", {
       ownerUserId,
       organizationId,
       error,
     })
+    try {
+      await db.transaction(async (tx) => {
+        await acquireOrganizationMutationLock(tx, organizationId)
+        await enqueueOrReschedulePendingOutboxEvent<TeamPlanWorkspaceAttachPayload>(
+          tx,
+          TEAM_PLAN_WORKSPACE_ATTACH_EVENT,
+          { organizationId, actor },
+          { coalesceOn: { payloadKey: 'organizationId', payloadValue: organizationId } }
+        )
+      })
+    } catch (enqueueError) {
+      logger.error("Failed to queue the Team buyer's workspace attach retry", {
+        organizationId,
+        error: enqueueError,
+      })
+    }
   }
+}
+
+/** The owner of a team that still carries the pending-attach marker, or null once it is cleared. */
+async function findPendingTeamPlanOwner(organizationId: string): Promise<string | null> {
+  const [owner] = await db
+    .select({ userId: member.userId })
+    .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(
+      and(
+        eq(member.organizationId, organizationId),
+        eq(member.role, 'owner'),
+        eq(organization.kind, 'team'),
+        sql`${organization.metadata}->>${PENDING_WORKSPACE_ATTACH_KEY}::text = 'true'`
+      )
+    )
+    .limit(1)
+  return owner?.userId ?? null
 }
 
 /**
@@ -153,21 +153,25 @@ async function recoverPendingTeamPlanWorkspaces(
   actor: PersonalOrganizationAuditActor
 ): Promise<void> {
   if (!hasPaidSubscriptionStatus(subscription.status)) return
-  const [owner] = await db
-    .select({ userId: member.userId })
-    .from(member)
-    .innerJoin(organization, eq(organization.id, member.organizationId))
-    .where(
-      and(
-        eq(member.organizationId, subscription.referenceId),
-        eq(member.role, 'owner'),
-        eq(organization.kind, 'team'),
-        sql`${organization.metadata}->>${PENDING_WORKSPACE_ATTACH_KEY}::text = 'true'`
-      )
-    )
-    .limit(1)
-  if (!owner) return
-  await attachPendingTeamPlanWorkspaces(owner.userId, subscription.referenceId, actor)
+  const ownerUserId = await findPendingTeamPlanOwner(subscription.referenceId)
+  if (!ownerUserId) return
+  await attachPendingTeamPlanWorkspaces(ownerUserId, subscription.referenceId, actor)
+}
+
+/**
+ * Retries a failed Team workspace attach until it succeeds or the marker is gone (a later delivery
+ * finished it, or the team was deleted). A failure throws for the outbox's backoff.
+ */
+export const teamPlanWorkspaceAttachOutboxHandlers: OutboxHandlerRegistry = {
+  [TEAM_PLAN_WORKSPACE_ATTACH_EVENT]: async (rawPayload) => {
+    const { organizationId, actor } = rawPayload as TeamPlanWorkspaceAttachPayload
+    if (typeof organizationId !== 'string' || !actor) {
+      throw new Error('Team workspace attach retry has an invalid payload')
+    }
+    const ownerUserId = await findPendingTeamPlanOwner(organizationId)
+    if (!ownerUserId) return
+    await attachAndClearPendingTeamPlanWorkspaces(ownerUserId, organizationId, actor)
+  },
 }
 
 /**
@@ -178,7 +182,8 @@ async function recoverPendingTeamPlanWorkspaces(
  */
 export async function ensureOrganizationForTeamSubscription(
   subscription: SubscriptionData,
-  actor: PersonalOrganizationAuditActor
+  actor: PersonalOrganizationAuditActor,
+  naming: { name?: string; slug?: string } = {}
 ): Promise<SubscriptionData> {
   if (!isOrgPlan(subscription.plan)) {
     return subscription
@@ -368,8 +373,8 @@ export async function ensureOrganizationForTeamSubscription(
   const orgId = await db.transaction(async (tx) => {
     const { organizationId: orgId } = await createOrganizationWithOwnerTx(tx, {
       ownerUserId: userId,
-      name: userData.name || `${userData.email || 'User'}'s Team`,
-      slug: teamOrganizationSlug(userId),
+      name: naming.name || userData.name || `${userData.email || 'User'}'s Team`,
+      slug: naming.slug || teamOrganizationSlug(userId),
       metadata: {
         createdForTeamPlan: true,
         originalUserId: userId,
@@ -525,7 +530,11 @@ export async function ensureOrganizationForTeamSubscriptionTx(
       throw new Error('Organization already has an active subscription')
     }
   } else {
-    /** Organization before identity, as everywhere else: the personal organization this converts. */
+    /**
+     * Workspaces, then organization, then identity, as everywhere else: the personal organization
+     * this converts.
+     */
+    await acquirePersonalOrganizationWorkspaceLocksTx(tx, userId)
     const personalOrganizationId = await getPersonalOrganizationId(userId, tx)
     if (personalOrganizationId) await acquireOrganizationMutationLock(tx, personalOrganizationId)
     await acquireUserBillingIdentityLock(tx, userId)

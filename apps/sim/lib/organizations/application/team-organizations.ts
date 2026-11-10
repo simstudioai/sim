@@ -4,11 +4,9 @@ import { member, organization, subscription as subscriptionTable, user } from '@
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, inArray, or } from 'drizzle-orm'
+import { ensureOrganizationForTeamSubscription } from '@/lib/billing/organization'
 import {
-  createOrganizationForTeamPlan,
-  ensureOrganizationForTeamSubscription,
-} from '@/lib/billing/organization'
-import {
+  OrganizationOwnerAlreadyInTeamError,
   OrganizationSlugInvalidError,
   OrganizationSlugTakenError,
 } from '@/lib/billing/organizations/create-organization'
@@ -184,24 +182,22 @@ export const createTeamOrganization: OperationUseCase<
       }
 
       const [owner] = await db
-        .select({ name: user.name, email: user.email })
+        .select({ name: user.name })
         .from(user)
         .where(eq(user.id, userId))
         .limit(1)
       const organizationName = input.name || owner?.name || null
-      const organizationId = await createOrganizationForTeamPlan(
-        userId,
-        { type: 'user', userId },
-        organizationName || undefined,
-        owner?.email,
-        input.slug || undefined
-      )
-      await requireSubscriptionHomedOn(
+      /**
+       * Creating the team (converting the caller's personal organization) and moving the
+       * subscription onto it commit in one transaction, so a failed move never leaves a team
+       * without the subscription that pays for it.
+       */
+      const resolved = await ensureOrganizationForTeamSubscription(
         activeOrgSubscription,
-        userId,
-        organizationId,
-        'Failed to link the new organization to the active subscription'
+        { type: 'user', userId },
+        { name: organizationName || undefined, slug: input.slug || undefined }
       )
+      const organizationId = resolved.referenceId
 
       recordProjectedUseCaseAuditEntries(
         teamOrganizationOperations.create,
@@ -225,6 +221,12 @@ export const createTeamOrganization: OperationUseCase<
         throw new OrchestrationError(
           'validation',
           'Organization slug can only contain lowercase letters, numbers, hyphens, and underscores.'
+        )
+      }
+      if (error instanceof OrganizationOwnerAlreadyInTeamError) {
+        throw new OrchestrationError(
+          'conflict',
+          'You are already a member of an organization. Leave your current organization before creating a new one.'
         )
       }
       if (error instanceof OrganizationSlugTakenError) {

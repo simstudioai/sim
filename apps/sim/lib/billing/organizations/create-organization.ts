@@ -9,6 +9,7 @@ import {
 import type { DbTransaction } from '@/lib/db/types'
 import type { PersonalOrganizationAuditActor } from '@/lib/organizations/lifecycle-audit'
 import {
+  acquirePersonalOrganizationWorkspaceLocksTx,
   convertPersonalOrganizationToTeamTx,
   getPersonalOrganizationId,
 } from '@/lib/organizations/personal'
@@ -19,6 +20,21 @@ export class OrganizationSlugInvalidError extends Error {
   constructor(slug: string) {
     super(`Organization slug "${slug}" is invalid`)
     this.name = 'OrganizationSlugInvalidError'
+  }
+}
+
+/**
+ * The would-be owner already belongs to a team, typically one they joined while this creation
+ * waited for their billing identity. A person holds one membership, so the team they joined stands
+ * and this creation is refused.
+ */
+export class OrganizationOwnerAlreadyInTeamError extends Error {
+  constructor(
+    readonly userId: string,
+    readonly organizationId: string
+  ) {
+    super('This account already belongs to another organization')
+    this.name = 'OrganizationOwnerAlreadyInTeamError'
   }
 }
 
@@ -103,12 +119,24 @@ export async function createOrganizationWithOwnerTx(
   const now = new Date()
 
   /**
-   * A personal organization's lock precedes the owner's billing-identity lock, the order
-   * workspace creation inside it takes them in.
+   * The personal organization's workspace locks, then its organization lock, then the owner's
+   * billing-identity lock: the order every join takes them in, and workspace creation inside it.
+   * The conversion row-locks those workspaces, so it queues behind an in-flight acceptance instead
+   * of inverting with it.
    */
+  await acquirePersonalOrganizationWorkspaceLocksTx(tx, ownerUserId)
   const personalOrganizationId = await getPersonalOrganizationId(ownerUserId, tx)
   if (personalOrganizationId) await acquireOrganizationMutationLock(tx, personalOrganizationId)
   await acquireUserBillingIdentityLock(tx, ownerUserId)
+  const [teamMembership] = await tx
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(and(eq(member.userId, ownerUserId), eq(organization.kind, 'team')))
+    .limit(1)
+  if (teamMembership) {
+    throw new OrganizationOwnerAlreadyInTeamError(ownerUserId, teamMembership.organizationId)
+  }
   const existingOrganization = await tx
     .select({ id: organization.id })
     .from(organization)

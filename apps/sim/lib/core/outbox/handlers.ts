@@ -16,6 +16,7 @@ import {
   ENTERPRISE_OWNER_CLAIM_EVENT_TYPE,
 } from '@/lib/billing/enterprise-owner-claim-events'
 import { MEMBER_BILLING_RECONCILIATION_EVENT_TYPE } from '@/lib/billing/organizations/membership-reconciliation-event'
+import { TEAM_PLAN_WORKSPACE_ATTACH_EVENT } from '@/lib/billing/organizations/team-plan-attach-event'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import {
   CHAT_BACKEND_CLEANUP_EVENT,
@@ -226,6 +227,13 @@ export const OUTBOX_HANDLER_GROUPS: readonly LazyOutboxHandlerGroup[] = [
         '@/lib/cleanup/chat-backend-cleanup-outbox'
       )
       return chatBackendCleanupOutboxHandlers
+    },
+  },
+  {
+    events: [TEAM_PLAN_WORKSPACE_ATTACH_EVENT],
+    load: async () => {
+      const { teamPlanWorkspaceAttachOutboxHandlers } = await import('@/lib/billing/organization')
+      return teamPlanWorkspaceAttachOutboxHandlers
     },
   },
   {

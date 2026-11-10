@@ -43,7 +43,10 @@ import { computeInvitationExpiry, INVITATION_EXPIRY_DAYS } from '@/lib/invitatio
 import { MAX_INVITE_EMAILS, MAX_INVITE_WORKSPACES } from '@/lib/invitations/limits'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
-import { getPersonalOrganizationId } from '@/lib/organizations/personal'
+import {
+  acquirePersonalOrganizationWorkspaceLocksTx,
+  getPersonalOrganizationId,
+} from '@/lib/organizations/personal'
 import {
   createDefaultPersonalWorkspaceInTransaction,
   emitWorkspaceCreatedPlatformEvent,
@@ -912,7 +915,11 @@ export async function acceptEnterpriseOwnerClaim(params: {
         return { success: false as const, kind: 'expired' as const }
       }
 
-      /** The personal organization this converts is locked before the owner's identity, as everywhere else. */
+      /**
+       * The personal organization this converts, its workspaces first, is locked before the
+       * owner's identity, as everywhere else.
+       */
+      await acquirePersonalOrganizationWorkspaceLocksTx(tx, params.userId)
       const lockedPersonalOrganizationId = await getPersonalOrganizationId(params.userId, tx)
       if (lockedPersonalOrganizationId) {
         await acquireOrganizationMutationLock(tx, lockedPersonalOrganizationId)

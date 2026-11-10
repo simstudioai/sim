@@ -32,7 +32,12 @@ import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
-import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
+import { issueEnterpriseProvisioning } from '@/lib/billing/enterprise-provisioning'
+import {
+  createOrganizationWithOwner,
+  OrganizationOwnerAlreadyInTeamError,
+} from '@/lib/billing/organizations/create-organization'
+import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/identity-lock'
 import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limits'
 import {
   addUserToOrganization,
@@ -656,5 +661,94 @@ describe('checking what would cascade away with a personal organization', () => 
     } finally {
       await db.execute(sql`DROP TABLE IF EXISTS ${sql.identifier(table)}`)
     }
+  })
+})
+
+describe('starting a team from a personal organization while it is being changed', () => {
+  it('queues behind an acceptance holding a personal workspace before taking the owner’s billing identity', async () => {
+    const ownerId = await createUser()
+    const personalId = await personalOrganizationOf(ownerId)
+    const personalWorkspace = await db.transaction((tx) =>
+      createDefaultPersonalWorkspaceInTransaction(tx, {
+        userId: ownerId,
+        userName: 'Join Test',
+        personalOrganizationId: personalId,
+      })
+    )
+
+    const {
+      release,
+      settled: acceptance,
+      holderPid,
+    } = await holdOpen(async (tx) => {
+      await acquireInvitationMutationLocks(tx, {
+        invitationIds: [],
+        workspaceIds: [personalWorkspace.id],
+      })
+      await tx.execute(sql`SELECT id FROM workspace WHERE id = ${personalWorkspace.id} FOR UPDATE`)
+    })
+    const conversion = team(ownerId)
+    await waitForBackendBlockedBy(db, holderPid)
+    const identityFree = await db.transaction((tx) =>
+      tryAcquireAdvisoryXactLock(tx, 'user_billing_identity', `user-billing-identity:${ownerId}`)
+    )
+    release()
+    await acceptance
+
+    expect(identityFree).toBe(true)
+    expect(await conversion).toBe(personalId)
+  })
+
+  it('refuses, with a typed error, an owner who already belongs to a team', async () => {
+    const ownerId = await createUser()
+    await personalOrganizationOf(ownerId)
+    const teamId = await team(await createUser())
+    expect(
+      await addUserToOrganization({
+        actor: { type: 'system', name: 'Test' },
+        userId: ownerId,
+        organizationId: teamId,
+        role: 'member',
+        skipBillingLogic: true,
+        skipSeatValidation: true,
+      })
+    ).toMatchObject({ success: true })
+
+    const refusal = await team(ownerId).then(
+      () => null,
+      (error: unknown) => error
+    )
+    expect(refusal).toBeInstanceOf(Error)
+    expect((refusal as Error).message).toBe('This account already belongs to another organization')
+    expect(refusal).toBeInstanceOf(OrganizationOwnerAlreadyInTeamError)
+  })
+
+  it('refuses Enterprise issuance when the personal organization became a team while it waited', async () => {
+    const ownerId = await createUser()
+    const personalId = await personalOrganizationOf(ownerId)
+
+    const { release, settled, holderPid } = await holdOpen(async (tx) => {
+      await acquireOrganizationMutationLock(tx, personalId)
+      await tx.update(organization).set({ kind: 'team' }).where(eq(organization.id, personalId))
+    })
+    const issuance = issueEnterpriseProvisioning({
+      ownerUserId: ownerId,
+      organizationName: 'Enterprise',
+      invoiceAmountUsd: 100,
+      seats: 5,
+      requestedByEmail: 'operator@join.test',
+      requestedByUserId: null,
+    }).then(
+      () => null,
+      (error: unknown) => error
+    )
+    await waitForBackendBlockedBy(db, holderPid)
+    release()
+    await settled
+
+    expect(await issuance).toMatchObject({
+      message:
+        "The selected user's personal organization changed while issuance was starting; retry the request",
+    })
   })
 })
