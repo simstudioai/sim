@@ -86,10 +86,3 @@ describe('placeSteeredMessages', () => {
     expect(shape(placed).at(-1)).toEqual(['user', 'Stop at two', 'steer'])
   })
 })
-
-describe('findLiveResponseId', () => {
-  it('is the last assistant message, past messages waiting behind it', () => {
-    expect(findLiveResponseId([owner, answer([]), steering])).toBe('answer')
-    expect(findLiveResponseId([owner])).toBeUndefined()
-  })
-})

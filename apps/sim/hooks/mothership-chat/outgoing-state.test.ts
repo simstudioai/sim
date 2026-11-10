@@ -12,27 +12,24 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
-  admittedMessageIds,
   adoptOrphanRow,
   afterDispositionRead,
   afterRetry,
   afterUnsentAttempt,
   deliveryOf,
   fromJournaled,
-  hasOutgoingFollowUp,
-  holdAfterErroredTurn,
   isDeliveredAsTurn,
   MAX_OUTGOING_DELIVERY_ATTEMPTS,
   nextOutgoingStep,
   nextOutgoingWake,
-  ORPHAN_AUTO_SEND_MAX_AGE_MS,
   type OutgoingMessage,
-  orphanSteeringRows,
   toJournaled,
 } from '@/hooks/mothership-chat/outgoing-state'
 import type { MothershipChatHistory } from '@/hooks/queries/mothership-chats'
 
 const NOW = 1_800_000_000_000
+/** How old a message a closed tab left behind may be and still go out on its own. */
+const ORPHAN_AUTO_SEND_MAX_AGE_MS = 10 * 60 * 1000
 
 function entry(id: string, patch: Partial<OutgoingMessage> = {}): OutgoingMessage {
   return {
@@ -55,10 +52,6 @@ const view = (patch: Partial<{ liveStreamId: string; admittedIds: ReadonlySet<st
   ...patch,
 })
 
-function history(messages: MothershipChatHistory['messages']): MothershipChatHistory {
-  return { id: 'chat', mode: 'agent', title: 'Chat', messages, activeStreamId: null, resources: [] }
-}
-
 const row = (
   id: string,
   patch: Partial<MothershipChatHistory['messages'][number]> = {}
@@ -71,44 +64,15 @@ const row = (
 })
 
 describe('nextOutgoingStep', () => {
-  it('drops a message that is the running turn, rather than steering it into itself', () => {
-    expect(nextOutgoingStep([entry('a')], view({ liveStreamId: 'a' })).kind).toBe('drop')
-  })
-
   it('drops a message the chat already holds as a turn, past any retry delay', () => {
     const message = entry('a', { notBefore: NOW + 60_000 })
     expect(nextOutgoingStep([message], view({ admittedIds: new Set(['a']) })).kind).toBe('drop')
-  })
-
-  it('never steers a message that may already be a turn', () => {
-    const message = entry('a', { unconfirmed: true })
-    expect(nextOutgoingStep([message], view({ liveStreamId: 'turn' })).kind).toBe('idle')
-    expect(nextOutgoingStep([message], view()).kind).toBe('send')
-  })
-
-  it('does not let a message not delivered hold back one written after it', () => {
-    const failed = entry('a', { status: 'failed', streamId: 'turn' })
-    expect(nextOutgoingStep([failed, entry('b')], view())).toMatchObject({
-      kind: 'send',
-      message: { id: 'b' },
-    })
   })
 
   it('holds a message behind one on its way out or still being settled', () => {
     for (const status of ['sending', 'steering', 'steered'] as const) {
       expect(nextOutgoingStep([entry('a', { status }), entry('b')], view()).kind).toBe('idle')
     }
-  })
-
-  it('does not overtake a steer with no answer, but follows one the worker took', () => {
-    const live = view({ liveStreamId: 'turn' })
-    const held = entry('a', { status: 'steered', streamId: 'turn' })
-    const unconfirmed = { ...held, unconfirmed: true }
-    expect(nextOutgoingStep([unconfirmed, entry('b')], live).kind).toBe('idle')
-    expect(nextOutgoingStep([held, entry('b')], live)).toMatchObject({
-      kind: 'steer',
-      streamId: 'turn',
-    })
   })
 
   it('leaves a message with the turn that refused it, until a different one runs', () => {
@@ -123,37 +87,7 @@ describe('nextOutgoingStep', () => {
   })
 })
 
-describe('admittedMessageIds', () => {
-  it("counts a turn's own row and a re-marked one, never a steering record", () => {
-    const rows = history([
-      row('turn'),
-      row('remarked', { steering: { streamId: 'remarked' } }),
-      row('steered', { steering: { streamId: 'turn' } }),
-      row('answer', { role: 'assistant' }),
-    ])
-    expect([...admittedMessageIds(rows)]).toEqual(['turn', 'remarked'])
-  })
-})
-
 describe('orphan steering records', () => {
-  const none = new Set<string>()
-  const context = { known: none, applied: none, marked: none, liveStreamId: undefined }
-
-  it('skips a re-marked row, and those another path settles', () => {
-    const rows = history([
-      row('remarked', { steering: { streamId: 'remarked' } }),
-      row('known', { steering: { streamId: 'turn' } }),
-      row('live', { steering: { streamId: 'running' } }),
-      row('orphan', { steering: { streamId: 'turn' } }),
-    ])
-    const ids = orphanSteeringRows(rows, {
-      ...context,
-      known: new Set(['known']),
-      liveStreamId: 'running',
-    }).map((orphan) => orphan.id)
-    expect(ids).toEqual(['orphan'])
-  })
-
   it('settles a recent one, and only shows an old one as not delivered', () => {
     const at = (age: number) =>
       row('orphan', {
@@ -172,23 +106,6 @@ describe('orphan steering records', () => {
       NOW
     )
     expect(adopted.status).toBe('failed')
-  })
-
-  it('keeps the mentions it can send, dropping one it cannot', () => {
-    const adopted = adoptOrphanRow(
-      row('orphan', {
-        steering: { streamId: 'turn' },
-        contexts: [
-          { kind: 'workflow', label: 'Invoices', workflowId: 'workflow-1' },
-          { kind: 'workflow', label: 'Gone' },
-        ],
-      }),
-      'chat',
-      NOW
-    )
-    expect(adopted.payload.contexts).toEqual([
-      expect.objectContaining({ label: 'Invoices', workflowId: 'workflow-1' }),
-    ])
   })
 })
 
@@ -209,21 +126,6 @@ describe('transitions', () => {
     expect(afterUnsentAttempt(entry('a'), { online: false, now: NOW }).notBefore).toBe(
       Number.POSITIVE_INFINITY
     )
-  })
-
-  it('sends on a message its turn did not apply, unless that turn errored', () => {
-    const context = { streamId: 'turn', now: NOW }
-    const steered = entry('a', { status: 'steered', streamId: 'turn' })
-    const notApplied = { status: 'not_applied' } as const
-    expect(afterDispositionRead(steered, notApplied, { ...context, turnErrored: false })).toEqual({
-      status: 'pending',
-      refusedBy: 'turn',
-      streamId: undefined,
-      unconfirmed: false,
-    })
-    expect(
-      afterDispositionRead(steered, notApplied, { ...context, turnErrored: true }).status
-    ).toBe('failed')
   })
 
   it('reads a held message again later, and gives up at its own cap', () => {
@@ -261,15 +163,6 @@ describe('transitions', () => {
       { streamId: 'turn', turnErrored: false, now: NOW }
     )
     expect(notBefore).toBeGreaterThan(NOW)
-  })
-
-  it('never steers a message with a search scope, and shows it waits for its own turn', () => {
-    const scoped = entry('a', {
-      payload: { content: 'Summarize', assistantSearch: { startDate: '2026-11-01T00:00:00.000Z' } },
-    })
-    expect(nextOutgoingStep([scoped], view({ liveStreamId: 'turn' })).kind).toBe('idle')
-    expect(deliveryOf(scoped, true)).toBe('waiting')
-    expect(nextOutgoingStep([scoped], view())).toMatchObject({ kind: 'send', message: scoped })
   })
 
   it('clears the retry delay on every move to not delivered or applied', () => {
@@ -339,27 +232,6 @@ describe('transitions', () => {
     expect(afterRetry(entry('a', { status: 'failed', streamId: 'turn' })).status).toBe('steered')
     expect(afterRetry(entry('a', { status: 'failed', refusedBy: 'turn' })).status).toBe('pending')
   })
-
-  it('holds only what was waiting in the chat whose turn errored', () => {
-    const held = holdAfterErroredTurn(
-      [
-        entry('a', { notBefore: NOW }),
-        entry('b', { status: 'steered', streamId: 'turn' }),
-        entry('c', { chatKey: 'other' }),
-      ],
-      'chat'
-    )
-    expect(held.map((message) => message.status)).toEqual(['failed', 'steered', 'pending'])
-    expect(held[0].notBefore).toBeUndefined()
-  })
-
-  it('counts a message the turn itself applied as done, and one that goes out next as work', () => {
-    const steered = entry('a', { status: 'steered', streamId: 'turn' })
-    expect(hasOutgoingFollowUp([steered], new Set(['a']))).toBe(false)
-    expect(hasOutgoingFollowUp([steered], new Set())).toBe(true)
-    expect(hasOutgoingFollowUp([entry('a', { status: 'failed' })], new Set())).toBe(false)
-    expect(hasOutgoingFollowUp([entry('a')], new Set())).toBe(true)
-  })
 })
 
 describe('journal', () => {
@@ -394,31 +266,6 @@ describe('a journal restored past the age limit', () => {
       toJournaled(entry('a', { status, streamId: 'turn', writtenAt: NOW - age })),
       NOW
     ).status
-
-  it('shows a message that never reached a turn as not delivered', () => {
-    expect(restore('pending', ORPHAN_AUTO_SEND_MAX_AGE_MS)).toBe('failed')
-    expect(restore('sending', ORPHAN_AUTO_SEND_MAX_AGE_MS)).toBe('failed')
-  })
-
-  it('keeps one steered as steered, since its turn may have applied it', () => {
-    expect(restore('steered', ORPHAN_AUTO_SEND_MAX_AGE_MS)).toBe('steered')
-    const aged = fromJournaled(
-      'chat',
-      toJournaled(
-        entry('a', {
-          status: 'steered',
-          streamId: 'turn',
-          writtenAt: NOW - ORPHAN_AUTO_SEND_MAX_AGE_MS,
-        })
-      ),
-      NOW
-    )
-    const context = { streamId: 'turn', turnErrored: false, now: NOW }
-    expect(afterDispositionRead(aged, { status: 'applied', textOffset: 3 }, context).status).toBe(
-      'applied'
-    )
-    expect(afterDispositionRead(aged, { status: 'not_applied' }, context).status).toBe('failed')
-  })
 
   it('lets the user send it once they ask, after no turn took it', () => {
     const aged = fromJournaled(

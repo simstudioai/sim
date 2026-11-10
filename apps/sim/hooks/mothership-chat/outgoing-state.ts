@@ -21,7 +21,7 @@ const OUTGOING_RETRY_MAX_MS = 30_000
  * delivered and only their Retry sends it: a tab closed days ago must not open a
  * billed turn when the chat is next read.
  */
-export const ORPHAN_AUTO_SEND_MAX_AGE_MS = 10 * 60 * 1000
+const ORPHAN_AUTO_SEND_MAX_AGE_MS = 10 * 60 * 1000
 
 /**
  * A message the user sent while a turn ran, or that could not go out yet, on its
