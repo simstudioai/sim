@@ -149,18 +149,11 @@ export const updateWorkspaceMember = defineAuthorizedWorkspaceUseCase({
   resolveContext: ({ input }: { input: UpdateWorkspaceMemberInput }) => resolveContext({ input }),
   authorizationOptions,
   async execute({ principal, input, context }) {
-    const before = await getPublicWorkspaceMember(context.workspaceId, input.userId)
+    const member = await getPublicWorkspaceMember(context.workspaceId, input.userId)
+    if (!member) throw new OrchestrationError('not_found', 'Member not found')
     const changes = await applyPermissionUpdates(context.workspaceId, principal, [
       { userId: input.userId, permissions: input.role },
     ])
-    // Granted between the read and the locked write; the store vetted them as a member.
-    const member = before ?? (await getPublicWorkspaceMember(context.workspaceId, input.userId))
-    if (!member) {
-      throw new OrchestrationError(
-        'conflict',
-        "This member's access just changed. Refresh and try again."
-      )
-    }
     return { changes, member: { ...member, role: input.role } }
   },
   projectAudit: ({ context, result }) =>

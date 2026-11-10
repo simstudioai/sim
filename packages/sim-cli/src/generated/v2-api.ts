@@ -23151,7 +23151,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/workspaces/[workspaceId]/members/[userId]',
     pathParams: ['workspaceId', 'userId'] as const,
     pathParamDocs: {
-      workspaceId: 'Workspace to retrieve.',
+      workspaceId: 'Workspace the member belongs to.',
       userId: 'User identifier of the workspace member, as returned by List workspace members.',
     },
     responseMode: 'json',
@@ -25114,7 +25114,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/workspaces/[workspaceId]/members/[userId]',
     pathParams: ['workspaceId', 'userId'] as const,
     pathParamDocs: {
-      workspaceId: 'Workspace to retrieve.',
+      workspaceId: 'Workspace the member belongs to.',
       userId: 'User identifier of the workspace member, as returned by List workspace members.',
     },
     responseMode: 'json',

@@ -78,7 +78,7 @@ class WorkspaceContextChangedError extends HttpError {
  * reach the client as a generic server error, which is what bounding the lock
  * wait would otherwise have produced.
  */
-class WorkspaceBusyError extends HttpError {
+export class WorkspaceBusyError extends HttpError {
   readonly statusCode = 409
 
   constructor() {

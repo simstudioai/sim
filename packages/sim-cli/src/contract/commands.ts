@@ -1519,6 +1519,9 @@ export const CLI_CONTRACT: CliContract = {
   },
   listWorkspaceMembers: {
     command: 'workspaces members list',
+    // `workspaces members` shipped as this list before the group gained update
+    // and remove, so naming the group still lists.
+    defaultSubcommand: true,
     describe: 'List workspace members',
     profileWorkspacePath: true,
     // `members update` and `members remove` take the user id, and the listing

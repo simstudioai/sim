@@ -121,8 +121,9 @@ export const v2ListWorkspaceMembersContract = defineRouteContract({
   response: { mode: 'json', schema: v2CursorListResponse(v2WorkspaceMemberSchema) },
 })
 
-const v2WorkspaceMemberParamsSchema = v2WorkspaceParamsSchema
-  .extend({
+const v2WorkspaceMemberParamsSchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace the member belongs to.'),
     userId: requiredFieldSchema('User ID is required')
       .max(MAX_ID_LENGTH, 'User ID is too long')
       .describe('User identifier of the workspace member, as returned by List workspace members.'),

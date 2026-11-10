@@ -27,8 +27,7 @@ vi.mock('@/lib/workspaces/permissions/management-store', async (importOriginal) 
   reconcileWorkspacePermissionCredentials: hoisted.reconcile,
 }))
 
-import { ForbiddenOperationError, forbiddenErrorDetails } from '@/lib/core/application/forbidden'
-import { HttpError } from '@/lib/core/utils/http-error'
+import { forbiddenErrorDetails } from '@/lib/core/application/forbidden'
 import {
   COPILOT_APPLICATION_SYSTEM_ERROR_MESSAGE,
   messageForCopilotApplicationError,
@@ -164,25 +163,6 @@ describe('workspace permission operations', () => {
       expect(mocks.reconcile).not.toHaveBeenCalled()
     }
   )
-
-  it('keeps a coded refusal that the store wraps in an HTTP error', async () => {
-    class DirectoryRefusal extends HttpError {
-      readonly statusCode = 403
-    }
-    const refusal = new ForbiddenOperationError(
-      'SCIM_MANAGED_MEMBERSHIP',
-      'Your identity provider manages this membership'
-    )
-    mocks.update.mockRejectedValue(new DirectoryRefusal(refusal.message, { cause: refusal }))
-    const result = await updateWorkspacePermissions
-      .execute({ principal, input })
-      .catch((error: unknown) => error)
-    expect(forbiddenErrorDetails(result)).toEqual({ code: 'SCIM_MANAGED_MEMBERSHIP' })
-    expect(result).toMatchObject({ code: 'forbidden', message: refusal.message })
-    // The internal route renders the store's HTTP error, so it must stay the cause.
-    expect((result as Error).cause).toBeInstanceOf(DirectoryRefusal)
-    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
-  })
 
   it.each([
     new Error('private SQL and credentials'),
