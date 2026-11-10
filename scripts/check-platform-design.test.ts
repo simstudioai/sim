@@ -1002,6 +1002,32 @@ it('fails [stale-allowlist] for each entry no check needed', () => {
   }
 }, 30_000)
 
+it('fails [allowlist-reason] for an entry a check needs but no reason explains', () => {
+  const { root, put, run } = productFixture()
+  try {
+    writeAllowlists(root, {
+      seamHelpers: { 'lib/used': ' ', 'lib/also-used': 'Imported by the seam\nand more' },
+    })
+    put(
+      'platform/lib/data/quiet.ts',
+      `import '@/lib/used'\nimport '@/lib/also-used'\nexport const label = 'Ready'\n`
+    )
+    put('lib/used.ts', 'export {}\n')
+    put('lib/also-used.ts', 'export {}\n')
+    const result = run()
+    expect(result.status).toBe(1)
+    expect(result.output).toContain(
+      '[allowlist-reason] seamHelpers grants lib/used without a reason'
+    )
+    expect(result.output).toContain(
+      '[allowlist-reason] seamHelpers gives lib/also-used a reason longer than one line'
+    )
+    expect(result.output).not.toContain('[stale-allowlist]')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}, 30_000)
+
 it('names the allowlist entries no check consulted', () => {
   expect(
     staleAllowlistFindings(

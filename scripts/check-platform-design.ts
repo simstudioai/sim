@@ -972,12 +972,11 @@ function checkFixtureReach() {
       const target = resolveSource(file, specifier)
       if (!target) continue
       if (isFixturePath(target)) {
-        if (!grants('FIXTURE_IMPORTS_FROM_LIVE', file))
-          report(
-            'fixture-import-from-live',
-            file,
-            `A normal build evaluates this import of fixture code: ${specifier}; load it inside the fixture build's branch`
-          )
+        report(
+          'fixture-import-from-live',
+          file,
+          `A normal build evaluates this import of fixture code: ${specifier}; load it inside the fixture build's branch`
+        )
         continue
       }
       if (visited.has(target) || !(inPlatformTree(target) || isSystem(target))) continue
@@ -1049,11 +1048,11 @@ function checkJs(file: string, content: string) {
   /** Reports `rule` once per file unless `allowlist` grants the file. */
   const reportFileOnce = (
     rule: string,
-    allowlist: AllowlistName,
+    allowlist: AllowlistName | null,
     node: ts.Node,
     message: string
   ) => {
-    if (reported.has(rule) || grants(allowlist, file)) return
+    if (reported.has(rule) || (allowlist && grants(allowlist, file))) return
     reported.add(rule)
     report(rule, location(node), message)
   }
@@ -1112,17 +1111,12 @@ function checkJs(file: string, content: string) {
     if (inPlatform && authoredCopy && isUnownedLoadFailure(node))
       reportFileOnce(
         'failure-owner',
-        'FAILURE_COPY_OWNERS',
+        null,
         node,
         'Show a failed read through FailureNotice (or QueryFailure), which pairs it with Retry'
       )
     if (inPlatform && authoredCopy && hasAsciiEllipsis(node))
-      reportFileOnce(
-        'copy-ellipsis',
-        'ASCII_ELLIPSIS_COPY',
-        node,
-        'Write the ellipsis as … in product copy'
-      )
+      reportFileOnce('copy-ellipsis', null, node, 'Write the ellipsis as … in product copy')
     if (
       inPlatformTree(file) &&
       authoredCopy &&
