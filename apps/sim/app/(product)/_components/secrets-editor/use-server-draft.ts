@@ -31,6 +31,59 @@ type DraftAction<T> =
   | { type: 'take-latest' }
   | { type: 'saved'; saved: T; rebase: (current: T) => T }
 
+/** The buffer's transitions, apart from React so each one can be exercised directly. */
+export function serverDraftReducer<T>(
+  isEqual: (left: T, right: T) => boolean,
+  merge?: (mine: T, base: T, theirs: T) => T
+) {
+  const threeWay = (mine: T, base: T, theirs: T) =>
+    merge ? merge(mine, base, theirs) : isEqual(mine, base) ? theirs : mine
+
+  const reduce = (current: DraftState<T>, action: DraftAction<T>): DraftState<T> => {
+    switch (action.type) {
+      case 'edit':
+        return { ...current, draft: action.update(current.draft) }
+      case 'server': {
+        const next = { ...current, seen: action.server }
+        if (isEqual(action.server, current.baseline)) return { ...next, incoming: null }
+        if (!action.dirty) {
+          return {
+            ...next,
+            draft: threeWay(current.draft, current.baseline, action.server),
+            baseline: action.server,
+            incoming: null,
+          }
+        }
+        if (isEqual(action.server, current.draft)) {
+          return { ...next, baseline: action.server, incoming: null }
+        }
+        return { ...next, incoming: action.server }
+      }
+      case 'keep-mine': {
+        if (current.incoming === null) return current
+        return {
+          ...current,
+          draft: threeWay(current.draft, current.baseline, current.incoming),
+          baseline: current.incoming,
+          incoming: null,
+        }
+      }
+      case 'take-latest': {
+        const latest = current.incoming ?? current.baseline
+        return { ...current, draft: latest, baseline: latest, incoming: null }
+      }
+      case 'saved':
+        return {
+          ...current,
+          draft: action.rebase(current.draft),
+          baseline: action.saved,
+          incoming: null,
+        }
+    }
+  }
+  return { reduce, threeWay }
+}
+
 /**
  * An editing buffer over a value another tab or admin can change. A newer server value is adopted
  * while the draft is clean. While it is dirty the edits stay and `conflict` holds the choice, so a
@@ -45,54 +98,13 @@ export function useServerDraft<T>({
   merge,
   uncommitted = false,
 }: UseServerDraftOptions<T>) {
-  const threeWay = (mine: T, base: T, theirs: T) =>
-    merge ? merge(mine, base, theirs) : isEqual(mine, base) ? theirs : mine
-
-  const [state, dispatch] = useReducer(
-    (current: DraftState<T>, action: DraftAction<T>): DraftState<T> => {
-      switch (action.type) {
-        case 'edit':
-          return { ...current, draft: action.update(current.draft) }
-        case 'server': {
-          const next = { ...current, seen: action.server }
-          if (isEqual(action.server, current.baseline)) return { ...next, incoming: null }
-          if (!action.dirty) {
-            return {
-              ...next,
-              draft: threeWay(current.draft, current.baseline, action.server),
-              baseline: action.server,
-              incoming: null,
-            }
-          }
-          if (isEqual(action.server, current.draft)) {
-            return { ...next, baseline: action.server, incoming: null }
-          }
-          return { ...next, incoming: action.server }
-        }
-        case 'keep-mine': {
-          if (current.incoming === null) return current
-          return {
-            ...current,
-            draft: threeWay(current.draft, current.baseline, current.incoming),
-            baseline: current.incoming,
-            incoming: null,
-          }
-        }
-        case 'take-latest': {
-          const latest = current.incoming ?? current.baseline
-          return { ...current, draft: latest, baseline: latest, incoming: null }
-        }
-        case 'saved':
-          return {
-            ...current,
-            draft: action.rebase(current.draft),
-            baseline: action.saved,
-            incoming: null,
-          }
-      }
-    },
-    { draft: server, baseline: server, seen: server, incoming: null }
-  )
+  const { reduce, threeWay } = serverDraftReducer(isEqual, merge)
+  const [state, dispatch] = useReducer(reduce, {
+    draft: server,
+    baseline: server,
+    seen: server,
+    incoming: null,
+  })
 
   const dirty = uncommitted || !isEqual(state.draft, state.baseline)
 

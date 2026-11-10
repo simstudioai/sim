@@ -14,6 +14,7 @@ import {
   AddPeopleModal,
   CredentialMembers,
 } from '@/app/(product)/_components/credential-members/credential-members'
+import { SecretValueInput } from '@/app/(product)/_components/secrets-editor/secret-value-input'
 import {
   DetailHeader,
   FieldStack,
@@ -27,7 +28,6 @@ import {
 } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/secrets/search-params'
 import { SecretReferences } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/secrets/secret-references'
 import { SecretUsage } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/secrets/secret-usage'
-import { SecretValueInput } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/secrets/secret-value-input'
 import {
   isApiClientError,
   useCredentialDetailForm,

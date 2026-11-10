@@ -1,6 +1,9 @@
+import { countPasteRows } from '@sim/utils/paste'
 import {
   applyVariableEdits,
   createEmptyEnvVar,
+  parseEnvVarLine,
+  parseValidEnvVars,
   setRecordValue,
   type UIEnvironmentVariable,
 } from '@/platform/lib/data/secrets'
@@ -22,7 +25,10 @@ function sameRecord(left: Record<string, string>, right: Record<string, string>)
   )
 }
 
-/** Blank rows and row identity mean nothing: only what would be saved or lost counts. */
+/**
+ * Blank rows and row identity mean nothing: only what would be saved or lost counts. Rows compare
+ * as a list, never by name, so a row that repeats a saved secret still reads as an edit.
+ */
 export function sameSecretsDraft(left: SecretsDraft, right: SecretsDraft) {
   if (!sameRecord(left.variables, right.variables)) return false
   const leftRows = left.rows.filter(hasContent)
@@ -35,8 +41,28 @@ export function sameSecretsDraft(left: SecretsDraft, right: SecretsDraft) {
   )
 }
 
-/** What one save writes: the difference between the draft and `baseline`, never the whole set. */
-export function planSecretsSave(baseline: Record<string, string>, draft: SecretsDraft) {
+/** Names typed into more than one new row: a save would silently keep only the last of them. */
+export function duplicateRowKeys(rows: readonly UIEnvironmentVariable[]): Set<string> {
+  const seen = new Set<string>()
+  const duplicates = new Set<string>()
+  for (const row of rows) {
+    if (!row.key) continue
+    if (seen.has(row.key)) duplicates.add(row.key)
+    seen.add(row.key)
+  }
+  return duplicates
+}
+
+/**
+ * What one save writes: the difference between the draft and `baseline`, never the whole set.
+ * `saved` is the full set the write leaves behind, with `latest` kept wherever the draft did not
+ * touch it, so a scope that saves whole sets never reverts a change it did not make.
+ */
+export function planSecretsSave(
+  baseline: Record<string, string>,
+  draft: SecretsDraft,
+  latest: Record<string, string> = baseline
+) {
   const merged = { ...draft.variables }
   for (const row of draft.rows) {
     if (isComplete(row)) setRecordValue(merged, row.key, row.value)
@@ -51,7 +77,12 @@ export function planSecretsSave(baseline: Record<string, string>, draft: Secrets
   for (const key of Object.keys(baseline)) {
     if (!Object.hasOwn(merged, key)) remove.push(key)
   }
-  return { merged, upsert, remove, changed: Object.keys(upsert).length > 0 || remove.length > 0 }
+  return {
+    upsert,
+    remove,
+    saved: applyVariableEdits(baseline, merged, latest),
+    changed: Object.keys(upsert).length > 0 || remove.length > 0,
+  }
 }
 
 /**
@@ -94,4 +125,42 @@ export function mergeSecretsDraft(
     variables: applyVariableEdits(base.variables, mine.variables, theirs.variables),
     rows: mine.rows,
   }
+}
+
+/** Removes one new row, keeping an empty row at the end to type into. */
+export function removeSecretRow(
+  rows: readonly UIEnvironmentVariable[],
+  index: number
+): UIEnvironmentVariable[] {
+  const remaining = rows.filter((_, position) => position !== index)
+  const last = remaining.at(-1)
+  return last && !hasContent(last) ? remaining : [...remaining, createEmptyEnvVar()]
+}
+
+/** How a paste into a secret field is handled. `native` leaves it to the browser. */
+export type SecretsPaste =
+  | { kind: 'native' }
+  | { kind: 'too-many' }
+  | { kind: 'rows'; rows: UIEnvironmentVariable[] }
+
+/**
+ * Only `KEY=VALUE` lines are taken over as new rows; plain text, and a pattern whose values are all
+ * empty (`KEY=`), paste natively. A paste with more than `maxRows` rows is refused whole.
+ */
+export function planSecretsPaste(text: string, maxRows: number): SecretsPaste {
+  const trimmed = text.trim()
+  if (!trimmed) return { kind: 'native' }
+  if (countPasteRows(trimmed, maxRows) > maxRows) return { kind: 'too-many' }
+  const lines = trimmed.split(/\r?\n/).filter((line) => line.trim())
+  if (!lines.some((line) => parseEnvVarLine(line) !== null)) return { kind: 'native' }
+  const rows = parseValidEnvVars(lines)
+  return rows.length > 0 ? { kind: 'rows', rows } : { kind: 'native' }
+}
+
+/** The pasted rows replace the blank ones, with a fresh empty row to type into after them. */
+export function appendPastedRows(
+  rows: readonly UIEnvironmentVariable[],
+  pasted: readonly UIEnvironmentVariable[]
+): UIEnvironmentVariable[] {
+  return [...rows.filter(hasContent), ...pasted, createEmptyEnvVar()]
 }

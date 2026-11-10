@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { DirectoryBack } from '@/app/(product)/_components/resource-directory/resource-directory'
-import { SecretsEditor } from '@/app/(product)/o/[organizationId]/_components/secrets-editor/secrets-editor'
+import { SecretsEditor } from '@/app/(product)/_components/secrets-editor/secrets-editor'
 import { IntegrationsPage } from '@/app/(product)/o/[organizationId]/integrations/_components/integrations-page/integrations-page'
 import { ProviderHeading } from '@/app/(product)/o/[organizationId]/integrations/_components/provider-heading/provider-heading'
 import { memberSecretMetadata } from '@/platform/lib/integrations/metadata.generated'
@@ -19,8 +19,7 @@ export function MemberSecretsEditor({ organizationId, backHref }: MemberSecretsE
   return (
     <IntegrationsPage>
       <SecretsEditor
-        organizationId={organizationId}
-        mode='member'
+        scope={{ kind: 'member', organizationId }}
         header={(guardBack) => (
           <>
             <DirectoryBack

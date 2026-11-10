@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
+  appendPastedRows,
+  duplicateRowKeys,
   mergeSecretsDraft,
+  planSecretsPaste,
   planSecretsSave,
   rebaseAfterSecretsSave,
+  removeSecretRow,
   sameSecretsDraft,
-} from '@/app/(product)/o/[organizationId]/_components/secrets-editor/secrets-draft'
+} from '@/app/(product)/_components/secrets-editor/secrets-draft'
 
 const row = (id: number, key: string, value: string) => ({ id, key, value })
 const EMPTY = row(1, '', '')
@@ -29,6 +33,27 @@ describe('planSecretsSave', () => {
     const plan = planSecretsSave({}, { variables: {}, rows: [row(2, 'ONLY_NAME', '')] })
     expect(plan.upsert).toEqual({})
     expect(plan.changed).toBe(false)
+  })
+
+  it('keeps a change made elsewhere that the draft never touched in the full set it leaves', () => {
+    const plan = planSecretsSave(
+      { MINE: 'old', THEIRS: 'old' },
+      { variables: { MINE: 'new', THEIRS: 'old' }, rows: [EMPTY] },
+      { MINE: 'old', THEIRS: 'changed elsewhere', ADDED: 'elsewhere' }
+    )
+    expect(plan.upsert).toEqual({ MINE: 'new' })
+    expect(plan.saved).toEqual({ MINE: 'new', THEIRS: 'changed elsewhere', ADDED: 'elsewhere' })
+  })
+
+  it('removes a deleted secret and nothing else', () => {
+    const plan = planSecretsSave(
+      { KEEP: '1', GONE: '2' },
+      { variables: { KEEP: '1' }, rows: [EMPTY] },
+      { KEEP: '1', GONE: '2', NEWER: '3' }
+    )
+    expect(plan.upsert).toEqual({})
+    expect(plan.remove).toEqual(['GONE'])
+    expect(plan.saved).toEqual({ KEEP: '1', NEWER: '3' })
   })
 
   it('writes a prototype-named key as data, without touching the prototype', () => {
@@ -113,9 +138,73 @@ describe('sameSecretsDraft', () => {
     expect(sameSecretsDraft(left, { variables: { A: '1' }, rows: [] })).toBe(true)
   })
 
+  it('counts a new row that repeats a saved secret as an edit, so the row is never dropped', () => {
+    const saved = { variables: { FOO: 'a' }, rows: [EMPTY] }
+    expect(sameSecretsDraft(saved, { ...saved, rows: [row(5, 'FOO', 'a'), EMPTY] })).toBe(false)
+  })
+
+  it('counts a second row with the same name and value as different from one', () => {
+    const one = { variables: {}, rows: [row(5, 'FOO', 'a')] }
+    expect(
+      sameSecretsDraft(one, { variables: {}, rows: [row(5, 'FOO', 'a'), row(6, 'FOO', 'a')] })
+    ).toBe(false)
+  })
+
   it('counts a half-typed row and a changed value as different', () => {
     expect(sameSecretsDraft(left, { ...left, rows: [row(4, 'K', '')] })).toBe(false)
     expect(sameSecretsDraft(left, { ...left, variables: { A: '2' } })).toBe(false)
     expect(sameSecretsDraft(left, { ...left, variables: { A: '1', B: '2' } })).toBe(false)
+  })
+})
+
+describe('duplicateRowKeys', () => {
+  it('names a secret typed into two new rows, which a save would collapse into one', () => {
+    expect([
+      ...duplicateRowKeys([row(2, 'FOO', 'x'), row(3, 'FOO', 'y'), row(4, 'BAR', 'z')]),
+    ]).toEqual(['FOO'])
+  })
+
+  it('ignores blank names', () => {
+    expect(duplicateRowKeys([row(2, '', 'x'), row(3, '', 'y')]).size).toBe(0)
+  })
+})
+
+describe('removeSecretRow', () => {
+  it('deletes the row and leaves one empty row to type into', () => {
+    const rows = removeSecretRow([row(2, 'A', '1'), row(3, 'B', '2'), EMPTY], 0)
+    expect(rows.map((entry) => entry.key)).toEqual(['B', ''])
+  })
+
+  it('adds an empty row when the last row is deleted', () => {
+    const rows = removeSecretRow([row(2, 'A', '1')], 0)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ key: '', value: '' })
+  })
+})
+
+describe('planSecretsPaste', () => {
+  it('refuses a paste with more rows than the limit, whole', () => {
+    expect(planSecretsPaste('A=1\nB=2\nC=3', 2)).toEqual({ kind: 'too-many' })
+  })
+
+  it('takes over KEY=VALUE lines as rows, skipping comments', () => {
+    const paste = planSecretsPaste('# comment\nA=1\nexport B="two"', 10)
+    expect(paste.kind).toBe('rows')
+    if (paste.kind !== 'rows') return
+    expect(paste.rows.map(({ key, value }) => [key, value])).toEqual([
+      ['A', '1'],
+      ['B', 'two'],
+    ])
+  })
+
+  it('leaves plain text and empty-valued patterns to the native paste', () => {
+    expect(planSecretsPaste('just a value', 10)).toEqual({ kind: 'native' })
+    expect(planSecretsPaste('A=', 10)).toEqual({ kind: 'native' })
+    expect(planSecretsPaste('   ', 10)).toEqual({ kind: 'native' })
+  })
+
+  it('puts pasted rows after the typed ones, with an empty row to follow', () => {
+    const rows = appendPastedRows([row(2, 'A', '1'), EMPTY], [row(3, 'B', '2')])
+    expect(rows.map((entry) => entry.key)).toEqual(['A', 'B', ''])
   })
 })
