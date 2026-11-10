@@ -13,7 +13,6 @@ vi.mock('@/lib/workflows/blocks/flatten-outputs', () => ({
 }))
 
 import {
-  buildWorkflowOutputMenu,
   buildWorkflowOutputOptions,
   collectReferencedWorkflowIds,
   getWorkflowInvocationTarget,
@@ -85,24 +84,6 @@ describe('nested workflow output options', () => {
           option.label === 'child-workflow.writer.content'
       )
     ).toBe(true)
-    expect(options.some((option) => option.menuPath.length > 2)).toBe(false)
-
-    expect(buildWorkflowOutputMenu(options)).toMatchObject([
-      {
-        blockId: 'invoke',
-        blockName: 'Research',
-        blockType: 'workflow_input',
-        outputs: [],
-        children: [
-          {
-            blockId: 'invoke/agent',
-            blockName: 'Writer',
-            blockType: 'agent',
-            outputs: [{ id: 'child-workflow.agent_content', path: 'content' }],
-            children: [],
-          },
-        ],
-      },
-    ])
+    expect(options.some((option) => option.groupKey.split('/').length > 2)).toBe(false)
   })
 })

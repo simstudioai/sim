@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { OrganizationSettingsFeatures } from '@/components/settings/navigation'
-import { organizationSettingsNavigation } from '@/lib/organizations/settings-sections'
+import { organizationSurfaceSettingsNavigation } from '@/lib/organizations/settings-sections'
 
 const enterprise: OrganizationSettingsFeatures = {
   billingEnabled: true,
@@ -13,10 +13,12 @@ const enterprise: OrganizationSettingsFeatures = {
 
 describe('organization settings navigation', () => {
   it('keeps both setup pages hidden from non-admins when Search is disabled', () => {
-    const sections = organizationSettingsNavigation(false, enterprise, {
-      connectedAccounts: true,
-      search: false,
-    }).map(({ id }) => id)
+    const sections = organizationSurfaceSettingsNavigation(
+      false,
+      enterprise,
+      { connectedAccounts: true, search: false },
+      false
+    ).map(({ id }) => id)
     expect(sections).not.toContain('connected-accounts')
     expect(sections).not.toContain('integrations')
   })

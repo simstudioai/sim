@@ -16,7 +16,7 @@ function isDesktop(): boolean {
  *
  * `mockGetDesktopBridge` returns `undefined` (a plain browser). Every other accessor is a faithful
  * port that reads the bridge through `mockGetDesktopBridge`, so a test sets the bridge once:
- * - `isDesktopApp`/`hasLocalFilesystem`/`hasBrowserAgent`/`hasTerminal`/`hasDesktopSettings`/
+ * - `isDesktopApp`/`hasLocalFilesystem`/`hasDesktopSettings`/
  *   `prefersInPlaceNavigation`/`isBrowserAgentEnabled`/`isTerminalEnabled` are
  *   `getDesktopBridge() != null` (device switches read as enabled, the real unread default). The
  *   real check is `!== undefined`; `null` is also treated as "no bridge" because several local
@@ -36,8 +36,6 @@ export const libDesktopMockFns = {
   mockGetDesktopBridge,
   mockIsDesktopApp: vi.fn(isDesktop),
   mockHasLocalFilesystem: vi.fn(isDesktop),
-  mockHasBrowserAgent: vi.fn(isDesktop),
-  mockHasTerminal: vi.fn(isDesktop),
   mockHasDesktopSettings: vi.fn(isDesktop),
   mockPrefersInPlaceNavigation: vi.fn(isDesktop),
   mockSubscribeDesktopPreferences: vi.fn((_listener: () => void) => () => {}),
@@ -65,8 +63,6 @@ export const libDesktopMock = {
   getDesktopBridge: libDesktopMockFns.mockGetDesktopBridge,
   isDesktopApp: libDesktopMockFns.mockIsDesktopApp,
   hasLocalFilesystem: libDesktopMockFns.mockHasLocalFilesystem,
-  hasBrowserAgent: libDesktopMockFns.mockHasBrowserAgent,
-  hasTerminal: libDesktopMockFns.mockHasTerminal,
   hasDesktopSettings: libDesktopMockFns.mockHasDesktopSettings,
   prefersInPlaceNavigation: libDesktopMockFns.mockPrefersInPlaceNavigation,
   subscribeDesktopPreferences: libDesktopMockFns.mockSubscribeDesktopPreferences,

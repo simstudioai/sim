@@ -18,18 +18,12 @@ export interface WorkflowOutputOption {
   groupKey: string
   groupLabel: string
   path: string
-  menuPath: WorkflowOutputMenuSegment[]
 }
 
-export interface WorkflowOutputMenuSegment {
+/** A workflow block the output is reached through, outermost first. */
+interface InvocationSegment {
   blockId: string
   blockName: string
-  blockType: string
-}
-
-export interface WorkflowOutputMenuNode extends WorkflowOutputMenuSegment {
-  outputs: WorkflowOutputOption[]
-  children: WorkflowOutputMenuNode[]
 }
 
 type OutputWorkflowState = Pick<WorkflowState, 'blocks' | 'edges'>
@@ -92,7 +86,7 @@ export function buildWorkflowOutputOptions({
   const visit = (
     workflowId: string,
     state: OutputWorkflowState,
-    invocationPath: WorkflowOutputMenuSegment[],
+    invocationPath: InvocationSegment[],
     childDepth: number,
     callChain: ReadonlySet<string>
   ): void => {
@@ -117,14 +111,6 @@ export function buildWorkflowOutputOptions({
         groupKey: menuBlockId,
         groupLabel,
         path: output.path,
-        menuPath: [
-          ...invocationPath,
-          {
-            blockId: menuBlockId,
-            blockName: output.blockName,
-            blockType: output.blockType,
-          },
-        ],
       })
     }
 
@@ -140,14 +126,7 @@ export function buildWorkflowOutputOptions({
       visit(
         childWorkflowId,
         childState,
-        [
-          ...invocationPath,
-          {
-            blockId,
-            blockName: block.name,
-            blockType: block.type,
-          },
-        ],
+        [...invocationPath, { blockId, blockName: block.name }],
         childDepth + 1,
         new Set([...callChain, childWorkflowId])
       )
@@ -156,31 +135,4 @@ export function buildWorkflowOutputOptions({
 
   visit(rootWorkflowId, rootState, [], 0, new Set([rootWorkflowId]))
   return options
-}
-
-export function buildWorkflowOutputMenu(
-  options: readonly WorkflowOutputOption[]
-): WorkflowOutputMenuNode[] {
-  const roots: WorkflowOutputMenuNode[] = []
-
-  for (const option of options) {
-    let siblings = roots
-    let node: WorkflowOutputMenuNode | undefined
-
-    for (const segment of option.menuPath) {
-      node = siblings.find((candidate) => candidate.blockId === segment.blockId)
-      if (!node) {
-        node = { ...segment, outputs: [], children: [] }
-        siblings.push(node)
-      }
-      siblings = node.children
-    }
-
-    if (!node) {
-      throw new Error(`Workflow output is missing its menu path: ${option.id}`)
-    }
-    node.outputs.push(option)
-  }
-
-  return roots
 }

@@ -13,10 +13,7 @@ import { usePathname } from 'next/navigation'
 
 const SETTINGS_PREFETCH_DWELL_MS = 80
 
-interface SettingsIntentLinkProps extends Omit<ComponentProps<typeof Link>, 'prefetch'> {
-  /** Runs when deliberate interaction signals likely navigation. */
-  onIntent?: () => void
-}
+type SettingsIntentLinkProps = Omit<ComponentProps<typeof Link>, 'prefetch'>
 
 function hrefPathname(href: ComponentProps<typeof Link>['href']): string | null {
   if (typeof href === 'string') return href.split(/[?#]/, 1)[0] || null
@@ -61,7 +58,6 @@ function IntentAwareSettingsLink({
   onBlur,
   onClick,
   onFocus,
-  onIntent,
   onMouseEnter,
   onMouseLeave,
   onPointerCancel,
@@ -85,7 +81,6 @@ function IntentAwareSettingsLink({
     if (isCurrentRoute || navigationIntentRef.current) return
     navigationIntentRef.current = true
     setShouldPrefetchRoute(true)
-    onIntent?.()
   }
 
   const schedulePrefetch = () => {

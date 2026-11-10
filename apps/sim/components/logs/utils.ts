@@ -3,25 +3,6 @@ import type { Badge } from '@sim/emcn-legacy'
 import { formatRelativeTime } from '@sim/utils/formatting'
 import { format } from 'date-fns'
 
-/**
- * Resolves the workflow a log row points at, or null when there is nowhere to
- * navigate. Sim agent jobs have no workflow of their own, a deleted workflow
- * leaves both id fields empty, and an archived workflow keeps its id but can no
- * longer be opened.
- *
- * Single source of truth for "is this log's workflow reachable" — the list row,
- * its context menu, and the details panel must agree, or a row can render as
- * "Deleted Workflow" while still linking somewhere.
- */
-export function resolveLogWorkflowId(log: {
-  trigger?: string | null
-  workflowId?: string | null
-  workflow?: { id?: string; archivedAt?: string | null } | null
-}): string | null {
-  if (log.trigger === 'mothership' || log.workflow?.archivedAt) return null
-  return log.workflow?.id || log.workflowId || null
-}
-
 export type LogStatus =
   | 'error'
   | 'pending'

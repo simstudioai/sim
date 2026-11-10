@@ -2,10 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { WorkspaceAccessDenied } from '@/components/workspace-access-denied'
-import {
-  useOptionalWorkspaceHostContext,
-  WorkspaceHostContextValue,
-} from '@/components/workspace-providers/workspace-host-context'
+import { WorkspaceHostContextValue } from '@/components/workspace-providers/workspace-host-context'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { useWorkspaceHostContextQuery } from '@/hooks/queries/workspace-host'
@@ -42,12 +39,4 @@ export function WorkspaceHostProvider({
       {children}
     </WorkspaceHostContextValue.Provider>
   )
-}
-
-export function useWorkspaceHostContext(): WorkspaceHostContext {
-  const context = useOptionalWorkspaceHostContext()
-  if (!context) {
-    throw new Error('useWorkspaceHostContext must be used within a WorkspaceHostProvider')
-  }
-  return context
 }

@@ -4,7 +4,6 @@ import {
   type ComponentType,
   createContext,
   type ReactNode,
-  type Ref,
   useCallback,
   useContext,
   useEffect,
@@ -65,7 +64,6 @@ export interface SettingsHeaderConfig {
   back?: SettingsBackAction
   actions?: SettingsAction[]
   search?: SettingsHeaderSearch
-  scrollContainerRef?: Ref<HTMLDivElement>
 }
 
 /**
@@ -269,7 +267,7 @@ export function SettingsHeaderShell({ meta, children }: SettingsHeaderShellProps
    * is how a surface that renders its own heading opts out.
    */
   const config: SettingsHeaderConfig = registered ?? meta ?? EMPTY_CONFIG
-  const { title, description, docsLink, back, actions, search, scrollContainerRef } = config
+  const { title, description, docsLink, back, actions, search } = config
 
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
@@ -307,10 +305,7 @@ export function SettingsHeaderShell({ meta, children }: SettingsHeaderShellProps
           ))}
         </div>
       </div>
-      <div
-        ref={scrollContainerRef}
-        className='min-h-0 flex-1 overflow-y-auto px-4 pb-[env(safe-area-inset-bottom)] md:px-6 md:[scrollbar-gutter:stable_both-edges]'
-      >
+      <div className='min-h-0 flex-1 overflow-y-auto px-4 pb-[env(safe-area-inset-bottom)] md:px-6 md:[scrollbar-gutter:stable_both-edges]'>
         <div className='mx-auto flex w-full max-w-[48rem] flex-col gap-7 pb-6'>
           {(title || description) && (
             <div className='flex flex-col gap-1'>

@@ -16,7 +16,6 @@ import type {
   BrowserFindRequest,
   BrowserFindResult,
   BrowserKnownSession,
-  BrowserOmniboxFocusMode,
   BrowserPageState,
   BrowserPanelAction,
   BrowserPanelAnchor,
@@ -521,18 +520,6 @@ export function loadBrowserSearchSuggestions(query: string): Promise<string[]> {
     bridge()
       ?.getSearchSuggestions?.(query)
       .catch(() => []) ?? Promise.resolve([])
-  )
-}
-
-/** Subscribes to native browser shortcuts that target the renderer omnibox. */
-export function onBrowserOmniboxFocus(
-  callback: (mode: BrowserOmniboxFocusMode) => void,
-  scopeId = currentBrowserScopeId()
-): () => void {
-  return (
-    bridge()?.onFocusOmnibox((mode, eventScopeId) => {
-      if (eventScopeId === scopeId) callback(mode)
-    }) ?? (() => {})
   )
 }
 

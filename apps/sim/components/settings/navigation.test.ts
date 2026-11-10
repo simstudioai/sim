@@ -4,10 +4,8 @@ import {
   ACCOUNT_SETTINGS_PATH_ALIASES,
   canMutateWorkspaceSettingsSection,
   getOrganizationSettingsFeatures,
-  isSelfHostedOverrideEnabled,
   parseSettingsPathSection,
   resolveOrganizationSectionAccess,
-  resolveWorkspaceNavigation,
 } from '@/components/settings/navigation'
 import type { DeploymentShape } from '@/lib/api/contracts/workspaces'
 import { organizationPlanAllowsSettingsSection } from '@/lib/settings/section-availability'
@@ -34,31 +32,7 @@ const SELF_HOSTED: DeploymentShape = {
   },
 }
 
-const HOSTED: DeploymentShape = { ...SELF_HOSTED, hosted: true, billingEnabled: true }
-
-/** A self-hosted deployment with every feature override on. */
-const SELF_HOSTED_ALL_FEATURES: DeploymentShape = {
-  ...SELF_HOSTED,
-  features: { ...SELF_HOSTED.features, customBlocks: true },
-}
-
-const ALL_ENTITLEMENTS = {
-  customBlocks: true,
-  forks: true,
-  inbox: true,
-  sandboxes: true,
-}
-
 describe('settings navigation boundaries', () => {
-  it('resolves self-hosted overrides against the deployment shape, never on Sim Cloud', () => {
-    expect(isSelfHostedOverrideEnabled(undefined, SELF_HOSTED)).toBe(false)
-    expect(isSelfHostedOverrideEnabled('always', SELF_HOSTED)).toBe(true)
-    expect(isSelfHostedOverrideEnabled('always', HOSTED)).toBe(false)
-    expect(isSelfHostedOverrideEnabled('sessionPolicies', SELF_HOSTED)).toBe(true)
-    expect(isSelfHostedOverrideEnabled('sessionPolicies', HOSTED)).toBe(false)
-    expect(isSelfHostedOverrideEnabled('sso', SELF_HOSTED)).toBe(false)
-  })
-
   it('parses canonical, nested, and aliased account settings paths', () => {
     const parseAccountPath = (path: string, defaultSection: 'general' | null) =>
       parseSettingsPathSection({
@@ -143,32 +117,6 @@ describe('settings navigation boundaries', () => {
         })
       )
     ).toBe(true)
-  })
-
-  it('applies permission-group hiding as an independent axis', () => {
-    const items = resolveWorkspaceNavigation({
-      permission: 'admin',
-      permissionConfig: {
-        hideSecretsTab: true,
-        hideApiKeysTab: true,
-        hideInboxTab: true,
-        disableMcpTools: true,
-        disableCustomTools: true,
-        hideSandboxesTab: true,
-      },
-      entitlements: ALL_ENTITLEMENTS,
-      deployment: SELF_HOSTED_ALL_FEATURES,
-    })
-
-    expect(items.map(({ id }) => id)).toEqual([
-      'teammates',
-      'workflow-mcp-servers',
-      'recently-deleted',
-      'forks',
-      'custom-blocks',
-      'requests',
-      'self-host',
-    ])
   })
 
   it('uses server-aligned mutation permissions for workspace settings', () => {

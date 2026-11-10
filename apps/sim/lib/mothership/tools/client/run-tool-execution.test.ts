@@ -101,7 +101,6 @@ import {
   isRunToolActiveForId,
   isRunToolActiveForWorkflow,
   stopRunToolExecutions,
-  stopRunToolForExecution,
   subscribeToRunToolRelease,
 } from './run-tool-execution'
 
@@ -274,12 +273,10 @@ describe('run tool execution cancellation', () => {
     )
     executeRunToolOnClient('tool-override', 'run_workflow', { workflowId: 'wf-1' })
     const executionId = await launchedExecutionId()
-    expect(stopRunToolForExecution('wf-1', 'newer-manual-execution')).toBe(false)
-    expect(mockRequestJson).not.toHaveBeenCalled()
     getCurrentExecutionId.mockReturnValue('newer-manual-execution')
     setCurrentExecutionId.mockClear()
     setIsExecuting.mockClear()
-    expect(stopRunToolForExecution('wf-1', executionId)).toBe(true)
+    stopRunToolExecutions(new Set(['tool-override']))
 
     expect(mockRequestJson).toHaveBeenCalledWith(expect.anything(), {
       params: { id: 'wf-1', executionId },

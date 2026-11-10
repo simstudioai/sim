@@ -15,9 +15,6 @@
   border-radius: var(--radius-panel);
   background: var(--ui-reading);
 }
-.panes[data-source-side="end"] {
-  flex-direction: row-reverse;
-}
 .source {
   flex: 1;
   min-inline-size: 0;

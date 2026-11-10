@@ -10,8 +10,6 @@ const requestAvailability = apiClientRequestMockFns.mockRequestJson
 
 import {
   getDesktopChatCapabilities,
-  hasBrowserAgent,
-  hasTerminal,
   isBrowserAgentEnabled,
   isTerminalEnabled,
   setDesktopPreferencesSnapshot,
@@ -131,10 +129,12 @@ describe('desktop surface availability', () => {
       terminalEnabled: false,
     })
 
-    expect(hasBrowserAgent()).toBe(true)
-    expect(hasTerminal()).toBe(true)
     expect(isBrowserAgentEnabled()).toBe(false)
     expect(isTerminalEnabled()).toBe(false)
+
+    setDesktopPreferencesSnapshot(ENABLED_PREFERENCES)
+    expect(isBrowserAgentEnabled()).toBe(true)
+    expect(isTerminalEnabled()).toBe(true)
   })
 
   it('exposes native file tools without browser, terminal, or folder permissions', async () => {

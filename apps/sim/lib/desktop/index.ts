@@ -50,16 +50,6 @@ export function hasLocalFilesystem(): boolean {
   return isDesktopApp()
 }
 
-/** True when the shell hosts the embedded agent browser. */
-export function hasBrowserAgent(): boolean {
-  return isDesktopApp()
-}
-
-/** True when the shell can run an interactive local shell for the agent. */
-export function hasTerminal(): boolean {
-  return isDesktopApp()
-}
-
 /**
  * The device switches for the browser and terminal, cached because the chat UI
  * reads availability synchronously while the shell only answers over async
@@ -108,12 +98,12 @@ export function setDesktopPreferencesSnapshot(preferences: DesktopPreferences): 
 
 /** True when the agent browser is installed and switched on for this device. */
 export function isBrowserAgentEnabled(): boolean {
-  return hasBrowserAgent() && isSurfaceSwitchedOn('browserEnabled')
+  return isDesktopApp() && isSurfaceSwitchedOn('browserEnabled')
 }
 
 /** True when the agent terminal is installed and switched on for this device. */
 export function isTerminalEnabled(): boolean {
-  return hasTerminal() && isSurfaceSwitchedOn('terminalEnabled')
+  return isDesktopApp() && isSurfaceSwitchedOn('terminalEnabled')
 }
 
 /**

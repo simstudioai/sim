@@ -14,7 +14,7 @@ import {
 } from '@sim/emcn-legacy'
 import { SIM_DOCS_URL } from '@sim/utils/site'
 import { isApiClientError } from '@/lib/api/client/errors'
-import type { SimLink, SimLinkBody } from '@/lib/api/contracts/sim-links'
+import type { SimLinkBody } from '@/lib/api/contracts/sim-links'
 import {
   isVariableSimLinkUrl,
   SIM_LINK_DESCRIPTION_MAX_LENGTH,
@@ -22,7 +22,7 @@ import {
   simLinkFieldsSchema,
   toSimLinkName,
 } from '@/lib/sim-links/validation'
-import { useCreateSimLink, useUpdateSimLink } from '@/hooks/queries/sim-links'
+import { useCreateSimLink } from '@/hooks/queries/sim-links'
 
 type Field = 'name' | 'url' | 'defaultUrl' | 'description'
 
@@ -34,46 +34,33 @@ function openDocs() {
 
 interface SimLinkModalProps {
   organizationId: string
+  organizationName: string
+  /** Prefills the destination, such as the page the extension drafted the link from. */
+  initialUrl: string
   onClose: () => void
-  /** The link being edited; omit to create one. */
-  link?: SimLink
-  /** Prefills the name of a new link, such as one opened from an unknown sim/ link. */
-  initialName?: string
-  /** Prefills the destination of a new link, such as a search result's address. */
-  initialUrl?: string
-  organizationName?: string
-  onSaved?: () => void
+  onSaved: () => void
 }
 
-function draftOf(link: SimLink | undefined, initialName = '', initialUrl = ''): SimLinkBody {
-  return {
-    name: link?.name ?? initialName,
-    url: link?.url ?? initialUrl,
-    defaultUrl: link?.defaultUrl ?? null,
-    description: link?.description ?? '',
-    unlisted: link?.unlisted ?? false,
-    restrictEdit: link?.restrictEdit ?? false,
-  }
-}
-
-/** Mount per link (keyed) so each open starts from that link's saved fields. */
+/** Creates a link from the browser extension's draft. */
 export function SimLinkModal({
   organizationId,
-  onClose,
-  link,
-  initialName,
-  initialUrl,
   organizationName,
+  initialUrl,
+  onClose,
   onSaved,
 }: SimLinkModalProps) {
-  const create = useCreateSimLink(organizationId)
-  const update = useUpdateSimLink(organizationId)
-  const mutation = link ? update : create
+  const mutation = useCreateSimLink(organizationId)
   const nameTaken = isApiClientError(mutation.error) && mutation.error.status === 409
-  const [draft, setDraft] = useState(() => draftOf(link, initialName, initialUrl))
+  const [draft, setDraft] = useState<SimLinkBody>(() => ({
+    name: '',
+    url: initialUrl,
+    defaultUrl: null,
+    description: '',
+    unlisted: false,
+    restrictEdit: false,
+  }))
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({})
   const variable = isVariableSimLinkUrl(draft.url)
-  const canManage = link?.canManage ?? true
   const unlistedId = useId()
   const restrictEditId = useId()
 
@@ -96,12 +83,10 @@ export function SimLinkModal({
       )
       return
     }
-    if (link) update.mutate({ linkId: link.id, body: parsed.data }, { onSuccess: onClose })
-    else create.mutate(parsed.data, { onSuccess: onSaved ?? onClose })
+    mutation.mutate(parsed.data, { onSuccess: onSaved })
   }
 
-  const title = link ? `Edit ${link.name}` : 'New link'
-  const [actionLabel, pendingLabel] = link ? ['Save', 'Saving'] : ['Create', 'Creating']
+  const title = 'New link'
 
   return (
     <ChipModal
@@ -112,9 +97,7 @@ export function SimLinkModal({
     >
       <ChipModalHeader onClose={onClose}>{title}</ChipModalHeader>
       <ChipModalBody>
-        {organizationName && (
-          <ChipModalDescription>Create this link in {organizationName}.</ChipModalDescription>
-        )}
+        <ChipModalDescription>Create this link in {organizationName}.</ChipModalDescription>
         <ChipModalField
           type='input'
           disabled={mutation.isPending}
@@ -160,13 +143,7 @@ export function SimLinkModal({
           onChange={(value) => change('description', value)}
           error={errors.description}
         />
-        <ChipModalField
-          type='custom'
-          title='Access'
-          hint={
-            canManage ? undefined : 'Only the creator or an organization admin can change access.'
-          }
-        >
+        <ChipModalField type='custom' title='Access'>
           {(aria) => (
             <div className='flex flex-col gap-2'>
               <label htmlFor={unlistedId} className='flex cursor-pointer items-center gap-2'>
@@ -174,7 +151,7 @@ export function SimLinkModal({
                   id={unlistedId}
                   checked={draft.unlisted}
                   aria-describedby={aria['aria-describedby']}
-                  disabled={!canManage || mutation.isPending}
+                  disabled={mutation.isPending}
                   onCheckedChange={(checked) => change('unlisted', checked === true)}
                 />
                 <span className='text-[var(--text-primary)] text-small'>
@@ -186,7 +163,7 @@ export function SimLinkModal({
                   id={restrictEditId}
                   checked={draft.restrictEdit}
                   aria-describedby={aria['aria-describedby']}
-                  disabled={!canManage || mutation.isPending}
+                  disabled={mutation.isPending}
                   onCheckedChange={(checked) => change('restrictEdit', checked === true)}
                 />
                 <span className='text-[var(--text-primary)] text-small'>
@@ -202,7 +179,7 @@ export function SimLinkModal({
         onCancel={onClose}
         secondaryActions={[{ label: 'Learn more', onClick: openDocs }]}
         primaryAction={{
-          label: mutation.isPending ? pendingLabel : actionLabel,
+          label: mutation.isPending ? 'Creating' : 'Create',
           disabled: mutation.isPending,
           onClick: save,
         }}

@@ -1,15 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  canRetrySandboxBuild,
-  extractIssues,
-  toSubmittedLines,
-} from '@/components/settings/sections/sandboxes/utils'
-
-describe('sandbox build retry availability', () => {
-  it('does not expose retry capability to read-only viewers', () => {
-    expect(canRetrySandboxBuild({ canAdmin: false, isDirty: false, saving: false })).toBe(false)
-  })
-})
+import { extractIssues, toSubmittedLines } from '@/components/settings/sections/sandboxes/utils'
 
 describe('toSubmittedLines', () => {
   it('keeps blank rows so a rejection can address the line the user typed on', () => {

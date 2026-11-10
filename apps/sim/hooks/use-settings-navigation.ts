@@ -2,8 +2,8 @@
 
 import { useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import type { UnifiedSettingsSection } from '@/components/settings/navigation'
 import { useSettingsNavigationTarget } from '@/components/settings/settings-navigation-provider'
-import type { SettingsSection } from '@/components/settings/workspace-navigation'
 import { useOptionalWorkspaceHostContext } from '@/components/workspace-providers/workspace-host-context'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/client'
@@ -13,11 +13,8 @@ import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { popSettingsReturnUrl, rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
 
 interface SettingsNavigationOptions {
-  section?: SettingsSection
+  section?: UnifiedSettingsSection
   mcpServerId?: string
-  browserView?: 'passwords'
-  browserImport?: boolean
-  browserClear?: boolean
 }
 
 interface UseSettingsNavigationReturn {
@@ -51,9 +48,6 @@ export function resolveSettingsHref({
 
   const searchParams = new URLSearchParams()
   if (options?.mcpServerId) searchParams.set('mcpServerId', options.mcpServerId)
-  if (options?.browserView) searchParams.set('browserView', options.browserView)
-  if (options?.browserImport) searchParams.set('browserImport', '1')
-  if (options?.browserClear) searchParams.set('browserClear', '1')
   const query = searchParams.toString()
   const pathname = `/workspace/${workspaceId}/settings/${section}`
   return query ? `${pathname}?${query}` : pathname

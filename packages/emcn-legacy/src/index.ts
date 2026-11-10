@@ -35,11 +35,7 @@ export {
   TableHeader,
   TableRow,
 } from './components/table/table'
-export {
-  type ClipboardContent,
-  useCopyToClipboard,
-  writeTextToClipboard,
-} from './hooks/use-copy-to-clipboard'
+export { type ClipboardContent, useCopyToClipboard } from './hooks/use-copy-to-clipboard'
 export { usePrefersReducedMotion } from './hooks/use-prefers-reduced-motion'
 export { useScrollEdges } from './hooks/use-scroll-edges'
 export * from './icons'

@@ -2,8 +2,6 @@
 
 import { useState } from 'react'
 import {
-  ChipButtonGroup,
-  ChipButtonGroupItem,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -21,99 +19,60 @@ const logger = createLogger('CreateApiKeyModal')
 interface CreateApiKeyModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  workspaceId?: string
-  existingKeyNames?: string[]
-  allowPersonalApiKeys?: boolean
-  canManageWorkspaceKeys?: boolean
-  defaultKeyType?: 'personal' | 'workspace'
-  source?: 'settings' | 'deploy_modal'
-  onKeyCreated?: (key: CreatedApiKey) => void
+  existingKeyNames: string[]
 }
 
-const EMPTY_KEY_NAMES: string[] = []
-
-/**
- * Reusable modal for creating API keys.
- * Used in both the API keys settings page and the deploy modal.
- */
+/** Creates a personal Sim API key from the account settings plane. */
 export function CreateApiKeyModal({
   open,
   onOpenChange,
-  workspaceId,
-  existingKeyNames = EMPTY_KEY_NAMES,
-  allowPersonalApiKeys = true,
-  canManageWorkspaceKeys = false,
-  defaultKeyType = 'personal',
-  source = 'settings',
-  onKeyCreated,
+  existingKeyNames,
 }: CreateApiKeyModalProps) {
   const [keyName, setKeyName] = useState('')
-  const [keyType, setKeyType] = useState<'personal' | 'workspace'>(defaultKeyType)
   const [createError, setCreateError] = useState<string | null>(null)
   const [newKey, setNewKey] = useState<CreatedApiKey | null>(null)
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
   const createApiKeyMutation = useCreateApiKey()
 
   /**
-   * The form is seeded when the modal OPENS, not when this component mounts.
-   *
-   * It mounts with its host page, and on the settings page `defaultKeyType` is
-   * computed from a permission-group policy that is still loading at that
-   * moment — so it starts as the fail-closed `'workspace'` and only becomes
-   * `'personal'` once the query answers. Seeding once at mount left a non-admin
-   * holding `'workspace'`, which they may not create, with no type selector
-   * rendered to change it and Create permanently disabled.
-   *
-   * Adjusting during render off the previous `open` rather than in an effect:
-   * there is no external system to synchronize with, only a prop transition.
+   * The form is reset when the modal OPENS, not when this component mounts: it
+   * mounts with its host page and stays mounted across opens. Adjusting during
+   * render off the previous `open` rather than in an effect: there is no
+   * external system to synchronize with, only a prop transition.
    */
   const [wasOpen, setWasOpen] = useState(open)
   if (open !== wasOpen) {
     setWasOpen(open)
     if (open) {
       setKeyName('')
-      setKeyType(defaultKeyType)
       setCreateError(null)
     }
   }
 
-  const canCreateKeyType =
-    keyType === 'personal' ? allowPersonalApiKeys : canManageWorkspaceKeys && Boolean(workspaceId)
-
   const handleCreateKey = async () => {
     const trimmedName = keyName.trim()
-    if (!trimmedName || !canCreateKeyType || createApiKeyMutation.isPending) return
+    if (!trimmedName || createApiKeyMutation.isPending) return
 
     const isDuplicate = existingKeyNames.some(
       (name) => name.toLowerCase() === trimmedName.toLowerCase()
     )
     if (isDuplicate) {
       setCreateError(
-        keyType === 'workspace'
-          ? `A workspace API key named "${trimmedName}" already exists. Please choose a different name.`
-          : `A personal API key named "${trimmedName}" already exists. Please choose a different name.`
+        `A personal API key named "${trimmedName}" already exists. Please choose a different name.`
       )
       return
     }
 
     setCreateError(null)
     try {
-      if (keyType === 'workspace' && !workspaceId) return
-      const data = await createApiKeyMutation.mutateAsync(
-        keyType === 'workspace' && workspaceId
-          ? {
-              workspaceId,
-              name: trimmedName,
-              keyType,
-              source,
-            }
-          : { keyType: 'personal', name: trimmedName, source }
-      )
+      const data = await createApiKeyMutation.mutateAsync({
+        keyType: 'personal',
+        name: trimmedName,
+      })
 
       setNewKey(data.key)
       setShowNewKeyDialog(true)
       onOpenChange(false)
-      onKeyCreated?.(data.key)
     } catch (error: unknown) {
       logger.error('API key creation failed:', { error })
       const errorMessage = getErrorMessage(error, 'Failed to create API key. Please try again.')
@@ -141,22 +100,6 @@ export function CreateApiKeyModal({
       >
         <ChipModalHeader onClose={handleClose}>Create new API key</ChipModalHeader>
         <ChipModalBody>
-          {canManageWorkspaceKeys && (
-            <ChipModalField type='custom' title='Key type'>
-              <ChipButtonGroup
-                value={keyType}
-                onValueChange={(value) => {
-                  setKeyType(value as 'personal' | 'workspace')
-                  if (createError) setCreateError(null)
-                }}
-              >
-                <ChipButtonGroupItem value='personal' disabled={!allowPersonalApiKeys}>
-                  Personal
-                </ChipButtonGroupItem>
-                <ChipButtonGroupItem value='workspace'>Workspace</ChipButtonGroupItem>
-              </ChipButtonGroup>
-            </ChipModalField>
-          )}
           <ChipModalField
             type='input'
             title='Name'
@@ -186,7 +129,7 @@ export function CreateApiKeyModal({
           primaryAction={{
             label: createApiKeyMutation.isPending ? 'Creating...' : 'Create',
             onClick: handleCreateKey,
-            disabled: !keyName.trim() || createApiKeyMutation.isPending || !canCreateKeyType,
+            disabled: !keyName.trim() || createApiKeyMutation.isPending,
           }}
         />
       </ChipModal>

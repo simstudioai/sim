@@ -3,7 +3,6 @@
 import {
   type ClipboardEvent as ReactClipboardEvent,
   type KeyboardEvent as ReactKeyboardEvent,
-  type ReactNode,
   useCallback,
   useEffect,
   useId,
@@ -206,10 +205,6 @@ interface TextEditorProps extends FileEditingProps {
   previewMode: PreviewMode
   /** Receives why a save was refused. */
   onSaveError?: (error: unknown) => void
-  /** Replaces the file's own preview pane, for an owner with a richer view of the file. */
-  preview?: ReactNode
-  /** Which side of a split the source takes; `end` puts it after the preview. */
-  sourceSide?: 'start' | 'end'
 }
 
 /** Within this many pixels of the end, streamed content keeps the source scrolled to its last line. */
@@ -237,8 +232,6 @@ export function TextEditor({
   isAgentEditing,
   disableStreamingAutoScroll = false,
   previewContextKey,
-  preview,
-  sourceSide = 'start',
 }: TextEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const sourceRef = useRef<HTMLDivElement>(null)
@@ -403,8 +396,7 @@ export function TextEditor({
       if (!container) return
       const rect = container.getBoundingClientRect()
       const rtl = getComputedStyle(container).direction === 'rtl'
-      const fromRight = rtl !== (sourceSide === 'end')
-      const width = fromRight ? rect.right - event.clientX : event.clientX - rect.left
+      const width = rtl ? rect.right - event.clientX : event.clientX - rect.left
       setSplitPct(Math.min(SPLIT_MAX_PCT, Math.max(SPLIT_MIN_PCT, (width / rect.width) * 100)))
     }
     const handleUp = () => setResizing(false)
@@ -418,7 +410,7 @@ export function TextEditor({
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
     }
-  }, [resizing, sourceSide])
+  }, [resizing])
 
   const handleSplitKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     const key = readSeparatorKey(event)
@@ -431,8 +423,7 @@ export function TextEditor({
     }
     const container = containerRef.current
     const rtl = container !== null && getComputedStyle(container).direction === 'rtl'
-    const fromRight = rtl !== (sourceSide === 'end')
-    const delta = (key === 'left' ? -1 : 1) * (fromRight ? -1 : 1) * SPLIT_KEYBOARD_STEP_PCT
+    const delta = (key === 'left' ? -1 : 1) * (rtl ? -1 : 1) * SPLIT_KEYBOARD_STEP_PCT
     setSplitPct((current) => Math.min(SPLIT_MAX_PCT, Math.max(SPLIT_MIN_PCT, current + delta)))
   }
 
@@ -621,12 +612,7 @@ export function TextEditor({
           downloadDraft={downloadDraft}
         />
       )}
-      <div
-        ref={containerRef}
-        className={styles.panes}
-        data-resizing={resizing || undefined}
-        data-source-side={sourceSide}
-      >
+      <div ref={containerRef} className={styles.panes} data-resizing={resizing || undefined}>
         {showEditor && (
           <div
             ref={sourceRef}
@@ -669,18 +655,16 @@ export function TextEditor({
         )}
         {showPreview && (
           <div className={styles.preview}>
-            {preview ?? (
-              <PreviewPanel
-                key={previewContextKey ? `${file.id}:${previewContextKey}` : file.id}
-                content={content}
-                mimeType={file.type}
-                filename={file.name}
-                workspaceId={workspaceId}
-                fileId={file.id}
-                fileKey={file.key}
-                isStreaming={isStreamInteractionLocked}
-              />
-            )}
+            <PreviewPanel
+              key={previewContextKey ? `${file.id}:${previewContextKey}` : file.id}
+              content={content}
+              mimeType={file.type}
+              filename={file.name}
+              workspaceId={workspaceId}
+              fileId={file.id}
+              fileKey={file.key}
+              isStreaming={isStreamInteractionLocked}
+            />
           </div>
         )}
       </div>
