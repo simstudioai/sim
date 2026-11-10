@@ -4905,25 +4905,21 @@ const WorkflowContent = memo(function WorkflowContent({
         className={cn(tokens.tokens, season.variable, styles.container)}
         data-color-mode={colorMode}
       >
-        {!isWorkflowReady && (
-          <div className={styles.loading}>
-            {workflowLoadError ? (
-              <FailureNotice
-                title='Unable to load workflow'
-                message={workflowLoadError}
-                onRetry={() => {
-                  if (workflowMapFailed) {
-                    void workflowMap.refetch()
-                    return
-                  }
-                  setActiveWorkflow(workflowIdParam).catch((error) => {
-                    logger.error(`Failed to retry workflow ${workflowIdParam}:`, error)
-                  })
-                }}
-              />
-            ) : (
-              <div className={styles.spinner} />
-            )}
+        {!isWorkflowReady && workflowLoadError && (
+          <div className={styles.failure}>
+            <FailureNotice
+              title='Unable to load workflow'
+              message={workflowLoadError}
+              onRetry={() => {
+                if (workflowMapFailed) {
+                  void workflowMap.refetch()
+                  return
+                }
+                setActiveWorkflow(workflowIdParam).catch((error) => {
+                  logger.error(`Failed to retry workflow ${workflowIdParam}:`, error)
+                })
+              }}
+            />
           </div>
         )}
 
