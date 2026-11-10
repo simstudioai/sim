@@ -1,5 +1,8 @@
 import { toArray, toRecord } from '@sim/utils/object'
-import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
+import {
+  type SecureFetchResponse,
+  secureFetchWithValidation,
+} from '@/lib/core/security/input-validation.server'
 import {
   providerFailureCode,
   TokenServiceAccountValidationError,
@@ -32,7 +35,7 @@ export async function validateGitLabServiceAccount(
       reason: 'invalid host',
     })
   }
-  let response: Response
+  let response: SecureFetchResponse
   try {
     response = await secureFetchWithValidation(
       `https://${host}/api/v4/personal_access_tokens/self`,
