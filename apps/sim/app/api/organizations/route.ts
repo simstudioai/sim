@@ -1,328 +1,78 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { db } from '@sim/db'
-import { member, organization, subscription as subscriptionTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq, inArray, or } from 'drizzle-orm'
-import type { NextRequest } from 'next/server'
-import { NextResponse } from 'next/server'
-import { createOrganizationBodySchema } from '@/lib/api/contracts/organization'
-import { listCreatorOrganizationsContract } from '@/lib/api/contracts/organizations'
-import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
+import {
+  createOrganizationContract,
+  listCreatorOrganizationsContract,
+} from '@/lib/api/contracts/organizations'
+import { getValidationErrorMessage, validationErrorResponse } from '@/lib/api/server'
+import {
+  defineInternalJsonRoute,
+  internalErrorResponse,
+  internalOrchestrationErrorPolicy,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import {
-  createOrganizationForTeamPlan,
-  ensureOrganizationForTeamSubscription,
-} from '@/lib/billing/organization'
-import {
-  OrganizationSlugInvalidError,
-  OrganizationSlugTakenError,
-} from '@/lib/billing/organizations/create-organization'
-import { isOrgPlan } from '@/lib/billing/plan-helpers'
-import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+  createTeamOrganization,
+  listAdministeredTeamOrganizations,
+} from '@/lib/organizations/application/team-organizations'
 import { captureServerEvent } from '@/lib/posthog/server'
-import {
-  attachOwnedWorkspacesToOrganization,
-  WorkspaceOrganizationMembershipConflictError,
-} from '@/lib/workspaces/organization-workspaces'
 
 const logger = createLogger('OrganizationsAPI')
 
-export const GET = withRouteHandler(async (request: NextRequest) => {
-  try {
-    const session = await getSession()
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const parsed = await parseRequest(listCreatorOrganizationsContract, request, {})
-    if (!parsed.success) return parsed.response
-
-    const userOrganizations = await db
-      .select({
-        id: organization.id,
-        name: organization.name,
-        role: member.role,
-      })
-      .from(member)
-      .innerJoin(organization, eq(member.organizationId, organization.id))
-      .where(
-        and(
-          eq(member.userId, session.user.id),
-          or(eq(member.role, 'owner'), eq(member.role, 'admin')),
-          eq(organization.kind, 'team')
-        )
-      )
-
-    /** A personal organization is no team membership: its owner may still start or join one. */
-    const anyMembership = await db
-      .select({ id: member.id })
-      .from(member)
-      .innerJoin(organization, eq(member.organizationId, organization.id))
-      .where(and(eq(member.userId, session.user.id), eq(organization.kind, 'team')))
-      .limit(1)
-
-    return NextResponse.json({
-      organizations: userOrganizations,
-      isMemberOfAnyOrg: anyMembership.length > 0,
-    })
-  } catch (error) {
-    logger.error('Failed to fetch organizations', {
-      error: getErrorMessage(error, 'Unknown error'),
-      stack: error instanceof Error ? error.stack : undefined,
-    })
-
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
+export const GET = defineInternalJsonRoute({
+  contract: listCreatorOrganizationsContract,
+  auth: internalSessionAuth,
+  operation: listAdministeredTeamOrganizations.operation,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve organization listing behavior' }),
+  errorPolicy: internalOrchestrationErrorPolicy,
+  mapInput: () => ({}),
+  useCase: listAdministeredTeamOrganizations,
 })
 
-export const POST = withRouteHandler(async (request: Request) => {
-  try {
-    const session = await getSession()
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized - no active session' }, { status: 401 })
-    }
-
-    const user = session.user
-
-    let organizationName = user.name
-    let organizationSlug: string | undefined
-
-    const rawBody = await request.json().catch(() => ({}))
-    const parsedBody = createOrganizationBodySchema.safeParse(rawBody)
-    if (!parsedBody.success) {
-      return NextResponse.json(
-        { error: getValidationErrorMessage(parsedBody.error, 'Invalid request body') },
-        { status: 400 }
-      )
-    }
-    if (parsedBody.data.name) {
-      organizationName = parsedBody.data.name
-    }
-    if (parsedBody.data.slug) {
-      organizationSlug = parsedBody.data.slug
-    }
-
-    /** A personal organization becomes the new team in place, so only a team membership counts. */
-    const existingOrgMembership = await db
-      .select({
-        organizationId: member.organizationId,
-        role: member.role,
+export const POST = defineInternalJsonRoute({
+  contract: createOrganizationContract,
+  auth: internalSessionAuth,
+  operation: createTeamOrganization.operation,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve organization creation behavior' }),
+  errorPolicy: {
+    project: (error) => {
+      const classified = internalOrchestrationErrorPolicy.project(error)
+      if (classified) return classified
+      logger.error('Failed to create organization for team plan', { error })
+      return internalErrorResponse(500, {
+        error: 'Failed to create organization',
+        message: getErrorMessage(error, 'Unknown error'),
       })
-      .from(member)
-      .innerJoin(organization, eq(member.organizationId, organization.id))
-      .where(and(eq(member.userId, user.id), eq(organization.kind, 'team')))
-      .limit(1)
-
-    const existingAdminMembership =
-      existingOrgMembership.length > 0 && isOrgAdminRole(existingOrgMembership[0].role)
-        ? existingOrgMembership[0]
-        : null
-
-    if (existingOrgMembership.length > 0 && !existingAdminMembership) {
-      return NextResponse.json(
-        {
-          error:
-            'You are already a member of an organization. Leave your current organization before creating a new one.',
-        },
-        { status: 409 }
-      )
-    }
-
-    const subscriptionReferenceIds = existingAdminMembership
-      ? [user.id, existingAdminMembership.organizationId]
-      : [user.id]
-
-    const activeOrgSubscriptions = await db
-      .select({
-        id: subscriptionTable.id,
-        plan: subscriptionTable.plan,
-        referenceId: subscriptionTable.referenceId,
-        status: subscriptionTable.status,
-        seats: subscriptionTable.seats,
-      })
-      .from(subscriptionTable)
-      .where(
-        and(
-          inArray(subscriptionTable.referenceId, subscriptionReferenceIds),
-          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
-        )
-      )
-
-    const activeOrgSubscription =
-      (existingAdminMembership
-        ? activeOrgSubscriptions.find(
-            (subscription) =>
-              isOrgPlan(subscription.plan) &&
-              subscription.referenceId === existingAdminMembership.organizationId
-          )
-        : undefined) ??
-      activeOrgSubscriptions.find(
-        (subscription) => isOrgPlan(subscription.plan) && subscription.referenceId === user.id
-      ) ??
-      activeOrgSubscriptions.find((subscription) => isOrgPlan(subscription.plan))
-
-    if (!activeOrgSubscription) {
-      return NextResponse.json(
-        { error: 'Organization creation requires an active Team or Enterprise subscription.' },
-        { status: 403 }
-      )
-    }
-
-    logger.info('Creating organization for team plan', {
-      userId: user.id,
-      userName: user.name,
-      userEmail: user.email,
-      organizationName,
-      organizationSlug,
-      existingOrganizationId: existingAdminMembership?.organizationId ?? null,
-      subscriptionReferenceId: activeOrgSubscription.referenceId,
-    })
-
-    let organizationId: string
-    let createdOrganization = false
-
-    if (existingAdminMembership) {
-      organizationId = existingAdminMembership.organizationId
-
-      if (activeOrgSubscription.referenceId === organizationId) {
-        /**
-         * Keeps the default `reject` policy: manual organization creation
-         * surfaces a different-org collaborator as an explicit conflict (409
-         * with actionable copy) rather than silently demoting them to an
-         * external member. Safe alongside `includeArchived` because the attach
-         * only enumerates collaborators of ACTIVE workspaces, so sweeping
-         * archived rows cannot manufacture a conflict.
-         */
-        await attachOwnedWorkspacesToOrganization({
-          ownerUserId: user.id,
-          organizationId,
-          includeArchived: true,
-        })
-      } else {
-        const resolvedSubscription =
-          await ensureOrganizationForTeamSubscription(activeOrgSubscription)
-
-        if (resolvedSubscription.referenceId !== organizationId) {
-          logger.error('Recovered organization did not match existing owner/admin membership', {
-            userId: user.id,
-            expectedOrganizationId: organizationId,
-            resolvedReferenceId: resolvedSubscription.referenceId,
-            subscriptionId: activeOrgSubscription.id,
-          })
-          throw new Error('Organization recovery resolved to an unexpected subscription owner')
-        }
-      }
-    } else {
-      createdOrganization = true
-      organizationId = await createOrganizationForTeamPlan(
-        user.id,
-        organizationName || undefined,
-        user.email,
-        organizationSlug
-      )
-
-      const resolvedSubscription =
-        await ensureOrganizationForTeamSubscription(activeOrgSubscription)
-
-      if (resolvedSubscription.referenceId !== organizationId) {
-        logger.error('Newly created organization was not attached to the active subscription', {
-          userId: user.id,
-          expectedOrganizationId: organizationId,
-          resolvedReferenceId: resolvedSubscription.referenceId,
-          subscriptionId: activeOrgSubscription.id,
-        })
-        throw new Error('Failed to link the new organization to the active subscription')
-      }
-    }
-
+    },
+  },
+  parseOptions: {
+    optionalJsonBody: true,
+    validationErrorResponse: (error) =>
+      validationErrorResponse(error, getValidationErrorMessage(error, 'Invalid request body')),
+  },
+  mapInput: ({ body }) => ({ name: body?.name, slug: body?.slug }),
+  useCase: createTeamOrganization,
+  onSuccess: async ({ principal, result }) => {
     try {
-      await setActiveOrganizationForCurrentSession(organizationId)
+      await setActiveOrganizationForCurrentSession(result.organizationId)
     } catch (error) {
       logger.error('Failed to activate organization after creation', {
-        organizationId,
-        userId: user.id,
+        organizationId: result.organizationId,
         error: getErrorMessage(error),
       })
     }
-
-    logger.info('Successfully ensured organization for team plan', {
-      userId: user.id,
-      organizationId,
-      createdOrganization,
-    })
-
-    if (createdOrganization) {
-      recordAudit({
-        workspaceId: null,
-        actorId: user.id,
-        action: AuditAction.ORGANIZATION_CREATED,
-        resourceType: AuditResourceType.ORGANIZATION,
-        resourceId: organizationId,
-        actorName: user.name ?? undefined,
-        actorEmail: user.email ?? undefined,
-        resourceName: organizationName ?? undefined,
-        description: `Created organization "${organizationName}"`,
-        metadata: { organizationSlug },
-        request,
-      })
-      captureServerEvent(
-        user.id,
-        'organization_created',
-        {
-          organization_id: organizationId,
-          ...(organizationName ? { name: organizationName } : {}),
-        },
-        { groups: { organization: organizationId } }
-      )
-    }
-
-    return NextResponse.json({
-      success: true,
-      organizationId,
-      created: createdOrganization,
-    })
-  } catch (error) {
-    if (error instanceof OrganizationSlugInvalidError) {
-      return NextResponse.json(
-        {
-          error:
-            'Organization slug can only contain lowercase letters, numbers, hyphens, and underscores.',
-        },
-        { status: 400 }
-      )
-    }
-
-    if (error instanceof OrganizationSlugTakenError) {
-      return NextResponse.json({ error: 'This slug is already taken' }, { status: 400 })
-    }
-
-    if (error instanceof WorkspaceOrganizationMembershipConflictError) {
-      return NextResponse.json(
-        {
-          error:
-            'One or more members of your existing shared workspaces already belong to another organization. Remove them from those workspaces before converting them to organization-owned workspaces.',
-        },
-        { status: 409 }
-      )
-    }
-
-    logger.error('Failed to create organization for team plan', {
-      error: getErrorMessage(error, 'Unknown error'),
-      stack: error instanceof Error ? error.stack : undefined,
-    })
-
-    return NextResponse.json(
+    if (!result.created) return
+    captureServerEvent(
+      principal.userId,
+      'organization_created',
       {
-        error: 'Failed to create organization',
-        message: getErrorMessage(error, 'Unknown error'),
+        organization_id: result.organizationId,
+        ...(result.organizationName ? { name: result.organizationName } : {}),
       },
-      { status: 500 }
+      { groups: { organization: result.organizationId } }
     )
-  }
+  },
+  present: ({ organizationId, created }) => ({ success: true, organizationId, created }),
 })

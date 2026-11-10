@@ -11,6 +11,7 @@ import {
   billingPlanHelpersMockFns,
 } from '@sim/testing/mocks/billing-plan-helpers.mock'
 import { billingSubscriptionUtilsMock } from '@sim/testing/mocks/billing-subscription-utils.mock'
+import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -69,20 +70,21 @@ describe('POST /api/organizations', () => {
   })
 
   it('recovers an owner org when the subscription was already moved onto the organization', async () => {
-    mockGetSession.mockResolvedValue(
-      createSession({
+    mockGetSession.mockResolvedValue({
+      ...createSession({
         userId: 'user-1',
         email: 'owner@example.com',
         name: 'Owner',
-      })
-    )
+      }),
+      session: { id: 'session-1' },
+    })
     queueTableRows(member, [{ organizationId: 'legacy-org-id', role: 'owner' }])
     queueTableRows(subscription, [
       { id: 'sub-1', plan: 'team', referenceId: 'legacy-org-id', status: 'active', seats: 5 },
     ])
 
     const response = await POST(
-      new Request('http://localhost/api/organizations', {
+      new NextRequest('http://localhost/api/organizations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: 'Recovered Org' }),
@@ -107,17 +109,18 @@ describe('POST /api/organizations', () => {
   })
 
   it('still blocks users who are only members of another organization', async () => {
-    mockGetSession.mockResolvedValue(
-      createSession({
+    mockGetSession.mockResolvedValue({
+      ...createSession({
         userId: 'user-1',
         email: 'member@example.com',
         name: 'Member',
-      })
-    )
+      }),
+      session: { id: 'session-1' },
+    })
     queueTableRows(member, [{ organizationId: 'org-1', role: 'member' }])
 
     const response = await POST(
-      new Request('http://localhost/api/organizations', {
+      new NextRequest('http://localhost/api/organizations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: 'Blocked Org' }),
@@ -135,13 +138,14 @@ describe('POST /api/organizations', () => {
   })
 
   it('returns a conflict when existing shared workspace members block organization attachment', async () => {
-    mockGetSession.mockResolvedValue(
-      createSession({
+    mockGetSession.mockResolvedValue({
+      ...createSession({
         userId: 'user-1',
         email: 'owner@example.com',
         name: 'Owner',
-      })
-    )
+      }),
+      session: { id: 'session-1' },
+    })
     queueTableRows(member, [{ organizationId: 'legacy-org-id', role: 'owner' }])
     queueTableRows(subscription, [
       { id: 'sub-1', plan: 'team', referenceId: 'legacy-org-id', status: 'active', seats: 5 },
@@ -153,7 +157,7 @@ describe('POST /api/organizations', () => {
     )
 
     const response = await POST(
-      new Request('http://localhost/api/organizations', {
+      new NextRequest('http://localhost/api/organizations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: 'Recovered Org' }),
