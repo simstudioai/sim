@@ -173,22 +173,23 @@ export const CaptureKitBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `capturekit_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = context?.operation ?? params.operation
         const result: Record<string, unknown> = {}
-        if (params.operation === 'screenshot') {
+        if (operation === 'screenshot') {
           result.viewportWidth = parseOptionalNumberInput(params.viewportWidth, 'Viewport Width', {
             integer: true,
             min: 1,
           })
         }
-        if (params.operation === 'screenshot') {
+        if (operation === 'screenshot') {
           result.viewportHeight = parseOptionalNumberInput(
             params.viewportHeight,
             'Viewport Height',
             { integer: true, min: 1 }
           )
         }
-        if (params.operation === 'screenshot') {
+        if (operation === 'screenshot') {
           result.delay = parseOptionalNumberInput(params.delay, 'Delay', { min: 0 })
         }
         return result
