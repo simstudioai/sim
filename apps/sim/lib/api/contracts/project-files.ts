@@ -9,7 +9,6 @@ import {
 import {
   booleanQueryFlagSchema,
   folderIdSchema,
-  inlineFileRefQuerySchema,
   nonEmptyIdSchema,
 } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
@@ -83,13 +82,6 @@ const getProjectFileResponseSchema = z.object({
   capabilities: projectFileCapabilitiesSchema,
 })
 
-export const getProjectFileContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/projects/[id]/files/[fileId]',
-  params: projectFileParamsSchema,
-  response: { mode: 'json', schema: getProjectFileResponseSchema },
-})
-
 const createProjectFileBodySchema = createWorkspaceFileBodySchema.safeExtend({
   exactName: z.boolean().default(false),
   folderPath: z.string().max(4096).optional(),
@@ -127,28 +119,6 @@ export const readProjectFileContentContract = defineRouteContract({
   method: 'GET',
   path: '/api/projects/[id]/files/[fileId]/content',
   params: projectFileParamsSchema,
-  response: { mode: 'binary' },
-})
-
-const projectFileArtifactQuerySchema = z.object({
-  preview: z.enum(['1', '0']).optional(),
-  v: z.string().max(128).optional(),
-  t: z.string().max(32).optional(),
-})
-
-export const readProjectFileArtifactContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/projects/[id]/files/[fileId]/artifact',
-  params: projectFileParamsSchema,
-  query: projectFileArtifactQuerySchema,
-  response: { mode: 'binary' },
-})
-
-export const getInlineProjectFileContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/projects/[id]/files/inline',
-  params: projectFilesParamsSchema,
-  query: inlineFileRefQuerySchema,
   response: { mode: 'binary' },
 })
 

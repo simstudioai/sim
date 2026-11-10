@@ -9,22 +9,6 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const MANAGED_OAUTH_DELEGATION_HEADER = 'x-sim-managed-oauth-delegation'
 
-export const oauthAccountSummarySchema = z.object({
-  id: z.string(),
-  name: z.string(),
-})
-
-export const oauthConnectionSchema = z.object({
-  provider: z.string(),
-  baseProvider: z.string(),
-  featureType: z.string(),
-  isConnected: z.boolean(),
-  accounts: z.array(oauthAccountSummarySchema),
-  lastConnected: z.string(),
-  scopes: z.array(z.string()),
-})
-export type OAuthConnection = z.output<typeof oauthConnectionSchema>
-
 export const disconnectOAuthBodySchema = z.object({
   provider: z.string({ error: 'Provider is required' }).min(1, 'Provider is required'),
   providerId: z.string().optional(),
@@ -164,17 +148,6 @@ export const shopifyCallbackQuerySchema = z.object({
 
 const SHOPIFY_SHOP_DOMAIN_REGEX = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]\.myshopify\.com$/
 export const shopifyShopDomainSchema = z.string().regex(SHOPIFY_SHOP_DOMAIN_REGEX)
-
-export const listOAuthConnectionsContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/auth/oauth/connections',
-  response: {
-    mode: 'json',
-    schema: z.object({
-      connections: z.array(oauthConnectionSchema),
-    }),
-  },
-})
 
 export const disconnectOAuthContract = defineRouteContract({
   method: 'POST',

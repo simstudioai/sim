@@ -8,8 +8,6 @@ import { getPerRequestOAuthLinkScopes } from '@/lib/oauth/utils'
 
 const logger = createLogger('OAuthConnectionsQuery')
 
-export const OAUTH_CONNECTIONS_STALE_TIME = 30 * 1000
-
 interface ConnectServiceParams {
   providerId: string
   callbackURL: string

@@ -5,17 +5,9 @@ import { credentialUserOperations } from '@/lib/credentials/application/operatio
 import {
   disconnectOAuthAccounts,
   listConnectedAccountsForUser,
-  listOAuthConnectionsForUser,
   OAuthDisconnectPartialFailureError,
 } from '@/lib/credentials/oauth-accounts'
 import { captureServerEvent } from '@/lib/posthog/server'
-
-export const listOAuthConnectionsUseCase = defineAuthorizedCredentialUserUseCase({
-  operation: credentialUserOperations.listOAuthConnections,
-  async execute({ principal }) {
-    return { connections: await listOAuthConnectionsForUser(principal.userId) }
-  },
-})
 
 export interface ListConnectedAccountsInput {
   provider?: string

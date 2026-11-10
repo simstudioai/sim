@@ -24,12 +24,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { mockGetUserOrganization } = organizationMembershipMockFns
 const mockGetOrgPermissionConfig =
   permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization
-const {
-  mockListOAuthConnectionsForUser,
-  mockListConnectedAccountsForUser,
-  mockDisconnectOAuthAccounts,
-} = vi.hoisted(() => ({
-  mockListOAuthConnectionsForUser: vi.fn(),
+const { mockListConnectedAccountsForUser, mockDisconnectOAuthAccounts } = vi.hoisted(() => ({
   mockListConnectedAccountsForUser: vi.fn(),
   mockDisconnectOAuthAccounts: vi.fn(),
 }))
@@ -39,7 +34,6 @@ vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMo
 vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 vi.mock('@/lib/credentials/oauth-accounts', () => ({
-  listOAuthConnectionsForUser: mockListOAuthConnectionsForUser,
   listConnectedAccountsForUser: mockListConnectedAccountsForUser,
   disconnectOAuthAccounts: mockDisconnectOAuthAccounts,
   OAuthDisconnectPartialFailureError: class OAuthDisconnectPartialFailureError extends Error {
@@ -53,17 +47,12 @@ vi.mock('@/lib/credentials/oauth-accounts', () => ({
 import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET as listConnectedAccounts } from '@/app/api/auth/accounts/route'
-import { GET as listConnections } from '@/app/api/auth/oauth/connections/route'
 import { POST as disconnect } from '@/app/api/auth/oauth/disconnect/route'
 
 const USER_ID = 'user-1'
 const ORGANIZATION_ID = 'org-1'
 
 const mockGetSession = authMockFns.mockGetSession
-
-function callListConnections() {
-  return listConnections(createMockRequest('GET'), { params: Promise.resolve({}) })
-}
 
 function callListConnectedAccounts() {
   return listConnectedAccounts(
@@ -92,7 +81,6 @@ describe('integrations.manage gate on the current-user credential operations', (
       memberId: 'member-1',
     })
     mockGetOrgPermissionConfig.mockResolvedValue(null)
-    mockListOAuthConnectionsForUser.mockResolvedValue([])
     mockListConnectedAccountsForUser.mockResolvedValue([])
     mockDisconnectOAuthAccounts.mockResolvedValue({
       credentials: [],
@@ -107,14 +95,6 @@ describe('integrations.manage gate on the current-user credential operations', (
         ...DEFAULT_PERMISSION_GROUP_CONFIG,
         hideIntegrationsTab: true,
       })
-    })
-
-    it('refuses to enumerate the OAuth connections, and never reads them', async () => {
-      const response = await callListConnections()
-
-      expect(response.status).toBe(403)
-      expect(await response.json()).toEqual({ error: INTEGRATIONS_REFUSAL })
-      expect(mockListOAuthConnectionsForUser).not.toHaveBeenCalled()
     })
 
     it('refuses to list the connected accounts, and never reads them', async () => {

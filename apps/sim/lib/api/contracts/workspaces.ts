@@ -329,21 +329,6 @@ export const getWorkspaceHostContextContract = defineRouteContract({
   },
 })
 
-export const workspaceCreditAvailabilitySchema = z.object({
-  remainingDollars: z.number().nonnegative().nullable(),
-  scope: z.enum(['payer', 'member', 'effective']),
-})
-
-export const getWorkspaceCreditAvailabilityContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/workspaces/[id]/credit-availability',
-  params: workspaceParamsSchema,
-  response: {
-    mode: 'json',
-    schema: workspaceCreditAvailabilitySchema,
-  },
-})
-
 export const workspaceUsageGateSchema = z.object({
   isExceeded: z.boolean(),
   message: z.string().min(1).nullable(),

@@ -4,7 +4,6 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { requireAdmittedContent } from '@/lib/core/application/content-delivery'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
 import type { DbTransaction } from '@/lib/db/types'
 import { getCsvPreviewSlice } from '@/lib/file-parsers/csv-preview-slice'
 import type {
@@ -17,8 +16,6 @@ import {
   getBoundWorkspaceFileSecretProvenanceByMetadata,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
-import { downloadFileStream } from '@/lib/uploads/core/storage-service'
-import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
 
@@ -80,50 +77,6 @@ const resolveInlineRecord = defineAuthorizedProjectFileUseCase<
       view: input.view ?? 'opaque',
     }),
 })
-
-type ResolveInlineArgs = Parameters<typeof resolveInlineRecord.execute>[0]
-
-/**
- * Streams a private object resolved under its Project, then fences its current head after storage
- * opens. A key request names the exact immutable object it streamed, so it is content-addressed.
- */
-export const readProjectInlineFile = {
-  operation: resolveInlineRecord.operation,
-  delegationAudience: resolveInlineRecord.delegationAudience,
-  /** HEAD resolves the canonical image without fetching its bytes. */
-  async authorize(args: ResolveInlineArgs) {
-    await resolveInlineRecord.execute(args)
-  },
-  async execute(args: ResolveInlineArgs) {
-    const snapshot = await resolveInlineRecord.execute(args)
-    const stream = nodeReadableToWebStream(
-      await runWithOutboundOrganization(snapshot.organizationId, () =>
-        downloadFileStream({ key: snapshot.file.key, context: 'project' })
-      )
-    )
-    try {
-      const { file, secretProvenance } = await resolveInlineRecord.execute({
-        ...args,
-        input: { projectId: args.input.projectId, referenceFileId: snapshot.file.id },
-      })
-      if (
-        file.key !== snapshot.file.key ||
-        file.contentUpdatedAt.getTime() !== snapshot.file.contentUpdatedAt.getTime()
-      )
-        throw new OrchestrationError('conflict', 'File changed while preparing its preview')
-      await reportWorkspaceFileDelivery(secretProvenance, file.id)
-      return {
-        file: { id: file.id, name: file.originalName, type: file.contentType },
-        stream,
-        contentLength: getWorkspaceFileSize(file),
-        contentAddressed: args.input.key !== undefined,
-      }
-    } catch (error) {
-      await stream.cancel(error).catch(() => undefined)
-      throw error
-    }
-  },
-}
 
 interface CsvPreviewInput extends ProjectFileTarget {
   fileId: string

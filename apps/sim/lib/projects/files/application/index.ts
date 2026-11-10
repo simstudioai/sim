@@ -16,7 +16,7 @@ export {
   restoreProjectFileFolder,
 } from './lifecycle'
 export { projectFileOperations } from './operations'
-export { readProjectFileCsvPreview, readProjectInlineFile } from './previews'
+export { readProjectFileCsvPreview } from './previews'
 export {
   getProjectFileCapabilities,
   getProjectFileMetadata,

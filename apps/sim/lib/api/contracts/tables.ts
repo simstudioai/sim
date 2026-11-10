@@ -2078,17 +2078,6 @@ export const tableViewConfigSchema = tableMetadataSchema
    */
   .strict() satisfies z.ZodType<TableViewConfig>
 
-export const tableViewSchema = z.object({
-  id: z.string(),
-  tableId: z.string(),
-  name: z.string(),
-  config: tableViewConfigSchema,
-  isDefault: z.boolean(),
-  createdBy: z.string().nullable(),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
-})
-
 /** Free-form display label — no character set or length restriction, unlike the
  *  identifier-shaped table/column names. Only emptiness is rejected, since a
  *  blank name renders as an unselectable gap in the views dropdown. */
@@ -2098,21 +2087,6 @@ export const tableViewParamsSchema = tableIdParamsSchema.extend({
   viewId: z.string().min(1).describe('Unique saved-view identifier.'),
 })
 
-export const listTableViewsQuerySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-})
-
-export const listTableViewsContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/table/[tableId]/views',
-  params: tableIdParamsSchema,
-  query: listTableViewsQuerySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(z.object({ views: z.array(tableViewSchema) })),
-  },
-})
-
 export const createTableViewBodySchema = z.object({
   workspaceId: z
     .string()
@@ -2120,17 +2094,6 @@ export const createTableViewBodySchema = z.object({
     .describe('Workspace that owns the table.'),
   name: viewNameSchema.describe('Saved-view display name.'),
   config: tableViewConfigSchema.describe('Saved filter, sort, and column-layout configuration.'),
-})
-
-export const createTableViewContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/table/[tableId]/views',
-  params: tableIdParamsSchema,
-  body: createTableViewBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(z.object({ view: tableViewSchema })),
-  },
 })
 
 /**
@@ -2173,35 +2136,6 @@ export const updateTableViewBodySchema = z
   .refine((value) => !(value.config !== undefined && value.configPatch !== undefined), {
     message: 'config and configPatch are mutually exclusive',
   })
-
-export const updateTableViewContract = defineRouteContract({
-  method: 'PATCH',
-  path: '/api/table/[tableId]/views/[viewId]',
-  params: tableViewParamsSchema,
-  body: updateTableViewBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(z.object({ view: tableViewSchema })),
-  },
-})
-
-export const deleteTableViewBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-})
-
-export const deleteTableViewContract = defineRouteContract({
-  method: 'DELETE',
-  path: '/api/table/[tableId]/views/[viewId]',
-  params: tableViewParamsSchema,
-  body: deleteTableViewBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(z.object({ deleted: z.literal(true) })),
-  },
-})
-
-export type CreateTableViewBody = z.input<typeof createTableViewBodySchema>
-export type UpdateTableViewBody = z.input<typeof updateTableViewBodySchema>
 
 const bulkTableIdListSchema = z
   .array(requiredFieldSchema('id entries cannot be empty'))

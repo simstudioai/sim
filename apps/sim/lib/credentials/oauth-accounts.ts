@@ -1,13 +1,8 @@
 import { db } from '@sim/db'
-import { account, credential, user } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
+import { account, credential } from '@sim/db/schema'
 import { toError } from '@sim/utils/errors'
 import { and, desc, eq, inArray, like, or } from 'drizzle-orm'
-import { decodeJwt } from 'jose'
-import type { OAuthConnection } from '@/lib/api/contracts/oauth-connections'
 import { deleteCredentialRecord } from '@/lib/credentials/orchestration'
-import type { OAuthProvider } from '@/lib/oauth'
-import { parseProvider } from '@/lib/oauth'
 import { QuickBooksTokenRevocationError, revokeQuickBooksToken } from '@/lib/oauth/quickbooks'
 import {
   decryptQuickBooksOAuthClientConfig,
@@ -15,67 +10,9 @@ import {
 } from '@/lib/oauth/quickbooks-client-config'
 import { providerIdsForService } from '@/lib/oauth/utils'
 
-const logger = createLogger('CredentialOAuthAccounts')
 const MAX_DISCONNECT_ACCOUNTS = 100
 const MAX_DISCONNECT_CREDENTIALS = 1000
 const QUICKBOOKS_DISCONNECT_TIMEOUT_MS = 30_000
-
-interface GoogleIdToken {
-  email?: string
-  name?: string
-}
-
-export async function listOAuthConnectionsForUser(userId: string): Promise<OAuthConnection[]> {
-  const [accounts, userRecord] = await Promise.all([
-    db.select().from(account).where(eq(account.userId, userId)),
-    db.select({ email: user.email }).from(user).where(eq(user.id, userId)).limit(1),
-  ])
-  const userEmail = userRecord[0]?.email ?? null
-  const connections: OAuthConnection[] = []
-
-  for (const accountRow of accounts) {
-    const { baseProvider, featureType } = parseProvider(accountRow.providerId as OAuthProvider)
-    if (!baseProvider) continue
-    const scopes = accountRow.scope?.split(/\s+/).filter(Boolean) ?? []
-    let displayName = ''
-    if (accountRow.idToken) {
-      try {
-        const decoded = decodeJwt<GoogleIdToken>(accountRow.idToken)
-        displayName = decoded.email || decoded.name || ''
-      } catch (error) {
-        logger.warn('Failed to decode OAuth account ID token', {
-          accountId: accountRow.id,
-          error,
-        })
-      }
-    }
-    if (!displayName && baseProvider === 'github') {
-      displayName = `${accountRow.accountId} (GitHub)`
-    }
-    displayName ||= userEmail || `${accountRow.accountId} (${baseProvider})`
-
-    const existing = connections.find((connection) => connection.provider === accountRow.providerId)
-    if (existing) {
-      existing.accounts.push({ id: accountRow.id, name: displayName })
-      existing.scopes = Array.from(new Set([...existing.scopes, ...scopes]))
-      if (accountRow.updatedAt.getTime() > new Date(existing.lastConnected).getTime()) {
-        existing.lastConnected = accountRow.updatedAt.toISOString()
-      }
-      continue
-    }
-    connections.push({
-      provider: accountRow.providerId,
-      baseProvider,
-      featureType,
-      isConnected: true,
-      scopes,
-      lastConnected: accountRow.updatedAt.toISOString(),
-      accounts: [{ id: accountRow.id, name: displayName }],
-    })
-  }
-
-  return connections
-}
 
 export async function listConnectedAccountsForUser(params: { userId: string; provider?: string }) {
   const whereConditions = [eq(account.userId, params.userId)]

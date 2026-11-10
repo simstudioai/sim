@@ -172,7 +172,6 @@ export const workflowVariableWriteSchema = z.object({
  *
  * Routes stamping this field:
  * - `apps/sim/app/api/workflows/[id]/route.ts` (GET) on `data.variables`
- * - `apps/sim/app/api/workflows/[id]/state/route.ts` (GET) on `variables`
  * - `apps/sim/app/api/workflows/[id]/variables/route.ts` (GET) on `data`
  */
 export const workflowVariableReadSchema = workflowVariableWriteSchema.extend({
@@ -744,14 +743,6 @@ export const getWorkflowStateContract = defineRouteContract({
       data: getWorkflowResponseDataSchema,
     }),
   },
-})
-
-export const workflowStateResponseSchema = z.object({
-  blocks: z.record(z.string(), workflowBlockStateSchema),
-  edges: z.array(workflowEdgeSchema),
-  loops: z.record(z.string(), workflowLoopSchema),
-  parallels: z.record(z.string(), workflowParallelSchema),
-  variables: z.record(z.string(), workflowVariableReadSchema),
 })
 
 export const putWorkflowNormalizedStateContract = defineRouteContract({

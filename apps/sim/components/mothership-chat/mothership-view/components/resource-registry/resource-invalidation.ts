@@ -27,7 +27,6 @@ const RESOURCE_INVALIDATORS: Record<
   table: (qc, _wId, id) => {
     invalidate(qc, tableKeys.lists())
     invalidate(qc, id ? tableKeys.detail(id) : tableKeys.details())
-    invalidate(qc, id ? tableKeys.views(id) : tableKeys.viewsRoot())
   },
   dashboard: (qc, wId) => invalidate(qc, dashboardKeys.workspace(wId)),
   test: (qc) => {
