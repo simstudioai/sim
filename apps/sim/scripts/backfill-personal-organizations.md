@@ -66,7 +66,8 @@ personal organization's shell, billed exactly as before) until the backfill atta
 backfill is the only path that moves existing workspaces (and their payer bookkeeping) into
 personal organizations, and attaching changes no payer. Workspace chats stay keyed to their
 workspace and the organization's chat list shows each person's workspace chats, so neither the
-backfill nor a rollback touches chats.
+backfill nor a rollback touches chats. A workspace chat's private memory stays in its owner's
+personal graph either way: the memory scope names only a team organization.
 
 ## Rollback
 
