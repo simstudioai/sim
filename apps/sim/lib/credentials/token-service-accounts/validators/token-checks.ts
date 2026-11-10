@@ -1313,8 +1313,8 @@ export const validateThriveServiceAccount = tokenCheckValidator({
   domain: allowedDomain(THRIVE_HOSTS),
   workspaceId: ({ providerWorkspaceId }) => {
     const tenantId = (providerWorkspaceId ?? '').trim()
-    // The tenant id is the Basic-auth username, so a colon would split it.
-    if (!tenantId || /[:\s]/.test(tenantId)) throw new Error('invalid tenant id')
+    // The tenant id is the Basic-auth username: printable ASCII, and no colon, which would split it.
+    if (!/^[\x21-\x39\x3b-\x7e]+$/.test(tenantId)) throw new Error('invalid tenant id')
     return tenantId
   },
   request: ({ apiToken, domain, providerWorkspaceId = '' }) => ({
@@ -1397,7 +1397,7 @@ export const validateTypeformServiceAccount = tokenCheckValidator({
  */
 export const validateUpstashServiceAccount = tokenCheckValidator({
   serviceLabel: 'Upstash',
-  domain: ({ domain }) => normalizeHttpBaseUrl(domain, { allowPath: false }),
+  domain: ({ domain }) => normalizeHttpBaseUrl(domain),
   egress: 'configuredEndpoint',
   request: ({ apiToken, domain }) => ({
     url: `${domain}/ping`,

@@ -564,7 +564,13 @@ describe('Azure DevOps project-scoped URLs', () => {
     expect(url.pathname).toBe('/contoso/My%20Project/_apis/wit/workitems/7')
   })
 
-  it.each(['../../other-org/proj', '..', 'proj/../../other-org'])(
+  it('sends a project name pasted already encoded from the address bar unchanged', () => {
+    const url = new URL(buildUrl(getWorkItemTool, { ...base, project: 'My%20Project' } as never))
+
+    expect(url.pathname).toBe('/contoso/My%20Project/_apis/wit/workitems/7')
+  })
+
+  it.each(['../../other-org/proj', '..', 'proj/../../other-org', '%2e%2e'])(
     'refuses a project that would climb into another organization (%s)',
     (project) => {
       expect(() => buildUrl(getWorkItemTool, { ...base, project } as never)).toThrow(/project/)

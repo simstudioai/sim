@@ -98,23 +98,19 @@ export function readJsonBody(response: ProviderResponse, serviceLabel: string): 
  * A typed http(s) base URL in the form tools build request paths on: a bare host
  * is taken as https, trailing slashes are dropped, and any other scheme,
  * credentials, a query, or a fragment is refused, since each would retarget the
- * request. `allowPath: false` also refuses a path, for tools that append to the
- * origin.
+ * request.
  */
-export function normalizeHttpBaseUrl(
-  raw: string | undefined,
-  { allowPath = true }: { allowPath?: boolean } = {}
-): string {
+export function normalizeHttpBaseUrl(raw: string | undefined): string {
   const typed = (raw ?? '').trim()
   if (!typed) throw new Error('missing URL')
+  // `https:/host` would otherwise get a second scheme and parse as a host named `https`.
+  if (/^https?:(?!\/\/)/i.test(typed)) throw new Error('malformed scheme')
   const url = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(typed) ? typed : `https://${typed}`)
   if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('http(s) only')
   if (url.username || url.password || url.search || url.hash) {
     throw new Error('credentials, query, or fragment in URL')
   }
-  const path = url.pathname.replace(/\/+$/, '')
-  if (path && !allowPath) throw new Error('path not allowed')
-  return `${url.origin}${path}`
+  return `${url.origin}${url.pathname.replace(/\/+$/, '')}`
 }
 
 /**

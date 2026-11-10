@@ -7,7 +7,17 @@ import { safeUrlPathSegment } from '@/tools/url-path'
  * climb into another organization's endpoints with the caller's token.
  */
 export function azureDevOpsProjectUrl(params: { organization: string; project: string }): string {
-  return `https://dev.azure.com/${safeUrlPathSegment(params.organization.trim(), 'organization')}/${safeUrlPathSegment(params.project.trim(), 'project')}`
+  return `https://dev.azure.com/${pathSegment(params.organization, 'organization')}/${pathSegment(params.project, 'project')}`
+}
+
+/** A name copied from the browser's address bar arrives encoded; decode it once so it isn't encoded twice. */
+function pathSegment(value: string, paramName: string): string {
+  const typed = value.trim()
+  let decoded = typed
+  try {
+    decoded = decodeURIComponent(typed)
+  } catch {}
+  return safeUrlPathSegment(decoded, paramName)
 }
 
 /** States for Azure DevOps Basic process work items (Issue, Task, Epic). */

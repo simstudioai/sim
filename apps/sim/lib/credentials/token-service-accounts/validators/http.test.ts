@@ -7,7 +7,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-import { tokenCheckValidator } from '@/lib/credentials/token-service-accounts/validators/http'
+import {
+  normalizeHttpBaseUrl,
+  tokenCheckValidator,
+} from '@/lib/credentials/token-service-accounts/validators/http'
 
 const validate = tokenCheckValidator({
   serviceLabel: 'Example',
@@ -153,6 +156,13 @@ describe('tokenCheckValidator with a typed host', () => {
     expect(secureFetch).toHaveBeenCalledWith(
       'https://tools.example.com/api/me',
       expect.objectContaining({ profile: 'configuredEndpoint', maxRedirects: 0 })
+    )
+  })
+
+  it('refuses a base URL with a mistyped scheme instead of reading the scheme as a host', () => {
+    expect(() => normalizeHttpBaseUrl('https:/grafana.example.com')).toThrow(/scheme/)
+    expect(normalizeHttpBaseUrl('grafana.example.com:3000/')).toBe(
+      'https://grafana.example.com:3000'
     )
   })
 
