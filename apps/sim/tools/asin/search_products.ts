@@ -1,12 +1,27 @@
-import { toArray, toRecord } from '@sim/utils/object'
+import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
+import { toArray, toRecord, toRecordOrNull } from '@sim/utils/object'
 import type {
   AsinSearchProductsParams,
   AsinSearchProductsResponse,
   AsinSearchResult,
 } from '@/tools/asin/types'
 import { ASIN_SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/asin/types'
-import { mapAsinSearchResult } from '@/tools/asin/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/** Reads a `AsinSearchResult` from an untyped Asin API payload. */
+function mapAsinSearchResult(value: unknown): AsinSearchResult | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    asin: toStringOrNull(record.asin),
+    title: toStringOrNull(record.title),
+    image: toStringOrNull(record.image),
+    price: toNumberOrNull(record.price),
+    currency: toStringOrNull(record.currency),
+    rating: toNumberOrNull(record.rating),
+    reviewsCount: toNumberOrNull(record.reviews_count),
+  }
+}
 
 export const asinSearchProductsTool: ToolConfig<
   AsinSearchProductsParams,

@@ -9,7 +9,7 @@ export const asinReadOffersTool: ToolConfig<AsinReadOffersParams, AsinReadOffers
   id: 'asin_read_offers',
   name: 'Asin Read Offers',
   description:
-    "Read every offer for an ASIN from Amazon now (uses a credit): seller, price, Prime and FBA, delivery, with Amazon's own price and the lowest new and used offers.",
+    "Read every offer for an ASIN from Amazon now (uses a credit): seller, price, whether Amazon ships it (FBA), delivery, with Amazon's own price and the lowest new and used offers.",
   version: '1.0.0',
 
   params: {

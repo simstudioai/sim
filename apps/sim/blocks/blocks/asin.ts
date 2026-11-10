@@ -112,9 +112,10 @@ export const AsinBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `asin_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = context?.operation ?? params.operation
         const result: Record<string, unknown> = {}
-        if (params.operation === 'get_price_history') {
+        if (operation === 'get_price_history') {
           result.days = parseOptionalNumberInput(params.days, 'Days', { integer: true, min: 1 })
         }
         return result

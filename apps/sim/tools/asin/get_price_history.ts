@@ -1,13 +1,25 @@
-import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
-import { toArray, toRecord } from '@sim/utils/object'
+import { toBooleanOrNull, toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
+import { toArray, toRecord, toRecordOrNull } from '@sim/utils/object'
 import type {
   AsinGetPriceHistoryParams,
   AsinGetPriceHistoryResponse,
   AsinPricePoint,
 } from '@/tools/asin/types'
 import { ASIN_PRICE_POINT_OUTPUT_PROPERTIES } from '@/tools/asin/types'
-import { mapAsinPricePoint } from '@/tools/asin/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/** Reads a `AsinPricePoint` from an untyped Asin API payload. */
+function mapAsinPricePoint(value: unknown): AsinPricePoint | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    price: toNumberOrNull(record.price),
+    inStock: toBooleanOrNull(record.in_stock),
+    coupon: toStringOrNull(record.coupon),
+    seller: toStringOrNull(record.seller),
+    checkedAt: toStringOrNull(record.checked_at),
+  }
+}
 
 export const asinGetPriceHistoryTool: ToolConfig<
   AsinGetPriceHistoryParams,

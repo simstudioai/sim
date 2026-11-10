@@ -1919,7 +1919,7 @@
         },
         {
           "name": "Read Offers",
-          "description": "Read every offer for an ASIN from Amazon now (uses a credit): seller, price, Prime and FBA, delivery, with Amazon's own price and the lowest new and used offers."
+          "description": "Read every offer for an ASIN from Amazon now (uses a credit): seller, price, whether Amazon ships it (FBA), delivery, with Amazon's own price and the lowest new and used offers."
         },
         {
           "name": "Get Last Known Offers",
