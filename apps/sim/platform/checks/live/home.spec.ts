@@ -352,7 +352,8 @@ test.describe('Home with connected accounts', () => {
             await tx`insert into credential_group_enrollment
             select (jsonb_populate_record(null::credential_group_enrollment, to_jsonb(e) || jsonb_build_object(
               'id', ${`${person.id}-enrollment`}::text, 'user_id', ${person.id}::text,
-              'email', ${person.email}::text, 'invitation_token_hash', ${`${person.id}-token`}::text))).*
+              'email', ${person.email}::text,
+              'invitation_token_hash', encode(sha256(convert_to(${person.id}::text, 'UTF8')), 'hex')))).*
             from credential_group_enrollment e where e.id = 'platform-live-enrollment'`
             for (const grant of [GRANT, CALENDAR_GRANT]) {
               await tx`insert into credential
