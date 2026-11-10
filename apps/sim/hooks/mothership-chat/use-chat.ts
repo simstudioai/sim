@@ -212,7 +212,6 @@ import {
 } from '@/stores/mothership-effort/store'
 import { useMothershipOutgoingStore } from '@/stores/mothership-outgoing/store'
 import type { ChatContext } from '@/stores/panel'
-import { useTableViewPinStore } from '@/stores/table/view-pin/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { useWorkflowRegistry } from '@/stores/workflows/state-port'
 
@@ -1223,8 +1222,6 @@ export function useChat(
     setTransportIdle()
     setResources([])
     setActiveResourceId(null)
-    // Pending view pins belong to the chat whose stream issued them.
-    useTableViewPinStore.getState().reset()
     undisplayableResourcesRef.current = []
     resetEphemeralPreviewState()
     pendingChatKeyRef.current = `${PENDING_CHAT_KEY_PREFIX}${generateShortId()}`
@@ -2013,7 +2010,6 @@ export function useChat(
     if (!options?.activeResourceState && initialChatId !== streamOwnerId) {
       setActiveResourceId(null)
     }
-    useTableViewPinStore.getState().reset()
     resetEphemeralPreviewState()
     // Rotate the bucket key; messages still on their way into the previous chat keep its key.
     if (initialChatId) {
