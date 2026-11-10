@@ -82,8 +82,7 @@ export const railSection = (page: Page, name: string) =>
 
 /**
  * A chat's rail link, paging the Chats section with See more until it lists: the section shows a
- * page at a time by last activity, and chats seeded together share theirs, so their order is not
- * one to wait on.
+ * page at a time by last activity, and a check that renames, pins, or messages a chat moves it.
  */
 export async function revealRailChat(page: Page, title: string) {
   const chats = railRegion(page, 'Chats')
@@ -94,6 +93,12 @@ export async function revealRailChat(page: Page, title: string) {
     await expect(link).toBeVisible({ timeout: 1_000 })
   }).toPass({ timeout: 20_000 })
   return link
+}
+
+/** Opens a chat row's options menu, paging the Chats section until the chat lists. */
+export async function openRailChatMenu(page: Page, title: string) {
+  await revealRailChat(page, title)
+  return openRowMenu(page, title)
 }
 
 /** Opens a section row's options menu: the button appears on hover. */

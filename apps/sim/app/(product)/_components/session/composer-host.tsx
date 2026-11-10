@@ -13,42 +13,22 @@ import {
 } from 'react'
 import { generateId } from '@sim/utils/id'
 import { useRouter, useSearchParams } from 'next/navigation'
-import type {
-  ChatAttachment,
-  ComposerController,
-  ComposerDraft,
-  ComposerInventory,
-} from '@/app/(product)/_components/composer/model'
 import { draftTitle, userTurn } from '@/app/(product)/_components/composer/user-turn'
 import { useDesktopHost } from '@/app/(product)/_components/desktop/desktop-host'
 import { useChatChanges } from '@/app/(product)/_components/session/chat-changes'
 import { useComposerDraft } from '@/app/(product)/_components/session/composer-drafts'
 import { useInterfacePreferences } from '@/app/(product)/_components/session/interface-preferences'
+import type {
+  ChatAttachment,
+  ComposerController,
+  ComposerDraft,
+  ComposerHost,
+  ComposerOptions,
+} from '@/platform/lib/data/models/composer'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { LOCALE } from '@/platform/shared/time'
-
-export interface ComposerOptions extends Partial<ComposerInventory> {
-  draftKey: string
-  /** Assistant mode accepts images instead of workspace references. */
-  requestMode?: 'agent' | 'assistant' | 'plan'
-  chatId?: string
-  initialAttachments?: ChatAttachment[]
-}
-
-/**
- * What the shell can start from outside a conversation. A hook pair so Home and Chat read one
- * composer whichever session they are in; a session never changes kind while mounted.
- */
-export interface ComposerHost {
-  useComposer: (options: ComposerOptions) => ComposerController
-  /** Starts a chat from Home's composer and enters it. */
-  useStartChat: () => (draft: ComposerDraft) => undefined | false
-  /** Opens Search with a query, where Home's Search segment leads; null when the viewer can't. */
-  useStartSearch: () => ((query: string) => void) | null
-  useAppendHomePrompt: () => ((prompt: string) => void) | null
-}
 
 function attachmentFor(file: File): ChatAttachment {
   const image = file.type.startsWith('image/')

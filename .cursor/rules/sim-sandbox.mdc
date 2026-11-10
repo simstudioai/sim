@@ -49,11 +49,9 @@ A V8 JIT bug (Chrome ships these roughly monthly) gives an attacker a native
 code primitive inside the process that owns whatever that process can reach.
 If the worker only holds `isolated-vm` + a single narrow workspace-file broker,
 a V8 escape leaks one tenant's files. If the worker holds a Stripe key or a DB
-connection, a V8 escape leaks the service.
-
-The original `doc-worker.cjs` vulnerability (CVE-class, 225 production secrets
-leaked via `/proc/1/environ`) was the forcing function for this architecture.
-Keep the blast radius small.
+connection, a V8 escape leaks the service. A worker that inherits the app's
+environment exposes every secret in it through `/proc/1/environ`. Keep the blast
+radius small.
 
 ## Checklist for changes to `isolated-vm-worker.cjs`
 

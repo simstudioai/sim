@@ -25,8 +25,6 @@ import {
   searchModeInUrl,
 } from '@/lib/organizations/search-params'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
-import type { PlatformResource } from '@/app/(product)/_components/chat/model'
-import type { SearchResultsData } from '@/app/(product)/_components/search/model'
 import { useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
 import {
   useClearSearchHistory,
@@ -36,6 +34,8 @@ import {
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { useClientStored } from '@/hooks/use-client-stored'
 import { useHydrated } from '@/hooks/use-hydrated'
+import type { PlatformResource } from '@/platform/lib/data/models/chat'
+import type { SearchResultsData } from '@/platform/lib/data/models/search'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { useSummaryQueue } from '@/platform/lib/data/search-summary'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'

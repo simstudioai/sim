@@ -1,12 +1,12 @@
 import { expect, type Page } from '@playwright/test'
 import { escapeRegExp } from '@sim/utils/string'
 import { adminEmail, requireEnv, signInAsAdmin } from '@/platform/checks/live/session'
+import { openChatMenu, revealChat } from '@/platform/checks/live/support/chats'
 import { withLiveDatabase } from '@/platform/checks/live/support/database'
 import { liveRoute } from '@/platform/checks/routes'
 import { test } from '@/platform/checks/test'
 
 /** What a member does day to day beyond each section's own spec, against the real API. */
-const chats = (page: Page) => page.getByRole('region', { name: 'Chats', exact: true })
 const workspaces = (page: Page) => page.getByRole('region', { name: 'Workspaces', exact: true })
 
 /**
@@ -20,18 +20,16 @@ async function pressShortcut(page: Page, key: string) {
 
 test('a chat pins and marks unread, and both survive a reload', async ({ page }) => {
   await signInAsAdmin(page, liveRoute('/home'))
-  const list = chats(page)
-  await list.getByRole('button', { name: 'Actions for Quarterly review' }).click()
+  await openChatMenu(page, 'Quarterly review')
   await page.getByRole('menuitem', { name: 'Pin', exact: true }).click()
   await page.reload()
-  await list.getByRole('link', { name: 'Quarterly review' }).hover()
-  await list.getByRole('button', { name: 'Actions for Quarterly review' }).click()
+  await openChatMenu(page, 'Quarterly review')
   await expect(page.getByRole('menuitem', { name: 'Unpin', exact: true })).toBeVisible()
   await page.getByRole('menuitem', { name: 'Mark as unread', exact: true }).click()
   await page.reload()
-  await list.getByRole('button', { name: 'Actions for Quarterly review' }).click()
+  await openChatMenu(page, 'Quarterly review')
   await page.getByRole('menuitem', { name: 'Mark as read', exact: true }).click()
-  await list.getByRole('button', { name: 'Actions for Quarterly review' }).click()
+  await openChatMenu(page, 'Quarterly review')
   await page.getByRole('menuitem', { name: 'Unpin', exact: true }).click()
 })
 
@@ -100,7 +98,7 @@ test('a deleted chat restores from Recently deleted back into the sidebar', asyn
   await page.getByRole('button', { name: 'Restore', exact: true }).first().click()
   await expect(page.getByRole('heading', { name: 'No deleted chats' })).toBeVisible()
   await page.goto(liveRoute('/home'))
-  await expect(chats(page).getByRole('link', { name: 'Retired plan' })).toBeVisible()
+  await revealChat(page, 'Retired plan')
 })
 
 test('a pending invite resends and revokes from its row', async ({ page }) => {

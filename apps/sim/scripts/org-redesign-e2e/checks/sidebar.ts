@@ -41,6 +41,7 @@ import {
   navLabels,
   openMenu,
   openOrgCard,
+  openRailChatMenu,
   openRowMenu,
   orgCard,
   orgChip,
@@ -49,6 +50,7 @@ import {
   railRegion,
   railRow,
   railSection,
+  revealRailChat,
   sidebar,
 } from '@/scripts/org-redesign-e2e/locators'
 
@@ -527,14 +529,16 @@ export async function sidebarChecks() {
   section('2 Sidebar: chats')
   await check('rows link by mode, and an empty list says so', async () => {
     await onHome(MEMBER, async ({ page }) => {
-      await expect(
-        sidebar(page).getByRole('link', { name: MEMBER_CHATS.assistant.title })
-      ).toHaveAttribute('href', org.searchChat(MEMBER_CHATS.assistant.id))
+      await expect(await revealRailChat(page, MEMBER_CHATS.assistant.title)).toHaveAttribute(
+        'href',
+        org.searchChat(MEMBER_CHATS.assistant.id)
+      )
     })
     await onHome(ADMIN, async ({ page }) => {
-      await expect(
-        sidebar(page).getByRole('link', { name: ADMIN_CHATS.agent.title })
-      ).toHaveAttribute('href', org.chat(ADMIN_CHATS.agent.id))
+      await expect(await revealRailChat(page, ADMIN_CHATS.agent.title)).toHaveAttribute(
+        'href',
+        org.chat(ADMIN_CHATS.agent.id)
+      )
     })
     await onHome(NARROW, async ({ page }) => {
       await expect(sidebar(page).getByText('No chats yet')).toBeVisible()
@@ -543,11 +547,12 @@ export async function sidebarChecks() {
   await check('unread dot, hidden on the chat itself; Mark as read and unread work', async () => {
     await onHome(MEMBER, async ({ page }) => {
       const row = railRow(page, MEMBER_CHATS.unread.title)
+      await revealRailChat(page, MEMBER_CHATS.unread.title)
       await expect(row.getByRole('img', { name: 'Unread' })).toBeVisible()
-      await openRowMenu(page, MEMBER_CHATS.unread.title)
+      await openRailChatMenu(page, MEMBER_CHATS.unread.title)
       await menuEntry(page, 'Mark as read').click()
       await expect(row.getByRole('img', { name: 'Unread' })).toHaveCount(0)
-      await openRowMenu(page, MEMBER_CHATS.unread.title)
+      await openRailChatMenu(page, MEMBER_CHATS.unread.title)
       await menuEntry(page, 'Mark as unread').click()
       await expect(row.getByRole('img', { name: 'Unread' })).toBeVisible()
       await railLink(page, MEMBER_CHATS.unread.title).click()
@@ -564,7 +569,7 @@ export async function sidebarChecks() {
       () =>
         onHome(MEMBER, async ({ page, context }) => {
           const title = MEMBER_CHATS.assistant.title
-          const row = railLink(page, title)
+          const row = await revealRailChat(page, title)
           await row.click({ button: 'right' })
           await expect(page.getByRole('menu').getByRole('menuitem')).toHaveText([
             'Open in new tab',
@@ -578,26 +583,25 @@ export async function sidebarChecks() {
           await expect
             .poll(() => clipboard(page))
             .toBe(url(org.searchChat(MEMBER_CHATS.assistant.id)))
-          await openRowMenu(page, title)
+          await openRailChatMenu(page, title)
           await menuEntry(page, 'Pin').click()
           await expect(railRow(page, title).getByRole('img', { name: 'Pinned' })).toBeVisible()
-          await openRowMenu(page, title)
+          await openRailChatMenu(page, title)
           await menuEntry(page, 'Unpin').click()
-          await openRowMenu(page, title)
+          await openRailChatMenu(page, title)
           await menuEntry(page, 'Rename').click()
           const modal = dialog(page, 'Rename chat')
           await modal.getByRole('textbox', { name: 'Chat name' }).fill(`${title} renamed`)
           await modal.getByRole('button', { name: 'Save', exact: true }).click()
-          await expect(sidebar(page).getByRole('link', { name: `${title} renamed` })).toBeVisible()
-          await openRowMenu(page, `${title} renamed`)
+          await openRailChatMenu(page, `${title} renamed`)
           const popup = context.waitForEvent('page')
           await menuEntry(page, 'Open in new tab').click()
           await expect(await popup).toHaveURL(url(org.searchChat(MEMBER_CHATS.assistant.id)))
-          await openRowMenu(page, `${title} renamed`)
+          await openRailChatMenu(page, `${title} renamed`)
           await menuEntry(page, 'Rename').click()
           await modal.getByRole('textbox', { name: 'Chat name' }).fill(title)
           await modal.getByRole('button', { name: 'Save', exact: true }).click()
-          await expect(sidebar(page).getByRole('link', { name: title, exact: true })).toBeVisible()
+          await revealRailChat(page, title)
         })
     )
   )
@@ -608,7 +612,7 @@ export async function sidebarChecks() {
       await expect(
         page.getByText(`Here is what I found about ${MEMBER_CHATS.removable.title}.`)
       ).toBeVisible()
-      await openRowMenu(page, MEMBER_CHATS.removable.title)
+      await openRailChatMenu(page, MEMBER_CHATS.removable.title)
       await menuEntry(page, 'Delete').click()
       const modal = dialog(page, 'Delete chat')
       await expect(modal.getByText(MEMBER_CHATS.removable.title)).toBeVisible()
@@ -623,8 +627,8 @@ export async function sidebarChecks() {
     'shift click selects a range, background click clears, bulk delete keeps failed rows',
     async () => {
       await onHome(MEMBER, async ({ page }) => {
-        const first = sidebar(page).getByRole('link', { name: MEMBER_CHATS.bulkOne.title })
-        const second = sidebar(page).getByRole('link', { name: MEMBER_CHATS.bulkTwo.title })
+        const first = await revealRailChat(page, MEMBER_CHATS.bulkOne.title)
+        const second = await revealRailChat(page, MEMBER_CHATS.bulkTwo.title)
         await first.click({ modifiers: ['Shift'] })
         await second.click({ modifiers: ['Shift'] })
         await second.click({ button: 'right' })

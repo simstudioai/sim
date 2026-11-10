@@ -111,3 +111,7 @@
 .secondary {
   color: var(--ui-secondary);
 }
+
+.textEntry {
+  display: contents;
+}

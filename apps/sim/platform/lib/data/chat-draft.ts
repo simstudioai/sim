@@ -1,5 +1,5 @@
 import type { FileAttachmentForApi } from '@/lib/mothership/chat/types'
-import type { ComposerDraft } from '@/app/(product)/_components/composer/model'
+import type { ComposerDraft } from '@/platform/lib/data/models/composer'
 import type { ChatContext } from '@/stores/panel'
 
 /** Which of a draft's attachments go out as files, and which as resource context. */

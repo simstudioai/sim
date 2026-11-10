@@ -8,11 +8,11 @@ import { Icon } from '@sim/emcn/icon'
 import { StatusTag } from '@sim/emcn/status'
 import { ToolApproval } from '@/app/(product)/_components/chat/cards/tool-approval'
 import styles from '@/app/(product)/_components/chat/message/message.module.css'
-import type { PlatformTool, PlatformToolStatus } from '@/app/(product)/_components/chat/model'
 import {
   useChatHandlers,
   useChatInteractions,
 } from '@/app/(product)/_components/session/chat-runtime'
+import type { PlatformTool, PlatformToolStatus } from '@/platform/lib/data/models/chat'
 
 /** Terminal states other than success read beside the row, so a reader never takes them for done. */
 const STATUS_TAG: Partial<

@@ -11,11 +11,11 @@ import {
   ToolActivity,
   ToolInteraction,
 } from '@/app/(product)/_components/chat/message/tool-activity'
-import type { PlatformPart, PlatformTurn } from '@/app/(product)/_components/chat/model'
 import {
   useChatHandlers,
   useChatInteractions,
 } from '@/app/(product)/_components/session/chat-runtime'
+import type { PlatformPart, PlatformTurn } from '@/platform/lib/data/models/chat'
 
 type AssistantTurn = Extract<PlatformTurn, { role: 'assistant' }>
 

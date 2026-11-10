@@ -12,8 +12,8 @@ import { SegmentedControl } from '@sim/emcn/segmented-control'
 import styles from '@/app/(product)/_components/chat/message/message.module.css'
 import { MessageSources } from '@/app/(product)/_components/chat/message/message-sources'
 import { MessageTime } from '@/app/(product)/_components/chat/message/message-time'
-import type { PlatformTurn } from '@/app/(product)/_components/chat/model'
 import { useChatHandlers } from '@/app/(product)/_components/session/chat-runtime'
+import type { PlatformTurn } from '@/platform/lib/data/models/chat'
 
 type Rating = 'Good response' | 'Bad response'
 

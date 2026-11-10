@@ -768,6 +768,9 @@ try {
       const noCredentials = page
         .getByRole('region', { name: 'Connected credentials', exact: true })
         .getByText('No connected credentials', { exact: true })
+      const noCredentialsWithReason = page
+        .getByRole('main')
+        .getByRole('heading', { name: 'No connected credentials', exact: true })
       await expect(connectIntegration).toBeEnabled()
       await expect(noCredentials).toBeVisible()
       await expect(page.getByText('meetings@acme.example', { exact: true })).toHaveCount(0)
@@ -786,7 +789,7 @@ try {
         await expect(integrationRow('Coda')).toBeVisible()
         await integrationRow('Coda').click()
         await expect(page).toHaveURL((url) => url.pathname === routes.integration('coda'))
-        await expect(noCredentials).toBeVisible()
+        await expect(noCredentialsWithReason).toBeVisible()
         await expect(
           page.getByRole('main').getByText('Disabled by your organization', { exact: true })
         ).toBeVisible()
@@ -816,7 +819,7 @@ try {
         await expect(salesforce).toBeVisible()
         await salesforce.click()
         await expect(page).toHaveURL((url) => url.pathname === routes.integration('salesforce'))
-        await expect(noCredentials).toBeVisible()
+        await expect(noCredentialsWithReason).toBeVisible()
         await expect(
           page.getByRole('main').getByText('Connections unavailable', { exact: true })
         ).toBeVisible()

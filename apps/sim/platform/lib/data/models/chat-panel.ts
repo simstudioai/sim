@@ -1,10 +1,7 @@
 import type { FocusEvent, KeyboardEvent, PointerEvent } from 'react'
 import type { IconName } from '@sim/emcn/catalog/icon-geometry'
-import type { PlatformResource } from '@/app/(product)/_components/chat/model'
-import type {
-  ComposerController,
-  ComposerReference,
-} from '@/app/(product)/_components/composer/model'
+import type { PlatformResource } from '@/platform/lib/data/models/chat'
+import type { ComposerController, ComposerReference } from '@/platform/lib/data/models/composer'
 
 export type PanelRecent = {
   id: string

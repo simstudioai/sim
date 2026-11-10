@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, type ReactNode, useContext, useState } from 'react'
-import type { ComposerDraft } from '@/app/(product)/_components/composer/model'
+import type { ComposerDraft } from '@/platform/lib/data/models/composer'
 
 function useDraftState() {
   const [drafts, setDrafts] = useState(() => new Map<string, ComposerDraft>())

@@ -4,8 +4,8 @@ import { useRef, useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { AnchoredPopover } from '@sim/emcn/menu/anchored-popover'
 import styles from '@/app/(product)/_components/chat/message/message.module.css'
-import type { ChatSource } from '@/app/(product)/_components/chat/model'
 import { SourceRow } from '@/app/(product)/_components/source-row/source-row'
+import type { ChatSource } from '@/platform/lib/data/models/chat'
 import { plural } from '@/platform/shared/plural'
 
 interface MessageSourcesProps {

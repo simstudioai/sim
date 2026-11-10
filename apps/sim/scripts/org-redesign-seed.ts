@@ -286,14 +286,18 @@ await db.transaction(async (tx) => {
     ...Object.values(MEMBER_CHATS).map((chat) => ({ ...chat, userId: MEMBER.userId })),
     ...Object.values(ADMIN_CHATS).map((chat) => ({ ...chat, userId: ADMIN.userId })),
   ]
+  // Each chat's last activity is a second older than the one declared before it, so the rail
+  // lists them in fixture order rather than by the id tiebreak.
   await tx.insert(copilotChats).values(
-    chats.map(({ id, title, mode, seen, userId }) => ({
+    chats.map(({ id, title, mode, seen, userId }, index) => ({
       id,
       userId,
       organizationId: ORGANIZATION_ID,
       type: 'mothership' as const,
       title,
       config: { conversationMode: mode },
+      createdAt: new Date(now.getTime() - index * 1_000),
+      updatedAt: new Date(now.getTime() - index * 1_000),
       lastSeenAt: seen ? new Date(now.getTime() + 60_000) : null,
       deletedAt: id === ADMIN_CHATS.deleted.id ? now : null,
     }))
