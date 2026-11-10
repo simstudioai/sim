@@ -623,6 +623,21 @@ export const ForkChatResponse = z.strictObject({
 });
 export type ForkChatResponse = z.infer<typeof ForkChatResponse>;
 
+/**
+ * POST /api/chats/rescope — Sim moved these chats out of an organization into a workspace (a
+ * retired or reverted personal organization), so their next turn arrives with the new scope.
+ * Only a chat of the caller's tenant still in `from` moves; a repeat answers `rescoped: 0`.
+ */
+export const RescopeChatsRequest = z.strictObject({
+  chatIds: z.array(z.uuid()).min(1).max(1000),
+  from: z.strictObject({ organizationId: z.string().min(1).max(200) }),
+  to: z.strictObject({ workspaceId: z.uuid() }),
+});
+export type RescopeChatsRequest = z.infer<typeof RescopeChatsRequest>;
+
+export const RescopeChatsResponse = z.strictObject({ rescoped: z.number().int().nonnegative() });
+export type RescopeChatsResponse = z.infer<typeof RescopeChatsResponse>;
+
 /** POST /api/generate-chat-title */
 export const TitleRequest = z.strictObject({
   message: z.string().min(1),

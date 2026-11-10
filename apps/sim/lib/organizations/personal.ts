@@ -1,9 +1,7 @@
 import { db } from '@sim/db'
 import {
   assistantToolPermission,
-  copilotChats,
   copilotOrganizationRequestStops,
-  copilotRuns,
   credential,
   invitation,
   knowledgeBase,
@@ -35,6 +33,7 @@ import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/iden
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { enqueuePersonalOrganizationAuditTx } from '@/lib/organizations/lifecycle-audit'
+import { rehomePersonalOrganizationChatsTx } from '@/lib/organizations/personal-chats'
 import { enqueueOrganizationStoredObjectCleanup } from '@/lib/organizations/resource-cleanup-event'
 import { transferWorkspaceProjects } from '@/lib/projects/membership'
 
@@ -235,10 +234,16 @@ export async function convertPersonalOrganizationToTeamTx(
  * acceptance and admin adds all reach it), and nothing the person kept to themselves may become
  * visible to the team they join.
  *
+ * - The owner's organization chats, their runs and the private attachments they name never enter
+ *   the target: a team's data drains export every organization-level chat, and a person who later
+ *   leaves gets a fresh personal organization without them. They move first into the owner's own
+ *   personal workspace ({@link rehomePersonalOrganizationChatsTx}), staying private workspace chats
+ *   that outlive any team. A chat of anyone else, which a personal organization cannot hold, is
+ *   left to refuse the join rather than move.
  * - {@link OWNER_PRIVATE_CONTENT} is read only by its owner (every read filters on the owner's user
- *   id as well as the organization): organization chats and their runs, memory spaces, benchmarks.
- *   It moves into the target unchanged, still visible only to its owner. None of these tables holds
- *   a unique key scoped by organization, so moving can never collide.
+ *   id as well as the organization) and is exported by no drain: memory spaces and benchmarks. It
+ *   moves into the target unchanged, still visible only to its owner. None of these tables holds a
+ *   unique key scoped by organization, so moving can never collide.
  * - {@link KEYED_OWNER_STATE} is per-person state keyed within the organization. It moves except
  *   where the person already holds a row under the same key in the target, which stays
  *   authoritative.
@@ -253,8 +258,6 @@ export async function convertPersonalOrganizationToTeamTx(
  *   for cleanup in the same transaction.
  */
 const OWNER_PRIVATE_CONTENT: ReadonlyArray<{ table: PgTable; organizationId: PgColumn }> = [
-  { table: copilotChats, organizationId: copilotChats.organizationId },
-  { table: copilotRuns, organizationId: copilotRuns.organizationId },
   { table: mothershipMemorySpaces, organizationId: mothershipMemorySpaces.organizationId },
   { table: mothershipBenchmarks, organizationId: mothershipBenchmarks.organizationId },
 ]
@@ -439,10 +442,11 @@ export async function findCascadingOrganizationContentTx(
 /**
  * Proves nothing would cascade away with the personal organization: every table whose rows its
  * deletion would delete must hold none of them by now (its membership aside), checked in one
- * statement. Every such table is moved, keyed, deleted as organization-bound (above), or refused on
- * personal organizations by migrations 0456 and 0457 (`personal-organization-join.integration.ts`
- * proves the classification is complete), so this only refuses a join over rows written around
- * those guards, rather than losing them.
+ * statement. Every such table is moved (chats and runs into the owner's workspace, the rest into
+ * the target), keyed, deleted as organization-bound (above), or refused on personal organizations
+ * by migrations 0456 and 0457 (`personal-organization-join.integration.ts` proves the
+ * classification is complete), so this only refuses a join over rows written around those guards,
+ * rather than losing them.
  */
 async function assertNothingCascadesTx(tx: DbTransaction, organizationId: string) {
   const members = await tx
@@ -469,6 +473,8 @@ async function assertNothingCascadesTx(tx: DbTransaction, organizationId: string
 export interface RetirePersonalOrganizationResult {
   retiredOrganizationId: string | null
   detachedWorkspaceIds: string[]
+  /** The owner's personal workspace their organization chats moved into, or null when they had none. */
+  chatWorkspaceId: string | null
   /** Owner-private rows moved into the target, by table. */
   movedCounts: OrganizationContentCounts
   /** Organization-bound rows deleted with the personal organization, by table. */
@@ -478,12 +484,13 @@ export interface RetirePersonalOrganizationResult {
 /**
  * Retires a person's personal organization as they join another organization, so the
  * one-membership-per-user rule holds without refusing the join and without losing anything:
- * their workspaces return to the organization-less personal state they had before personal
- * organizations (still theirs, still private, still billed to them; an invitation acceptance
- * then moves the ones it disclosed, as it always has), their owner-private organization-level
- * content (chats, memory spaces, ...) moves into the organization they join with the same owner,
- * what was shared within the personal organization is deleted with it (see
- * {@link OWNER_PRIVATE_CONTENT}), and only then are the personal membership and organization
+ * their organization chats move into their own personal workspace (with their runs, which are
+ * stopped, and attachments), their workspaces return to the organization-less personal state they
+ * had before personal organizations (still theirs, still private, still billed to them; an
+ * invitation acceptance then moves the ones it disclosed, as it always has), their remaining
+ * owner-private organization-level content (memory spaces, ...) moves into the organization they
+ * join with the same owner, what was shared within the personal organization is deleted with it
+ * (see {@link OWNER_PRIVATE_CONTENT}), and only then are the personal membership and organization
  * deleted. Nothing the target holds can refuse the join.
  *
  * The caller holds the target's organization lock and the user's billing-identity lock, which
@@ -499,6 +506,7 @@ export async function retirePersonalOrganizationTx(
     return {
       retiredOrganizationId: null,
       detachedWorkspaceIds: [],
+      chatWorkspaceId: null,
       movedCounts: {},
       deletedCounts: {},
     }
@@ -508,6 +516,10 @@ export async function retirePersonalOrganizationTx(
   }
   await lockPersonalOrganizationTx(tx, personalOrganizationId)
 
+  const chats = await rehomePersonalOrganizationChatsTx(tx, {
+    organizationId: personalOrganizationId,
+    userId,
+  })
   const detachedWorkspaceIds = await detachPersonalOrganizationWorkspacesTx(
     tx,
     personalOrganizationId
@@ -530,6 +542,9 @@ export async function retirePersonalOrganizationTx(
     metadata: {
       targetOrganizationId,
       detachedWorkspaceIds,
+      chatWorkspaceId: chats.workspaceId,
+      rehomedChatCount: chats.chatCount,
+      rehomedAttachmentCount: chats.attachmentCount,
       movedCounts: moved,
       deletedCounts: deleted,
     },
@@ -539,10 +554,12 @@ export async function retirePersonalOrganizationTx(
     personalOrganizationId,
     targetOrganizationId,
     detachedWorkspaceCount: detachedWorkspaceIds.length,
+    rehomedChatCount: chats.chatCount,
   })
   return {
     retiredOrganizationId: personalOrganizationId,
     detachedWorkspaceIds,
+    chatWorkspaceId: chats.workspaceId,
     movedCounts: moved,
     deletedCounts: deleted,
   }

@@ -46,9 +46,9 @@ export interface ChatFileRef {
   context: ChatScopedContext
   chatId: string
   /**
-   * The organization or workspace whose chats may still reference the key: an organization
-   * attachment's organization, else the chat's organization, else the file row's or chat's
-   * workspace. `null` when no other chat can reference it (the chat had neither, so no fork was
+   * The organization or workspace whose chats may still reference the key: the file row's
+   * workspace, else the chat's organization or workspace (an organization attachment's chats share
+   * one scope, which moves with them when a personal organization retires). `null` when no other chat can reference it (the chat had neither, so no fork was
    * made from it). Absent only on events queued before refs carried their scope.
    */
   scope?: ChatFileReferenceScope | null
@@ -225,7 +225,9 @@ export async function collectChatFiles(
             key,
             context: 'mothership',
             chatId: row.chatId,
-            scope: { kind: 'organization', id: organizationId },
+            // The chat's own scope: a chat moved out of a retired personal organization, and
+            // every fork naming the key, now lives in its owner's workspace, not the key's org.
+            scope: scopeOf(row.chatId) ?? { kind: 'organization', id: organizationId },
           })
         } else if (tryInferContextFromKey(key) === 'copilot') {
           seen.add(key)

@@ -1,8 +1,9 @@
 import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { uploadSession } from '@sim/db/schema'
+import { uploadSession, workspace } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import sharp from 'sharp'
+import { authorizeWorkspaceOperation, defineWorkspaceOperation } from '@/lib/core/application'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -19,7 +20,10 @@ import {
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { createUploadSession, type UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file'
-import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
+import {
+  WORKSPACE_FILES_DELEGATION_AUDIENCE,
+  workspaceFileDelegationPolicy,
+} from '@/lib/workspace-files/application/authorization'
 
 const organizationAttachmentOperation = defineOrganizationOperation({
   id: 'organization.assistant.attachments.use',
@@ -136,16 +140,53 @@ const organizationAttachmentReadOperation = defineOrganizationOperation({
   delegationAudience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
 })
 
+/** An attachment whose chats moved into their owner's personal workspace when its organization retired. */
+const workspaceAttachmentReadOperation = defineWorkspaceOperation({
+  id: 'workspace.chat.attachments.read',
+  minimumRole: 'read',
+  workspaceApiKey: 'deny',
+  capability: 'copilot.use',
+  contentDelivery: 'none',
+  principalKinds: ['session', 'delegated'],
+  delegatedServices: ['copilot'],
+})
+
 interface ReadOrganizationAttachmentInput {
   principal: Principal
+  /** The chat's scope, when read for a chat: the attachment's holder must be it. */
   organizationId?: string
+  workspaceId?: string
   key: string
   signal?: AbortSignal
 }
 
-/** Resolve immutable upload ownership before metadata or bytes leave storage. */
+/** The uploader keeps reading a moved attachment while they can read the workspace holding it. */
+async function authorizeWorkspaceHeldAttachment(principal: Principal, workspaceId: string) {
+  const [held] = await db
+    .select({
+      workspaceId: workspace.id,
+      workspaceOrganizationId: workspace.organizationId,
+      allowPersonalApiKeys: workspace.allowPersonalApiKeys,
+    })
+    .from(workspace)
+    .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
+    .limit(1)
+  if (!held) throw new OrchestrationError('not_found', 'Attachment not found')
+  await authorizeWorkspaceOperation(principal, workspaceAttachmentReadOperation, held, {
+    delegation: workspaceFileDelegationPolicy,
+  })
+}
+
+/**
+ * Resolve immutable upload ownership before metadata or bytes leave storage. The key's
+ * organization segment names where the upload began; the binding names who holds it now.
+ */
 export async function authorizeOrganizationChatAttachment(input: ReadOrganizationAttachmentInput) {
-  if (input.principal.kind !== 'session' && input.principal.kind !== 'organization_delegated')
+  if (
+    input.principal.kind !== 'session' &&
+    input.principal.kind !== 'organization_delegated' &&
+    input.principal.kind !== 'delegated'
+  )
     throw new OrchestrationError('not_found', 'Attachment not found')
   const userId = resolvePrincipalSubjectUserId(input.principal)
   if (!userId) throw new OrchestrationError('not_found', 'Attachment not found')
@@ -185,17 +226,19 @@ export async function authorizeOrganizationChatAttachment(input: ReadOrganizatio
   const binding = organizationAttachmentBinding(session)
   if (
     session.userId !== userId ||
-    keyParts[1] !== binding.organizationId ||
     keyParts[2] !== binding.userId ||
-    (input.organizationId && input.organizationId !== binding.organizationId)
+    (input.organizationId && input.organizationId !== binding.organizationId) ||
+    (input.workspaceId && input.workspaceId !== binding.workspaceId)
   ) {
     throw new OrchestrationError('not_found', 'Attachment not found')
   }
-  await authorizeOrganizationOperation(
-    input.principal,
-    organizationAttachmentReadOperation,
-    binding
-  )
+  if (binding.organizationId !== null) {
+    await authorizeOrganizationOperation(input.principal, organizationAttachmentReadOperation, {
+      organizationId: binding.organizationId,
+    })
+  } else {
+    await authorizeWorkspaceHeldAttachment(input.principal, binding.workspaceId)
+  }
   return { session, binding }
 }
 

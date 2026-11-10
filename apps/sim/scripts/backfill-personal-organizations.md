@@ -66,7 +66,20 @@ personal organization's shell, billed exactly as before) until the backfill atta
 backfill is the only path that moves existing workspaces (and their payer bookkeeping) into
 personal organizations, and attaching changes no payer. Workspace chats stay keyed to their
 workspace and the organization's chat list shows each person's workspace chats, so neither the
-backfill nor a rollback touches chats.
+backfill nor a rollback touches them.
+
+Organization chats (started in the personal organization's own chat) are the one thing that has
+to move when a personal organization goes away, whether its owner joins a team or the rollback
+deletes it: they move into the owner's oldest live personal workspace that organization held (a
+default one is created in the same transaction when they own none), with their runs (live ones
+are stopped) and the private attachments they name, and stay private to their owner. The
+mothership pins every chat's stored scope, so the same transaction queues a
+`copilot.chats.rescope` outbox event that delivers the stopped runs' Stop and calls the worker's
+`POST /api/chats/rescope`. **Deploy the mothership release with that route before this
+release.** If it is missing the worker answers 404 and the event waits (retrying every ten
+minutes without spending attempts) until it is live, so nothing is lost, but the moved chats
+refuse new turns until then. Any other refusal is retried with backoff and dead-letters after the
+outbox's attempt limit; replay a dead-lettered event once the cause is fixed.
 
 ## Rollback
 
@@ -100,13 +113,20 @@ batch the revert over hours.
    personal organizations still to revert. `--apply` refuses while the flag is off.
 4. **Revert immediately** with `--apply --report <path>` in one run (idempotent; resumable with
    `--after` only to recover from a crash). Each personal organization's workspaces (and Projects)
-   return to organization-less personal, its invitations are released, and the organization and
-   its owner membership are deleted, under the backfill's locks. A personal organization holding
-   its owner's own content (organization chats, memory spaces, Search, go links, ...) is skipped
-   and listed in `skippedWithContent` with the first table found. Decide that before the window
-   (the rehearsal lists them): rerun with `--delete-content` to delete that content with its
-   organization, or leave those organizations in place, knowing the previous release treats them
-   as described under "Why the order matters".
+   return to organization-less personal, its organization chats move into the owner's workspace
+   (as above; the report counts them in `rehomedChats`), its invitations are released, and the
+   organization and its owner membership are deleted, under the backfill's locks. A personal
+   organization still holding other content of its own (memory spaces, Search, go links, ...) is
+   skipped, its chats left where they were, and listed in `skippedWithContent` with the first
+   table found. Decide that before the window (the rehearsal lists them): rerun with
+   `--delete-content` to delete that content with its organization (chats still move, never
+   delete), or leave those organizations in place, knowing the previous release treats them as
+   described under "Why the order matters". The previous release serves the moved chats as the
+   workspace chats they now are, but has no handler for the worker-side move, so the script runs
+   each organization's `copilot.chats.rescope` event inline right after its commit. Any it could
+   not finish (the worker unreachable) are listed in `pendingRescopeEvents`; their chats refuse
+   new turns until the event runs, which the previous release's outbox never does (it
+   dead-letters them). Requeue them by id once a release with the handler is live again.
 5. **Verify**: `SELECT count(*) FROM organization WHERE kind = 'personal'` equals the number of
    organizations deliberately kept, and the first verification query above counts every account
    whose personal organization was reverted.

@@ -21,8 +21,10 @@ import {
   organizationSearchMcpInvocation,
   organizationSecretSource,
   outboxEvent,
+  project,
   user,
   userStats,
+  workspace,
 } from '@sim/db/schema'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
@@ -92,6 +94,25 @@ async function postgresErrorCode(write: Promise<unknown>): Promise<string | unde
 
 afterAll(async () => {
   if (userIds.length === 0) return
+  /** A join creates a personal workspace (and its Project) for a joiner with chats but none. */
+  const workspaces = await db
+    .select({ id: workspace.id, projectId: workspace.projectId })
+    .from(workspace)
+    .where(inArray(workspace.ownerId, userIds))
+  if (workspaces.length > 0) {
+    await db.delete(workspace).where(
+      inArray(
+        workspace.id,
+        workspaces.map((row) => row.id)
+      )
+    )
+    await db.delete(project).where(
+      inArray(
+        project.id,
+        workspaces.flatMap((row) => (row.projectId ? [row.projectId] : []))
+      )
+    )
+  }
   const organizations = await db
     .select({ id: member.organizationId })
     .from(member)
@@ -207,7 +228,8 @@ describe('auditing a personal organization’s retirement', () => {
           action: 'organization.deleted',
           metadata: expect.objectContaining({
             targetOrganizationId: teamId,
-            movedCounts: expect.objectContaining({ copilot_chats: 1 }),
+            chatWorkspaceId: expect.any(String),
+            rehomedChatCount: 1,
           }),
         },
       ])
@@ -289,10 +311,13 @@ describe('joining a team while the personal organization is still being written 
 
     expect(await join).toMatchObject({ success: true })
     const chats = await db
-      .select({ organizationId: copilotChats.organizationId })
+      .select({
+        organizationId: copilotChats.organizationId,
+        workspaceId: copilotChats.workspaceId,
+      })
       .from(copilotChats)
       .where(eq(copilotChats.id, chatId))
-    expect(chats).toEqual([{ organizationId: teamId }])
+    expect(chats).toEqual([{ organizationId: null, workspaceId: expect.any(String) }])
     const retired = await db
       .select({ id: organization.id })
       .from(organization)
@@ -340,10 +365,13 @@ describe('joining a team while the personal organization is still being written 
       .where(eq(member.userId, joinerId))
     expect(memberships).toEqual([{ organizationId: firstTeamId }])
     const chats = await db
-      .select({ organizationId: copilotChats.organizationId })
+      .select({
+        organizationId: copilotChats.organizationId,
+        workspaceId: copilotChats.workspaceId,
+      })
       .from(copilotChats)
       .where(eq(copilotChats.userId, joinerId))
-    expect(chats).toEqual([{ organizationId: firstTeamId }])
+    expect(chats).toEqual([{ organizationId: null, workspaceId: expect.any(String) }])
     const personal = await db
       .select({ id: organization.id })
       .from(organization)
@@ -482,7 +510,10 @@ describe('team-only configuration on a personal organization', () => {
       ORDER BY 1
     `)
 
-    /** Moved, keyed or dropped by `retirePersonalOrganizationTx`; the membership is deleted. */
+    /**
+     * Moved (chats and runs into the owner's workspace), keyed or dropped by
+     * `retirePersonalOrganizationTx`; the membership is deleted.
+     */
     expect(rows.map((row) => row.table_name)).toEqual([
       'assistant_tool_permission',
       'copilot_chats',

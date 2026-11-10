@@ -131,15 +131,14 @@ describe('private organization Assistant images', () => {
     expect(mocks.download).not.toHaveBeenCalled()
   })
 
-  it.each([
-    { organizationId: 'other-org' },
-    { principal: { ...principal, userId: 'other-user' } },
-    { key: 'assistant/other-org/user-1/upload-1/image.png' },
-  ])('rejects a mismatched asserted owner', async (input) => {
-    dbChainMockFns.limit.mockResolvedValueOnce([session])
-    await expect(read(input)).rejects.toMatchObject({ code: 'not_found' })
-    expect(mocks.download).not.toHaveBeenCalled()
-  })
+  it.each([{ organizationId: 'other-org' }, { principal: { ...principal, userId: 'other-user' } }])(
+    'rejects a mismatched asserted owner',
+    async (input) => {
+      dbChainMockFns.limit.mockResolvedValueOnce([session])
+      await expect(read(input)).rejects.toMatchObject({ code: 'not_found' })
+      expect(mocks.download).not.toHaveBeenCalled()
+    }
+  )
 
   it('refuses absent, incomplete, or purged records', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([])

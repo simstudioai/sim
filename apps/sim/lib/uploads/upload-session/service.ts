@@ -5,7 +5,7 @@ import {
   requirePrincipalSubjectUserId,
 } from '@sim/auth/principal'
 import { db, dbFor } from '@sim/db'
-import { organization, uploadSession, user } from '@sim/db/schema'
+import { organization, uploadSession, user, workspace } from '@sim/db/schema'
 import { safeCompare } from '@sim/security/compare'
 import { sha256Hex } from '@sim/security/hash'
 import { generateSecureToken } from '@sim/security/tokens'
@@ -1206,15 +1206,24 @@ export async function cleanupExpiredUploadSessions(): Promise<{
               AND ${organization.logo} = ${uploadSession.metadata}->>'organizationLogoPath'
           )
         )`,
-        /** Keep private images while both their uploader and organization exist. */
+        /**
+         * Keep private attachments while both their uploader and holder exist: the organization
+         * they were uploaded in, or the personal workspace their chats moved into.
+         */
         sql`NOT (
           ${uploadSession.status} = 'completed'
           AND ${uploadSession.purpose} = 'mothership_attachment'
           AND ${uploadSession.workspaceId} IS NULL
           AND EXISTS (SELECT 1 FROM ${user} WHERE ${user.id} = ${uploadSession.userId})
-          AND EXISTS (
-            SELECT 1 FROM ${organization}
-            WHERE ${organization.id} = ${uploadSession.metadata}->'organizationAttachment'->>'organizationId'
+          AND (
+            EXISTS (
+              SELECT 1 FROM ${organization}
+              WHERE ${organization.id} = ${uploadSession.metadata}->'organizationAttachment'->>'organizationId'
+            )
+            OR EXISTS (
+              SELECT 1 FROM ${workspace}
+              WHERE ${workspace.id} = ${uploadSession.metadata}->'organizationAttachment'->>'workspaceId'
+            )
           )
         )`,
         lt(uploadSession.completedAt, terminalCutoff),
