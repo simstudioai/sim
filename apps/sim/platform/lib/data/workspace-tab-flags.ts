@@ -1,10 +1,6 @@
 import 'server-only'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
-import {
-  isWorkspaceTabShown,
-  type WorkspaceTab,
-  type WorkspaceTabFlags,
-} from '@/platform/lib/workspace-navigation'
+import type { WorkspaceTabFlags } from '@/platform/lib/workspace-navigation'
 
 /**
  * The flags the workspace tabs depend on, from the surface the shell already read in this request.
@@ -20,9 +16,4 @@ export async function readWorkspaceTabFlags(): Promise<WorkspaceTabFlags> {
     'workflow-tests': featureFlags['workflow-tests'],
     'platform-preview': featureFlags['platform-preview'],
   }
-}
-
-/** Whether live data lists `section` for the viewer, so a page whose tab is not shown answers 404. */
-export async function readWorkspaceTabShown(section: WorkspaceTab): Promise<boolean> {
-  return isWorkspaceTabShown(section, await readWorkspaceTabFlags())
 }
