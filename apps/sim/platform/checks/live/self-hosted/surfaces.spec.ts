@@ -9,7 +9,7 @@ import { test } from '@/platform/checks/test'
  * The product surface as a self-hoster gets it: billing off, so no section sells or bills, and
  * everything else the hosted suite walks still renders, redirects and answers in the same shell.
  */
-const WORKSPACE_ID = 'platform-live-workspace-main'
+const WORKSPACE_ID = '5e1d7c3a-0b6f-4a2e-9c41-7d8e0f1a2b01'
 const WORKSPACE = `/workspace/${WORKSPACE_ID}`
 
 test('a self-hosted shell renders every section a member uses', async ({ page }) => {

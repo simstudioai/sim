@@ -17,7 +17,7 @@ import { test } from '@/platform/checks/test'
  * (`.github/scripts/http-e2e.sh`), so whatever stays hidden here is hidden by `platform-preview`
  * alone.
  */
-const WORKSPACE_ID = 'platform-live-workspace-main'
+const WORKSPACE_ID = '5e1d7c3a-0b6f-4a2e-9c41-7d8e0f1a2b01'
 const WORKSPACE_NAME = 'Operations'
 const PREVIEW_TABS = [
   ['dashboards', 'Dashboard'],

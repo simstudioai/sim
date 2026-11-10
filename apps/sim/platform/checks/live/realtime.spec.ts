@@ -6,7 +6,7 @@ import { test } from '@/platform/checks/test'
  * The realtime server the job starts beside the app (`.github/scripts/http-e2e.sh`). The workspace
  * layout mounts the socket its tabs share; organization pages open none.
  */
-const WORKSPACE_PAGE = '/workspace/platform-live-workspace-main/workflows'
+const WORKSPACE_PAGE = '/workspace/5e1d7c3a-0b6f-4a2e-9c41-7d8e0f1a2b01/workflows'
 
 /** Socket.IO acknowledges an authenticated connection with a `40` packet. */
 function trackSocketConnected(page: Page) {

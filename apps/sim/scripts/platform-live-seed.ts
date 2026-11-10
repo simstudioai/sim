@@ -90,12 +90,13 @@ const EVERYONE = [
   { id: NO_CHAT_ID, email: NO_CHAT_EMAIL, name: 'Noor Nochat' },
 ]
 const allUserIds = EVERYONE.map(({ id }) => id)
+/** UUIDs, as the app mints them: the routes' contracts refuse any other workspace id. */
 const WORKSPACES = [
-  { id: 'platform-live-workspace-main', name: 'Operations' },
-  { id: 'platform-live-workspace-second', name: 'Marketing' },
+  { id: '5e1d7c3a-0b6f-4a2e-9c41-7d8e0f1a2b01', name: 'Operations' },
+  { id: '5e1d7c3a-0b6f-4a2e-9c41-7d8e0f1a2b02', name: 'Marketing' },
 ] as const
 /** A workspace of the outside organization that no member of the seeded one can open. */
-const OUTSIDE_WORKSPACE_ID = 'platform-live-workspace-outside'
+const OUTSIDE_WORKSPACE_ID = '5e1d7c3a-0b6f-4a2e-9c41-7d8e0f1a2b03'
 const CHATS = [
   {
     id: '11111111-1111-4111-8111-111111111111',

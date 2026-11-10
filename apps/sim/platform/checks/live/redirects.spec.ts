@@ -12,9 +12,9 @@ import { liveRoute } from '@/platform/checks/routes'
 import { test } from '@/platform/checks/test'
 
 /** Seeded workspaces (`scripts/platform-live-seed.ts`): one of the organization's, one outside it. */
-const WORKSPACE_ID = 'platform-live-workspace-main'
+const WORKSPACE_ID = '5e1d7c3a-0b6f-4a2e-9c41-7d8e0f1a2b01'
 const WORKSPACE = `/workspace/${WORKSPACE_ID}`
-const OUTSIDE_WORKSPACE = '/workspace/platform-live-workspace-outside'
+const OUTSIDE_WORKSPACE = '/workspace/5e1d7c3a-0b6f-4a2e-9c41-7d8e0f1a2b03'
 const SEEDED_CHAT = '11111111-1111-4111-8111-111111111111'
 
 /** Saved links from before the product routes, each to where it now lands, query kept. */

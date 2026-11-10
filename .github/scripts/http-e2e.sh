@@ -178,6 +178,8 @@ platform_live_environment() {
   # The flags each held-back workspace tab needs besides `platform-preview`, which stays off as in
   # production: what the live suite finds hidden, `platform-preview` alone hides.
   export DASHBOARDS=true CHANGELOG=true WORKFLOW_TESTS=true
+  # The extension panel serves only a deployment that names its extension (`boundaries.spec.ts`).
+  export BROWSER_EXTENSION_IDS=abcdefghijklmnopabcdefghijklmnop
   export INTERNAL_API_SECRET=platform-live-ci-local-secret-at-least-32-characters
   export COPILOT_TOOL_PERMISSIONS_ENABLED=true
   export DB_TX_TRIPWIRE=throw

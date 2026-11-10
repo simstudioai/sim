@@ -4,7 +4,7 @@ import { adminEmail, signInAsAdmin } from '@/platform/checks/live/session'
 import { withLiveDatabase } from '@/platform/checks/live/support/database'
 import { test } from '@/platform/checks/test'
 
-const WORKSPACE_ID = 'platform-live-workspace-main'
+const WORKSPACE_ID = '5e1d7c3a-0b6f-4a2e-9c41-7d8e0f1a2b01'
 
 /**
  * Seeds a workflow with no blocks in the main workspace, owned by the administrator, opens its

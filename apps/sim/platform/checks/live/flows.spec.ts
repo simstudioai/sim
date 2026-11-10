@@ -58,9 +58,9 @@ test('a workspace pins and renames through its row menu', async ({ page }) => {
     // The seeded name is what every other check and a rerun look the workspace up by, and a pin
     // reorders the section every later check reads.
     await withLiveDatabase(async (sql) => {
-      await sql`update workspace set name = 'Marketing' where id = 'platform-live-workspace-second'`
+      await sql`update workspace set name = 'Marketing' where id = '5e1d7c3a-0b6f-4a2e-9c41-7d8e0f1a2b02'`
       await sql`delete from pinned_item where resource_type = 'workspace'
-        and resource_id = 'platform-live-workspace-second'
+        and resource_id = '5e1d7c3a-0b6f-4a2e-9c41-7d8e0f1a2b02'
         and user_id = (select id from "user" where email = ${adminEmail()})`
     })
   }

@@ -11,7 +11,7 @@ import { test } from '@/platform/checks/test'
  * adds a workspace credential for the same app, so the page has to join the member's app with the
  * workspace catalog's.
  */
-const WORKSPACE_ID = 'platform-live-workspace-main'
+const WORKSPACE_ID = '5e1d7c3a-0b6f-4a2e-9c41-7d8e0f1a2b01'
 const connectedEmail = () => requireEnv('PLATFORM_LIVE_CONNECTED_EMAIL')
 
 interface SeededCredential {
