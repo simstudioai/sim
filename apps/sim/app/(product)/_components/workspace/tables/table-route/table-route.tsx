@@ -7,7 +7,7 @@ import { Button } from '@sim/emcn/button'
 import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { getErrorMessage } from '@sim/utils/errors'
-import { notFound, useRouter, useSearchParams } from 'next/navigation'
+import { notFound, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
@@ -91,7 +91,7 @@ import {
   withCellValueFilter,
 } from '@/platform/lib/data/tables'
 import { folderChain } from '@/platform/lib/folder-chain'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { LOCALE } from '@/platform/shared/time'
 
@@ -178,7 +178,7 @@ interface TableRouteProps {
  */
 export function TableRoute({ workspaceId, tableId }: TableRouteProps) {
   const router = useRouter()
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const surfaceScope = useSurfaceScope()
   const embedded = useEmbeddedWorkspacePage()
   const record = useTableRecord(workspaceId, tableId)
@@ -195,10 +195,7 @@ export function TableRoute({ workspaceId, tableId }: TableRouteProps) {
           label: 'Upgrade',
           onClick: () =>
             router.push(
-              platformHref(
-                surfaceHref(surfaceScope, '/settings/billing/plans?reason=tables'),
-                search
-              )
+              hrefFor(surfaceHref(surfaceScope, '/settings/billing/plans?reason=tables'))
             ),
         },
       })
@@ -649,11 +646,10 @@ export function TableRoute({ workspaceId, tableId }: TableRouteProps) {
   }, [canAdmin])
 
   const tablesHref = (folderId: string | null) =>
-    platformHref(
+    hrefFor(
       folderId
         ? `${workspacePath(workspaceId, 'tables')}?folderId=${encodeURIComponent(folderId)}`
-        : workspacePath(workspaceId, 'tables'),
-      search
+        : workspacePath(workspaceId, 'tables')
     )
 
   const { data: folderMap } = useFolderMap(workspaceId, 'table')

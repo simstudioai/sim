@@ -7,7 +7,7 @@ import { FailureNotice } from '@sim/emcn/status'
 import { DestinationTabs } from '@sim/emcn-platform/destination-tabs'
 import { PageColumn } from '@sim/emcn-platform/page-column'
 import Link from 'next/link'
-import { notFound, useSearchParams } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
 import { DirectoryHeading } from '@/app/(product)/_components/resource-directory/resource-directory'
 import styles from '@/app/(product)/_components/workspace/workspace-page/workspace-page.module.css'
@@ -19,7 +19,7 @@ import {
 } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useLiveWorkspace } from '@/platform/lib/data/workspace-summary'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { type WorkspaceTab, workspaceTabs } from '@/platform/lib/workspace-navigation'
 import type { TabWorkspace } from '@/platform/shared/workspace-records'
@@ -75,13 +75,13 @@ export function WorkspacePage({
   layout = 'page',
   children,
 }: WorkspacePageProps) {
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const scrollMemory = useScrollMemory<HTMLElement>()
   const embedded = useEmbeddedWorkspacePage()
   const destinations = workspaceTabs(useWorkspaceDataMode(), useWorkspaceTabFlags()).map((tab) => ({
     section: tab.section,
     label: tab.label,
-    href: platformHref(workspacePath(workspace.id, tab.section), search),
+    href: hrefFor(workspacePath(workspace.id, tab.section)),
   }))
   const heading = <DirectoryHeading title={workspace.name} description={workspace.description} />
   const toolbar = (
@@ -258,5 +258,6 @@ export function WorkspaceEmpty({ title, description, action }: WorkspaceEmptyPro
 
 /** The organization's New chat, keeping the preview's scenario and theme. */
 export function useNewChatHref() {
-  return platformHref(surfaceHref(useSurfaceScope(), '/chat'), useSearchParams())
+  const hrefFor = usePlatformHref()
+  return hrefFor(surfaceHref(useSurfaceScope(), '/chat'))
 }

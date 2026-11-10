@@ -7,7 +7,7 @@ import { useRegisterGlobalCommands } from '@/app/(product)/_components/workspace
 import { useChatHandoff } from '@/platform/lib/data/chat-handoff'
 import { useTerminalConsoleStore } from '@/platform/lib/data/workflow-deploy/terminal'
 import { createCommand } from '@/platform/lib/data/workflows'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 
 interface EditorShortcutsProps {
   workspaceId: string
@@ -22,6 +22,7 @@ interface EditorShortcutsProps {
  */
 export function EditorShortcuts({ workspaceId, canEdit, onNewWorkflow }: EditorShortcutsProps) {
   const router = useRouter()
+  const hrefFor = usePlatformHref()
   useRegisterGlobalCommands(() => [
     createCommand({
       id: 'add-agent',
@@ -36,12 +37,7 @@ export function EditorShortcuts({ workspaceId, canEdit, onNewWorkflow }: EditorS
     createCommand({
       id: 'goto-logs',
       handler: () => {
-        router.push(
-          platformHref(
-            workspacePath(workspaceId, 'logs'),
-            new URLSearchParams(window.location.search)
-          )
-        )
+        router.push(hrefFor(workspacePath(workspaceId, 'logs')))
       },
     }),
     createCommand({

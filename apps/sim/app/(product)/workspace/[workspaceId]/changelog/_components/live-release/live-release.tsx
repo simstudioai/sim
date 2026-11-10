@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import Link from 'next/link'
-import { notFound, useSearchParams } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
 import { AccessBoundary } from '@/app/(product)/_components/workspace/access-required/access-boundary'
 import { DetailSplit } from '@/app/(product)/_components/workspace/detail-split/detail-split'
@@ -12,7 +12,7 @@ import { ReleaseEdit } from '@/app/(product)/workspace/[workspaceId]/changelog/_
 import { ReleaseNotes } from '@/app/(product)/workspace/[workspaceId]/changelog/_components/release-notes/release-notes'
 import { useChangelogAccess, useLiveRelease } from '@/platform/lib/data/changelog'
 import { useLiveWorkspace } from '@/platform/lib/data/workspace-summary'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 
 interface LiveReleaseProps {
   workspaceId: string
@@ -33,7 +33,7 @@ export function LiveRelease({ workspaceId, releaseId, back }: LiveReleaseProps) 
 }
 
 function Release({ workspaceId, releaseId, back }: LiveReleaseProps) {
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const [editing, setEditing] = useState(false)
   const access = useChangelogAccess(workspaceId)
   const workspace = useLiveWorkspace(workspaceId)
@@ -59,9 +59,8 @@ function Release({ workspaceId, releaseId, back }: LiveReleaseProps) {
                 size='compact'
                 render={
                   <Link
-                    href={platformHref(
-                      workspacePath(workspaceId, `files/${encodeURIComponent(release.fileId)}`),
-                      search
+                    href={hrefFor(
+                      workspacePath(workspaceId, `files/${encodeURIComponent(release.fileId)}`)
                     )}
                   />
                 }

@@ -2,13 +2,13 @@
 
 import { createContext, type ReactNode, useContext, useState } from 'react'
 import { generateId } from '@sim/utils/id'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { draftTitle, userTurn } from '@/app/(product)/_components/composer/user-turn'
 import type { ChatRuntime, PlatformPart, PlatformTurn } from '@/platform/lib/data/models/chat'
 import type { ChatTurn, ComposerDraft } from '@/platform/lib/data/models/composer'
 import type { ShellChat } from '@/platform/lib/data/models/shell'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 interface ChatEdits {
@@ -140,7 +140,7 @@ export function useFixtureChatRuntime(
 ): ChatRuntime {
   const changes = useChatChanges()
   const router = useRouter()
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const scope = useSurfaceScope()
   const thread = threads?.find((item) => item.id === chatId)
   const id = chatId ?? ''
@@ -172,7 +172,7 @@ export function useFixtureChatRuntime(
       return
     }
     const newId = changes.createChat(draftTitle(draft), [next])
-    router.replace(platformHref(surfaceHref(scope, `/chat/${newId}`), search))
+    router.replace(hrefFor(surfaceHref(scope, `/chat/${newId}`)))
   }
   return {
     chatId,

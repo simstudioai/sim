@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import { notFound, useRouter, useSearchParams } from 'next/navigation'
+import { notFound, useRouter } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
 import { RequestAccessModal } from '@/app/(product)/_components/request-access-modal/request-access-modal'
 import { SettingsNavigation } from '@/app/(product)/_components/settings-navigation/settings-navigation'
@@ -17,7 +17,7 @@ import {
   useWorkspaceSettings,
   type WorkspaceSettingsKey,
 } from '@/platform/lib/data/workspace-settings'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 
 /** Example workspaces have no settings to show: the tab is in place and empty. */
 export function WorkspaceSettings({ workspace }: { workspace: WorkspaceSummary }) {
@@ -32,7 +32,7 @@ interface RestrictedSectionProps {
 /** A section the viewer's permission group withholds, offering the request they may make for it. */
 function RestrictedSection({ workspaceId, restriction }: RestrictedSectionProps) {
   const router = useRouter()
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const [requesting, setRequesting] = useState(false)
   const { entry, accepting } = restriction
   const requestable = accepting && entry?.state === 'requestable'
@@ -65,10 +65,7 @@ function RestrictedSection({ workspaceId, restriction }: RestrictedSectionProps)
           label={entry.label}
           onViewRequest={(requestId) =>
             router.push(
-              platformHref(
-                getMyAccessRequestHref({ kind: 'workspace', workspaceId }, requestId),
-                search
-              )
+              hrefFor(getMyAccessRequestHref({ kind: 'workspace', workspaceId }, requestId))
             )
           }
           onClose={() => setRequesting(false)}
@@ -93,7 +90,7 @@ export function LiveWorkspaceSettings({
   section,
   children,
 }: LiveWorkspaceSettingsProps) {
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const settings = useWorkspaceSettings(workspaceId)
   const entry = settings.section(section)
   if (settings.status === 'ready' && !entry) notFound()
@@ -103,7 +100,7 @@ export function LiveWorkspaceSettings({
       key: item.key,
       title: item.title,
       icon: item.icon,
-      href: platformHref(workspacePath(workspaceId, `settings/${item.key}`), search),
+      href: hrefFor(workspacePath(workspaceId, `settings/${item.key}`)),
     })),
   }))
   return (

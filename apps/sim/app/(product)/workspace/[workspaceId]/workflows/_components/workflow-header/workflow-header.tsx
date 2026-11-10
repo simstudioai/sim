@@ -6,7 +6,7 @@ import { Button } from '@sim/emcn/button'
 import { TextField } from '@sim/emcn/field'
 import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import { toast } from '@/lib/toast/sink'
 import { RequestAccessModal } from '@/app/(product)/_components/request-access-modal/request-access-modal'
@@ -42,7 +42,7 @@ import {
   useWorkspaceUsageGate,
   type WorkflowFolder,
 } from '@/platform/lib/data/workflows'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 const logger = createLogger('WorkflowHeader')
@@ -91,7 +91,7 @@ interface WorkflowHeaderProps {
  */
 export function WorkflowTrail({ workspaceId, workflowId }: WorkflowHeaderProps) {
   const router = useRouter()
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const { data: workflows = {} } = useWorkflowMap(workspaceId)
   const { data: folders = {} } = useFolderMap(workspaceId)
   const userPermissions = useUserPermissionsContext()
@@ -141,9 +141,8 @@ export function WorkflowTrail({ workspaceId, workflowId }: WorkflowHeaderProps) 
       })
       if (result?.id) {
         router.push(
-          platformHref(
-            `/workspace/${encodeURIComponent(workspaceId)}/workflows/${encodeURIComponent(result.id)}`,
-            search
+          hrefFor(
+            `/workspace/${encodeURIComponent(workspaceId)}/workflows/${encodeURIComponent(result.id)}`
           )
         )
       }
@@ -157,7 +156,7 @@ export function WorkflowTrail({ workspaceId, workflowId }: WorkflowHeaderProps) 
     workspaceId,
     workflowId,
     router,
-    search,
+    hrefFor,
   ])
 
   const actions: MenuAction[] = [
@@ -197,11 +196,11 @@ export function WorkflowTrail({ workspaceId, workflowId }: WorkflowHeaderProps) 
   ]
 
   const items: BreadcrumbItem[] = [
-    { id: 'workflows', label: 'Workflows', href: platformHref(listHref(workspaceId), search) },
+    { id: 'workflows', label: 'Workflows', href: hrefFor(listHref(workspaceId)) },
     ...folderChain(workflow?.folderId, folders).map((folder) => ({
       id: folder.id,
       label: folder.name,
-      href: platformHref(listHref(workspaceId, folder.id), search),
+      href: hrefFor(listHref(workspaceId, folder.id)),
     })),
     ...(workflow ? [{ id: workflowId, label: workflow.name, actions }] : []),
   ]
@@ -241,7 +240,7 @@ export function WorkflowTrail({ workspaceId, workflowId }: WorkflowHeaderProps) 
         confirmLabel='Delete'
         onConfirm={async () => {
           await deleteWorkflow.mutateAsync({ workspaceId, workflowId })
-          router.push(platformHref(listHref(workspaceId, workflow?.folderId ?? undefined), search))
+          router.push(hrefFor(listHref(workspaceId, workflow?.folderId ?? undefined)))
         }}
       />
     </>
@@ -254,7 +253,7 @@ export function WorkflowTrail({ workspaceId, workflowId }: WorkflowHeaderProps) 
  */
 export function WorkflowActions({ workspaceId, workflowId }: WorkflowHeaderProps) {
   const router = useRouter()
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const scope = useSurfaceScope()
   const { billingEnabled } = useDeploymentShape()
   const { data: session } = useSession()
@@ -302,7 +301,7 @@ export function WorkflowActions({ workspaceId, workflowId }: WorkflowHeaderProps
         scope: usageGate?.scope ?? null,
       })
       if (action.type === 'manage-billing')
-        router.push(platformHref(surfaceHref(scope, '/settings/billing'), search))
+        router.push(hrefFor(surfaceHref(scope, '/settings/billing')))
       else toast.error(action.message)
       return
     }
@@ -314,7 +313,7 @@ export function WorkflowActions({ workspaceId, workflowId }: WorkflowHeaderProps
     hostContext,
     session?.user?.id,
     router,
-    search,
+    hrefFor,
     handleRunWorkflow,
   ])
 
@@ -418,10 +417,7 @@ export function WorkflowActions({ workspaceId, workflowId }: WorkflowHeaderProps
           label='Credit limit'
           onViewRequest={(requestId) =>
             router.push(
-              platformHref(
-                getMyAccessRequestHref({ kind: 'workspace', workspaceId }, requestId),
-                search
-              )
+              hrefFor(getMyAccessRequestHref({ kind: 'workspace', workspaceId }, requestId))
             )
           }
           onClose={() => setRequestingLimit(false)}

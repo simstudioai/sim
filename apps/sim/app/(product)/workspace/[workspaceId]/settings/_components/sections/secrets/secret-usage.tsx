@@ -5,7 +5,6 @@ import { DataTable } from '@sim/emcn/data-display'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { FailureNotice } from '@sim/emcn/status'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
 import {
   BLOCK_NAMES,
@@ -14,7 +13,7 @@ import {
   type SecretUsageScope,
   useSecretUsage,
 } from '@/platform/lib/data/secrets'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 import { formatTimestamp } from '@/platform/shared/time'
 import { coreTriggerLabel } from '@/platform/shared/trigger-labels'
 
@@ -54,7 +53,7 @@ interface SecretUsageProps {
  * count shows only above one. A run whose log has aged out keeps its link, disabled with the reason.
  */
 export function SecretUsage({ workspaceId, secretName, scope }: SecretUsageProps) {
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const { data, isPending, isError, isFetching, refetch } = useSecretUsage({
     workspaceId,
     name: secretName,
@@ -93,9 +92,8 @@ export function SecretUsage({ workspaceId, secretName, scope }: SecretUsageProps
               variant='quiet'
               render={
                 <Link
-                  href={platformHref(
-                    workspacePath(workspaceId, `logs/${encodeURIComponent(entry.lastExecutionId)}`),
-                    search
+                  href={hrefFor(
+                    workspacePath(workspaceId, `logs/${encodeURIComponent(entry.lastExecutionId)}`)
                   )}
                 />
               }

@@ -6,7 +6,6 @@ import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { SearchField } from '@sim/emcn/search-field'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { workspacePath } from '@/lib/navigation/paths'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
@@ -31,7 +30,7 @@ import {
   issueGroup,
   issueQualifier,
 } from '@/app/(product)/workspace/[workspaceId]/issues/_components/issue-list/issue-state'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 import { issueListParams, serializeIssueList } from '@/platform/lib/workspace-views'
 import { formatRelativeTime } from '@/platform/shared/time'
 
@@ -72,7 +71,7 @@ interface IssueListProps {
  * hides groups it empties. Each row opens the issue, carrying this view so Back returns to it.
  */
 export function IssueList({ data, read }: IssueListProps) {
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const newChat = useNewChatHref()
   const [view, setView] = useQueryStates(issueListParams, { history: 'replace', shallow: true })
   const [toggled, toggleGroup] = useOpenGroups(`issues/${data.workspace.id}`)
@@ -104,7 +103,7 @@ export function IssueList({ data, read }: IssueListProps) {
   }).filter((group) => !filtering || group.issues.length > 0)
 
   const rowHref = (id: string) =>
-    serializeIssueList(platformHref(`${listPath}/${encodeURIComponent(id)}`, search), view)
+    serializeIssueList(hrefFor(`${listPath}/${encodeURIComponent(id)}`), view)
   const controls = data.issues.length > 0 && (
     <ControlBar
       search={

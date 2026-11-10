@@ -4,7 +4,6 @@ import type { ComponentProps } from 'react'
 import { Avatar } from '@sim/emcn/avatar'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { workspacePath } from '@/lib/navigation/paths'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
@@ -20,7 +19,7 @@ import {
 } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
 import { UpdatedStatus } from '@/app/(product)/workspace/[workspaceId]/_components/updated-status/updated-status'
 import styles from '@/app/(product)/workspace/[workspaceId]/changelog/_components/changelog-feed/changelog-feed.module.css'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 import {
   CHANGELOG_PERIODS,
   changelogParams,
@@ -68,7 +67,7 @@ interface ChangelogFeedProps {
  * entry links to its details and, when it came from one, to its issue.
  */
 export function ChangelogFeed({ data, read, empty, older }: ChangelogFeedProps) {
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const timeZone = useViewerTimeZone()
   const [view, setView] = useQueryStates(changelogParams, { history: 'replace', shallow: true })
   const contributors = [
@@ -105,12 +104,12 @@ export function ChangelogFeed({ data, read, empty, older }: ChangelogFeedProps) 
   }
   const base = workspacePath(data.workspace.id, 'changelog')
   const detailHref = (id: string) =>
-    serializeChangelog(platformHref(`${base}/${encodeURIComponent(id)}`, search), view)
+    serializeChangelog(hrefFor(`${base}/${encodeURIComponent(id)}`), view)
   // Entries arrive newest first, so once the oldest read precedes the period, none older can match.
   const oldest = data.entries.at(-1)
   const olderMatch = Boolean(older?.hasMore && oldest && oldest.appliedAt >= since)
   const issueHref = (id: string) =>
-    platformHref(workspacePath(data.workspace.id, `issues/${encodeURIComponent(id)}`), search)
+    hrefFor(workspacePath(data.workspace.id, `issues/${encodeURIComponent(id)}`))
 
   return (
     <WorkspaceTabPage

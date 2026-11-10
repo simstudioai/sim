@@ -3,7 +3,6 @@
 import { useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
-import { useSearchParams } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import {
   MAX_CUSTOM_RANGE_DAYS,
@@ -39,7 +38,7 @@ import {
 } from '@/hooks/queries/organization-usage'
 import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organization-usage-keys'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { DAY_MS, LOCALE } from '@/platform/shared/time'
 import { dayLabel, formatDurationMs, toCreditChart } from '@/platform/shared/usage'
@@ -51,27 +50,18 @@ const PERIOD_OPTIONS = USAGE_WINDOW_PRESETS.map((preset) => PERIOD_LABELS[preset
 /** The window, tab and drill-down the URL holds, in the legacy page's keys. */
 export function useUsageView() {
   const view = useUsageWindow()
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const scope = useSurfaceScope()
   const { setState } = view
   return {
     ...view,
     periodOptions: PERIOD_OPTIONS,
-    eventsHref: usageWindowHref(
-      platformHref(surfaceHref(scope, '/settings/usage/events'), search),
-      view.window
-    ),
-    backHref: usageWindowHref(
-      platformHref(surfaceHref(scope, '/settings/usage'), search),
-      view.window
-    ),
+    eventsHref: usageWindowHref(hrefFor(surfaceHref(scope, '/settings/usage/events')), view.window),
+    backHref: usageWindowHref(hrefFor(surfaceHref(scope, '/settings/usage')), view.window),
     auditLogsHref: (workspaceId: string) =>
-      serializeOrganizationUsageParams(
-        platformHref(surfaceHref(scope, '/settings/audit-logs'), search),
-        {
-          workspace: workspaceId,
-        }
-      ),
+      serializeOrganizationUsageParams(hrefFor(surfaceHref(scope, '/settings/audit-logs')), {
+        workspace: workspaceId,
+      }),
     selectTab: (tab: UsageTab) =>
       void setState({ tab, workspace: null, expanded: null, activityPage: 0 }),
     /** Whether the viewer chose a custom range, which has no dates until they pick some. */

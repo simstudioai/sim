@@ -162,7 +162,7 @@ import {
   validateTriggerPaste,
   WORKFLOW_TARGET_HANDLE_ID,
 } from '@/platform/lib/data/workflows'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 
 const logger = createLogger('Workflow')
 
@@ -192,11 +192,6 @@ const getRegularBlockWidth = (type: string) =>
   type === 'note' || type === 'noteBlock'
     ? BLOCK_DIMENSIONS.NOTE_WIDTH
     : BLOCK_DIMENSIONS.FIXED_WIDTH
-
-/** The zone's address for a legacy workspace path, keeping the Platform preview parameters. */
-function zoneHref(path: string): string {
-  return platformHref(path, new URLSearchParams(window.location.search))
-}
 
 /**
  * Calculates the offset to paste blocks at viewport center
@@ -335,6 +330,7 @@ const WorkflowContent = memo(function WorkflowContent({
   const { handleCanvasMouseDown, selectionProps } = useShiftSelectionLock({ isHandMode })
 
   const router = useRouter()
+  const hrefFor = usePlatformHref()
   const invokeGlobalCommand = useInvokeGlobalCommand()
   const colorMode = usePlatformColorMode(canvasContainerRef)
   const reactFlowInstance = useReactFlow()
@@ -1399,11 +1395,11 @@ const WorkflowContent = memo(function WorkflowContent({
 
   const handleContextOpenLogs = useCallback(() => {
     router.push(
-      zoneHref(
+      hrefFor(
         `${workspacePath(workspaceId, 'logs')}?workflow=${encodeURIComponent(workflowIdParam)}`
       )
     )
-  }, [router, workspaceId, workflowIdParam])
+  }, [router, hrefFor, workspaceId, workflowIdParam])
 
   const handleContextOpenSearchReplace = useCallback(() => {
     useWorkflowSearchReplaceStore.getState().open()
@@ -2438,8 +2434,8 @@ const WorkflowContent = memo(function WorkflowContent({
    * workflow optimistically before it navigates, so a not-found page would flash first.
    */
   useEffect(() => {
-    if (workflowMissing) router.replace(zoneHref(workspacePath(workspaceId, 'workflows')))
-  }, [workflowMissing, router, workspaceId])
+    if (workflowMissing) router.replace(hrefFor(workspacePath(workspaceId, 'workflows')))
+  }, [workflowMissing, router, hrefFor, workspaceId])
 
   const workflowLoadError = workflowMapFailed
     ? getErrorMessage(workflowMap.error, 'Workflows could not be loaded.')

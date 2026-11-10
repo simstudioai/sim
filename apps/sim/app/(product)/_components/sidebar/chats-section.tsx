@@ -7,7 +7,6 @@ import { Icon } from '@sim/emcn/icon'
 import type { MenuAction } from '@sim/emcn/menu/action-menu'
 import { ActionMenu, ContextActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
-import { useSearchParams } from 'next/navigation'
 import { RenameDialog } from '@/app/(product)/_components/rename-dialog/rename-dialog'
 import { SidebarSortMenu } from '@/app/(product)/_components/sidebar/collection-order'
 import { linkMenuActions, pinAction } from '@/app/(product)/_components/sidebar/row-links'
@@ -17,7 +16,7 @@ import styles from '@/app/(product)/_components/sidebar/sidebar-collections.modu
 import { useSidebarLayout } from '@/app/(product)/_components/sidebar/sidebar-layout'
 import type { ShellActions, ShellChat } from '@/platform/lib/data/models/shell'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import type { ShellQueryStatus } from '@/platform/shared/shell'
 
@@ -60,7 +59,7 @@ export function ChatsSection({
   actions,
   navigate,
 }: ChatsSectionProps) {
-  const query = useSearchParams()
+  const hrefFor = usePlatformHref()
   const scope = useSurfaceScope()
   const { chatsOpen, setChatsOpen, chatOrder, setChatOrder } = useSidebarLayout()
   const [editing, setEditing] = useState<ChatEdit | null>(null)
@@ -228,7 +227,7 @@ export function ChatsSection({
                   onPointerLeave={() => cancelPrefetch.current?.()}
                 >
                   <Chip
-                    href={platformHref(href, query)}
+                    href={hrefFor(href)}
                     selected={isCurrent}
                     status={chatStatus(item, isCurrent)}
                     replaceActionOnTouch={item.isPinned}

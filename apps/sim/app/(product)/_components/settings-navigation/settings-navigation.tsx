@@ -4,12 +4,11 @@ import { useState } from 'react'
 import { Chip } from '@sim/emcn/button'
 import type { IconName } from '@sim/emcn/catalog/icon-geometry'
 import { SearchField } from '@sim/emcn/search-field'
-import { useSearchParams } from 'next/navigation'
 import { useDesktopHost } from '@/app/(product)/_components/desktop/desktop-host'
 import styles from '@/app/(product)/_components/settings-navigation/settings-navigation.module.css'
 import type { SettingsNavGroup } from '@/platform/lib/data/models/shell'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { plural } from '@/platform/shared/plural'
 import { searchSettings } from '@/platform/shared/settings-search'
@@ -21,13 +20,13 @@ interface SettingsNavigationProps {
 }
 
 export function SettingsNavigation({ section = 'general', groups = [] }: SettingsNavigationProps) {
-  const params = useSearchParams()
+  const hrefFor = usePlatformHref()
   const scope = useSurfaceScope()
   const [query, setQuery] = useState('')
   const desktop = useDesktopHost()
   const filter = query.trim().toLowerCase()
   const sectionHref = (item: SettingsNavGroup['items'][number]) =>
-    item.href ?? platformHref(surfaceHref(scope, `/settings/${item.key}`), params)
+    item.href ?? hrefFor(surfaceHref(scope, `/settings/${item.key}`))
   const visible = groups
     .map((entry) => ({
       label: entry.label,

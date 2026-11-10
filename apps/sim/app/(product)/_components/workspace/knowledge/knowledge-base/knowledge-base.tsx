@@ -11,7 +11,7 @@ import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { SearchField } from '@sim/emcn/search-field'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
-import { notFound, useRouter, useSearchParams } from 'next/navigation'
+import { notFound, useRouter } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
 import {
   type PageCommand,
@@ -89,6 +89,7 @@ import {
   useOAuthReturnForKBConnectors,
 } from '@/platform/lib/data/knowledge/connectors'
 import { folderChain } from '@/platform/lib/folder-chain'
+import { usePlatformHref } from '@/platform/lib/navigation'
 import { LOCALE } from '@/platform/shared/time'
 
 const DOCUMENTS_PER_PAGE = 50
@@ -150,7 +151,7 @@ interface KnowledgeBaseProps {
  */
 export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBaseProps) {
   const router = useRouter()
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const embedded = useEmbeddedWorkspacePage()
   const access = useKnowledgeAccess(workspaceId)
   const canEdit = access.canEdit
@@ -356,7 +357,7 @@ export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBasePro
 
   function openInNewTab(document: DocumentData) {
     window.open(
-      documentHref(workspaceId, knowledgeBaseId, document.id, search),
+      documentHref(workspaceId, knowledgeBaseId, document.id, hrefFor),
       '_blank',
       'noopener'
     )
@@ -431,7 +432,9 @@ export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBasePro
       icon: document.connectorType
         ? { providerId: connectorMark(document.connectorType) }
         : documentIcon(document),
-      href: completed ? documentHref(workspaceId, knowledgeBaseId, document.id, search) : undefined,
+      href: completed
+        ? documentHref(workspaceId, knowledgeBaseId, document.id, hrefFor)
+        : undefined,
       cells: {
         size: formatFileSize(document.fileSize, { includeBytes: true }),
         tokens: completed ? formatTokens(document.tokenCount) : undefined,
@@ -530,11 +533,11 @@ export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBasePro
     })
 
   const trail: BreadcrumbItem[] = [
-    { id: 'root', label: 'Knowledge bases', href: knowledgeListHref(workspaceId, null, search) },
+    { id: 'root', label: 'Knowledge bases', href: knowledgeListHref(workspaceId, null, hrefFor) },
     ...folderChain(folders, knowledgeBase?.folderId).map((folder) => ({
       id: folder.id,
       label: folder.name,
-      href: knowledgeListHref(workspaceId, folder.id, search),
+      href: knowledgeListHref(workspaceId, folder.id, hrefFor),
     })),
     ...(name ? [{ id: knowledgeBaseId, label: name, actions: baseActions }] : []),
   ]
@@ -791,7 +794,7 @@ export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBasePro
         onConfirm={async () => {
           await deleteBase.mutateAsync({ knowledgeBaseId })
           if (!embedded)
-            router.push(knowledgeListHref(workspaceId, knowledgeBase?.folderId ?? null, search))
+            router.push(knowledgeListHref(workspaceId, knowledgeBase?.folderId ?? null, hrefFor))
         }}
       />
       <ConfirmDialog

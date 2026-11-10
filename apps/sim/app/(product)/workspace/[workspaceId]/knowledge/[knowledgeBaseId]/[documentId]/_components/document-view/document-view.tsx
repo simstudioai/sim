@@ -11,7 +11,7 @@ import { Pagination } from '@sim/emcn/pagination'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { SearchField } from '@sim/emcn/search-field'
 import { FailureNotice, StatusText } from '@sim/emcn/status'
-import { notFound, useRouter, useSearchParams } from 'next/navigation'
+import { notFound, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { toast } from '@/lib/toast/sink'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
@@ -62,6 +62,7 @@ import {
   useUrlSort,
 } from '@/platform/lib/data/knowledge'
 import { folderChain } from '@/platform/lib/folder-chain'
+import { usePlatformHref } from '@/platform/lib/navigation'
 import { LOCALE } from '@/platform/shared/time'
 
 /** Chunk search feels snappier than the shared window, as it does on the legacy page. */
@@ -131,7 +132,7 @@ interface DocumentViewProps {
  */
 export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: DocumentViewProps) {
   const router = useRouter()
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const access = useKnowledgeAccess(workspaceId)
   const [{ page, chunk: openChunkId, search: searchText, enabled }, setParams] = useQueryStates(
     chunkListParsers,
@@ -376,7 +377,7 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
           label: 'Open in new tab',
           onSelect: () =>
             window.open(
-              documentHref(workspaceId, knowledgeBaseId, documentId, search, target.id),
+              documentHref(workspaceId, knowledgeBaseId, documentId, hrefFor, target.id),
               '_blank',
               'noopener'
             ),
@@ -446,18 +447,18 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
 
   const name = document?.filename
   const trail: BreadcrumbItem[] = [
-    { id: 'root', label: 'Knowledge bases', href: knowledgeListHref(workspaceId, null, search) },
+    { id: 'root', label: 'Knowledge bases', href: knowledgeListHref(workspaceId, null, hrefFor) },
     ...folderChain(folders, knowledgeBase?.folderId).map((folder) => ({
       id: folder.id,
       label: folder.name,
-      href: knowledgeListHref(workspaceId, folder.id, search),
+      href: knowledgeListHref(workspaceId, folder.id, hrefFor),
     })),
     ...(knowledgeBase
       ? [
           {
             id: knowledgeBaseId,
             label: knowledgeBase.name,
-            href: knowledgeBaseHref(workspaceId, knowledgeBaseId, search),
+            href: knowledgeBaseHref(workspaceId, knowledgeBaseId, hrefFor),
           },
         ]
       : []),
@@ -467,7 +468,7 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
             ? {
                 id: documentId,
                 label: name,
-                href: documentHref(workspaceId, knowledgeBaseId, documentId, search),
+                href: documentHref(workspaceId, knowledgeBaseId, documentId, hrefFor),
               }
             : {
                 id: documentId,
@@ -543,7 +544,7 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
     event.preventDefault()
     const href = link.getAttribute('href') ?? ''
     guard(() => {
-      if (href === documentHref(workspaceId, knowledgeBaseId, documentId, search)) closeEditor()
+      if (href === documentHref(workspaceId, knowledgeBaseId, documentId, hrefFor)) closeEditor()
       else router.push(href)
     })
   }
@@ -871,7 +872,7 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
         pendingLabel='Deleting…'
         onConfirm={async () => {
           await deleteDocument.mutateAsync({ knowledgeBaseId, documentId })
-          router.push(knowledgeBaseHref(workspaceId, knowledgeBaseId, search))
+          router.push(knowledgeBaseHref(workspaceId, knowledgeBaseId, hrefFor))
         }}
       />
       <ConfirmDialog

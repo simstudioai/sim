@@ -4,7 +4,6 @@ import { useMemo } from 'react'
 import { Button } from '@sim/emcn/button'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { SearchField } from '@sim/emcn/search-field'
-import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
@@ -40,7 +39,7 @@ import {
   useWorkflowTestsAccess,
   type WorkflowTestRecord,
 } from '@/platform/lib/data/workflow-tests'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 import { formatRelativeTime, LOCALE } from '@/platform/shared/time'
 
 const EMPTY_TESTS: WorkflowTestRecord[] = []
@@ -85,7 +84,7 @@ interface TestListProps {
  * Run all against the deployed workflows, as on the legacy page.
  */
 export function TestList({ workspaceId }: TestListProps) {
-  const searchParams = useSearchParams()
+  const hrefFor = usePlatformHref()
   const now = useMinuteClock()
   const { canEdit } = useWorkflowTestsAccess(workspaceId)
   const testsQuery = useWorkflowTests(workspaceId)
@@ -137,10 +136,7 @@ export function TestList({ workspaceId }: TestListProps) {
       id: test.name,
       name: test.title,
       icon: 'I136',
-      href: platformHref(
-        `${workspacePath(workspaceId, 'tests')}/${encodeURIComponent(test.name)}`,
-        searchParams
-      ),
+      href: hrefFor(`${workspacePath(workspaceId, 'tests')}/${encodeURIComponent(test.name)}`),
       cells: {
         status: <TestStatus status={test.status} />,
         cases: test.caseCount.toLocaleString(LOCALE),

@@ -2,7 +2,6 @@
 
 import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
-import { useSearchParams } from 'next/navigation'
 import { parseAsString, parseAsStringLiteral, useQueryStates } from 'nuqs'
 import {
   type UsageLogEntry,
@@ -15,7 +14,7 @@ import { toast } from '@/lib/toast/sink'
 import { saveBlob } from '@/lib/uploads/client/download'
 import { useUsageLogs, useUsageSummary } from '@/hooks/queries/usage-logs'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { loadMoreOf, queryView } from '@/platform/shared/query-view'
 
@@ -50,19 +49,19 @@ function rowLabel(log: UsageLogEntry): string {
 
 /** The Subscription glance: the viewer's credits over the last 30 days. */
 export function useCreditUsageSummary() {
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const scope = useSurfaceScope()
   const summary = useUsageSummary('30d')
   return {
     ...queryView(summary),
     total: formatCreditsLabel(summary.data ?? 0),
-    href: platformHref(surfaceHref(scope, '/settings/billing/credit-usage'), search),
+    href: hrefFor(surfaceHref(scope, '/settings/billing/credit-usage')),
   }
 }
 
 /** Every credit-consuming event behind the viewer's usage, filtered by the URL's period. */
 export function useCreditUsageLog() {
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const scope = useSurfaceScope()
   const [{ period, startDate, endDate }, setFilters] = useQueryStates(
     creditUsageParsers,
@@ -76,7 +75,7 @@ export function useCreditUsageLog() {
   })
   const total = logs.data?.pages[0]?.summary.totalCredits
   return {
-    backHref: platformHref(surfaceHref(scope, '/settings/billing'), search),
+    backHref: hrefFor(surfaceHref(scope, '/settings/billing')),
     periodOptions: PERIOD_OPTIONS,
     period,
     range: custom && startDate && endDate ? { start: startDate, end: endDate } : null,

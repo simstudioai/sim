@@ -7,7 +7,6 @@ import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { SettingsSection } from '@sim/emcn/settings-section'
 import { InlineNotice } from '@sim/emcn/status'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
 import {
   ActionRow,
@@ -15,11 +14,11 @@ import {
   Muted,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { useFixtureSettingsActions } from '@/platform/lib/data/settings-providers'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 
 export function MothershipByok() {
   const preview = useFixtureSettingsActions()?.previewByokWorkspaces
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const [target, setTarget] = useState('')
   const [inspected, setInspected] = useState('')
   const workspace = preview?.find((item) => item.id === inspected)
@@ -62,7 +61,7 @@ export function MothershipByok() {
               disabled={!id}
               render={
                 id ? (
-                  <Link href={platformHref(workspacePath(id, 'settings/byok'), search)}>
+                  <Link href={hrefFor(workspacePath(id, 'settings/byok'))}>
                     Manage workspace BYOK keys
                   </Link>
                 ) : undefined

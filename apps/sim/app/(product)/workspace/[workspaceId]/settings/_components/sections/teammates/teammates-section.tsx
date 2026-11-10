@@ -13,7 +13,7 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { Tooltip } from '@sim/emcn/tooltip'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { toast } from '@/lib/toast/sink'
 import {
   SectionStack,
@@ -38,7 +38,7 @@ import {
   workspaceRoleLockReason,
 } from '@/platform/lib/data/teammates'
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { formatInstantDate } from '@/platform/shared/time'
 
@@ -103,7 +103,7 @@ export default function TeammatesSection({ workspaceId }: WorkspaceSettingsSecti
     'teammates'
   )
   const router = useRouter()
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const scope = useSurfaceScope()
   const { copy } = useClipboard()
   const { billingEnabled } = useDeploymentShape()
@@ -161,9 +161,7 @@ export default function TeammatesSection({ workspaceId }: WorkspaceSettingsSecti
   const handleInvite = () => {
     if (isInvitationsDisabled) {
       if (billingEnabled)
-        router.push(
-          platformHref(surfaceHref(scope, '/settings/billing/plans?reason=seats'), search)
-        )
+        router.push(hrefFor(surfaceHref(scope, '/settings/billing/plans?reason=seats')))
       return
     }
     setInviting(true)

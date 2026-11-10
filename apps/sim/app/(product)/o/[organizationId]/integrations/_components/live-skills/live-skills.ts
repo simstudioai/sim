@@ -1,13 +1,13 @@
 'use client'
 
-import { usePathname, useSearchParams } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { useSkills } from '@/platform/lib/data/skills'
 import {
   integrationsPageParams,
   serializeIntegrationsPage,
 } from '@/platform/lib/integrations/center-navigation'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 import { compareText } from '@/platform/shared/time'
 
 /**
@@ -17,7 +17,7 @@ import { compareText } from '@/platform/shared/time'
  */
 export function useLiveSkills(workspaceId: string | undefined) {
   const pathname = usePathname()
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const [view, setView] = useQueryStates(integrationsPageParams, {
     history: 'replace',
     shallow: true,
@@ -25,7 +25,7 @@ export function useLiveSkills(workspaceId: string | undefined) {
   const onSkills = view.tab === 'skills' && Boolean(workspaceId)
   const query = useSkills(onSkills && workspaceId ? workspaceId : '')
   const listed = query.isPlaceholderData ? undefined : query.data
-  const base = platformHref(pathname, search)
+  const base = hrefFor(pathname)
   const linkTo = (resource: string | null) =>
     serializeIntegrationsPage(base, { ...view, resource, resourceTab: null })
   const term = view.q.trim().toLowerCase()

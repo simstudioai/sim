@@ -12,7 +12,6 @@ import { FailureNotice } from '@sim/emcn/status'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { workspacePath } from '@/lib/navigation/paths'
 import {
@@ -42,7 +41,7 @@ import {
 } from '@/platform/lib/data/recently-deleted'
 import { useRestoreWorkflow } from '@/platform/lib/data/workflows/records'
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 import { formatInstantDate } from '@/platform/shared/time'
 
 type WorkspaceFilter = (typeof WORKSPACE_RECENTLY_DELETED_FILTERS)[number]
@@ -139,7 +138,7 @@ interface RestoredEntry {
  */
 export default function RecentlyDeletedSection({ workspaceId }: WorkspaceSettingsSectionProps) {
   const { canMutate: canRestore } = useWorkspaceSettingsSection(workspaceId, 'recently-deleted')
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const [{ tab }, setFilters] = useQueryStates(recentlyDeletedParsers, recentlyDeletedUrlKeys)
   const { sort, dir, onSort } = useUrlSort(recentlyDeletedSortParams, recentlyDeletedUrlKeys)
   const [searchTerm, setSearchTerm] = useSettingsSearch()
@@ -268,7 +267,7 @@ export default function RecentlyDeletedSection({ workspaceId }: WorkspaceSetting
               ) : isRestored ? (
                 <Button
                   size='compact'
-                  render={<Link href={platformHref(resourcePath(workspaceId, resource), search)} />}
+                  render={<Link href={hrefFor(resourcePath(workspaceId, resource))} />}
                 >
                   View
                 </Button>

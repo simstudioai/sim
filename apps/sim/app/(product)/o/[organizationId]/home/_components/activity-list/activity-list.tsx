@@ -4,12 +4,11 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { Icon } from '@sim/emcn/icon'
 import { ScrollArea } from '@sim/emcn/scroll-area'
 import { FailureNotice } from '@sim/emcn/status'
-import { useSearchParams } from 'next/navigation'
 import { HomeSection } from '@/app/(product)/_components/home-section/home-section'
 import styles from '@/app/(product)/o/[organizationId]/home/_components/activity-list/activity-list.module.css'
 import type { AttentionItem, EmailItem } from '@/platform/lib/data/models/home'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import type { HomeListState } from '@/platform/shared/home'
 import { formatRelativeTime } from '@/platform/shared/time'
@@ -48,16 +47,9 @@ export function EmailList({ items, asOf, onOpen }: EmailListProps) {
   )
 }
 
-function AttentionRow({
-  row,
-  asOf,
-  search,
-}: {
-  row: AttentionItem
-  asOf: number
-  search: ReturnType<typeof useSearchParams>
-}) {
+function AttentionRow({ row, asOf }: { row: AttentionItem; asOf: number }) {
   const scope = useSurfaceScope()
+  const hrefFor = usePlatformHref()
   const leading = <Icon name={row.icon} />
   const metadata = relativeTime(row.occurredAt, asOf)
   return row.onOpen ? (
@@ -74,7 +66,7 @@ function AttentionRow({
       title={row.title}
       detail={row.detail}
       textMetadata={metadata}
-      href={platformHref(row.href ?? surfaceHref(scope, '/home'), search)}
+      href={hrefFor(row.href ?? surfaceHref(scope, '/home'))}
     />
   )
 }
@@ -86,7 +78,6 @@ interface AttentionListProps {
 }
 
 export function AttentionList({ state, asOf, onRetry }: AttentionListProps) {
-  const search = useSearchParams()
   return (
     <HomeSection title='Needs your attention'>
       {state.status === 'error' && (
@@ -106,7 +97,7 @@ export function AttentionList({ state, asOf, onRetry }: AttentionListProps) {
               <ScrollArea label='Attention requests'>
                 <ul className={styles.entries}>
                   {state.items.map((row) => (
-                    <AttentionRow key={row.id} row={row} asOf={asOf} search={search} />
+                    <AttentionRow key={row.id} row={row} asOf={asOf} />
                   ))}
                 </ul>
               </ScrollArea>

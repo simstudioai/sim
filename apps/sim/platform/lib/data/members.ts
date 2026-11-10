@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import type { OrganizationRoster } from '@/lib/api/contracts/organization'
 import { useSession } from '@/lib/auth/client'
@@ -37,7 +37,7 @@ import { useOrganization } from '@/platform/lib/data/organization'
 import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
 import { openAcrossOrganizations } from '@/platform/lib/data/session'
 import { useFixtureSettings } from '@/platform/lib/data/settings-providers'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 import { toRosterModel, toSeatsModel, type WorkspacePermission } from '@/platform/shared/members'
 import { plural } from '@/platform/shared/plural'
 import { useBrowserTimezone } from '@/platform/shared/preferences'
@@ -175,9 +175,9 @@ export function useMemberSearch() {
 function useLeaveOrganization(organization: PlatformOrganization) {
   const fixture = useFixtureSettings()
   const router = useRouter()
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   return () => {
-    if (fixture) router.replace(platformHref(surfaceHref(organization, '/home'), search))
+    if (fixture) router.replace(hrefFor(surfaceHref(organization, '/home')))
     else openAcrossOrganizations(APP_ENTRY_PATH)
   }
 }

@@ -7,7 +7,7 @@ import { workspacePath } from '@/lib/navigation/paths'
 import styles from '@/app/(product)/_components/workspace/workflows/command-list/command-list.module.css'
 import { useInvokeGlobalCommand } from '@/app/(product)/_components/workspace/workflows/global-commands/global-commands'
 import { createLogger, usePreventZoom, useWorkflowScope } from '@/platform/lib/data/workflows'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 
 const logger = createLogger('WorkflowCommandList')
 
@@ -51,6 +51,7 @@ const commands: CommandItem[] = [
 export function CommandList() {
   const { workspaceId } = useWorkflowScope()
   const router = useRouter()
+  const hrefFor = usePlatformHref()
   const invokeGlobalCommand = useInvokeGlobalCommand()
   const preventZoomRef = usePreventZoom()
 
@@ -76,13 +77,7 @@ export function CommandList() {
             return
           }
           case 'Logs': {
-            /* Read at click time: a `useSearchParams` read would suspend the canvas overlay. */
-            router.push(
-              platformHref(
-                workspacePath(workspaceId, 'logs'),
-                new URLSearchParams(window.location.search)
-              )
-            )
+            router.push(hrefFor(workspacePath(workspaceId, 'logs')))
             return
           }
           case 'Search Blocks': {
@@ -96,7 +91,7 @@ export function CommandList() {
         logger.error('Failed to handle command click in command list', { error, label })
       }
     },
-    [router, workspaceId, invokeGlobalCommand]
+    [router, hrefFor, workspaceId, invokeGlobalCommand]
   )
 
   /**

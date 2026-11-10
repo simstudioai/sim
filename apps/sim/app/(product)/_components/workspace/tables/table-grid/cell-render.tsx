@@ -7,7 +7,6 @@ import { StatusTag, StatusText } from '@sim/emcn/status'
 import { Tooltip } from '@sim/emcn/tooltip'
 import { LRUCache } from 'lru-cache'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import { parse } from 'tldts'
 import { workspacePath } from '@/lib/navigation/paths'
 import { resolveSelectOptions } from '@/app/(product)/_components/workspace/tables/select-field/select-field'
@@ -27,7 +26,7 @@ import {
   useWorkspaceFileLookup,
 } from '@/platform/lib/data/tables'
 import { useWorkflows } from '@/platform/lib/data/workflows/records'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 
 /** Workspace resources a cell URL can point to. */
 type SimResourceType = 'workflow' | 'table' | 'knowledge' | 'file'
@@ -551,7 +550,7 @@ function SimResourceCell({
   resourceId,
   isEditing,
 }: SimResourceCellProps) {
-  const search = useSearchParams()
+  const hrefFor = usePlatformHref()
   const { data: workflows = [] } = useWorkflows(
     resourceType === 'workflow' ? workspaceId : undefined
   )
@@ -572,9 +571,8 @@ function SimResourceCell({
           ? knowledgeBases.find((kb) => kb.id === resourceId)?.name
           : file?.name
   const label = name ?? FALLBACK_LABEL[resourceType]
-  const href = platformHref(
-    `${workspacePath(workspaceId, RESOURCE_TAB[resourceType])}/${encodeURIComponent(resourceId)}`,
-    search
+  const href = hrefFor(
+    `${workspacePath(workspaceId, RESOURCE_TAB[resourceType])}/${encodeURIComponent(resourceId)}`
   )
 
   return (

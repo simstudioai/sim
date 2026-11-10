@@ -18,7 +18,7 @@ import { Icon } from '@sim/emcn/icon'
 import { ContextActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { SearchField } from '@sim/emcn/search-field'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { RequestAccessModal } from '@/app/(product)/_components/request-access-modal/request-access-modal'
 import { BlockTile } from '@/app/(product)/_components/workspace/workflows/canvas/block-tile/block-tile'
 import { getCustomBlockTile } from '@/app/(product)/_components/workspace/workflows/canvas/block-tile/custom-block-tile'
@@ -44,7 +44,7 @@ import {
   useToolbarStore,
   useWorkflowScope,
 } from '@/platform/lib/data/workflows'
-import { platformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/navigation'
 
 interface BlockItem {
   name: string
@@ -404,7 +404,7 @@ export interface ToolbarRef {
 export const Toolbar = memo(
   forwardRef<ToolbarRef, ToolbarProps>(function Toolbar({ isActive = true }: ToolbarProps, ref) {
     const router = useRouter()
-    const search = useSearchParams()
+    const hrefFor = usePlatformHref()
     const rootRef = useRef<HTMLDivElement>(null)
     const searchRef = useRef<HTMLDivElement>(null)
     const listEdges = useScrollEdges<HTMLDivElement>()
@@ -849,10 +849,7 @@ export const Toolbar = memo(
             label={requestedBlock.name}
             onViewRequest={(requestId) =>
               router.push(
-                platformHref(
-                  getMyAccessRequestHref({ kind: 'workspace', workspaceId }, requestId),
-                  search
-                )
+                hrefFor(getMyAccessRequestHref({ kind: 'workspace', workspaceId }, requestId))
               )
             }
             onClose={() => setRequestedBlockType(null)}
