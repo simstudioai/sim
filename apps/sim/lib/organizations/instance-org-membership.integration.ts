@@ -15,7 +15,7 @@ import { getInstanceOrganizationId } from '@/lib/organizations/instance-org'
 import { ensureSignupOrganization } from '@/lib/organizations/provision-personal'
 
 vi.hoisted(() => {
-  const suffix = Math.random().toString(36).slice(2, 10)
+  const suffix = `${process.pid}-${Date.now().toString(36)}`
   process.env.INSTANCE_ORG_NAME = `Instance Membership ${suffix}`
   process.env.INSTANCE_ORG_SLUG = `instance-membership-${suffix}`
 })
