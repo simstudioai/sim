@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { randomInt } from './random.js'
+import { generatePassword, randomInt } from './random.js'
 
 const UINT32_MAX = 0xffffffff
 const UINT32_SAMPLE_SPACE_SIZE = 0x100000000
@@ -28,5 +28,18 @@ describe('randomInt', () => {
     expect(() => randomInt(0, UINT32_SAMPLE_SPACE_SIZE + 1)).toThrow(
       'randomInt: range must not exceed 2^32'
     )
+  })
+})
+
+describe('generatePassword', () => {
+  it('generates the requested length from the allowed alphabet', () => {
+    const allowedChars =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_-+='
+    expect(generatePassword()).toHaveLength(24)
+    const password = generatePassword(1000)
+    expect(password).toHaveLength(1000)
+    for (const char of password) {
+      expect(allowedChars).toContain(char)
+    }
   })
 })

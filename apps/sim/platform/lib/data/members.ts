@@ -41,17 +41,9 @@ import { usePlatformHref } from '@/platform/lib/navigation'
 import { toRosterModel, toSeatsModel, type WorkspacePermission } from '@/platform/shared/members'
 import { plural } from '@/platform/shared/plural'
 import { useBrowserTimezone } from '@/platform/shared/preferences'
+import { reportFailure } from '@/platform/shared/report-failure'
 
 export type SettingsRoster = OrganizationRoster
-
-/** Shows a failed background mutation: the row controls have no dialog of their own to hold it. */
-async function reportFailure(work: Promise<unknown>, message: string): Promise<void> {
-  try {
-    await work
-  } catch (error) {
-    toast.error(message, { description: getErrorMessage(error, 'Please try again in a moment.') })
-  }
-}
 
 /**
  * The viewer's standing and the roster's rows. The role comes from the viewer's own roster row and

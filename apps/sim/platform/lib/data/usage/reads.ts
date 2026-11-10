@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo } from 'react'
-import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
 import { isApiClientError } from '@/lib/api/client/errors'
 import {
@@ -16,7 +15,6 @@ import {
 } from '@/lib/billing/core/organization-activity'
 import { formatApportionedCreditCost } from '@/lib/billing/credits/conversion'
 import { toast } from '@/lib/toast/sink'
-import { saveBlob } from '@/lib/uploads/client/download'
 import {
   COLLAPSED_ROW_COUNT,
   EXPANDED_ROW_COUNT,
@@ -37,13 +35,12 @@ import {
   useOrganizationUsageOverview,
 } from '@/hooks/queries/organization-usage'
 import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organization-usage-keys'
+import { downloadCsvExport } from '@/platform/lib/data/csv-export'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { usePlatformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { DAY_MS, LOCALE } from '@/platform/shared/time'
 import { dayLabel, formatDurationMs, toCreditChart } from '@/platform/shared/usage'
-
-const logger = createLogger('PlatformUsage')
 
 const PERIOD_OPTIONS = USAGE_WINDOW_PRESETS.map((preset) => PERIOD_LABELS[preset])
 
@@ -253,33 +250,17 @@ function usageWindowHref(path: string, window: OrganizationUsageWindowKey): stri
   })
 }
 
-/**
- * Downloads the window's CSV. Reads `X-Export-Truncated` before saving, which a plain anchor
- * navigation cannot do.
- */
-export async function exportUsageCsv(
+/** Downloads the window's CSV. */
+export function exportUsageCsv(
   organizationId: string,
   window: OrganizationUsageWindowKey
 ): Promise<void> {
   const params = new URLSearchParams({ preset: window.preset, timezone: window.timezone })
   if (window.startDate) params.set('startDate', window.startDate)
   if (window.endDate) params.set('endDate', window.endDate)
-  try {
-    // boundary-raw-fetch: downloads a CSV blob and reads X-Export-Truncated before saving, which a plain anchor navigation can do neither of
-    const response = await fetch(`/api/organizations/${organizationId}/usage/export?${params}`)
-    if (!response.ok) {
-      toast.error('Failed to export usage')
-      return
-    }
-    if (response.headers.get('X-Export-Truncated') === '1') {
-      toast.info('Export truncated: narrow the date range to see everything')
-    }
-    saveBlob(
-      await response.blob(),
-      `organization-usage-${new Date().toISOString().slice(0, 10)}.csv`
-    )
-  } catch (error) {
-    logger.error('Failed to export usage', { error })
-    toast.error('Failed to export usage')
-  }
+  return downloadCsvExport({
+    url: `/api/organizations/${organizationId}/usage/export?${params}`,
+    filename: `organization-usage-${new Date().toISOString().slice(0, 10)}.csv`,
+    failure: 'Failed to export usage',
+  })
 }

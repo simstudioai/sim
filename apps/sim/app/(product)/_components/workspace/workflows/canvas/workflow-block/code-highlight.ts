@@ -1,3 +1,4 @@
+import { escapeHtml } from '@sim/utils/string'
 import Prism from 'prismjs'
 import 'prismjs/components/prism-python'
 import 'prismjs/components/prism-json'
@@ -6,15 +7,6 @@ import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
 import type { CodePreviewLanguage } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-block/types'
 
 /** Matches Prism's own escaping, for the plaintext fallback. */
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
 function highlightSource(source: string, language: CodePreviewLanguage): string {
   const grammar = Prism.languages[language] || Prism.languages.javascript
   return Prism.highlight(source, grammar, language)

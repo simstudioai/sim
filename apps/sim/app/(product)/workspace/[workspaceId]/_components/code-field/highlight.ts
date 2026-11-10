@@ -1,3 +1,4 @@
+import { escapeHtml } from '@sim/utils/string'
 import Prism from 'prismjs'
 import 'prismjs/components/prism-python'
 import 'prismjs/components/prism-json'
@@ -5,15 +6,6 @@ import 'prismjs/components/prism-bash'
 
 /** A language the code field highlights. */
 export type CodeFieldLanguage = 'javascript' | 'python' | 'json' | 'shell'
-
-export function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;')
-}
 
 function prismLanguage(language: CodeFieldLanguage): string {
   if (language === 'python') return 'python'

@@ -1,6 +1,6 @@
+import { escapeHtml } from '@sim/utils/string'
 import {
   type CodeFieldLanguage,
-  escapeHtml,
   highlightSyntax,
 } from '@/app/(product)/workspace/[workspaceId]/_components/code-field/highlight'
 import type { WorkflowSearchTextHighlight } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/formatted-text'

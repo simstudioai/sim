@@ -14,7 +14,6 @@ import { FailureNotice } from '@sim/emcn/status'
 import { Tooltip } from '@sim/emcn/tooltip'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
-import { toast } from '@/lib/toast/sink'
 import {
   SectionStack,
   SectionToolbar,
@@ -40,6 +39,7 @@ import {
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
 import { usePlatformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
+import { reportFailure } from '@/platform/shared/report-failure'
 import { formatInstantDate } from '@/platform/shared/time'
 
 const ROLE_OPTIONS = [
@@ -70,15 +70,6 @@ function removalLockReason(member: {
 /** Membership outside the workspace's organization is a separate axis from the permission. */
 function withExternalLabel(status: string, isExternal: boolean): string {
   return isExternal ? `${status} · External` : status
-}
-
-/** Shows a failed row action: the row has no dialog of its own to hold the error. */
-async function reportFailure(work: Promise<unknown>, message: string) {
-  try {
-    await work
-  } catch (error) {
-    toast.error(message, { description: getErrorMessage(error, 'Please try again in a moment.') })
-  }
 }
 
 interface Teammate {

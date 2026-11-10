@@ -15,7 +15,7 @@ import { Icon } from '@sim/emcn/icon'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { InlineNotice, Spinner } from '@sim/emcn/status'
 import { RecipientField } from '@sim/emcn-platform/workspace-fields'
-import { randomInt } from '@sim/utils/random'
+import { generatePassword } from '@sim/utils/random'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/deploy/chat-tab/chat-tab.module.css'
 import type { ChatDeployForm } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/deploy/chat-tab/use-chat-deploy'
 import { OutputPicker } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/deploy/output-picker/output-picker'
@@ -34,20 +34,9 @@ const AUTH_LABELS: Record<AuthType, string> = {
   sso: 'SSO',
 }
 
-const PASSWORD_ALPHABET =
-  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_-+='
-const GENERATED_PASSWORD_LENGTH = 24
-
 /** An email address, or a whole domain written as `@example.com`. */
 function isAllowedEntry(entry: string) {
   return validateAllowlistEntry(entry) === null
-}
-
-function generatePassword(): string {
-  let password = ''
-  for (let index = 0; index < GENERATED_PASSWORD_LENGTH; index++)
-    password += PASSWORD_ALPHABET.charAt(randomInt(0, PASSWORD_ALPHABET.length))
-  return password
 }
 
 interface ChatTabProps {

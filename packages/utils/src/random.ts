@@ -71,6 +71,21 @@ export function randomInt(min: number, max: number): number {
   return min + (value % range)
 }
 
+const PASSWORD_ALPHABET =
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_-+='
+
+/**
+ * Generates a cryptographically secure random password from letters, digits and symbols.
+ * @param length - Number of characters (default: 24)
+ */
+export function generatePassword(length = 24): string {
+  let password = ''
+  for (let index = 0; index < length; index++) {
+    password += PASSWORD_ALPHABET.charAt(randomInt(0, PASSWORD_ALPHABET.length))
+  }
+  return password
+}
+
 /**
  * Returns a uniformly random element from a non-empty array.
  * @param items - Array to sample from (must have at least one element)

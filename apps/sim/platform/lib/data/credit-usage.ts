@@ -1,6 +1,5 @@
 'use client'
 
-import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
 import { parseAsString, parseAsStringLiteral, useQueryStates } from 'nuqs'
 import {
@@ -10,15 +9,12 @@ import {
 } from '@/lib/api/contracts/user'
 import { formatApportionedCreditCost, formatCreditsLabel } from '@/lib/billing/credits/conversion'
 import { BILLING_USAGE_LOG_SOURCE_LABELS } from '@/lib/billing/usage-sources'
-import { toast } from '@/lib/toast/sink'
-import { saveBlob } from '@/lib/uploads/client/download'
 import { useUsageLogs, useUsageSummary } from '@/hooks/queries/usage-logs'
+import { downloadCsvExport } from '@/platform/lib/data/csv-export'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { usePlatformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { loadMoreOf, queryView } from '@/platform/shared/query-view'
-
-const logger = createLogger('PlatformCreditUsage')
 
 /** The legacy page's query keys; `period` shares its literals with the API contract. */
 const creditUsageParsers = {
@@ -103,11 +99,8 @@ export function useCreditUsageLog() {
   }
 }
 
-/**
- * Downloads a CSV of every log matching the filter. Fetches rather than following an anchor so the
- * `X-Export-Truncated` header can be read before saving.
- */
-async function exportCreditUsageCsv(
+/** Downloads a CSV of every log matching the filter. */
+function exportCreditUsageCsv(
   period: UsageLogPeriod,
   startDate: string | null,
   endDate: string | null
@@ -115,22 +108,9 @@ async function exportCreditUsageCsv(
   const params = new URLSearchParams({ period })
   if (startDate) params.set('startDate', startDate)
   if (endDate) params.set('endDate', endDate)
-  try {
-    // boundary-raw-fetch: downloads a CSV blob and reads X-Export-Truncated before saving, which a plain anchor navigation can do neither of
-    const response = await fetch(`/api/users/me/usage-logs/export?${params}`)
-    if (!response.ok) {
-      toast.error('Failed to export usage logs')
-      return
-    }
-    if (response.headers.get('X-Export-Truncated') === '1') {
-      toast.info('Export truncated: narrow the date range to see everything')
-    }
-    saveBlob(
-      await response.blob(),
-      `credit-usage-${period}-${new Date().toISOString().slice(0, 10)}.csv`
-    )
-  } catch (error) {
-    logger.error('Failed to export usage logs', { error })
-    toast.error('Failed to export usage logs')
-  }
+  return downloadCsvExport({
+    url: `/api/users/me/usage-logs/export?${params}`,
+    filename: `credit-usage-${period}-${new Date().toISOString().slice(0, 10)}.csv`,
+    failure: 'Failed to export usage logs',
+  })
 }

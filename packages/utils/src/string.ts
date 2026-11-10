@@ -393,6 +393,16 @@ const REGEX_METACHARACTERS = /[.*+?^${}()|[\]\\]/g
  * @example
  * new RegExp(escapeRegExp('a.b')) // matches the literal 'a.b', not 'axb'
  */
+/** Escapes the characters HTML treats as markup, so `value` renders as text. */
+export function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
 export function escapeRegExp(value: string): string {
   return value.replace(REGEX_METACHARACTERS, '\\$&')
 }

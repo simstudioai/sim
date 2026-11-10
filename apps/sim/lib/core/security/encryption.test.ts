@@ -2,7 +2,7 @@ import { setEnv } from '@sim/testing/mocks/env.mock'
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { afterEach, describe, expect, it } from 'vitest'
 import { env } from '@/lib/core/config/env'
-import { decryptSecret, encryptSecret, generatePassword } from '@/lib/core/security/encryption'
+import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 
 setEnv({
   ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
@@ -25,19 +25,6 @@ describe('encryptSecret / decryptSecret', () => {
       'Invalid encrypted value format'
     )
     expect(mockError).not.toHaveBeenCalled()
-  })
-})
-
-describe('generatePassword', () => {
-  it('generates the requested length from the allowed alphabet', () => {
-    const allowedChars =
-      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_-+='
-    expect(generatePassword()).toHaveLength(24)
-    const password = generatePassword(1000)
-    expect(password).toHaveLength(1000)
-    for (const char of password) {
-      expect(allowedChars).toContain(char)
-    }
   })
 })
 

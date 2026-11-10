@@ -40,8 +40,8 @@ import {
   useWorkflowStore,
   useWorkspaceHostContextQuery,
   useWorkspaceUsageGate,
-  type WorkflowFolder,
 } from '@/platform/lib/data/workflows'
+import { folderChain } from '@/platform/lib/folder-chain'
 import { usePlatformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
@@ -53,19 +53,6 @@ const FOLDER_PARAM = 'folderId'
 function listHref(workspaceId: string, folderId?: string) {
   const path = `/workspace/${encodeURIComponent(workspaceId)}/workflows`
   return folderId ? `${path}?${FOLDER_PARAM}=${encodeURIComponent(folderId)}` : path
-}
-
-/** Root-first ancestors of a folder, stopping at a cycle or a missing parent. */
-function folderChain(folderId: string | null | undefined, folders: Record<string, WorkflowFolder>) {
-  const chain: WorkflowFolder[] = []
-  const seen = new Set<string>()
-  let id = folderId ?? null
-  while (id && !seen.has(id) && folders[id]) {
-    seen.add(id)
-    chain.unshift(folders[id])
-    id = folders[id].parentId ?? null
-  }
-  return chain
 }
 
 function downloadJson(content: string, filename: string) {
@@ -197,7 +184,7 @@ export function WorkflowTrail({ workspaceId, workflowId }: WorkflowHeaderProps) 
 
   const items: BreadcrumbItem[] = [
     { id: 'workflows', label: 'Workflows', href: hrefFor(listHref(workspaceId)) },
-    ...folderChain(workflow?.folderId, folders).map((folder) => ({
+    ...folderChain(folders, workflow?.folderId).map((folder) => ({
       id: folder.id,
       label: folder.name,
       href: hrefFor(listHref(workspaceId, folder.id)),
