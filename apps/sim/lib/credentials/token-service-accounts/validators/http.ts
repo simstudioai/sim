@@ -4,6 +4,7 @@ import { secureFetchWithValidation } from '@/lib/core/security/input-validation.
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   fetchProvider,
+  isHostNotFound,
   type ProviderResponse,
   providerFailureCode,
   TokenServiceAccountValidationError,
@@ -167,8 +168,7 @@ async function sendThroughEgress(
       logUrlValidationDetails: false,
     })
   } catch (error) {
-    // Only ENOTFOUND proves the host doesn't exist; other lookup and network failures may pass.
-    const notFound = (error as { cause?: { code?: unknown } })?.cause?.code === 'ENOTFOUND'
+    const notFound = isHostNotFound(error)
     throw new TokenServiceAccountValidationError(
       notFound ? 'site_not_found' : 'provider_unavailable',
       notFound ? 400 : 502,

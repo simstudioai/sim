@@ -173,16 +173,44 @@ describe('tokenCheckValidator with a typed host', () => {
     expect(secureFetch).not.toHaveBeenCalled()
   })
 
-  it('reports a host that does not exist as not found', async () => {
-    secureFetch.mockRejectedValue(
-      new Error('url hostname could not be resolved', {
+  it.each([
+    [
+      'Node (code on cause)',
+      new Error('fetch failed', {
         cause: Object.assign(new Error('getaddrinfo ENOTFOUND'), { code: 'ENOTFOUND' }),
-      })
-    )
+      }),
+    ],
+    [
+      'Bun (code on the error)',
+      Object.assign(new TypeError('fetch failed'), { code: 'ENOTFOUND' }),
+    ],
+  ])('reports a host that does not exist as not found under %s', async (_runtime, error) => {
+    secureFetch.mockRejectedValue(error)
 
     await expect(
       validateHost({ apiToken: 'good', domain: 'tools.exmaple.com' })
     ).rejects.toMatchObject({ code: 'site_not_found' })
+  })
+
+  it('reports a fixed-host vendor whose typed account does not resolve as not found under Bun', async () => {
+    const accountHost = tokenCheckValidator({
+      serviceLabel: 'Account',
+      workspaceId: ({ providerWorkspaceId }) => (providerWorkspaceId ?? '').trim(),
+      request: ({ apiToken, providerWorkspaceId = '' }) => ({
+        url: `https://${providerWorkspaceId}.api.example.com/me`,
+        headers: { Authorization: `Bearer ${apiToken}` },
+      }),
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(Object.assign(new TypeError('fetch failed'), { code: 'ENOTFOUND' }))
+    )
+
+    await expect(
+      accountHost({ apiToken: 'good', providerWorkspaceId: 'typo' })
+    ).rejects.toMatchObject({
+      code: 'site_not_found',
+    })
   })
 
   it('keeps an error body that echoes the token out of the error details', async () => {

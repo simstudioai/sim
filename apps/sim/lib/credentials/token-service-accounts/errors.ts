@@ -109,6 +109,16 @@ export interface FetchProviderOptions {
  */
 const PROVIDER_FETCH_TIMEOUT_MS = 10_000
 
+/**
+ * Whether a failed request proves the host doesn't exist (`ENOTFOUND`). Node's fetch
+ * puts the resolver code on `cause`, Bun's on the error itself; the transient
+ * `EAI_AGAIN` is not a missing host.
+ */
+export function isHostNotFound(error: unknown): boolean {
+  const failure = error as { code?: unknown; cause?: { code?: unknown } } | undefined
+  return (failure?.code ?? failure?.cause?.code) === 'ENOTFOUND'
+}
+
 export async function fetchProvider(
   url: string,
   init: RequestInit,
@@ -121,10 +131,9 @@ export async function fetchProvider(
     return await fetch(url, { ...init, signal })
   } catch (error) {
     init.signal?.throwIfAborted()
-    const causeCode = (error as { cause?: { code?: unknown } })?.cause?.code
     // Only ENOTFOUND proves the host doesn't exist; EAI_AGAIN is a transient
     // resolver failure and stays provider_unavailable.
-    if (options?.dnsFailureCode && causeCode === 'ENOTFOUND') {
+    if (options?.dnsFailureCode && isHostNotFound(error)) {
       throw new TokenServiceAccountValidationError(options.dnsFailureCode, 400, {
         step,
         reason: options.dnsFailureReason ?? 'host does not resolve',
