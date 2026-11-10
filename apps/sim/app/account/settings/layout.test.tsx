@@ -15,14 +15,19 @@ vi.mock('@/components/settings/standalone-settings-shell', () => ({
 import AccountSettingsLayout from '@/app/account/settings/layout'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 
-/** Stands in for the personal API keys page, whose create modal reads this flag on every render. */
-function ReadOnlyKeysFlag() {
-  return <span>{`read-only keys ${useFeatureFlag('api-key-read-only') ? 'on' : 'off'}`}</span>
-}
-
-async function renderAccountSettings(): Promise<string> {
-  const element = await AccountSettingsLayout({ children: <ReadOnlyKeysFlag /> })
-  return renderToStaticMarkup(element)
+/**
+ * Renders the account layout around a section that reads the read-only key flag the way the
+ * personal API keys page's create modal does on every render, and returns what it read.
+ */
+async function readFlagInAccountSettings(): Promise<boolean> {
+  let observed: boolean | undefined
+  function ReadOnlyKeysSection() {
+    observed = useFeatureFlag('api-key-read-only')
+    return null
+  }
+  renderToStaticMarkup(await AccountSettingsLayout({ children: <ReadOnlyKeysSection /> }))
+  if (observed === undefined) throw new Error('The account section never rendered')
+  return observed
 }
 
 describe('AccountSettingsLayout', () => {
@@ -33,13 +38,10 @@ describe('AccountSettingsLayout', () => {
     })
   })
 
-  it.each([
-    [true, 'on'],
-    [false, 'off'],
-  ])('gives account sections the read-only key flag (%s)', async (enabled, rendered) => {
+  it.each([true, false])('gives account sections the read-only key flag (%s)', async (enabled) => {
     featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
       async (flag) => flag === 'api-key-read-only' && enabled
     )
-    expect(await renderAccountSettings()).toContain(`read-only keys ${rendered}`)
+    expect(await readFlagInAccountSettings()).toBe(enabled)
   })
 })
