@@ -37,7 +37,8 @@ export function useSessionExpiry(
     setViewerId(session.user.id)
   }
   const sawSession = viewerId !== null
-  const userChanged = sawSession && Boolean(session?.user) && session?.user.id !== viewerId
+  const userId = session?.user?.id
+  const userChanged = sawSession && userId !== undefined && userId !== viewerId
   if (!wasImpersonation && session?.session?.impersonatedBy) {
     setWasImpersonation(true)
   }
