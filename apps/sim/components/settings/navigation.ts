@@ -27,7 +27,7 @@ import {
   Users,
   Wrench,
 } from '@sim/emcn-legacy/icons'
-import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/predicates'
+import type { PermissionType } from '@sim/platform-authz/predicates'
 import { CodeIcon, McpIcon, SlackIcon } from '@/components/icons'
 import type { SettingsHeaderMeta } from '@/components/settings/settings-header'
 import type { DeploymentFeatures, DeploymentShape } from '@/lib/api/contracts/workspaces'
@@ -210,23 +210,10 @@ export interface SettingsSectionRegistryEntry {
  * How a section unlocks on a self-hosted deployment: `'always'` unconditionally, or
  * when the named enterprise feature resolves on for the deployment. Named rather than
  * read here so the catalog stays a constant and the sidebar and the server gate resolve
- * the same server-provided shape — see {@link isSelfHostedOverrideEnabled}. That is what
- * keeps nav and server agreeing: a section is visible exactly when its API would accept
- * the request.
+ * the same server-provided shape. That is what keeps nav and server agreeing: a section is
+ * visible exactly when its API would accept the request.
  */
 export type SelfHostedOverride = 'always' | keyof DeploymentFeatures
-
-/**
- * Whether a section's self-hosted override unlocks it on this deployment. Always false
- * on Sim Cloud, where subscription plans decide entitlement instead.
- */
-export function isSelfHostedOverrideEnabled(
-  override: SelfHostedOverride | undefined,
-  deployment: DeploymentShape
-): boolean {
-  if (override === undefined || deployment.hosted) return false
-  return override === 'always' || deployment.features[override] === true
-}
 
 type SettingsHrefSearchParams = Pick<URLSearchParams, 'toString'>
 
@@ -1033,92 +1020,6 @@ export function getOrganizationSettingsFeatures(
   }
 }
 
-interface WorkspacePermissionConfig {
-  hideSecretsTab?: boolean
-  hideApiKeysTab?: boolean
-  hideInboxTab?: boolean
-  disableMcpTools?: boolean
-  disableCustomTools?: boolean
-  hideSandboxesTab?: boolean
-}
-
-const WORKSPACE_PERMISSION_CONFIG_KEYS: Partial<
-  Record<WorkspaceSettingsSection, keyof WorkspacePermissionConfig>
-> = {
-  secrets: 'hideSecretsTab',
-  'api-keys': 'hideApiKeysTab',
-  inbox: 'hideInboxTab',
-  mcp: 'disableMcpTools',
-  'custom-tools': 'disableCustomTools',
-  sandboxes: 'hideSandboxesTab',
-}
-
-export interface WorkspaceSettingsEntitlements {
-  customBlocks: boolean
-  forks: boolean
-  inbox: boolean
-  sandboxes: boolean
-}
-
-/**
- * Sections that stay visible without their entitlement, rendering a locked
- * upgrade prompt instead of disappearing from the nav. Keyed by the entitlement
- * that unlocks them, so adding a gated section is one entry rather than another
- * hardcoded id check in {@link resolveWorkspaceNavigation}.
- */
-const LOCKABLE_WORKSPACE_SECTIONS: Partial<
-  Record<WorkspaceSettingsSection, keyof WorkspaceSettingsEntitlements>
-> = {
-  inbox: 'inbox',
-  sandboxes: 'sandboxes',
-}
-
-interface ResolveWorkspaceNavigationOptions {
-  permission: PermissionType
-  permissionConfig: WorkspacePermissionConfig
-  entitlements: WorkspaceSettingsEntitlements
-  /** Resolves the catalog's deployment gates the same way the sidebar does. */
-  deployment: DeploymentShape
-}
-
-/**
- * Unified projection of each workspace-plane section, so the route gate reads the
- * deployment requirements (`requiresHosted`, `requiresSelfHosted`, `selfHostedOverride`)
- * from the same catalog entry the sidebar filters on. Nav and server then agree: a
- * section is reachable exactly when it is listed.
- */
-const WORKSPACE_UNIFIED_PROJECTIONS: Readonly<
-  Partial<Record<WorkspaceSettingsSection, UnifiedSettingsProjection>>
-> = Object.fromEntries(
-  SETTINGS_SECTION_REGISTRY.flatMap((entry) => {
-    const workspaceSection = entry.planes?.workspace?.id
-    return workspaceSection && entry.unified ? [[workspaceSection, entry.unified] as const] : []
-  })
-)
-
-/**
- * Whether the deployment itself offers a workspace section, before viewer permission
- * and plan entitlement are considered. Mirrors the sidebar's deployment pass.
- */
-function isWorkspaceSectionOfferedByDeployment(
-  section: WorkspaceSettingsSection,
-  deployment: DeploymentShape
-): boolean {
-  const unified = WORKSPACE_UNIFIED_PROJECTIONS[section]
-  if (!unified) return true
-  if (unified.requiresSelfHosted && deployment.hosted) return false
-  if (unified.requiresHosted && !deployment.hosted) {
-    return isSelfHostedOverrideEnabled(unified.selfHostedOverride, deployment)
-  }
-  return true
-}
-
-export interface ResolvedWorkspaceNavigationItem
-  extends SettingsNavigationItem<WorkspaceSettingsSection> {
-  canMutate: boolean
-  locked: boolean
-}
-
 const WORKSPACE_MUTATION_PERMISSION: Record<WorkspaceSettingsSection, PermissionType> = {
   requests: 'read',
   teammates: 'admin',
@@ -1148,32 +1049,6 @@ export function canMutateWorkspaceSettingsSection(
   const permission = WORKSPACE_MUTATION_PERMISSION[section]
   if (permission === 'read') return true
   return permission === 'admin' ? capabilities.canAdmin : capabilities.canEdit
-}
-
-export function resolveWorkspaceNavigation({
-  permission,
-  permissionConfig,
-  entitlements,
-  deployment,
-}: ResolveWorkspaceNavigationOptions): ResolvedWorkspaceNavigationItem[] {
-  return WORKSPACE_SETTINGS_ITEMS.flatMap((item) => {
-    if (!isWorkspaceSectionOfferedByDeployment(item.id, deployment)) return []
-    const permissionConfigKey = WORKSPACE_PERMISSION_CONFIG_KEYS[item.id]
-    if (permissionConfigKey && permissionConfig[permissionConfigKey]) return []
-    if (item.id === 'forks' && (permission !== 'admin' || !entitlements.forks)) return []
-    if (item.id === 'custom-blocks' && !entitlements.customBlocks) return []
-
-    const lockedBy = LOCKABLE_WORKSPACE_SECTIONS[item.id]
-    const locked = lockedBy !== undefined && !entitlements[lockedBy]
-    const canMutate =
-      !locked &&
-      canMutateWorkspaceSettingsSection(item.id, {
-        canEdit: permissionSatisfies(permission, 'write'),
-        canAdmin: permissionSatisfies(permission, 'admin'),
-      })
-
-    return [{ ...item, canMutate, locked }]
-  })
 }
 
 /**
