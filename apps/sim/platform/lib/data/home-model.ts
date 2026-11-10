@@ -17,7 +17,6 @@ import {
   type CredentialGroupProvider,
   getCredentialGroupProviderId,
 } from '@/lib/credential-groups/providers'
-import { faviconSrc } from '@/lib/favicon/url'
 import { requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
 import type {
   AttentionItem,
@@ -210,21 +209,17 @@ export function toTaskPoints(summary: OrganizationActivitySummary) {
   }))
 }
 
-/**
- * A recent chip with every source it stands for, so removing it removes them all, and the site's
- * favicon for a chip with no provider mark of its own.
- */
-export type CollapsedRecent = RecentItem & { urls: string[]; favicon: string | null }
+/** A recent chip with every source it stands for, so removing it removes them all. */
+export type CollapsedRecent = RecentItem & { urls: string[] }
 
 export function toRecentItems(history: SearchHistoryResponse): CollapsedRecent[] {
-  return groupRecentSources(history).map(({ source, label, host, urls }) => {
+  return groupRecentSources(history).map(({ source, label, urls }) => {
     const mark = source.connectorType ? providerMark(source.connectorType) : undefined
     return {
       id: source.url,
       label,
       href: source.url,
       icon: typeof mark === 'string' && mark !== FALLBACK_PROVIDER_MARK ? mark : undefined,
-      favicon: host ? faviconSrc(host) : null,
       urls,
     }
   })

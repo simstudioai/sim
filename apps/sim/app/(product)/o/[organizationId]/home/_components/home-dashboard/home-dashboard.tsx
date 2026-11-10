@@ -8,7 +8,6 @@ import { PageColumn, PageOverflow } from '@sim/emcn-platform/page-column'
 import { RecentItems } from '@sim/emcn-platform/recent-items'
 import { PlatformSurface } from '@sim/emcn-platform/surface/platform-surface'
 import { GetStarted } from '@/app/(product)/_components/get-started/get-started'
-import { LinkIcon } from '@/app/(product)/_components/links-page/link-icon'
 import type { HomeMode, HomeWidget } from '@/app/(product)/_components/model'
 import { usePlatformNotices } from '@/app/(product)/_components/notification-tray/notification-tray'
 import { HomeActivityChart } from '@/app/(product)/o/[organizationId]/home/_components/activity-chart/activity-chart'
@@ -134,11 +133,7 @@ export function HomeDashboard({
                 <div className={styles.recents}>
                   <RecentItems
                     label='Recents'
-                    items={view.recents.items.map((item) =>
-                      item.icon || item.leading
-                        ? item
-                        : { ...item, leading: <LinkIcon src={item.favicon ?? null} /> }
-                    )}
+                    items={view.recents.items}
                     onRemove={actions.removeRecent}
                   />
                 </div>
