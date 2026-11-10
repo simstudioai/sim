@@ -1,10 +1,11 @@
 import { execFile } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
-import { createServer as httpServer } from 'node:http'
+import { createServer as httpServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { createServer as httpsServer } from 'node:https'
 import { type AddressInfo, connect, type Socket } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { Duplex } from 'node:stream'
 import { getCACertificates, setDefaultCACertificates } from 'node:tls'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
@@ -55,12 +56,12 @@ const secureOrigin = httpsServer((req, res) => {
   res.end('tls reached')
 })
 
-/** A plain forward proxy: CONNECT tunnels reach the TLS origin, absolute-form requests are answered here. */
-const proxy = httpServer((req, res) => {
+/** A forward proxy: CONNECT tunnels reach the TLS origin, absolute-form requests are answered here. */
+function forwardRequest(req: IncomingMessage, res: ServerResponse) {
   forwarded.push({ url: req.url, authorization: req.headers['proxy-authorization'] })
   res.end('forwarded')
-})
-proxy.on('connect', (req, socket, head) => {
+}
+function tunnel(req: IncomingMessage, socket: Duplex, head: Buffer) {
   socket.on('error', () => {})
   tunnels.push({ authority: req.url, authorization: req.headers['proxy-authorization'] })
   const upstream = connect(securePort, '127.0.0.1', () => {
@@ -73,10 +74,15 @@ proxy.on('connect', (req, socket, head) => {
   socket.on('close', () => upstream.destroy())
   sockets.add(upstream)
   upstream.on('close', () => sockets.delete(upstream))
-})
+}
+const proxy = httpServer(forwardRequest)
+proxy.on('connect', tunnel)
+const tlsProxy = httpsServer(forwardRequest)
+tlsProxy.on('connect', tunnel)
 
 let securePort = 0
 let proxyUrl = ''
+let tlsProxyUrl = ''
 const trust = getCACertificates('default')
 const PROXY_ENV = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'NO_PROXY', 'no_proxy']
 const options = { profile: 'contentFetch' as const, timeout: 10_000 }
@@ -98,14 +104,15 @@ beforeAll(async () => {
     '-subj',
     '/CN=origin.invalid',
     '-addext',
-    'subjectAltName=DNS:origin.invalid,IP:1.1.1.1',
+    'subjectAltName=DNS:origin.invalid,IP:1.1.1.1,IP:127.0.0.1',
     '-addext',
     'extendedKeyUsage=serverAuth',
   ])
   const cert = readFileSync(certificatePath, 'utf8')
-  secureOrigin.setSecureContext({ cert, key: readFileSync(keyPath, 'utf8') })
+  const key = readFileSync(keyPath, 'utf8')
+  for (const server of [secureOrigin, tlsProxy]) server.setSecureContext({ cert, key })
   setDefaultCACertificates([...trust, cert])
-  for (const server of [secureOrigin, proxy]) {
+  for (const server of [secureOrigin, proxy, tlsProxy]) {
     server.on('connection', (socket) => {
       sockets.add(socket)
       socket.on('close', () => sockets.delete(socket))
@@ -114,6 +121,7 @@ beforeAll(async () => {
   }
   securePort = (secureOrigin.address() as AddressInfo).port
   proxyUrl = `http://sim:proxy-secret@127.0.0.1:${(proxy.address() as AddressInfo).port}`
+  tlsProxyUrl = `https://sim:proxy-secret@127.0.0.1:${(tlsProxy.address() as AddressInfo).port}`
 })
 
 beforeEach(() => {
@@ -132,7 +140,7 @@ afterEach(() => {
 afterAll(async () => {
   for (const socket of sockets) socket.destroy()
   await Promise.all(
-    [secureOrigin, proxy].map(
+    [secureOrigin, proxy, tlsProxy].map(
       (server) => new Promise<void>((resolve) => server.close(() => resolve()))
     )
   )
@@ -170,6 +178,15 @@ describe('guarded requests under HTTPS_PROXY', () => {
     } finally {
       await Promise.all([pinned.dispatcher.destroy(), guarded.dispatcher.destroy()])
     }
+  })
+
+  it('tunnels through an https:// proxy, verifying the proxy certificate', async () => {
+    vi.stubEnv('HTTPS_PROXY', tlsProxyUrl)
+    const response = await secureFetchWithValidation('https://origin.invalid/', options)
+    expect(await response.text()).toBe('tls reached')
+    expect(tunnels).toEqual([
+      { authority: 'origin.invalid:443', authorization: PROXY_AUTHORIZATION },
+    ])
   })
 
   it('forwards plain-http destinations in absolute form instead of tunneling', async () => {

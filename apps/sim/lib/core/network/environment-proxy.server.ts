@@ -1,5 +1,5 @@
 const DEFAULT_PORTS: Record<string, number> = { 'http:': 80, 'https:': 443 }
-const SUPPORTED_PROXY_PROTOCOLS = new Set(['http:', 'https:', 'socks:', 'socks5:'])
+const SUPPORTED_PROXY_PROTOCOLS = new Set(['http:', 'https:'])
 
 /** An empty lowercase variable counts as unset, so it cannot hide the uppercase one. */
 function readEnv(lower: string, upper: string): string | undefined {
@@ -25,9 +25,8 @@ function isExcludedByNoProxy(hostname: string, port: number): boolean {
 /**
  * The operator's `HTTPS_PROXY` / `HTTP_PROXY` for a destination, or null when none applies.
  * Lowercase names win, an https destination falls back to `HTTP_PROXY`, and `NO_PROXY`
- * excludes hosts — the same rules Bun's `fetch` and undici's `EnvHttpProxyAgent` apply, so
- * guarded and unguarded requests leave the same way. Read per call so a value set after
- * startup is honored.
+ * excludes hosts with undici's `EnvHttpProxyAgent` matching, so guarded requests leave the
+ * way the default `fetch` does. Read per call so a value set after startup is honored.
  */
 export function resolveEnvironmentProxy(target: URL): string | null {
   const defaultPort = DEFAULT_PORTS[target.protocol]
@@ -51,7 +50,7 @@ function normalizeProxyUrl(value: string): string {
     throw new Error('The configured HTTP(S)_PROXY is not a valid URL')
   }
   if (!SUPPORTED_PROXY_PROTOCOLS.has(parsed.protocol)) {
-    throw new Error('The configured HTTP(S)_PROXY must use http, https, or socks5')
+    throw new Error('The configured HTTP(S)_PROXY must be an http:// or https:// URL')
   }
   return parsed.href
 }

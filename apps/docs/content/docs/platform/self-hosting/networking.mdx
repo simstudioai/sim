@@ -294,7 +294,7 @@ A request through the SSRF guard keeps its checks when it is proxied. Before eac
 - **DNS must still resolve inside the container.** A destination that the app cannot resolve is refused before the proxy is asked.
 - **The proxy resolves the name again.** The app cannot pin the address across a proxy, so the proxy's own egress policy is the last check.
 - **`https` destinations are tunneled** with `CONNECT host:443`. **`http` destinations are forwarded** to the proxy as an absolute URL, as curl and Bun do.
-- **Proxy credentials** go in the URL, e.g. `http://user:pass@proxy.internal:3128`. They are sent only to the proxy. `https://` and `socks5://` proxy URLs also work.
+- **Proxy credentials** go in the URL, e.g. `http://user:pass@proxy.internal:3128`. They are sent only to the proxy. An `https://` proxy URL also works; SOCKS proxies are not supported.
 - **The HTTP block's `proxyUrl`** still takes precedence for that one request.
 
 ### Internal destinations and `NO_PROXY`
