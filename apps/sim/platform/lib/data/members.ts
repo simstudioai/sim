@@ -136,11 +136,9 @@ export function useMembers(organization: PlatformOrganization) {
           }),
           "Couldn't change workspace access"
         ),
+      /** Rejects on failure, for the confirm that asked to show it. */
       removeFromWorkspace: (userId: string, workspaceId: string) =>
-        reportFailure(
-          removeFromWorkspace.mutateAsync({ userId, workspaceId, organizationId }),
-          "Couldn't remove member"
-        ),
+        removeFromWorkspace.mutateAsync({ userId, workspaceId, organizationId }),
       resendInvitation: async (invitationId: string) => {
         try {
           await resendInvitation.mutateAsync({ invitationId, orgId: organizationId })
@@ -151,11 +149,9 @@ export function useMembers(organization: PlatformOrganization) {
           })
         }
       },
+      /** Rejects on failure, for the confirm that asked to show it. */
       revokeInvitation: (invitationId: string) =>
-        reportFailure(
-          cancelInvitation.mutateAsync({ invitationId, orgId: organizationId }),
-          "Couldn't revoke the invite"
-        ),
+        cancelInvitation.mutateAsync({ invitationId, orgId: organizationId }),
     },
   }
 }

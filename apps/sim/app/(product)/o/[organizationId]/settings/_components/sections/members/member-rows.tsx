@@ -119,9 +119,15 @@ interface InvitationRowProps {
   row: InvitationRowModel
   canManage: boolean
   actions: MembersActions
+  onRevoke: (row: InvitationRowModel) => void
 }
 
-function useInvitationMenu(row: InvitationRowModel, canManage: boolean, actions: MembersActions) {
+function useInvitationMenu(
+  row: InvitationRowModel,
+  canManage: boolean,
+  actions: MembersActions,
+  onRevoke: (row: InvitationRowModel) => void
+) {
   const copyEmail = useCopyEmail(row.email)
   const manage: readonly MenuAction[] = canManage
     ? [
@@ -135,15 +141,15 @@ function useInvitationMenu(row: InvitationRowModel, canManage: boolean, actions:
           label: 'Revoke invite',
           destructive: true,
           separatorBefore: true,
-          onSelect: () => void actions.revokeInvitation(row.id),
+          onSelect: () => onRevoke(row),
         },
       ]
     : []
   return [copyEmail, ...manage]
 }
 
-export function InvitationRow({ row, canManage, actions }: InvitationRowProps) {
-  const menu = useInvitationMenu(row, canManage, actions)
+export function InvitationRow({ row, canManage, actions, onRevoke }: InvitationRowProps) {
+  const menu = useInvitationMenu(row, canManage, actions, onRevoke)
   return (
     <RowFrame
       name={row.name}
@@ -175,9 +181,15 @@ interface WorkspaceMemberRowProps {
   row: WorkspaceMemberRowModel
   workspaceId: string
   actions: MembersActions
+  onRemove: (row: WorkspaceMemberRowModel) => void
 }
 
-export function WorkspaceMemberRow({ row, workspaceId, actions }: WorkspaceMemberRowProps) {
+export function WorkspaceMemberRow({
+  row,
+  workspaceId,
+  actions,
+  onRemove,
+}: WorkspaceMemberRowProps) {
   const copyEmail = useCopyEmail(row.email)
   const select = (
     <ChoiceMenu
@@ -208,7 +220,7 @@ export function WorkspaceMemberRow({ row, workspaceId, actions }: WorkspaceMembe
                 label: 'Remove from workspace',
                 destructive: true,
                 separatorBefore: true,
-                onSelect: () => void actions.removeFromWorkspace(row.userId, workspaceId),
+                onSelect: () => onRemove(row),
               },
             ]
           : []),
@@ -222,6 +234,7 @@ interface WorkspaceInvitationRowProps {
   workspaceId: string
   canManage: boolean
   actions: MembersActions
+  onRevoke: (row: InvitationRowModel) => void
 }
 
 export function WorkspaceInvitationRow({
@@ -229,8 +242,9 @@ export function WorkspaceInvitationRow({
   workspaceId,
   canManage,
   actions,
+  onRevoke,
 }: WorkspaceInvitationRowProps) {
-  const menu = useInvitationMenu(row, canManage, actions)
+  const menu = useInvitationMenu(row, canManage, actions, onRevoke)
   return (
     <RowFrame
       name={row.name}
