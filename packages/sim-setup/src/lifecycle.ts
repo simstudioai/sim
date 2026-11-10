@@ -601,6 +601,42 @@ async function reset(install: Install | null): Promise<void> {
     p.log.info('Reset cancelled.')
     return
   }
+  // Tear down before archiving: Compose reads the required secrets from `.env`
+  // even for `down`, and a failed teardown should leave the config in place.
+  if (install?.kind === 'compose') {
+    dockerRun(composeArgs(install, 'down', '-v'), 'docker compose down -v failed', install.dir)
+    p.log.step('Containers and volumes removed')
+  } else if (install?.kind === 'dev') {
+    const names = managedNames(install)
+    if (names.length) dockerRun(['rm', '-f', ...names], 'docker rm failed')
+    // A volume that never existed is already reset; only one that survives is a failure.
+    const removal = spawnSync('docker', ['volume', 'rm', POSTGRES_VOLUME], { encoding: 'utf8' })
+    if (
+      removal.status !== 0 &&
+      spawnSync('docker', ['volume', 'inspect', POSTGRES_VOLUME], { stdio: 'ignore' }).status === 0
+    ) {
+      throw new SetupError(
+        `could not remove the ${POSTGRES_VOLUME} volume: ${removal.stderr.trim()}`
+      )
+    }
+    p.log.step('Managed containers and Postgres volume removed')
+  } else if (install?.kind === 'k8s') {
+    const uninstall = spawnSync(
+      'helm',
+      ['uninstall', K8S_RELEASE, '--kube-context', install.context, '-n', K8S_NAMESPACE],
+      { stdio: 'inherit' }
+    )
+    if (uninstall.status !== 0) {
+      throw new SetupError(
+        `helm uninstall failed — the ${K8S_RELEASE} release is still running and your env files were left in place.`,
+        [
+          `retry: ${theme.command(`helm uninstall ${K8S_RELEASE} --kube-context ${shq(install.context)} -n ${K8S_NAMESPACE}`)}`,
+          `check the release: ${theme.command(`helm status ${K8S_RELEASE} --kube-context ${shq(install.context)} -n ${K8S_NAMESPACE}`)}`,
+        ]
+      )
+    }
+    p.log.step(`Uninstalled ${K8S_RELEASE}`)
+  }
   if (install?.kind === 'compose') {
     const backup = archiveFile(path.join(install.dir, '.env'))
     if (backup) p.log.step(`Archived ${backup}`)
@@ -609,33 +645,6 @@ async function reset(install: Install | null): Promise<void> {
       const backup = archiveEnvFile(target)
       if (backup) p.log.step(`Archived ${backup}`)
     }
-  }
-  if (install?.kind === 'compose') {
-    dockerRun(composeArgs(install, 'down', '-v'), 'docker compose down -v failed', install.dir)
-    p.log.step('Containers and volumes removed')
-  } else if (install?.kind === 'dev') {
-    const names = managedNames(install)
-    if (names.length) spawnSync('docker', ['rm', '-f', ...names], { cwd: ROOT, stdio: 'ignore' })
-    spawnSync('docker', ['volume', 'rm', POSTGRES_VOLUME], { cwd: ROOT, stdio: 'ignore' })
-    p.log.step('Managed containers and Postgres volume removed')
-  } else if (install?.kind === 'k8s') {
-    const uninstall = spawnSync(
-      'helm',
-      ['uninstall', K8S_RELEASE, '--kube-context', install.context, '-n', K8S_NAMESPACE],
-      { stdio: 'inherit' }
-    )
-    // Env files are already archived, so a failed uninstall leaves a live release
-    // with no local config — the worst thing to do is call that a success.
-    if (uninstall.status !== 0) {
-      throw new SetupError(
-        `env files were archived, but helm uninstall failed — the ${K8S_RELEASE} release is still running.`,
-        [
-          `retry: ${theme.command(`helm uninstall ${K8S_RELEASE} --kube-context ${shq(install.context)} -n ${K8S_NAMESPACE}`)}`,
-          `check the release: ${theme.command(`helm status ${K8S_RELEASE} --kube-context ${shq(install.context)} -n ${K8S_NAMESPACE}`)}`,
-        ]
-      )
-    }
-    p.log.step(`Uninstalled ${K8S_RELEASE}`)
   }
   p.note(`start fresh with ${theme.command('npx sim-setup')}`, 'Reset complete')
 }

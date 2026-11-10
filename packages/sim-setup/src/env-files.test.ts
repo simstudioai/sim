@@ -20,6 +20,22 @@ describe('upsertEnv', () => {
       )
     ).toThrow('Duplicate active RESEND_API_KEY entries')
   })
+
+  it.each(['ab #cd', 'a#b', '  padded ', "'starts-with-quote", "it's #1"])(
+    'reads back %j exactly as it was written',
+    (value) => {
+      expect(parseEnv(upsertEnv('', 'SECRET', value)).get('SECRET')).toBe(value)
+    }
+  )
+
+  it('writes an ordinary value without quotes', () => {
+    const dsn = 'postgresql://postgres:p%23w@127.0.0.1:5432/simstudio'
+    expect(upsertEnv('', 'DATABASE_URL', dsn)).toBe(`DATABASE_URL=${dsn}\n`)
+  })
+
+  it('refuses a value that would spill onto a second line', () => {
+    expect(() => upsertEnv('', 'SECRET', 'first\nINJECTED=1')).toThrow('line break')
+  })
 })
 
 describe('reconcileEnvContent', () => {
