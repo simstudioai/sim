@@ -70,6 +70,24 @@ async function loadPreviousPublicJwk(): Promise<JWK | null> {
   }
 }
 
+/**
+ * AWS and Databricks fetch discovery and keys from the issuer over https on the
+ * default port, so any other issuer can never be trusted; keyless stays off
+ * rather than advertising an issuer no relying party accepts.
+ */
+function assertPublicIssuer(issuer: string): void {
+  const url = new URL(issuer)
+  if (url.protocol !== 'https:' || url.port) {
+    throw new Error('Workload identity issuer must be an https URL without a port')
+  }
+  if (!env.WORKLOAD_IDENTITY_ISSUER?.trim()) {
+    logger.warn(
+      'Workload identity issuer follows the app URL; set WORKLOAD_IDENTITY_ISSUER so customer trust policies survive a URL change',
+      { issuer }
+    )
+  }
+}
+
 let signingMaterial: Promise<SigningMaterial> | undefined
 
 /**
@@ -82,6 +100,7 @@ function loadSigningMaterial(): Promise<SigningMaterial> {
   if (!signingKey) return Promise.reject(new WorkloadIdentityNotConfiguredError())
   if (!signingMaterial) {
     signingMaterial = (async () => {
+      assertPublicIssuer(getWorkloadIdentityIssuer())
       const privateKey = createPrivateKey(normalizePem(signingKey))
       const current = await toPublicJwk(privateKey)
       const keys = [current]

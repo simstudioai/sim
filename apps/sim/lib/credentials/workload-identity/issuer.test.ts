@@ -26,6 +26,7 @@ async function loadIssuer() {
 describe('workload identity issuer', () => {
   beforeEach(() => {
     setEnv('WORKLOAD_IDENTITY_SIGNING_KEY', rsaPem())
+    setEnv('WORKLOAD_IDENTITY_ISSUER', 'https://sim.example.com/oidc/workload')
   })
 
   afterEach(() => {
@@ -100,6 +101,20 @@ describe('workload identity issuer', () => {
     expect((await workloadIdentityDiscoveryResponse()).status).toBe(404)
     expect((await workloadIdentityJwksResponse()).status).toBe(404)
   })
+
+  it.each(['http://sim.example.com/oidc/workload', 'https://sim.example.com:3000/oidc/workload'])(
+    'stays off for an issuer no cloud can fetch (%s)',
+    async (url) => {
+      setEnv('WORKLOAD_IDENTITY_ISSUER', url)
+      const issuer = await loadIssuer()
+      const { workloadIdentityDiscoveryResponse } = await import(
+        '@/lib/credentials/workload-identity/responses'
+      )
+
+      expect(await issuer.isWorkloadIdentityConfigured()).toBe(false)
+      expect((await workloadIdentityDiscoveryResponse()).status).toBe(404)
+    }
+  )
 
   it('keeps signing with the current key when the retiring key is malformed', async () => {
     setEnv('WORKLOAD_IDENTITY_PREVIOUS_KEY', 'not a PEM key')
