@@ -10,6 +10,10 @@ EMCN is Sim's modern shared component system, derived from the new Platform UI. 
 | `@sim/emcn-platform` | Chat, workspace and Platform page compositions |
 | `@sim/emcn-legacy` | Compatibility for unreplaced application routes; never a modern dependency |
 
+## Frozen surface
+
+The public surface of `@sim/emcn` and `@sim/emcn-platform` (export subpaths, exported names, component props and their variant values, CSS Module classes) is recorded in `scripts/emcn-surface.json`, and `bun run check:emcn-surface` fails on any difference. Only the design owner (CODEOWNERS) changes these packages or regenerates the snapshot. Product code composes the components as they stand; a part a second feature needs moves to the nearest shared product owner (`apps/sim/app/(product)/_components/`). Legacy UI stays custom or `@sim/emcn-legacy`.
+
 ## Component structure
 
 Use a family import such as `@sim/emcn/button`, `@sim/emcn/field`, `@sim/emcn-auth/shell` or `@sim/emcn-docs/code-block`. Supporting modules have explicit subpaths. Each family has its own folder containing the implementation, CSS Module and private helpers. Only barrels re-export siblings. Components do not import application data, route configuration or fixture logic.
@@ -18,7 +22,7 @@ The field family barrel exposes FieldFrame and fieldDescription from `field/fram
 
 Pass `disabledReason` to Button, Checkbox or supported picker triggers/options when a restriction is not evident from the surrounding form. It shows the existing tooltip on hover, keyboard focus or a touch tap without enabling the control. DataTable rows supply `selectionDisabledReason` beside `selectionDisabled`. Tooltip preserves the control's label or labelled-by association for its disabled focus target; explanations stay descriptions, separate from the control name.
 
-A second independent consumer promotes the existing owner instead of copying it. A different label, icon, viewport or value does not create another visual variant. Keep distinct keyboard and semantic contracts even when controls share paint. A new shared variant needs real consumers; a gallery specimen does not establish use.
+A different label, icon, viewport or value never calls for another visual variant. Keep distinct keyboard and semantic contracts even when controls share paint.
 
 ## Styles
 
@@ -34,4 +38,4 @@ One font asset owner serves Next and Electron. Unique `EMCN Geist` and `EMCN Gei
 
 Old components retain their separate `@sim/emcn-legacy` identity until their routes are replaced. The new packages cannot import them. Docs' existing workflow-canvas renderer is a scoped content adapter; it does not supply Docs chrome. Platform's data seam may resolve legacy toast calls through its explicit toast-only shim, with no legacy UI in the resulting runtime graph.
 
-Run the package type-checks, `check:platform-design`, `check:platform-css`, and the affected production browser/Electron suites. Check both supported themes, intermediate widths, text scaling, wrapped content, keyboard/pointer interaction and actual overflow. Auth remains light-only. A successful build or a passing gallery alone does not establish rendered consistency.
+Run the package type-checks, `check:emcn-surface`, `check:platform-design`, `check:platform-css`, and the affected production browser/Electron suites. Check both supported themes, intermediate widths, text scaling, wrapped content, keyboard/pointer interaction and actual overflow. Auth remains light-only. A successful build or a passing gallery alone does not establish rendered consistency.

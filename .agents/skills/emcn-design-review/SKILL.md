@@ -1,6 +1,6 @@
 ---
 name: emcn-design-review
-description: Review the existing Sim app against packages/emcn. Route isolated Platform UI in apps/sim/platform to implement-platform.
+description: Review legacy Sim UI against packages/emcn-legacy. Route Platform UI in apps/sim/app/(product) and apps/sim/platform to implement-platform.
 argument-hint: "[scope] [fix=true|false]"
 ---
 
@@ -14,7 +14,7 @@ User arguments: $ARGUMENTS
 
 ## Context
 
-The existing Sim app uses `packages/emcn-legacy`, its Radix primitives, CVA variants, and CSS tokens. For `apps/sim/platform/**`, use [implement-platform](../implement-platform/SKILL.md). For mixed scopes, review each file under its owning system and preserve the requested `fix` mode for both.
+The existing Sim app uses `packages/emcn-legacy`, its Radix primitives, CVA variants, and CSS tokens. For `apps/sim/app/(product)/**` and `apps/sim/platform/**`, use [implement-platform](../implement-platform/SKILL.md). For mixed scopes, review each file under its owning system and preserve the requested `fix` mode for both.
 
 ## Steps
 
@@ -48,7 +48,7 @@ Header/action chrome is `Chip`/`ChipLink` (variants `primary`, `destructive`, `o
 
 ## Delete/Remove Confirmations
 
-Use `ChipConfirmModal` (title "Delete/Remove {ItemType}", `confirm={{ label, onClick }}`, which defaults to destructive). Keep its fail-safe `defaultAction='dismiss'` per `.claude/rules/emcn-components.md` "Modal keyboard defaults". Put irreversible-consequence copy in `text`.
+Use `ChipConfirmModal` (title "Delete/Remove {ItemType}", `confirm={{ label, onClick }}`, which defaults to destructive). Keep its fail-safe `defaultAction='dismiss'` per `.claude/rules/emcn-legacy-components.md` "Modal keyboard defaults". Put irreversible-consequence copy in `text`.
 
 ## Toast
 

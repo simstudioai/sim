@@ -71,8 +71,8 @@ return (
   `tooltip` (the shell renders the hover tooltip, disabled chip included). An action
   that wants to warm a route on hover sets `onPrefetch`; the shell wires it. A label
   that flips while pending (`Delete` → `Deleting...`) sets a stable `id`, or the chip
-  remounts mid-action. Save/Discard pairs come from the `saveDiscardActions()`
-  helper (spread it into `actions`).
+  remounts mid-action. A Save/Discard pair is two actions: `{ id: 'discard', … }`
+  and a `variant: 'primary'` Save.
 - `back?: SettingsBackAction` (`{ text, icon?, onSelect }`) — left-aligned back
   chip for a **detail sub-view** (e.g. a selected MCP server, a permission group,
   a retention policy). Detail sub-views render through `SettingsPanel` like list
@@ -198,17 +198,12 @@ and — on activatable rows only — the hover band. Never hand-roll any of it, 
   `RowActionsMenu`) and sits above the hit area. `badge` is for **decoration** (a
   status tag) and is click-through. Putting a badge in `trailing` turns the row's
   right edge into a dead zone.
-- `RESOURCE_LIST_STACK` / `RESOURCE_LIST_GRID` — the single-column and two-up
-  containers. A `SettingsResourceRow` carries its own `-mx-2` bleed and padding,
+- `RESOURCE_LIST_STACK` — the list container. A `SettingsResourceRow` carries its own `-mx-2` bleed and padding,
   so a container holding one only sets rhythm: never add a second `-mx-2` (they
   stack into a 16px bleed) and never a different gap. A list of hand-rolled rows
   is the opposite — there the container owns the bleed. A row inside a
   fixed-height `overflow-y-auto` box, or a heading that must line up with the
   section labels under it, passes `flush` to drop the bleed and padding.
-  `RESOURCE_LIST_GRID` budgets its column gap for the bleed (24px of track gap
-  minus 16px of bleed = an 8px gutter); narrowing that gap makes neighbouring
-  rows — and their stretched hit areas — overlap, so a click in the gutter opens
-  the wrong card.
 
 **Three-dots vs. chevron** is not a taste call:
 
@@ -225,10 +220,6 @@ and — on activatable rows only — the hover band. Never hand-roll any of it, 
   directory has no barrel) — muted label, hairline
   divider, body. Also carries `headerAccessory` and `action` slots. Never
   re-derive the label/divider chrome; `sim-styling.md` owns those tokens.
-- **`SettingsField`** (`…/components/settings-field`) — a read-only label/value
-  pair in a detail body: muted caption over the value. Pass the value as text and it
-  renders the value paragraph itself; pass a node when the value needs its own
-  presentation (a control, an icon beside the value, status styling).
 - **`SettingsEmptyState`** (`…/components/settings-empty-state`) — the canonical
   muted status message for empty lists, "no results", loading gates, and failed
   reads. `variant='fill'` (default) centers in the available height;
@@ -270,10 +261,9 @@ Every detail header reads left→right:
 
 You do not have to get the array order right — `orderHeaderActions()` ranks them
 (secondary → `id:'delete'` → `id:'discard'` → `variant:'primary'`), order-stable
-within each band, so spreading `saveDiscardActions()` first still renders Save
-last. Three stacks apply it: `SettingsHeaderShell`, `SettingsActionChips`, and
-`Resource.Header` — so tables, files, knowledge and logs get the same ordering
-as settings.
+within each band, so listing Save first still renders it last. Two stacks apply
+it: `SettingsHeaderShell` and `Resource.Header`, so tables, files, knowledge and
+logs get the same ordering as settings.
 
 Delete is placed by its **`id`**, not by position, which is why `id:'delete'` is
 required rather than cosmetic: a page with no primary action still must not
@@ -283,26 +273,19 @@ The bar geometry and the action cluster are both single-sourced in
 `@/components/page-header-bar` — `PAGE_HEADER_BAR` (or `Resource.Header`'s
 bordered variant) and `HEADER_ACTION_CLUSTER`. Never re-derive `h-[30px]`,
 `gap-1`, or the lane padding per header.
-Covered by `settings-header-order.test.ts` and `settings-header-shell.test.tsx`
-— the latter pins that a reordered chip still routes to its own handler.
+`settings-header-shell.test.tsx` pins that a reordered chip still routes to its
+own handler.
 
-Two consequences worth knowing:
-
-- **The primary chip is always right-most**, and it is not always Save — on a
-  page with no save state it is whatever the primary action is (`Add workflows`,
-  `Import`). Delete still precedes it.
-- `CredentialDetailLayout` takes a `ReactNode`, so the chips you write directly
-  are in your order — only what you route through `SettingsActionChips` /
-  `SaveDiscardChips` is ranked. Put `<SaveDiscardChips>` last (skills, secrets,
-  connected credentials already do).
+**The primary chip is always right-most**, and it is not always Save — on a
+page with no save state it is whatever the primary action is (`Add workflows`,
+`Import`). Delete still precedes it.
 
 ## Deleting a resource
 
 Delete lives in the **detail header**, as `{ id: 'delete', text: 'Delete',
 onSelect: … }` behind a `ChipConfirmModal` — a **plain chip**, never
 `textTone: 'error'`, and never unconfirmed. In a `SettingsPanel` header it is
-action *data*, never a hand-rolled `<Chip>`; only `CredentialDetailLayout`
-surfaces, which take a `ReactNode`, render one directly. Always set `id: 'delete'`; without a
+action *data*, never a hand-rolled `<Chip>`. Always set `id: 'delete'`; without a
 stable id the chip remounts when the label flips to `Deleting...`.
 
 `variant: 'destructive'` is reserved for actions that are destructive at
@@ -363,12 +346,12 @@ A settings page is design-system-clean when:
 - [ ] Header chips are in `actions`; a standalone search is in the `search` prop.
 - [ ] Its registry entry has an accurate, consistent-length `description`.
 - [ ] Detail sub-views and entitlement/loading gates keep their own chrome (intentional).
-- [ ] If it has editable state: Save/Discard go through `saveDiscardActions()`, dirty is wired via `useSettingsUnsavedGuard` (called before any early-return gate), and there is **no** hand-rolled Save button / `beforeunload` / "Unsaved changes" modal.
+- [ ] If it has editable state: Save/Discard are header actions (`id: 'discard'`, a primary Save), dirty is wired via `useSettingsUnsavedGuard` (called before any early-return gate), and there is **no** hand-rolled Save button / `beforeunload` / "Unsaved changes" modal.
 - [ ] No business logic, handlers, or conditional rendering changed by the migration — except where the shared primitive makes a gate structural (a permission gate becomes `onClick={can ? … : undefined}` + `navigable={can}`, which renders a plain non-interactive row).
 - [ ] No literal `text-[Npx]` classes — named scale tokens only (see "Text-scale tokens" above).
-- [ ] Every **resource** list row (a thing with an identity — a tool, a server, a key, a credential) is a `SettingsResourceRow` in a `RESOURCE_LIST_STACK`/`RESOURCE_LIST_GRID` — no wrapper `<button>`/`<Link>`, no hand-passed arrow, no re-derived title/subtitle spans. Rows with a genuinely different shape stay bespoke, and draw their own arrow with `RESOURCE_ROW_ARROW_CLASSES`: multi-line bodies (inbox tasks), tabular columns (billing invoices, credit usage), grids (secrets), and the member rows (see the avatar note above).
+- [ ] Every **resource** list row (a thing with an identity — a tool, a server, a key, a credential) is a `SettingsResourceRow` in a `RESOURCE_LIST_STACK` — no wrapper `<button>`/`<Link>`, no hand-passed arrow, no re-derived title/subtitle spans. Rows with a genuinely different shape stay bespoke, and draw their own arrow with `RESOURCE_ROW_ARROW_CLASSES`: multi-line bodies (inbox tasks), tabular columns (billing invoices, credit usage), grids (secrets), and the member rows (see the avatar note above).
 - [ ] Rows that open a detail page use `navigable` + `clickLabel`; flat records use `RowActionsMenu`. Not both.
 - [ ] Decorative trailing content is in `badge`, not `trailing`.
-- [ ] Labeled sections use `SettingsSection`; read-only fields use `SettingsField`; empty/loading/read-failure messages use `SettingsEmptyState`, with `SettingsQueryErrorState` when offering retry.
+- [ ] Labeled sections use `SettingsSection`; empty/loading/read-failure messages use `SettingsEmptyState`, with `SettingsQueryErrorState` when offering retry.
 - [ ] Delete is a plain `id:'delete'` header action behind a `ChipConfirmModal`; `destructive` is reserved for bulk actions.
 - [ ] The local gate in the root `CLAUDE.md` ("How your work is checked") passes.
