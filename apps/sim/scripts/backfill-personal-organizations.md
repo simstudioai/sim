@@ -1,7 +1,8 @@
 # Personal organizations: rollout and rollback
 
 Every account outside a team gets a personal organization (`organization.kind = 'personal'`)
-that holds its personal workspaces. The release that introduces it must roll out in this order.
+that holds its personal workspaces; on an instance-organization deployment it joins the instance
+organization instead. The release that introduces it must roll out in this order.
 
 ## Rollout
 
@@ -58,8 +59,9 @@ payer:
 - invitations, SSO admission and the organization creation route refuse the owner as
   "already in another organization".
 
-The flag keeps every personal organization from existing until no process runs that code. Once it
-is on, accounts that already own workspaces keep them organization-less (they open inside the
+Rolling every process out first keeps personal organizations away from that code;
+`pause-personal-organizations` is off by default and turned on only to roll back. Once the new
+release serves, accounts that already own workspaces keep them organization-less (they open inside the
 personal organization's shell, billed exactly as before) until the backfill attaches them; the
 backfill is the only path that moves existing workspaces (and their payer bookkeeping) into
 personal organizations, and attaching changes no payer. Workspace chats stay keyed to their
