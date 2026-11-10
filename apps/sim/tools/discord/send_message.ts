@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type { DiscordSendMessageParams, DiscordSendMessageResponse } from '@/tools/discord/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const discordSendMessageTool: InternalToolConfig<
   name: 'Discord Send Message',
   description: 'Send a message to a Discord channel',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

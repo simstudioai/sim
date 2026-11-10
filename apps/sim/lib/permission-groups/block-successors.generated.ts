@@ -35,6 +35,7 @@ export const BLOCK_ACCESS_SUCCESSORS: Record<string, string> = {
   cursor: 'cursor_v2',
   databricks: 'databricks_v2',
   daytona: 'daytona_v2',
+  discord: 'discord_v2',
   dropbox: 'dropbox_v2',
   dub: 'dub_v2',
   dynamodb: 'dynamodb_v2',
@@ -77,6 +78,7 @@ export const BLOCK_ACCESS_SUCCESSORS: Record<string, string> = {
   luma: 'luma_v2',
   mailchimp: 'mailchimp_v2',
   manual_trigger: 'start_trigger',
+  mem0: 'mem0_v2',
   microsoft_dataverse: 'microsoft_dataverse_v2',
   microsoft_excel: 'microsoft_excel_v2',
   mistral_parse: 'mistral_parse_v3',
@@ -126,4 +128,5 @@ export const BLOCK_ACCESS_SUCCESSORS: Record<string, string> = {
   workflow: 'workflow_input',
   youcom: 'youcom_v2',
   youtube: 'youtube_v2',
+  zep: 'zep_v2',
 }

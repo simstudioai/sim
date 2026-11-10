@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type { DiscordCreateThreadParams, DiscordCreateThreadResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const discordCreateThreadTool: ToolConfig<
   name: 'Discord Create Thread',
   description: 'Create a thread in a Discord channel',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

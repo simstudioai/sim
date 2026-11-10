@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type { DiscordJoinThreadParams, DiscordJoinThreadResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -7,6 +8,7 @@ export const discordJoinThreadTool: ToolConfig<DiscordJoinThreadParams, DiscordJ
     name: 'Discord Join Thread',
     description: 'Join a thread in Discord',
     version: '1.0.0',
+    oauth: DISCORD_CREDENTIAL_OAUTH,
 
     params: {
       botToken: {

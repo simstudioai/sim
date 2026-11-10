@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type { DiscordCreateInviteParams, DiscordCreateInviteResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const discordCreateInviteTool: ToolConfig<
   name: 'Discord Create Invite',
   description: 'Create an invite link for a Discord channel',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

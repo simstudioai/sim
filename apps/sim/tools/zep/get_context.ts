@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { ZEP_CREDENTIAL_OAUTH } from '@/tools/zep/credential'
 import type { ZepResponse } from '@/tools/zep/types'
 
 export const zepGetContextTool: ToolConfig<any, ZepResponse> = {
@@ -6,6 +7,7 @@ export const zepGetContextTool: ToolConfig<any, ZepResponse> = {
   name: 'Get User Context',
   description: 'Retrieve user context from a thread with summary or basic mode',
   version: '1.0.0',
+  oauth: ZEP_CREDENTIAL_OAUTH,
 
   params: {
     threadId: {

@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type { DiscordCreateRoleParams, DiscordCreateRoleResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -7,6 +8,7 @@ export const discordCreateRoleTool: ToolConfig<DiscordCreateRoleParams, DiscordC
     name: 'Discord Create Role',
     description: 'Create a new role in a Discord server',
     version: '1.0.0',
+    oauth: DISCORD_CREDENTIAL_OAUTH,
 
     params: {
       botToken: {

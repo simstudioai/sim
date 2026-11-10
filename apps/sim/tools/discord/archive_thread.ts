@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type {
   DiscordArchiveThreadParams,
   DiscordArchiveThreadResponse,
@@ -12,6 +13,7 @@ export const discordArchiveThreadTool: ToolConfig<
   name: 'Discord Archive Thread',
   description: 'Archive or unarchive a thread in Discord',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

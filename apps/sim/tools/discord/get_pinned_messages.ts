@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type {
   DiscordGetPinnedMessagesParams,
   DiscordGetPinnedMessagesResponse,
@@ -13,6 +14,7 @@ export const discordGetPinnedMessagesTool: ToolConfig<
   name: 'Discord Get Pinned Messages',
   description: 'Retrieve all pinned messages in a Discord channel',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

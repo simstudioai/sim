@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type {
   DiscordDeleteMessageParams,
   DiscordDeleteMessageResponse,
@@ -12,6 +13,7 @@ export const discordDeleteMessageTool: ToolConfig<
   name: 'Discord Delete Message',
   description: 'Delete a message from a Discord channel',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

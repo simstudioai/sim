@@ -1,3 +1,4 @@
+import { MEM0_CREDENTIAL_OAUTH } from '@/tools/mem0/credential'
 import {
   ADD_MEMORY_OUTPUT_PROPERTIES,
   type Mem0AddMemoriesParams,
@@ -35,6 +36,7 @@ export const mem0AddMemoriesTool: ToolConfig<Mem0AddMemoriesParams, Mem0AddMemor
   name: 'Add Memories',
   description: 'Add memories to Mem0 for persistent storage and retrieval',
   version: '1.0.0',
+  oauth: MEM0_CREDENTIAL_OAUTH,
 
   params: {
     userId: {

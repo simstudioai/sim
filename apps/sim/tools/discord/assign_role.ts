@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type { DiscordAssignRoleParams, DiscordAssignRoleResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -7,6 +8,7 @@ export const discordAssignRoleTool: ToolConfig<DiscordAssignRoleParams, DiscordA
     name: 'Discord Assign Role',
     description: 'Assign a role to a member in a Discord server',
     version: '1.0.0',
+    oauth: DISCORD_CREDENTIAL_OAUTH,
 
     params: {
       botToken: {

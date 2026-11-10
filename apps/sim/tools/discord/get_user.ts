@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type {
   DiscordGetUserParams,
   DiscordGetUserResponse,
@@ -10,6 +11,7 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
   name: 'Discord Get User',
   description: 'Retrieve information about a Discord user',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

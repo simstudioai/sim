@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type { DiscordListRolesParams, DiscordListRolesResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const discordListRolesTool: ToolConfig<DiscordListRolesParams, DiscordLis
   name: 'Discord List Roles',
   description: 'List all roles in a Discord server',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

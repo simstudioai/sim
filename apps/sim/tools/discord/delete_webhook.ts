@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type {
   DiscordDeleteWebhookParams,
   DiscordDeleteWebhookResponse,
@@ -12,6 +13,7 @@ export const discordDeleteWebhookTool: ToolConfig<
   name: 'Discord Delete Webhook',
   description: 'Delete a Discord webhook',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

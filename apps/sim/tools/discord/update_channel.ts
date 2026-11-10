@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type {
   DiscordUpdateChannelParams,
   DiscordUpdateChannelResponse,
@@ -12,6 +13,7 @@ export const discordUpdateChannelTool: ToolConfig<
   name: 'Discord Update Channel',
   description: 'Update a Discord channel',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

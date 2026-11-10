@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type { DiscordUpdateRoleParams, DiscordUpdateRoleResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -7,6 +8,7 @@ export const discordUpdateRoleTool: ToolConfig<DiscordUpdateRoleParams, DiscordU
     name: 'Discord Update Role',
     description: 'Update a role in a Discord server',
     version: '1.0.0',
+    oauth: DISCORD_CREDENTIAL_OAUTH,
 
     params: {
       botToken: {

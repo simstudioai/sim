@@ -34,6 +34,7 @@ import {
   CrunchbaseIcon,
   DatabricksIcon,
   DaytonaIcon,
+  DiscordIcon,
   DocuSignIcon,
   DropboxIcon,
   ElevenLabsIcon,
@@ -81,6 +82,7 @@ import {
   LumaIcon,
   MailchimpIcon,
   ManageEngineIcon,
+  Mem0Icon,
   MicrosoftDataverseIcon,
   MicrosoftExcelIcon,
   MicrosoftIcon,
@@ -131,6 +133,7 @@ import {
   xIcon,
   YouComIcon,
   YouTubeIcon,
+  ZepIcon,
   ZohoDeskIcon,
   ZoomIcon,
 } from '@/components/icons'
@@ -2553,6 +2556,58 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'youtube',
+  },
+  mem0: {
+    name: 'Mem0',
+    icon: Mem0Icon,
+    services: {
+      mem0: {
+        name: 'Mem0',
+        description: 'Add, search, and retrieve memories with Mem0.',
+        providerId: 'mem0',
+        serviceAccountProviderId: 'mem0-service-account',
+        icon: Mem0Icon,
+        baseProviderIcon: Mem0Icon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'mem0',
+  },
+  zep: {
+    name: 'Zep',
+    icon: ZepIcon,
+    services: {
+      zep: {
+        name: 'Zep',
+        description: 'Manage long-term memory threads, messages, and users in Zep.',
+        providerId: 'zep',
+        serviceAccountProviderId: 'zep-service-account',
+        icon: ZepIcon,
+        baseProviderIcon: ZepIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'zep',
+  },
+  discord: {
+    name: 'Discord',
+    icon: DiscordIcon,
+    services: {
+      discord: {
+        name: 'Discord',
+        description:
+          'Manage Discord messages, threads, channels, roles, members, and invites as a bot.',
+        providerId: 'discord',
+        serviceAccountProviderId: 'discord-service-account',
+        icon: DiscordIcon,
+        baseProviderIcon: DiscordIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'discord',
   },
   higgsfield: {
     name: 'Higgsfield',

@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type {
   DiscordRemoveReactionParams,
   DiscordRemoveReactionResponse,
@@ -12,6 +13,7 @@ export const discordRemoveReactionTool: ToolConfig<
   name: 'Discord Remove Reaction',
   description: 'Remove a reaction from a Discord message',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

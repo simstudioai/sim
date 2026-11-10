@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { ZEP_CREDENTIAL_OAUTH } from '@/tools/zep/credential'
 import type { ZepResponse } from '@/tools/zep/types'
 import { PAGINATION_OUTPUT_PROPERTIES, THREADS_ARRAY_OUTPUT } from '@/tools/zep/types'
 
@@ -7,6 +8,7 @@ export const zepGetUserThreadsTool: ToolConfig<any, ZepResponse> = {
   name: 'Get User Threads',
   description: 'List all conversation threads for a specific user',
   version: '1.0.0',
+  oauth: ZEP_CREDENTIAL_OAUTH,
 
   params: {
     userId: {

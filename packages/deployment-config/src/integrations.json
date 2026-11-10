@@ -7967,7 +7967,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "discord",
+      "type": "discord_v2",
       "slug": "discord",
       "name": "Discord",
       "description": "Interact with Discord",
@@ -8136,11 +8136,12 @@
       "operationCount": 39,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "discord",
       "category": "tools",
       "integrationType": "communication",
       "tags": ["messaging", "webhooks", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "docusign",
@@ -17536,7 +17537,7 @@
       "updatedAt": "2026-09-03"
     },
     {
-      "type": "mem0",
+      "type": "mem0_v2",
       "slug": "mem0",
       "name": "Mem0",
       "description": "Agent memory management",
@@ -17561,11 +17562,12 @@
       "operationCount": 3,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "mem0",
       "category": "tools",
       "integrationType": "ai",
       "tags": ["llm", "knowledge-base", "agentic"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "microsoft_dataverse_v2",
@@ -31237,7 +31239,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "zep",
+      "type": "zep_v2",
       "slug": "zep",
       "name": "Zep",
       "description": "Long-term memory for AI agents",
@@ -31286,11 +31288,12 @@
       "operationCount": 9,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "zep",
       "category": "tools",
       "integrationType": "ai",
       "tags": ["knowledge-base", "agentic"],
-      "updatedAt": "2026-08-18"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "zerobounce",

@@ -22,6 +22,7 @@ import {
   CODA_SERVICE_ACCOUNT_PROVIDER_ID,
   CRUNCHBASE_SERVICE_ACCOUNT_PROVIDER_ID,
   DAYTONA_SERVICE_ACCOUNT_PROVIDER_ID,
+  DISCORD_SERVICE_ACCOUNT_PROVIDER_ID,
   ELEVENLABS_SERVICE_ACCOUNT_PROVIDER_ID,
   ENRICH_SERVICE_ACCOUNT_PROVIDER_ID,
   FLOW_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -42,6 +43,7 @@ import {
   LOOPS_SERVICE_ACCOUNT_PROVIDER_ID,
   LUMA_SERVICE_ACCOUNT_PROVIDER_ID,
   MAILCHIMP_SERVICE_ACCOUNT_PROVIDER_ID,
+  MEM0_SERVICE_ACCOUNT_PROVIDER_ID,
   MONDAY_SERVICE_ACCOUNT_PROVIDER_ID,
   NOTION_SERVICE_ACCOUNT_PROVIDER_ID,
   OTTER_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -71,6 +73,7 @@ import {
   WEBFLOW_SERVICE_ACCOUNT_PROVIDER_ID,
   YOUCOM_SERVICE_ACCOUNT_PROVIDER_ID,
   YOUTUBE_SERVICE_ACCOUNT_PROVIDER_ID,
+  ZEP_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/token-service-accounts/descriptors'
 import { validateAffinityServiceAccount } from '@/lib/credentials/token-service-accounts/validators/affinity'
 import { validateAgentMailServiceAccount } from '@/lib/credentials/token-service-accounts/validators/agentmail'
@@ -94,6 +97,7 @@ import { validateCloudflareServiceAccount } from '@/lib/credentials/token-servic
 import { validateCodaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/coda'
 import { validateCrunchbaseServiceAccount } from '@/lib/credentials/token-service-accounts/validators/crunchbase'
 import { validateDaytonaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/daytona'
+import { validateDiscordServiceAccount } from '@/lib/credentials/token-service-accounts/validators/discord'
 import { validateElevenLabsServiceAccount } from '@/lib/credentials/token-service-accounts/validators/elevenlabs'
 import { validateEnrichServiceAccount } from '@/lib/credentials/token-service-accounts/validators/enrich'
 import { validateFlowServiceAccount } from '@/lib/credentials/token-service-accounts/validators/flow'
@@ -113,6 +117,7 @@ import { validateLinqServiceAccount } from '@/lib/credentials/token-service-acco
 import { validateLoopsServiceAccount } from '@/lib/credentials/token-service-accounts/validators/loops'
 import { validateLumaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/luma'
 import { validateMailchimpServiceAccount } from '@/lib/credentials/token-service-accounts/validators/mailchimp'
+import { validateMem0ServiceAccount } from '@/lib/credentials/token-service-accounts/validators/mem0'
 import { validateMondayServiceAccount } from '@/lib/credentials/token-service-accounts/validators/monday'
 import { validateNotionServiceAccount } from '@/lib/credentials/token-service-accounts/validators/notion'
 import { validateOtterServiceAccount } from '@/lib/credentials/token-service-accounts/validators/otter'
@@ -140,6 +145,7 @@ import { validateWealthboxServiceAccount } from '@/lib/credentials/token-service
 import { validateWebflowServiceAccount } from '@/lib/credentials/token-service-accounts/validators/webflow'
 import { validateYouComServiceAccount } from '@/lib/credentials/token-service-accounts/validators/youcom'
 import { validateYouTubeServiceAccount } from '@/lib/credentials/token-service-accounts/validators/youtube'
+import { validateZepServiceAccount } from '@/lib/credentials/token-service-accounts/validators/zep'
 
 /** Raw fields a token service-account validator receives (already trimmed). */
 export interface TokenServiceAccountFields {
@@ -207,6 +213,9 @@ const TOKEN_SERVICE_ACCOUNT_VALIDATORS: Record<
   [GAUGE_SERVICE_ACCOUNT_PROVIDER_ID]: validateGaugeServiceAccount,
   [HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID]: validateHiggsfieldServiceAccount,
   [FLOW_SERVICE_ACCOUNT_PROVIDER_ID]: validateFlowServiceAccount,
+  [DISCORD_SERVICE_ACCOUNT_PROVIDER_ID]: validateDiscordServiceAccount,
+  [ZEP_SERVICE_ACCOUNT_PROVIDER_ID]: validateZepServiceAccount,
+  [MEM0_SERVICE_ACCOUNT_PROVIDER_ID]: validateMem0ServiceAccount,
   [YOUTUBE_SERVICE_ACCOUNT_PROVIDER_ID]: validateYouTubeServiceAccount,
   [YOUCOM_SERVICE_ACCOUNT_PROVIDER_ID]: validateYouComServiceAccount,
   [UPTIMEROBOT_SERVICE_ACCOUNT_PROVIDER_ID]: validateUptimeRobotServiceAccount,

@@ -3,6 +3,7 @@ import {
   AuthMode,
   type BlockConfig,
   type BlockMeta,
+  type BlockToolParams,
   IntegrationType,
   type SubBlockType,
 } from '@/blocks/types'
@@ -239,10 +240,6 @@ function resolveDocumentParam(value: unknown): { file?: object; filePath?: strin
   return {}
 }
 
-type TextractBlockParams = Parameters<
-  NonNullable<NonNullable<BlockConfig['tools']['config']>['params']>
->[0]
-
 interface AwsAccessKeys {
   accessKeyId: string
   secretAccessKey: string
@@ -269,7 +266,7 @@ function requireAwsRegion(params: Record<string, unknown>): string {
  * Tool params for a Textract v2+ operation. `accessKeys` is empty when a saved
  * AWS credential supplies them server-side.
  */
-function textractToolParams(params: TextractBlockParams, accessKeys: Partial<AwsAccessKeys>) {
+function textractToolParams(params: BlockToolParams, accessKeys: Partial<AwsAccessKeys>) {
   const region = requireAwsRegion(params)
   const operation = params.operation || 'analyze_document'
 

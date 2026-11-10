@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type {
   DiscordCreateChannelParams,
   DiscordCreateChannelResponse,
@@ -12,6 +13,7 @@ export const discordCreateChannelTool: ToolConfig<
   name: 'Discord Create Channel',
   description: 'Create a new channel in a Discord server',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

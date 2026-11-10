@@ -74,7 +74,7 @@ import { DatagmaBlock, DatagmaBlockMeta } from '@/blocks/blocks/datagma'
 import { DaytonaBlock, DaytonaBlockMeta, DaytonaV2Block } from '@/blocks/blocks/daytona'
 import { DeploymentsBlock } from '@/blocks/blocks/deployments'
 import { DevinBlock, DevinBlockMeta } from '@/blocks/blocks/devin'
-import { DiscordBlock, DiscordBlockMeta } from '@/blocks/blocks/discord'
+import { DiscordBlock, DiscordBlockMeta, DiscordV2Block } from '@/blocks/blocks/discord'
 import { DocuSignBlock, DocuSignBlockMeta } from '@/blocks/blocks/docusign'
 import { DowndetectorBlock, DowndetectorBlockMeta } from '@/blocks/blocks/downdetector'
 import { DropboxBlock, DropboxBlockMeta, DropboxV2Block } from '@/blocks/blocks/dropbox'
@@ -241,7 +241,7 @@ import { ManagedAgentBlock, ManagedAgentBlockMeta } from '@/blocks/blocks/manage
 import { ManageEngineSdpBlock, ManageEngineSdpBlockMeta } from '@/blocks/blocks/manageengine-sdp'
 import { ManualTriggerBlock } from '@/blocks/blocks/manual_trigger'
 import { McpBlock } from '@/blocks/blocks/mcp'
-import { Mem0Block, Mem0BlockMeta } from '@/blocks/blocks/mem0'
+import { Mem0Block, Mem0BlockMeta, Mem0V2Block } from '@/blocks/blocks/mem0'
 import { MemoryBlock } from '@/blocks/blocks/memory'
 import { MicrosoftAdBlock, MicrosoftAdBlockMeta } from '@/blocks/blocks/microsoft_ad'
 import {
@@ -439,7 +439,7 @@ import { XBlock, XBlockMeta } from '@/blocks/blocks/x'
 import { YouComBlock, YouComBlockMeta, YouComV2Block } from '@/blocks/blocks/youcom'
 import { YouTubeBlock, YouTubeBlockMeta, YouTubeV2Block } from '@/blocks/blocks/youtube'
 import { ZendeskBlock, ZendeskBlockMeta } from '@/blocks/blocks/zendesk'
-import { ZepBlock, ZepBlockMeta } from '@/blocks/blocks/zep'
+import { ZepBlock, ZepBlockMeta, ZepV2Block } from '@/blocks/blocks/zep'
 import { ZeroBounceBlock, ZeroBounceBlockMeta } from '@/blocks/blocks/zerobounce'
 import { ZohoDeskBlock, ZohoDeskBlockMeta } from '@/blocks/blocks/zoho-desk'
 import { ZoomBlock, ZoomBlockMeta } from '@/blocks/blocks/zoom'
@@ -535,6 +535,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   deployments: DeploymentsBlock,
   devin: DevinBlock,
   discord: DiscordBlock,
+  discord_v2: DiscordV2Block,
   docusign: DocuSignBlock,
   downdetector: DowndetectorBlock,
   dropbox: DropboxBlock,
@@ -690,6 +691,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   manual_trigger: ManualTriggerBlock,
   mcp: McpBlock,
   mem0: Mem0Block,
+  mem0_v2: Mem0V2Block,
   memory: MemoryBlock,
   microsoft_ad: MicrosoftAdBlock,
   microsoft_dataverse: MicrosoftDataverseBlock,
@@ -886,6 +888,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   youtube_v2: YouTubeV2Block,
   zendesk: ZendeskBlock,
   zep: ZepBlock,
+  zep_v2: ZepV2Block,
   zoho_desk: ZohoDeskBlock,
   zoom: ZoomBlock,
   zoominfo: ZoomInfoBlock,
@@ -980,6 +983,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   daytona_v2: DaytonaBlockMeta,
   devin: DevinBlockMeta,
   discord: DiscordBlockMeta,
+  discord_v2: DiscordBlockMeta,
   docusign: DocuSignBlockMeta,
   downdetector: DowndetectorBlockMeta,
   dropbox: DropboxBlockMeta,
@@ -1109,6 +1113,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   managed_agent: ManagedAgentBlockMeta,
   manageengine_sdp: ManageEngineSdpBlockMeta,
   mem0: Mem0BlockMeta,
+  mem0_v2: Mem0BlockMeta,
   microsoft_ad: MicrosoftAdBlockMeta,
   microsoft_dataverse: MicrosoftDataverseBlockMeta,
   microsoft_dynamics_365: MicrosoftDynamics365BlockMeta,
@@ -1269,6 +1274,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   youtube_v2: YouTubeBlockMeta,
   zendesk: ZendeskBlockMeta,
   zep: ZepBlockMeta,
+  zep_v2: ZepBlockMeta,
   zerobounce: ZeroBounceBlockMeta,
   zoho_desk: ZohoDeskBlockMeta,
   zoom: ZoomBlockMeta,

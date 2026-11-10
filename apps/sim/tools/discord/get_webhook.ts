@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type { DiscordGetWebhookParams, DiscordGetWebhookResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -7,6 +8,7 @@ export const discordGetWebhookTool: ToolConfig<DiscordGetWebhookParams, DiscordG
     name: 'Discord Get Webhook',
     description: 'Get information about a Discord webhook',
     version: '1.0.0',
+    oauth: DISCORD_CREDENTIAL_OAUTH,
 
     params: {
       botToken: {

@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type { DiscordAddReactionParams, DiscordAddReactionResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const discordAddReactionTool: ToolConfig<
   name: 'Discord Add Reaction',
   description: 'Add a reaction emoji to a Discord message',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

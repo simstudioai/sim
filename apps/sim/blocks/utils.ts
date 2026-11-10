@@ -101,6 +101,9 @@ const INLINE_SECRET_FIELDS = {
   uptimerobot: ['apiKey'],
   youcom: ['apiKey'],
   youtube: ['apiKey'],
+  mem0: ['apiKey'],
+  zep: ['apiKey'],
+  discord: ['botToken'],
 } as const satisfies Record<string, readonly string[]>
 
 /** The saved-credential picker; {@link withSavedCredential} completes the standard fields. */

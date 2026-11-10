@@ -27,6 +27,7 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   crunchbase: 'crunchbase-service-account',
   databricks: 'databricks-service-account',
   daytona: 'daytona-service-account',
+  discord: 'discord-service-account',
   elevenlabs: 'elevenlabs-service-account',
   enrich: 'enrich-service-account',
   fivetran: 'fivetran-service-account',
@@ -59,6 +60,7 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   loops: 'loops-service-account',
   luma: 'luma-service-account',
   mailchimp: 'mailchimp-service-account',
+  mem0: 'mem0-service-account',
   monday: 'monday-service-account',
   notion: 'notion-service-account',
   'oracle-fusion': 'oracle-fusion-service-account',
@@ -90,6 +92,7 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   webflow: 'webflow-service-account',
   youcom: 'youcom-service-account',
   youtube: 'youtube-service-account',
+  zep: 'zep-service-account',
   'zoho-desk': 'zoho-desk-service-account',
   zoom: 'zoom-service-account',
 } as const

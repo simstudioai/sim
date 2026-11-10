@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type {
   DiscordGetServerParams,
   DiscordGetServerResponse,
@@ -10,6 +11,7 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
   name: 'Discord Get Server',
   description: 'Retrieve information about a Discord server (guild)',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

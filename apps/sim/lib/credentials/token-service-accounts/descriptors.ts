@@ -85,6 +85,9 @@ export const FLOW_SERVICE_ACCOUNT_PROVIDER_ID = 'flow-service-account' as const
 export const CODA_SERVICE_ACCOUNT_PROVIDER_ID = 'coda-service-account' as const
 export const GAUGE_SERVICE_ACCOUNT_PROVIDER_ID = 'gauge-service-account' as const
 export const HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID = 'higgsfield-service-account' as const
+export const DISCORD_SERVICE_ACCOUNT_PROVIDER_ID = 'discord-service-account' as const
+export const ZEP_SERVICE_ACCOUNT_PROVIDER_ID = 'zep-service-account' as const
+export const MEM0_SERVICE_ACCOUNT_PROVIDER_ID = 'mem0-service-account' as const
 export const YOUTUBE_SERVICE_ACCOUNT_PROVIDER_ID = 'youtube-service-account' as const
 export const YOUCOM_SERVICE_ACCOUNT_PROVIDER_ID = 'youcom-service-account' as const
 export const UPTIMEROBOT_SERVICE_ACCOUNT_PROVIDER_ID = 'uptimerobot-service-account' as const
@@ -163,6 +166,9 @@ export type TokenServiceAccountProviderId =
   | typeof CODA_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof GAUGE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof DISCORD_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ZEP_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof MEM0_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof YOUTUBE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof YOUCOM_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof UPTIMEROBOT_SERVICE_ACCOUNT_PROVIDER_ID
@@ -1295,6 +1301,48 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/youtube',
     helpText: 'Create an API key in Google Cloud Console with the YouTube Data API v3 enabled.',
+  },
+  [MEM0_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: MEM0_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Mem0',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Mem0 API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/mem0',
+  },
+  [ZEP_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: ZEP_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Zep',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your Zep project API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/zep',
+  },
+  [DISCORD_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: DISCORD_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Discord',
+    tokenNoun: 'bot token',
+    connectNoun: 'bot token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Bot token',
+        placeholder: 'Paste your Discord bot token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/discord',
+    helpText:
+      'Create a bot in the Discord Developer Portal and copy its token. The bot must be added to the servers your workflows use.',
   },
 }
 

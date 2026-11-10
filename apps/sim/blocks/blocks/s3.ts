@@ -1,5 +1,5 @@
 import { S3Icon } from '@/components/icons'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, BlockToolParams } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 
@@ -32,12 +32,8 @@ function parseObjectKeys(value: unknown): string[] {
 /** Upload payload: an uploaded file, a referenced file, or inline text. */
 const UPLOAD_SOURCE_FIELD = ['uploadFile', 'fileReference', 'content'] as const
 
-type S3BlockParams = Parameters<
-  NonNullable<NonNullable<BlockConfig['tools']['config']>['params']>
->[0]
-
 /** Tool params for an S3 operation; credentials are validated by the caller. */
-function s3ToolParams(params: S3BlockParams) {
+function s3ToolParams(params: BlockToolParams) {
   // Default to get_object for backward compatibility with existing workflows
   const operation = params.operation || 'get_object'
 

@@ -25,6 +25,7 @@ import { CodePipelineBlock, CodePipelineV2Block } from '@/blocks/blocks/codepipe
 import { CrunchbaseBlock, CrunchbaseV2Block } from '@/blocks/blocks/crunchbase'
 import { DatabricksBlock, DatabricksV2Block } from '@/blocks/blocks/databricks'
 import { DaytonaBlock, DaytonaV2Block } from '@/blocks/blocks/daytona'
+import { DiscordBlock, DiscordV2Block } from '@/blocks/blocks/discord'
 import { DynamoDBBlock, DynamoDBV2Block } from '@/blocks/blocks/dynamodb'
 import { EC2Block, EC2V2Block } from '@/blocks/blocks/ec2'
 import { ElevenLabsBlock, ElevenLabsV2Block } from '@/blocks/blocks/elevenlabs'
@@ -43,6 +44,7 @@ import { LinqBlock, LinqV2Block } from '@/blocks/blocks/linq'
 import { LoopsBlock, LoopsV2Block } from '@/blocks/blocks/loops'
 import { LumaBlock, LumaV2Block } from '@/blocks/blocks/luma'
 import { MailchimpBlock, MailchimpV2Block } from '@/blocks/blocks/mailchimp'
+import { Mem0Block, Mem0V2Block } from '@/blocks/blocks/mem0'
 import { OtterBlock, OtterV2Block } from '@/blocks/blocks/otter'
 import { PersonaBlock, PersonaV2Block } from '@/blocks/blocks/persona'
 import { ProfoundBlock, ProfoundV2Block } from '@/blocks/blocks/profound'
@@ -70,6 +72,7 @@ import { TriggerDevBlock, TriggerDevV2Block } from '@/blocks/blocks/trigger_dev'
 import { UptimeRobotBlock, UptimeRobotV2Block } from '@/blocks/blocks/uptimerobot'
 import { YouComBlock, YouComV2Block } from '@/blocks/blocks/youcom'
 import { YouTubeBlock, YouTubeV2Block } from '@/blocks/blocks/youtube'
+import { ZepBlock, ZepV2Block } from '@/blocks/blocks/zep'
 import type { BlockConfig } from '@/blocks/types'
 import { Serializer } from '@/serializer'
 import type { BlockState } from '@/stores/workflows/workflow/types'
@@ -205,6 +208,9 @@ const VERSIONS: Array<{
   { legacy: UptimeRobotBlock, successor: UptimeRobotV2Block, secretIds: ['apiKey'] },
   { legacy: YouComBlock, successor: YouComV2Block, secretIds: ['apiKey'] },
   { legacy: YouTubeBlock, successor: YouTubeV2Block, secretIds: ['apiKey'] },
+  { legacy: Mem0Block, successor: Mem0V2Block, secretIds: ['apiKey'] },
+  { legacy: ZepBlock, successor: ZepV2Block, secretIds: ['apiKey'] },
+  { legacy: DiscordBlock, successor: DiscordV2Block, secretIds: ['botToken'] },
 ]
 
 function valuesFor(ids: readonly string[], prefix: string): Record<string, string> {
@@ -358,5 +364,19 @@ describe('sts_v2 unsigned calls', () => {
     )
 
     expect(message).toContain(fieldTitles(STSV2Block, ['credential'])[0])
+  })
+})
+
+describe('discord_v2 webhook calls', () => {
+  beforeEach(() => {
+    vi.spyOn(blocks, 'getBlock').mockReturnValue(DiscordV2Block)
+  })
+
+  it('posts through a webhook without a saved bot credential', () => {
+    const message = missingRequiredFields(
+      buildBlock(DiscordV2Block, { operation: 'discord_execute_webhook' })
+    )
+
+    expect(message).not.toContain(fieldTitles(DiscordV2Block, ['credential'])[0])
   })
 })

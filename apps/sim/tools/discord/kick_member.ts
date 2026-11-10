@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type { DiscordKickMemberParams, DiscordKickMemberResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -7,6 +8,7 @@ export const discordKickMemberTool: ToolConfig<DiscordKickMemberParams, DiscordK
     name: 'Discord Kick Member',
     description: 'Kick a member from a Discord server',
     version: '1.0.0',
+    oauth: DISCORD_CREDENTIAL_OAUTH,
 
     params: {
       botToken: {

@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type { DiscordListChannelsParams, DiscordListChannelsResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const discordListChannelsTool: ToolConfig<
   name: 'Discord List Channels',
   description: 'List all channels in a Discord server',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

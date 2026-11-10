@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type {
   DiscordCreateWebhookParams,
   DiscordCreateWebhookResponse,
@@ -12,6 +13,7 @@ export const discordCreateWebhookTool: ToolConfig<
   name: 'Discord Create Webhook',
   description: 'Create a webhook in a Discord channel',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

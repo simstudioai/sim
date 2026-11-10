@@ -1,3 +1,4 @@
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/discord/credential'
 import type {
   DiscordBulkDeleteMessagesParams,
   DiscordBulkDeleteMessagesResponse,
@@ -12,6 +13,7 @@ export const discordBulkDeleteMessagesTool: ToolConfig<
   name: 'Discord Bulk Delete Messages',
   description: 'Delete 2-100 messages from a Discord channel in a single request',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {
