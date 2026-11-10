@@ -173,7 +173,8 @@ export const AutomBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `autom_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = context?.operation ?? params.operation
         const result: Record<string, unknown> = {}
         if (
           [
@@ -184,11 +185,11 @@ export const AutomBlock: BlockConfig = {
             'duckduckgo_search',
             'yahoo_search',
             'brave_search',
-          ].includes(params.operation)
+          ].includes(operation)
         ) {
           result.page = parseOptionalNumberInput(params.page, 'Page', { integer: true, min: 1 })
         }
-        if (['google_search', 'google_news', 'bing_search'].includes(params.operation)) {
+        if (['google_search', 'google_news', 'bing_search'].includes(operation)) {
           result.numResults = parseOptionalNumberInput(params.numResults, 'Results per Page', {
             integer: true,
             min: 1,

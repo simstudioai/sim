@@ -10460,6 +10460,7 @@ export function PlaneIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+/** Autom logo, as used by the Autom block. */
 export function AutomIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox='-1 1 22 22' fill='none' xmlns='http://www.w3.org/2000/svg' {...props}>

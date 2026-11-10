@@ -1,12 +1,27 @@
-import { toArray } from '@sim/utils/object'
+import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
+import { toArray, toRecordOrNull } from '@sim/utils/object'
 import type {
   AutomGoogleMapsParams,
   AutomGoogleMapsResponse,
   AutomPlace,
 } from '@/tools/autom/types'
 import { AUTOM_PLACE_OUTPUT_PROPERTIES } from '@/tools/autom/types'
-import { mapAutomPlace } from '@/tools/autom/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/** Reads a `AutomPlace` from an untyped Autom API payload. */
+function mapAutomPlace(value: unknown): AutomPlace | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    title: toStringOrNull(record.title),
+    address: toStringOrNull(record.address),
+    website: toStringOrNull(record.website),
+    phoneNumber: toStringOrNull(record.phone_number),
+    latitude: toNumberOrNull(record.lat),
+    longitude: toNumberOrNull(record.long),
+    placeId: toStringOrNull(record.fid),
+  }
+}
 
 export const automGoogleMapsTool: ToolConfig<AutomGoogleMapsParams, AutomGoogleMapsResponse> = {
   id: 'autom_google_maps',

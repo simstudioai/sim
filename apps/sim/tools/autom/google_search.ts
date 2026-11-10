@@ -1,16 +1,28 @@
-import { toBooleanOrNull, toNumberOrNull } from '@sim/utils/coerce'
-import { toArray, toRecord } from '@sim/utils/object'
+import { toBooleanOrNull, toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
+import { toArray, toRecord, toRecordOrNull } from '@sim/utils/object'
 import type {
   AutomGoogleSearchParams,
   AutomGoogleSearchResponse,
+  AutomKnowledgeGraph,
   AutomSearchResult,
 } from '@/tools/autom/types'
 import {
   AUTOM_KNOWLEDGE_GRAPH_OUTPUT_PROPERTIES,
   AUTOM_SEARCH_RESULT_OUTPUT_PROPERTIES,
 } from '@/tools/autom/types'
-import { mapAutomKnowledgeGraph, mapAutomSearchResult } from '@/tools/autom/utils'
+import { mapAutomSearchResult } from '@/tools/autom/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/** Reads a `AutomKnowledgeGraph` from an untyped Autom API payload. */
+function mapAutomKnowledgeGraph(value: unknown): AutomKnowledgeGraph | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    title: toStringOrNull(record.title),
+    type: toStringOrNull(record.type),
+    website: toStringOrNull(record.website),
+  }
+}
 
 export const automGoogleSearchTool: ToolConfig<AutomGoogleSearchParams, AutomGoogleSearchResponse> =
   {

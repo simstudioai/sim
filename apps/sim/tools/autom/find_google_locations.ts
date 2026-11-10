@@ -1,12 +1,26 @@
-import { toArray } from '@sim/utils/object'
+import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
+import { toArray, toRecordOrNull } from '@sim/utils/object'
 import type {
   AutomFindGoogleLocationsParams,
   AutomFindGoogleLocationsResponse,
   AutomLocation,
 } from '@/tools/autom/types'
 import { AUTOM_LOCATION_OUTPUT_PROPERTIES } from '@/tools/autom/types'
-import { mapAutomLocation } from '@/tools/autom/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/** Reads a `AutomLocation` from an untyped Autom API payload. */
+function mapAutomLocation(value: unknown): AutomLocation | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    canonicalName: toStringOrNull(record.canonical_name),
+    name: toStringOrNull(record.name),
+    targetType: toStringOrNull(record.target_type),
+    countryCode: toStringOrNull(record.country_code),
+    reach: toNumberOrNull(record.reach),
+    googleId: toNumberOrNull(record.google_id),
+  }
+}
 
 export const automFindGoogleLocationsTool: ToolConfig<
   AutomFindGoogleLocationsParams,

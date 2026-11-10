@@ -1,12 +1,21 @@
-import { toArray, toRecord } from '@sim/utils/object'
+import { toStringOrNull } from '@sim/utils/coerce'
+import { toArray, toRecord, toRecordOrNull } from '@sim/utils/object'
 import type {
   AutomGoogleAutocompleteParams,
   AutomGoogleAutocompleteResponse,
   AutomSuggestion,
 } from '@/tools/autom/types'
 import { AUTOM_SUGGESTION_OUTPUT_PROPERTIES } from '@/tools/autom/types'
-import { mapAutomSuggestion } from '@/tools/autom/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/** Reads a `AutomSuggestion` from an untyped Autom API payload. */
+function mapAutomSuggestion(value: unknown): AutomSuggestion | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    value: toStringOrNull(record.value),
+  }
+}
 
 export const automGoogleAutocompleteTool: ToolConfig<
   AutomGoogleAutocompleteParams,
