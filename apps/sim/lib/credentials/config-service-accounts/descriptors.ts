@@ -15,7 +15,7 @@ import {
   DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 
-export interface ConfigServiceAccountAuthType {
+interface ConfigServiceAccountAuthType {
   value: string
   label: string
   /** What this choice stores, shown under the choice. */
@@ -24,7 +24,7 @@ export interface ConfigServiceAccountAuthType {
   keyless?: boolean
 }
 
-export interface ConfigServiceAccountField {
+interface ConfigServiceAccountField {
   /** The configuration key the server reads. */
   id: string
   label: string
@@ -39,7 +39,7 @@ export interface ConfigServiceAccountField {
 }
 
 /** The values a keyless credential's cloud must trust. */
-export interface KeylessTrust {
+interface KeylessTrust {
   issuer: string
   audience: string
   subject: string
