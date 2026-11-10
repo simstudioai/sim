@@ -225,13 +225,17 @@ export const validateDubServiceAccount = tokenCheckValidator({
   forbiddenMeansScoped: true,
 })
 
-/** ElevenLabs returns the key owner's account for a valid key and 401 otherwise. */
+/**
+ * ElevenLabs returns the key owner's account for a valid key and 400/401 for a bad one. A key
+ * restricted to other endpoints gets 403, which still proves it authenticated.
+ */
 export const validateElevenLabsServiceAccount = tokenCheckValidator({
   serviceLabel: 'ElevenLabs',
   request: ({ apiToken }) => ({
     url: 'https://api.elevenlabs.io/v1/user',
     headers: { 'xi-api-key': apiToken, Accept: 'application/json' },
   }),
+  forbiddenMeansScoped: true,
 })
 
 /** Enrich's credit-balance endpoint costs no credits and succeeds only for a valid key. */
@@ -355,13 +359,17 @@ export const validateIncidentioServiceAccount = tokenCheckValidator({
   }),
 })
 
-/** Instantly's campaign list (the one the Instantly tools call) answers 200 for a valid key and 401 otherwise. */
+/**
+ * Instantly's campaign list (the one the Instantly tools call) answers 200 for a valid key and
+ * 401 for a bad one; a valid key without the campaigns scope gets 403.
+ */
 export const validateInstantlyServiceAccount = tokenCheckValidator({
   serviceLabel: 'Instantly',
   request: ({ apiToken }) => ({
     url: 'https://api.instantly.ai/api/v2/campaigns?limit=1',
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
+  forbiddenMeansScoped: true,
 })
 
 /** Intercom's identify-admin endpoint answers 200 with the token's admin and 401 to an unknown token. */
@@ -597,22 +605,30 @@ export const validateSportmonksServiceAccount = tokenCheckValidator({
   }),
 })
 
-/** Square's list-locations read answers 200 for a valid production access token and 401 otherwise. */
+/**
+ * Square's list-locations read answers 200 for a valid production access token and 401 for a bad
+ * one; a token without the merchant-profile scope gets 403.
+ */
 export const validateSquareServiceAccount = tokenCheckValidator({
   serviceLabel: 'Square',
   request: ({ apiToken }) => ({
     url: 'https://connect.squareup.com/v2/locations',
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
+  forbiddenMeansScoped: true,
 })
 
-/** Listing devices in the token's default tailnet (`-`) answers 200 for a valid token and 401 otherwise. */
+/**
+ * Listing devices in the token's default tailnet (`-`) answers 200 for a valid token and 401 for a
+ * bad one; an OAuth token without the devices scope gets 403.
+ */
 export const validateTailscaleServiceAccount = tokenCheckValidator({
   serviceLabel: 'Tailscale',
   request: ({ apiToken }) => ({
     url: 'https://api.tailscale.com/api/v2/tailnet/-/devices',
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
+  forbiddenMeansScoped: true,
 })
 
 /** Tavily's usage endpoint answers 200 for a valid key and 401 otherwise. */
@@ -651,13 +667,28 @@ export const validateYouComServiceAccount = tokenCheckValidator({
   }),
 })
 
-/** Listing video categories costs one quota unit; Google answers 400/403 for an invalid or restricted key. */
+/** Google's 403 reasons that a valid key gets when it is only out of quota for now. */
+const YOUTUBE_QUOTA_REASONS = new Set(['quotaExceeded', 'dailyLimitExceeded', 'rateLimitExceeded'])
+
+/**
+ * Listing video categories costs one quota unit. Google answers 400 for an invalid key and 403
+ * for a restricted one or a project without the YouTube API; a 403 for spent quota still proves
+ * the key, so only that one is accepted.
+ */
 export const validateYouTubeServiceAccount = tokenCheckValidator({
   serviceLabel: 'YouTube',
   request: ({ apiToken }) => ({
     url: `https://www.googleapis.com/youtube/v3/videoCategories?part=snippet&regionCode=US&key=${encodeURIComponent(apiToken)}`,
     headers: { Accept: 'application/json' },
   }),
+  forbiddenMeansScoped: true,
+  rejectsKey: (errorBody) => {
+    const error = toRecord(toRecord(errorBody).error)
+    if (error.code !== 400 && error.code !== 403) return false
+    return !toArray(error.errors).some((entry) =>
+      YOUTUBE_QUOTA_REASONS.has(String(toRecord(entry).reason))
+    )
+  },
 })
 
 /** Listing one thread needs a valid project key; Zep answers 401 for any other. */

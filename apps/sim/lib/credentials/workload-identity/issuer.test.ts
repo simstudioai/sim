@@ -101,6 +101,20 @@ describe('workload identity issuer', () => {
     expect((await workloadIdentityJwksResponse()).status).toBe(404)
   })
 
+  it('keeps signing with the current key when the retiring key is malformed', async () => {
+    setEnv('WORKLOAD_IDENTITY_PREVIOUS_KEY', 'not a PEM key')
+    const issuer = await loadIssuer()
+    const token = await issuer.mintWorkloadIdentityToken({
+      subject: 'sim:workspace:ws-1:credential:abc123def456',
+      audience: 'sts.amazonaws.com',
+      owner: { workspaceId: 'ws-1' },
+    })
+    const jwks = await issuer.getWorkloadIdentityJwks()
+
+    expect(await issuer.isWorkloadIdentityConfigured()).toBe(true)
+    await expect(jwtVerify(token, createLocalJWKSet(jwks))).resolves.toBeTruthy()
+  })
+
   it('publishes nothing and refuses to sign when no signing key is configured', async () => {
     setEnv('WORKLOAD_IDENTITY_SIGNING_KEY', undefined)
     const issuer = await loadIssuer()

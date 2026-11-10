@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   validateBrexServiceAccount,
   validateFlintServiceAccount,
+  validateInstantlyServiceAccount,
+  validateYouTubeServiceAccount,
 } from '@/lib/credentials/token-service-accounts/validators/token-checks'
 
 describe('Flint saved API key verification', () => {
@@ -89,6 +91,45 @@ describe('Brex saved token verification', () => {
 
     await expect(validateBrexServiceAccount({ apiToken: 'bxt_scoped' })).resolves.toMatchObject({
       displayName: 'Brex',
+    })
+  })
+})
+
+describe('saved key verification for vendors with scoped keys', () => {
+  it('accepts a valid Instantly key that lacks the campaigns scope', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ message: 'Insufficient scope' }, 403))
+    )
+
+    await expect(validateInstantlyServiceAccount({ apiToken: 'leads-only' })).resolves.toBeTruthy()
+  })
+
+  it('accepts a valid YouTube key that is out of quota for today', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ error: { code: 403, errors: [{ reason: 'quotaExceeded' }] } }, 403)
+        )
+    )
+
+    await expect(validateYouTubeServiceAccount({ apiToken: 'AIza-valid' })).resolves.toBeTruthy()
+  })
+
+  it('rejects a YouTube key whose project has the API turned off', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ error: { code: 403, errors: [{ reason: 'accessNotConfigured' }] } }, 403)
+        )
+    )
+
+    await expect(validateYouTubeServiceAccount({ apiToken: 'AIza-off' })).rejects.toMatchObject({
+      code: 'invalid_credentials',
     })
   })
 })

@@ -55,6 +55,21 @@ async function toPublicJwk(key: KeyObject): Promise<JWK> {
   return { ...exported, kid, alg: WORKLOAD_IDENTITY_ALGORITHM, use: 'sig' }
 }
 
+/**
+ * The retiring key's public JWK, or null when it is unset or unusable. A bad
+ * retiring key only drops that key from the JWKS; the current key keeps signing.
+ */
+async function loadPreviousPublicJwk(): Promise<JWK | null> {
+  const previousKey = env.WORKLOAD_IDENTITY_PREVIOUS_KEY
+  if (!previousKey) return null
+  try {
+    return await toPublicJwk(createPublicKey(normalizePem(previousKey)))
+  } catch (error) {
+    logger.error('Workload identity previous key is set but unusable', { error })
+    return null
+  }
+}
+
 let signingMaterial: Promise<SigningMaterial> | undefined
 
 /**
@@ -70,11 +85,8 @@ function loadSigningMaterial(): Promise<SigningMaterial> {
       const privateKey = createPrivateKey(normalizePem(signingKey))
       const current = await toPublicJwk(privateKey)
       const keys = [current]
-      const previousKey = env.WORKLOAD_IDENTITY_PREVIOUS_KEY
-      if (previousKey) {
-        const previous = await toPublicJwk(createPublicKey(normalizePem(previousKey)))
-        if (previous.kid !== current.kid) keys.push(previous)
-      }
+      const previous = await loadPreviousPublicJwk()
+      if (previous && previous.kid !== current.kid) keys.push(previous)
       return { privateKey, kid: current.kid as string, jwks: { keys } }
     })()
     signingMaterial.catch((error: unknown) => {
