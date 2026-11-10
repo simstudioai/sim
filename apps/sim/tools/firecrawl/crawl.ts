@@ -18,6 +18,19 @@ const logger = createLogger('FirecrawlCrawlTool')
 const POLL_INTERVAL_MS = 5000
 const MAX_POLL_TIME_MS = DEFAULT_EXECUTION_TIMEOUT_MS
 
+/**
+ * Path segments of a URL as Firecrawl v1 counted them: index files add no depth. A URL without
+ * a scheme is read as https, as Firecrawl reads it.
+ */
+function urlPathDepth(url: string): number {
+  const absolute = /^[a-z][a-z\d+.-]*:\/\//i.test(url) ? url : `https://${url}`
+  if (!URL.canParse(absolute)) return 0
+  return new URL(absolute).pathname
+    .split('/')
+    .filter((segment) => segment !== '' && segment !== 'index.html' && segment !== 'index.php')
+    .length
+}
+
 export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse> = {
   id: 'firecrawl_crawl',
   name: 'Firecrawl Crawl',
@@ -42,7 +55,7 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Maximum URL path depth (e.g., 1 allows /docs and /docs/index.html). Independent of link discovery depth',
+        'Maximum URL path depth below the starting URL (e.g., from /docs, 1 allows /docs/guide). Independent of link discovery depth',
     },
     formats: {
       type: 'json',
@@ -156,10 +169,12 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       if (params.excludePaths) body.excludePaths = params.excludePaths
       if (params.includePaths) body.includePaths = params.includePaths
       if (params.maxDepth != null) {
-        const maxDepth = Number(params.maxDepth)
-        if (!Number.isSafeInteger(maxDepth) || maxDepth < 0) {
+        const requestedDepth = Number(params.maxDepth)
+        if (!Number.isSafeInteger(requestedDepth) || requestedDepth < 0) {
           throw new Error('maxDepth must be a non-negative integer')
         }
+        // v1 counted depth from the start URL, so the start page itself always passes the filter.
+        const maxDepth = requestedDepth + urlPathDepth(params.url)
 
         // v1 depth counted URL path segments; v2 discovery depth counts link hops.
         body.regexOnFullURL = false
