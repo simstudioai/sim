@@ -601,7 +601,11 @@ describe('starting a team from a personal organization', () => {
       ownerUserId: ownerId,
       name: 'Team',
       slug: `team-${generateId()}`.toLowerCase(),
-      metadata: { createdForTeamPlan: true, originalUserId: ownerId },
+      metadata: {
+        createdForTeamPlan: true,
+        originalUserId: ownerId,
+        teamPlanWorkspacesPending: true,
+      },
     })
     const teamSubscription = {
       id: generateId(),
@@ -620,6 +624,73 @@ describe('starting a team from a personal organization', () => {
       workspaceMode: 'organization',
       billedAccountUserId: ownerId,
     })
+  })
+
+  it('leaves an organization-less workspace of the owner alone on a renewal delivery', async () => {
+    const ownerId = await createUser()
+    // A team whose creating delivery attached the owner's workspaces long ago.
+    const { organizationId: teamId } = await createOrganizationWithOwner({
+      actor: { type: 'system', name: 'Test' },
+      ownerUserId: ownerId,
+      name: 'Team',
+      slug: `team-${generateId()}`.toLowerCase(),
+      metadata: { createdForTeamPlan: true, originalUserId: ownerId },
+    })
+    const teamSubscription = {
+      id: generateId(),
+      plan: 'team',
+      referenceId: teamId,
+      status: 'active',
+      seats: 5,
+    }
+    await db.insert(subscription).values(teamSubscription)
+    const unrelatedWorkspace = await createLegacyPersonalWorkspace(ownerId, 'Unrelated', teamId)
+
+    await ensureOrganizationForTeamSubscription(teamSubscription, BILLING_WEBHOOK)
+
+    expect(await workspaceRow(unrelatedWorkspace)).toMatchObject({
+      organizationId: null,
+      billedAccountUserId: ownerId,
+    })
+  })
+
+  it('starts the team and leaves a workspace whose Project spans another owner outside it', async () => {
+    const ownerId = await createUser()
+    const otherId = await createUser()
+    const movableWorkspace = await createLegacyPersonalWorkspace(ownerId, 'Movable')
+    const splitWorkspace = await createLegacyPersonalWorkspace(ownerId, 'Split')
+    const otherEnvironment = await createLegacyPersonalWorkspace(otherId, 'Other environment')
+    const environments = await db
+      .select({ id: workspace.id, projectId: workspace.projectId })
+      .from(workspace)
+      .where(inArray(workspace.id, [splitWorkspace, otherEnvironment]))
+    const projectOf = new Map(environments.map((row) => [row.id, row.projectId]))
+    const replacedProjectId = projectOf.get(otherEnvironment)
+    if (!replacedProjectId) throw new Error('expected a Project')
+    await db
+      .update(workspace)
+      .set({ projectId: projectOf.get(splitWorkspace) })
+      .where(eq(workspace.id, otherEnvironment))
+    await db.delete(project).where(eq(project.id, replacedProjectId))
+    const teamSubscription = {
+      id: generateId(),
+      plan: 'team',
+      referenceId: ownerId,
+      status: 'active',
+      seats: 5,
+    }
+    await db.insert(subscription).values(teamSubscription)
+
+    const upgraded = await ensureOrganizationForTeamSubscription(teamSubscription, BILLING_WEBHOOK)
+    const redelivered = await ensureOrganizationForTeamSubscription(
+      { ...teamSubscription, referenceId: upgraded.referenceId },
+      BILLING_WEBHOOK
+    )
+
+    expect(redelivered.referenceId).toBe(upgraded.referenceId)
+    expect((await workspaceRow(movableWorkspace)).organizationId).toBe(upgraded.referenceId)
+    expect((await workspaceRow(splitWorkspace)).organizationId).toBeNull()
+    expect((await workspaceRow(otherEnvironment)).organizationId).toBeNull()
   })
 })
 

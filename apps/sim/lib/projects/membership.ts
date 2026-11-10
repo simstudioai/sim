@@ -323,6 +323,39 @@ export async function splitForkProject(
 }
 
 /**
+ * The workspaces among `workspaceIds` whose Project also holds an environment outside them, which
+ * {@link transferWorkspaceProjects} refuses to move without it. A sweep that moves whatever a person
+ * owns leaves these where they are instead of failing on them.
+ */
+export async function findSplitProjectWorkspaceIds(
+  tx: DbTransaction,
+  workspaceIds: string[]
+): Promise<Set<string>> {
+  if (!workspaceIds.length) return new Set()
+  const selected = new Set(workspaceIds)
+  const environments = await tx
+    .select({ id: workspace.id, projectId: workspace.projectId })
+    .from(workspace)
+    .where(
+      inArray(
+        workspace.projectId,
+        tx
+          .select({ projectId: workspace.projectId })
+          .from(workspace)
+          .where(inArray(workspace.id, workspaceIds))
+      )
+    )
+  const splitProjectIds = new Set(
+    environments.filter((row) => !selected.has(row.id)).map((row) => row.projectId)
+  )
+  return new Set(
+    environments
+      .filter((row) => selected.has(row.id) && splitProjectIds.has(row.projectId))
+      .map((row) => row.id)
+  )
+}
+
+/**
  * Ownership changes include the complete Project; never silently split Project-wide
  * resources. Callers hold the organization mutation lock of every organization the
  * Projects leave, which serializes the permission-group edit with group mutations.

@@ -103,13 +103,52 @@ export async function createOrganizationForTeamPlan(
 }
 
 /**
- * Re-runs, on every later delivery for an organization this flow created, the attach the creating
- * delivery runs after its own commit: when that attach throws, the webhook's retry finds the
- * subscription already organization-scoped and would otherwise never attach the owner's
- * workspaces. Idempotent: the attach picks up only workspaces the owner still holds outside an
- * organization, and returns at once when there are none.
+ * Organization metadata the delivery that creates a Team (or re-homes a subscription onto one)
+ * sets until the buyer's workspaces are attached. Only an organization carrying it is swept, so a
+ * renewal never moves workspaces the owner created or received outside the team since.
  */
-async function attachTeamPlanOwnerWorkspaces(
+const PENDING_WORKSPACE_ATTACH_KEY = 'teamPlanWorkspacesPending'
+
+/**
+ * Attaches the buyer's workspaces to their team and clears the pending marker. Isolated from the
+ * subscription it belongs to: a failure is logged and the marker stays for the next delivery to
+ * retry, so it never blocks the seat, usage and billing-interval sync that follows. A workspace
+ * whose Project spans another owner stays where it is rather than failing every delivery.
+ */
+async function attachPendingTeamPlanWorkspaces(
+  ownerUserId: string,
+  organizationId: string,
+  actor: PersonalOrganizationAuditActor
+): Promise<void> {
+  try {
+    await attachOwnedWorkspacesToOrganization({
+      ownerUserId,
+      organizationId,
+      externalMemberPolicy: 'keep-external',
+      includeArchived: true,
+      skipSplitProjects: true,
+      actor,
+    })
+    await db
+      .update(organization)
+      .set({
+        metadata: sql`(${organization.metadata}::jsonb - ${PENDING_WORKSPACE_ATTACH_KEY}::text)::json`,
+      })
+      .where(eq(organization.id, organizationId))
+  } catch (error) {
+    logger.error("Failed to attach the Team buyer's workspaces; the next delivery retries", {
+      ownerUserId,
+      organizationId,
+      error,
+    })
+  }
+}
+
+/**
+ * Recovers, on a later delivery, an attach the creating delivery did not finish: that delivery
+ * already made the subscription organization-scoped, so this is the only path that runs again.
+ */
+async function recoverPendingTeamPlanWorkspaces(
   subscription: SubscriptionData,
   actor: PersonalOrganizationAuditActor
 ): Promise<void> {
@@ -123,18 +162,12 @@ async function attachTeamPlanOwnerWorkspaces(
         eq(member.organizationId, subscription.referenceId),
         eq(member.role, 'owner'),
         eq(organization.kind, 'team'),
-        sql`${organization.metadata}->>'createdForTeamPlan' = 'true'`
+        sql`${organization.metadata}->>${PENDING_WORKSPACE_ATTACH_KEY}::text = 'true'`
       )
     )
     .limit(1)
   if (!owner) return
-  await attachOwnedWorkspacesToOrganization({
-    ownerUserId: owner.userId,
-    organizationId: subscription.referenceId,
-    externalMemberPolicy: 'keep-external',
-    includeArchived: true,
-    actor,
-  })
+  await attachPendingTeamPlanWorkspaces(owner.userId, subscription.referenceId, actor)
 }
 
 /**
@@ -160,7 +193,7 @@ export async function ensureOrganizationForTeamSubscription(
         subscription.enterpriseOperationId ?? null
       )
     })
-    await attachTeamPlanOwnerWorkspaces(subscription, actor)
+    await recoverPendingTeamPlanWorkspaces(subscription, actor)
     return subscription
   }
 
@@ -301,6 +334,12 @@ export async function ensureOrganizationForTeamSubscription(
           .update(subscriptionTable)
           .set({ referenceId: membership.organizationId })
           .where(eq(subscriptionTable.id, subscription.id))
+        await tx
+          .update(organization)
+          .set({
+            metadata: sql`(coalesce(${organization.metadata}::jsonb, '{}'::jsonb) || jsonb_build_object(${PENDING_WORKSPACE_ATTACH_KEY}::text, true))::json`,
+          })
+          .where(eq(organization.id, membership.organizationId))
       })
 
       logger.info('User already owns/admins an org, using it', {
@@ -308,13 +347,7 @@ export async function ensureOrganizationForTeamSubscription(
         organizationId: membership.organizationId,
       })
 
-      await attachOwnedWorkspacesToOrganization({
-        ownerUserId: userId,
-        organizationId: membership.organizationId,
-        externalMemberPolicy: 'keep-external',
-        includeArchived: true,
-        actor,
-      })
+      await attachPendingTeamPlanWorkspaces(userId, membership.organizationId, actor)
 
       return { ...subscription, referenceId: membership.organizationId }
     }
@@ -337,7 +370,11 @@ export async function ensureOrganizationForTeamSubscription(
       ownerUserId: userId,
       name: userData.name || `${userData.email || 'User'}'s Team`,
       slug: teamOrganizationSlug(userId),
-      metadata: { createdForTeamPlan: true, originalUserId: userId },
+      metadata: {
+        createdForTeamPlan: true,
+        originalUserId: userId,
+        [PENDING_WORKSPACE_ATTACH_KEY]: true,
+      },
       actor,
     })
     await acquireOrganizationMutationLock(tx, orgId)
@@ -384,13 +421,7 @@ export async function ensureOrganizationForTeamSubscription(
     return orgId
   })
 
-  await attachOwnedWorkspacesToOrganization({
-    ownerUserId: userId,
-    organizationId: orgId,
-    externalMemberPolicy: 'keep-external',
-    includeArchived: true,
-    actor,
-  })
+  await attachPendingTeamPlanWorkspaces(userId, orgId, actor)
 
   logger.info('Created organization and updated subscription referenceId', {
     subscriptionId: subscription.id,
