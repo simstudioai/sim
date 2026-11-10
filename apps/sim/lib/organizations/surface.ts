@@ -11,7 +11,6 @@ import type { OrganizationRole } from '@/lib/api/contracts/primitives'
 import type { DeploymentShape } from '@/lib/api/contracts/workspaces'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { isInvitationsDisabled } from '@/lib/core/config/env-flags'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
 import {
@@ -105,6 +104,7 @@ async function resolveOrganizationSurfaceGate(
     isScopedCredentialGroupsAvailable({ kind: 'organization', organizationId }),
     resolveKnowledgeAccessAvailability({ organizationId }),
   ])
+  const deployment = getDeploymentShape()
   return {
     organization: {
       id: row.id,
@@ -118,7 +118,9 @@ async function resolveOrganizationSurfaceGate(
       role: access.role,
       isAdmin: access.isAdmin,
       canInviteMembers:
-        access.isAdmin && !isInvitationsDisabled && !capabilityDeniedBy('invitations.send', config),
+        access.isAdmin &&
+        !deployment.invitationsDisabled &&
+        !capabilityDeniedBy('invitations.send', config),
       canConnectSearchIntegrations: canConnectSearchIntegrations(config),
       canUsePersonalApiKeys:
         !capabilityDeniedBy('personal_api_key.use', config) &&
@@ -129,7 +131,7 @@ async function resolveOrganizationSurfaceGate(
     },
     connectedAccountsAvailable,
     ...projectOrganizationChatAccess({ config, searchAccess }),
-    deployment: getDeploymentShape(),
+    deployment,
   }
 }
 
