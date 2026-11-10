@@ -40,6 +40,7 @@ vi.mock('@/lib/mothership/chat/fork-worker', () => ({
 import { forkChat } from '@/lib/mothership/chat/application/fork'
 import {
   dismissSteeringMessage,
+  readSteeringMessage,
   resolveSteeringFallback,
 } from '@/lib/mothership/chat/application/steering-fallback'
 import { buildOnComplete } from '@/lib/mothership/chat/completion'
@@ -58,8 +59,16 @@ const WORKER = 'http://worker.integration.test'
 const STEER = '/api/streams/steer/v2'
 const READ = '/api/streams/steer/v2/disposition'
 
-/** The worker's scripted answers in call order, and the path and body of each call. */
-const worker: { answers: Response[]; calls: string[]; bodies: unknown[] } = {
+/**
+ * The worker's scripted answers in call order, the path and body of each call, and an optional
+ * look at Sim's state taken the moment a call arrives.
+ */
+const worker: {
+  answers: Response[]
+  calls: string[]
+  bodies: unknown[]
+  onCall?: (path: string) => Promise<void>
+} = {
   answers: [],
   calls: [],
   bodies: [],
@@ -167,12 +176,14 @@ describe('steering fallback gate in PostgreSQL', () => {
     worker.answers = []
     worker.calls = []
     worker.bodies = []
+    worker.onCall = undefined
     mothershipAgentUrlMockFns.mockGetMothershipBaseURL.mockResolvedValue(WORKER)
     vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
       const path = String(input).replace(WORKER, '')
       if (path !== STEER && path !== READ) throw new Error(`Unexpected request ${String(input)}`)
       worker.calls.push(path)
       worker.bodies.push(JSON.parse(String(init?.body)))
+      await worker.onCall?.(path)
       const answer = worker.answers.shift()
       if (!answer) throw new Error('No scripted worker answer')
       return answer
@@ -450,6 +461,110 @@ describe('steering fallback gate in PostgreSQL', () => {
 
       expect((await storedSteering(chatId, steeringId)).disposition).toEqual({ status: 'applied' })
     })
+  })
+
+  describe('steering a running turn', () => {
+    it('stores the message before the worker hears the steer', async () => {
+      const { chatId, turnId } = await chatWithSteeredTurn()
+      await runFor(chatId, turnId, 'active')
+      const steeringId = generateId()
+      let storedWhenSteered: Record<string, unknown> | undefined
+      worker.onCall = async (path) => {
+        if (path === STEER) storedWhenSteered = await storedSteering(chatId, steeringId)
+      }
+      worker.answers.push(Response.json({ steeringId, status: 'queued' }))
+
+      const answer = await steerRun.execute({
+        principal: owner,
+        input: { streamId: turnId, chatId, steeringId, content: 'Focus on the tests' },
+      })
+
+      expect(answer).toEqual({ steeringId, status: 'queued' })
+      expect(worker.calls).toEqual([STEER])
+      expect(storedWhenSteered).toEqual({ streamId: turnId })
+    })
+  })
+
+  describe("reading what became of a sender's message", () => {
+    const read = (chatId: string, messageId: string) =>
+      readSteeringMessage.execute({ principal: owner, input: { chatId, messageId } })
+
+    it('reads an applied message without sending it, and stores the final answer', async () => {
+      const { chatId, turnId, steeringId } = await chatWithSteeredTurn()
+      await runFor(chatId, turnId, 'active')
+      worker.answers.push(
+        Response.json({ steeringId, status: 'applied', eventSeq: 3, textOffset: 2 })
+      )
+
+      const answer = await read(chatId, steeringId)
+
+      expect(answer).toEqual({ steeringId, status: 'applied', eventSeq: 3, textOffset: 2 })
+      expect(worker.calls).toEqual([READ])
+      expect((await storedSteering(chatId, steeringId)).disposition).toEqual({
+        status: 'applied',
+        eventSeq: 3,
+        textOffset: 2,
+      })
+    })
+
+    it('holds a message a live run has not accepted yet, storing nothing final', async () => {
+      const { chatId, turnId, steeringId } = await chatWithSteeredTurn()
+      await runFor(chatId, turnId, 'active')
+      worker.answers.push(Response.json({ steeringId, status: 'unknown' }))
+
+      expect(await read(chatId, steeringId)).toEqual({ steeringId, status: 'queued' })
+      expect(worker.calls).toEqual([READ])
+      expect(await storedSteering(chatId, steeringId)).toEqual({ streamId: turnId })
+    })
+
+    it('stores a message its ended run never accepted as not delivered, for good', async () => {
+      const { chatId, turnId, steeringId } = await chatWithSteeredTurn()
+      await runFor(chatId, turnId, 'complete')
+      worker.answers.push(Response.json({ steeringId, status: 'unknown' }))
+
+      expect(await read(chatId, steeringId)).toEqual({ steeringId, status: 'not_applied' })
+      expect((await storedSteering(chatId, steeringId)).disposition).toEqual({
+        status: 'not_applied',
+      })
+      expect(await read(chatId, steeringId)).toEqual({ steeringId, status: 'not_applied' })
+      expect(worker.calls).toEqual([READ])
+    })
+
+    it('reads an id the chat holds no record of as not delivered, asking the worker nothing', async () => {
+      const { chatId } = await chatWithSteeredTurn()
+      const steeringId = generateId()
+
+      expect(await read(chatId, steeringId)).toEqual({ steeringId, status: 'not_applied' })
+      expect(worker.calls).toEqual([])
+    })
+
+    it.each([
+      ['a bare 404', withoutRead],
+      ['a 405', () => new Response(null, { status: 405 })],
+      ['a body outside the contract', () => Response.json({ settled: true })],
+    ])(
+      "decides from Sim's run when the worker answers %s, never re-sending",
+      async (_name, reply) => {
+        const live = await chatWithSteeredTurn()
+        await runFor(live.chatId, live.turnId, 'active')
+        const ended = await chatWithSteeredTurn()
+        await runFor(ended.chatId, ended.turnId, 'complete')
+        worker.answers.push(reply(), reply())
+
+        expect(await read(live.chatId, live.steeringId)).toEqual({
+          steeringId: live.steeringId,
+          status: 'queued',
+        })
+        expect(await read(ended.chatId, ended.steeringId)).toEqual({
+          steeringId: ended.steeringId,
+          status: 'not_applied',
+        })
+        expect(worker.calls).toEqual([READ, READ])
+        expect(await storedSteering(live.chatId, live.steeringId)).toEqual({
+          streamId: live.turnId,
+        })
+      }
+    )
   })
 
   describe('reading without sending', () => {

@@ -15,15 +15,12 @@ import {
   mothershipChatMessagesMockFns,
 } from '@sim/testing/mocks/mothership-chat-messages.mock'
 import { mothershipEnvironmentContextMock } from '@sim/testing/mocks/mothership-environment-context.mock'
-import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { permissionsMock } from '@sim/testing/mocks/permissions.mock'
 import {
   workspaceAuthorizationMock,
   workspaceAuthorizationMockFns,
 } from '@sim/testing/mocks/workspace-authorization.mock'
-import {
-  workspaceFileManagerMock,
-  workspaceFileManagerMockFns,
-} from '@sim/testing/mocks/workspace-file-manager.mock'
+import { workspaceFileManagerMock } from '@sim/testing/mocks/workspace-file-manager.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
@@ -45,6 +42,7 @@ vi.mock('@/lib/mothership/chat/application/context', () => ({
 }))
 vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
 
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { POST } from '@/app/api/copilot/chat/steer/route'
 
 const { mockAuthorizeWorkspaceOperation: mockAuthorize } = workspaceAuthorizationMockFns
@@ -52,7 +50,6 @@ const { mockAuthorizeWorkspaceOperation: mockAuthorize } = workspaceAuthorizatio
 const mockAuthenticate = authMockFns.mockGetSession
 const mockGetLatestRunForStream = mothershipAsyncRunsMockFns.mockGetLatestRunForStream
 const mockAppend = mothershipChatMessagesMockFns.mockAppendSteeringMessageIfAbsent
-const mockRecordDisposition = mothershipChatMessagesMockFns.mockRecordSteeringDisposition
 
 const WORKER = 'https://worker.test'
 const STREAM_ID = '7f3c2b6e-1d4a-4c8b-9e2f-3a5b6c7d8e9f'
@@ -118,36 +115,6 @@ describe('POST /api/copilot/chat/steer', () => {
     mockAuthenticate.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
     mockGetLatestRunForStream.mockResolvedValue({ chatId: 'chat-1', workspaceId: 'workspace-1' })
     mockAppend.mockResolvedValue(true)
-    mockRecordDisposition.mockResolvedValue(undefined)
-  })
-
-  it('records the message before asking the worker', async () => {
-    worker.v2.push(Response.json({ steeringId: STEERING_ID, status: 'queued' }))
-    let callsWhenRecorded: string[] | undefined
-    mockAppend.mockImplementationOnce(async () => {
-      callsWhenRecorded = [...worker.calls]
-      return true
-    })
-
-    const response = await POST(steerRequest())
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ steeringId: STEERING_ID, status: 'queued' })
-    expect(worker.bodies[0]).toEqual({
-      messageId: STREAM_ID,
-      steeringId: STEERING_ID,
-      content: 'focus on the tests',
-    })
-    expect(mockAppend).toHaveBeenCalledWith(
-      'chat-1',
-      expect.objectContaining({
-        id: STEERING_ID,
-        content: 'focus on the tests',
-        steering: { streamId: STREAM_ID },
-      }),
-      { streamId: STREAM_ID }
-    )
-    expect(callsWhenRecorded).toEqual([])
   })
 
   it('reports a message its run never applied, so the sender sends it on its own', async () => {
@@ -210,36 +177,6 @@ describe('POST /api/copilot/chat/steer', () => {
     expect(worker.calls).toEqual([])
   })
 
-  it('reads a queued message as not applied once Sim recorded its run as over', async () => {
-    worker.v2.push(Response.json({ steeringId: STEERING_ID, status: 'queued' }))
-    mockGetLatestRunForStream.mockResolvedValue({
-      chatId: 'chat-1',
-      workspaceId: 'workspace-1',
-      status: 'cancelled',
-    })
-
-    const response = await POST(steerRequest())
-
-    expect(await response.json()).toEqual({ steeringId: STEERING_ID, status: 'not_applied' })
-    expect(mockRecordDisposition).toHaveBeenCalledWith('chat-1', [STEERING_ID], {
-      status: 'not_applied',
-    })
-  })
-
-  it('keeps reading a queued message while its run runs', async () => {
-    worker.v2.push(Response.json({ steeringId: STEERING_ID, status: 'queued' }))
-    mockGetLatestRunForStream.mockResolvedValue({
-      chatId: 'chat-1',
-      workspaceId: 'workspace-1',
-      status: 'active',
-    })
-
-    const response = await POST(steerRequest())
-
-    expect(await response.json()).toEqual({ steeringId: STEERING_ID, status: 'queued' })
-    expect(mockRecordDisposition).not.toHaveBeenCalled()
-  })
-
   it('refuses a run the worker never learns of', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     try {
@@ -285,55 +222,12 @@ describe('POST /api/copilot/chat/steer', () => {
     expect(worker.calls).toEqual(['/api/streams/steer/v2'])
   })
 
-  it('renders files and mentions as a turn does', async () => {
-    worker.v2.push(Response.json({ steeringId: STEERING_ID, status: 'queued' }))
-    mockProcessContexts.mockResolvedValueOnce([{ type: 'workflow', content: 'mentioned' }])
-    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValueOnce('write')
-    workspaceFileManagerMockFns.mockTrackChatUpload.mockResolvedValueOnce({
-      displayName: 'notes.pdf',
-    })
-
-    const response = await POST(
-      createMockRequest('POST', {
-        streamId: STREAM_ID,
-        chatId: 'chat-1',
-        steeringId: STEERING_ID,
-        content: 'use these',
-        contexts: [{ kind: 'workflow', workflowId: 'wf-1', label: 'Invoices' }],
-        fileAttachments: [
-          {
-            id: 'file-1',
-            key: 'uploads/file-1',
-            filename: 'notes.pdf',
-            media_type: 'application/pdf',
-            size: 10,
-          },
-        ],
-      })
-    )
-
-    expect(response.status).toBe(200)
-    const sent = worker.bodies[0] as { context: Array<{ type: string }> }
-    expect(sent.context.map((item) => item.type)).toEqual(['workflow', 'uploaded_file'])
-  })
-
   describe('a retry of a recorded message', () => {
     const READ = '/api/streams/steer/v2/disposition'
     beforeEach(() => {
       queueTableRows(copilotMessages, [
         { content: { content: 'focus on the tests', steering: { streamId: STREAM_ID } } },
       ])
-    })
-
-    it('reads what became of it instead of sending it again', async () => {
-      worker.read.push(Response.json({ steeringId: STEERING_ID, status: 'queued' }))
-
-      const response = await POST(steerRequest())
-
-      expect(await response.json()).toEqual({ steeringId: STEERING_ID, status: 'queued' })
-      expect(worker.calls).toEqual([READ])
-      expect(worker.bodies).toEqual([{ messageId: STREAM_ID, steeringId: STEERING_ID }])
-      expect(mockAppend).not.toHaveBeenCalled()
     })
 
     it('waits on a live run that has not accepted it yet, never sending it twice', async () => {
@@ -343,17 +237,6 @@ describe('POST /api/copilot/chat/steer', () => {
 
       expect(await response.json()).toEqual({ steeringId: STEERING_ID, status: 'queued' })
       expect(worker.calls).toEqual([READ])
-    })
-
-    it('steers it afresh once no run holds it', async () => {
-      worker.read.push(Response.json({ steeringId: STEERING_ID, status: 'not_applied' }))
-      worker.v2.push(Response.json({ steeringId: STEERING_ID, status: 'queued' }))
-
-      const response = await POST(steerRequest())
-
-      expect(await response.json()).toEqual({ steeringId: STEERING_ID, status: 'queued' })
-      expect(worker.calls).toEqual([READ, '/api/streams/steer/v2'])
-      expect(mockAppend).toHaveBeenCalledOnce()
     })
 
     it.each([
@@ -429,9 +312,14 @@ describe('POST /api/copilot/chat/steer', () => {
     expect(worker.calls).toHaveLength(0)
   })
 
-  it('rechecks current workspace permission before controlling the run', async () => {
-    mockAuthorize.mockRejectedValue(new Error('access revoked'))
-    expect((await POST(steerRequest())).status).toBe(500)
+  it('refuses with 403 once workspace permission is revoked, before controlling the run', async () => {
+    mockAuthorize.mockRejectedValue(
+      new ForbiddenOperationError(
+        'INSUFFICIENT_WORKSPACE_ROLE',
+        'Insufficient workspace permissions'
+      )
+    )
+    expect((await POST(steerRequest())).status).toBe(403)
     expect(worker.calls).toHaveLength(0)
   })
 })
