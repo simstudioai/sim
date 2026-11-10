@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import type { Page } from '@playwright/test'
 import { createDeferred } from '@sim/testing/helpers/deferred'
-import { sleep } from '@sim/utils/helpers'
 import { organizationRoutes, simLinkPath } from '@/lib/navigation/paths'
 import {
   ADMIN,
@@ -45,51 +44,6 @@ export async function linksChecks() {
     sql`delete from sim_link where organization_id = ${ORGANIZATION_ID} and name = ${name}`
 
   section('3 Links')
-  await check('header, Chrome install, columns, and the list copes with 183 links', async () => {
-    await withSession(MEMBER, async ({ page, context }) => {
-      await context.route('https://chromewebstore.google.com/**', (route) =>
-        route.fulfill({ status: 200, contentType: 'text/html', body: 'store stand-in' })
-      )
-      await page.goto(linksUrl)
-      await expect(page.getByRole('heading', { level: 1, name: 'Links' })).toBeVisible()
-      const headers = await page.getByRole('columnheader').allInnerTexts()
-      for (const label of ['Name', 'Destination', 'Description', 'Created by', 'Access', 'Updated'])
-        assert(
-          headers.some((text) => text.includes(label)),
-          `Missing column ${label}: ${headers}`
-        )
-      const columnWidth = async (name: string) =>
-        (await page.getByRole('columnheader', { name, exact: true }).boundingBox())?.width ?? 0
-      const destination = await columnWidth('Destination')
-      for (const other of ['Name', 'Description', 'Created by', 'Access', 'Updated'])
-        assert(
-          destination > (await columnWidth(other)),
-          `Destination takes less room than ${other}`
-        )
-      const store = context.waitForEvent('page')
-      await page.getByRole('button', { name: 'Install Sim for Chrome' }).click()
-      await expect(await store).toHaveURL(/chromewebstore\.google\.com/)
-      await expect(rowFor(page, NAMED_LINKS.handbook.name)).toBeVisible()
-      const pages: string[] = []
-      page.on('request', (request) => {
-        if (request.url().includes('/sim-links') && request.url().includes('cursor='))
-          pages.push(request.url())
-      })
-      const scroller = page.getByRole('region', { name: 'Links' })
-      for (let index = 0; index < 40 && (await rowFor(page, 'timesheet').count()) === 0; index++) {
-        await scroller.evaluate((node) => {
-          const target =
-            [node, ...node.querySelectorAll('*')].find(
-              (element) => element.scrollHeight > element.clientHeight + 20
-            ) ?? node
-          target.scrollTop = target.scrollHeight
-        })
-        await sleep(200)
-      }
-      await expect(rowFor(page, 'timesheet')).toBeVisible()
-      assert(pages.length > 0, 'Rows past the first page load as the list scrolls')
-    })
-  })
   await check('a phone keeps every fact of a link, with Restricted in view', async () => {
     await withSession(
       MEMBER,

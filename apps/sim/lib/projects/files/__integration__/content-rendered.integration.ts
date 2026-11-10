@@ -40,10 +40,7 @@ import {
   readProjectFileContent,
   updateProjectFileContent,
 } from '@/lib/projects/files/application/content'
-import {
-  readProjectFileCsvPreview,
-  readProjectInlineFile,
-} from '@/lib/projects/files/application/previews'
+import { readProjectFileCsvPreview } from '@/lib/projects/files/application/previews'
 import { searchProjectFileContent } from '@/lib/projects/files/application/search'
 import { revertProjectFileVersion } from '@/lib/projects/files/application/versions'
 import { lockProjectShared } from '@/lib/projects/membership'
@@ -191,7 +188,7 @@ describe('Project file content against PostgreSQL and the local object store', (
 })
 
 describe('Project delivery admission', () => {
-  for (const kind of ['inline', 'csv', 'artifact'] as const) {
+  for (const kind of ['csv', 'artifact'] as const) {
     for (const refusal of ['before storage', 'after storage'] as const) {
       check(`${kind} gates content ${refusal}`, async () => {
         const f = await fixture()
@@ -231,17 +228,12 @@ describe('Project delivery admission', () => {
               },
             },
             () =>
-              kind === 'inline'
-                ? readProjectInlineFile.execute({
+              kind === 'csv'
+                ? readProjectFileCsvPreview.execute({ principal, input })
+                : readProjectFileArtifact.execute({
                     principal,
-                    input: { projectId: f.projectId, referenceFileId: created.file.id },
+                    input: { ...input, maxBytes: 1024 },
                   })
-                : kind === 'csv'
-                  ? readProjectFileCsvPreview.execute({ principal, input })
-                  : readProjectFileArtifact.execute({
-                      principal,
-                      input: { ...input, maxBytes: 1024 },
-                    })
           )
         ).rejects.toMatchObject({ code: 'forbidden' })
         if (refusal === 'before storage') {
@@ -251,7 +243,7 @@ describe('Project delivery admission', () => {
       })
     }
   }
-  for (const kind of ['inline', 'csv', 'artifact'] as const) {
+  for (const kind of ['csv', 'artifact'] as const) {
     check(`${kind} awaits an asynchronous transport observer refusal`, async () => {
       const f = await fixture()
       const created = await createProjectFile.execute({
@@ -270,17 +262,12 @@ describe('Project delivery admission', () => {
             throw error
           },
           () =>
-            kind === 'inline'
-              ? readProjectInlineFile.execute({
+            kind === 'csv'
+              ? readProjectFileCsvPreview.execute({ principal: f.principal, input })
+              : readProjectFileArtifact.execute({
                   principal: f.principal,
-                  input: { projectId: f.projectId, referenceFileId: created.file.id },
+                  input: { ...input, maxBytes: 1024 },
                 })
-              : kind === 'csv'
-                ? readProjectFileCsvPreview.execute({ principal: f.principal, input })
-                : readProjectFileArtifact.execute({
-                    principal: f.principal,
-                    input: { ...input, maxBytes: 1024 },
-                  })
         )
       ).rejects.toBe(error)
     })

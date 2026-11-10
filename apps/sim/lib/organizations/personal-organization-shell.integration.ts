@@ -34,7 +34,7 @@ import {
 import { ensureViewerOrganization } from '@/lib/organizations/application/viewer-organization'
 import { createPersonalOrganizationTx } from '@/lib/organizations/personal'
 import {
-  ensureUserOrganization,
+  createPersonalOrganization,
   provisionPersonalOrganization,
 } from '@/lib/organizations/provision-personal'
 import {
@@ -43,11 +43,7 @@ import {
 } from '@/lib/workspaces/application/workspace-shell'
 import { createWorkspaceInTransaction } from '@/lib/workspaces/create'
 
-// The surface's navigation flags read rollout configuration, which says nothing about whose
-// organization a viewer may read.
-vi.mock('@/lib/organizations/surface-flags', () => ({
-  resolveOrganizationSurfaceFlags: async () => ({ flags: {}, benchmarkEnabled: false }),
-}))
+// The surface's navigation flags say nothing about whose organization a viewer may read.
 vi.mock('@/lib/people/feature-flag', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/people/feature-flag')>()),
   canBrowsePeople: async () => false,
@@ -187,8 +183,8 @@ describe('the organization a workspace opens in', () => {
   it("opens a guest's view of someone's personal workspace in the guest's own organization", async () => {
     const ownerId = await createUser()
     const guestId = await createUser()
-    const ownerOrganizationId = await ensureUserOrganization(ownerId, { atSignup: false })
-    const guestOrganizationId = await ensureUserOrganization(guestId, { atSignup: false })
+    const ownerOrganizationId = await createPersonalOrganization(ownerId)
+    const guestOrganizationId = await createPersonalOrganization(guestId)
     const shared = await createWorkspace(ownerId, ownerOrganizationId)
     await grantWorkspace(guestId, shared)
 
@@ -205,7 +201,7 @@ describe('the organization a workspace opens in', () => {
       name: 'Team',
       slug: `team-${generateId()}`.toLowerCase(),
     })
-    const externalOrganizationId = await ensureUserOrganization(externalId, { atSignup: false })
+    const externalOrganizationId = await createPersonalOrganization(externalId)
     const teamWorkspace = await createWorkspace(teamOwnerId, teamId)
     await grantWorkspace(externalId, teamWorkspace)
 
@@ -216,7 +212,7 @@ describe('the organization a workspace opens in', () => {
   it('names no organization for a workspace the viewer cannot open', async () => {
     const ownerId = await createUser()
     const strangerId = await createUser()
-    const ownerOrganizationId = await ensureUserOrganization(ownerId, { atSignup: false })
+    const ownerOrganizationId = await createPersonalOrganization(ownerId)
     const privateWorkspace = await createWorkspace(ownerId, ownerOrganizationId)
 
     expect(await shellOrganization(privateWorkspace, strangerId)).toBeNull()
@@ -255,7 +251,7 @@ describe('on-demand personal organization provisioning', () => {
     const first = await createWorkspace(ownerId, null)
     const second = await createWorkspace(ownerId, null)
 
-    const organizationId = await ensureUserOrganization(ownerId, { atSignup: false })
+    const organizationId = await createPersonalOrganization(ownerId)
 
     expect(await membershipsOf(ownerId)).toEqual([
       { organizationId, role: 'owner', kind: 'personal' },
@@ -324,7 +320,7 @@ describe('the organization surface a shell renders', () => {
   it('refuses an organization the viewer does not belong to', async () => {
     const viewerId = await createUser()
     const ownerId = await createUser()
-    await ensureUserOrganization(viewerId, { atSignup: false })
+    await createPersonalOrganization(viewerId)
     const { organizationId: othersId } = await createOrganizationWithOwner({
       actor: { type: 'system', name: 'Test' },
       ownerUserId: ownerId,
@@ -346,7 +342,7 @@ describe('the organization surface a shell renders', () => {
 
   it('tells an organization that no longer exists apart from one the viewer is outside', async () => {
     const viewerId = await createUser()
-    await ensureUserOrganization(viewerId, { atSignup: false })
+    await createPersonalOrganization(viewerId)
 
     await expect(
       readOrganizationSurface.execute({

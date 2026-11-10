@@ -358,7 +358,6 @@ export { useExportSelection } from '@/hooks/workflow-actions/use-export-selectio
 export { useExportWorkflow } from '@/hooks/workflow-actions/use-export-workflow'
 export { getModelSunsetStatus } from '@/providers/models'
 export { useCanvasModeStore } from '@/stores/canvas-mode'
-export { useChatStore } from '@/stores/chat/store'
 export { PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
 export {
   defaultWorkflowExecutionState,

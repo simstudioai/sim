@@ -32,6 +32,12 @@ test('a notice stays actionable while hovered and can be reopened after its feed
     .getByRole('button', { name: 'Invite', exact: true })
     .evaluate((button) => getComputedStyle(button).boxShadow)
   await page.keyboard.press('Escape')
+  // A notice card adds no elevation of its own: it is as flat as the dashboard it sits over, and the
+  // stack's surface carries the popover's.
+  const flatShadow = await page
+    .getByRole('region', { name: 'Home dashboard' })
+    .evaluate((region) => getComputedStyle(region).boxShadow)
+  expect(flatShadow).not.toBe(inviteShadow)
   await page.clock.install()
   await page.getByRole('button', { name: 'Customize Home' }).click()
   await page.getByRole('menuitemcheckbox', { name: 'Email', exact: true }).click()
@@ -41,7 +47,7 @@ test('a notice stays actionable while hovered and can be reopened after its feed
   await undo.hover()
   await page.clock.fastForward(5000)
   await expect(undo).toBeVisible()
-  await expect(tray.getByRole('article')).toHaveCSS('box-shadow', 'none')
+  await expect(tray.getByRole('article')).toHaveCSS('box-shadow', flatShadow)
   await page.getByRole('heading', { name: 'Tasks run' }).hover()
   await page.clock.fastForward(5000)
   await expect(undo).toBeHidden()
@@ -51,7 +57,7 @@ test('a notice stays actionable while hovered and can be reopened after its feed
   const viewport = tray.locator('[data-scroll-axis="vertical"]')
   await expect(viewport).toHaveAttribute('data-edges', 'end')
   for (const card of await tray.getByRole('article').all()) {
-    await expect(card).toHaveCSS('box-shadow', 'none')
+    await expect(card).toHaveCSS('box-shadow', flatShadow)
   }
   const surface = viewport.locator('..')
   await expect(surface).toHaveCSS('box-shadow', inviteShadow)

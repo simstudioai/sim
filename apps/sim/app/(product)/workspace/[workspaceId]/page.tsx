@@ -15,11 +15,5 @@ export default async function WorkspacePage({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const [{ workspaceId }, query] = await Promise.all([params, searchParams])
-  redirect(
-    workspaceRootHref(
-      workspaceId,
-      resolvePlatformMode() === 'live' ? 'live' : 'fixture',
-      searchParamsQuery(query)
-    )
-  )
+  redirect(workspaceRootHref(workspaceId, resolvePlatformMode(), searchParamsQuery(query)))
 }

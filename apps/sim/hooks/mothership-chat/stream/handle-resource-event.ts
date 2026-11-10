@@ -30,7 +30,6 @@ import {
 import { invalidateProjectFileQueries } from '@/hooks/queries/projects'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { removeWorkflowFromActiveCache } from '@/hooks/queries/utils/workflow-cache'
-import { useTableViewPinStore } from '@/stores/table/view-pin/store'
 
 type ResourceEvent = Extract<
   PersistedStreamEventEnvelope,
@@ -220,11 +219,6 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     return
   }
   if (payload.op === 'clear_view') {
-    const pinStore = useTableViewPinStore.getState()
-    const pendingPin = pinStore.pins[payload.resource.id]
-    if (pendingPin?.viewId === payload.resource.viewId) {
-      pinStore.consume(payload.resource.id, pendingPin.seq)
-    }
     const unpin = (current: MothershipResource[]) =>
       current.map((resource) => {
         if (
@@ -346,15 +340,10 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
         ? current.map((r) => (keyOf(r) === keyOf(resource) ? { ...r, viewId: pinnedViewId } : r))
         : current
     )
-    // Consumed by the embedded table once its views list carries the view —
-    // which may be after the refetch below lands, or after the tab first opens.
-    useTableViewPinStore.getState().pin(resource.id, pinnedViewId)
   }
 
   if (!shouldSuppressFileResourceActivation) {
-    if (resource.type === 'table' && resource.viewId) {
-      onResourceEvent?.(getChatResourceSelectionId(resource), { tableViewId: resource.viewId })
-    } else onResourceEvent?.(getChatResourceSelectionId(resource))
+    onResourceEvent?.(getChatResourceSelectionId(resource))
   }
 
   if (resource.type === 'workflow' && workspaceId) {

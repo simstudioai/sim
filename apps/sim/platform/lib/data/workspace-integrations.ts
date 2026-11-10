@@ -3,11 +3,11 @@ import type { DehydratedState } from '@tanstack/react-query'
 import { listWorkspacesContract } from '@/lib/api/contracts/workspaces'
 import { listWorkspaceApps } from '@/lib/catalog/application/list-workspace-apps'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { canReadMemberIntegrations } from '@/lib/credential-groups/member-integrations-access'
 import { getWorkspaceCredentialUseCase } from '@/lib/credentials/application/crud'
 import { resolveIntegrationAccess } from '@/lib/integrations/access'
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import { readIntegrationLinks } from '@/platform/lib/data/integration-links'
-import { hasMemberIntegrations } from '@/platform/lib/data/member-integrations'
 import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
 import { prefetchIntegrations } from '@/platform/lib/data/prefetch-integrations'
 import { asRouteResponse, requireSessionViewer } from '@/platform/lib/data/server-read'
@@ -102,7 +102,7 @@ export async function resolveIntegrationsSection(
   section: string | undefined,
   searchParams: SearchParams
 ): Promise<IntegrationsSection> {
-  const member = hasMemberIntegrations(organization)
+  const member = canReadMemberIntegrations(organization)
   // Links name the index; a provider page reads only its own view state.
   const links =
     member && !section ? await readIntegrationLinks(organization, searchParams) : undefined

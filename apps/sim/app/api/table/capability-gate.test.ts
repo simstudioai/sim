@@ -38,7 +38,13 @@ function workspaceAccess(permission: string | null, organizationId: string | nul
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
+const { mockListActiveDispatches } = vi.hoisted(() => ({ mockListActiveDispatches: vi.fn() }))
+
 vi.mock('@/lib/table', () => tableMock)
+vi.mock('@/lib/table/dispatcher', () => ({
+  countRunningCells: vi.fn(),
+  listActiveDispatches: mockListActiveDispatches,
+}))
 vi.mock('@/lib/table/events', () => tableEventsMock)
 vi.mock('@/lib/table/orchestration', () => ({ performUpdateTableColumn: vi.fn() }))
 vi.mock('@/lib/table/wire', () => tableWireMock)
@@ -47,9 +53,9 @@ vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { POST } from '@/app/api/table/[tableId]/columns/route'
-import { GET } from '@/app/api/table/[tableId]/views/route'
+import { GET } from '@/app/api/table/[tableId]/dispatches/route'
 
-const { mockGetTableById, mockAddTableColumn, mockListTableViews } = tableMockFns
+const { mockGetTableById, mockAddTableColumn } = tableMockFns
 const { mockCheckWorkspaceAccess } = permissionsMockFns
 
 const USER_ID = 'user-1'
@@ -79,10 +85,10 @@ function addTtlColumn() {
   )
 }
 
-function listViews() {
+function listDispatches() {
   return GET(
     createMockRequest({
-      url: `http://localhost/api/table/${TABLE_ID}/views?workspaceId=${WORKSPACE_ID}`,
+      url: `http://localhost/api/table/${TABLE_ID}/dispatches`,
     }),
     createRouteContext({ tableId: TABLE_ID })
   )
@@ -99,7 +105,6 @@ describe('tables.use gate on the raw /api/table routes', () => {
     mockGetTableById.mockResolvedValue(TABLE)
     mockCheckWorkspaceAccess.mockResolvedValue(workspaceAccess('admin'))
     mockAddTableColumn.mockResolvedValue({ schema: { columns: [{ name: 'expires_at' }] } })
-    mockListTableViews.mockResolvedValue([])
   })
 
   describe('when the group withholds Tables', () => {
@@ -121,20 +126,20 @@ describe('tables.use gate on the raw /api/table routes', () => {
       expect(mockAddTableColumn).not.toHaveBeenCalled()
     })
 
-    it('refuses the read path, and never reads the views', async () => {
-      const response = await listViews()
+    it('refuses the read path, and never reads the dispatches', async () => {
+      const response = await listDispatches()
 
       expect(response.status).toBe(403)
       expect((await response.json()).details).toEqual({
         code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
       })
-      expect(mockListTableViews).not.toHaveBeenCalled()
+      expect(mockListActiveDispatches).not.toHaveBeenCalled()
     })
 
     it('still conceals a table the caller cannot reach, rather than naming the capability', async () => {
       mockCheckWorkspaceAccess.mockResolvedValue(workspaceAccess(null))
 
-      const response = await listViews()
+      const response = await listDispatches()
 
       expect(response.status).toBe(403)
       expect(await response.json()).toEqual({ error: 'Access denied' })

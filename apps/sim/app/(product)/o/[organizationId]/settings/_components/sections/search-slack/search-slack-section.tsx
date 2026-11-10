@@ -16,7 +16,6 @@ export default async function SearchSlackSection({ organization, query }: Settin
       import('@/platform/fixtures'),
     ])
     const fixture = await loadSlackSettings(readScenario(query.state))
-    if (!fixture) notFound()
     return (
       <FixtureSlackConnections
         initial={fixture.inventory}

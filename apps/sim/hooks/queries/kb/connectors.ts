@@ -287,7 +287,6 @@ async function createConnector({
 function invalidateConnectorAccounts(queryClient: QueryClient) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: credentialGroupKeys.workspaces() }),
-    queryClient.invalidateQueries({ queryKey: credentialGroupKeys.details() }),
     queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.details() }),
   ])
 }
@@ -494,7 +493,6 @@ export function useStartConnectorMemberEnrollment() {
   const refresh = (knowledgeBaseId: string) =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: connectorKeys.lists(knowledgeBaseId) }),
-      queryClient.invalidateQueries({ queryKey: credentialGroupKeys.details() }),
       queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() }),
       queryClient.invalidateQueries({ queryKey: searchIntegrationKeys.lists() }),
     ])

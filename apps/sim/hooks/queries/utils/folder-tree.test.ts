@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   disambiguateLabelByFolder,
   findLockedAncestorFolder,
-  getFolderPath,
   isFolderEffectivelyLocked,
   isFolderOrAncestorLocked,
   isWorkflowEffectivelyLocked,
@@ -33,23 +32,6 @@ describe('isFolderOrAncestorLocked', () => {
       f2: makeFolder({ id: 'f2', parentId: 'f1' }),
     }
     expect(isFolderOrAncestorLocked('f1', folders)).toBe(false)
-  })
-})
-
-describe('getFolderPath', () => {
-  it('returns the partial path resolved before a missing ancestor', () => {
-    const folders = {
-      be: makeFolder({ id: 'be', name: 'Backend', parentId: 'missing' }),
-    }
-    expect(getFolderPath('be', folders)).toBe('Backend')
-  })
-
-  it('short-circuits on cycles instead of looping forever', () => {
-    const folders = {
-      f1: makeFolder({ id: 'f1', name: 'A', parentId: 'f2' }),
-      f2: makeFolder({ id: 'f2', name: 'B', parentId: 'f1' }),
-    }
-    expect(getFolderPath('f1', folders)).toBe('B / A')
   })
 })
 
@@ -101,6 +83,25 @@ describe('disambiguateLabelByFolder', () => {
   it('appends the full folder path to a colliding name', () => {
     expect(disambiguateLabelByFolder('Leads', 'emea', folders, new Set(['Leads']))).toBe(
       'Leads (Sales / EMEA)'
+    )
+  })
+
+  it('names the partial path resolved before a missing ancestor', () => {
+    const orphaned = {
+      be: makeFolder({ id: 'be', name: 'Backend', parentId: 'missing' }),
+    }
+    expect(disambiguateLabelByFolder('Leads', 'be', orphaned, new Set(['Leads']))).toBe(
+      'Leads (Backend)'
+    )
+  })
+
+  it('short-circuits on cycles instead of looping forever', () => {
+    const cyclic = {
+      f1: makeFolder({ id: 'f1', name: 'A', parentId: 'f2' }),
+      f2: makeFolder({ id: 'f2', name: 'B', parentId: 'f1' }),
+    }
+    expect(disambiguateLabelByFolder('Leads', 'f1', cyclic, new Set(['Leads']))).toBe(
+      'Leads (B / A)'
     )
   })
 })

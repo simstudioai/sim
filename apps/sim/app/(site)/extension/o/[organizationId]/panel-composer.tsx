@@ -16,14 +16,14 @@ import { MicButton } from '@/components/mothership-chat/user-input/components/mi
 import { MicrophonePermissionHelp } from '@/components/mothership-chat/user-input/components/microphone-permission-help/microphone-permission-help'
 import type { ModelSelectorOptions } from '@/components/mothership-chat/user-input/components/model-selector'
 import { PromptEditor } from '@/components/mothership-chat/user-input/components/prompt-editor'
+import { inter } from '@/app/_styles/fonts/inter/inter'
 import {
   COMPOSER_FIELD_HEIGHT_CLASSES,
   ComposerAttachments,
   ComposerFileTargets,
   type ConversationComposerProps,
   useComposer,
-} from '@/app/_organization-conversation/composer'
-import { inter } from '@/app/_styles/fonts/inter/inter'
+} from '@/app/(site)/extension/_organization-conversation/composer'
 
 interface PanelComposerProps extends ConversationComposerProps {
   attachments?: ReactNode
@@ -43,7 +43,6 @@ export function PanelComposer({
   const { files, requestMode, onPlanChange, isSending, onStop } = props
   const composer = useComposer({
     ...props,
-    waitsForFullLists: false,
     hasAdditionalAttachments: Boolean(attachments),
   })
   const { editor, voice, imagesOnly } = composer

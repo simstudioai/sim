@@ -17,6 +17,7 @@ import {
   type PermissionGroup,
   type PermissionGroupMember,
   type PermissionGroupWorkspaceRef,
+  type PermissionGroupWrite,
   type RemovePermissionGroupMemberQuery,
   removePermissionGroupMemberContract,
   type UpdatePermissionGroupBody,
@@ -191,25 +192,102 @@ type UpdatePermissionGroupVariables = UpdatePermissionGroupBody & {
   organizationId: string
 }
 
+/** Every in-flight group update, so only the last one to settle reconciles the cache. */
+const UPDATE_PERMISSION_GROUP_MUTATION_KEY = [...permissionGroupKeys.all, 'update'] as const
+
+/** The group as the server will hold it after `patch`, with its workspaces named from `known`. */
+function applyPermissionGroupPatch(
+  group: PermissionGroup,
+  patch: Omit<PermissionGroupWrite, 'id' | 'organizationId'> | UpdatePermissionGroupBody,
+  known: readonly PermissionGroupWorkspaceRef[]
+): PermissionGroup {
+  const workspaceIds = 'workspaceIds' in patch ? patch.workspaceIds : undefined
+  const isDefault = patch.isDefault ?? group.isDefault
+  const named = workspaceIds
+    ? workspaceIds.flatMap(
+        (id) =>
+          known.find((workspace) => workspace.id === id) ??
+          group.workspaces.find((workspace) => workspace.id === id) ??
+          []
+      )
+    : group.workspaces
+  return {
+    ...group,
+    ...(patch.name !== undefined && { name: patch.name.trim() }),
+    ...(patch.description !== undefined && { description: patch.description?.trim() || null }),
+    ...(patch.config !== undefined && { config: { ...group.config, ...patch.config } }),
+    isDefault,
+    workspaces: isDefault ? [] : named,
+  }
+}
+
+/**
+ * Updates a group, showing the change in the organization's group list at once. A failed write
+ * restores the list it replaced; the server's copy, then a refetch, settle the last write.
+ */
 export function useUpdatePermissionGroup() {
   const queryClient = useQueryClient()
 
+  /** Applies `patch` to the group, and clears the default elsewhere when it becomes the default. */
+  function patchList(
+    organizationId: string,
+    id: string,
+    patch: Parameters<typeof applyPermissionGroupPatch>[1]
+  ) {
+    const known =
+      queryClient.getQueryData<PermissionGroupWorkspaceRef[]>(
+        permissionGroupKeys.orgWorkspaces(organizationId)
+      ) ?? []
+    queryClient.setQueryData<PermissionGroup[]>(
+      permissionGroupKeys.list(organizationId),
+      (groups) =>
+        groups?.map((group) =>
+          group.id === id
+            ? applyPermissionGroupPatch(group, patch, known)
+            : patch.isDefault === true && group.isDefault
+              ? { ...group, isDefault: false }
+              : group
+        )
+    )
+  }
+
+  const isLastUpdate = () =>
+    queryClient.isMutating({ mutationKey: UPDATE_PERMISSION_GROUP_MUTATION_KEY }) === 1
+
   return useMutation({
+    mutationKey: UPDATE_PERMISSION_GROUP_MUTATION_KEY,
     mutationFn: async ({ id, organizationId, ...data }: UpdatePermissionGroupVariables) => {
       return requestJson(updatePermissionGroupContract, {
         params: { id: organizationId, groupId: id },
         body: data,
       })
     },
+    onMutate: async ({ id, organizationId, ...patch }) => {
+      const listKey = permissionGroupKeys.list(organizationId)
+      await queryClient.cancelQueries({ queryKey: listKey })
+      const previous = queryClient.getQueryData<PermissionGroup[]>(listKey)
+      patchList(organizationId, id, patch)
+      return { previous }
+    },
+    onSuccess: ({ permissionGroup }, { id, organizationId }) => {
+      // The server's copy, so a normalization cannot leave a baseline never persisted.
+      if (isLastUpdate()) patchList(organizationId, id, permissionGroup)
+    },
+    onError: (_error, { organizationId }, context) => {
+      if (context?.previous && isLastUpdate())
+        queryClient.setQueryData(permissionGroupKeys.list(organizationId), context.previous)
+    },
     onSettled: (_data, _error, { organizationId }) => {
-      // `all` is the prefix of every key in the factory (list/detail/members/userConfig),
-      // so a single invalidation covers them — including the workspace-keyed userConfig
-      // entries a mutation that only knows organizationId cannot target directly.
-      void queryClient.invalidateQueries({ queryKey: permissionGroupKeys.all })
       void queryClient.invalidateQueries({ queryKey: accessRequestKeys.discoveries() })
       void queryClient.invalidateQueries({
         queryKey: accessRequestKeys.organizationDetails(organizationId),
       })
+      // A refetch while a newer write is in flight would paint the list without it.
+      if (!isLastUpdate()) return
+      // `all` is the prefix of every key in the factory (list/detail/members/userConfig),
+      // so a single invalidation covers them — including the workspace-keyed userConfig
+      // entries a mutation that only knows organizationId cannot target directly.
+      void queryClient.invalidateQueries({ queryKey: permissionGroupKeys.all })
     },
   })
 }

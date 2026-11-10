@@ -8,6 +8,7 @@ import {
   type SetStateAction,
   useContext,
   useLayoutEffect,
+  useMemo,
   useState,
 } from 'react'
 import { generateId } from '@sim/utils/id'
@@ -27,6 +28,7 @@ import type {
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
+import { LOCALE } from '@/platform/shared/time'
 
 function attachmentFor(file: File): ChatAttachment {
   const image = file.type.startsWith('image/')
@@ -85,7 +87,7 @@ function useMemoryComposer({
         id: generateId(),
         kind: 'text',
         name: 'Pasted text',
-        metadata: `${value.length.toLocaleString()} characters`,
+        metadata: `${value.length.toLocaleString(LOCALE)} characters`,
         content: value,
       }
       updateDraft((current) => ({ ...current, attachments: [...current.attachments, pasted] }))
@@ -141,9 +143,10 @@ interface ComposerSessionProps {
 export function ComposerSession({ children }: ComposerSessionProps) {
   const host = useContext(HostContext) ?? MEMORY_HOST
   const [target, request] = useState<string | null>(null)
+  const focus = useMemo(() => ({ target, request }), [target])
   return (
     <HostContext.Provider value={host}>
-      <FocusContext.Provider value={{ target, request }}>{children}</FocusContext.Provider>
+      <FocusContext.Provider value={focus}>{children}</FocusContext.Provider>
     </HostContext.Provider>
   )
 }

@@ -3,7 +3,6 @@ import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
 import { useDeleteFolderMutation } from '@/hooks/queries/folders'
 import { useDeleteWorkflowMutation, useWorkflows } from '@/hooks/queries/workflows'
-import { useFolderStore } from '@/stores/folders/store'
 
 const logger = createLogger('useDeleteSelection')
 
@@ -133,10 +132,6 @@ export function useDeleteSelection({
           deleteWorkflowMutation.mutateAsync({ workspaceId, workflowId: id })
         )
       )
-
-      const { clearSelection, clearFolderSelection } = useFolderStore.getState()
-      clearSelection()
-      clearFolderSelection()
 
       logger.info('Selection deleted successfully', {
         workflowIds: standaloneWorkflowIds,

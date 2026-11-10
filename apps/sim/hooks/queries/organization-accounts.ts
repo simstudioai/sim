@@ -38,6 +38,7 @@ import {
   ORGANIZATION_ACCOUNTS_STALE_TIME,
   organizationAccountsKeys,
 } from '@/hooks/queries/utils/organization-accounts-keys'
+import { organizationHomeKeys } from '@/hooks/queries/utils/organization-home-keys'
 import { resetOrganizationSearchAccess } from '@/hooks/queries/utils/reset-organization-search-access'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
@@ -134,6 +135,9 @@ export function useDisconnectPersonalOrganizationAccount() {
       await Promise.all([
         resetOrganizationSearchAccess(queryClient, organizationId),
         invalidateOrganizationAccounts(queryClient, organizationId),
+        queryClient.invalidateQueries({
+          queryKey: organizationHomeKeys.organization(organizationId),
+        }),
         queryClient.invalidateQueries({ queryKey: personalSearchIntegrationKeys.lists() }),
         queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.personal() }),
       ])
@@ -218,10 +222,11 @@ export function invalidateOrganizationAccounts(queryClient: QueryClient, organiz
   ])
 }
 
-/** Everything a newly connected account changes, including what Search can now reach. */
+/** Everything a newly connected account changes, including what Search and Home can now reach. */
 export async function refreshConnectedAccounts(client: ReturnType<typeof useQueryClient>) {
   await Promise.all([
     client.invalidateQueries({ queryKey: organizationAccountsKeys.all }),
+    client.invalidateQueries({ queryKey: organizationHomeKeys.all }),
     client.invalidateQueries({ queryKey: assistantActionKeys.permissions() }),
     client.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
     client.invalidateQueries({ queryKey: personalSearchIntegrationKeys.lists() }),

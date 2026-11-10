@@ -121,6 +121,7 @@ export class WorkspaceMoveError extends Error {
       | 'fork-lineage-conflict'
       | 'pending-invitations-present'
       | 'project-conflict'
+      | 'destination-personal-organization'
   ) {
     super(message)
     this.name = 'WorkspaceMoveError'
@@ -2104,6 +2105,7 @@ async function getDestinationOrganization(
     .select({
       id: organization.id,
       name: organization.name,
+      kind: organization.kind,
       ownerId: member.userId,
       ownerName: user.name,
       ownerEmail: user.email,
@@ -2113,7 +2115,15 @@ async function getDestinationOrganization(
     .innerJoin(user, eq(user.id, member.userId))
     .where(eq(organization.id, organizationId))
     .limit(1)
-  return row ?? null
+  if (!row) return null
+  const { kind, ...destination } = row
+  if (kind === 'personal') {
+    throw new WorkspaceMoveError(
+      'A personal organization holds only its owner’s own workspaces. Choose a team organization.',
+      'destination-personal-organization'
+    )
+  }
+  return destination
 }
 
 async function getPendingInvitationSummaries(workspaceId: string, executor: DbOrTx = db) {

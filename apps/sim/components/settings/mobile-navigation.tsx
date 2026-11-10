@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation'
 import {
   SETTINGS_PLANE_CHROME,
   type SettingsNavigationItem,
+  type SettingsPlane,
   type SettingsSection,
-  type StandaloneSettingsPlane,
 } from '@/components/settings/navigation'
 import { usePendingSettingsSelection } from '@/components/settings/use-pending-settings-selection'
 import { APP_ENTRY_PATH, LANDING_HREF } from '@/lib/navigation/paths'
@@ -16,7 +16,7 @@ import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 interface SettingsMobileNavigationProps<Section extends SettingsSection> {
   activeSection: Section
-  plane: StandaloneSettingsPlane
+  plane: SettingsPlane
   items: readonly SettingsNavigationItem<Section>[]
   hrefForSection: (section: Section) => string
 }

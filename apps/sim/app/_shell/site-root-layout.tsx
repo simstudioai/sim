@@ -3,8 +3,8 @@ import type { Viewport } from 'next'
 import Script from 'next/script'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { BrandedLayout } from '@/components/branded-layout'
+import { PasteGuard } from '@/components/paste-guard/paste-guard'
 import { SettingsNavigationGuard } from '@/components/settings/settings-navigation-guard'
-import { PasteAdmissionGuard } from '@/lib/core/utils/paste-admission-guard'
 import { BrowserTelemetry } from '@/app/_shell/providers/browser-telemetry'
 import { ToastSink } from '@/app/_shell/toast-sink'
 import '@/app/_styles/globals.css'
@@ -49,7 +49,7 @@ export function SiteRootLayout({ children }: SiteRootLayoutProps) {
       <ToastSink />
       <SettingsNavigationGuard />
       <DesktopUpdateNotification />
-      <PasteAdmissionGuard />
+      <PasteGuard />
       <ThemeProvider>
         <QueryProvider>
           <SessionProvider>

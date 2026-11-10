@@ -15,6 +15,7 @@ import {
   useUpdateChunk,
 } from '@/platform/lib/data/knowledge'
 import type * as Tokens from '@/platform/lib/data/knowledge/tokens'
+import { LOCALE } from '@/platform/shared/time'
 
 /** The longest chunk the API accepts. */
 const MAX_CHUNK_LENGTH = 10_000
@@ -267,8 +268,8 @@ export function ChunkEditor({
         <span className={styles.secondary} data-type='T052'>
           {tokenCount !== null && (
             <>
-              {tokenCount.toLocaleString()}
-              {maxChunkSize !== undefined && `/${maxChunkSize.toLocaleString()}`} tokens
+              {tokenCount.toLocaleString(LOCALE)}
+              {maxChunkSize !== undefined && `/${maxChunkSize.toLocaleString(LOCALE)}`} tokens
             </>
           )}
         </span>

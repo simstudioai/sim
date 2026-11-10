@@ -9,6 +9,7 @@ import {
   type KnowledgeBaseData,
   useUpdateKnowledgeBase,
 } from '@/platform/lib/data/knowledge'
+import { LOCALE } from '@/platform/shared/time'
 
 interface EditBaseModalProps {
   /** The base being edited; the dialog is open while it is set. */
@@ -82,7 +83,7 @@ export function EditBaseModal({ base, onClose }: EditBaseModalProps) {
       />
       {config && (
         <DetailsField label='Chunking configuration'>
-          {`Max size ${config.maxSize.toLocaleString()} tokens · Min size ${config.minSize.toLocaleString()} characters · Overlap ${config.overlap.toLocaleString()} tokens`}
+          {`Max size ${config.maxSize.toLocaleString(LOCALE)} tokens · Min size ${config.minSize.toLocaleString(LOCALE)} characters · Overlap ${config.overlap.toLocaleString(LOCALE)} tokens`}
         </DetailsField>
       )}
     </Modal>

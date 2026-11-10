@@ -46,8 +46,6 @@ interface SkillsMenuDropdownProps {
   pendingCursorRef: React.MutableRefObject<number | null>
   /** Active `/`-query used to filter the list (case-insensitive substring). */
   slashQuery?: string
-  /** More skills are on their way, so an empty result does not yet mean no match. */
-  isLoading?: boolean
 }
 
 /**
@@ -67,7 +65,6 @@ export const SkillsMenuDropdown = React.memo(
       textareaRef,
       pendingCursorRef,
       slashQuery,
-      isLoading = false,
     },
     ref
   ) {
@@ -240,14 +237,9 @@ export const SkillsMenuDropdown = React.memo(
                   </button>
                 )
               })
-            ) : isLoading ? null : (
+            ) : (
               <div className='flex h-[28px] items-center justify-center px-2 text-[var(--text-muted)] text-caption'>
                 No skills or MCP servers
-              </div>
-            )}
-            {isLoading && (
-              <div className='flex h-[28px] items-center justify-center px-2 text-[var(--text-muted)] text-caption'>
-                Loading skills
               </div>
             )}
           </div>

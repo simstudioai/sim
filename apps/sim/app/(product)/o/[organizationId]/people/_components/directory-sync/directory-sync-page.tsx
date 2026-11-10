@@ -19,6 +19,7 @@ import {
   type SyncStatus,
   useDirectorySync,
 } from '@/platform/shared/people'
+import { LOCALE } from '@/platform/shared/time'
 
 const PHASE_TITLES = {
   users: 'Reading people',
@@ -125,7 +126,7 @@ function SyncCard({ sync, syncing, running, onUpdate, onRun }: SyncCardProps) {
           }
           action={
             <span aria-live='polite' data-type='T005'>
-              {progress.usersRead.toLocaleString()} read
+              {progress.usersRead.toLocaleString(LOCALE)} read
             </span>
           }
         />

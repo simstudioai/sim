@@ -78,6 +78,26 @@ async function removePerson(person: SeededPerson) {
   })
 }
 
+/**
+ * Deletes the workspaces of `organizationId` named `name`, with their grants and the projects the
+ * app made for them, as a check that creates one through the UI puts things back.
+ */
+export async function removeWorkspacesNamed(organizationId: string, name: string) {
+  await withLiveDatabase((sql) =>
+    sql.begin(async (tx) => {
+      const rows = await tx<{ id: string; projectId: string }[]>`
+        select id, project_id as "projectId" from workspace
+        where organization_id = ${organizationId} and name = ${name}`
+      if (rows.length === 0) return
+      const ids = rows.map(({ id }) => id)
+      await tx`delete from permissions where entity_type = 'workspace' and entity_id in ${tx(ids)}`
+      await tx`delete from workspace where id in ${tx(ids)}`
+      await tx`delete from project p where p.id in ${tx(rows.map(({ projectId }) => projectId))}
+        and not exists (select 1 from workspace w where w.project_id = p.id)`
+    })
+  )
+}
+
 /** Runs `check` with a person seeded for it alone, and removes them afterwards whatever happened. */
 export async function withPerson<T>(
   prefix: string,

@@ -1,6 +1,6 @@
 import type { DashboardUnit } from '@/app/(product)/_components/workspace/workspace-session/model'
+import { LOCALE } from '@/platform/shared/time'
 
-const LOCALE = 'en-US'
 const MISSING = '—'
 /** Past seven digits a count reads more easily in compact notation. */
 const EXACT_LIMIT = 10_000_000

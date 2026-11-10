@@ -13,7 +13,7 @@ import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { joinInstanceOrganization } from '@/lib/organizations/instance-org'
 import { createPersonalOrganizationTx } from '@/lib/organizations/personal'
 import { resolveOrganizationLanding } from '@/lib/organizations/surface'
-import { transferWorkspaceProjects } from '@/lib/projects/membership'
+import { findSplitProjectWorkspaceIds, transferWorkspaceProjects } from '@/lib/projects/membership'
 
 const logger = createLogger('PersonalOrganizationProvision')
 
@@ -144,21 +144,12 @@ async function attachUnassignedWorkspacesTx(
     .for('no key update')
   if (lockedRows.length === 0) return { attachedWorkspaceIds: [], skippedWorkspaceIds: [] }
 
-  const lockedIds = new Set(lockedRows.map((row) => row.id))
-  const projectIds = [
-    ...new Set(lockedRows.flatMap((row) => (row.projectId ? [row.projectId] : []))),
-  ]
-  const environments = await tx
-    .select({ id: workspace.id, projectId: workspace.projectId })
-    .from(workspace)
-    .where(inArray(workspace.projectId, projectIds))
-  const splitProjectIds = new Set<string | null>(
-    environments.filter((row) => !lockedIds.has(row.id)).map((row) => row.projectId)
+  const splitWorkspaceIds = await findSplitProjectWorkspaceIds(
+    tx,
+    lockedRows.map((row) => row.id)
   )
-  const movable = lockedRows.filter((row) => !splitProjectIds.has(row.projectId))
-  const skippedWorkspaceIds = lockedRows
-    .filter((row) => splitProjectIds.has(row.projectId))
-    .map((row) => row.id)
+  const movable = lockedRows.filter((row) => !splitWorkspaceIds.has(row.id))
+  const skippedWorkspaceIds = [...splitWorkspaceIds]
   if (skippedWorkspaceIds.length > 0) {
     logger.warn('Left workspaces outside the personal organization: their Project spans owners', {
       userId,
@@ -211,19 +202,15 @@ export async function createPersonalOrganization(userId: string): Promise<string
 }
 
 /**
- * Puts a user who belongs to no organization, or only to their personal one, into one and returns
- * it: the instance organization on an instance-organization deployment (retiring the personal
- * organization into it), otherwise (or when the instance organization cannot admit them) their
- * personal organization ({@link createPersonalOrganization}, which attaches no workspace). Only
- * signup passes `atSignup`, the one caller that may provision the instance organization with this
- * user as its owner. Surfaces reach it only through the `ensureViewerOrganization` command.
+ * Signup's organization: the instance organization on an instance-organization deployment, otherwise
+ * (or when the instance organization cannot admit them) their personal organization
+ * ({@link createPersonalOrganization}, which attaches no workspace). Signup is the only automatic
+ * path into the instance organization, and the one caller that may provision it with this user as
+ * its owner: a later visit never re-joins, so a member removed from it stays out.
  */
-export async function ensureUserOrganization(
-  userId: string,
-  options: { atSignup: boolean }
-): Promise<string | null> {
+export async function ensureSignupOrganization(userId: string): Promise<string | null> {
   const joined = await joinInstanceOrganization(userId, {
-    atSignup: options.atSignup,
+    atSignup: true,
     actor: { type: 'user', userId },
   })
   if (joined) return resolveOrganizationLanding(userId, null)

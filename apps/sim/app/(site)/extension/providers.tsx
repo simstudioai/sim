@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, type ReactNode, useContext, useEffect, useRef } from 'react'
+import { createContext, type ReactNode, useContext, useEffect, useMemo, useRef } from 'react'
 import type { AppToExtensionMessage } from '@sim/browser-extension-protocol'
 import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
 import { isApiClientError } from '@/lib/api/client/errors'
@@ -42,22 +42,24 @@ export function ExtensionProviders({
     }
     for (const origin of origins) window.parent.postMessage(message, origin)
   }, [origins, signedIn])
+  const identity = useMemo(() => ({ origins, userId }), [origins, userId])
+  const flags = useMemo(
+    () => ({
+      dashboards: false,
+      'workflow-tests': false,
+      'mothership-model-selector': modelSelectorEnabled,
+      'mothership-plan-mode': planModeEnabled,
+      'mothership-computer-use': false,
+    }),
+    [modelSelectorEnabled, planModeEnabled]
+  )
   if (isPending) return <ExtensionLoading />
   const accessDenied = isApiClientError(error) && (error.status === 401 || error.status === 403)
   if (accessDenied || !session?.user || session.user.id !== userId)
     return <ExtensionSignIn expectedUserId={userId} />
   return (
-    <ExtensionIdentityContext.Provider value={{ origins, userId }}>
-      <FeatureFlagsProvider
-        flags={{
-          dashboards: false,
-          'workflow-tests': false,
-          changelog: false,
-          'mothership-model-selector': modelSelectorEnabled,
-          'mothership-plan-mode': planModeEnabled,
-          'mothership-computer-use': false,
-        }}
-      >
+    <ExtensionIdentityContext.Provider value={identity}>
+      <FeatureFlagsProvider flags={flags}>
         <SettingsNavigationProvider navigationTarget='_blank'>
           <ChatInputFocusContext.Provider value={focusComposer}>
             <div className='ph-no-capture'>{children}</div>

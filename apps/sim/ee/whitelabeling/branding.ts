@@ -1,7 +1,7 @@
 import { type BrandConfig, defaultBrandConfig, type ThemeColors } from '@/lib/branding'
 import { getEnv } from '@/lib/core/config/env'
 
-export type { BrandConfig, ThemeColors }
+export type { ThemeColors }
 
 const getThemeColors = (): ThemeColors => {
   return {

@@ -11,8 +11,6 @@ export const organizationAccountsKeys = {
   workspaces: () => [...organizationAccountsKeys.all, 'workspace'] as const,
   workspace: (workspaceId?: string) =>
     [...organizationAccountsKeys.workspaces(), workspaceId ?? ''] as const,
-  access: (id?: string) => [...organizationAccountsKeys.detail(id), 'access'] as const,
-  people: (id?: string) => [...organizationAccountsKeys.detail(id), 'people'] as const,
   databricks: (id?: string) => [...organizationAccountsKeys.detail(id), 'databricks'] as const,
   details: () => [...organizationAccountsKeys.all, 'detail'] as const,
   detail: (organizationId?: string) =>

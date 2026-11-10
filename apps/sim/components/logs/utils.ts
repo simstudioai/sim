@@ -3,15 +3,6 @@ import type { Badge } from '@sim/emcn-legacy'
 import { formatRelativeTime } from '@sim/utils/formatting'
 import { format } from 'date-fns'
 
-export const LOG_COLUMNS = {
-  workflow: { width: 'w-[22%]', minWidth: 'min-w-[140px]', label: 'Workflow' },
-  date: { width: 'w-[18%]', minWidth: 'min-w-[140px]', label: 'Date' },
-  status: { width: 'w-[12%]', minWidth: 'min-w-[100px]', label: 'Status' },
-  cost: { width: 'w-[14%]', minWidth: 'min-w-[90px]', label: 'Cost' },
-  trigger: { width: 'w-[14%]', minWidth: 'min-w-[110px]', label: 'Trigger' },
-  duration: { width: 'w-[20%]', minWidth: 'min-w-[100px]', label: 'Duration' },
-} as const
-
 export type LogStatus =
   | 'error'
   | 'pending'

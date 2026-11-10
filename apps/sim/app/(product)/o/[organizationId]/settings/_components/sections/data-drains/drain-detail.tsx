@@ -28,7 +28,7 @@ import {
   useTestDataDrain,
   useUpdateDataDrain,
 } from '@/platform/lib/data/data-drains'
-import { formatTimestamp } from '@/platform/shared/time'
+import { formatTimestamp, LOCALE } from '@/platform/shared/time'
 
 const RECENT_RUN_LIMIT = 10
 
@@ -64,7 +64,7 @@ const RUN_STATUS_INTENT = { success: 'success', failed: 'danger', running: 'info
 function RunRow({ run }: { run: DataDrainRun }) {
   return (
     <SettingsRow
-      label={`${run.rowsExported.toLocaleString()} rows · ${formatFileSize(run.bytesWritten, { includeBytes: true })}`}
+      label={`${run.rowsExported.toLocaleString(LOCALE)} rows · ${formatFileSize(run.bytesWritten, { includeBytes: true })}`}
       description={`${run.trigger} · ${formatTimestamp(new Date(run.startedAt).getTime())}${run.error ? ` · ${run.error}` : ''}`}
     >
       <StatusTag label={run.status} intent={RUN_STATUS_INTENT[run.status]} />

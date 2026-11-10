@@ -25,14 +25,34 @@ async function loadRuntime() {
     { eq, inArray, sql },
     { admitSsoUser },
     { acquireOrganizationMutationLock },
+    { createPersonalOrganization },
+    { acquireInvitationMutationLocks },
+    { tryAcquireAdvisoryXactLock },
+    { createDefaultPersonalWorkspaceInTransaction },
   ] = await Promise.all([
     import('@sim/db'),
     import('@sim/db/schema'),
     import('drizzle-orm'),
     import('@/lib/auth/sso/application/admit-sso-user'),
     import('@/lib/billing/organizations/membership'),
+    import('@/lib/organizations/provision-personal'),
+    import('@/lib/invitations/locks'),
+    import('@/lib/db/advisory-locks'),
+    import('@/lib/workspaces/create'),
   ])
-  return { db, schema, eq, inArray, sql, admitSsoUser, acquireOrganizationMutationLock }
+  return {
+    db,
+    schema,
+    eq,
+    inArray,
+    sql,
+    admitSsoUser,
+    acquireOrganizationMutationLock,
+    createPersonalOrganization,
+    acquireInvitationMutationLocks,
+    tryAcquireAdvisoryXactLock,
+    createDefaultPersonalWorkspaceInTransaction,
+  }
 }
 
 describe('SSO admission with a hosted SCIM directory in PostgreSQL', () => {
@@ -247,6 +267,112 @@ describe('SSO admission with a hosted SCIM directory in PostgreSQL', () => {
 
     await expect(admit()).resolves.toEqual({ kind: 'denied', reason: 'provider-not-trusted' })
     expect(await emailVerified()).toBe(false)
+  })
+
+  it('denies admission its personal organization refuses instead of failing the sign-in', async () => {
+    const { db, schema, eq, sql } = runtime
+    await db
+      .update(schema.scimConnection)
+      .set({ settings: { disableJit: false } })
+      .where(eq(schema.scimConnection.id, connectionId))
+    const personalOrganizationId = await runtime.createPersonalOrganization(userId)
+    if (!personalOrganizationId) throw new Error('expected a personal organization')
+    try {
+      // A team-only row written around the guards makes retiring the personal organization refuse.
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`SET LOCAL session_replication_role = replica`)
+        await tx.insert(schema.organizationBYOKKeys).values({
+          id: generateId(),
+          organizationId: personalOrganizationId,
+          providerId: 'openai',
+          encryptedApiKey: 'ciphertext',
+        })
+      })
+
+      await expect(admit()).resolves.toEqual({ kind: 'denied', reason: 'organization-conflict' })
+      const memberships = await db
+        .select({ organizationId: schema.member.organizationId })
+        .from(schema.member)
+        .where(eq(schema.member.userId, userId))
+      expect(memberships).toEqual([{ organizationId: personalOrganizationId }])
+    } finally {
+      await db.delete(schema.organization).where(eq(schema.organization.id, personalOrganizationId))
+    }
+  })
+
+  it('takes the personal organization workspace locks before the organization lock', async () => {
+    const { db, schema, eq, sql } = runtime
+    await db
+      .update(schema.scimConnection)
+      .set({ settings: { disableJit: false } })
+      .where(eq(schema.scimConnection.id, connectionId))
+    const personalOrganizationId = await runtime.createPersonalOrganization(userId)
+    if (!personalOrganizationId) throw new Error('expected a personal organization')
+    const personalWorkspace = await db.transaction((tx) =>
+      runtime.createDefaultPersonalWorkspaceInTransaction(tx, {
+        userId,
+        userName: null,
+        personalOrganizationId,
+      })
+    )
+    const held = createDeferred<number>()
+    const release = createDeferred<void>()
+    const pending: Promise<unknown>[] = []
+    try {
+      // An in-flight invitation acceptance on the personal workspace holds its advisory lock.
+      const acceptance = db.transaction(async (tx) => {
+        await runtime.acquireInvitationMutationLocks(tx, {
+          invitationIds: [],
+          workspaceIds: [personalWorkspace.id],
+        })
+        const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+        held.resolve(connection.pid)
+        await release.promise
+      })
+      pending.push(acceptance)
+      void acceptance.catch((error: unknown) => held.reject(error))
+      const blockerPid = await held.promise
+      const admission = admit()
+      pending.push(admission)
+      void admission.catch(() => undefined)
+      await vi.waitFor(
+        async () => {
+          const [waiting] = await db.execute<{ pid: number }>(sql`
+            SELECT pid FROM pg_stat_activity
+            WHERE datname = current_database() AND wait_event = 'advisory'
+              AND ${blockerPid}::int = ANY(pg_blocking_pids(pid))
+          `)
+          expect(waiting).toBeDefined()
+        },
+        { timeout: 5_000, interval: 25 }
+      )
+
+      // While the admission queues on the workspace, it must not already hold the organization.
+      const organizationFree = await db.transaction((tx) =>
+        runtime.tryAcquireAdvisoryXactLock(
+          tx,
+          'organization_mutation',
+          `organization-mutation:${organizationId}`
+        )
+      )
+      expect(organizationFree).toBe(true)
+
+      release.resolve()
+      await acceptance
+      await expect(admission).resolves.toMatchObject({ kind: 'provisioned', organizationId })
+    } finally {
+      release.resolve()
+      await Promise.allSettled(pending)
+      const [created] = await db
+        .select({ projectId: schema.workspace.projectId })
+        .from(schema.workspace)
+        .where(eq(schema.workspace.id, personalWorkspace.id))
+      await db.delete(schema.workspace).where(eq(schema.workspace.id, personalWorkspace.id))
+      if (created?.projectId) {
+        await db.delete(schema.project).where(eq(schema.project.id, created.projectId))
+      }
+      await db.delete(schema.organization).where(eq(schema.organization.id, personalOrganizationId))
+    }
   })
 
   it('resumes normal JIT admission when the directory permits automatic membership', async () => {

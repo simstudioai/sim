@@ -1,10 +1,8 @@
-import { EmptyState } from '@sim/emcn/empty-state'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { decodePathSegments } from '@/lib/navigation/paths'
 import { SettingsLeaveGuard } from '@/app/(product)/_components/session-state/settings-leave-guard'
 import { LiveSettingsRoute } from '@/app/(product)/o/[organizationId]/settings/_components/live-settings/live-settings-route'
-import { SettingsScreen } from '@/app/(product)/o/[organizationId]/settings/_components/settings-screen/settings-screen'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { settingsPageTitle } from '@/platform/lib/data/settings-navigation'
 import { readPreviewPlan, readScenario } from '@/platform/lib/navigation'
@@ -31,12 +29,6 @@ export default async function Page({
       readScenario(query.state),
       readPreviewPlan(query.plan)
     )
-    if (!fixture)
-      return (
-        <SettingsScreen title='Settings'>
-          <EmptyState title='No organization selected' />
-        </SettingsScreen>
-      )
     const { Provider, organization, scenario, profile, referenceTime, plan } = fixture
     return (
       <Provider

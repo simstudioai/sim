@@ -9,7 +9,7 @@ describe('isDeploymentShapeSurface', () => {
   it.each([
     'app/(auth)/login/login-form.tsx',
     'app/_shell/providers/query-provider.tsx',
-    'app/_organization-conversation/view.tsx',
+    'app/(site)/extension/_organization-conversation/use-organization-conversation.ts',
     'app/(interfaces)/chat/page.tsx',
     'app/(product)/page.tsx',
     'platform/shared/rows.ts',

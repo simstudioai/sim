@@ -26,6 +26,8 @@ import {
 import { resolveOrganizationSeatPolicyTx } from '@/lib/billing/organizations/seat-policy'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { assertOperationPrincipal, type OperationUseCase } from '@/lib/core/application/operation'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { acquirePersonalOrganizationWorkspaceLocksTx } from '@/lib/organizations/personal'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { isScimEntitledForOrganization } from '@/ee/scim/lib/entitlement'
 
@@ -84,6 +86,8 @@ async function runAdmissionTransaction(
       return { providerId, result: { kind: 'denied', reason: 'provider-not-found' } }
     }
     if (scope.organizationId) {
+      /** Admission may retire the personal organization: its workspace locks come first, as in every join. */
+      await acquirePersonalOrganizationWorkspaceLocksTx(tx, userId)
       await acquireOrganizationUserMutationLocks(tx, {
         userId,
         organizationIds: [scope.organizationId],
@@ -398,7 +402,23 @@ export const admitSsoUser: OperationUseCase<
   operation: ssoJitAdmissionOperation,
   async execute({ principal, input }) {
     assertOperationPrincipal(principal, ssoJitAdmissionOperation)
-    const admission = await runAdmissionTransaction(principal.userId, input.providerId)
+    const admission = await runAdmissionTransaction(principal.userId, input.providerId).catch(
+      (error: unknown): SuccessfulAdmission => {
+        // A personal organization that refuses to retire into this one rolls the admission back.
+        if (error instanceof OrchestrationError && error.code === 'conflict') {
+          logger.warn('SSO admission refused by the personal organization', {
+            userId: principal.userId,
+            providerId: input.providerId,
+            error: error.message,
+          })
+          return {
+            providerId: input.providerId,
+            result: { kind: 'denied', reason: 'organization-conflict' },
+          }
+        }
+        throw error
+      }
+    )
     await runProvisioningPostCommitEffects(principal.userId, admission)
     return admission.result
   },

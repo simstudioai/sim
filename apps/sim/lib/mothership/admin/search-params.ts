@@ -12,8 +12,6 @@ export type MothershipTab = (typeof MOTHERSHIP_TABS)[number]
  */
 export const MOTHERSHIP_ENVIRONMENTS = ['default', 'dev', 'staging', 'prod'] as const
 
-export type MothershipEnvironmentParam = (typeof MOTHERSHIP_ENVIRONMENTS)[number]
-
 /**
  * Co-located, typed URL query-param definitions for the Mothership admin view.
  *

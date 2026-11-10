@@ -17,10 +17,8 @@ vi.mock('@/components/workspace-access-denied', () => ({
   WorkspaceAccessDenied: () => <output data-testid='denied' />,
 }))
 
-import {
-  useWorkspaceHostContext,
-  WorkspaceHostProvider,
-} from '@/components/workspace-providers/workspace-host-provider'
+import { useOptionalWorkspaceHostContext } from '@/components/workspace-providers/workspace-host-context'
+import { WorkspaceHostProvider } from '@/components/workspace-providers/workspace-host-provider'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import {
   getDeploymentShape,
@@ -69,8 +67,8 @@ function GetterReader() {
 }
 
 function ContextReader() {
-  const { deployment } = useWorkspaceHostContext()
-  return <output data-testid='context'>{String(deployment?.billingEnabled)}</output>
+  const context = useOptionalWorkspaceHostContext()
+  return <output data-testid='context'>{String(context?.deployment?.billingEnabled)}</output>
 }
 
 let host: HTMLDivElement

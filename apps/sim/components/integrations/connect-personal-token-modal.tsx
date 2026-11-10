@@ -11,60 +11,48 @@ import {
   SecretInput,
 } from '@sim/emcn-legacy'
 import { GitlabIcon } from '@/components/icons'
-import {
-  useCreateWorkspaceCredential,
-  useUpdateWorkspaceCredential,
-} from '@/hooks/queries/credentials'
+import { useCreateWorkspaceCredential } from '@/hooks/queries/credentials'
 
 interface ConnectPersonalTokenModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   workspaceId: string
-  credentialId?: string
-  instanceUrl?: string
-  onConnected?: () => void
+  onConnected: () => void
 }
 
 /** Personal connections use the existing credential modal and mutation conventions. */
 export function ConnectPersonalTokenModal(props: ConnectPersonalTokenModalProps) {
   if (!props.open) return null
-  return (
-    <PersonalTokenForm key={`${props.workspaceId}:${props.credentialId ?? 'new'}`} {...props} />
-  )
+  return <PersonalTokenForm key={props.workspaceId} {...props} />
 }
 
 function PersonalTokenForm({
   open,
   onOpenChange,
   workspaceId,
-  credentialId,
-  instanceUrl,
   onConnected,
 }: ConnectPersonalTokenModalProps) {
-  const [host, setHost] = useState(instanceUrl ? new URL(instanceUrl).host : 'gitlab.com')
+  const [host, setHost] = useState('gitlab.com')
   const [token, setToken] = useState('')
   const create = useCreateWorkspaceCredential()
-  const update = useUpdateWorkspaceCredential(workspaceId)
-  const pending = create.isPending || update.isPending
-  const error = (credentialId ? update.error : create.error)?.message
+  const pending = create.isPending
   function submit() {
     if (!host.trim() || !token.trim() || pending) return
-    const onSuccess = () => {
-      onConnected?.()
-      onOpenChange(false)
-    }
-    if (credentialId) update.mutate({ credentialId, apiToken: token.trim() }, { onSuccess })
-    else
-      create.mutate(
-        {
-          workspaceId,
-          type: 'personal_token',
-          providerId: 'gitlab',
-          apiToken: token.trim(),
-          domain: host.trim(),
+    create.mutate(
+      {
+        workspaceId,
+        type: 'personal_token',
+        providerId: 'gitlab',
+        apiToken: token.trim(),
+        domain: host.trim(),
+      },
+      {
+        onSuccess: () => {
+          onConnected()
+          onOpenChange(false)
         },
-        { onSuccess }
-      )
+      }
+    )
   }
   return (
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Connect your GitLab account'>
@@ -72,18 +60,14 @@ function PersonalTokenForm({
         Connect your GitLab account
       </ChipModalHeader>
       <ChipModalBody>
-        {credentialId ? (
-          <ChipModalField type='copy' title='GitLab host' value={host} />
-        ) : (
-          <ChipModalField
-            type='input'
-            title='GitLab host'
-            value={host}
-            onChange={setHost}
-            placeholder='gitlab.example.com'
-            required
-          />
-        )}
+        <ChipModalField
+          type='input'
+          title='GitLab host'
+          value={host}
+          onChange={setHost}
+          placeholder='gitlab.example.com'
+          required
+        />
         <ChipModalField
           type='custom'
           title='Personal access token'
@@ -97,12 +81,12 @@ function PersonalTokenForm({
             placeholder='glpat-…'
           />
         </ChipModalField>
-        <ChipModalError>{error}</ChipModalError>
+        <ChipModalError>{create.error?.message}</ChipModalError>
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}
         primaryAction={{
-          label: pending ? 'Connecting…' : credentialId ? 'Reconnect' : 'Connect',
+          label: pending ? 'Connecting…' : 'Connect',
           onClick: submit,
           disabled: pending || !host.trim() || !token.trim(),
         }}

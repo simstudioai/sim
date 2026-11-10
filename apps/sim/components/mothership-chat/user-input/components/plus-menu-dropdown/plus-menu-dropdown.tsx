@@ -118,8 +118,6 @@ interface PlusMenuDropdownProps {
    * its field takes focus on load and its lists cost several reads per workspace.
    */
   warm?: boolean
-  /** While the lists load, Enter waits instead of picking the best of what has arrived so far. */
-  selectWaitsForFullResults?: boolean
   onResourceSelect: (resource: MothershipResource) => void
   /** Tags a whole workspace; offered only in organization chats. */
   onWorkspaceSelect: (workspace: { id: string; name: string }) => void
@@ -137,7 +135,6 @@ export const PlusMenuDropdown = React.memo(
       actions,
       organizationId,
       warm,
-      selectWaitsForFullResults = false,
       onResourceSelect,
       onWorkspaceSelect,
       onClose,
@@ -302,8 +299,6 @@ export const PlusMenuDropdown = React.memo(
     isMentionRef.current = isMention
     const isHydratingRef = useRef(isHydrating)
     isHydratingRef.current = isHydrating
-    const selectWaitsForFullResultsRef = useRef(selectWaitsForFullResults)
-    selectWaitsForFullResultsRef.current = selectWaitsForFullResults
 
     const closeAfterSelect = () => {
       setOpen(false)
@@ -340,7 +335,6 @@ export const PlusMenuDropdown = React.memo(
           highlightIndexRef.current(next < 0 ? items.length - 1 : next >= items.length ? 0 : next)
         },
         selectActive: () => {
-          if (selectWaitsForFullResultsRef.current && isHydratingRef.current) return 'hydrating'
           const items = filteredItemsRef.current
           const target = items?.length ? (items[activeIndexRef.current] ?? items[0]) : undefined
           if (!target) return isHydratingRef.current ? 'hydrating' : 'empty'

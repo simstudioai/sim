@@ -212,7 +212,6 @@ import {
 } from '@/stores/mothership-effort/store'
 import { useMothershipOutgoingStore } from '@/stores/mothership-outgoing/store'
 import type { ChatContext } from '@/stores/panel'
-import { useTableViewPinStore } from '@/stores/table/view-pin/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { useWorkflowRegistry } from '@/stores/workflows/state-port'
 
@@ -615,7 +614,6 @@ export function selectDeletedWorkflowResources(
 
 export interface ResourceEventOptions {
   activate?: boolean
-  tableViewId?: string
 }
 
 export type ResourceEventHandler = (resourceId: string, options?: ResourceEventOptions) => void
@@ -643,9 +641,6 @@ export interface UseChatOptions {
   onResourceEvent?: ResourceEventHandler
   apiPath?: string
   stopPath?: string
-  workflowId?: string
-  onToolResult?: (toolName: string, success: boolean, result: unknown) => void
-  onTitleUpdate?: () => void
   onStreamEnd?: (chatId: string, messages: ChatMessage[]) => void
   initialActiveResourceId?: string | null
   /**
@@ -665,8 +660,6 @@ export interface UseChatOptions {
    * the desktop app displays.
    */
   projectsDesktopTabs?: boolean
-  /** Fired when the server's `traceparent` response header arrives, before any stream content. */
-  onRequestStarted?: (info: { requestId: string; userMessageId: string }) => void
   /**
    * Whether a pathname is the surface's new-chat route, where a chat this mount admitted resets.
    * Defaults to the `/home` routes; a host with its own URLs names its route here.
@@ -723,7 +716,6 @@ export function getMothershipUseChatOptions(
     | 'onStreamEnd'
     | 'initialActiveResourceId'
     | 'activeResourceState'
-    | 'onRequestStarted'
     | 'requestMode'
     | 'getChatUrl'
     | 'isNewChatRoute'
@@ -794,16 +786,8 @@ export function useChat(
   const stopPathRef = useRef(options?.stopPath ?? '/api/mothership/chat/stop')
   stopPathRef.current = options?.stopPath ?? '/api/mothership/chat/stop'
   const pendingStopPromiseRef = useRef<Promise<void> | null>(null)
-  const workflowIdRef = useRef(options?.workflowId)
-  workflowIdRef.current = options?.workflowId
-  const onToolResultRef = useRef(options?.onToolResult)
-  onToolResultRef.current = options?.onToolResult
-  const onTitleUpdateRef = useRef(options?.onTitleUpdate)
-  onTitleUpdateRef.current = options?.onTitleUpdate
   const onStreamEndRef = useRef(options?.onStreamEnd)
   onStreamEndRef.current = options?.onStreamEnd
-  const onRequestStartedRef = useRef(options?.onRequestStarted)
-  onRequestStartedRef.current = options?.onRequestStarted
 
   const getCurrentRequestId = useCallback(() => {
     const traceId = streamTraceparentRef.current?.split('-')[1] ?? ''
@@ -1238,8 +1222,6 @@ export function useChat(
     setTransportIdle()
     setResources([])
     setActiveResourceId(null)
-    // Pending view pins belong to the chat whose stream issued them.
-    useTableViewPinStore.getState().reset()
     undisplayableResourcesRef.current = []
     resetEphemeralPreviewState()
     pendingChatKeyRef.current = `${PENDING_CHAT_KEY_PREFIX}${generateShortId()}`
@@ -1403,12 +1385,7 @@ export function useChat(
       if (!selectedChatId || selectedChatId === chatId) {
         setResolvedChatId(chatId)
       }
-      if (
-        options?.replaceHomeHistory &&
-        !selectedChatId &&
-        !workflowIdRef.current &&
-        typeof window !== 'undefined'
-      ) {
+      if (options?.replaceHomeHistory && !selectedChatId && typeof window !== 'undefined') {
         if (onChatIdResolvedRef.current) {
           onChatIdResolvedRef.current(chatId)
         } else {
@@ -2033,7 +2010,6 @@ export function useChat(
     if (!options?.activeResourceState && initialChatId !== streamOwnerId) {
       setActiveResourceId(null)
     }
-    useTableViewPinStore.getState().reset()
     resetEphemeralPreviewState()
     // Rotate the bucket key; messages still on their way into the previous chat keep its key.
     if (initialChatId) {
@@ -2082,7 +2058,6 @@ export function useChat(
   }, [organizationId, chatHistory?.mode, options?.requestMode])
 
   useEffect(() => {
-    if (workflowIdRef.current) return
     if (!isHomePage || !chatIdRef.current) return
     resetHomeChatState()
   }, [isHomePage, resetHomeChatState])
@@ -2512,8 +2487,6 @@ export function useChat(
         activeTurnRef,
         resourcesRef,
         activeResourceIdRef,
-        onTitleUpdateRef,
-        onToolResultRef,
         onResourceEventRef,
         previewSessionRef,
         previewSessionsRef,
@@ -3881,9 +3854,6 @@ export function useChat(
             ...(options?.requestMode === 'assistant' && options.assistantSearchLevel
               ? { assistantSearchLevel: options.assistantSearchLevel }
               : {}),
-            ...(options?.requestMode !== 'assistant' && workflowIdRef.current
-              ? { workflowId: workflowIdRef.current }
-              : {}),
             // Desktop-only capabilities (local filesystem tools, browser
             // subagent) — the server gates the features on these flags.
             ...desktopChatCapabilities,
@@ -3930,14 +3900,6 @@ export function useChat(
         if (traceparent) {
           streamTraceparentRef.current = traceparent
           setCurrentChatTraceparent(traceparent)
-          const traceId = traceparent.split('-')[1] ?? ''
-          if (/^[0-9a-f]{32}$/.test(traceId)) {
-            try {
-              onRequestStartedRef.current?.({ requestId: traceId, userMessageId })
-            } catch (callbackError) {
-              logger.warn('onRequestStarted callback threw', { error: callbackError })
-            }
-          }
         }
 
         /* The message was already applied as steering in an earlier run of this chat,

@@ -1,6 +1,5 @@
 import 'server-only'
 import type { RecentItem } from '@sim/emcn-platform/recent-items'
-import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import type { IntegrationsData } from '@/platform/lib/integrations/fixture-model'
 import type { PreviewPlan } from '@/platform/lib/navigation'
 
@@ -12,15 +11,7 @@ export const FIXTURE_ORGANIZATION_ID = 'sim'
 /** The example organization's `routePrefix`: its routes live under `/o/sim`. */
 export const FIXTURE_ROUTE_PREFIX = `/o/${FIXTURE_ORGANIZATION_ID}`
 
-/** Only invoke the scenario's import on a fixture build; callers reach this module only on one. */
-function fixture<T, Args extends unknown[]>(
-  read: (scenario: Scenario, ...args: Args) => Promise<T>
-) {
-  return (scenario: Scenario, ...args: Args): Promise<T | null> =>
-    resolvePlatformMode() === 'fixture' ? read(scenario, ...args) : Promise.resolve(null)
-}
-
-export const loadShellData = fixture(async (scenario) => {
+export async function loadShellData(scenario: Scenario) {
   const [{ shellScenarios }, { conversationScenarios }] = await Promise.all([
     import('@/platform/fixtures/shell-data'),
     import('@/platform/fixtures/conversation-data'),
@@ -37,7 +28,7 @@ export const loadShellData = fixture(async (scenario) => {
     },
     chats: chat.threads.map(({ id, title }) => ({ id, title })),
   }
-})
+}
 /** A shared layout stays mounted when the fixture query changes on the client. */
 export async function loadShellScenarios() {
   const [empty, full, stress] = await Promise.all([
@@ -45,10 +36,10 @@ export async function loadShellScenarios() {
     loadShellData('full'),
     loadShellData('stress'),
   ])
-  return empty && full && stress ? { empty, full, stress } : null
+  return { empty, full, stress }
 }
 
-export const loadSettingsFixture = fixture(async (scenario, plan: PreviewPlan) => {
+export async function loadSettingsFixture(scenario: Scenario, plan: PreviewPlan) {
   const [{ settingsSurface, settingsProfile }, { BrowserSettings }, { FIXTURE_NOW }] =
     await Promise.all([
       import('@/platform/fixtures/settings/surface'),
@@ -63,12 +54,12 @@ export const loadSettingsFixture = fixture(async (scenario, plan: PreviewPlan) =
     referenceTime: FIXTURE_NOW,
     Provider: BrowserSettings,
   }
-})
-export const loadCredentialGroupsData = fixture(async (scenario) =>
-  (await import('@/platform/fixtures/credential-groups-data')).credentialGroupsData(scenario)
-)
+}
+export async function loadCredentialGroupsData(scenario: Scenario) {
+  return (await import('@/platform/fixtures/credential-groups-data')).credentialGroupsData(scenario)
+}
 
-export const loadConversationData = fixture(async (scenario) => {
+export async function loadConversationData(scenario: Scenario) {
   const [
     { conversationScenarios },
     { composerInventory, composerSkills },
@@ -99,32 +90,35 @@ export const loadConversationData = fixture(async (scenario) => {
     chat: { ...chat, composerInventory: inventory },
     workspaces: shellScenarios[scenario].workspaces,
   }
-})
-export const loadIntegrationsData = fixture(
-  async (scenario, secrets?: string | string[]): Promise<IntegrationsData> => {
-    const [{ memberIntegrations }, { memberSecretSource }, { integrationCenterData }] =
-      await Promise.all([
-        import('@/platform/fixtures/integration-data'),
-        import('@/platform/fixtures/member-secret-source'),
-        import('@/platform/fixtures/integration-center-data'),
-      ])
-    return {
-      integrations: memberIntegrations(scenario, integrationCenterData(scenario)),
-      genericSecrets: memberSecretSource(scenario, secrets),
-    }
+}
+export async function loadIntegrationsData(
+  scenario: Scenario,
+  secrets?: string | string[]
+): Promise<IntegrationsData> {
+  const [{ memberIntegrations }, { memberSecretSource }, { integrationCenterData }] =
+    await Promise.all([
+      import('@/platform/fixtures/integration-data'),
+      import('@/platform/fixtures/member-secret-source'),
+      import('@/platform/fixtures/integration-center-data'),
+    ])
+  return {
+    integrations: memberIntegrations(scenario, integrationCenterData(scenario)),
+    genericSecrets: memberSecretSource(scenario, secrets),
   }
-)
-export const loadIntegrationCenterData = fixture(async (scenario) =>
-  (await import('@/platform/fixtures/integration-center-data')).integrationCenterData(scenario)
-)
-export const loadIntegrationCatalogEntry = fixture(async (scenario, providerId?: string) => {
+}
+export async function loadIntegrationCenterData(scenario: Scenario) {
+  return (await import('@/platform/fixtures/integration-center-data')).integrationCenterData(
+    scenario
+  )
+}
+export async function loadIntegrationCatalogEntry(scenario: Scenario, providerId?: string) {
   if (scenario === 'empty' || !providerId) return null
   const { integrationCatalog } = await import('@/platform/lib/integrations/catalog.generated')
   return integrationCatalog.find((entry) => entry.id === providerId) ?? null
-})
-export const loadPanelData = fixture(
-  async (scenario) => (await import('@/platform/fixtures/panel-data')).panelScenarios[scenario]
-)
+}
+export async function loadPanelData(scenario: Scenario) {
+  return (await import('@/platform/fixtures/panel-data')).panelScenarios[scenario]
+}
 
 export async function loadHomeRecentLinks(scenario: Scenario): Promise<RecentItem[]> {
   const panel = await loadPanelData(scenario)
@@ -133,16 +127,16 @@ export async function loadHomeRecentLinks(scenario: Scenario): Promise<RecentIte
   )
 }
 
-export const loadSourceSettings = fixture(async (scenario) =>
-  (await import('@/platform/fixtures/settings-sources-data')).sourceSettings(scenario)
-)
+export async function loadSourceSettings(scenario: Scenario) {
+  return (await import('@/platform/fixtures/settings-sources-data')).sourceSettings(scenario)
+}
 
-export const loadSlackSettings = fixture(async (scenario) =>
-  (await import('@/platform/fixtures/search-slack-data')).slackSettings(scenario)
-)
-export const loadAdminExample = fixture(async (scenario) =>
-  (await import('@/platform/fixtures/settings/admin')).adminExample(scenario)
-)
+export async function loadSlackSettings(scenario: Scenario) {
+  return (await import('@/platform/fixtures/search-slack-data')).slackSettings(scenario)
+}
+export async function loadAdminExample(scenario: Scenario) {
+  return (await import('@/platform/fixtures/settings/admin')).adminExample(scenario)
+}
 
 /**
  * The shell's workspace, so example names and workflows match the sidebar. The empty scenario lists
@@ -156,60 +150,60 @@ async function shellWorkspace(scenario: Scenario, workspaceId: string) {
 }
 
 /** A workspace's heading, for a tab that has no example data of its own. */
-export const loadWorkspaceSummary = fixture(async (scenario, workspaceId: string) => {
+export async function loadWorkspaceSummary(scenario: Scenario, workspaceId: string) {
   const workspace = await shellWorkspace(scenario, workspaceId)
   if (!workspace) return null
   return (await import('@/platform/fixtures/workspace-data')).workspaceSummary(scenario, workspace)
-})
-export const loadWorkspaceDashboard = fixture(async (scenario, workspaceId: string) => {
+}
+export async function loadWorkspaceDashboard(scenario: Scenario, workspaceId: string) {
   const workspace = await shellWorkspace(scenario, workspaceId)
   if (!workspace) return null
   return (await import('@/platform/fixtures/workspace-data')).workspaceDashboard(
     scenario,
     workspace
   )
-})
-export const loadWorkspaceIssues = fixture(async (scenario, workspaceId: string) => {
+}
+export async function loadWorkspaceIssues(scenario: Scenario, workspaceId: string) {
   const workspace = await shellWorkspace(scenario, workspaceId)
   if (!workspace) return null
   return (await import('@/platform/fixtures/workspace-data')).workspaceIssues(scenario, workspace)
-})
-export const loadWorkspaceIssue = fixture(
-  async (scenario, workspaceId: string, issueId: string) => {
-    const workspace = await shellWorkspace(scenario, workspaceId)
-    if (!workspace) return null
-    return (await import('@/platform/fixtures/workspace-data')).workspaceIssue(
-      scenario,
-      workspace,
-      issueId
-    )
-  }
-)
-export const loadWorkspaceChangelog = fixture(async (scenario, workspaceId: string) => {
+}
+export async function loadWorkspaceIssue(scenario: Scenario, workspaceId: string, issueId: string) {
+  const workspace = await shellWorkspace(scenario, workspaceId)
+  if (!workspace) return null
+  return (await import('@/platform/fixtures/workspace-data')).workspaceIssue(
+    scenario,
+    workspace,
+    issueId
+  )
+}
+export async function loadWorkspaceChangelog(scenario: Scenario, workspaceId: string) {
   const workspace = await shellWorkspace(scenario, workspaceId)
   if (!workspace) return null
   return (await import('@/platform/fixtures/workspace-data')).workspaceChangelog(
     scenario,
     workspace
   )
-})
-export const loadWorkspaceChangelogEntry = fixture(
-  async (scenario, workspaceId: string, entryId: string) => {
-    const workspace = await shellWorkspace(scenario, workspaceId)
-    if (!workspace) return null
-    return (await import('@/platform/fixtures/workspace-data')).workspaceChangelogEntry(
-      scenario,
-      workspace,
-      entryId
-    )
-  }
-)
-export const loadWorkspaceRuns = fixture(async (scenario, workspaceId: string) => {
+}
+export async function loadWorkspaceChangelogEntry(
+  scenario: Scenario,
+  workspaceId: string,
+  entryId: string
+) {
+  const workspace = await shellWorkspace(scenario, workspaceId)
+  if (!workspace) return null
+  return (await import('@/platform/fixtures/workspace-data')).workspaceChangelogEntry(
+    scenario,
+    workspace,
+    entryId
+  )
+}
+export async function loadWorkspaceRuns(scenario: Scenario, workspaceId: string) {
   const workspace = await shellWorkspace(scenario, workspaceId)
   if (!workspace) return null
   return (await import('@/platform/fixtures/workspace-data')).workspaceRuns(scenario, workspace)
-})
-export const loadWorkspaceRun = fixture(async (scenario, workspaceId: string, runId: string) => {
+}
+export async function loadWorkspaceRun(scenario: Scenario, workspaceId: string, runId: string) {
   const workspace = await shellWorkspace(scenario, workspaceId)
   if (!workspace) return null
   return (await import('@/platform/fixtures/workspace-data')).workspaceRun(
@@ -217,4 +211,4 @@ export const loadWorkspaceRun = fixture(async (scenario, workspaceId: string, ru
     workspace,
     runId
   )
-})
+}

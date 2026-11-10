@@ -16,7 +16,6 @@ import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { useChatSurface } from '@/components/mothership-chat/chat-surface-context'
 import {
-  AnimatedPlaceholderEffect,
   AttachedFilesList,
   DropOverlay,
   MicButton,
@@ -63,9 +62,6 @@ interface UserInputProps {
   resourceActions?: React.ReactNode
   toolbarActions?: React.ReactNode
   modelSelectorOptions?: ModelSelectorOptions
-  requestMode?: 'agent' | 'plan'
-  onPlanChange?: () => void
-  defaultValue?: string
   draftScopeKey?: string
   /** Returning false synchronously preserves the draft when a surface rejects submission. */
   onSubmit: (
@@ -75,7 +71,6 @@ interface UserInputProps {
   ) => unknown
   isSending: boolean
   onStopGeneration: () => void
-  isInitialView?: boolean
   getMessages?: () => readonly ChatMessage[]
 }
 
@@ -100,35 +95,27 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     resourceActions,
     toolbarActions,
     modelSelectorOptions,
-    requestMode = 'agent',
-    onPlanChange,
-    defaultValue = '',
     draftScopeKey,
     onSubmit,
     isSending,
     onStopGeneration,
-    isInitialView = true,
     getMessages,
   },
   ref
 ) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { navigateToSettings } = useSettingsNavigation()
-  const { userId, onContextAdd, onContextRemove } = useChatSurface()
+  const { userId } = useChatSurface()
   // Server HTML cannot see the stored draft; hydration renders without it and the mount restore applies it.
   const canReadStoredDraft = useHydrated()
   const [initialValue] = useState(() => {
-    if (defaultValue) return defaultValue
     if (!canReadStoredDraft || !draftScopeKey) return ''
     const text = useMothershipDraftsStore.getState().drafts[draftScopeKey]?.text
     return typeof text === 'string' ? text : ''
   })
 
-  const prevDefaultValueRef = useRef(defaultValue)
-
   const { pending: preparingSubmission, accept: acceptSubmission } = useComposerSubmission({
     scope: draftScopeKey,
-    mode: requestMode,
   })
   const files = useFileAttachments({
     fileDropTarget,
@@ -149,7 +136,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   const editor = usePromptEditor({
     workspaceId,
     initialValue,
-    onContextAdd,
     onPasteFiles: handlePasteFiles,
   })
   const history = usePromptHistory({
@@ -285,66 +271,12 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     []
   )
 
-  const onContextRemoveRef = useRef(onContextRemove)
-  onContextRemoveRef.current = onContextRemove
-
-  const prevSelectedContextsRef = useRef<ChatContext[]>([])
-  useEffect(() => {
-    const prev = prevSelectedContextsRef.current
-    const curr = editor.contexts
-    const contextId = (ctx: ChatContext): string => {
-      switch (ctx.kind) {
-        case 'browser_page':
-          return `browser_page:${ctx.snapshot.id}`
-        case 'workflow':
-        case 'current_workflow':
-          return `${ctx.kind}:${ctx.workflowId}`
-        case 'knowledge':
-          return `knowledge:${ctx.knowledgeId ?? ''}`
-        case 'table':
-          return `table:${ctx.tableId}`
-        case 'dashboard':
-          return `dashboard:${ctx.dashboardId}`
-        case 'file':
-          return `file:${ctx.fileId}`
-        case 'folder':
-          return `folder:${ctx.folderId}`
-        case 'past_chat':
-          return `past_chat:${ctx.chatId}`
-        default:
-          return `${ctx.kind}:${ctx.label}`
-      }
-    }
-    const removed = prev.filter((p) => !curr.some((c) => contextId(c) === contextId(p)))
-    if (removed.length > 0) removed.forEach((ctx) => onContextRemoveRef.current?.(ctx, curr))
-    prevSelectedContextsRef.current = curr
-  }, [editor.contexts])
-
   const hasAdditionalAttachments = Boolean(attachments)
   const chatPlanRequired = useChatPlanRequired()
   const canSubmit =
     (editor.value.trim().length > 0 || hasFiles || hasAdditionalAttachments) &&
     !isSending &&
     !hasUploadingFiles
-
-  /**
-   * Sync the editor when the `defaultValue` prop changes post-mount — e.g.
-   * the user clicks a different template while UserInput is already mounted.
-   * `setValue` chipifies integration `@`-mentions consistently with the
-   * paste / draft restore flows.
-   *
-   * Deliberately does NOT run `mentionifyIntegrations` here: `defaultValue` is
-   * seeded from `LandingPromptStorage`, whose producers include the free-form
-   * landing prompt panel as well as curated CTAs. Curated producers opt their
-   * bare names in at the store seam (`storeCuratedPrompt`), so prose seeded here
-   * is never bare-chipped (the scunthorpe constraint).
-   * An empty seed must not erase what the user has typed.
-   */
-  useEffect(() => {
-    if (defaultValue === prevDefaultValueRef.current) return
-    prevDefaultValueRef.current = defaultValue
-    if (defaultValue) editorRef.current.setValue(defaultValue)
-  }, [defaultValue])
 
   function handleUsageLimitExceeded(message?: string, isMemberLimit?: boolean) {
     // A per-member cap can only be raised by an org admin, so don't offer Upgrade
@@ -386,9 +318,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       populatePrompt: (text: string) => {
         // `text` is a curated prompt, so opt its bare integration names into
         // `@`-mention form before chipification (the auto-mention pipeline only
-        // chips already-`@`-prefixed names). Curated prompts arriving via the
-        // `defaultValue` seed are mentionified at their producer instead, since
-        // that path is also reused for free-form landing prose.
+        // chips already-`@`-prefixed names).
         editorRef.current.setValue(mentionifyIntegrations(text))
         editorRef.current.focusAtEnd()
       },
@@ -502,8 +432,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     if (draftScopeKeyRef.current) {
       useMothershipDraftsStore.getState().clearDraft(draftScopeKeyRef.current)
     }
-    /** The chips are gone with the text, and clearing is not a removal to report. */
-    prevSelectedContextsRef.current = []
     resetTranscript()
     filesRef.current.clearAttachedFiles()
     filesRef.current = { ...filesRef.current, attachedFiles: [] }
@@ -584,8 +512,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       }}
       className={cn(
         'relative z-10 mx-auto w-full max-w-chat cursor-text rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
-        inter.className,
-        isInitialView && 'shadow-ambient'
+        inter.className
       )}
       aria-busy={preparingSubmission || undefined}
       inert={preparingSubmission}
@@ -594,8 +521,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       onDragOver={handleContainerDragOver}
       onDrop={handleContainerDrop}
     >
-      <AnimatedPlaceholderEffect textareaRef={textareaRef} isInitialView={isInitialView} />
-
       <AttachedFilesList
         attachedFiles={files.attachedFiles}
         additionalAttachments={attachments}
@@ -607,17 +532,13 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
         editor={editor}
         resourceActions={resourceActions}
         aria-label='Message'
-        placeholder='Ask Sim to '
+        placeholder='Send message to Sim'
         onSubmit={handleEnterSubmit}
         onNavigateHistory={hasAdditionalAttachments ? undefined : history.navigate}
-        className={cn(
-          'max-h-[200px] max-md:max-h-[min(200px,calc(var(--mobile-viewport-height,100dvh)*0.25))]',
-          isInitialView && 'min-h-[56px] max-md:min-h-0'
-        )}
+        className='max-h-[200px] max-md:max-h-[min(200px,calc(var(--mobile-viewport-height,100dvh)*0.25))]'
       />
 
       <InputToolbar
-        plan={requestMode === 'plan'}
         leadingControls={
           <>
             <Tooltip.Root>
@@ -654,16 +575,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
               <Tooltip.Content side='top'>Skills</Tooltip.Content>
             </Tooltip.Root>
             {toolbarActions}
-            {onPlanChange && (
-              <Chip
-                shape='round'
-                active={requestMode === 'plan'}
-                aria-pressed={requestMode === 'plan'}
-                onClick={onPlanChange}
-              >
-                Plan
-              </Chip>
-            )}
           </>
         }
         modelSelectorOptions={modelSelectorOptions}

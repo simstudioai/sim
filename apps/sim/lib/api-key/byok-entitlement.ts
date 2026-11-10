@@ -82,8 +82,11 @@ export async function isOrganizationBYOKEntitledCached(organizationId: string): 
    * outage distinguishable, since the resolver otherwise maps a failed read to
    * `false` exactly like a real lapse.
    */
-  const entitled = await coalesceLocally(`byok-entitlement:${organizationId}`, () =>
-    resolveOrganizationPlan(organizationId, { onError: 'throw' })
+  const entitled = await coalesceLocally(
+    `byok-entitlement:${organizationId}`,
+    async () =>
+      (await isTeamOrganization(organizationId)) &&
+      (await resolveOrganizationPlan(organizationId, { onError: 'throw' }))
   )
   entitlementCache.set(organizationId, entitled)
   return entitled

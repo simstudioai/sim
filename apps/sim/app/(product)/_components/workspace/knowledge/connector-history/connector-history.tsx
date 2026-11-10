@@ -2,8 +2,8 @@
 
 import { FailureNotice } from '@sim/emcn/status'
 import styles from '@/app/(product)/_components/workspace/knowledge/connector-history/connector-history.module.css'
-import { useMinuteClock } from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
 import { useViewerTimeZone } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
+import { useMinuteClock } from '@/platform/lib/data/clock'
 import {
   CONNECTOR_SYNC_STALE_LOCK_TTL_MS,
   type ConnectorData,
@@ -13,7 +13,7 @@ import {
   type SyncLogData,
   useConnectorDetail,
 } from '@/platform/lib/data/knowledge/connectors'
-import { formatRelativeTime, formatTimestamp } from '@/platform/shared/time'
+import { formatRelativeTime, formatTimestamp, LOCALE } from '@/platform/shared/time'
 
 type LogState = 'running' | 'interrupted' | 'failed' | 'completed' | 'partial' | 'continuing'
 
@@ -30,10 +30,10 @@ const LOG_LABELS: Record<LogState, string> = {
 function logState(
   log: Pick<SyncLogData, 'status' | 'startedAt'>,
   ttl: number,
-  now: number
+  now: number | null
 ): LogState {
   if (log.status !== 'started') return log.status
-  return now - new Date(log.startedAt).getTime() > ttl ? 'interrupted' : 'running'
+  return now !== null && now - new Date(log.startedAt).getTime() > ttl ? 'interrupted' : 'running'
 }
 
 /** How long until a future run, at the coarsest unit that says it. */
@@ -47,7 +47,7 @@ function untilLabel(ms: number) {
 }
 
 function counted(count: number, one: string, many: string) {
-  return `${count.toLocaleString()} ${count === 1 ? one : many}`
+  return `${count.toLocaleString(LOCALE)} ${count === 1 ? one : many}`
 }
 
 interface LogRowProps {
@@ -83,7 +83,7 @@ function LogRow({ startedAt, state, description, notice }: LogRowProps) {
   )
 }
 
-function SyncLogs({ logs, now }: { logs: SyncLogData[]; now: number }) {
+function SyncLogs({ logs, now }: { logs: SyncLogData[]; now: number | null }) {
   if (logs.length === 0)
     return (
       <p className={styles.empty} data-type='T060'>
@@ -135,7 +135,7 @@ interface MemberLogsProps {
   logs: MemberSyncLogData[]
   suspended: number
   stale: number
-  now: number
+  now: number | null
 }
 
 /** Several partial member runs can form one drain; they are not failed syncs. */
@@ -229,7 +229,7 @@ export function ConnectorHistory({ knowledgeBaseId, connector }: ConnectorHistor
   const now = useMinuteClock()
   const nextAt = state.nextSyncAt ? new Date(state.nextSyncAt).getTime() : null
   const nextSync =
-    nextAt !== null && connector.status === 'active' && !state.syncInFlight
+    nextAt !== null && now !== null && connector.status === 'active' && !state.syncInFlight
       ? nextAt <= now
         ? 'Next sync pending'
         : `Next sync ${untilLabel(nextAt - now)}`

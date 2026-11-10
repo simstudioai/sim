@@ -185,10 +185,6 @@ export interface StreamLoopDeps {
   activeTurnRef: MutableRefObject<ActiveTurn | null>
   resourcesRef: MutableRefObject<MothershipResource[]>
   activeResourceIdRef: MutableRefObject<string | null>
-  onTitleUpdateRef: MutableRefObject<(() => void) | undefined>
-  onToolResultRef: MutableRefObject<
-    ((toolName: string, success: boolean, result: unknown) => void) | undefined
-  >
   onResourceEventRef: MutableRefObject<ResourceEventHandler | undefined>
   previewSessionRef: MutableRefObject<FilePreviewSession | null>
   previewSessionsRef: MutableRefObject<Record<string, FilePreviewSession>>

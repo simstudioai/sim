@@ -125,7 +125,6 @@ interface ConnectServiceAccountModalProps {
   organizationId?: string
   serviceAccountProviderId: ServiceAccountProviderId
   atlassianProduct?: AtlassianProduct
-  atlassianSetupGuideUrl?: string
   serviceName: string
   serviceIcon: ComponentType<{ className?: string }>
   /**
@@ -136,8 +135,6 @@ interface ConnectServiceAccountModalProps {
   credentialId?: string
   /** Existing display name, used to seed reconnect-capable modals. */
   credentialDisplayName?: string
-  /** Existing description, used to seed reconnect-capable modals. */
-  credentialDescription?: string
   /** Called with the new credential id after a successful create (token-paste providers). */
   onCreated?: (credentialId: string) => void
   onSubmitCredentials?: (
@@ -167,12 +164,10 @@ export function ConnectServiceAccountModal({
   organizationId,
   serviceAccountProviderId,
   atlassianProduct,
-  atlassianSetupGuideUrl,
   serviceName,
   serviceIcon,
   credentialId,
   credentialDisplayName,
-  credentialDescription,
   onCreated,
   onSubmitCredentials,
   submitPending,
@@ -187,7 +182,6 @@ export function ConnectServiceAccountModal({
         serviceIcon={serviceIcon}
         credentialId={credentialId}
         initialDisplayName={credentialDisplayName}
-        initialDescription={credentialDescription}
         onCreated={onCreated}
       />
     )
@@ -207,7 +201,6 @@ export function ConnectServiceAccountModal({
         serviceIcon={serviceIcon}
         credentialId={credentialId}
         initialDisplayName={credentialDisplayName}
-        initialDescription={credentialDescription}
         onCreated={onCreated}
       />
     )
@@ -227,7 +220,6 @@ export function ConnectServiceAccountModal({
         serviceIcon={serviceIcon}
         credentialId={credentialId}
         initialDisplayName={credentialDisplayName}
-        initialDescription={credentialDescription}
         onCreated={onCreated}
       />
     )
@@ -241,7 +233,6 @@ export function ConnectServiceAccountModal({
         organizationId={organizationId}
         credentialId={credentialId}
         initialDisplayName={credentialDisplayName}
-        initialDescription={credentialDescription}
         onCreated={onCreated}
       />
     )
@@ -250,7 +241,6 @@ export function ConnectServiceAccountModal({
     return (
       <AtlassianServiceAccountModal
         atlassianProduct={atlassianProduct}
-        setupGuideUrl={atlassianSetupGuideUrl}
         open={open}
         onOpenChange={onOpenChange}
         workspaceId={workspaceId}
@@ -259,7 +249,6 @@ export function ConnectServiceAccountModal({
         serviceIcon={serviceIcon}
         credentialId={credentialId}
         initialDisplayName={credentialDisplayName}
-        initialDescription={credentialDescription}
         onCreated={onCreated}
       />
     )
@@ -276,7 +265,6 @@ export function ConnectServiceAccountModal({
         serviceIcon={serviceIcon}
         credentialId={credentialId}
         initialDisplayName={credentialDisplayName}
-        initialDescription={credentialDescription}
         onCreated={onCreated}
       />
     )
@@ -291,7 +279,6 @@ export function ConnectServiceAccountModal({
       serviceIcon={serviceIcon}
       credentialId={credentialId}
       initialDisplayName={credentialDisplayName}
-      initialDescription={credentialDescription}
       onCreated={onCreated}
     />
   )
@@ -306,9 +293,8 @@ interface ProviderModalProps {
   serviceIcon: ComponentType<{ className?: string }>
   /** When set, reconnect (rotate secrets on) this credential in place. */
   credentialId?: string
-  /** Existing name/description, seeded into the fields on reconnect. */
+  /** Existing name, seeded into the field on reconnect. */
   initialDisplayName?: string
-  initialDescription?: string
   /** Called with the credential id after a successful create or reconnect. */
   onCreated?: (credentialId: string) => void
 }
@@ -322,7 +308,6 @@ function OciApiKeyServiceAccountModal({
   serviceIcon: ServiceIcon,
   credentialId,
   initialDisplayName,
-  initialDescription,
   onCreated,
 }: ProviderModalProps) {
   const [tenancyOcid, setTenancyOcid] = useState('')
@@ -332,7 +317,7 @@ function OciApiKeyServiceAccountModal({
   const [privateKeyPassphrase, setPrivateKeyPassphrase] = useState('')
   const [region, setRegion] = useState('')
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
-  const [description, setDescription] = useState(initialDescription ?? '')
+  const [description, setDescription] = useState('')
   const [error, setError] = useState<string | null>(null)
   const createCredential = useCreateScopedCredential()
   const updateCredential = useUpdateScopedCredential()
@@ -548,13 +533,12 @@ function GoogleServiceAccountModalForm({
   serviceIcon: ServiceIcon,
   credentialId,
   initialDisplayName,
-  initialDescription,
   onCreated,
 }: ProviderModalProps) {
   const [jsonInput, setJsonInput] = useState('')
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
-  const [description, setDescription] = useState(initialDescription ?? '')
+  const [description, setDescription] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const createCredential = useCreateScopedCredential()
@@ -720,7 +704,6 @@ function GoogleServiceAccountModalForm({
 
 interface AtlassianServiceAccountModalProps extends ProviderModalProps {
   atlassianProduct?: AtlassianProduct
-  setupGuideUrl?: string
 }
 
 /**
@@ -741,7 +724,6 @@ function AtlassianServiceAccountModal(props: AtlassianServiceAccountModalProps) 
 
 function AtlassianServiceAccountModalForm({
   atlassianProduct,
-  setupGuideUrl = ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL,
   open,
   onOpenChange,
   workspaceId,
@@ -750,13 +732,12 @@ function AtlassianServiceAccountModalForm({
   serviceIcon: ServiceIcon,
   credentialId,
   initialDisplayName,
-  initialDescription,
   onCreated,
 }: AtlassianServiceAccountModalProps) {
   const [apiToken, setApiToken] = useState('')
   const [domain, setDomain] = useState('')
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
-  const [description, setDescription] = useState(initialDescription ?? '')
+  const [description, setDescription] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const createCredential = useCreateScopedCredential()
@@ -889,7 +870,7 @@ function AtlassianServiceAccountModalForm({
         secondaryActions={[
           {
             label: 'Setup guide',
-            onClick: () => openDocs(setupGuideUrl),
+            onClick: () => openDocs(ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL),
           },
         ]}
         primaryAction={{

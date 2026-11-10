@@ -16,11 +16,6 @@ import {
 import { useCurrentWorkflow } from '@/components/workflow-editor/hooks/use-current-workflow'
 import { getRunFromBlockDependencyState } from '@/components/workflow-editor/utils/run-from-block'
 import {
-  type UploadedWorkflowAttachment,
-  uploadWorkflowAttachments,
-  type WorkflowAttachmentInput,
-} from '@/components/workflow-editor/utils/workflow-attachment-upload'
-import {
   addHttpErrorConsoleEntry,
   type BlockEventHandlerConfig,
   createBlockEventHandlers,
@@ -37,7 +32,6 @@ import {
   subscribeToRunToolRelease,
 } from '@/lib/mothership/tools/client/run-tool-execution'
 import { toast } from '@/lib/toast/sink'
-import { processStreamingBlockLogs } from '@/lib/tokenization'
 import type {
   ExecutionPausedData,
   StreamDoneData,
@@ -46,15 +40,11 @@ import type {
 } from '@/lib/workflows/executor/execution-events'
 import { collectInputFormatFiles, isFileFieldType } from '@/lib/workflows/input-format'
 import { resolveManualRunEntry } from '@/lib/workflows/triggers/manual-run'
-import {
-  resolveStartCandidates,
-  StartBlockPath,
-  TriggerUtils,
-} from '@/lib/workflows/triggers/triggers'
+import { resolveStartCandidates, StartBlockPath } from '@/lib/workflows/triggers/triggers'
 import { extractTriggerMockPayload, triggerNeedsMockPayload } from '@/lib/workflows/triggers/utils'
 import { getBlock } from '@/blocks'
 import type { SerializableExecutionState } from '@/executor/execution/types'
-import type { BlockLog, BlockState, ExecutionResult, StreamingExecution } from '@/executor/types'
+import type { BlockLog, BlockState, ExecutionResult } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { coerceValue } from '@/executor/utils/start-block'
 import { scheduleUsageRefresh } from '@/hooks/queries/utils/invalidate-usage'
@@ -176,28 +166,6 @@ function normalizeErrorMessage(error: unknown): string {
   }
 
   return WORKFLOW_EXECUTION_FAILURE_MESSAGE
-}
-
-interface ChatWorkflowInput {
-  input: unknown
-  files?: WorkflowAttachmentInput[]
-}
-
-function isChatWorkflowInput(value: unknown): value is ChatWorkflowInput {
-  return isRecordLike(value) && 'input' in value
-}
-
-export interface ChatWorkflowRunResult {
-  success: true
-  stream: ReadableStream<Uint8Array>
-  uploadedAttachments: UploadedWorkflowAttachment[]
-}
-
-export class WorkflowAttachmentUploadError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'WorkflowAttachmentUploadError'
-  }
 }
 
 /**
@@ -473,7 +441,6 @@ export function useWorkflowExecution() {
   const executionStream = useExecutionStream()
   const { execute: executeWorkflowStream, executeFromBlock: executeWorkflowFromBlockStream } =
     executionStream
-  const currentChatExecutionIdRef = useRef<string | null>(null)
   const runFromBlockOwnerRef = useRef<string | null>(null)
   const lastSeenEventIdRef = useRef<number>(0)
   const isViewingDiff = useWorkflowDiffStore((state) => state.isShowingDiff)
@@ -653,7 +620,7 @@ export function useWorkflowExecution() {
   )
 
   const handleRunWorkflow = useCallback(
-    async (workflowInput?: unknown, enableDebug = false) => {
+    async (enableDebug = false) => {
       if (!activeWorkflowId) return
 
       const scopedWorkspaceId = hydrationWorkspaceId ?? undefined
@@ -676,267 +643,12 @@ export function useWorkflowExecution() {
         setIsDebugging(activeWorkflowId, true)
       }
 
-      const isChatExecution = isChatWorkflowInput(workflowInput)
-
-      if (isChatExecution) {
-        let isCancelled = false
-        const executionId = generateId()
-        let preserveChatExecutionForRecovery = false
-        let preparedWorkflowInput: unknown = workflowInput
-        let uploadedAttachments: UploadedWorkflowAttachment[] = []
-
-        if (workflowInput.files && workflowInput.files.length > 0) {
-          try {
-            uploadedAttachments = await uploadWorkflowAttachments({
-              files: workflowInput.files,
-              workspaceId,
-              workflowId: activeWorkflowId,
-              executionId,
-            })
-            preparedWorkflowInput = { ...workflowInput, files: uploadedAttachments }
-          } catch (error) {
-            const message = getErrorMessage(error, 'Unexpected error uploading files')
-            logger.error('Error uploading workflow attachments', { message })
-            currentChatExecutionIdRef.current = null
-            finishOwnedExecution(activeWorkflowId, persistenceExecution)
-            setIsDebugging(activeWorkflowId, false)
-            setActiveBlocks(activeWorkflowId, new Set())
-            throw new WorkflowAttachmentUploadError(message)
-          }
-        }
-
-        currentChatExecutionIdRef.current = executionId
-        const stream = new ReadableStream({
-          async start(controller) {
-            const { encodeSSE } = await import('@/lib/core/utils/sse')
-            const streamedChunks = new Map<string, string[]>()
-            const streamReadingPromises: Promise<void>[] = []
-
-            const safeEnqueue = (data: Uint8Array) => {
-              if (!isCancelled) {
-                try {
-                  controller.enqueue(data)
-                } catch {
-                  isCancelled = true
-                }
-              }
-            }
-
-            const streamCompletionTimes = new Map<string, number>()
-            const processedFirstChunk = new Set<string>()
-
-            const onStream = async (streamingExecution: StreamingExecution) => {
-              const promise = (async () => {
-                if (!streamingExecution.stream) return
-                const reader = streamingExecution.stream.getReader()
-                const blockId = (streamingExecution.execution as any)?.blockId
-
-                if (blockId && !streamedChunks.has(blockId)) {
-                  streamedChunks.set(blockId, [])
-                }
-
-                try {
-                  while (true) {
-                    const { done, value } = await reader.read()
-                    if (done) {
-                      if (blockId) {
-                        streamCompletionTimes.set(blockId, Date.now())
-                      }
-                      break
-                    }
-                    const chunk = new TextDecoder().decode(value)
-                    if (blockId) {
-                      streamedChunks.get(blockId)!.push(chunk)
-                    }
-
-                    let chunkToSend = chunk
-                    if (blockId && !processedFirstChunk.has(blockId)) {
-                      processedFirstChunk.add(blockId)
-                      if (streamedChunks.size > 1) {
-                        chunkToSend = `\n\n${chunk}`
-                      }
-                    }
-
-                    safeEnqueue(encodeSSE({ blockId, chunk: chunkToSend }))
-                  }
-                } catch (error) {
-                  logger.error('Error reading from stream:', error)
-                  controller.error(error)
-                }
-              })()
-              streamReadingPromises.push(promise)
-            }
-
-            /**
-             * Intermediate-turn reconciliation: drop the block's streamed text
-             * (chunk_reset frame) and remove its bookkeeping entirely so
-             * separator counting ignores it and the final turn (or, if none
-             * re-streams, onBlockComplete's output fallback) starts clean.
-             */
-            const onStreamReset = (blockId: string) => {
-              if (!streamedChunks.has(blockId)) return
-              streamedChunks.delete(blockId)
-              processedFirstChunk.delete(blockId)
-              safeEnqueue(encodeSSE({ blockId, event: 'chunk_reset' }))
-            }
-
-            // Handle non-streaming blocks (like Function blocks)
-            const onBlockComplete = async (blockId: string, output: any) => {
-              // Skip if this block already had streaming content (avoid duplicates)
-              if (streamedChunks.has(blockId)) {
-                logger.debug('[handleRunWorkflow] Skipping onBlockComplete for streaming block', {
-                  blockId,
-                })
-                return
-              }
-
-              const chatStore = await import('@/stores/chat/store').then((mod) => mod.useChatStore)
-              const selectedOutputs = chatStore
-                .getState()
-                .getSelectedWorkflowOutput(activeWorkflowId)
-
-              if (!selectedOutputs?.length) return
-
-              const { extractBlockIdFromOutputId, extractPathFromOutputId, traverseObjectPath } =
-                await import('@/lib/core/utils/response-format')
-
-              const matchingOutputs = selectedOutputs.filter(
-                (outputId) => extractBlockIdFromOutputId(outputId) === blockId
-              )
-
-              if (!matchingOutputs.length) return
-
-              for (const outputId of matchingOutputs) {
-                const path = extractPathFromOutputId(outputId, blockId)
-                const outputValue = traverseObjectPath(output, path)
-
-                if (outputValue !== undefined) {
-                  const formattedOutput =
-                    typeof outputValue === 'string'
-                      ? outputValue
-                      : JSON.stringify(outputValue, null, 2)
-
-                  const separator = streamedChunks.size > 0 ? '\n\n' : ''
-
-                  safeEnqueue(encodeSSE({ blockId, chunk: separator + formattedOutput }))
-
-                  streamedChunks.set(blockId, [formattedOutput])
-                }
-              }
-            }
-
-            try {
-              const result = await executeWorkflow(
-                preparedWorkflowInput,
-                onStream,
-                executionId,
-                onBlockComplete,
-                'chat',
-                undefined,
-                onStreamReset,
-                persistenceExecution
-              )
-
-              if (result && 'status' in result && result.status === 'cancelled') {
-                safeEnqueue(encodeSSE({ event: 'cancelled', data: result }))
-                return
-              }
-
-              await Promise.all(streamReadingPromises)
-
-              if (result && 'success' in result) {
-                if (!result.metadata) {
-                  result.metadata = { duration: 0, startTime: new Date().toISOString() }
-                }
-                ;(result.metadata as any).source = 'chat'
-
-                // Update block logs with actual stream completion times
-                if (result.logs && streamCompletionTimes.size > 0) {
-                  result.logs.forEach((log: BlockLog) => {
-                    if (streamCompletionTimes.has(log.blockId)) {
-                      const completionTime = streamCompletionTimes.get(log.blockId)!
-                      const startTime = new Date(log.startedAt).getTime()
-
-                      log.endedAt = new Date(completionTime).toISOString()
-                      log.durationMs = completionTime - startTime
-                    }
-                  })
-                }
-
-                const streamedContent = new Map<string, string>()
-                for (const [id, chunks] of streamedChunks) {
-                  streamedContent.set(id, chunks.join(''))
-                }
-
-                if (result.logs) {
-                  const processedCount = processStreamingBlockLogs(result.logs, streamedContent)
-                  logger.info(`Processed ${processedCount} blocks for streaming tokenization`)
-                }
-
-                scheduleUsageRefresh(queryClient)
-
-                safeEnqueue(encodeSSE({ event: 'final', data: result }))
-                // Note: Logs are already persisted server-side via execution-core.ts
-              }
-            } catch (error: any) {
-              if (isRecoverableStreamRecoveryError(error)) {
-                preserveChatExecutionForRecovery = true
-                logger.warn('Chat workflow stream interrupted; waiting for reconnect replay', {
-                  workflowId: activeWorkflowId,
-                  executionId: error.executionId,
-                  error: error.message,
-                })
-                return
-              }
-              const errorResult = {
-                success: false,
-                error: error.message || 'Workflow execution failed',
-                output: {},
-                logs: [],
-                metadata: {
-                  duration: 0,
-                  startTime: new Date().toISOString(),
-                  source: 'chat' as const,
-                },
-              }
-
-              // Send the error as final event so downstream handlers can treat it uniformly
-              safeEnqueue(encodeSSE({ event: 'final', data: errorResult }))
-
-              // Do not error the controller to allow consumers to process the final event
-            } finally {
-              if (!isCancelled) {
-                controller.close()
-              }
-              if (
-                !preserveChatExecutionForRecovery &&
-                currentChatExecutionIdRef.current === executionId
-              ) {
-                finishOwnedExecution(activeWorkflowId, persistenceExecution)
-                setIsDebugging(activeWorkflowId, false)
-                setActiveBlocks(activeWorkflowId, new Set())
-              }
-            }
-          },
-          cancel() {
-            isCancelled = true
-          },
-        })
-        return { success: true, stream, uploadedAttachments } satisfies ChatWorkflowRunResult
-      }
-
       const manualExecutionId = generateId()
       try {
-        const result = await executeWorkflow(
-          workflowInput,
-          undefined,
-          manualExecutionId,
-          undefined,
-          'manual',
-          undefined,
-          undefined,
-          persistenceExecution
-        )
+        const result = await executeWorkflow({
+          executionId: manualExecutionId,
+          persistenceExecution,
+        })
         if (result && 'metadata' in result && result.metadata?.isDebugSession) {
           setDebugContext(activeWorkflowId, result.metadata.context || null)
           if (result.metadata.pendingBlocks) {
@@ -972,16 +684,15 @@ export function useWorkflowExecution() {
     ]
   )
 
-  const executeWorkflow = async (
-    workflowInput?: any,
-    onStream?: (se: StreamingExecution) => Promise<void>,
-    executionId?: string,
-    onBlockComplete?: (blockId: string, output: any) => Promise<void>,
-    overrideTriggerType?: 'chat' | 'manual' | 'api',
-    stopAfterBlockId?: string,
-    onStreamReset?: (blockId: string) => void,
-    persistenceExecution?: ConsolePersistenceExecution
-  ): Promise<ExecutionResult | StreamingExecution> => {
+  const executeWorkflow = async ({
+    executionId,
+    stopAfterBlockId,
+    persistenceExecution,
+  }: {
+    executionId: string
+    stopAfterBlockId?: string
+    persistenceExecution: ConsolePersistenceExecution
+  }): Promise<ExecutionResult> => {
     // Use diff workflow for execution when available, regardless of canvas view state
     const executionWorkflowState = null as {
       blocks?: any
@@ -1010,14 +721,11 @@ export function useWorkflowExecution() {
       {} as typeof workflowBlocks
     )
 
-    const isExecutingFromChat = overrideTriggerType === 'chat'
-
     logger.info('Executing workflow', {
       isDiffMode: currentWorkflow.isDiffMode,
       usingDiffForExecution,
       isViewingDiff,
       executingDiffWorkflow: usingDiffForExecution && isViewingDiff,
-      isExecutingFromChat,
       totalBlocksCount: Object.keys(workflowBlocks).length,
       validBlocksCount: Object.keys(validBlocks).length,
       edgesCount: workflowEdges.length,
@@ -1061,68 +769,40 @@ export function useWorkflowExecution() {
       {} as typeof filteredStates
     )
 
-    let selectedOutputs: string[] | undefined
-    if (isExecutingFromChat && activeWorkflowId) {
-      const chatStore = await import('@/stores/chat/store').then((mod) => mod.useChatStore)
-      selectedOutputs = chatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
+    const entry = resolveManualRunEntry(enabledStates, workflowEdges)
+    if (!entry.ok) {
+      logger.error('Manual run has no valid entry', {
+        reason: entry.issue.reason,
+        startBlockId: entry.issue.blockId,
+        allBlockTypes: Object.values(enabledStates).map((b) => b.type),
+      })
+      if (activeWorkflowId) finishOwnedExecution(activeWorkflowId, persistenceExecution)
+      throw new WorkflowValidationError(
+        entry.issue.message,
+        'validation',
+        'validation',
+        'Workflow Validation'
+      )
     }
 
-    let startBlockId: string
-    let finalWorkflowInput = workflowInput
+    const selectedCandidate = entry.candidate
+    const startBlockId = selectedCandidate.blockId
+    const selectedTrigger = selectedCandidate.block
 
-    if (isExecutingFromChat) {
-      const startBlock = TriggerUtils.findStartBlock(enabledStates, 'chat')
-
-      if (!startBlock) {
-        throw new WorkflowValidationError(
-          TriggerUtils.getTriggerValidationMessage('chat', 'missing'),
-          'validation',
-          'validation',
-          'Workflow Validation'
-        )
-      }
-
-      startBlockId = startBlock.blockId
-    } else {
-      const entry = resolveManualRunEntry(enabledStates, workflowEdges)
-      if (!entry.ok) {
-        logger.error('Manual run has no valid entry', {
-          reason: entry.issue.reason,
-          startBlockId: entry.issue.blockId,
-          allBlockTypes: Object.values(enabledStates).map((b) => b.type),
-        })
-        if (activeWorkflowId) finishOwnedExecution(activeWorkflowId, persistenceExecution)
-        throw new WorkflowValidationError(
-          entry.issue.message,
-          'validation',
-          'validation',
-          'Workflow Validation'
-        )
-      }
-
-      const selectedCandidate = entry.candidate
-      startBlockId = selectedCandidate.blockId
-      const selectedTrigger = selectedCandidate.block
-
-      if (triggerNeedsMockPayload(selectedCandidate)) {
-        const mockPayload = extractTriggerMockPayload(selectedCandidate)
-        finalWorkflowInput = mockPayload
-      } else if (
-        selectedCandidate.path === StartBlockPath.SPLIT_API ||
-        selectedCandidate.path === StartBlockPath.SPLIT_INPUT ||
-        selectedCandidate.path === StartBlockPath.UNIFIED
-      ) {
-        const builtInput = buildInputFormatInput(selectedTrigger.subBlocks?.inputFormat?.value)
-        if (builtInput) {
-          finalWorkflowInput = builtInput
-        }
-      }
+    let finalWorkflowInput: unknown
+    if (triggerNeedsMockPayload(selectedCandidate)) {
+      finalWorkflowInput = extractTriggerMockPayload(selectedCandidate)
+    } else if (
+      selectedCandidate.path === StartBlockPath.SPLIT_API ||
+      selectedCandidate.path === StartBlockPath.SPLIT_INPUT ||
+      selectedCandidate.path === StartBlockPath.UNIFIED
+    ) {
+      finalWorkflowInput = buildInputFormatInput(selectedTrigger.subBlocks?.inputFormat?.value)
     }
 
     logger.info('Final execution setup:', {
       startBlockId,
-      isExecutingFromChat,
-      hasWorkflowInput: !!workflowInput,
+      hasWorkflowInput: finalWorkflowInput !== undefined,
     })
 
     if (activeWorkflowId) {
@@ -1138,7 +818,6 @@ export function useWorkflowExecution() {
 
       const activeBlocksSet = new Set<string>()
       const activeBlockRefCounts = new Map<string, number>()
-      const streamedChunks = new Map<string, string[]>()
       const agentStreamChrome = createAgentStreamChrome({ executionIdRef, updateConsole })
       const settleAllAgentStreamChrome = agentStreamChrome.settleAll
       const accumulatedBlockLogs: BlockLog[] = []
@@ -1156,7 +835,6 @@ export function useWorkflowExecution() {
           accumulatedBlockStates,
           executedBlockIds,
           includeStartConsoleEntry: true,
-          onBlockCompleteCallback: onBlockComplete,
         })
 
         const clientWorkflowState = executionWorkflowState || {
@@ -1172,8 +850,7 @@ export function useWorkflowExecution() {
           input: finalWorkflowInput,
           executionId,
           startBlockId,
-          selectedOutputs,
-          triggerType: overrideTriggerType || 'manual',
+          triggerType: 'manual',
           useDraftState: true,
           isClientSession: true,
           stopAfterBlockId,
@@ -1216,45 +893,6 @@ export function useWorkflowExecution() {
               blockHandlers.onBlockError(data)
             },
             onBlockChildWorkflowStarted: blockHandlers.onBlockChildWorkflowStarted,
-
-            onStreamChunk: (data) => {
-              if (!streamedChunks.has(data.blockId)) {
-                streamedChunks.set(data.blockId, [])
-              }
-              streamedChunks.get(data.blockId)!.push(data.chunk)
-
-              // Call onStream callback if provided (create a fake StreamingExecution)
-              if (onStream && isExecutingFromChat) {
-                const stream = new ReadableStream({
-                  start(controller) {
-                    controller.enqueue(new TextEncoder().encode(data.chunk))
-                    controller.close()
-                  },
-                })
-
-                const streamingExec: StreamingExecution = {
-                  stream,
-                  execution: {
-                    success: true,
-                    output: { content: '' },
-                    blockId: data.blockId,
-                  } as any,
-                }
-
-                onStream(streamingExec).catch((error) => {
-                  logger.error('Error in onStream callback:', error)
-                })
-              }
-            },
-
-            onStreamChunkReset: (data) => {
-              // Live-streamed text belonged to an intermediate turn (tools
-              // follow); the final turn re-streams as regular chunks.
-              streamedChunks.delete(data.blockId)
-              if (onStreamReset && isExecutingFromChat) {
-                onStreamReset(data.blockId)
-              }
-            },
 
             onStreamThinking: agentStreamChrome.onStreamThinking,
             onStreamTool: agentStreamChrome.onStreamTool,
@@ -1348,13 +986,8 @@ export function useWorkflowExecution() {
                 : null
               if (activeWorkflowId && !workflowExecState?.isDebugging) {
                 setExecutionResult(executionResult)
-                // For chat executions, don't set isExecuting=false here — the chat's
-                // client-side stream wrapper still has buffered data to deliver.
-                // The chat's finally block handles cleanup after the stream is fully consumed.
-                if (!isExecutingFromChat) {
-                  finishOwnedExecution(activeWorkflowId, persistenceExecution)
-                  setActiveBlocks(activeWorkflowId, new Set())
-                }
+                finishOwnedExecution(activeWorkflowId, persistenceExecution)
+                setActiveBlocks(activeWorkflowId, new Set())
                 scheduleUsageRefresh(queryClient)
               }
             },
@@ -1399,10 +1032,8 @@ export function useWorkflowExecution() {
                 : null
               if (activeWorkflowId && !workflowExecState?.isDebugging) {
                 setExecutionResult(executionResult)
-                if (!isExecutingFromChat) {
-                  finishOwnedExecution(activeWorkflowId, persistenceExecution)
-                  setActiveBlocks(activeWorkflowId, new Set())
-                }
+                finishOwnedExecution(activeWorkflowId, persistenceExecution)
+                setActiveBlocks(activeWorkflowId, new Set())
               }
             },
 
@@ -1444,7 +1075,7 @@ export function useWorkflowExecution() {
                 finalBlockLogs: data.finalBlockLogs,
               })
 
-              if (activeWorkflowId && !isExecutingFromChat) {
+              if (activeWorkflowId) {
                 finishOwnedExecution(activeWorkflowId, persistenceExecution)
                 setIsDebugging(activeWorkflowId, false)
                 setActiveBlocks(activeWorkflowId, new Set())
@@ -1474,7 +1105,7 @@ export function useWorkflowExecution() {
                 finalBlockLogs: data?.finalBlockLogs,
               })
 
-              if (activeWorkflowId && !isExecutingFromChat) {
+              if (activeWorkflowId) {
                 finishOwnedExecution(activeWorkflowId, persistenceExecution)
                 setIsDebugging(activeWorkflowId, false)
                 setActiveBlocks(activeWorkflowId, new Set())
@@ -1789,7 +1420,6 @@ export function useWorkflowExecution() {
         })
     } else {
       executionStream.cancel(activeWorkflowId)
-      currentChatExecutionIdRef.current = null
       runFromBlockOwnerRef.current = null
     }
 
@@ -2195,16 +1825,11 @@ export function useWorkflowExecution() {
 
       const executionId = generateId()
       try {
-        await executeWorkflow(
-          undefined,
-          undefined,
+        await executeWorkflow({
           executionId,
-          undefined,
-          'manual',
-          blockId,
-          undefined,
-          persistenceExecution
-        )
+          stopAfterBlockId: blockId,
+          persistenceExecution,
+        })
       } catch (error) {
         const errorResult = handleExecutionError(error, { executionId, persistenceExecution })
         return errorResult

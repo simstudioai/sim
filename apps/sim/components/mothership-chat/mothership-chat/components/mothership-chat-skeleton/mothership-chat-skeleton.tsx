@@ -1,32 +1,15 @@
 import { Skeleton } from '@sim/emcn-legacy'
 
-const LAYOUT_SKELETON_STYLES = {
-  'mothership-view': {
-    content: 'mx-auto max-w-chat space-y-6',
-    userRow: 'flex flex-col items-end gap-[6px] pt-3',
-  },
-  'copilot-view': {
-    content: 'space-y-4',
-    userRow: 'flex flex-col items-end gap-[6px] pt-2',
-  },
-} as const
-
-interface MothershipChatSkeletonProps {
-  layout?: 'mothership-view' | 'copilot-view'
-}
+const USER_ROW_CLASS = 'flex flex-col items-end gap-[6px] pt-2'
 
 /**
  * Skeleton content rendered inside MothershipChat's scroll area
  * while chat history is being fetched.
  */
-export function MothershipChatSkeleton({
-  layout = 'mothership-view',
-}: MothershipChatSkeletonProps) {
-  const styles = LAYOUT_SKELETON_STYLES[layout]
-
+export function MothershipChatSkeleton() {
   return (
-    <div className={styles.content}>
-      <div className={styles.userRow}>
+    <div className='space-y-4'>
+      <div className={USER_ROW_CLASS}>
         <Skeleton className='h-[40px] w-[55%] rounded-[16px]' />
       </div>
 
@@ -37,7 +20,7 @@ export function MothershipChatSkeleton({
         <Skeleton className='h-[14px] w-[40%] rounded-[4px]' />
       </div>
 
-      <div className={styles.userRow}>
+      <div className={USER_ROW_CLASS}>
         <Skeleton className='h-[32px] w-[40%] rounded-[16px]' />
       </div>
 

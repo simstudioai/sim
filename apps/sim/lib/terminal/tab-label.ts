@@ -1,10 +1,4 @@
-import { describeRunningCommand, type TerminalTabState } from '@sim/terminal-protocol'
-
-/** Full working directory, plus a concise name for whatever the shell is running. */
-export function terminalTooltip(tab: TerminalTabState): string {
-  const where = tab.cwd ?? 'Terminal'
-  return tab.running ? `${where} — ${describeRunningCommand(tab.running)}` : where
-}
+import type { TerminalTabState } from '@sim/terminal-protocol'
 
 /**
  * Whether a tab should be named after what it is running rather than where it

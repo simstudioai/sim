@@ -225,7 +225,7 @@ const internalPolicies: Array<{
     notFoundMessage: 'Table not found',
   },
   {
-    route: 'GET/DELETE /api/table/imports/[importId]',
+    route: 'GET /api/table/imports/[importId]',
     policy: internalTableErrorPolicies.concealImportAuthorization,
     notFoundMessage: 'Table import not found',
   },

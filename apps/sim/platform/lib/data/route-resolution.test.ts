@@ -6,7 +6,7 @@
  * the workspace entry's hand-off disagreeing, so a viewer bounces between them; the gate locking a
  * member out of Settings or dropping the query; a gate of one organization applied to
  * another whose id shares its prefix; Home with a resource painting before it hands off to the
- * chat; a bare Search URL loading without the viewer's remembered mode; a legacy workspace URL
+ * chat; a chat page answering a member without chat differently from Home; a bare Search URL loading without the viewer's remembered mode; a legacy workspace URL
  * reaching a renamed Settings section through a second redirect, or disclosing the organization of
  * a workspace the viewer cannot open; and a malformed path throwing instead of rendering.
  */
@@ -184,6 +184,19 @@ describe('resolveProductRedirect', () => {
     ).toBe(WORKSPACES_PATH)
   })
 
+  it('sends a member without chat from a chat page where Home sends them', () => {
+    for (const href of ['/o/org-1/chat', '/o/org-1/chat/chat-1']) {
+      expect(resolve(href)).toBeNull()
+      expect(resolve(href, { access: { mothershipAvailable: false } })?.href).toBe(
+        '/o/org-1/search'
+      )
+      expect(
+        resolve(href, { access: { mothershipAvailable: false, memberScoped: false, people: true } })
+          ?.href
+      ).toBe(WORKSPACES_PATH)
+    }
+  })
+
   it('pins a bare Search URL to the remembered mode and leaves a named one', () => {
     expect(resolve('/o/org-1/search', { rememberedSearchMode: 'assistant' })?.href).toBe(
       '/o/org-1/search?mode=assistant'
@@ -253,6 +266,7 @@ describe('the organization gate, its landing and the workspace entry', () => {
     '/o/org-1/search',
     '/o/org-1/people',
     '/o/org-1/chat',
+    '/o/org-1/chat/chat-1',
     '/o/org-1/settings',
     WORKSPACES_PATH,
     `${WORKSPACES_PATH}?redirect=settings`,

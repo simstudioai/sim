@@ -1,5 +1,11 @@
 import { db } from '@sim/db'
-import { member, permissions, workflow, workspace as workspaceTable } from '@sim/db/schema'
+import {
+  member,
+  organization,
+  permissions,
+  workflow,
+  workspace as workspaceTable,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
@@ -53,9 +59,10 @@ export async function getWorkspaceBilledAccountUserId(workspaceId: string): Prom
 }
 
 /**
- * Workspaces the user administers purely through organization owner/admin role,
- * with no explicit permission row required. Empty when the user is not an org
- * owner/admin. Implements the workspace-permission inheritance model.
+ * Workspaces the user administers purely through team organization owner/admin
+ * role, with no explicit permission row required. Empty when the user is not a
+ * team owner/admin: a personal organization derives nothing, matching
+ * `resolveEffectiveWorkspacePermission`.
  */
 async function getOrgAdminWorkspaceRows(
   userId: string,
@@ -65,9 +72,11 @@ async function getOrgAdminWorkspaceRows(
   const [membership] = await db
     .select({ organizationId: member.organizationId, role: member.role })
     .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
     .where(
       and(
         eq(member.userId, userId),
+        eq(organization.kind, 'team'),
         organizationId ? eq(member.organizationId, organizationId) : undefined
       )
     )

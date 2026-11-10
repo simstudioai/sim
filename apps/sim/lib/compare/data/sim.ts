@@ -357,7 +357,7 @@ export const simProfile: CompetitorProfile = {
             asOf: '2026-07-08',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/components/settings/workspace-navigation.ts',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/platform/lib/data/workspace-settings/navigation.ts',
             label: 'Sim codebase: Custom blocks nav entry (Enterprise/self-hosted gating)',
             asOf: '2026-07-08',
           },

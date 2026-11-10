@@ -10,7 +10,6 @@ import {
   sanitizePathSegment,
 } from '@/lib/workflows/operations/import-export'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
-import { useFolderStore } from '@/stores/folders/store'
 
 const logger = createLogger('useExportWorkflow')
 
@@ -102,9 +101,6 @@ export function useExportWorkflow({ workspaceId, onSuccess }: UseExportWorkflowP
           const zipFilename = `workflows-export-${Date.now()}.zip`
           downloadFile(zipBlob, zipFilename, 'application/zip')
         }
-
-        const { clearSelection } = useFolderStore.getState()
-        clearSelection()
 
         captureEvent(posthogRef.current, 'workflow_exported', {
           workspace_id: workspaceIdRef.current ?? '',

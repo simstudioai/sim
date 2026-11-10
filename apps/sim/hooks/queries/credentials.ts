@@ -334,6 +334,8 @@ export function useSetWorkspaceCredentialMembers() {
         queryClient.invalidateQueries({
           queryKey: workspaceCredentialKeys.detail(variables.credentialId),
         }),
+        // List rows carry the viewer's own role and status, which a member change can rewrite.
+        queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() }),
         invalidateSelectorQueries(queryClient),
       ]),
   })

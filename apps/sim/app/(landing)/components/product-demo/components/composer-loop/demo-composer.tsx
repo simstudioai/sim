@@ -14,11 +14,7 @@ const ACTION_ICONS = {
   Skills: Slash,
 } as const satisfies Record<DemoComposerAction, typeof Plus>
 
-/**
- * The product's resting placeholder - the first phrase its animated placeholder
- * types (`useAnimatedPlaceholder`); the first message swaps it for the
- * conversation one.
- */
+/** The resting placeholder before the first message; the conversation one replaces it. */
 const INITIAL_PLACEHOLDER = 'Ask Sim to respond to my emails...'
 const CONVERSATION_PLACEHOLDER = 'Send message to Sim'
 

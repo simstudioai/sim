@@ -3,9 +3,9 @@
 import type { ReactNode } from 'react'
 import { type DehydratedState, HydrationBoundary, QueryClientProvider } from '@tanstack/react-query'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
+import { PasteGuard } from '@/components/paste-guard/paste-guard'
 import { SessionProvider } from '@/lib/auth/session-provider'
 import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context'
-import { PasteAdmissionGuard } from '@/lib/core/utils/paste-admission-guard'
 import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 import { LiveChatEvents } from '@/platform/lib/data/chat-events'
 import { OrganizationProvider } from '@/platform/lib/data/organization'
@@ -49,7 +49,7 @@ export function LiveProviders({
             <SessionProvider>
               <FeatureFlagsProvider flags={organization.featureFlags}>
                 <LiveChatEvents />
-                <PasteAdmissionGuard />
+                <PasteGuard />
                 <LiveShellProvider navigation={navigation}>{children}</LiveShellProvider>
               </FeatureFlagsProvider>
             </SessionProvider>

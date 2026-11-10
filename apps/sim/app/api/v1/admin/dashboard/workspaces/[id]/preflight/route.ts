@@ -8,6 +8,7 @@ import { getWorkspaceMovePreflight, WorkspaceMoveError } from '@/lib/workspaces/
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   adminBadRequestResponse,
+  adminConflictResponse,
   adminInternalErrorResponse,
   adminNotFoundResponse,
 } from '@/app/api/v1/admin/responses'
@@ -35,6 +36,9 @@ export const GET = withRouteHandler(
           return adminNotFoundResponse(
             error.code === 'workspace-not-found' ? 'Workspace' : 'Organization'
           )
+        }
+        if (error.code === 'destination-personal-organization') {
+          return adminConflictResponse(error.message)
         }
         return adminBadRequestResponse(error.message)
       }

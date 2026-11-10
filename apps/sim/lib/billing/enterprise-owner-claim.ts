@@ -25,7 +25,10 @@ import {
 } from '@/lib/billing/enterprise-provisioning'
 import { parseWorkflowExecutionTimeoutSeconds } from '@/lib/billing/execution-timeout-defaults'
 import { createOrganizationWithOwnerTx } from '@/lib/billing/organizations/create-organization'
-import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
+import {
+  acquireOrganizationMutationLock,
+  acquireUserBillingIdentityLock,
+} from '@/lib/billing/organizations/identity-lock'
 import {
   enqueueOutboxEvent,
   type OutboxHandler,
@@ -40,6 +43,7 @@ import { computeInvitationExpiry, INVITATION_EXPIRY_DAYS } from '@/lib/invitatio
 import { MAX_INVITE_EMAILS, MAX_INVITE_WORKSPACES } from '@/lib/invitations/limits'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import { getPersonalOrganizationId } from '@/lib/organizations/personal'
 import {
   createDefaultPersonalWorkspaceInTransaction,
   emitWorkspaceCreatedPlatformEvent,
@@ -908,6 +912,11 @@ export async function acceptEnterpriseOwnerClaim(params: {
         return { success: false as const, kind: 'expired' as const }
       }
 
+      /** The personal organization this converts is locked before the owner's identity, as everywhere else. */
+      const lockedPersonalOrganizationId = await getPersonalOrganizationId(params.userId, tx)
+      if (lockedPersonalOrganizationId) {
+        await acquireOrganizationMutationLock(tx, lockedPersonalOrganizationId)
+      }
       await acquireUserBillingIdentityLock(tx, params.userId)
       const [existingMembership] = await tx
         .select({ organizationId: member.organizationId, kind: organization.kind })

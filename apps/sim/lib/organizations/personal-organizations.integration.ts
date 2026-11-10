@@ -11,6 +11,7 @@ import {
   member,
   mothershipMemorySpaces,
   organization,
+  outboxEvent,
   permissions,
   project,
   simLink,
@@ -21,11 +22,13 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import { deleteOutboxEventsNaming } from '@sim/db/testing/outbox-fixtures'
+import { resolveEffectiveWorkspacePermission } from '@sim/platform-authz/workspace'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
 import { getOrganizationBillingSummary } from '@/lib/billing/application/organization-billing/get-organization-billing-summary'
+import { transferSubscriptionToOrganization } from '@/lib/billing/application/subscription-transfer'
 import {
   assertBillingAttributionSnapshot,
   resolveOrganizationBillingAttribution,
@@ -39,13 +42,16 @@ import {
   removeUserFromOrganization,
 } from '@/lib/billing/organizations/membership'
 import { resolveStorageBillingContext } from '@/lib/billing/storage/context'
+import { OrganizationMembershipNotFoundError } from '@/lib/core/application/organization-authorization'
 import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
 import { deletePersonalOrganizationOfRemovedUser } from '@/lib/organizations/deletion'
+import { PERSONAL_ORGANIZATION_AUDIT_EVENT } from '@/lib/organizations/lifecycle-audit-event'
 import { provisionPersonalOrganization } from '@/lib/organizations/provision-personal'
 import { deleteUserAccount, getAccountDeletionPlan } from '@/lib/users/account-deletion'
 import { createWorkspaceInTransaction } from '@/lib/workspaces/create'
 import { getUsersWithPermissions } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceCreationPolicy } from '@/lib/workspaces/policy'
+import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 
 const userIds: string[] = []
 
@@ -603,7 +609,11 @@ describe('starting a team from a personal organization', () => {
       ownerUserId: ownerId,
       name: 'Team',
       slug: `team-${generateId()}`.toLowerCase(),
-      metadata: { createdForTeamPlan: true, originalUserId: ownerId },
+      metadata: {
+        createdForTeamPlan: true,
+        originalUserId: ownerId,
+        teamPlanWorkspacesPending: true,
+      },
     })
     const teamSubscription = {
       id: generateId(),
@@ -622,6 +632,73 @@ describe('starting a team from a personal organization', () => {
       workspaceMode: 'organization',
       billedAccountUserId: ownerId,
     })
+  })
+
+  it('leaves an organization-less workspace of the owner alone on a renewal delivery', async () => {
+    const ownerId = await createUser()
+    // A team whose creating delivery attached the owner's workspaces long ago.
+    const { organizationId: teamId } = await createOrganizationWithOwner({
+      actor: { type: 'system', name: 'Test' },
+      ownerUserId: ownerId,
+      name: 'Team',
+      slug: `team-${generateId()}`.toLowerCase(),
+      metadata: { createdForTeamPlan: true, originalUserId: ownerId },
+    })
+    const teamSubscription = {
+      id: generateId(),
+      plan: 'team',
+      referenceId: teamId,
+      status: 'active',
+      seats: 5,
+    }
+    await db.insert(subscription).values(teamSubscription)
+    const unrelatedWorkspace = await createLegacyPersonalWorkspace(ownerId, 'Unrelated', teamId)
+
+    await ensureOrganizationForTeamSubscription(teamSubscription, BILLING_WEBHOOK)
+
+    expect(await workspaceRow(unrelatedWorkspace)).toMatchObject({
+      organizationId: null,
+      billedAccountUserId: ownerId,
+    })
+  })
+
+  it('starts the team and leaves a workspace whose Project spans another owner outside it', async () => {
+    const ownerId = await createUser()
+    const otherId = await createUser()
+    const movableWorkspace = await createLegacyPersonalWorkspace(ownerId, 'Movable')
+    const splitWorkspace = await createLegacyPersonalWorkspace(ownerId, 'Split')
+    const otherEnvironment = await createLegacyPersonalWorkspace(otherId, 'Other environment')
+    const environments = await db
+      .select({ id: workspace.id, projectId: workspace.projectId })
+      .from(workspace)
+      .where(inArray(workspace.id, [splitWorkspace, otherEnvironment]))
+    const projectOf = new Map(environments.map((row) => [row.id, row.projectId]))
+    const replacedProjectId = projectOf.get(otherEnvironment)
+    if (!replacedProjectId) throw new Error('expected a Project')
+    await db
+      .update(workspace)
+      .set({ projectId: projectOf.get(splitWorkspace) })
+      .where(eq(workspace.id, otherEnvironment))
+    await db.delete(project).where(eq(project.id, replacedProjectId))
+    const teamSubscription = {
+      id: generateId(),
+      plan: 'team',
+      referenceId: ownerId,
+      status: 'active',
+      seats: 5,
+    }
+    await db.insert(subscription).values(teamSubscription)
+
+    const upgraded = await ensureOrganizationForTeamSubscription(teamSubscription, BILLING_WEBHOOK)
+    const redelivered = await ensureOrganizationForTeamSubscription(
+      { ...teamSubscription, referenceId: upgraded.referenceId },
+      BILLING_WEBHOOK
+    )
+
+    expect(redelivered.referenceId).toBe(upgraded.referenceId)
+    expect((await workspaceRow(movableWorkspace)).organizationId).toBe(upgraded.referenceId)
+    expect((await workspaceRow(splitWorkspace)).organizationId).toBeNull()
+    expect((await workspaceRow(otherEnvironment)).organizationId).toBeNull()
   })
 })
 
@@ -688,6 +765,20 @@ describe('leaving a team', () => {
   })
 })
 
+/** The lifecycle changes queued for the organization's audit trail. */
+async function lifecycleChanges(organizationId: string): Promise<string[]> {
+  const rows = await db
+    .select({ change: sql<string>`${outboxEvent.payload} ->> 'change'` })
+    .from(outboxEvent)
+    .where(
+      and(
+        eq(outboxEvent.eventType, PERSONAL_ORGANIZATION_AUDIT_EVENT),
+        sql`${outboxEvent.payload} ->> 'organizationId' = ${organizationId}`
+      )
+    )
+  return rows.map((row) => row.change)
+}
+
 describe('deleting an account', () => {
   it('is not blocked by the personal organization and leaves nothing of it behind', async () => {
     const ownerId = await createUser()
@@ -703,6 +794,7 @@ describe('deleting an account', () => {
     await deleteUserAccount(ownerId, { recordIdentity: false })
 
     expect(await organizationExists(provisioned.organizationId)).toBe(false)
+    expect(await lifecycleChanges(provisioned.organizationId)).toContain('deleted')
     const [privateRow] = await db
       .select({ id: workspace.id })
       .from(workspace)
@@ -726,6 +818,7 @@ describe('deleting an account', () => {
     await db.delete(user).where(eq(user.id, ownerId))
 
     expect(await organizationExists(provisioned.organizationId)).toBe(false)
+    expect(await lifecycleChanges(provisioned.organizationId)).toContain('deleted')
   })
 })
 
@@ -840,6 +933,41 @@ describe('forking a workspace in a personal organization', () => {
     expect(unpinned.canCreate).toBe(false)
   })
 
+  it('gives the source owner no hidden admin on a collaborator fork in their personal organization', async () => {
+    const ownerId = await createUser()
+    const collaboratorId = await createUser()
+    const ownerPersonal = await provisionPersonalOrganization(ownerId)
+    const collaboratorPersonal = await provisionPersonalOrganization(collaboratorId)
+    if (ownerPersonal.status !== 'provisioned' || collaboratorPersonal.status !== 'provisioned') {
+      throw new Error('expected provisioning')
+    }
+    const fork = await db.transaction((tx) =>
+      createWorkspaceInTransaction(tx, {
+        userId: collaboratorId,
+        name: 'Fork',
+        organizationId: ownerPersonal.organizationId,
+        observedOrganizationId: collaboratorPersonal.organizationId,
+        governingPermissionGroupOrganizationId: null,
+        workspaceMode: 'personal',
+        billedAccountUserId: collaboratorId,
+        skipDefaultWorkflow: true,
+      })
+    )
+
+    expect(
+      await resolveEffectiveWorkspacePermission(ownerId, fork.id, ownerPersonal.organizationId)
+    ).toBeNull()
+    const listed = await listAccessibleWorkspaceRowsForUser(ownerId)
+    expect(listed.map((row) => row.workspace.id)).not.toContain(fork.id)
+    expect(
+      await resolveEffectiveWorkspacePermission(
+        collaboratorId,
+        fork.id,
+        ownerPersonal.organizationId
+      )
+    ).toBe('admin')
+  })
+
   it('keeps an organization-less source fork organization-less, as before', async () => {
     const ownerId = await createUser()
     await provisionPersonalOrganization(ownerId)
@@ -860,6 +988,28 @@ describe('forking a workspace in a personal organization', () => {
 })
 
 describe('billing settings of a personal organization', () => {
+  it('refuses an outsider a subscription transfer without saying the organization is personal', async () => {
+    const ownerId = await createUser()
+    const outsiderId = await createUser()
+    const provisioned = await provisionPersonalOrganization(ownerId)
+    if (provisioned.status !== 'provisioned') throw new Error('expected provisioning')
+    const teamSubscriptionId = generateId()
+    await db.insert(subscription).values({
+      id: teamSubscriptionId,
+      plan: 'team',
+      referenceId: outsiderId,
+      status: 'active',
+      seats: 5,
+    })
+
+    await expect(
+      transferSubscriptionToOrganization.execute({
+        principal: createSessionPrincipal({ userId: outsiderId }),
+        input: { subscriptionId: teamSubscriptionId, organizationId: provisioned.organizationId },
+      })
+    ).rejects.toBeInstanceOf(OrganizationMembershipNotFoundError)
+  })
+
   it('reads the owner’s own subscription, usage limit and upgrade workspace', async () => {
     const ownerId = await createUser()
     const workspaceId = await createLegacyPersonalWorkspace(ownerId, 'Billed personally')

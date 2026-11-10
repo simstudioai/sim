@@ -1,56 +1,14 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  generateMothershipLicenseContract,
+  type MothershipAdminEnv,
+  mothershipLicenseListContract,
+  mothershipRequestListContract,
+  mothershipUserBreakdownContract,
+} from '@/lib/api/contracts/mothership-admin'
 
-export type MothershipEnv = 'default' | 'dev' | 'staging' | 'prod'
-
-const BASE = '/api/admin/mothership'
-
-/**
- * Same-origin proxy to the mothership admin API. Both the request body and
- * the response shape vary per upstream `endpoint` query parameter, so a
- * single contract cannot capture the union; the proxy returns the upstream
- * JSON verbatim. `requestJson` would force a fixed response schema, so this
- * hook stays on raw `fetch` and surfaces upstream errors through `adminError`.
- */
-async function mothershipPost(
-  endpoint: string,
-  environment: MothershipEnv,
-  body?: Record<string, unknown>,
-  signal?: AbortSignal
-) {
-  const qs = new URLSearchParams({ env: environment, endpoint })
-  // boundary-raw-fetch: same-origin proxy whose response shape varies per upstream endpoint
-  const res = await fetch(`${BASE}?${qs.toString()}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-    signal,
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.message || err.error || `Request failed (${res.status})`)
-  }
-  return res.json()
-}
-
-/**
- * Same-origin proxy GET for the mothership admin API. See `mothershipPost`
- * for the rationale on staying with raw `fetch`.
- */
-async function mothershipGet(
-  endpoint: string,
-  environment: MothershipEnv,
-  params?: Record<string, string>,
-  signal?: AbortSignal
-) {
-  const qs = new URLSearchParams({ env: environment, endpoint, ...params })
-  // boundary-raw-fetch: same-origin proxy whose response shape varies per upstream endpoint
-  const res = await fetch(`${BASE}?${qs.toString()}`, { method: 'GET', signal })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.message || err.error || `Request failed (${res.status})`)
-  }
-  return res.json()
-}
+export type MothershipEnv = MothershipAdminEnv
 
 export const MOTHERSHIP_REQUESTS_STALE_TIME = 60 * 1000
 export const MOTHERSHIP_USER_BREAKDOWN_STALE_TIME = 60 * 1000
@@ -76,16 +34,11 @@ export function useMothershipRequests(
   return useQuery({
     queryKey: mothershipKeys.requests(environment, start, end, userId),
     queryFn: ({ signal }) =>
-      mothershipPost(
-        'requests',
-        environment,
-        {
-          start,
-          end,
-          ...(userId ? { userId } : {}),
-        },
-        signal
-      ),
+      requestJson(mothershipRequestListContract, {
+        query: { env: environment },
+        body: { start, end, ...(userId ? { userId } : {}) },
+        signal,
+      }),
     enabled: !!start && !!end,
     staleTime: MOTHERSHIP_REQUESTS_STALE_TIME,
     placeholderData: keepPreviousData,
@@ -95,7 +48,12 @@ export function useMothershipRequests(
 export function useMothershipUserBreakdown(environment: MothershipEnv, start: string, end: string) {
   return useQuery({
     queryKey: mothershipKeys.userBreakdown(environment, start, end),
-    queryFn: ({ signal }) => mothershipPost('user-breakdown', environment, { start, end }, signal),
+    queryFn: ({ signal }) =>
+      requestJson(mothershipUserBreakdownContract, {
+        query: { env: environment },
+        body: { start, end },
+        signal,
+      }),
     enabled: !!start && !!end,
     staleTime: MOTHERSHIP_USER_BREAKDOWN_STALE_TIME,
     placeholderData: keepPreviousData,
@@ -105,7 +63,8 @@ export function useMothershipUserBreakdown(environment: MothershipEnv, start: st
 export function useMothershipLicenses(environment: MothershipEnv) {
   return useQuery({
     queryKey: mothershipKeys.licenses(environment),
-    queryFn: ({ signal }) => mothershipGet('licenses', environment, undefined, signal),
+    queryFn: ({ signal }) =>
+      requestJson(mothershipLicenseListContract, { query: { env: environment }, signal }),
     staleTime: MOTHERSHIP_LICENSE_LIST_STALE_TIME,
   })
 }
@@ -113,8 +72,8 @@ export function useMothershipLicenses(environment: MothershipEnv) {
 export function useGenerateLicense(environment: MothershipEnv) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (params: { name: string; approvalReference: string; expirationDate?: string }) =>
-      mothershipPost('licenses/generate', environment, params),
+    mutationFn: (body: { name: string; approvalReference: string; expirationDate?: string }) =>
+      requestJson(generateMothershipLicenseContract, { query: { env: environment }, body }),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: mothershipKeys.licenses(environment) })
     },

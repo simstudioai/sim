@@ -9,9 +9,6 @@ export const credentialGroupKeys = {
   workspaces: () => [...credentialGroupKeys.all, 'workspace'] as const,
   workspace: (workspaceId?: string) =>
     [...credentialGroupKeys.workspaces(), workspaceId ?? ''] as const,
-  details: () => [...credentialGroupKeys.all, 'detail'] as const,
-  detail: (workspaceId?: string, groupId?: string) =>
-    [...credentialGroupKeys.details(), workspaceId ?? '', groupId ?? ''] as const,
 }
 
 /** The workspace account configuration and provider availability share one cache entry. */

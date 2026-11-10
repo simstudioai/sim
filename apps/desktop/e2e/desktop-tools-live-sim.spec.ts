@@ -161,7 +161,6 @@ test.describe('desktop tools against a live Sim', () => {
         `/api/workspaces/${user.workspaceId}/files/folders`,
         `/api/mothership/chats?organizationId=${user.organizationId}`,
         '/api/users/me/settings',
-        '/api/auth/oauth/connections',
         '/api/desktop/inbox',
       ])
         await compile(path)

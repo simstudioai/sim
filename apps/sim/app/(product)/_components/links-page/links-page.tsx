@@ -16,7 +16,7 @@ import { LinkEditor } from '@/app/(product)/_components/links-page/link-editor'
 import { LinkIcon } from '@/app/(product)/_components/links-page/link-icon'
 import { LinksFrame } from '@/app/(product)/_components/links-page/links-frame'
 import styles from '@/app/(product)/_components/links-page/links-page.module.css'
-import { useMinuteClock } from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
+import { useMinuteClock } from '@/platform/lib/data/clock'
 import { type LinkRecord, linkFaviconSrc, openLink, useLinksPage } from '@/platform/lib/data/links'
 import { formatRelativeTime } from '@/platform/shared/time'
 

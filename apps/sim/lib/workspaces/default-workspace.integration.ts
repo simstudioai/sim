@@ -20,7 +20,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
 import { OrganizationMembershipNotFoundError } from '@/lib/core/application/organization-authorization'
-import { ensureUserOrganization } from '@/lib/organizations/provision-personal'
+import { createPersonalOrganization } from '@/lib/organizations/provision-personal'
 import { listViewerWorkspaces } from '@/lib/workspaces/application/viewer-workspaces'
 import { listWorkspacesEnsuringDefault } from '@/lib/workspaces/create'
 
@@ -88,7 +88,7 @@ afterAll(async () => {
 describe('listWorkspacesEnsuringDefault', () => {
   it('creates exactly one default workspace across concurrent first visits', async () => {
     const userId = await createUser()
-    await ensureUserOrganization(userId, { atSignup: false })
+    await createPersonalOrganization(userId)
     const visit = () => listWorkspacesEnsuringDefault({ userId, activeOrganizationId: null })
 
     const payloads = await Promise.all([visit(), visit(), visit(), visit(), visit()])
@@ -106,7 +106,7 @@ describe('listWorkspacesEnsuringDefault', () => {
   it('refuses a named organization the viewer does not belong to before creating anything', async () => {
     const outsiderId = await createUser()
     const userId = await createUser()
-    const foreignOrganizationId = await ensureUserOrganization(outsiderId, { atSignup: false })
+    const foreignOrganizationId = await createPersonalOrganization(outsiderId)
     if (!foreignOrganizationId) throw new Error('Expected the outsider to own an organization')
     const principal = { kind: 'session' as const, userId, sessionId: `session-${generateId()}` }
 

@@ -38,10 +38,7 @@ import {
   noResults,
   sortActions,
 } from '@/app/(product)/_components/workspace/resource-table/list-menus'
-import {
-  RenameDialog,
-  useMinuteClock,
-} from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
+import { RenameDialog } from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
 import {
   OwnerCell,
   type ResourceColumn,
@@ -60,6 +57,7 @@ import {
 import type { WorkspaceRead } from '@/app/(product)/_components/workspace/workspace-session/model'
 import styles from '@/app/(product)/workspace/[workspaceId]/files/_components/file-browser/file-browser.module.css'
 import { mergeFileEntries } from '@/app/(product)/workspace/[workspaceId]/files/_components/file-browser/merge-entries'
+import { useMinuteClock } from '@/platform/lib/data/clock'
 import {
   DEFAULT_UNTITLED_NAME,
   fileBrowserTypeLabel,

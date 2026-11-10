@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useIsFetching, useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { createSerializer } from 'nuqs/server'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { useSession } from '@/lib/auth/client'
 import { type ResourceScope, resourceScopeKey } from '@/lib/core/resource-scope'
@@ -15,6 +16,7 @@ import {
 } from '@/lib/mothership/chat/search-params'
 import type { SearchResource } from '@/lib/mothership/generated/resources'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { organizationDraftKey } from '@/lib/organizations/draft-key'
 import {
   organizationSearchParsers,
   organizationSearchUrlKeys,
@@ -125,11 +127,10 @@ function useSearchResults({
 
 /** The keys Search keeps unsent text under: the Assistant's question, and the field's draft per query. */
 function searchDraftKeys(userId: string, organizationId: string) {
-  const prefix = `${userId}:organization:${organizationId}`
-  const latest = `${prefix}:search`
+  const latest = organizationDraftKey(userId, organizationId, 'search')
   return {
     latest,
-    assistant: `${prefix}:search-assistant`,
+    assistant: organizationDraftKey(userId, organizationId, 'search-assistant'),
     query: (query: string) => `${latest}:query:${encodeURIComponent(query)}`,
   }
 }
@@ -141,6 +142,8 @@ function readSearchModeCookie(organizationId: string) {
     .find((entry) => entry.startsWith(prefix))
     ?.slice(prefix.length)
 }
+
+const serializeSearchMode = createSerializer(organizationSearchParsers)
 
 /** Everything the Search route reads: the URL, the query, the viewer's history and the mode. */
 export function useSearchSurface(chatId: string | undefined) {
@@ -265,9 +268,15 @@ export function useSearchSurface(chatId: string | undefined) {
       }
       startNewTransition(() => {
         setConversationInstance((current) => current + 1)
-        router.push(assistantAvailable ? `${routes.search}?mode=${mode}` : routes.search, {
-          scroll: false,
-        })
+        const freshMode = assistantAvailable ? mode : null
+        if (pathname === routes.search) {
+          void setParams(
+            { q: null, mode: freshMode, source: null, updated: null, from: null, to: null },
+            { history: 'push', scroll: false }
+          )
+        } else {
+          router.push(serializeSearchMode(routes.search, { mode: freshMode }), { scroll: false })
+        }
       })
     },
     conversationInstance,

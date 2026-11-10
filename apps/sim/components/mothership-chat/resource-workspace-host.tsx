@@ -2,21 +2,14 @@
 
 import type { ReactNode } from 'react'
 import { Skeleton } from '@sim/emcn-legacy'
-import { BlockVisibilityLoader } from '@/components/workspace-providers/block-visibility-loader'
-import { CustomBlocksLoader } from '@/components/workspace-providers/custom-blocks-loader'
-import { ProviderModelsLoader } from '@/components/workspace-providers/provider-models-loader'
-import { SettingsLoader } from '@/components/workspace-providers/settings-loader'
 import { useOptionalWorkspaceHostContext } from '@/components/workspace-providers/workspace-host-context'
 import { WorkspaceHostProvider } from '@/components/workspace-providers/workspace-host-provider'
 import { WorkspacePermissionsProvider } from '@/components/workspace-providers/workspace-permissions-provider'
-import { WorkflowScopeSync } from '@/components/workspace-providers/workspace-scope-sync'
 import { useWorkspaceHostContextQuery } from '@/hooks/queries/workspace-host'
 
 interface ResourceWorkspaceHostProps {
   workspaceId: string
   organizationId?: string
-  workflowId?: string
-  isFileViewer?: boolean
   inline?: boolean
   children: ReactNode
 }
@@ -35,8 +28,6 @@ export function ResourceWorkspaceHost(props: ResourceWorkspaceHostProps) {
 function LoadedResourceWorkspaceHost({
   workspaceId,
   organizationId,
-  workflowId,
-  isFileViewer,
   inline,
   children,
 }: ResourceWorkspaceHostProps) {
@@ -62,22 +53,8 @@ function LoadedResourceWorkspaceHost({
   }
   return (
     <WorkspaceHostProvider workspaceId={workspaceId} initialContext={data}>
-      <WorkspacePermissionsProvider
-        workspaceId={workspaceId}
-        workflowId={workflowId}
-        isFileViewer={isFileViewer}
-      >
-        {workflowId ? (
-          <WorkflowScopeSync workspaceId={workspaceId}>
-            <SettingsLoader />
-            <ProviderModelsLoader workspaceId={workspaceId} />
-            <CustomBlocksLoader workspaceId={workspaceId} />
-            <BlockVisibilityLoader workspaceId={workspaceId} />
-            {children}
-          </WorkflowScopeSync>
-        ) : (
-          children
-        )}
+      <WorkspacePermissionsProvider workspaceId={workspaceId}>
+        {children}
       </WorkspacePermissionsProvider>
     </WorkspaceHostProvider>
   )

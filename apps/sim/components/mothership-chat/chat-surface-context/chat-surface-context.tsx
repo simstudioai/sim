@@ -19,7 +19,6 @@ import type {
   WorkspaceResourceRef,
 } from '@/lib/mothership/chat/types'
 import { inter } from '@/app/_styles/fonts/inter/inter'
-import type { ChatContext } from '@/stores/panel'
 
 /**
  * How a host draws the shared chat: its typeface, its class names and the parts it replaces. Set once
@@ -65,15 +64,6 @@ interface ChatSurfaceContextValue {
   chatId?: string
   /** Id of the user interacting with this surface. */
   userId?: string
-  /** Notifies the surface owner that a context chip was added to the input. */
-  onContextAdd: (context: ChatContext) => void
-  /**
-   * Notifies the surface owner that a context chip was removed from the input.
-   * `remaining` is the input's context list AFTER the removal, so the owner can
-   * tell whether any other chip still references the removed chip's resource
-   * before closing a shared slideover tab.
-   */
-  onContextRemove: (context: ChatContext, remaining: ChatContext[]) => void
   onViewSources?: (messageId: string, requestId?: string) => void
   onNavigateToChat?: (chatId: string) => void
   /** Opens a workspace resource referenced from rendered message content. */
@@ -81,8 +71,6 @@ interface ChatSurfaceContextValue {
 }
 
 const ChatSurfaceContext = createContext<ChatSurfaceContextValue>({
-  onContextAdd: noop,
-  onContextRemove: noop,
   onWorkspaceResourceSelect: noop,
 })
 
@@ -90,8 +78,6 @@ interface ChatSurfaceProviderProps {
   SearchConnectionComponent?: ComponentType<SearchIntegrationConnectionProps>
   chatId?: string
   userId?: string
-  onContextAdd?: (context: ChatContext) => void
-  onContextRemove?: (context: ChatContext, remaining: ChatContext[]) => void
   onViewSources?: (messageId: string, requestId?: string) => void
   onNavigateToChat?: (chatId: string) => void
   onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
@@ -107,8 +93,6 @@ export function ChatSurfaceProvider({
   SearchConnectionComponent,
   chatId,
   userId,
-  onContextAdd,
-  onContextRemove,
   onWorkspaceResourceSelect,
   onViewSources,
   onNavigateToChat,
@@ -118,24 +102,14 @@ export function ChatSurfaceProvider({
   const hasSourcePanel = Boolean(onViewSources)
   const hasChatNavigation = Boolean(onNavigateToChat)
   const onNavigateToChatRef = useRef(onNavigateToChat)
-  const onContextAddRef = useRef(onContextAdd)
-  const onContextRemoveRef = useRef(onContextRemove)
   const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
 
   useLayoutEffect(() => {
     onViewSourcesRef.current = onViewSources
     onNavigateToChatRef.current = onNavigateToChat
-    onContextAddRef.current = onContextAdd
-    onContextRemoveRef.current = onContextRemove
     onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
   })
 
-  const stableOnContextAdd = useCallback((context: ChatContext) => {
-    onContextAddRef.current?.(context)
-  }, [])
-  const stableOnContextRemove = useCallback((context: ChatContext, remaining: ChatContext[]) => {
-    onContextRemoveRef.current?.(context, remaining)
-  }, [])
   const stableOnWorkspaceResourceSelect = useCallback((resource: WorkspaceResourceRef) => {
     onWorkspaceResourceSelectRef.current?.(resource)
   }, [])
@@ -154,8 +128,6 @@ export function ChatSurfaceProvider({
       SearchConnectionComponent,
       chatId,
       userId,
-      onContextAdd: stableOnContextAdd,
-      onContextRemove: stableOnContextRemove,
       onWorkspaceResourceSelect: stableOnWorkspaceResourceSelect,
     }),
     [
@@ -166,8 +138,6 @@ export function ChatSurfaceProvider({
       SearchConnectionComponent,
       chatId,
       userId,
-      stableOnContextAdd,
-      stableOnContextRemove,
       stableOnWorkspaceResourceSelect,
     ]
   )

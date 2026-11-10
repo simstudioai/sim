@@ -55,18 +55,6 @@ export interface SandboxDraft {
   cliTools: SandboxCliToolId[]
 }
 
-export function canRetrySandboxBuild({
-  canAdmin,
-  isDirty,
-  saving,
-}: {
-  canAdmin: boolean
-  isDirty: boolean
-  saving: boolean
-}): boolean {
-  return canAdmin && !isDirty && !saving
-}
-
 /** Defaults to the Function block's own default language so the two agree. */
 export function emptyDraft(): SandboxDraft {
   return {

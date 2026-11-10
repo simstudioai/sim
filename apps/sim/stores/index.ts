@@ -5,8 +5,6 @@ import { type ClearBrowserUserDataOptions, clearBrowserUserData } from '@/lib/au
 import { stopAllDesktopTools } from '@/hooks/mothership-chat/desktop-tool-lifetimes'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
-export { RECENT_IMPERSONATIONS_STORAGE_KEY } from '@/lib/auth/browser-storage'
-
 const logger = createLogger('Stores')
 
 /** Why desktop tools still running for the previous identity were cancelled. */

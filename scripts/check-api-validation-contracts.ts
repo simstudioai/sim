@@ -85,7 +85,6 @@ const INDIRECT_ZOD_ROUTES = new Set([
   // `z.object({}).strict().parse({})` guards. The boundary contract for
   // these routes is "no input", and they consume validated data only via
   // session/headers handled by `getSession()` / Better Auth.
-  'apps/sim/app/api/auth/oauth/connections/route.ts',
   'apps/sim/app/api/auth/providers/route.ts',
   'apps/sim/app/api/auth/socket-token/route.ts',
   'apps/sim/app/api/desktop/auth/handoff/route.ts',

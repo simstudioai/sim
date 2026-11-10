@@ -1,8 +1,6 @@
 /** Sidebar width constraints */
 export const SIDEBAR_WIDTH = {
   DEFAULT: 224,
-  /** The organization rail's design width (`--container-sidebar`), used until a width is saved. */
-  ORGANIZATION_DEFAULT: 280,
   /** Narrowest expanded rail width across every surface. */
   MIN: 224,
   /** Width when sidebar is collapsed to icon-only mode */
@@ -31,13 +29,6 @@ export const TERMINAL_HEIGHT = {
   MIN: 30,
   /** Maximum is 70% of viewport, enforced dynamically */
   MAX_PERCENTAGE: 0.7,
-} as const
-
-/** Editor connections section height constraints */
-export const EDITOR_CONNECTIONS_HEIGHT = {
-  DEFAULT: 172,
-  MIN: 30,
-  MAX: 300,
 } as const
 
 /** Output panel (terminal execution results) width constraints */

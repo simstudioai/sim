@@ -160,6 +160,7 @@ describe('ensureOrganizationForTeamSubscription', () => {
       organizationId: 'org-owned',
       externalMemberPolicy: 'keep-external',
       includeArchived: true,
+      skipSplitProjects: true,
       actor: BILLING_WEBHOOK,
     })
     expect(mockCreateOrganizationWithOwner).not.toHaveBeenCalled()

@@ -30,23 +30,6 @@ function clampSidebarWidth(width: number): number {
 }
 
 /**
- * The width the mounted rail opens at. Every workspace visit persists `sidebarWidth`, so only a value
- * above the minimum proves someone dragged it; the organization rail honours that until it has its
- * own. Mirrored inline by the pre-paint script in `app/_shell/site-root-layout.tsx`, which cannot import this.
- */
-function resolveExpandedWidth({
-  surface,
-  sidebarWidth,
-  organizationSidebarWidth,
-}: Pick<SidebarState, 'surface' | 'sidebarWidth' | 'organizationSidebarWidth'>): number {
-  if (surface === 'workspace') return sidebarWidth
-  if (typeof organizationSidebarWidth === 'number' && Number.isFinite(organizationSidebarWidth)) {
-    return organizationSidebarWidth
-  }
-  return sidebarWidth > SIDEBAR_WIDTH.MIN ? sidebarWidth : SIDEBAR_WIDTH.ORGANIZATION_DEFAULT
-}
-
-/**
  * Publishes both sidebar widths, owning the collapsed mapping so callers don't repeat it.
  *
  * `--sidebar-width` is the width the rail currently occupies (the collapsed width while
@@ -75,18 +58,12 @@ function getCollapsedSidebarWidth(): number {
 }
 
 /**
- * The `sidebar_collapsed` cookie is the single source of truth for collapse: the
- * server layout reads it to render the correct structure on the first paint
- * (it can't read `localStorage`), and the client seeds its initial state from it
- * below. Width is the only field persisted to `localStorage`.
+ * Reads the collapse state the server saw, so the client store seeds identically. The
+ * `sidebar_collapsed` cookie is the single source of truth for collapse and has one writer, the
+ * product sidebar (`app/(product)/_components/sidebar/sidebar-layout.tsx`); the server layout reads
+ * it for the first paint, since it can't read `localStorage`. Matches the cookie value strictly
+ * (`=1`) so `sidebar_collapsed=10` and the like aren't read as collapsed.
  */
-function applyCollapsedCookie(collapsed: boolean) {
-  if (typeof document === 'undefined') return
-  document.cookie = `sidebar_collapsed=${collapsed ? '1' : '0'}; path=/; max-age=31536000; samesite=lax`
-}
-
-/** Reads the collapse state the server saw, so the client store seeds identically. Matches the
- * cookie value strictly (`=1`) so `sidebar_collapsed=10` and the like aren't read as collapsed. */
 export function readCollapsedCookie(): boolean {
   if (typeof document === 'undefined') return false
   return document.cookie.match(/(?:^|;\s*)sidebar_collapsed=([^;]*)/)?.[1] === '1'
@@ -97,35 +74,18 @@ export const useSidebarStore = create<SidebarState>()(
     (set, get) => ({
       workspaceDropdownOpen: false,
       sidebarWidth: SIDEBAR_WIDTH.DEFAULT,
-      organizationSidebarWidth: null,
-      surface: 'workspace',
       renderedSidebarWidth: SIDEBAR_WIDTH.DEFAULT,
       isCollapsed: readCollapsedCookie(),
       _hasHydrated: false,
       setWorkspaceDropdownOpen: (isOpen) => set({ workspaceDropdownOpen: isOpen }),
       setSidebarWidth: (width) => {
         if (get().isCollapsed) return
-        const clampedWidth = clampSidebarWidth(width)
-        set(
-          get().surface === 'organization'
-            ? { organizationSidebarWidth: clampedWidth }
-            : { sidebarWidth: clampedWidth }
-        )
-        get().syncWidth()
-      },
-      setSurface: (surface) => {
-        set({ surface })
-        get().syncWidth()
-      },
-      toggleCollapsed: () => {
-        const nextCollapsed = !get().isCollapsed
-        set({ isCollapsed: nextCollapsed })
-        applyCollapsedCookie(nextCollapsed)
+        set({ sidebarWidth: clampSidebarWidth(width) })
         get().syncWidth()
       },
       syncWidth: () => {
-        const { isCollapsed } = get()
-        const clampedWidth = clampSidebarWidth(resolveExpandedWidth(get()))
+        const { isCollapsed, sidebarWidth } = get()
+        const clampedWidth = clampSidebarWidth(sidebarWidth)
         set({
           renderedSidebarWidth:
             typeof window !== 'undefined' && window.innerWidth < 768
@@ -152,11 +112,8 @@ export const useSidebarStore = create<SidebarState>()(
           state.syncWidth()
         }
       },
-      /** Only widths are persisted; collapse lives in the cookie. */
-      partialize: (state) => ({
-        sidebarWidth: state.sidebarWidth,
-        organizationSidebarWidth: state.organizationSidebarWidth,
-      }),
+      /** Only the width is persisted; collapse lives in the cookie. */
+      partialize: (state) => ({ sidebarWidth: state.sidebarWidth }),
       /**
        * Never lets a legacy persisted `isCollapsed` override the cookie-seeded
        * value — the cookie is the source of truth (handles migration cleanly).

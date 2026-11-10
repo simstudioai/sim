@@ -8,7 +8,6 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -256,11 +255,9 @@ export const Code = memo(function Code({
         : storeValue
   const valueText = textOf(value)
 
-  // Before paint, so the stored code never flashes the placeholder on mount.
-  useLayoutEffect(() => {
-    if (isStreaming) return
-    if (valueText !== code) setCode(valueText)
-  }, [valueText, code, isStreaming])
+  // Outside a stream the editor shows the stored code. Adjusted during render, so neither the
+  // placeholder on mount nor a stream's leftover text ever paints.
+  if (!isStreaming && valueText !== code) setCode(valueText)
 
   const trimmedCode = code.trim()
   const containsReferencePlaceholders =

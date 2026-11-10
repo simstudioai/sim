@@ -40,7 +40,7 @@ interface SessionFrameProps {
 interface SessionTreeProps extends SessionFrameProps {
   data: ShellData | null
   theme: Appearance
-  /** Example data: its integration changes are session state, and its scenario resets preferences. */
+  /** Example data: its scenario resets the session's preferences and edits. */
   scenario?: Scenario
 }
 
@@ -63,15 +63,11 @@ function SessionTree({
               <ComposerDrafts>
                 <ComposerSession>
                   <PlatformSurface theme={theme}>
-                    <IntegrationChanges>
-                      <IntegrationCenterChanges enabled={scenario !== undefined}>
-                        <SuggestionListProvider list={EditorSuggestions}>
-                          <PlatformShell data={data} banner={banner}>
-                            {children}
-                          </PlatformShell>
-                        </SuggestionListProvider>
-                      </IntegrationCenterChanges>
-                    </IntegrationChanges>
+                    <SuggestionListProvider list={EditorSuggestions}>
+                      <PlatformShell data={data} banner={banner}>
+                        {children}
+                      </PlatformShell>
+                    </SuggestionListProvider>
                   </PlatformSurface>
                 </ComposerSession>
               </ComposerDrafts>
@@ -114,7 +110,9 @@ export function FixtureProductSession({
       theme={readAppearance(search.get('theme'))}
       scenario={scenario}
     >
-      {children}
+      <IntegrationChanges>
+        <IntegrationCenterChanges>{children}</IntegrationCenterChanges>
+      </IntegrationChanges>
     </SessionTree>
   )
 }

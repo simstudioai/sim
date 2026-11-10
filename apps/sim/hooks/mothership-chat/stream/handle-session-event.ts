@@ -69,6 +69,5 @@ export function handleSessionEvent(ctx: StreamLoopContext, parsed: SessionEvent)
         ? mothershipChatKeys.organizationList(deps.organizationId)
         : mothershipChatKeys.list(deps.workspaceId),
     })
-    deps.onTitleUpdateRef.current?.()
   }
 }

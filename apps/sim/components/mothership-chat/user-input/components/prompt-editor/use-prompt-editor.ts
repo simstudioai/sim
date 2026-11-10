@@ -47,8 +47,6 @@ import { type SkillDefinition, useSkills } from '@/hooks/queries/skills'
 import { isTouchMobileViewport } from '@/hooks/use-is-mobile'
 import type { ChatContext } from '@/stores/panel'
 
-const NO_SKILLS: SkillDefinition[] = []
-
 /**
  * Computes the viewport position of a caret offset inside a textarea by
  * mirroring its text into a hidden, identically-styled div and measuring a
@@ -144,19 +142,6 @@ export interface UsePromptEditorProps {
   /** Called when the viewer presses the field, opens the `+` menu, or types an `@`. */
   onResourceIntent?: () => void
   /**
-   * True while `availableSkills` is still arriving. Chips wait for the whole list, because a name
-   * unique among the workspaces read so far may not be unique among them all.
-   */
-  skillsLoading?: boolean
-  /** Enter keeps waiting while the `@` lists load, rather than picking from the partial results. */
-  waitsForFullResources?: boolean
-  /**
-   * Notified when a context is added through an interactive path — a mention
-   * pick, a resource drop, or a skill pick. Paste re-registration is
-   * intentionally silent so pasting never auto-opens host side panels.
-   */
-  onContextAdd?: (context: ChatContext) => void
-  /**
    * Receives files pasted from the clipboard. Omit to ignore pasted files
    * (the paste is then a no-op, matching native textarea behavior).
    */
@@ -194,9 +179,6 @@ export function usePromptEditor({
   availableSkills,
   resourceIntent,
   onResourceIntent,
-  skillsLoading = false,
-  waitsForFullResources = false,
-  onContextAdd,
   onPasteFiles,
 }: UsePromptEditorProps) {
   const onResourceIntentRef = useRef(onResourceIntent)
@@ -255,15 +237,12 @@ export function usePromptEditor({
   const contextManagementRef = useRef(contextManagement)
   contextManagementRef.current = contextManagement
 
-  const onContextAddRef = useRef(onContextAdd)
-  onContextAddRef.current = onContextAdd
   const onPasteFilesRef = useRef(onPasteFiles)
   onPasteFilesRef.current = onPasteFiles
 
-  const addContextNotified = useCallback((context: ChatContext) => {
+  const addEnabledContext = useCallback((context: ChatContext) => {
     if (!contextsEnabledRef.current) return
     contextManagementRef.current.addContext(context)
-    onContextAddRef.current?.(context)
   }, [])
 
   const mentionMenu = useMentionMenu({
@@ -297,7 +276,7 @@ export function usePromptEditor({
   })
 
   const skillAutoMention = useSkillAutoMention({
-    skills: skillsLoading ? NO_SKILLS : skills,
+    skills,
     mcpServers,
     workspaceId: organizationId ? workspaceId : undefined,
     organizationScoped: Boolean(organizationId),
@@ -354,33 +333,6 @@ export function usePromptEditor({
     }
     seedRef.current = skills.length > 0 || mcpServers.length > 0 ? null : converted
   }, [skills.length, mcpServers.length, applyAutoMentions])
-
-  /**
-   * A list loaded on demand can arrive after the text it would have chipped: a `/name ` typed or
-   * pasted while it was on its way. The token still being typed stays out of the pass, since its
-   * own boundary keystroke chips it. Each trigger is one character wide, so swapping it in place
-   * leaves the caret and the native undo history where they were.
-   */
-  const skillsWereLoading = useRef(skillsLoading)
-  useEffect(() => {
-    const finishedLoading = skillsWereLoading.current && !skillsLoading
-    skillsWereLoading.current = skillsLoading
-    const textarea = textareaRef.current
-    if (!finishedLoading || !textarea || !contextsEnabledRef.current) return
-    const current = valueRef.current
-    const active = slashRangeRef.current
-    const converted = active
-      ? skillAutoMention.applyToText(current.slice(0, active.start)) +
-        current.slice(active.start, active.end) +
-        skillAutoMention.applyToText(current.slice(active.end))
-      : skillAutoMention.applyToText(current)
-    if (converted === current) return
-    for (let index = 0; index < converted.length; index++) {
-      if (converted[index] !== current[index])
-        textarea.setRangeText(converted[index], index, index + 1, 'preserve')
-    }
-    commitValue(converted)
-  }, [skillsLoading, skillAutoMention.applyToText, textareaRef, commitValue])
 
   /**
    * Programmatically replaces the editor text. Chipifies by default so any
@@ -530,10 +482,10 @@ export function usePromptEditor({
       skillsMenuRef.current?.close()
       valueRef.current = nextValue
       setValueState(nextValue)
-      addContextNotified(resolvedContext)
+      addEnabledContext(resolvedContext)
       focusAtEnd()
     },
-    [addContextNotified, focusAtEnd]
+    [addEnabledContext, focusAtEnd]
   )
 
   /**
@@ -608,10 +560,10 @@ export function usePromptEditor({
         setValueState(newValue)
       }
 
-      addContextNotified(context)
+      addEnabledContext(context)
       return context
     },
-    [textareaRef, addContextNotified, organizationId]
+    [textareaRef, addEnabledContext, organizationId]
   )
 
   const insertResource = useCallback(
@@ -703,14 +655,14 @@ export function usePromptEditor({
         setValueState(newValue)
       }
 
-      addContextNotified({
+      addEnabledContext({
         kind: 'skill',
         skillId: skill.id,
         label,
         ...(organizationId && owner ? { workspaceId: owner } : {}),
       })
     },
-    [textareaRef, addContextNotified, organizationId]
+    [textareaRef, addEnabledContext, organizationId]
   )
 
   const handleMcpSelect = useCallback(
@@ -734,14 +686,14 @@ export function usePromptEditor({
         setValueState(newValue)
       }
 
-      addContextNotified({
+      addEnabledContext({
         kind: 'mcp',
         serverId: server.id,
         label: server.name,
         ...(server.managedConnectorId ? { managedConnectorId: server.managedConnectorId } : {}),
       })
     },
-    [textareaRef, addContextNotified]
+    [textareaRef, addEnabledContext]
   )
 
   /**
@@ -782,9 +734,9 @@ export function usePromptEditor({
         setValueState(newValue)
       }
 
-      for (const context of prepared) addContextNotified(context)
+      for (const context of prepared) addEnabledContext(context)
     },
-    [textareaRef, addContextNotified]
+    [textareaRef, addEnabledContext]
   )
 
   /**
@@ -1358,8 +1310,6 @@ export function usePromptEditor({
       const newValue = textarea.value
       const caret = selStart + insert.length
 
-      // Use addContext directly — NOT the notified path — so pasting does NOT
-      // auto-open host side panels (the notified path fires onContextAdd).
       for (const ctx of pastedContexts) contextManagementRef.current.addContext(ctx)
 
       valueRef.current = newValue
@@ -1491,10 +1441,6 @@ export function usePromptEditor({
     contextsEnabled,
     /** @internal */
     skills,
-    /** @internal */
-    skillsLoading,
-    /** @internal */
-    waitsForFullResources,
     /** @internal */
     resourceIntent,
     /** @internal */

@@ -95,58 +95,47 @@ async function create(
   return toRecord(toRecord(await response.json()).file)
 }
 const prefix = `/api/projects/${projectId}/files`
-await check(
-  'Project representation headers, Unicode names, active MIME and HEAD without generation',
-  async () => {
-    for (const [name, type, content] of [
-      [
-        'résumé.svg',
-        'image/svg+xml',
-        '<svg xmlns="http://www.w3.org/2000/svg" onload="globalThis.deliveryExecuted=true"/>',
-      ],
-      ['unsafe.html', 'text/html', '<script>globalThis.deliveryExecuted=true</script>'],
-      ['code.js', 'application/javascript', 'globalThis.deliveryExecuted=true'],
-      ['mismatch.txt', 'text/html', '<script>globalThis.deliveryExecuted=true</script>'],
-    ]) {
-      const file = await create('project', name, type, content)
-      const path = `${prefix}/${required(file.id)}/content`
-      const response = await request(path)
-      assert.equal(response.status, 200)
-      assert.equal(response.headers.get('cache-control'), 'private, no-store')
-      assert.equal(response.headers.get('x-content-type-options'), 'nosniff')
-      if (name.endsWith('.svg'))
-        assert.match(response.headers.get('content-security-policy') ?? '', /sandbox/)
-      if (name.endsWith('.html') || name.endsWith('.js'))
-        assert.match(response.headers.get('content-disposition') ?? '', /^attachment;/)
-      if (!name.endsWith('.svg'))
-        assert.match(response.headers.get('content-security-policy') ?? '', /default-src/)
-      const download = await request(`${prefix}/download?fileIds=${required(file.id)}`)
-      assert.equal(download.status, 200)
-      assert.match(download.headers.get('content-disposition') ?? '', /^attachment;/)
-      assert.match(download.headers.get('content-security-policy') ?? '', /default-src/)
-      const archive = await JSZip.loadAsync(await download.arrayBuffer())
-      assert.equal(await archive.file(required(file.name))?.async('string'), content)
-      const head = await request(path, { method: 'HEAD' })
-      assert.equal(head.status, 200)
-      assert.equal(await head.text(), '')
-      assert.equal(head.headers.get('cache-control'), 'private, no-store')
-      const denied = await request(path, { method: 'HEAD' }, true)
-      assert.equal(denied.status, 401)
-      assert.equal(denied.headers.get('content-disposition'), null)
-      assert.match(denied.headers.get('content-security-policy') ?? '', /default-src/)
-      const bypass = await request(`/api/files/serve/${required(file.key)}`)
-      assert.equal(bypass.status, 404)
-    }
-    const generated = await create(
-      'project',
-      'head.pdf',
-      'text/x-pdflibjs',
-      'throw new Error("HEAD must never execute this source")'
-    )
-    const head = await request(`${prefix}/${required(generated.id)}/artifact`, { method: 'HEAD' })
+await check('Project representation headers, Unicode names, active MIME and HEAD', async () => {
+  for (const [name, type, content] of [
+    [
+      'résumé.svg',
+      'image/svg+xml',
+      '<svg xmlns="http://www.w3.org/2000/svg" onload="globalThis.deliveryExecuted=true"/>',
+    ],
+    ['unsafe.html', 'text/html', '<script>globalThis.deliveryExecuted=true</script>'],
+    ['code.js', 'application/javascript', 'globalThis.deliveryExecuted=true'],
+    ['mismatch.txt', 'text/html', '<script>globalThis.deliveryExecuted=true</script>'],
+  ]) {
+    const file = await create('project', name, type, content)
+    const path = `${prefix}/${required(file.id)}/content`
+    const response = await request(path)
+    assert.equal(response.status, 200)
+    assert.equal(response.headers.get('cache-control'), 'private, no-store')
+    assert.equal(response.headers.get('x-content-type-options'), 'nosniff')
+    if (name.endsWith('.svg'))
+      assert.match(response.headers.get('content-security-policy') ?? '', /sandbox/)
+    if (name.endsWith('.html') || name.endsWith('.js'))
+      assert.match(response.headers.get('content-disposition') ?? '', /^attachment;/)
+    if (!name.endsWith('.svg'))
+      assert.match(response.headers.get('content-security-policy') ?? '', /default-src/)
+    const download = await request(`${prefix}/download?fileIds=${required(file.id)}`)
+    assert.equal(download.status, 200)
+    assert.match(download.headers.get('content-disposition') ?? '', /^attachment;/)
+    assert.match(download.headers.get('content-security-policy') ?? '', /default-src/)
+    const archive = await JSZip.loadAsync(await download.arrayBuffer())
+    assert.equal(await archive.file(required(file.name))?.async('string'), content)
+    const head = await request(path, { method: 'HEAD' })
     assert.equal(head.status, 200)
+    assert.equal(await head.text(), '')
+    assert.equal(head.headers.get('cache-control'), 'private, no-store')
+    const denied = await request(path, { method: 'HEAD' }, true)
+    assert.equal(denied.status, 401)
+    assert.equal(denied.headers.get('content-disposition'), null)
+    assert.match(denied.headers.get('content-security-policy') ?? '', /default-src/)
+    const bypass = await request(`/api/files/serve/${required(file.key)}`)
+    assert.equal(bypass.status, 404)
   }
-)
+})
 await check(
   'v2 Project SVG delivery and current, retained, missing and generated HEAD admission',
   async () => {

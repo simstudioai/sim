@@ -1,4 +1,3 @@
-export { AnimatedPlaceholderEffect } from './animated-placeholder-effect'
 export { AttachedFilesList } from './attached-files-list'
 export type { ParsedChipLink, PortableKind } from './chip-clipboard-codec'
 export {

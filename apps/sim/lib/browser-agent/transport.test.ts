@@ -32,7 +32,6 @@ const {
   onAddToChat,
   onFindResult,
   onFillAvailability,
-  onFocusOmnibox,
   onOpenFind,
   onScopeSuspended,
   onToolbarCommand,
@@ -71,7 +70,6 @@ const {
   onAddToChat: vi.fn(),
   onFindResult: vi.fn(),
   onFillAvailability: vi.fn(),
-  onFocusOmnibox: vi.fn(),
   onOpenFind: vi.fn(),
   onScopeSuspended: register('scopeSuspended'),
   onToolbarCommand: vi.fn(),
@@ -122,7 +120,6 @@ import {
   onBrowserFindClose,
   onBrowserFindOpen,
   onBrowserFindResult,
-  onBrowserOmniboxFocus,
   onBrowserToolbarCommand,
   openUrlInNewBrowserTab,
   restoreBrowserScope,
@@ -143,7 +140,6 @@ libDesktopMockFns.mockGetDesktopBridge.mockImplementation(() => ({
     onCloseFind,
     onAddToChat,
     onFindResult,
-    onFocusOmnibox,
     onOpenFind,
     onPageState,
     onScopeSuspended,
@@ -577,23 +573,6 @@ describe('browser panel transport', () => {
     expect(setPageState).toHaveBeenCalledWith(pageState)
     expect(setTabsState).toHaveBeenCalledWith(tabsState)
     expect(setSessionAlive).toHaveBeenCalledWith(false, 'chat-c')
-  })
-
-  it('subscribes to native omnibox focus requests', () => {
-    const unsubscribe = vi.fn()
-    const callback = vi.fn()
-    onFocusOmnibox.mockReturnValue(unsubscribe)
-
-    expect(onBrowserOmniboxFocus(callback, 'chat-a')).toBe(unsubscribe)
-    const listener = onFocusOmnibox.mock.calls[0][0] as (
-      mode: 'clear' | 'select',
-      scopeId?: string
-    ) => void
-    listener('clear', 'chat-b')
-    listener('select', 'chat-a')
-
-    expect(callback).toHaveBeenCalledTimes(1)
-    expect(callback).toHaveBeenCalledWith('select')
   })
 
   it('filters asynchronous find events to the subscribing chat', () => {

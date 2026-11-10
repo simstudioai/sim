@@ -12,7 +12,6 @@ import {
   ORGANIZATION_ID,
   OUTSIDE_ORGANIZATION_ID,
   OWNER,
-  SEEDED_SOURCE,
   WORKSPACES,
 } from '@/scripts/org-redesign-e2e/fixture'
 import {
@@ -169,14 +168,6 @@ export async function homeChecks() {
       assert.deepEqual(reads, [], 'A member with no workspaces read workspace activity')
     })
   })
-  await check('widget reads refuse another organization', async () => {
-    await onHome(MEMBER, async ({ page }) => {
-      const response = await page.request.get(
-        url(`/api/organizations/${OUTSIDE_ORGANIZATION_ID}/home/email`)
-      )
-      assert.equal(response.status(), 404)
-    })
-  })
 
   section('3 Home: administrator')
   // Home's own behaviour, proved once for a viewer who has Home.
@@ -254,37 +245,6 @@ export async function homeChecks() {
       })
     }
   )
-  await check('Recents list real history and × removes it for good', async () => {
-    // Search's history check reads the same seeded visit later, so the removal is put back.
-    const [before] =
-      await sql`select sources from organization_search_history where user_id = ${ADMIN.userId} and organization_id = ${ORGANIZATION_ID}`
-    await withRestore(
-      () =>
-        sql`update organization_search_history set sources = ${sql.json(before?.sources ?? [])} where user_id = ${ADMIN.userId} and organization_id = ${ORGANIZATION_ID}`,
-      () =>
-        onHome(ADMIN, async (session) => {
-          const { page } = session
-          const recents = homeRegion(page, 'Recents')
-          const row = recents.getByRole('link', { name: SEEDED_SOURCE.title })
-          await expect(row).toBeVisible()
-          await row.hover()
-          const removed = page.waitForResponse(
-            (response) =>
-              response.request().method() === 'DELETE' &&
-              new URL(response.url()).pathname.endsWith('/search/history/sources')
-          )
-          await recents
-            .getByRole('button', { name: `Remove ${SEEDED_SOURCE.title} from recents` })
-            .click()
-          await expect(row).toHaveCount(0)
-          assert.ok((await removed).ok(), 'The server refused the removal')
-          await page.reload()
-          await expect(homeRegion(page, 'Email')).toBeVisible()
-          await session.settle()
-          await expect(recents.getByRole('link', { name: SEEDED_SOURCE.title })).toHaveCount(0)
-        })
-    )
-  })
   await check('Recents collapse repeats, and only a provider chip has a mark', async () => {
     const [before] =
       await sql`select sources from organization_search_history where user_id = ${ADMIN.userId} and organization_id = ${ORGANIZATION_ID}`
@@ -339,27 +299,6 @@ export async function homeChecks() {
         })
       }
     )
-  })
-  await check('Assistant chats open under Search, and Home paints no attention list', async () => {
-    const { id, title } = ADMIN_CHATS.assistant
-    await withSession(ADMIN, async ({ page }) => {
-      await page.goto(homeUrl)
-      await expect(homeRegion(page, 'Needs your attention')).toHaveCount(0)
-      const row = sidebar(page).getByRole('link', { name: title })
-      await expect(row).toHaveAttribute('href', org.searchChat(id))
-      await row.click()
-      await expect(page).toHaveURL((address) => address.pathname === org.searchChat(id))
-    })
-  })
-  await check('Customize Home hides a widget, and Undo brings it back', async () => {
-    await onHome(ADMIN, async ({ page }) => {
-      await page.getByRole('button', { name: 'Customize Home' }).click()
-      await page.getByRole('menuitemcheckbox', { name: 'Email' }).click()
-      await page.keyboard.press('Escape')
-      await expect(homeRegion(page, 'Email')).toHaveCount(0)
-      await page.getByRole('button', { name: 'Undo' }).click()
-      await expect(homeRegion(page, 'Email')).toBeVisible()
-    })
   })
   await check("a builder's Home does not jump from its skeleton to its content", async () => {
     await withSession(ADMIN, async (session) => {

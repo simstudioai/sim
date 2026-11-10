@@ -14,9 +14,9 @@ import type { BrowserCredentialMetadata, BrowserSiteInfo } from '@sim/desktop-br
 import { compareStrings } from '@sim/utils/string'
 import { fuzzyMatch } from '@/components/workspace-sidebar/components/search-modal/utils'
 import {
-  loadBrowserSearchSuggestions,
-  loadBrowserSuggestionSources,
-} from '@/lib/browser-agent/transport'
+  useBrowserSearchSuggestions,
+  useBrowserSuggestionSources,
+} from '@/hooks/queries/browser-suggestions'
 import { useDebounce } from '@/hooks/use-debounce'
 import {
   googleSearchUrl,
@@ -312,57 +312,53 @@ export function useBrowserOmnibox({
 }: BrowserOmniboxOptions) {
   /** Non-null while the user is editing; otherwise the bar mirrors the page. */
   const [draft, setDraft] = useState<string | null>(null)
-  const [corpus, setCorpus] = useState<UrlSuggestion[]>([])
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
   /** Page URL captured when the current edit began. */
   const [originUrl, setOriginUrl] = useState('')
   const [visible, setVisible] = useState(false)
   /** Empty on focus; follows the typed text once the user edits it. */
   const [query, setQuery] = useState<string | null>(null)
-  /** Live completions tagged with their query, so a late reply cannot leak into another. */
-  const [completions, setCompletions] = useState<{ query: string; values: string[] }>({
-    query: '',
-    values: [],
-  })
-  const debouncedQuery = useDebounce(query ?? '', SEARCH_SUGGESTIONS_DEBOUNCE_MS)
+  const debouncedQuery = useDebounce(query ?? '', SEARCH_SUGGESTIONS_DEBOUNCE_MS).trim()
   const pointerSelection = useRef<PointerSelection | null>(null)
 
-  // Reloaded whenever the panel comes back on screen, so an import or a fresh sign-in shows up.
-  useEffect(() => {
-    if (!panelVisible) return
-    let active = true
-    void loadBrowserSuggestionSources().then(({ sessions, credentials, sites }) => {
-      if (active) setCorpus(mergeSuggestionSources(sessions, credentials, sites))
-    })
-    return () => {
-      active = false
-    }
-  }, [panelVisible])
-
-  useEffect(() => {
-    const trimmed = debouncedQuery.trim()
-    if (!visible || !isSearchQueryInput(trimmed)) {
-      setCompletions({ query: '', values: [] })
-      return
-    }
-    let active = true
-    void loadBrowserSearchSuggestions(trimmed).then((values) => {
-      if (active) setCompletions({ query: trimmed, values })
-    })
-    return () => {
-      active = false
-    }
-  }, [debouncedQuery, visible])
+  // Re-read whenever the panel comes back on screen, so an import or a fresh sign-in shows up.
+  const sources = useBrowserSuggestionSources(panelVisible)
+  const corpus = useMemo(
+    () =>
+      sources.data
+        ? mergeSuggestionSources(
+            sources.data.sessions,
+            sources.data.credentials,
+            sources.data.sites
+          )
+        : [],
+    [sources.data]
+  )
+  const searchingLive = visible && isSearchQueryInput(debouncedQuery)
+  const completions = useBrowserSearchSuggestions(debouncedQuery, searchingLive)
 
   const suggestions = useMemo((): OmniboxSuggestion[] => {
     if (!visible || query === null) return []
-    const live = completions.query === query.trim() ? completions.values : []
+    // Completions for text the user has since changed never stand in for the current text's.
+    const live = searchingLive && debouncedQuery === query.trim() ? (completions.data ?? []) : []
     return buildOmniboxSuggestions(corpus, query, live)
-  }, [completions, corpus, query, visible])
+  }, [completions.data, corpus, debouncedQuery, query, searchingLive, visible])
 
-  useEffect(() => {
+  // A new list, query or edit starts its highlight over; hover and arrows move it within one.
+  const [highlightFor, setHighlightFor] = useState<{
+    originUrl: string
+    query: string | null
+    suggestions: OmniboxSuggestion[]
+  } | null>(null)
+  if (
+    highlightFor === null ||
+    highlightFor.originUrl !== originUrl ||
+    highlightFor.query !== query ||
+    highlightFor.suggestions !== suggestions
+  ) {
+    setHighlightFor({ originUrl, query, suggestions })
     setActiveIndex(initialActiveIndex(originUrl, suggestions.length, query ?? ''))
-  }, [originUrl, query, suggestions])
+  }
 
   const { request, close } = overlay
   useEffect(() => {
@@ -431,7 +427,6 @@ export function useBrowserOmnibox({
     onChange: (next: string) => {
       setVisible(true)
       setQuery(next)
-      setCompletions({ query: '', values: [] })
       setDraft(next)
       setActiveIndex(null)
     },

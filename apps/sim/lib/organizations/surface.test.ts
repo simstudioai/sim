@@ -153,17 +153,48 @@ describe('getOrganizationSurfaceContext', () => {
   )
 
   it.each([
-    { role: 'owner', policyDisabled: false, deploymentDisabled: false, allowed: true },
-    { role: 'admin', policyDisabled: true, deploymentDisabled: false, allowed: false },
-    { role: 'admin', policyDisabled: false, deploymentDisabled: true, allowed: false },
-    { role: 'member', policyDisabled: false, deploymentDisabled: false, allowed: false },
+    {
+      role: 'owner',
+      policyDisabled: false,
+      deploymentDisabled: false,
+      uiDisabled: false,
+      allowed: true,
+    },
+    {
+      role: 'admin',
+      policyDisabled: true,
+      deploymentDisabled: false,
+      uiDisabled: false,
+      allowed: false,
+    },
+    {
+      role: 'admin',
+      policyDisabled: false,
+      deploymentDisabled: true,
+      uiDisabled: false,
+      allowed: false,
+    },
+    {
+      role: 'admin',
+      policyDisabled: false,
+      deploymentDisabled: false,
+      uiDisabled: true,
+      allowed: false,
+    },
+    {
+      role: 'member',
+      policyDisabled: false,
+      deploymentDisabled: false,
+      uiDisabled: false,
+      allowed: false,
+    },
   ])(
     'projects invitation policy for $role: $allowed',
-    async ({ role, policyDisabled, deploymentDisabled, allowed }) => {
+    async ({ role, policyDisabled, deploymentDisabled, uiDisabled, allowed }) => {
       queueTableRows(member, [{ role }])
       queueTableRows(organization, [{ id: 'org-1', name: 'Acme', slug: 'acme', logo: null }])
       queueTableRows(member, [{ memberCount: 1 }])
-      setEnvFlags({ isInvitationsDisabled: deploymentDisabled })
+      setEnvFlags({ isInvitationsDisabled: deploymentDisabled, isInvitationUiDisabled: uiDisabled })
       mockPermissionConfig.mockResolvedValue({
         ...DEFAULT_PERMISSION_GROUP_CONFIG,
         disableInvitations: policyDisabled,

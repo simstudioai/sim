@@ -2,20 +2,16 @@
 
 import { useEffect, useLayoutEffect } from 'react'
 import { useSidebarStore } from '@/stores/sidebar/store'
-import type { SidebarSurface } from '@/stores/sidebar/types'
 
-/**
- * Restores the mounted rail's width before paint and keeps it within the viewport. A navigation
- * between surfaces mounts a new chrome, so this repoints the shared variables in that same commit.
- */
-export function useSidebarWidth(surface: SidebarSurface = 'workspace') {
+/** Restores the mounted rail's width before paint and keeps it within the viewport. */
+export function useSidebarWidth() {
   const syncWidth = useSidebarStore((state) => state.syncWidth)
 
   useLayoutEffect(() => {
-    // Rehydrate first: any store write persists, and would overwrite saved widths with the defaults.
+    // Rehydrate first: any store write persists, and would overwrite the saved width with the default.
     void useSidebarStore.persist.rehydrate()
-    useSidebarStore.getState().setSurface(surface)
-  }, [surface])
+    syncWidth()
+  }, [syncWidth])
 
   useEffect(() => {
     let rafId: number | null = null

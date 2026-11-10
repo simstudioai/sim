@@ -13,7 +13,7 @@ import type { ChatRequestMode } from '@/lib/mothership/chat/types'
 import {
   useConversationGate,
   useOrganizationConversation,
-} from '@/app/_organization-conversation/use-organization-conversation'
+} from '@/app/(site)/extension/_organization-conversation/use-organization-conversation'
 import { PanelComposer } from '@/app/(site)/extension/o/[organizationId]/panel-composer'
 import type { PrepareChatSubmission } from '@/hooks/use-composer-submission'
 
@@ -57,16 +57,13 @@ function PanelConversationContent({
   const fileDropTarget = useRef<HTMLElement>(null)
   const { chat, controller, hasChat, composerProps, threadProps, reviewProps } =
     useOrganizationConversation({
-      surface: {
-        kind: 'panel',
-        draftNamespace,
-        fileDropTarget,
-        onChatIdResolved,
-        prepareSubmission,
-        onSubmitted,
-      },
       chatId,
       requestMode,
+      draftNamespace,
+      fileDropTarget,
+      onChatIdResolved,
+      prepareSubmission,
+      onSubmitted,
     })
   const composer = (
     <PanelComposer
@@ -93,7 +90,6 @@ function PanelConversationContent({
             <MothershipChat
               {...threadProps}
               onNavigateToChat={onNavigateToChat}
-              layout='copilot-view'
               SearchConnectionComponent={SearchIntegrationConnection}
               composer={composer}
               initialScrollBlocked={false}

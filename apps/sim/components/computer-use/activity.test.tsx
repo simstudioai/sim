@@ -45,7 +45,6 @@ it.each(['pending', 'failed'] as const)(
           flags={{
             dashboards: false,
             'workflow-tests': false,
-            changelog: false,
             'mothership-model-selector': false,
             'mothership-plan-mode': false,
             'mothership-computer-use': true,
@@ -86,7 +85,6 @@ it.each(['active', 'completed'] as const)(
           flags={{
             dashboards: false,
             'workflow-tests': false,
-            changelog: false,
             'mothership-model-selector': false,
             'mothership-plan-mode': false,
             'mothership-computer-use': false,

@@ -9,6 +9,7 @@ import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
+import { organizationDraftKey } from '@/lib/organizations/draft-key'
 import { SourceSetupForm } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/source-setup'
 import {
   getSearchConnectionLabels,
@@ -41,7 +42,11 @@ export function SourceSetup({ backLabel, children, ...options }: SourceSetupProp
         knowledgeBaseId={knowledgeBaseId}
         connectorType={selectedType}
         accessMode={accessMode}
-        draftKey={`${userId}:organization:${scope.organizationId}:${knowledgeBaseId}:${selectedType}:${accessMode}`}
+        draftKey={organizationDraftKey(
+          userId,
+          scope.organizationId,
+          `${knowledgeBaseId}:${selectedType}:${accessMode}`
+        )}
         backLabel={backLabel}
         onClose={() => void setup.setSelectedType(null)}
         onCreated={(type, connector) => void setup.handleCreated(type, connector, accessMode)}

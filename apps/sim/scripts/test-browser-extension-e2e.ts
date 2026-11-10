@@ -2261,6 +2261,84 @@ try {
       }
     }
   )
+  await checkComposer(
+    'An organization panel’s workspace chat is admitted under its workspace, and refused once access is gone',
+    async () => {
+      assert(userId)
+      const viewer = userId
+      // A workspace of its own, owned by someone else and shared with the viewer, so revoking the
+      // share leaves the viewer no other way in.
+      const scopedWorkspaceId = generateId()
+      const scopedChatId = generateId()
+      await sql.begin(async (tx) => {
+        await tx`insert into workspace (id, project_id, organization_id, name, owner_id, billed_account_user_id) values (${scopedWorkspaceId}, ${alphaId}, ${organizationId}, 'Extension QA scoped', ${otherUserId}, ${otherUserId})`
+        await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type) values (${generateId()}, ${viewer}, 'workspace', ${scopedWorkspaceId}, 'admin')`
+        await tx`insert into copilot_chats (id, user_id, workspace_id, type, title) values (${scopedChatId}, ${viewer}, ${scopedWorkspaceId}, 'mothership', 'Extension QA scoped chat')`
+        for (const [seq, role, content] of [
+          [0, 'user', 'QA scoped question.'],
+          [1, 'assistant', 'QA scoped response.'],
+        ] as const) {
+          const message = { id: generateId(), role, content, timestamp: new Date().toISOString() }
+          await tx`insert into copilot_messages (id, chat_id, message_id, role, content, seq) values (${generateId()}, ${scopedChatId}, ${message.id}, ${role}, ${tx.json(message)}, ${seq})`
+        }
+      })
+      const chatPost = () =>
+        shell.waitForResponse(
+          (response) =>
+            response.request().method() === 'POST' &&
+            new URL(response.url()).pathname === '/api/mothership/chat'
+        )
+      const runs = () =>
+        sql<{ workspaceId: string | null; organizationId: string | null }[]>`
+          select workspace_id as "workspaceId", organization_id as "organizationId"
+          from copilot_runs where chat_id = ${scopedChatId}`
+      try {
+        await navigate(`${base.origin}/extension/o/${organizationId}?chat=${scopedChatId}`)
+        await expect(frame().getByText('QA scoped response.', { exact: true })).toBeVisible()
+        const composer = frame().getByRole('textbox', { name: 'Ask Sim', exact: true })
+        // A worker answers at SIM_AGENT_API_URL (the scripted one in CI), so the server admits the turn.
+        const admitted = chatPost()
+        await composer.fill('QA scoped turn')
+        await composer.press('Enter')
+        const admission = await admitted
+        assert.equal(admission.status(), 200)
+        const payload = toRecord(admission.request().postDataJSON())
+        assert.equal(payload.workspaceId, scopedWorkspaceId)
+        assert.equal(payload.organizationId, undefined)
+        // Settled before access changes, so the follow-up is a new turn rather than a steer.
+        await expect
+          .poll(
+            async () =>
+              (
+                await sql<
+                  { status: string }[]
+                >`select status from copilot_runs where chat_id = ${scopedChatId}`
+              )
+                .map(({ status }) => status)
+                .join(),
+            { timeout: 60_000 }
+          )
+          .toMatch(/^(?!active$)\w+$/)
+        assert.deepEqual(await runs(), [{ workspaceId: scopedWorkspaceId, organizationId: null }])
+
+        await sql`delete from permissions where entity_type = 'workspace' and entity_id = ${scopedWorkspaceId} and user_id = ${viewer}`
+        const followUp = chatPost()
+        await composer.fill('QA scoped follow-up')
+        await composer.press('Enter')
+        const refusal = (await followUp).status()
+        assert(refusal === 403 || refusal === 404, `The follow-up was answered ${refusal}`)
+        // Refused, not re-scoped: no run under the organization, and the chat keeps its workspace.
+        assert.deepEqual(await runs(), [{ workspaceId: scopedWorkspaceId, organizationId: null }])
+        const [chat] = await sql<{ workspaceId: string | null; organizationId: string | null }[]>`
+          select workspace_id as "workspaceId", organization_id as "organizationId"
+          from copilot_chats where id = ${scopedChatId}`
+        assert.deepEqual(chat, { workspaceId: scopedWorkspaceId, organizationId: null })
+      } finally {
+        await sql`delete from permissions where entity_type = 'workspace' and entity_id = ${scopedWorkspaceId}`
+        await sql`delete from workspace where id = ${scopedWorkspaceId}`
+      }
+    }
+  )
   const setActiveOrganization = async () => {
     const active = await browserContext.request.post(
       `${base.origin}/api/auth/organization/set-active`,

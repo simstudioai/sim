@@ -1,39 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
-import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
   getCoveredUsage,
   getIsOnDemandActive,
   getOnDemandOffLimit,
-  getPooledCreditsRemaining,
   isOnDemandOffDisabled,
 } from '@/lib/billing/on-demand'
-
-describe('getPooledCreditsRemaining', () => {
-  it('returns limit minus usage, matching enforcement (usage >= limit blocks)', () => {
-    expect(getPooledCreditsRemaining(120, 62)).toBe(58)
-    expect(getPooledCreditsRemaining(30, 10)).toBe(20)
-  })
-
-  it('does not add the credit balance back (the double-count regression)', () => {
-    // team_6000, 2 seats: planBase $60 + credits $60 → limit $120, usage ~$62.
-    // Remaining is $58 ≈ 11,600 credits — NOT $118 ≈ 23,600 (limit + credits - usage).
-    const remaining = getPooledCreditsRemaining(120, 62)
-    expect(remaining).toBe(58)
-    expect(dollarsToCredits(remaining)).toBe(11_600)
-    expect(dollarsToCredits(remaining)).not.toBe(23_600)
-  })
-
-  it('clamps at zero when usage meets or exceeds the limit', () => {
-    expect(getPooledCreditsRemaining(100, 100)).toBe(0)
-    expect(getPooledCreditsRemaining(60, 100)).toBe(0)
-  })
-
-  it('short-circuits the unlimited sentinel to ∞ instead of subtracting usage', () => {
-    expect(getPooledCreditsRemaining(ON_DEMAND_UNLIMITED, 500)).toBe(ON_DEMAND_UNLIMITED)
-    expect(getPooledCreditsRemaining(ON_DEMAND_UNLIMITED + 1, 0)).toBe(ON_DEMAND_UNLIMITED)
-  })
-})
 
 describe('getCoveredUsage', () => {
   it('sums the plan included amount and the goodwill credit balance', () => {

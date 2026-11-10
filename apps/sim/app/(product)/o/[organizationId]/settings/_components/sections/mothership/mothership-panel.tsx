@@ -29,9 +29,12 @@ function lastWeek(referenceTime: number) {
 }
 
 export function MothershipPanel({ referenceTime }: MothershipPanelProps) {
-  const { tab, env, change } = useMothershipView()
+  const view = useMothershipView()
+  const { tab, env, change } = view
   const actions = useFixtureSettingsActions()
-  const [range, setRange] = useState(() => lastWeek(actions?.referenceTime ?? referenceTime))
+  const [defaultRange] = useState(() => lastWeek(actions?.referenceTime ?? referenceTime))
+  const range =
+    view.start !== null && view.end !== null ? { start: view.start, end: view.end } : defaultRange
   const validRange =
     range.start <= range.end &&
     [range.start, range.end].every((date) => Number.isFinite(Date.parse(`${date}Z`)))
@@ -71,15 +74,19 @@ export function MothershipPanel({ referenceTime }: MothershipPanelProps) {
             value={range}
             error={validRange ? undefined : 'Choose an end time after the start.'}
             onValueChange={(next) => {
-              if (next) setRange(next)
+              if (next) view.setRange(next)
             }}
           />
           {validRange && (
             <MothershipOverview
-              key={`${env}/${range.start}/${range.end}`}
               env={env}
               start={new Date(`${range.start}Z`).toISOString()}
               end={new Date(`${range.end}Z`).toISOString()}
+              page={view.page}
+              selected={view.request}
+              onPageChange={view.setPage}
+              onOpenRequest={view.openRequest}
+              onCloseRequest={view.closeRequest}
             />
           )}
         </>

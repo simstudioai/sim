@@ -39,8 +39,6 @@ export const tableKeys = {
   /** Deliberately NOT under `detail` — the non-exact `invalidateQueries` on that
    *  key (row writes, schema changes, rename, job events) would otherwise refetch
    *  the views list on nearly every table mutation, defeating its staleTime. */
-  viewsRoot: () => [...tableKeys.all, 'views'] as const,
-  views: (tableId: string) => [...tableKeys.viewsRoot(), tableId] as const,
   activeDispatches: (tableId: string) =>
     [...tableKeys.detail(tableId), 'active-dispatches'] as const,
   enrichmentDetails: (tableId: string) =>

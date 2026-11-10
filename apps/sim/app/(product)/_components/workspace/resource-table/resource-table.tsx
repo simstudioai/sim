@@ -25,6 +25,7 @@ import styles from '@/app/(product)/_components/workspace/resource-table/resourc
 import type { ResourceDrag } from '@/app/(product)/_components/workspace/resource-table/use-resource-drag'
 import type { ResourceSelection } from '@/app/(product)/_components/workspace/resource-table/use-resource-selection'
 import { SelectionBar } from '@/app/(product)/_components/workspace/selection-bar/selection-bar'
+import { LOCALE } from '@/platform/shared/time'
 
 /** Rows drawn beyond the viewport, so a fast scroll never shows a blank band. */
 const OVERSCAN = 8
@@ -499,7 +500,7 @@ function BulkBar({ count, limit, actions }: BulkBarProps) {
         label={
           overLimit
             ? `${count} selected · select ${limit} or fewer`
-            : `${count.toLocaleString()} selected`
+            : `${count.toLocaleString(LOCALE)} selected`
         }
       >
         {actions.map((action) =>

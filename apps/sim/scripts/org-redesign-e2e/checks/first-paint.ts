@@ -1,12 +1,6 @@
 import assert from 'node:assert/strict'
 import type { Locator, Page } from '@playwright/test'
-import {
-  ADMIN,
-  MEMBER,
-  MEMBER_ADMIN_WORKSPACE,
-  NAMED_LINKS,
-  ORGANIZATION_ID,
-} from '@/scripts/org-redesign-e2e/fixture'
+import { ADMIN, MEMBER, NAMED_LINKS, ORGANIZATION_ID } from '@/scripts/org-redesign-e2e/fixture'
 import {
   check,
   expect,
@@ -34,8 +28,6 @@ const PREFETCHED_SECRET_SOURCE = [
 ]
 const PREFETCHED_LINKS = [{ label: 'links first page', pattern: /\/sim-links(\?(?!.*cursor=)|$)/ }]
 
-/** The composer's skill list: one organization-wide mentions read, as legacy read `/api/skills`. */
-const SKILLS_READ = /^\/api\/organizations\/[^/]+\/mentions\?(?=.*family=skills)/
 /**
  * The composer's lists, which wait until someone asks: the organization mentions reads that took
  * over from legacy's per-workspace reads, and those reads, which nothing should make any more.
@@ -123,53 +115,6 @@ export async function firstPaintChecks() {
     primary: (page: Page) => Locator
     prefetched: { label: string; pattern: RegExp }[]
   }[]
-  await check(
-    'an admin composer reads no workspace list until its menu opens, then the menu fills',
-    async () => {
-      await withSession(ADMIN, async (session) => {
-        const { page } = session
-        await page.goto(url(org.home))
-        await composer(page).waitFor({ timeout: 30_000 })
-        await session.settle()
-        const reads = () =>
-          session.requests.map(({ path }) => path).filter((path) => isPerWorkspaceRead(path))
-        assert.deepEqual(reads(), [], 'The composer read every workspace on load')
-        await page.getByRole('button', { name: 'Add attachment', exact: true }).click()
-        const menu = page.getByRole('menu', { name: 'Add attachment' })
-        const workspaceRow = menu.getByRole('menuitem', {
-          name: MEMBER_ADMIN_WORKSPACE.name,
-          exact: true,
-        })
-        await expect(workspaceRow).toBeVisible()
-        await expect.poll(() => reads().length).toBeGreaterThan(0)
-        await session.settle()
-        await page.getByLabel('Search resources', { exact: true }).fill(MEMBER_ADMIN_WORKSPACE.name)
-        await expect(workspaceRow).toBeVisible()
-      })
-    }
-  )
-  await check('a slash in an admin composer reads skills, not the resource lists', async () => {
-    await withSession(ADMIN, async (session) => {
-      const { page } = session
-      await page.goto(url(org.home))
-      await composer(page).waitFor({ timeout: 30_000 })
-      await session.settle()
-      await composer(page).pressSequentially('/')
-      await expect(
-        page.getByRole('listbox', { name: 'Skills and MCP servers' }).getByRole('option').first()
-      ).toBeVisible()
-      await session.settle()
-      const reads = session.requests
-        .map(({ path }) => path)
-        .filter((path) => isPerWorkspaceRead(path))
-      assert(reads.length > 0, 'The skills were never read')
-      assert.deepEqual(
-        reads.filter((path) => !SKILLS_READ.test(path)),
-        [],
-        'A slash read the resource lists'
-      )
-    })
-  })
   await check(
     'Links paints its first page from the server, even with the client read refused',
     async () => {

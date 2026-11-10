@@ -945,7 +945,6 @@ const WorkflowContent = memo(function WorkflowContent({
         subBlockValues
       )
       usePanelEditorStore.getState().setCurrentBlockId(id)
-      if (type === 'note') usePanelStore.getState().setIsMobilePanelOpen(false)
     },
     [
       collaborativeBatchAddBlocks,
@@ -1468,7 +1467,6 @@ const WorkflowContent = memo(function WorkflowContent({
 
   const handleContextOpenEditor = useCallback(() => {
     if (contextMenuBlocks.length === 1) {
-      usePanelStore.getState().setIsMobilePanelOpen(true)
       usePanelEditorStore.getState().setCurrentBlockId(contextMenuBlocks[0].id)
     }
   }, [contextMenuBlocks])
@@ -1487,7 +1485,6 @@ const WorkflowContent = memo(function WorkflowContent({
       requestNoteRename(block.id)
       return
     }
-    usePanelStore.getState().setIsMobilePanelOpen(true)
     usePanelEditorStore.getState().setCurrentBlockId(block.id)
     usePanelEditorStore.getState().triggerRename()
   }, [contextMenuBlocks])

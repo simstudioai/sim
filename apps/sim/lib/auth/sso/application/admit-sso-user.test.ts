@@ -72,6 +72,8 @@ function queueIdentity({
   email?: string
 } = {}) {
   queueTableRows(schemaMock.ssoProvider, [{ id: 'sso-1', organizationId }])
+  /** The personal organization whose workspace locks admission takes first: none. */
+  if (organizationId) queueTableRows(schemaMock.member, [])
   queueTableRows(schemaMock.ssoProvider, [
     {
       id: 'sso-1',

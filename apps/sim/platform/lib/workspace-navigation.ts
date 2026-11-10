@@ -1,7 +1,6 @@
 import { workspacePath } from '@/lib/navigation/paths'
+import type { PlatformMode } from '@/platform/lib/data/mode'
 import { platformHref } from '@/platform/lib/navigation'
-/** Where a server's data comes from, as far as the workspace pages are concerned. */
-export type WorkspaceDataMode = 'fixture' | 'live'
 
 /**
  * A runtime flag the tabs depend on, resolved on the server with the surface: a tab's own rollout
@@ -44,7 +43,7 @@ const WORKSPACE_TABS = [
 ] as const satisfies readonly {
   section: string
   label: string
-  modes: readonly WorkspaceDataMode[]
+  modes: readonly PlatformMode[]
   flag?: WorkspaceTabFlag
   preview?: boolean
 }[]
@@ -56,10 +55,10 @@ export type WorkspaceTab = (typeof WORKSPACE_TABS)[number]['section']
  * out, and so is a preview tab while `platform-preview` is off; example data shows every tab it
  * serves.
  */
-export function workspaceTabs(mode: WorkspaceDataMode, flags: WorkspaceTabFlags = {}) {
+export function workspaceTabs(mode: PlatformMode, flags: WorkspaceTabFlags = {}) {
   return WORKSPACE_TABS.filter(
     (tab) =>
-      (tab.modes as readonly WorkspaceDataMode[]).includes(mode) &&
+      (tab.modes as readonly PlatformMode[]).includes(mode) &&
       (mode === 'fixture' ||
         ((!('preview' in tab) || flags['platform-preview'] === true) &&
           (!('flag' in tab) || flags[tab.flag as WorkspaceTabFlag] === true)))
@@ -75,12 +74,12 @@ export function isWorkspaceTabShown(section: WorkspaceTab, flags: WorkspaceTabFl
 }
 
 /** The page a workspace opens on: Dashboard on example data, Workflows on live data, as legacy does. */
-function workspaceHome(mode: WorkspaceDataMode): WorkspaceTab {
+function workspaceHome(mode: PlatformMode): WorkspaceTab {
   return mode === 'live' ? 'workflows' : 'dashboards'
 }
 
 /** The page a workspace opens on for a server's data, linked directly so no redirect sits in between. */
-export function workspaceHomePath(workspaceId: string, mode: WorkspaceDataMode) {
+export function workspaceHomePath(workspaceId: string, mode: PlatformMode) {
   return workspacePath(workspaceId, workspaceHome(mode))
 }
 
@@ -88,11 +87,7 @@ export function workspaceHomePath(workspaceId: string, mode: WorkspaceDataMode) 
  * Where a workspace's bare URL redirects: its home page, keeping the query it was opened with on
  * live data and the scenario query on example data.
  */
-export function workspaceRootHref(
-  workspaceId: string,
-  mode: WorkspaceDataMode,
-  query: URLSearchParams
-) {
+export function workspaceRootHref(workspaceId: string, mode: PlatformMode, query: URLSearchParams) {
   const home = workspaceHomePath(workspaceId, mode)
   if (mode === 'fixture') return platformHref(home, query)
   return query.size ? `${home}?${query}` : home

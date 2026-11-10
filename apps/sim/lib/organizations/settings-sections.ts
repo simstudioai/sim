@@ -19,16 +19,6 @@ import { organizationSupportsSettingsSection } from '@/lib/settings/section-avai
 const ORGANIZATION_SURFACE_ACCOUNT_ITEMS: SettingsNavigationItem<AccountSettingsSection>[] =
   ACCOUNT_SETTINGS_ITEMS.filter((item) => item.id === 'general' || item.group === 'platform')
 
-export function organizationSettingsNavigation(
-  isAdmin: boolean,
-  features: OrganizationSettingsFeatures,
-  availability: { connectedAccounts: boolean; search: boolean; knowledgeGraphs?: boolean }
-) {
-  return ORGANIZATION_SETTINGS_ITEMS.filter((item) =>
-    organizationSupportsSettingsSection(item.id, features, availability, isAdmin)
-  )
-}
-
 /**
  * Every section the organization surface's settings sidebar lists: the viewer's
  * account sections, then the organization sections the viewer's role and the
@@ -45,6 +35,8 @@ export function organizationSurfaceSettingsNavigation(
     ...ORGANIZATION_SURFACE_ACCOUNT_ITEMS.filter(
       (item) => item.group !== 'platform' || isPlatformAdmin
     ),
-    ...organizationSettingsNavigation(isAdmin, features, availability),
+    ...ORGANIZATION_SETTINGS_ITEMS.filter((item) =>
+      organizationSupportsSettingsSection(item.id, features, availability, isAdmin)
+    ),
   ]
 }

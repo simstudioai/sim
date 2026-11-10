@@ -20,10 +20,7 @@ import {
 } from '@/hooks/queries/mothership-chats'
 import { makeQueryClient } from '@/hooks/queries/utils/query-client'
 import { sessionKeys } from '@/hooks/queries/utils/session-keys'
-import {
-  canListOrganizationChats,
-  type PlatformOrganization,
-} from '@/platform/lib/data/organization-model'
+import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import {
   asRouteResponse,
   requireSessionViewer,
@@ -43,7 +40,7 @@ export async function prefetchShell(organization: PlatformOrganization): Promise
   const session = toAppSession(await getSession())
   if (session) queryClient.setQueryData(sessionKeys.detail(), session)
   await Promise.all([
-    canListOrganizationChats(organization) &&
+    organization.mothershipAvailable &&
       queryClient.prefetchQuery({
         queryKey: mothershipChatKeys.organizationList(organizationId, 'active'),
         queryFn: () =>

@@ -14,7 +14,7 @@ export default async function AdminSection({ organization, query }: SettingsSect
       import('@/platform/fixtures'),
     ])
     const example = await loadAdminExample(readScenario(query.state))
-    if (example) return <FixtureAdminPanel example={example} />
+    return <FixtureAdminPanel example={example} />
   }
   return <LiveAdminPanel benchmarkAvailable={organization.navFlags.benchmark} />
 }

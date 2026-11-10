@@ -3,6 +3,7 @@
 import { useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from '@/lib/auth/client'
+import { organizationDraftKey } from '@/lib/organizations/draft-key'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
@@ -22,7 +23,7 @@ export function useAddToChat(): (context: ChatContext) => void {
   return useCallback(
     (context: ChatContext) => {
       if (!userId) return
-      const key = `${userId}:organization:${organization.id}:home`
+      const key = organizationDraftKey(userId, organization.id, 'home')
       const store = useMothershipDraftsStore.getState()
       const current = store.drafts[key] ?? { text: '' }
       store.setDraft(key, { ...current, contexts: [...(current.contexts ?? []), context] })

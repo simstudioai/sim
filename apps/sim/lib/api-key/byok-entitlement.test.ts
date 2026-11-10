@@ -3,7 +3,10 @@ import {
   billingSubscriptionMockFns,
 } from '@sim/testing/mocks/billing-subscription.mock'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
-import { payerOrganizationMock } from '@sim/testing/mocks/payer-organization.mock'
+import {
+  payerOrganizationMock,
+  payerOrganizationMockFns,
+} from '@sim/testing/mocks/payer-organization.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/billing/core/payer-organization', () => payerOrganizationMock)
@@ -129,6 +132,16 @@ describe('organization BYOK entitlement', () => {
     await Promise.resolve()
 
     await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).resolves.toBe(false)
+  })
+
+  it('never entitles a personal organization, on either path', async () => {
+    payerOrganizationMockFns.mockIsTeamOrganization.mockResolvedValue(false)
+    try {
+      await expect(isOrganizationBYOKEntitled(ORGANIZATION_ID)).resolves.toBe(false)
+      await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).resolves.toBe(false)
+    } finally {
+      payerOrganizationMockFns.mockIsTeamOrganization.mockResolvedValue(true)
+    }
   })
 
   it('never consults billing off hosted, on either path', async () => {

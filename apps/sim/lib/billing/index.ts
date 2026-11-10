@@ -14,7 +14,6 @@ export {
   isOrganizationGovernanceActive,
   isOrganizationOnEnterprisePlan,
   isProPlan as hasProPlan,
-  isTeamPlan as hasTeamPlan,
   isWorkspaceOnEnterprisePlan,
 } from '@/lib/billing/core/subscription'
 export * from '@/lib/billing/core/usage'

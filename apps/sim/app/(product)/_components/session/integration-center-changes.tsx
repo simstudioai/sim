@@ -8,20 +8,16 @@ import type {
 import { validCredentialMembers } from '@/platform/lib/integrations/credential-access'
 import { manualCredentialAccess } from '@/platform/lib/integrations/manual-secret'
 
-function useChanges(enabled: boolean) {
+function useChanges() {
   const [edits, setEdits] = useState<Record<string, IntegrationResource | null>>({})
-  return { enabled, edits, setEdits }
+  return { edits, setEdits }
 }
 
 const Changes = createContext<ReturnType<typeof useChanges> | null>(null)
 
-interface IntegrationCenterChangesProps {
-  enabled: boolean
-  children: ReactNode
-}
-
-export function IntegrationCenterChanges({ enabled, children }: IntegrationCenterChangesProps) {
-  const changes = useChanges(enabled)
+/** A fixture session's integration center edits, kept for the session and never written anywhere. */
+export function IntegrationCenterChanges({ children }: { children: ReactNode }) {
+  const changes = useChanges()
   return <Changes.Provider value={changes}>{children}</Changes.Provider>
 }
 
@@ -68,7 +64,7 @@ function resourceMetadata(resource: IntegrationResource): IntegrationResource {
 export function useIntegrationCenterResources(data: IntegrationCenterData | null) {
   const changes = useContext(Changes)
   if (!changes) throw new Error('Integration center controls require the product layout')
-  const { edits, enabled, setEdits } = changes
+  const { edits, setEdits } = changes
   const initial = data?.resources ?? []
   const ids = new Set(initial.map((resource) => resource.id))
   const resources = initial
@@ -82,7 +78,7 @@ export function useIntegrationCenterResources(data: IntegrationCenterData | null
   return {
     resources,
     save(resource: IntegrationResource) {
-      if (!enabled || !data) return
+      if (!data) return
       const existing = resources.find((entry) => entry.id === resource.id)
       if (existing && !existing.canEdit) return
       if (
@@ -95,11 +91,11 @@ export function useIntegrationCenterResources(data: IntegrationCenterData | null
       setEdits((current) => ({ ...current, [resource.id]: resourceMetadata(resource) }))
     },
     remove(id: string) {
-      if (!enabled || !data || !resources.find((resource) => resource.id === id)?.canEdit) return
+      if (!data || !resources.find((resource) => resource.id === id)?.canEdit) return
       setEdits((current) => ({ ...current, [id]: null }))
     },
     leave(id: string) {
-      if (!enabled || !data) return
+      if (!data) return
       const resource = resources.find((resource) => resource.id === id)
       if (resource?.kind !== 'credential') return
       const credential = manualCredentialAccess(resource, data)

@@ -41,7 +41,7 @@ import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organizat
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
-import { DAY_MS } from '@/platform/shared/time'
+import { DAY_MS, LOCALE } from '@/platform/shared/time'
 import { dayLabel, formatDurationMs, toCreditChart } from '@/platform/shared/usage'
 
 const logger = createLogger('PlatformUsage')
@@ -177,17 +177,17 @@ export function useActivitySummary(
     metrics: [
       {
         label: 'Workflow runs',
-        value: totals?.workflowRuns.toLocaleString() ?? '—',
+        value: totals?.workflowRuns.toLocaleString(LOCALE) ?? '—',
         description: 'Retained executions, grouped by start date.',
       },
       {
         label: 'Chat runs',
-        value: totals?.chatRuns.toLocaleString() ?? '—',
+        value: totals?.chatRuns.toLocaleString(LOCALE) ?? '—',
         description: 'Recorded executions in organization chats. Continuations count once.',
       },
       {
         label: 'Chat members',
-        value: totals?.chatMembers.toLocaleString() ?? '—',
+        value: totals?.chatMembers.toLocaleString(LOCALE) ?? '—',
         description: 'Members with recorded chat runs in this period.',
       },
       {

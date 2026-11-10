@@ -1,7 +1,7 @@
 import { flushMacrotask } from '@sim/testing/helpers/async'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { QueryClient, QueryObserver } from '@tanstack/react-query'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { resourceScopeKey } from '@/lib/core/resource-scope'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
@@ -35,7 +35,6 @@ import {
 import { handleResourceEvent } from '@/hooks/mothership-chat/stream/handle-resource-event'
 import { makeStreamLoopDeps, ref } from '@/hooks/mothership-chat/stream/test-helpers'
 import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
-import { useTableViewPinStore } from '@/stores/table/view-pin/store'
 
 type ResourceEvent = Extract<PersistedStreamEventEnvelope, { type: 'resource' }>
 
@@ -424,18 +423,13 @@ describe('recovered resource events', () => {
 })
 
 describe('handleResourceEvent saved-view pins', () => {
-  beforeEach(() => {
-    useTableViewPinStore.getState().reset()
-  })
-
-  it('keeps a newer pending view when an older view is deleted', () => {
+  it('keeps a newer open view when an older view is deleted', () => {
     const open: MothershipResource = {
       type: 'table',
       id: 'tbl-1',
       title: 'Invoices',
       viewId: 'view-2',
     }
-    useTableViewPinStore.getState().pin('tbl-1', 'view-2')
     const deps = makeStreamLoopDeps({ resourcesRef: { current: [open] } })
     handleResourceEvent(
       { deps } as StreamLoopContext,
@@ -448,7 +442,6 @@ describe('handleResourceEvent saved-view pins', () => {
       current: MothershipResource[]
     ) => MothershipResource[]
     expect(updater([open])).toEqual([open])
-    expect(useTableViewPinStore.getState().pins['tbl-1']?.viewId).toBe('view-2')
     expect(deps.addResource).not.toHaveBeenCalled()
   })
 })

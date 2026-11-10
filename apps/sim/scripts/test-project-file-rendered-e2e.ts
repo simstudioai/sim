@@ -4,12 +4,12 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { toArray, toRecord } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
 import JSZip from 'jszip'
 import { PDFDocument, PDFName } from 'pdf-lib'
 import sharp from 'sharp'
 
-type Auth = 'session' | 'personal' | 'workspace' | 'none'
+type Auth = 'personal' | 'workspace' | 'none'
 type Format = 'docx' | 'pptx' | 'pdf'
 interface CreatedFile {
   id: string
@@ -41,18 +41,12 @@ const archived = new Set<string>()
 const documents = new Map<Format, CreatedFile>()
 const rendered = new Map<Format, Buffer>()
 const marker = `ProjectRendered${runId.replaceAll('-', '')}`
-const mimeTypes = {
-  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  pdf: 'application/pdf',
-} as const
 const sourceMimeTypes = {
   docx: 'text/x-docxjs',
   pptx: 'text/x-pptxgenjs',
   pdf: 'text/x-pdflibjs',
 } as const
 let base: URL
-let cookie = ''
 let keys: Record<string, unknown> = {}
 let projectId = ''
 let foreignProjectId = ''
@@ -115,7 +109,6 @@ async function request(
   body?: Record<string, unknown>
 ) {
   const headers = new Headers({ Origin: base.origin, 'Content-Type': 'application/json' })
-  if (auth === 'session') headers.set('Cookie', cookie)
   if (auth === 'personal' || auth === 'workspace') headers.set('X-API-Key', required(keys[auth]))
   const start = performance.now()
   // boundary-raw-fetch: this standalone proof validates real document bytes through the disposable local HTTP app.
@@ -144,10 +137,6 @@ function json(response: Awaited<ReturnType<typeof request>>, status = 200) {
 
 function filePath(file: CreatedFile) {
   return `/api/v2/projects/${file.projectId}/files/${file.id}`
-}
-
-function artifactPath(file: CreatedFile) {
-  return `/api/projects/${file.projectId}/files/${file.id}/artifact`
 }
 
 function archivePath(file: CreatedFile) {
@@ -219,10 +208,12 @@ async function assertDocument(format: Format, buffer: Buffer, image: Buffer) {
 }
 
 async function readArtifact(file: CreatedFile, format: Format) {
-  const response = await request('GET', artifactPath(file), 'session')
+  const response = await request('GET', archivePath(file))
   assert.equal(response.status, 200, `Real ${format} compilation returned HTTP ${response.status}`)
-  assert.equal(response.headers.get('content-type')?.split(';')[0], mimeTypes[format])
-  return response.buffer
+  assert.equal(response.headers.get('content-type')?.split(';')[0], 'application/zip')
+  const entry = (await JSZip.loadAsync(response.buffer)).file(file.name)
+  assert.ok(entry, `The ${format} archive must contain ${file.name}`)
+  return entry.async('nodebuffer')
 }
 
 try {
@@ -235,10 +226,6 @@ try {
         'Requires a disposable loopback runtime'
       )
       keys = await fixture('v2-fixture-keys.json')
-      cookie = toArray((await fixture('owner-account.json')).cookies)
-        .map((value) => required(value).split(';')[0])
-        .join('; ')
-      assert.ok(cookie)
       projectId = required(toRecord((await fixture('http-project-fixture.json')).project).id)
       foreignProjectId =
         process.env.PROJECT_FILE_RENDERED_FOREIGN_PROJECT_ID ??
@@ -277,20 +264,6 @@ try {
     }
   )
   if (ready) {
-    await check('Artifact HEAD authorizes without executing a document program', async () => {
-      const file = await create(
-        projectId,
-        `head-only-${runId}.pdf`,
-        'throw new Error("Artifact HEAD must not execute this program");',
-        sourceMimeTypes.pdf
-      )
-      const head = await request('HEAD', artifactPath(file), 'session')
-      assert.equal(head.status, 200)
-      assert.equal(head.buffer.length, 0)
-      assert.equal((await request('HEAD', artifactPath(file), 'none')).status, 401)
-      const rendered = await request('GET', artifactPath(file), 'session')
-      assert.ok(rendered.status >= 400, 'The program must fail if actually rendered')
-    })
     for (const format of ['docx', 'pptx', 'pdf'] as const) {
       await check(
         `Real ${format.toUpperCase()} rendering returns a parseable document with a Project asset`,
@@ -312,18 +285,6 @@ try {
         }
       )
     }
-    await check('Personal-key bulk download returns the same compiled Office bytes', async () => {
-      const file = documents.get('docx')
-      const previous = rendered.get('docx')
-      assert.ok(file && previous, 'A successful initial render is required')
-      const response = await request('GET', archivePath(file))
-      assert.equal(response.status, 200)
-      assert.equal(response.headers.get('content-type')?.split(';')[0], 'application/zip')
-      const archive = await JSZip.loadAsync(response.buffer)
-      const entry = archive.file(file.name)
-      assert.ok(entry)
-      assert.deepEqual(await entry.async('nodebuffer'), previous)
-    })
     await check(
       'Same-ID asset content revision invalidates the compiled document cache',
       async () => {
@@ -360,7 +321,6 @@ try {
         program('docx', foreignAsset.id),
         sourceMimeTypes.docx
       )
-      assert.equal((await request('GET', artifactPath(file), 'session')).status, 404)
       assert.equal((await request('GET', archivePath(file))).status, 404)
     })
     await check(
@@ -369,8 +329,6 @@ try {
         const file = documents.get('docx')
         assert.ok(file)
         await readArtifact(file, 'docx')
-        assert.equal((await request('GET', artifactPath(file), 'none')).status, 401)
-        assert.equal((await request('GET', artifactPath(file), 'workspace')).status, 401)
         assert.equal((await request('GET', archivePath(file), 'none')).status, 401)
         assert.equal((await request('GET', archivePath(file), 'workspace')).status, 403)
       }
@@ -388,7 +346,6 @@ try {
           })
         )
         archived.add(asset.id)
-        assert.equal((await request('GET', artifactPath(file), 'session')).status, 404)
         assert.equal((await request('GET', archivePath(file))).status, 404)
       }
     )
