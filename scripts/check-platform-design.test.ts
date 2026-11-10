@@ -746,7 +746,8 @@ it("passes an action's pending label, a value token, and copy nothing renders", 
     put(
       'app/(product)/o/[organizationId]/home/_components/panel/panel.tsx',
       `function Confirm(_: { pendingLabel: string }) { return null }
-      function ActionButton(_: { children: string }) { return null }
+      function ActionButton(_: { children: string; onClick?: () => void; submit?: boolean }) { return null }
+      const SYNCED = 'Synced'
       function Dialog(_: { confirmLabel: string; kind?: string }) { return null }
       const idle = 'Loading' === 'x' ? 'Create' : 'Invite'
       export function Panel({ busy, all }: { busy: boolean; all: boolean }) {
@@ -754,9 +755,15 @@ it("passes an action's pending label, a value token, and copy nothing renders", 
           <Confirm pendingLabel='Loading…' />
           <button>{busy ? 'Loading…' : 'Load more'}</button>
           <button>{busy ? (all ? 'Loading all…' : 'Loading options…') : 'Load all'}</button>
-          <ActionButton>{busy ? 'Saving…' : 'Allow'}</ActionButton>
+          <ActionButton onClick={() => {}}>{busy ? 'Saving…' : 'Allow'}</ActionButton>
+          <ActionButton submit>{busy ? 'Generating…' : 'Generate'}</ActionButton>
+          <button>{busy ? 'Searching options…' : 'Search all options'}</button>
           <Dialog confirmLabel={busy ? 'Sending…' : 'Invite'} />
           <Dialog confirmLabel={idle} kind='loading' />
+          <p>Opening hours</p>
+          <p>Searching tips</p>
+          <p>{\`Waiting on \${idle}\`}</p>
+          <Dialog confirmLabel={SYNCED} kind='syncing' />
         </>
       }
 `
@@ -882,6 +889,26 @@ it.each([
   [
     'app/(product)/o/[organizationId]/home/_components/panel/save.tsx',
     `export function Save({ busy }: { busy: boolean }) { return <p>{busy && 'SAVING CHANGES…'}</p> }`,
+  ],
+  [
+    'app/(product)/o/[organizationId]/home/_components/panel/prepare.tsx',
+    `export function Prepare({ busy }: { busy: boolean }) { return <p>{busy ? 'Preparing your export…' : 'Export'}</p> }`,
+  ],
+  [
+    'app/(product)/o/[organizationId]/home/_components/panel/sync.tsx',
+    `export function Sync() { return <p>Syncing</p> }`,
+  ],
+  [
+    'app/(product)/o/[organizationId]/home/_components/panel/connect.tsx',
+    `function Notice(_: { message: string }) { return null }; export const C = () => <Notice message='Connecting...' />`,
+  ],
+  [
+    'app/(product)/o/[organizationId]/home/_components/panel/placeholder.tsx',
+    `function Button(_: { children: string; disabled?: boolean }) { return null }; export const P = () => <Button disabled>Loading…</Button>`,
+  ],
+  [
+    'app/(product)/o/[organizationId]/home/_components/panel/constant.tsx',
+    `const PENDING = 'Generating rows…'; export const G = () => <p>{PENDING}</p>`,
   ],
 ])(
   'fails [loading-copy] for %s',

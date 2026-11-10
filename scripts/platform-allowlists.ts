@@ -88,6 +88,12 @@ const LOADING_COPY_OWNERS: ReasonedAllowlist = {
     "The identifier field's spinner carries a visually hidden status for screen readers",
   'platform/lib/data/integrations-model.ts':
     'Predates the synonyms: a member integration not yet ready reads as checking availability',
+  [`${PRODUCT_ROUTES}_components/workspace/tables/table-grid/cell-render.tsx`]:
+    "Predates the Waiting synonym: a workflow cell's run status while it waits on upstream columns",
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/_components/generate-prompt/generate-prompt.tsx`]:
+    'Predates the Generating synonym: the prompt field shows its streaming generation, not a read',
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/wand-prompt-bar/wand-prompt-bar.tsx`]:
+    'Predates the Generating synonym: the wand prompt shows its streaming generation, not a read',
 }
 
 /** Frames that hold a legacy composer between surfaces, where foundation tokens do not reach. */

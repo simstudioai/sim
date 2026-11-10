@@ -59,13 +59,14 @@ function renderedText(node: ts.Node): RenderedText | undefined {
 }
 
 /**
- * Copy that announces a pending read: `Loading`, its synonyms, `Please wait`, and a `Saving…` or
- * `Sending…` status. Any case.
+ * Copy that announces a pending read: `Loading`, its synonyms, `Please wait`, a `Saving…` or
+ * `Sending…` status, and a `Preparing`, `Syncing`, `Generating` (and the like) status, which counts
+ * only alone or ending in an ellipsis, since `Opening hours` or `Searching tips` is not one. Any case.
  */
 const LOADING_COPY =
-  /^(?:(?:loading|checking|fetching|reading|refreshing|retrieving)\b|please wait\b|(?:saving|sending)\b.*…$)/i
-/** A string branch a Load action shows at rest, such as `Load more` or `Load all`. */
-const LOAD_ACTION = /^Load\b(?!ing)/
+  /^(?:(?:loading|checking|fetching|reading|refreshing|retrieving)\b|please wait\b|(?:saving|sending)\b.*…$|(?:preparing|connecting|syncing|updating|waiting|opening|searching|generating)(?:$|\b.*(?:…|\.\.\.)$))/i
+/** A string branch a Load action shows at rest, such as `Load more` or `Search all options`. */
+const LOAD_ACTION = /^(?:Load|Search)\b(?!ing)/
 
 /** The string leaves of the conditional chain under `root`. */
 function conditionalLeaves(root: ts.Node): string[] {
@@ -82,21 +83,76 @@ function conditionalLeaves(root: ts.Node): string[] {
 }
 
 /**
- * Rendered text that announces a pending read. An action's pending label is feedback, not loading
- * copy, so one that ends in `…` passes as a button's text or a `pendingLabel` or `confirmLabel`
- * (`busy ? 'Saving…' : 'Save'`), and as the pending branch of a Load action
- * (`busy ? 'Loading…' : 'Load more'`).
+ * A string a same-file `const` holds, rendered where that constant is a JSX child or attribute
+ * value (`const PENDING = 'Loading…'` … `<p>{PENDING}</p>`). Matched by name within the file only.
+ */
+function renderedConstant(node: ts.Node): RenderedText | undefined {
+  if (!ts.isStringLiteralLike(node)) return
+  const text = node.text.trim()
+  const declaration = valueRoot(node).parent
+  if (
+    !text ||
+    /^[a-z][\w-]*$/.test(text) ||
+    !ts.isVariableDeclaration(declaration) ||
+    !ts.isIdentifier(declaration.name) ||
+    !(ts.getCombinedNodeFlags(declaration) & ts.NodeFlags.Const)
+  )
+    return
+  const name = declaration.name
+  let found: RenderedText | undefined
+  const visit = (child: ts.Node) => {
+    if (found) return
+    if (
+      ts.isIdentifier(child) &&
+      child !== name &&
+      child.text === name.text &&
+      !(ts.isPropertyAccessExpression(child.parent) && child.parent.name === child)
+    ) {
+      const root = valueRoot(child)
+      if (ts.isJsxExpression(root.parent)) {
+        const host = root.parent.parent
+        const attribute = ts.isJsxAttribute(host) ? host.name.getText() : undefined
+        found = { text, root, host, attribute }
+      }
+    }
+    ts.forEachChild(child, visit)
+  }
+  visit(node.getSourceFile())
+  return found
+}
+
+/** Whether a JSX element acts: it has an `onClick` or `href`, or submits (`submit`, `type="submit"`). */
+function isActionable(element: ts.JsxOpeningElement) {
+  return element.attributes.properties.some((attribute) => {
+    if (!ts.isJsxAttribute(attribute)) return false
+    const name = attribute.name.getText()
+    if (name === 'onClick' || name === 'href' || name === 'submit') return true
+    const value =
+      attribute.initializer && ts.isJsxExpression(attribute.initializer)
+        ? attribute.initializer.expression
+        : attribute.initializer
+    return name === 'type' && !!value && ts.isStringLiteralLike(value) && value.text === 'submit'
+  })
+}
+
+/**
+ * Rendered text, or a same-file constant rendered in JSX, that announces a pending read. An
+ * action's pending label is feedback, not loading copy, so one that ends in `…` passes as the text
+ * of a button that acts (`onClick`, `href`, `submit`; a disabled placeholder `<Button>` does not) or as a `pendingLabel` or `confirmLabel` (`busy ? 'Saving…' : 'Save'`), and as the pending
+ * branch of a Load or Search action (`busy ? 'Loading…' : 'Load more'`).
  */
 export function isLoadingCopy(node: ts.Node): boolean {
-  const rendered = renderedText(node)
+  const rendered = renderedText(node) ?? renderedConstant(node)
   if (!rendered || !LOADING_COPY.test(rendered.text)) return false
   const { text, root, host, attribute } = rendered
   if (!text.endsWith('…')) return true
   const buttonText =
     ts.isJsxElement(host) &&
-    /(?:^|\.)(?:button|\w*Button)$/.test(host.openingElement.tagName.getText())
+    /(?:^|\.)(?:button|\w*Button)$/.test(host.openingElement.tagName.getText()) &&
+    isActionable(host.openingElement)
   const loadAction =
-    /^loading\b/i.test(text) && conditionalLeaves(root).some((leaf) => LOAD_ACTION.test(leaf))
+    /^(?:loading|searching)\b/i.test(text) &&
+    conditionalLeaves(root).some((leaf) => LOAD_ACTION.test(leaf))
   return !(attribute === 'pendingLabel' || attribute === 'confirmLabel' || buttonText || loadAction)
 }
 
