@@ -731,7 +731,8 @@ try {
       { timeout }
     )
     const response = await request.response()
-    assert(response?.ok(), 'The organization chat access re-read failed')
+    assert(response, 'The organization chat access re-read got no response')
+    assert(response.ok(), 'The organization chat access re-read failed')
     return toRecord(toRecord(await response.json()).chatAccess)
   }
   const isUploadCompletion = (url: URL) =>
