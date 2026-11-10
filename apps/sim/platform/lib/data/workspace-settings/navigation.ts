@@ -116,6 +116,14 @@ export function workspaceSettingTitle(key: string): string {
   return DEFINITIONS.find((item) => item.key === key)?.title ?? 'Settings'
 }
 
+/** The permission-group flag that withholds a section, which other surfaces linking to it honor too. */
+export function workspaceSettingRestriction(
+  key: WorkspaceSettingsKey
+): BooleanPermissionGroupConfigKey | undefined {
+  const item = DEFINITIONS.find((candidate) => candidate.key === key)
+  return item && 'restrictedBy' in item ? item.restrictedBy : undefined
+}
+
 export interface WorkspaceSettingsGateInput {
   hostContext: WorkspaceHostContext
   /** The viewer's permission-group flags in this workspace. */

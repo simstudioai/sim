@@ -17,4 +17,4 @@ export {
   useUpdateSkill,
   useUpsertSkillMember,
 } from '@/hooks/queries/skills'
-export { useOrderedWorkspacesQuery, useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
+export { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'

@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { FailureNotice } from '@sim/emcn/status'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
@@ -17,7 +18,6 @@ import {
 } from '@/app/(product)/o/[organizationId]/integrations/_components/integrations-page/integrations-page'
 import { MemberSecrets } from '@/app/(product)/o/[organizationId]/integrations/_components/member-secrets/member-secrets'
 import { ProviderHeading } from '@/app/(product)/o/[organizationId]/integrations/_components/provider-heading/provider-heading'
-import { QueryFailure } from '@/app/(product)/o/[organizationId]/integrations/_components/query-failure/query-failure'
 import { LiveGroup } from '@/app/(product)/o/[organizationId]/integrations/_components/resource-list/resource-list'
 import { SkillDetails } from '@/app/(product)/o/[organizationId]/integrations/_components/skill-details/skill-details'
 import { ToolPermissionsPanel } from '@/app/(product)/o/[organizationId]/integrations/_components/tool-permissions/tool-permissions-panel'
@@ -41,6 +41,7 @@ import {
   type WorkspaceAppDetail,
 } from '@/platform/lib/integrations/workspace-catalog'
 import { GENERIC_SECRETS_SEGMENT } from '@/platform/shared/integrations'
+import { compareText } from '@/platform/shared/time'
 
 export interface IntegrationsRouteProps {
   organizationId: string
@@ -74,7 +75,7 @@ export function IntegrationsRoute({
 }: IntegrationsRouteProps) {
   const params = useSearchParams()
   const router = useRouter()
-  const [{ q, order }] = useQueryStates(centerParams)
+  const [{ q, order, tab, resource }] = useQueryStates(centerParams)
   const memberIntegrations = useMemberIntegrations(member ? organizationId : undefined)
   const { genericSecrets, inventory, policies, secrets } = memberIntegrations
   // A member integration the workspace catalog also lists takes the catalog app's id, so the app
@@ -85,8 +86,8 @@ export function IntegrationsRoute({
   })
   const actions = useIntegrationActions(organizationId, { enabled: member })
   const defaults = defaultIntegrationPaths(organizationId)
-  const directory = useWorkspaceDirectory(defaults.index, workspaceScope)
-  const { workspace, connections, view, mcps, skills } = directory
+  const directory = useWorkspaceDirectory(defaults.index, workspaceScope, section ? null : tab)
+  const { workspace, connections, view, mcps, skills, restrictions } = directory
   useIntegrationsOAuthReturn(workspace?.id)
   const { account, clearAccount, serialize } = view
   const indexHref = directory.keep(integrationCenterHref(defaults.index, params))
@@ -98,30 +99,34 @@ export function IntegrationsRoute({
 
   const failures = (
     <>
-      {inventory.error && (
-        <QueryFailure message='Could not load your connections' query={inventory} />
-      )}
-      {policies.error && (
-        <QueryFailure message='Could not load Search connections' query={policies} />
-      )}
-      {secrets.error && (
-        <QueryFailure message='Could not load secret connections' query={secrets} />
-      )}
-      {connections.credentials.error && (
-        <QueryFailure
-          message='Could not load workspace credentials'
-          query={connections.credentials}
-        />
+      {[
+        { query: inventory, message: 'Could not load your connections' },
+        { query: policies, message: 'Could not load Search connections' },
+        { query: secrets, message: 'Could not load secret connections' },
+        { query: connections.credentials, message: 'Could not load workspace credentials' },
+      ].map(
+        ({ query, message }) =>
+          query.error && (
+            <FailureNotice
+              key={message}
+              message={message}
+              retrying={query.isFetching}
+              onRetry={() => void query.refetch()}
+            />
+          )
       )}
     </>
   )
 
-  if (!section && skills.detail)
+  // A skill the URL opens waits for the permission group, so the index never shows first.
+  if (!section && tab === 'skills' && resource && !restrictions.settled) return null
+
+  if (!section && skills?.detail)
     return (
       <IntegrationsPage>
         <SkillDetails
-          key={`${skills.workspace?.id ?? ''}:${skills.detail.skillId ?? 'new'}`}
-          workspaceId={skills.workspace?.id}
+          key={`${skills.detail.workspaceId}:${skills.detail.skillId ?? 'new'}`}
+          workspaceId={skills.detail.workspaceId}
           skillId={skills.detail.skillId}
           backHref={skills.detailBackHref}
           onBack={skills.closeDetail}
@@ -132,32 +137,21 @@ export function IntegrationsRoute({
 
   if (!section) {
     const term = q.trim().toLowerCase()
-    const servers = (mcps.servers ?? [])
+    const servers = (mcps?.servers ?? [])
       .filter((server) => `${server.name} ${server.description}`.toLowerCase().includes(term))
-      .sort((a, b) => (order === 'asc' ? 1 : -1) * a.name.localeCompare(b.name))
-    const skillsTab: LiveTab = {
-      filter: skills.workspace && skills.workspaceOptions && (
-        <ChoiceMenu
-          label='Workspace'
-          value={skills.workspace.id}
-          options={skills.workspaceOptions}
-          onValueChange={skills.chooseWorkspace}
-        />
-      ),
+      .sort((a, b) => (order === 'asc' ? 1 : -1) * compareText(a.name, b.name))
+    const skillsTab: LiveTab | undefined = skills && {
       actions: (
-        <Button
-          variant='secondary'
-          size='compact'
-          icon='I074'
-          disabled={!skills.workspace}
-          disabledReason='Skills belong to a workspace. Create a workspace first.'
-          onClick={() => skills.open('new')}
-        >
+        <Button variant='secondary' size='compact' icon='I074' onClick={() => skills.open('new')}>
           Create skill
         </Button>
       ),
       content: skills.query.error ? (
-        <QueryFailure message='Could not load skills' query={skills.query} />
+        <FailureNotice
+          message='Could not load skills'
+          retrying={skills.query.isFetching}
+          onRetry={() => void skills.query.refetch()}
+        />
       ) : (
         <LiveGroup
           title='Shared'
@@ -169,7 +163,7 @@ export function IntegrationsRoute({
       empty: !skills.rows.length && !skills.query.error,
       settled: skills.settled,
     }
-    const mcpTab: LiveTab | undefined = workspace && {
+    const mcpTab: LiveTab | undefined = mcps && {
       actions: mcps.connectHref && (
         <Button
           variant='secondary'
@@ -181,7 +175,11 @@ export function IntegrationsRoute({
         </Button>
       ),
       content: mcps.query.error ? (
-        <QueryFailure message='Could not load MCP servers' query={mcps.query} />
+        <FailureNotice
+          message='Could not load MCP servers'
+          retrying={mcps.query.isFetching}
+          onRetry={() => void mcps.query.refetch()}
+        />
       ) : (
         <LiveGroup
           title='Shared'
@@ -198,37 +196,39 @@ export function IntegrationsRoute({
         <IntegrationsHeading handoff={handoff} />
         {connectionRequest}
         {failures}
-        {memberSettled && (
-          <IntegrationList
-            integrations={integrations}
-            workspaceApps={directory.summaries}
-            workspaceCredentials={directory.credentialLinks}
-            secrets={genericSecrets}
-            integrationHref={directory.appHref}
-            secretsHref={
-              genericSecrets?.mode === 'member'
-                ? memberSecretsHref
-                : directory.appHref(GENERIC_SECRETS_SEGMENT)
-            }
-            settled={(!member || (policies.isSuccess && secrets.isSuccess)) && directory.settled}
-            skills={skillsTab}
-            mcps={mcpTab}
-            createCredentialHref={directory.createCredentialHref}
-            scopeFilter={
-              workspace && (
-                <ChoiceMenu
-                  label='Workspace'
-                  value={workspace.id}
-                  options={directory.workspaces.map((item) => ({
-                    label: item.name,
-                    value: item.id,
-                  }))}
-                  onValueChange={view.chooseWorkspace}
-                />
-              )
-            }
-          />
-        )}
+        {memberSettled &&
+          restrictions.settled &&
+          (directory.settled || Boolean(connections.credentials.error)) && (
+            <IntegrationList
+              integrations={integrations}
+              workspaceApps={directory.summaries}
+              workspaceCredentials={directory.credentialLinks}
+              secrets={genericSecrets}
+              integrationHref={directory.appHref}
+              secretsHref={
+                genericSecrets?.mode === 'member'
+                  ? memberSecretsHref
+                  : directory.appHref(GENERIC_SECRETS_SEGMENT)
+              }
+              settled={(!member || (policies.isSuccess && secrets.isSuccess)) && directory.settled}
+              skills={skillsTab}
+              mcps={mcpTab}
+              createCredentialHref={directory.createCredentialHref}
+              scopeFilter={
+                workspace && (
+                  <ChoiceMenu
+                    label='Workspace'
+                    value={workspace.id}
+                    options={directory.workspaces.map((item) => ({
+                      label: item.name,
+                      value: item.id,
+                    }))}
+                    onValueChange={view.chooseWorkspace}
+                  />
+                )
+              }
+            />
+          )}
         {directory.requested && workspace && (
           <IntegrationAccessRequest
             key={directory.requested.id}
@@ -289,31 +289,19 @@ export function IntegrationsRoute({
     />
   )
 
+  const restricted = !integration && workspace && workspaceDetail?.access === 'restricted'
+
   return (
     <>
       <IntegrationsPage back={back}>
         {failures}
         {memberSettled &&
-          (integration ? (
-            <IntegrationDetails
-              key={`${workspace?.id ?? ''}:${integration.id}`}
-              integration={integration}
-              workspaceApp={workspaceApp}
-              accountId={account}
-              integrationHref={integrationHref}
-              accountHref={accountHref(named?.id ?? '')}
-              pending={actions.pending || connections.pending}
-              onConnect={onConnect}
-              onReconnect={actions.reconnect}
-              onDisconnect={disconnect}
-              onLeave={clearAccount}
-              renderToolPermissions={renderToolPermissions}
-            />
-          ) : workspace && workspaceDetail?.access === 'restricted' ? (
+          (restricted ? (
             <RestrictedIntegration app={workspaceDetail} workspaceId={workspace.id} />
-          ) : workspaceApp ? (
+          ) : integration || workspaceApp ? (
             <IntegrationDetails
-              key={`${workspaceApp.workspace.id}:${workspaceApp.app.id}`}
+              key={`${workspace?.id ?? ''}:${named?.id ?? ''}`}
+              integration={integration}
               workspaceApp={workspaceApp}
               accountId={account}
               integrationHref={integrationHref}

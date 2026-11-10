@@ -2,7 +2,7 @@
 
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
-import { useOrderedWorkspacesQuery, useSkills } from '@/platform/lib/data/skills'
+import { useSkills } from '@/platform/lib/data/skills'
 import {
   integrationsPageParams,
   serializeIntegrationsPage,
@@ -11,24 +11,19 @@ import { platformHref } from '@/platform/lib/navigation'
 import { compareText } from '@/platform/shared/time'
 
 /**
- * The live Skills tab's rows and the skill it opens. Skills belong to a workspace, so the tab lists
- * one workspace's skills at a time, starting with the viewer's first workspace. A page that chooses
- * the workspace for every tab passes it as `pageWorkspaceId`, and the tab then offers no choice of
- * its own. Data and actions; the route renders them.
+ * The live Skills tab's rows and the skill it opens, in the workspace the page lists every tab
+ * within. Skills belong to a workspace, so with none there are no rows and no skill to open. Data and
+ * actions; the route renders them.
  */
-export function useLiveSkills(pageWorkspaceId?: string) {
+export function useLiveSkills(workspaceId: string | undefined) {
   const pathname = usePathname()
   const search = useSearchParams()
   const [view, setView] = useQueryStates(integrationsPageParams, {
     history: 'replace',
     shallow: true,
   })
-  const workspaces = useOrderedWorkspacesQuery()
-  const workspace = pageWorkspaceId
-    ? workspaces.data?.find((item) => item.id === pageWorkspaceId)
-    : (workspaces.data?.find((item) => item.id === view.workspace) ?? workspaces.data?.[0])
-  const onSkills = view.tab === 'skills'
-  const query = useSkills(onSkills && workspace ? workspace.id : '')
+  const onSkills = view.tab === 'skills' && Boolean(workspaceId)
+  const query = useSkills(onSkills && workspaceId ? workspaceId : '')
   const listed = query.isPlaceholderData ? undefined : query.data
   const base = platformHref(pathname, search)
   const linkTo = (resource: string | null) =>
@@ -47,21 +42,14 @@ export function useLiveSkills(pageWorkspaceId?: string) {
     void setView({ resource, resourceTab: null }, { history: 'push', scroll: false })
 
   return {
-    workspace,
-    /** The tab's own workspace choice, absent where the page chooses for every tab. */
-    workspaceOptions:
-      !pageWorkspaceId && workspace
-        ? (workspaces.data ?? []).map((item) => ({ label: item.name, value: item.id }))
-        : undefined,
-    chooseWorkspace: (id: string) => void setView({ workspace: id }),
     query,
     rows,
-    settled: workspaces.isSuccess && (!workspace || Boolean(listed)),
+    settled: Boolean(listed),
     open,
     /** The skill the URL opens on the Skills tab, `null` for a new one; absent when none is open. */
     detail:
-      onSkills && view.resource
-        ? { skillId: view.resource === 'new' ? null : view.resource }
+      onSkills && workspaceId && view.resource
+        ? { workspaceId, skillId: view.resource === 'new' ? null : view.resource }
         : undefined,
     detailBackHref: linkTo(null),
     closeDetail: () =>
