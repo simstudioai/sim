@@ -1,9 +1,13 @@
 const DEFAULT_PORTS: Record<string, number> = { 'http:': 80, 'https:': 443 }
-const SUPPORTED_PROXY_PROTOCOLS = new Set(['http:', 'https:'])
 
 /** An empty lowercase variable counts as unset, so it cannot hide the uppercase one. */
 function readEnv(lower: string, upper: string): string | undefined {
   return process.env[lower]?.trim() || process.env[upper]?.trim() || undefined
+}
+
+/** Whether any `HTTPS_PROXY` / `HTTP_PROXY` is set, before any destination is considered. */
+export function isEnvironmentProxyConfigured(): boolean {
+  return Boolean(readEnv('https_proxy', 'HTTPS_PROXY') ?? readEnv('http_proxy', 'HTTP_PROXY'))
 }
 
 /** Matches `NO_PROXY` the way undici's `EnvHttpProxyAgent` does, so both stacks agree. */
@@ -35,9 +39,7 @@ export function resolveEnvironmentProxy(target: URL): string | null {
   const proxy =
     target.protocol === 'https:' ? (readEnv('https_proxy', 'HTTPS_PROXY') ?? httpProxy) : httpProxy
   if (!proxy) return null
-  const hostname = target.host.replace(/:\d*$/, '').toLowerCase()
-  const port = Number.parseInt(target.port, 10) || defaultPort
-  if (isExcludedByNoProxy(hostname, port)) return null
+  if (isExcludedByNoProxy(target.hostname, Number(target.port) || defaultPort)) return null
   return normalizeProxyUrl(proxy)
 }
 
@@ -49,7 +51,7 @@ function normalizeProxyUrl(value: string): string {
   } catch {
     throw new Error('The configured HTTP(S)_PROXY is not a valid URL')
   }
-  if (!SUPPORTED_PROXY_PROTOCOLS.has(parsed.protocol)) {
+  if (DEFAULT_PORTS[parsed.protocol] === undefined) {
     throw new Error('The configured HTTP(S)_PROXY must be an http:// or https:// URL')
   }
   return parsed.href

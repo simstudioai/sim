@@ -10,6 +10,7 @@ import { credential } from '@sim/db/schema'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { z } from 'zod'
+import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { parseServiceAccountConfig } from '@/lib/credentials/service-account-config'
 import { WORKLOAD_IDENTITY_AUDIENCES } from '@/lib/credentials/workload-identity/audiences'
@@ -173,6 +174,7 @@ export async function resolveAwsSessionCredentials(
     const client = new STSClient({
       region,
       credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
+      requestHandler: awsRequestHandler(),
     })
     const response = await client.send(
       new AssumeRoleCommand({
@@ -198,6 +200,7 @@ export async function resolveAwsSessionCredentials(
   const client = new STSClient({
     region,
     credentials: { accessKeyId: 'anonymous', secretAccessKey: 'anonymous' },
+    requestHandler: awsRequestHandler(),
   })
   const response = await client.send(
     new AssumeRoleWithWebIdentityCommand({
@@ -305,6 +308,7 @@ async function verifyCallerArn(
   const identity = await new STSClient({
     region: stsRegionFor(config),
     credentials: session,
+    requestHandler: awsRequestHandler(),
   }).send(new GetCallerIdentityCommand({}), { abortSignal: signal })
   if (!identity.Arn) throw new Error('AWS returned no caller identity')
   return identity.Arn

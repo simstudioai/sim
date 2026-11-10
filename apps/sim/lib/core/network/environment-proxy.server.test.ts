@@ -9,8 +9,10 @@ import type { Duplex } from 'node:stream'
 import { getCACertificates, setDefaultCACertificates } from 'node:tls'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
+import { ListBucketsCommand, S3Client } from '@aws-sdk/client-s3'
 import { networkConfigMock } from '@sim/testing/mocks/network-config.mock'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { NodeHttpHandler } from '@smithy/node-http-handler'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 vi.mock('@sim/security/dns', async (importOriginal) => {
@@ -29,6 +31,8 @@ vi.mock('@sim/security/dns', async (importOriginal) => {
   }
 })
 
+import { resolveEnvironmentProxy } from '@/lib/core/network/environment-proxy.server'
+import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 import {
   createPinnedFetchWithDispatcher,
   createSsrfGuardedFetchWithDispatcher,
@@ -51,6 +55,11 @@ const secureOrigin = httpsServer((req, res) => {
   if (req.url === '/to-internal') {
     res.writeHead(302, { location: 'https://internal.invalid/' })
     res.end()
+    return
+  }
+  if (String(req.headers.authorization).startsWith('AWS4-HMAC-SHA256')) {
+    res.setHeader('content-type', 'application/xml')
+    res.end('<ListAllMyBucketsResult><Buckets></Buckets></ListAllMyBucketsResult>')
     return
   }
   res.end('tls reached')
@@ -131,10 +140,6 @@ beforeEach(() => {
   tunnels.length = 0
   forwarded.length = 0
   originHeaders = {}
-})
-
-afterEach(() => {
-  vi.unstubAllEnvs()
 })
 
 afterAll(async () => {
@@ -244,7 +249,7 @@ describe('guarded requests under HTTPS_PROXY', () => {
     ])
   })
 
-  it('tunnels through the proxy under the actual Bun runtime', async () => {
+  it('tunnels guarded fetches and AWS SDK requests under the actual Bun runtime', async () => {
     await promisify(execFile)(
       'bun',
       [
@@ -266,6 +271,91 @@ describe('guarded requests under HTTPS_PROXY', () => {
         },
       }
     )
-    expect(tunnels).toEqual([{ authority: '1.1.1.1:443', authorization: PROXY_AUTHORIZATION }])
+    expect(tunnels).toEqual([
+      { authority: '1.1.1.1:443', authorization: PROXY_AUTHORIZATION },
+      { authority: '1.1.1.1:443', authorization: PROXY_AUTHORIZATION },
+    ])
+  })
+})
+
+describe('proxy selection from the environment', () => {
+  it.each([
+    {
+      case: 'an empty lowercase variable does not hide the uppercase one',
+      env: { https_proxy: '', HTTPS_PROXY: 'http://upper:3128' },
+      target: 'https://api.example.com/',
+      proxy: 'http://upper:3128/',
+    },
+    {
+      case: 'an https destination falls back to HTTP_PROXY',
+      env: { HTTP_PROXY: 'http://plain:3128' },
+      target: 'https://api.example.com/',
+      proxy: 'http://plain:3128/',
+    },
+    {
+      case: 'a bare host:port is read as an http proxy',
+      env: { HTTPS_PROXY: 'proxy.internal:3128' },
+      target: 'https://api.example.com/',
+      proxy: 'http://proxy.internal:3128/',
+    },
+    {
+      case: 'a NO_PROXY entry with a port only excludes that port',
+      env: { HTTPS_PROXY: 'http://p:3128', NO_PROXY: 'api.example.com:8443' },
+      target: 'https://api.example.com/',
+      proxy: 'http://p:3128/',
+    },
+    {
+      case: 'NO_PROXY=* excludes every destination',
+      env: { HTTPS_PROXY: 'http://p:3128', NO_PROXY: '*' },
+      target: 'https://api.example.com/',
+      proxy: null,
+    },
+  ])('$case', ({ env, target, proxy }) => {
+    for (const name of PROXY_ENV) vi.stubEnv(name, '')
+    for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value)
+    expect(resolveEnvironmentProxy(new URL(target))).toBe(proxy)
+  })
+
+  it('fails closed instead of going direct when the proxy URL is unsupported', async () => {
+    vi.stubEnv('HTTPS_PROXY', 'socks5://127.0.0.1:1080')
+    await expect(secureFetchWithValidation('https://origin.invalid/', options)).rejects.toThrow(
+      /http:\/\/ or https:\/\//
+    )
+    expect(tunnels).toEqual([])
+    expect(originHeaders).toEqual({})
+  })
+})
+
+describe('AWS SDK clients under HTTPS_PROXY', () => {
+  const listBuckets = (endpoint: string) =>
+    new S3Client({
+      region: 'us-east-1',
+      endpoint,
+      forcePathStyle: true,
+      credentials: { accessKeyId: 'AKIDEXAMPLE', secretAccessKey: 'secret' },
+      requestHandler: awsRequestHandler(),
+    }).send(new ListBucketsCommand({}))
+
+  it('tunnels SDK requests by hostname and keeps proxy credentials off the origin', async () => {
+    await expect(listBuckets('https://origin.invalid')).resolves.toMatchObject({ Buckets: [] })
+    expect(tunnels).toEqual([
+      { authority: 'origin.invalid:443', authorization: PROXY_AUTHORIZATION },
+    ])
+    expect(originHeaders['proxy-authorization']).toBeUndefined()
+  })
+
+  it('connects directly when NO_PROXY names the endpoint', async () => {
+    vi.stubEnv('NO_PROXY', '127.0.0.1')
+    await expect(listBuckets(`https://127.0.0.1:${securePort}`)).resolves.toMatchObject({
+      Buckets: [],
+    })
+    expect(tunnels).toEqual([])
+  })
+
+  it('leaves the SDK defaults untouched when no proxy is configured', () => {
+    vi.stubEnv('HTTPS_PROXY', '')
+    vi.stubEnv('HTTP_PROXY', '')
+    expect(awsRequestHandler({ requestTimeout: 10_000 })).not.toBeInstanceOf(NodeHttpHandler)
+    expect(awsRequestHandler()).toBeUndefined()
   })
 })

@@ -17,9 +17,10 @@ interface OutboundTransportOptions {
 interface OutboundTransportOwner {
   /**
    * Null delegates to the adapter's existing direct transport. Pass the request URL so a
-   * direct route can honor the operator's `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY`.
+   * direct route can honor the operator's `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY`, and the
+   * request's signal so cancelling it also cancels that route's destination check.
    */
-  selectDispatcher(target?: string): Promise<Dispatcher | null>
+  selectDispatcher(target?: string, signal?: AbortSignal): Promise<Dispatcher | null>
   close(): Promise<void>
   destroy(): Promise<void>
 }
@@ -42,13 +43,19 @@ export function createOutboundTransport(options: OutboundTransportOptions): Outb
   /**
    * The proxy resolves the destination itself, so pinning cannot hold across it. Every request
    * (each redirect hop included) is resolved and judged here first, so a name that points at
-   * a refused address is stopped before the proxy is asked to reach it.
+   * a refused address is stopped before the proxy is asked to reach it. A name that changes
+   * its answer between this check and the proxy's own lookup is left to the proxy's egress
+   * policy, which is why the self-hosting docs make the proxy the final egress control.
    */
-  const selectEnvironmentProxy = async (target: string): Promise<Dispatcher | null> => {
+  const selectEnvironmentProxy = async (
+    target: string,
+    signal: AbortSignal | undefined
+  ): Promise<Dispatcher | null> => {
     const proxyUrl = resolveEnvironmentProxy(new URL(target))
     if (!proxyUrl) return null
     const validation = await validateEgressUrl(target, 'url', options.profile, {
       logDetails: false,
+      signal,
     })
     if (!validation.isValid) throw new Error(validation.error, { cause: validation.cause })
     if (closed) throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
@@ -57,7 +64,7 @@ export function createOutboundTransport(options: OutboundTransportOptions): Outb
       agent = new ProxyAgent({
         uri: proxyUrl,
         allowH2: false,
-        /** Plain-http destinations use absolute-form forwarding, as curl and Bun do. */
+        // Plain-http destinations use absolute-form forwarding, as curl and Bun do.
         proxyTunnel: false,
         ...(options.maxResponseSize !== undefined
           ? { maxResponseSize: options.maxResponseSize }
@@ -68,13 +75,13 @@ export function createOutboundTransport(options: OutboundTransportOptions): Outb
     return agent
   }
   return {
-    async selectDispatcher(target) {
+    async selectDispatcher(target, signal) {
       const route = await resolveCurrentOutboundRoute()
       if (closed) throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
       if (route.kind === 'direct') {
-        /** A per-request proxy chosen by the workflow outranks the deployment default. */
+        // A per-request proxy chosen by the workflow outranks the deployment default.
         if (!options.proxyUrl && target !== undefined) {
-          const proxy = await selectEnvironmentProxy(target)
+          const proxy = await selectEnvironmentProxy(target, signal)
           if (proxy) return proxy
         }
         return options.direct ?? null

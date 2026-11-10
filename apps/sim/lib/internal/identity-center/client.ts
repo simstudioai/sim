@@ -27,7 +27,7 @@ import {
   SSOAdminClient,
   type TargetType,
 } from '@aws-sdk/client-sso-admin'
-import { awsClientCredentials } from '@/lib/internal/aws/credentials'
+import { awsClientConfig } from '@/lib/internal/aws/credentials'
 import {
   AWS_FANOUT_CONCURRENCY,
   mapWithConcurrency,
@@ -43,8 +43,7 @@ interface IdentityCenterConnectionConfig {
 
 export function createSSOAdminClient(config: IdentityCenterConnectionConfig): SSOAdminClient {
   return new SSOAdminClient({
-    region: config.region,
-    credentials: awsClientCredentials(config.accessKeyId, config.secretAccessKey),
+    ...awsClientConfig(config.region, config.accessKeyId, config.secretAccessKey),
   })
 }
 
@@ -52,8 +51,7 @@ export function createIdentityStoreClient(
   config: IdentityCenterConnectionConfig
 ): IdentitystoreClient {
   return new IdentitystoreClient({
-    region: config.region,
-    credentials: awsClientCredentials(config.accessKeyId, config.secretAccessKey),
+    ...awsClientConfig(config.region, config.accessKeyId, config.secretAccessKey),
   })
 }
 
@@ -63,8 +61,11 @@ export function createIdentityStoreClient(
  */
 export function createOrganizationsClient(config: IdentityCenterConnectionConfig) {
   return new OrganizationsClient({
-    region: resolveOrganizationsRegion(config.region),
-    credentials: awsClientCredentials(config.accessKeyId, config.secretAccessKey),
+    ...awsClientConfig(
+      resolveOrganizationsRegion(config.region),
+      config.accessKeyId,
+      config.secretAccessKey
+    ),
   })
 }
 

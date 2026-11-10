@@ -1,5 +1,5 @@
 import { CodePipelineClient } from '@aws-sdk/client-codepipeline'
-import { awsClientCredentials } from '@/lib/internal/aws/credentials'
+import { awsClientConfig } from '@/lib/internal/aws/credentials'
 
 export interface CodePipelineConnectionConfig {
   region: string
@@ -9,7 +9,6 @@ export interface CodePipelineConnectionConfig {
 
 export function createCodePipelineClient(config: CodePipelineConnectionConfig): CodePipelineClient {
   return new CodePipelineClient({
-    region: config.region,
-    credentials: awsClientCredentials(config.accessKeyId, config.secretAccessKey),
+    ...awsClientConfig(config.region, config.accessKeyId, config.secretAccessKey),
   })
 }
