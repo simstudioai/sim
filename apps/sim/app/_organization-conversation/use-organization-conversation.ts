@@ -45,7 +45,10 @@ import {
   useResourcePanelController,
 } from '@/hooks/mothership-chat/use-resource-panel'
 import { useRestoredChatEntry } from '@/hooks/mothership-chat/use-restored-chat-entry'
-import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
+import {
+  useMarkMothershipChatRead,
+  useMothershipChatHistory,
+} from '@/hooks/queries/mothership-chats'
 import { useSearchHistoryActions } from '@/hooks/sim-search/source-history'
 import { type PrepareChatSubmission, useComposerSubmission } from '@/hooks/use-composer-submission'
 import { useHydrated } from '@/hooks/use-hydrated'
@@ -159,25 +162,36 @@ export function useOrganizationConversation({
   )
   const controller = useResourcePanelController()
   const queryClient = useQueryClient()
-  const chat = useChat({ organizationId: organization.id }, chatId, {
-    ...getMothershipUseChatOptions({
-      requestMode,
-      getChatUrl:
-        destinationMode === 'assistant'
-          ? (id) =>
-              serializeSearchConversation(organizationRoutes(organization.id).searchChat(id), {
-                ...searchParams,
-                mode: active ? 'assistant' : 'search',
-                resource: controller.activeResourceState[0],
-              })
-          : undefined,
-      onResourceEvent: controller.onResourceEvent,
-      activeResourceState: controller.activeResourceState,
-    }),
-    ...(panelSurface
-      ? { projectsDesktopTabs: false, onChatIdResolved: panelSurface.onChatIdResolved }
-      : {}),
-  })
+  /**
+   * The organization's list holds the viewer's workspace chats too, and the server admits a send or
+   * Stop only under the scope a chat was created in. An existing chat's scope comes from its history
+   * (the read `useChat` makes), and nothing sends before it lands; a new chat is the organization's.
+   */
+  const { data: openedHistory } = useMothershipChatHistory(chatId)
+  const scopeKnown = !chatId || openedHistory !== undefined
+  const chat = useChat(
+    { organizationId: organization.id, workspaceId: openedHistory?.workspaceId ?? undefined },
+    chatId,
+    {
+      ...getMothershipUseChatOptions({
+        requestMode,
+        getChatUrl:
+          destinationMode === 'assistant'
+            ? (id) =>
+                serializeSearchConversation(organizationRoutes(organization.id).searchChat(id), {
+                  ...searchParams,
+                  mode: active ? 'assistant' : 'search',
+                  resource: controller.activeResourceState[0],
+                })
+            : undefined,
+        onResourceEvent: controller.onResourceEvent,
+        activeResourceState: controller.activeResourceState,
+      }),
+      ...(panelSurface
+        ? { projectsDesktopTabs: false, onChatIdResolved: panelSurface.onChatIdResolved }
+        : {}),
+    }
+  )
   const newDraftSlot =
     surface.kind === 'panel'
       ? 'home'
@@ -291,7 +305,8 @@ export function useOrganizationConversation({
 
   const consumedSummary = useRef<string | null>(null)
   useEffect(() => {
-    if (!active || !summaryRequest || consumedSummary.current === summaryRequest.id) return
+    if (!active || !scopeKnown || !summaryRequest || consumedSummary.current === summaryRequest.id)
+      return
     consumedSummary.current = summaryRequest.id
     onSummaryConsumed?.(summaryRequest.id)
     void sendMessage(
@@ -300,7 +315,7 @@ export function useOrganizationConversation({
       undefined,
       chatSendOptions('assistant', summaryRequest.assistantSearch)
     )
-  }, [active, summaryRequest, onSummaryConsumed, sendMessage])
+  }, [active, scopeKnown, summaryRequest, onSummaryConsumed, sendMessage])
 
   const send = (
     message: string,
@@ -308,6 +323,7 @@ export function useOrganizationConversation({
     contexts?: ChatContext[],
     assistantSearch?: WorkspaceSearchFilters
   ) => {
+    if (!scopeKnown) return
     if (requestMode === 'assistant') recordQuery(message)
     if (requestMode !== 'assistant' && !panelSurface) panel.prepareResourceViewForAgentTurn()
     void sendMessage(
@@ -318,7 +334,7 @@ export function useOrganizationConversation({
     )
   }
   const submit = (text: string, contexts?: ChatContext[]) => {
-    if (files.attachedFiles.some((file) => file.uploading)) return false
+    if (!scopeKnown || files.attachedFiles.some((file) => file.uploading)) return false
     if (requestMode === 'assistant') {
       if (files.attachedFiles.some((file) => !isAssistantImageType(file.type))) {
         toast.error('Remove unsupported files to use Assistant.')
