@@ -88,7 +88,8 @@ interface SecretsEditorProps {
 
 /** An organization's, a member's, or a workspace's and the viewer's own secrets, edited in place. */
 export function SecretsEditor({ scope, header }: SecretsEditorProps) {
-  if (scope.kind === 'workspace') return <WorkspaceSecrets {...scope} />
+  if (scope.kind === 'workspace')
+    return <WorkspaceSecrets workspaceId={scope.workspaceId} onViewDetails={scope.onViewDetails} />
   return (
     <GenericSecrets
       organizationId={scope.organizationId}
