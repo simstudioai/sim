@@ -392,3 +392,41 @@ describe('saved credentials for a host the user chose', () => {
     }
   )
 })
+
+describe('saved credentials whose vendor answers a restricted token in its error', () => {
+  const secureFetch = inputValidationMockFns.mockSecureFetchWithValidation
+
+  it.each([
+    [
+      'rejects an unknown Tinybird token',
+      validateTinybirdServiceAccount,
+      jsonResponse({ error: 'invalid authentication token. Token tok not found' }, 403),
+      'invalid_credentials',
+    ],
+    [
+      'accepts a Tinybird token without read access',
+      validateTinybirdServiceAccount,
+      jsonResponse({ error: 'Not enough permissions to read from datasources' }, 403),
+      null,
+    ],
+    [
+      'accepts an Upstash token whose ACL refuses PING',
+      validateUpstashServiceAccount,
+      jsonResponse({ error: 'NOPERM this user has no permissions to run the ping command' }, 400),
+      null,
+    ],
+    [
+      'rejects an unknown Upstash token',
+      validateUpstashServiceAccount,
+      jsonResponse({ error: 'WRONGPASS invalid or missing auth token' }, 401),
+      'invalid_credentials',
+    ],
+  ])('%s', async (_, validate, reply, code) => {
+    secureFetch.mockReset().mockResolvedValue(reply)
+
+    const result = validate({ apiToken: 'tok', domain: 'https://instance.example.com' })
+
+    if (code) await expect(result).rejects.toMatchObject({ code })
+    else await expect(result).resolves.toMatchObject({ principal: null })
+  })
+})

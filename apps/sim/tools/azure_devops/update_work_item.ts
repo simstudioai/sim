@@ -7,6 +7,7 @@ import type { AzureDevOpsJsonPatchOp, AzureDevOpsRawWorkItem } from '@/tools/azu
 import {
   appendEffortPatchOp,
   appendFieldPatchOp,
+  azureDevOpsProjectUrl,
   formatWorkItem,
   mapWorkItem,
 } from '@/tools/azure_devops/utils'
@@ -134,7 +135,7 @@ export const updateWorkItemTool: ToolConfig<UpdateWorkItemParams, UpdateWorkItem
 
   request: {
     url: (params) =>
-      `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/wit/workitems/${Number(params.workItemId)}?api-version=7.2-preview.3`,
+      `${azureDevOpsProjectUrl(params)}/_apis/wit/workitems/${Number(params.workItemId)}?api-version=7.2-preview.3`,
     method: 'PATCH',
     headers: (params) => ({
       'Content-Type': 'application/json-patch+json',

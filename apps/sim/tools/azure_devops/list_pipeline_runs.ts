@@ -1,6 +1,8 @@
 import type { ListPipelineRunsParams, ListPipelineRunsResponse } from '@/tools/azure_devops/types'
+import { azureDevOpsProjectUrl } from '@/tools/azure_devops/utils'
 import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listPipelineRunsTool: ToolConfig<ListPipelineRunsParams, ListPipelineRunsResponse> = {
   id: 'azure_devops_list_pipeline_runs',
@@ -40,7 +42,7 @@ export const listPipelineRunsTool: ToolConfig<ListPipelineRunsParams, ListPipeli
   request: {
     url: (params) => {
       const url = new URL(
-        `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/pipelines/${params.pipelineId}/runs`
+        `${azureDevOpsProjectUrl(params)}/_apis/pipelines/${safeUrlPathSegment(params.pipelineId, 'pipelineId')}/runs`
       )
       url.searchParams.set('api-version', '7.2-preview.1')
       return url.toString()

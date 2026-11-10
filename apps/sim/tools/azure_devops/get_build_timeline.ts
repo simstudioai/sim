@@ -3,6 +3,7 @@ import type {
   GetBuildTimelineParams,
   GetBuildTimelineResponse,
 } from '@/tools/azure_devops/types'
+import { azureDevOpsProjectUrl } from '@/tools/azure_devops/utils'
 import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -43,7 +44,7 @@ export const getBuildTimelineTool: ToolConfig<GetBuildTimelineParams, GetBuildTi
 
   request: {
     url: (params) =>
-      `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/build/builds/${Number(params.buildId)}/timeline?api-version=7.2-preview.3`,
+      `${azureDevOpsProjectUrl(params)}/_apis/build/builds/${Number(params.buildId)}/timeline?api-version=7.2-preview.3`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

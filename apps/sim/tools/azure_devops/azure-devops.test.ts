@@ -554,3 +554,20 @@ describe('Azure DevOps trigger event matching', () => {
     expect(azureDevOpsHandler.extractIdempotencyId!(null)).toBeNull()
   })
 })
+
+describe('Azure DevOps project-scoped URLs', () => {
+  const base = { accessToken: 'pat', organization: 'contoso', workItemId: 7 }
+
+  it('keeps a project name with spaces in its own path segment, as before', () => {
+    const url = new URL(buildUrl(getWorkItemTool, { ...base, project: 'My Project' } as never))
+
+    expect(url.pathname).toBe('/contoso/My%20Project/_apis/wit/workitems/7')
+  })
+
+  it.each(['../../other-org/proj', '..', 'proj/../../other-org'])(
+    'refuses a project that would climb into another organization (%s)',
+    (project) => {
+      expect(() => buildUrl(getWorkItemTool, { ...base, project } as never)).toThrow(/project/)
+    }
+  )
+})

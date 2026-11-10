@@ -4,7 +4,7 @@ import type {
   GetWorkItemsBatchResponse,
 } from '@/tools/azure_devops/types'
 import type { AzureDevOpsRawWorkItem } from '@/tools/azure_devops/utils'
-import { formatWorkItem, mapWorkItem } from '@/tools/azure_devops/utils'
+import { azureDevOpsProjectUrl, formatWorkItem, mapWorkItem } from '@/tools/azure_devops/utils'
 import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -55,9 +55,7 @@ export const getWorkItemsBatchTool: ToolConfig<GetWorkItemsBatchParams, GetWorkI
           throw new Error('Get Work Items Batch requires at least one work item ID.')
         }
         const firstChunk = allIds.slice(0, 200)
-        const url = new URL(
-          `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/wit/workitems`
-        )
+        const url = new URL(`${azureDevOpsProjectUrl(params)}/_apis/wit/workitems`)
         url.searchParams.set('ids', firstChunk.join(','))
         url.searchParams.set('$expand', 'all')
         url.searchParams.set('api-version', '7.2-preview.3')
@@ -90,7 +88,7 @@ export const getWorkItemsBatchTool: ToolConfig<GetWorkItemsBatchParams, GetWorkI
         for (let i = BATCH_SIZE; i < allIds.length; i += BATCH_SIZE) {
           const chunk = allIds.slice(i, i + BATCH_SIZE)
           const detailsUrl = new URL(
-            `https://dev.azure.com/${organization}/${project}/_apis/wit/workitems`
+            `${azureDevOpsProjectUrl({ organization, project })}/_apis/wit/workitems`
           )
           detailsUrl.searchParams.set('ids', chunk.join(','))
           detailsUrl.searchParams.set('$expand', 'all')

@@ -1,4 +1,5 @@
 import type { ListBuildsParams, ListBuildsResponse } from '@/tools/azure_devops/types'
+import { azureDevOpsProjectUrl } from '@/tools/azure_devops/utils'
 import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -64,9 +65,7 @@ export const listBuildsTool: ToolConfig<ListBuildsParams, ListBuildsResponse> = 
 
   request: {
     url: (params) => {
-      const url = new URL(
-        `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/build/builds`
-      )
+      const url = new URL(`${azureDevOpsProjectUrl(params)}/_apis/build/builds`)
       url.searchParams.set('api-version', '7.2-preview.8')
       if (params.definitionIds) url.searchParams.set('definitions', params.definitionIds)
       if (params.top) url.searchParams.set('$top', Number(params.top).toString())

@@ -1,4 +1,5 @@
 import type { ListPipelinesParams, ListPipelinesResponse } from '@/tools/azure_devops/types'
+import { azureDevOpsProjectUrl } from '@/tools/azure_devops/utils'
 import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -51,9 +52,7 @@ export const listPipelinesTool: ToolConfig<ListPipelinesParams, ListPipelinesRes
 
   request: {
     url: (params) => {
-      const url = new URL(
-        `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/pipelines`
-      )
+      const url = new URL(`${azureDevOpsProjectUrl(params)}/_apis/pipelines`)
       url.searchParams.set('api-version', '7.2-preview.1')
       if (params.orderBy) url.searchParams.set('orderBy', params.orderBy)
       if (params.top) url.searchParams.set('$top', Number(params.top).toString())
