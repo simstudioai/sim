@@ -601,15 +601,8 @@ async function reset(install: Install | null): Promise<void> {
     p.log.info('Reset cancelled.')
     return
   }
-  if (install?.kind === 'compose') {
-    const backup = archiveFile(path.join(install.dir, '.env'))
-    if (backup) p.log.step(`Archived ${backup}`)
-  } else {
-    for (const target of ['sim', 'realtime', 'db', 'root'] as const) {
-      const backup = archiveEnvFile(target)
-      if (backup) p.log.step(`Archived ${backup}`)
-    }
-  }
+  // Tear down before archiving: Compose reads the required secrets from `.env`
+  // even for `down`, and a failed teardown should leave the config in place.
   if (install?.kind === 'compose') {
     dockerRun(composeArgs(install, 'down', '-v'), 'docker compose down -v failed', install.dir)
     p.log.step('Containers and volumes removed')
@@ -624,11 +617,9 @@ async function reset(install: Install | null): Promise<void> {
       ['uninstall', K8S_RELEASE, '--kube-context', install.context, '-n', K8S_NAMESPACE],
       { stdio: 'inherit' }
     )
-    // Env files are already archived, so a failed uninstall leaves a live release
-    // with no local config — the worst thing to do is call that a success.
     if (uninstall.status !== 0) {
       throw new SetupError(
-        `env files were archived, but helm uninstall failed — the ${K8S_RELEASE} release is still running.`,
+        `helm uninstall failed — the ${K8S_RELEASE} release is still running and your env files were left in place.`,
         [
           `retry: ${theme.command(`helm uninstall ${K8S_RELEASE} --kube-context ${shq(install.context)} -n ${K8S_NAMESPACE}`)}`,
           `check the release: ${theme.command(`helm status ${K8S_RELEASE} --kube-context ${shq(install.context)} -n ${K8S_NAMESPACE}`)}`,
@@ -636,6 +627,15 @@ async function reset(install: Install | null): Promise<void> {
       )
     }
     p.log.step(`Uninstalled ${K8S_RELEASE}`)
+  }
+  if (install?.kind === 'compose') {
+    const backup = archiveFile(path.join(install.dir, '.env'))
+    if (backup) p.log.step(`Archived ${backup}`)
+  } else {
+    for (const target of ['sim', 'realtime', 'db', 'root'] as const) {
+      const backup = archiveEnvFile(target)
+      if (backup) p.log.step(`Archived ${backup}`)
+    }
   }
   p.note(`start fresh with ${theme.command('npx sim-setup')}`, 'Reset complete')
 }
