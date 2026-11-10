@@ -24,7 +24,10 @@ import {
 } from '@/lib/billing/core/attribution'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import type { WorkflowState } from '@/lib/logs/types'
-import { readPausedRunPoints } from '@/lib/workflows/executor/execution-status'
+import {
+  getWorkflowExecutionStatus,
+  readPausedRunPoints,
+} from '@/lib/workflows/executor/execution-status'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
 import { capturePauseDisplay } from '@/executor/human-in-the-loop/utils'
@@ -404,6 +407,64 @@ describe('readPausedRunPoints', () => {
 
     const [read] = (await readPausedRunPoints({ workflowId: ids.workflow, executionId })) ?? []
     expect(read).toMatchObject({ contextId: BRANCH_IDS[0], registeredAt: null })
+  })
+
+  it('reports the parent run version for a resume still starting or queued', async () => {
+    const registry = registryWithResolvedSecret()
+    const executionId = await publishPausedRun([
+      humanBranchPoint(0, registry),
+      humanBranchPoint(1, registry),
+    ])
+    const versionId = generateId()
+    await db.insert(workflowDeploymentVersion).values({
+      id: versionId,
+      workflowId: ids.workflow,
+      version: 2,
+      state: { blocks: {} },
+      isActive: false,
+    })
+    await db
+      .update(workflowExecutionLogs)
+      .set({ deploymentVersionId: versionId })
+      .where(eq(workflowExecutionLogs.executionId, executionId))
+
+    const starting = await resume(executionId, BRANCH_IDS[0])
+    const queued = await resume(executionId, BRANCH_IDS[1])
+    expect([starting.status, queued.status]).toEqual(['starting', 'queued'])
+
+    for (const attempt of [starting, queued]) {
+      const status = await getWorkflowExecutionStatus({
+        workflowId: ids.workflow,
+        executionId: attempt.resumeExecutionId,
+        includeOutput: false,
+        selectedOutputs: [],
+        workspaceId: ids.workspace,
+        viewerUserId: ids.owner,
+      })
+      expect(status).toMatchObject({ status: 'queued', deploymentVersion: 2 })
+    }
+  })
+
+  it('returns the selected point display once, not again in every listed point', async () => {
+    const registry = registryWithResolvedSecret()
+    const executionId = await publishPausedRun([
+      humanBranchPoint(0, registry),
+      humanBranchPoint(1, registry),
+    ])
+
+    const detail = await PauseResumeManager.getPauseContextDetail({
+      workflowId: ids.workflow,
+      executionId,
+      contextId: BRANCH_IDS[0],
+    })
+
+    expect(detail?.pausePoint.display).toEqual({
+      responseStructure: [{ name: 'summary', type: 'string', value: 'Token is {{API_KEY}}' }],
+    })
+    expect(detail?.execution.pausePoints).toHaveLength(2)
+    for (const point of detail?.execution.pausePoints ?? []) {
+      expect(point).not.toHaveProperty('display')
+    }
   })
 
   it('reports a time pause with its resume time and no input fields', async () => {

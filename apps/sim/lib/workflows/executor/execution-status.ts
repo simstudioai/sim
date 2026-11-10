@@ -97,7 +97,8 @@ function extractJobFinalOutput(output: unknown): unknown | null {
 
 function projectQueueJob(
   job: Job,
-  input: Pick<GetWorkflowExecutionStatusInput, 'executionId' | 'includeOutput' | 'workflowId'>
+  input: Pick<GetWorkflowExecutionStatusInput, 'executionId' | 'includeOutput' | 'workflowId'>,
+  deploymentVersion: number | null
 ): WorkflowExecutionStatusResponse {
   const status: WorkflowExecutionStatusResponse['status'] =
     job.status === 'pending' ? 'queued' : job.status === 'processing' ? 'running' : job.status
@@ -113,7 +114,7 @@ function projectQueueJob(
     startedAt: startedAt.toISOString(),
     endedAt: endedAt?.toISOString() ?? null,
     totalDurationMs: endedAt ? endedAt.getTime() - startedAt.getTime() : null,
-    deploymentVersion: null,
+    deploymentVersion,
     paused: null,
     cost: null,
     error: status === 'failed' ? (job.error ?? 'Execution failed') : null,
@@ -307,6 +308,28 @@ function executionDataReadByPoll(
   )
 }
 
+/** The deployment version number a run's log recorded, or null when it recorded none. */
+async function readRunDeploymentVersion(
+  workflowId: string,
+  executionId: string
+): Promise<number | null> {
+  const [row] = await db
+    .select({ version: workflowDeploymentVersion.version })
+    .from(workflowExecutionLogs)
+    .innerJoin(
+      workflowDeploymentVersion,
+      eq(workflowDeploymentVersion.id, workflowExecutionLogs.deploymentVersionId)
+    )
+    .where(
+      and(
+        eq(workflowExecutionLogs.executionId, executionId),
+        eq(workflowExecutionLogs.workflowId, workflowId)
+      )
+    )
+    .limit(1)
+  return row?.version ?? null
+}
+
 async function readWorkflowExecutionStatus(
   input: GetWorkflowExecutionStatusInput
 ): Promise<WorkflowExecutionStatusResponse | null> {
@@ -374,12 +397,22 @@ async function readWorkflowExecutionStatus(
     ...(!logRow ? [`${WORKFLOW_EXECUTION_JOB_ID_PREFIX}${executionId}`] : []),
   ]
 
+  /**
+   * An active resume continues its parent run on the version the parent admitted, so it
+   * reports that version before it has a log row of its own, as it does once it settles.
+   */
+  const deploymentVersion =
+    logRow?.deploymentVersion ??
+    (projectedResume
+      ? await readRunDeploymentVersion(workflowId, projectedResume.parentExecutionId)
+      : null)
+
   if (queueJobIds.length > 0) {
     const jobQueue = await getJobQueue()
     for (const jobId of queueJobIds) {
       const job = await jobQueue.getJob(jobId)
       if (!job || job.metadata.workflowId !== workflowId) continue
-      return projectQueueJob(job, { executionId, includeOutput, workflowId })
+      return projectQueueJob(job, { executionId, includeOutput, workflowId }, deploymentVersion)
     }
   }
 
@@ -394,7 +427,7 @@ async function readWorkflowExecutionStatus(
       startedAt: startedAt.toISOString(),
       endedAt: null,
       totalDurationMs: null,
-      deploymentVersion: logRow?.deploymentVersion ?? null,
+      deploymentVersion,
       paused: null,
       cost: null,
       error: null,
