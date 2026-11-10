@@ -12,8 +12,6 @@ type CredentialListProps = {
    */
   providerId: string
   credentials: readonly IntegrationCredential[]
-  /** Why the viewer cannot connect a credential, read beneath an empty list. */
-  emptyNotice?: string
 } & (
   | {
       /** Each row's own address, so a live row is a link as legacy's was. */
@@ -26,7 +24,6 @@ type CredentialListProps = {
 export function CredentialList({
   providerId,
   credentials,
-  emptyNotice,
   credentialHref,
   onOpen,
 }: CredentialListProps) {
@@ -58,16 +55,9 @@ export function CredentialList({
           )}
         </ul>
       ) : (
-        <>
-          <p className={styles.empty} data-type='T060'>
-            No connected credentials
-          </p>
-          {emptyNotice && (
-            <p className={styles.empty} data-type='T060'>
-              {emptyNotice}
-            </p>
-          )}
-        </>
+        <p className={styles.empty} data-type='T060'>
+          No connected credentials
+        </p>
       )}
     </section>
   )

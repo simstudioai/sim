@@ -43,7 +43,7 @@ interface LiveIntegrationDetailsProps {
    * the organization manages, no Connect shows.
    */
   unavailableReason?: string
-  /** Why the viewer cannot connect their own credential, beneath an empty list. */
+  /** Why the viewer cannot connect their own credential, said in place of an empty list. */
   emptyNotice?: string
   pending: boolean
   /** The open credential's page; `disconnect` asks before removing it. */
@@ -153,14 +153,16 @@ export function LiveIntegrationDetails({
           )
         )}
       </ControlBar>
-      {credentials && (
-        <CredentialList
-          providerId={app.providerId}
-          credentials={credentials}
-          credentialHref={credentialHref}
-          emptyNotice={emptyNotice}
-        />
-      )}
+      {credentials &&
+        (!credentials.length && emptyNotice ? (
+          <EmptyState title='No connected credentials' description={emptyNotice} />
+        ) : (
+          <CredentialList
+            providerId={app.providerId}
+            credentials={credentials}
+            credentialHref={credentialHref}
+          />
+        ))}
       {capabilities}
     </>
   )
