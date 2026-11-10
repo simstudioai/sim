@@ -746,7 +746,8 @@ it("passes an action's pending label, a value token, and copy nothing renders", 
     put(
       'app/(product)/o/[organizationId]/home/_components/panel/panel.tsx',
       `function Confirm(_: { pendingLabel: string }) { return null }
-      function ActionButton(_: { children: string }) { return null }
+      function ActionButton(_: { children: string; onClick?: () => void; submit?: boolean }) { return null }
+      const SYNCED = 'Synced'
       function Dialog(_: { confirmLabel: string; kind?: string }) { return null }
       const idle = 'Loading' === 'x' ? 'Create' : 'Invite'
       export function Panel({ busy, all }: { busy: boolean; all: boolean }) {
@@ -754,9 +755,15 @@ it("passes an action's pending label, a value token, and copy nothing renders", 
           <Confirm pendingLabel='Loading…' />
           <button>{busy ? 'Loading…' : 'Load more'}</button>
           <button>{busy ? (all ? 'Loading all…' : 'Loading options…') : 'Load all'}</button>
-          <ActionButton>{busy ? 'Saving…' : 'Allow'}</ActionButton>
+          <ActionButton onClick={() => {}}>{busy ? 'Saving…' : 'Allow'}</ActionButton>
+          <ActionButton submit>{busy ? 'Generating…' : 'Generate'}</ActionButton>
+          <button>{busy ? 'Searching options…' : 'Search all options'}</button>
           <Dialog confirmLabel={busy ? 'Sending…' : 'Invite'} />
           <Dialog confirmLabel={idle} kind='loading' />
+          <p>Opening hours</p>
+          <p>Searching tips</p>
+          <p>{\`Waiting on \${idle}\`}</p>
+          <Dialog confirmLabel={SYNCED} kind='syncing' />
         </>
       }
 `
@@ -787,6 +794,43 @@ it('fails a variant with no Paper key that CODE_FIRST_VARIANTS gives no reason f
     expect(result.status).toBe(1)
     expect(result.output).toContain('[variant-evidence] Button.variant=bar')
     expect(result.output).not.toContain('[variant-evidence] Button.variant=primary')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}, 30_000)
+
+it('fails a CODE_FIRST_VARIANTS entry for a variant the frozen EMCN surface does not have', () => {
+  const { root, put, run } = productFixture()
+  try {
+    put(
+      '../../packages/emcn-platform/src/catalog/variants.json',
+      JSON.stringify({ Button: { variant: { primary: ['C0092'], bar: [] } } })
+    )
+    put(
+      '../../packages/emcn/src/components/button/button.tsx',
+      `export function Button({variant}: {variant: 'primary' | 'bar'}) { return <button data-variant={variant}/> }`
+    )
+    put(
+      'app/(product)/o/[organizationId]/home/page.tsx',
+      `import { Button } from '@sim/emcn/button'
+      export default function Page() { return <><Button variant='primary'/><Button variant='bar'/></> }`
+    )
+    writeAllowlists(root, { CODE_FIRST_VARIANTS: { 'Button.variant=bar': 'A code-first bar' } })
+    const surface = (values: string[]) =>
+      writeFileSync(
+        path.join(root, 'scripts/emcn-surface.json'),
+        JSON.stringify({
+          '@sim/emcn': { exports: { './button': { props: { Button: { variant: values } } } } },
+        })
+      )
+    surface(['primary'])
+    const added = run()
+    expect(added.status).toBe(1)
+    expect(added.output).toContain(
+      'scripts/platform-allowlists.ts [variant-evidence] CODE_FIRST_VARIANTS names Button.variant=bar'
+    )
+    surface(['bar', 'primary'])
+    expect(run()).toEqual({ status: 0, output: expect.stringContaining('passed') })
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
@@ -845,6 +889,26 @@ it.each([
   [
     'app/(product)/o/[organizationId]/home/_components/panel/save.tsx',
     `export function Save({ busy }: { busy: boolean }) { return <p>{busy && 'SAVING CHANGES…'}</p> }`,
+  ],
+  [
+    'app/(product)/o/[organizationId]/home/_components/panel/prepare.tsx',
+    `export function Prepare({ busy }: { busy: boolean }) { return <p>{busy ? 'Preparing your export…' : 'Export'}</p> }`,
+  ],
+  [
+    'app/(product)/o/[organizationId]/home/_components/panel/sync.tsx',
+    `export function Sync() { return <p>Syncing</p> }`,
+  ],
+  [
+    'app/(product)/o/[organizationId]/home/_components/panel/connect.tsx',
+    `function Notice(_: { message: string }) { return null }; export const C = () => <Notice message='Connecting...' />`,
+  ],
+  [
+    'app/(product)/o/[organizationId]/home/_components/panel/placeholder.tsx',
+    `function Button(_: { children: string; disabled?: boolean }) { return null }; export const P = () => <Button disabled>Loading…</Button>`,
+  ],
+  [
+    'app/(product)/o/[organizationId]/home/_components/panel/constant.tsx',
+    `const PENDING = 'Generating rows…'; export const G = () => <p>{PENDING}</p>`,
   ],
 ])(
   'fails [loading-copy] for %s',
@@ -965,6 +1029,51 @@ it('fails [prop-spread] for props passed through cloneElement or createElement',
     expect(result.status).toBe(1)
     expect(result.output).toContain(`${file}:2 [prop-spread]`)
     expect(result.output).toContain(`${file}:3 [prop-spread]`)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}, 30_000)
+
+it('fails [prop-spread] and [consumer-style] on an EMCN element anywhere in the repo', () => {
+  const { root, put, run } = productFixture()
+  const panel = 'components/settings/panel.tsx'
+  const popup = '../extension/src/popup.tsx'
+  try {
+    put(
+      panel,
+      `import { Button } from '@sim/emcn/button'
+      import { Button as Legacy } from '@sim/emcn-legacy/button'
+      export const Panel = (rest: object) => <div className='p-2'>
+        <Button variant='primary' {...rest} />
+        <Button variant='primary' className='mt-2' />
+        <Legacy className='mt-2' {...rest} />
+      </div>
+`
+    )
+    put(
+      popup,
+      `import * as Emcn from '@sim/emcn/button'
+      import { createElement } from 'react'
+      export const Popup = (props: object) => <><Emcn.Button variant='primary' data-variant='loud' />
+      {createElement(Emcn.Button, props)}</>
+`
+    )
+    const result = run()
+    expect(result.status).toBe(1)
+    for (const finding of [
+      `${panel}:4 [prop-spread]`,
+      `${panel}:5 [consumer-style] Button.className`,
+      `${popup}:3 [consumer-style] Emcn.Button.data-variant`,
+      `${popup}:4 [prop-spread]`,
+    ])
+      expect(result.output).toContain(finding)
+    expect(result.output).not.toContain(`${panel}:3`)
+    expect(result.output).not.toContain(`${panel}:6`)
+
+    writeAllowlists(root, {
+      EMCN_CONSUMER_OVERRIDES: { [panel]: 'Predates the rule', [popup]: 'Predates the rule' },
+    })
+    expect(run()).toEqual({ status: 0, output: expect.stringContaining('passed') })
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

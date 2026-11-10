@@ -12,11 +12,17 @@
  * different apps and cannot read each other's reports, so `--job` holds each to its own rows: a row
  * saying it is proved in the `live (self-hosted)` job answers to that job's run, and every other row
  * answers to `product`'s.
+ *
+ * A row that is not Done is held to its quotes too, where a quote stands as a check (after `by`, or
+ * before `in \`<file>\`` or a verb such as `reads` or `covers`): it names a live test or an
+ * `org-redesign-e2e` check. Elsewhere a quote is product copy, and a Declined row quotes freely. A
+ * Hidden row that cites `HIDDEN_SECTIONS` or `hidden` in `WORKSPACE_TABS` must be hidden by it.
  */
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
 import ts from '@typescript/typescript6'
+import { ORGANIZATION_ROUTES } from './platform-product-routes'
 import { listRepoFiles } from './repo-files'
 
 const STATUSES = new Set([
@@ -34,6 +40,12 @@ const HEADERS = new Set([
 ])
 const FILE_PROOF = /[\w./-]+\.(?:integration\.ts|test\.tsx?|spec\.ts)/g
 const TITLE_PROOF = /"([^"]+)"/g
+/** Text before a quote, or after it, that makes the quote a check's title rather than copy. */
+const PRECEDING_CHECK = /\bby\s*$/
+const FOLLOWING_CHECK =
+  /^\s+(?:in `|against\b|(?:covers|needs|opens|pins|proves|reaches|reads|reloads|shows)\b)/
+const HOME_DASHBOARD = `${ORGANIZATION_ROUTES}home/_components/home-dashboard/home-dashboard.tsx`
+const WORKSPACE_NAVIGATION = 'platform/lib/workspace-navigation.ts'
 const SELF_HOSTED_JOB_PROOF = 'in the `live (self-hosted)` job'
 const LIVE_JOBS = ['product', 'self-hosted'] as const
 type LiveJob = (typeof LIVE_JOBS)[number]
@@ -47,6 +59,10 @@ interface LedgerInputs {
   testFiles: ReadonlySet<string>
   /** Titles of every test in the live specs. */
   liveTitles: readonly string[]
+  /** Titles of every `check(...)` in `scripts/org-redesign-e2e`, which a row not yet Done may cite. */
+  e2eTitles?: readonly string[]
+  /** What the hide switches hide: `HIDDEN_SECTIONS` members, and `WORKSPACE_TABS` hidden labels. */
+  hidden?: { sections: ReadonlySet<string>; tabs: ReadonlySet<string> }
   run?: RunOutcome
   /** Which job's run this is. Without it, the run answers for every row. */
   job?: LiveJob
@@ -94,14 +110,17 @@ function namesTestFile(proof: string, testFiles: ReadonlySet<string>): boolean {
  * The title of every `test(...)` (and `test.skip`/`only`/`fixme`) a spec declares. A parameterized
  * title keeps its placeholders as written (`a saved ${from} lands on ${to}`).
  */
-export function liveTestTitles(source: string): string[] {
+export function liveTestTitles(
+  source: string,
+  callee = /^test(?:\.(?:skip|only|fixme|fail))?$/
+): string[] {
   const titles: string[] = []
   const visit = (node: ts.Node) => {
     if (ts.isCallExpression(node)) {
-      const callee = node.expression.getText()
+      const name = node.expression.getText()
       const [title] = node.arguments
       if (
-        /^test(?:\.(?:skip|only|fixme|fail))?$/.test(callee) &&
+        callee.test(name) &&
         title &&
         (ts.isStringLiteralLike(title) || ts.isTemplateExpression(title))
       )
@@ -117,7 +136,57 @@ function isLiveSpec(file: string): boolean {
   return file.endsWith('.spec.ts') && file.includes('checks/')
 }
 
-export function auditLedger({ ledger, testFiles, liveTitles, run, job }: LedgerInputs): string[] {
+/** The string literals `name`'s declaration holds, such as the members of `new Set([...])`. */
+function declaredStrings(source: string, name: string, keep?: (node: ts.Node) => boolean) {
+  const strings = new Set<string>()
+  const visit = (node: ts.Node) => {
+    if (ts.isVariableDeclaration(node) && node.name.getText() === name) {
+      const collect = (child: ts.Node) => {
+        if (ts.isStringLiteralLike(child) && (!keep || keep(child))) strings.add(child.text)
+        ts.forEachChild(child, collect)
+      }
+      if (node.initializer) collect(node.initializer)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(ts.createSourceFile('source.ts', source, ts.ScriptTarget.Latest, true))
+  return strings
+}
+
+/** The label of a `WORKSPACE_TABS` entry marked `hidden: true`. */
+function isHiddenTabLabel(node: ts.Node) {
+  const property = node.parent
+  const entry = property?.parent
+  return (
+    ts.isPropertyAssignment(property) &&
+    property.name.getText() === 'label' &&
+    ts.isObjectLiteralExpression(entry) &&
+    entry.properties.some(
+      (other) =>
+        ts.isPropertyAssignment(other) &&
+        other.name.getText() === 'hidden' &&
+        other.initializer.kind === ts.SyntaxKind.TrueKeyword
+    )
+  )
+}
+
+/** What the hide switches hide, read from the home dashboard's and workspace navigation's source. */
+export function hideSwitches(homeDashboard: string, workspaceNavigation: string) {
+  return {
+    sections: declaredStrings(homeDashboard, 'HIDDEN_SECTIONS'),
+    tabs: declaredStrings(workspaceNavigation, 'WORKSPACE_TABS', isHiddenTabLabel),
+  }
+}
+
+export function auditLedger({
+  ledger,
+  testFiles,
+  liveTitles,
+  e2eTitles = [],
+  hidden,
+  run,
+  job,
+}: LedgerInputs): string[] {
   const findings: string[] = []
   const firstRowAt = new Map<string, number>()
   let columns: number | null = null
@@ -156,7 +225,33 @@ export function auditLedger({ ledger, testFiles, liveTitles, run, job }: LedgerI
         findings.push(`${at}: "${capability}" names ${file}, which does not exist`)
       }
     }
-    if (!status.startsWith('Done')) return
+    if (status === 'Hidden' && hidden) {
+      if (proof.includes('`HIDDEN_SECTIONS`') && !hidden.sections.has(capability))
+        findings.push(
+          `${at}: "${capability}" cites HIDDEN_SECTIONS, which does not hide it; hide it there or correct the row`
+        )
+      if (
+        /`hidden` in `WORKSPACE_TABS`/.test(proof) &&
+        ![...hidden.tabs].some((label) => capability.startsWith(`${label} `))
+      )
+        findings.push(
+          `${at}: "${capability}" cites \`hidden\` in WORKSPACE_TABS, but no hidden tab is labelled so; hide it there or correct the row`
+        )
+    }
+    if (!status.startsWith('Done')) {
+      if (status === 'Declined') return
+      for (const match of proof.matchAll(TITLE_PROOF)) {
+        const title = match[1] as string
+        const before = proof.slice(0, match.index)
+        const after = proof.slice((match.index ?? 0) + match[0].length)
+        if (!PRECEDING_CHECK.test(before) && !FOLLOWING_CHECK.test(after)) continue
+        if (!matchingTitles(title, [...liveTitles, ...e2eTitles]).length)
+          findings.push(
+            `${at}: "${capability}" cites a check that does not exist: "${title}". Quote a live test's or an org-redesign-e2e check's title as it now reads`
+          )
+      }
+      return
+    }
 
     const answersToThisRun =
       !job || proof.includes(SELF_HOSTED_JOB_PROOF) === (job === 'self-hosted')
@@ -226,14 +321,19 @@ function main() {
   const app = path.join(root, 'apps/sim')
   const testFiles = new Set<string>()
   const liveTitles: string[] = []
+  const e2eTitles: string[] = []
   for (const file of listRepoFiles(root)) {
     if (!file.startsWith('apps/sim/')) continue
     const entry = file.slice('apps/sim/'.length)
+    if (entry.startsWith('scripts/org-redesign-e2e/') && entry.endsWith('.ts'))
+      e2eTitles.push(...liveTestTitles(readFileSync(path.join(app, entry), 'utf8'), /^check$/))
     if (!/\.(?:integration\.ts|test\.tsx?|spec\.ts)$/.test(entry)) continue
     testFiles.add(entry)
     if (entry.startsWith('platform/checks/live/'))
       liveTitles.push(...liveTestTitles(readFileSync(path.join(app, entry), 'utf8')))
   }
+  const read = (file: string) =>
+    existsSync(path.join(app, file)) ? readFileSync(path.join(app, file), 'utf8') : ''
   const { values } = parseArgs({
     options: { report: { type: 'string', multiple: true }, job: { type: 'string' } },
   })
@@ -243,6 +343,8 @@ function main() {
     ledger: readFileSync(path.join(app, 'platform/docs/org-parity.md'), 'utf8'),
     testFiles,
     liveTitles,
+    e2eTitles,
+    hidden: hideSwitches(read(HOME_DASHBOARD), read(WORKSPACE_NAVIGATION)),
     run: values.report ? readRunOutcome(values.report) : undefined,
     job,
   })

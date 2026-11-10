@@ -65,6 +65,15 @@ const CODE_FIRST_VARIANTS: ReasonedAllowlist = {
 }
 
 /**
+ * Components EMCN keeps unexported whose `CODE_FIRST_VARIANTS` entries the frozen surface
+ * (`scripts/emcn-surface.json`) cannot confirm, because it records only exported components.
+ */
+const UNEXPORTED_VARIANT_OWNERS: ReasonedAllowlist = {
+  DatePopover:
+    'Internal to @sim/emcn/picker/date-picker: DatePicker renders it as field and DateRangePicker as text; it is no public prop',
+}
+
+/**
  * Loading paints nothing (`platform/AGENTS.md`): no text such as `Loading…` stands in for content
  * whose read is pending. An action's pending label is feedback, not loading copy, so the rule passes
  * a `pendingLabel` and the pending label of a Load action (`isFetchingNextPage ? 'Loading…' :
@@ -77,6 +86,12 @@ const LOADING_COPY_OWNERS: ReasonedAllowlist = {
     "The document editor's save status reports a write, not a pending read",
   [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/deploy/chat-tab/chat-tab.tsx`]:
     "The identifier field's spinner carries a visually hidden status for screen readers",
+  [`${PRODUCT_ROUTES}_components/workspace/tables/table-grid/cell-render.tsx`]:
+    "Predates the Waiting synonym: a workflow cell's run status while it waits on upstream columns",
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/_components/generate-prompt/generate-prompt.tsx`]:
+    'Predates the Generating synonym: the prompt field shows its streaming generation, not a read',
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/wand-prompt-bar/wand-prompt-bar.tsx`]:
+    'Predates the Generating synonym: the wand prompt shows its streaming generation, not a read',
 }
 
 /** Frames that hold a legacy composer between surfaces, where foundation tokens do not reach. */
@@ -903,6 +918,45 @@ const FAILURE_COPY_OWNERS: ReasonedAllowlist = {}
 /** Files whose product copy still spells an ellipsis as three periods. */
 const ASCII_ELLIPSIS_COPY: ReasonedAllowlist = {}
 
+/**
+ * Files outside the Platform tree that style, spread or set variant attributes on an EMCN element
+ * (`prop-spread`, `consumer-style`). Each predates the repo-wide rule and is the design owner's.
+ */
+const EMCN_CONSUMER_OVERRIDES: ReasonedAllowlist = {
+  ...granted(
+    "Emir's docs app: sizes and tints EMCN's Icon with utility classes; predates the repo-wide rule",
+    [
+      '../docs/components/docs/api-schema/api-schema.tsx',
+      '../docs/components/docs/article/article.tsx',
+      '../docs/components/docs/feedback/feedback.tsx',
+      '../docs/components/docs/gallery/gallery.tsx',
+      '../docs/components/docs/navigation-drawer/navigation-drawer.tsx',
+      '../docs/components/docs/navigation/navigation.tsx',
+      '../docs/components/docs/page-actions/page-actions.tsx',
+      '../docs/components/docs/page-frame/page-frame.tsx',
+      '../docs/components/docs/search/search.tsx',
+      '../docs/components/docs/sim-logo/sim-logo.tsx',
+      '../docs/components/docs/table-of-contents/table-of-contents.tsx',
+      '../docs/components/docs/theme/theme.tsx',
+    ]
+  ),
+  ...granted(
+    "Emir's Auth and Docs packages compose EMCN's Icon with their own classes; predates the repo-wide rule",
+    [
+      '../../packages/emcn-auth/src/components/input/input.tsx',
+      '../../packages/emcn-docs/src/components/callout/callout.tsx',
+      '../../packages/emcn-docs/src/components/cards/cards.tsx',
+      '../../packages/emcn-docs/src/components/copy-button/copy-button.tsx',
+      '../../packages/emcn-docs/src/components/heading/heading.tsx',
+      '../../packages/emcn-docs/src/components/lightbox/lightbox.tsx',
+      '../../packages/emcn-docs/src/components/reference-details/reference-details.tsx',
+      '../../packages/emcn-docs/src/components/tabs/tabs.tsx',
+    ]
+  ),
+  'app/(auth)/oauth/consent/consent-view.tsx':
+    "Emir's OAuth consent view sizes a scope row's Icon with auth utilities; predates the repo-wide rule",
+}
+
 export const PLATFORM_ALLOWLISTS = {
   LIVE_ONLY_ROUTES,
   FIXTURE_BRANCH_VIEWS,
@@ -910,6 +964,8 @@ export const PLATFORM_ALLOWLISTS = {
   FAILURE_COPY_OWNERS,
   ASCII_ELLIPSIS_COPY,
   CODE_FIRST_VARIANTS,
+  UNEXPORTED_VARIANT_OWNERS,
+  EMCN_CONSUMER_OVERRIDES,
   LOADING_COPY_OWNERS,
   FRAMES_OUTSIDE_SURFACE,
   LOCAL_TOKEN_OWNERS,
