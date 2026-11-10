@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQuery } from '@tanstack/react-query'
 import type { inferParserType } from 'nuqs'
+import { resolveLogWorkflowId } from '@/components/logs/utils'
 import { isApiClientError } from '@/lib/api/client/errors'
 import {
   type DashboardStatsResponse,
@@ -160,12 +161,6 @@ function toRunSummary(log: WorkflowLogSummary & { executionId: string }): RunSum
   }
 }
 
-/** The workflow a run can open and run again: none for a Sim job or an archived workflow. */
-function openableWorkflowId(log: WorkflowLogSummary): string | null {
-  if (log.trigger === 'mothership' || log.workflow?.archivedAt) return null
-  return log.workflow?.id || log.workflowId || null
-}
-
 /**
  * What a run's commands may do, as legacy's row menu decides: retry a failed run of a workflow,
  * stop one still going, and open the workflow while it exists.
@@ -188,7 +183,7 @@ function commandsTarget(log: WorkflowLogSummary & { executionId: string }): RunC
   return {
     executionId: log.executionId,
     workflowId,
-    openWorkflowId: openableWorkflowId(log),
+    openWorkflowId: resolveLogWorkflowId(log),
     retryable: log.status === 'failed' && workflowId !== null && log.trigger !== 'mothership',
     stoppable:
       (log.status === 'running' || log.status === 'pending' || log.status === 'cancelling') &&

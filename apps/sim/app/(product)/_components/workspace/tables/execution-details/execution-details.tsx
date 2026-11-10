@@ -30,6 +30,7 @@ import {
   dollarsToCredits,
   filterHiddenOutputKeys,
   formatCreditCost,
+  resolveLogWorkflowId,
   type TraceSpan,
   useLogByExecutionId,
   useTraceVisibility,
@@ -76,12 +77,6 @@ function triggerLabel(trigger: string): string {
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ')
   )
-}
-
-/** The workflow a log can open: none for a Sim agent job or an archived workflow. */
-function openableWorkflowId(log: WorkflowLogRow): string | null {
-  if (log.trigger === 'mothership' || log.workflow?.archivedAt) return null
-  return log.workflow?.id || log.workflowId || null
 }
 
 function workflowLabel(log: WorkflowLogRow): string {
@@ -203,7 +198,7 @@ function ExecutionContent({ log, workspaceId, traceShown }: ExecutionContentProp
   }, [log.executionData])
   const cost = useMemo(() => costBreakdown(log), [log])
 
-  const workflowId = openableWorkflowId(log)
+  const workflowId = resolveLogWorkflowId(log)
   const startedAt = Date.parse(log.createdAt)
   const failed = log.status === 'failed'
   const outputError =
