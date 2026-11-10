@@ -1029,8 +1029,6 @@
     "packages/testing/src/mocks/database.mock.ts": 15,
     "packages/testing/src/mocks/fetch.mock.ts": 2,
     "packages/testing/src/types/index.ts": 10,
-    "packages/ts-sdk/src/index.test.ts": 6,
-    "packages/ts-sdk/src/index.ts": 21,
     "packages/workflow-persistence/src/subblocks.ts": 1,
     "packages/workflow-persistence/src/subflow-helpers.ts": 1,
     "packages/workflow-types/src/workflow.ts": 5,
@@ -1820,7 +1818,6 @@
     "packages/sim-cli/src/runtime/result.test.ts": 1,
     "packages/sim-cli/src/transfer/embedded-files.test.ts": 1,
     "packages/sim-setup/src/lifecycle.test.ts": 3,
-    "packages/ts-sdk/examples/basic-usage.ts": 4,
     "packages/workflow-types/src/workflow.ts": 1,
     "scripts/create-single-release.ts": 1,
     "scripts/generate-docs.ts": 2

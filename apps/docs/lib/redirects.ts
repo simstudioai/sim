@@ -93,8 +93,19 @@ const PATH_REDIRECTS: DocsRedirect[] = [
   { source: '/api-reference', destination: '/api-reference/getting-started', permanent: true },
   // sdks/* folded into api-reference/
   { source: '/sdks', destination: '/api-reference/getting-started', permanent: true },
-  { source: '/sdks/typescript', destination: '/api-reference/typescript', permanent: true },
-  { source: '/sdks/python', destination: '/api-reference/python', permanent: true },
+  { source: '/sdks/typescript', destination: '/api-reference/getting-started', permanent: true },
+  { source: '/sdks/python', destination: '/api-reference/getting-started', permanent: true },
+  // TypeScript and Python SDKs removed; their pages point at the HTTP API quickstart
+  {
+    source: '/api-reference/typescript',
+    destination: '/api-reference/getting-started',
+    permanent: true,
+  },
+  {
+    source: '/api-reference/python',
+    destination: '/api-reference/getting-started',
+    permanent: true,
+  },
   // building-agents/agents merged into the building-agents overview
   { source: '/building-agents/agents', destination: '/agents', permanent: true },
   // form deployment removed

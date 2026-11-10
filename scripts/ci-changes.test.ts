@@ -66,7 +66,7 @@ function fixture() {
     ['packages/db', '@sim/db', {}],
     ['packages/emcn', '@sim/emcn', {}],
     ['packages/emcn-platform', '@sim/emcn-platform', { '@sim/emcn': 'workspace:*' }],
-    ['packages/ts-sdk', 'simstudio-ts-sdk', {}],
+    ['packages/sim-setup', 'sim-setup', {}],
     ['packages/sim-cli', 'sim', {}],
     [
       'packages/workflow-renderer',
@@ -201,15 +201,15 @@ afterEach(() => {
 })
 describe('CI task attribution through real Turborepo', () => {
   it('scopes a shallow multi-commit PR against its tested target after the event base goes stale', () => {
-    const files = ['packages/ts-sdk/src/index.ts', 'packages/ts-sdk/src/second.ts']
+    const files = ['packages/sim-setup/src/index.ts', 'packages/sim-setup/src/second.ts']
     const { repo, base, target, environment } = pullRequestFixture(files)
     const plan = classify(repo, base, environment)
     expect(plan.fallback).toBeUndefined()
     expect(plan.base).toBe(target)
     expect(plan.files).toEqual(files)
     expect(groups(plan)).toEqual([])
-    expect(plan.testPackages).toEqual(['simstudio-ts-sdk'])
-    expect(plan.typecheckPackages).toEqual(['simstudio-ts-sdk'])
+    expect(plan.testPackages).toEqual(['sim-setup'])
+    expect(plan.typecheckPackages).toEqual(['sim-setup'])
     expect(plan.flags).toMatchObject({
       test: true,
       test_app: false,
@@ -220,14 +220,14 @@ describe('CI task attribution through real Turborepo', () => {
       docs: false,
     })
   })
-  it('keeps an earlier server change when the final PR commit only changes the SDK', () => {
-    const files = ['apps/sim/lib/server.ts', 'packages/ts-sdk/src/second.ts']
+  it('keeps an earlier server change when the final PR commit only changes the setup package', () => {
+    const files = ['apps/sim/lib/server.ts', 'packages/sim-setup/src/second.ts']
     const { repo, base, target, environment } = pullRequestFixture(files)
     const plan = classify(repo, base, environment)
     expect(plan.fallback).toBeUndefined()
     expect(plan.base).toBe(target)
     expect(plan.files).toEqual(files)
-    expect(plan.testPackages).toContain('simstudio-ts-sdk')
+    expect(plan.testPackages).toContain('sim-setup')
     expect(plan.flags).toMatchObject({
       test_app: true,
       integration: true,
@@ -242,15 +242,15 @@ describe('CI task attribution through real Turborepo', () => {
     ['a different triggering SHA', { GITHUB_SHA: 'f'.repeat(40) }],
     ['a missing triggering SHA', { GITHUB_SHA: '' }],
   ])('runs everything for a PR checkout with %s', (_label, invalid) => {
-    const { repo, target, environment } = pullRequestFixture(['packages/ts-sdk/src/index.ts'])
+    const { repo, target, environment } = pullRequestFixture(['packages/sim-setup/src/index.ts'])
     const plan = classify(repo, target, { ...environment, ...invalid })
     expect(plan.fallback).toBeDefined()
     expect(Object.values(plan.flags).every(Boolean)).toBe(true)
   })
   it('runs everything if a PR event checks out a non-merge commit', () => {
     const { repo, base } = fixture()
-    write(repo, 'packages/ts-sdk/src/index.ts', 'export const value = 2\n')
-    git(repo, 'commit', '--quiet', '-am', 'SDK change')
+    write(repo, 'packages/sim-setup/src/index.ts', 'export const value = 2\n')
+    git(repo, 'commit', '--quiet', '-am', 'setup package change')
     const plan = classify(repo, base, {
       GITHUB_EVENT_NAME: 'pull_request',
       GITHUB_REF: 'refs/pull/42/merge',
@@ -260,17 +260,17 @@ describe('CI task attribution through real Turborepo', () => {
     expect(Object.values(plan.flags).every(Boolean)).toBe(true)
   })
   it('runs everything if a shallow PR checkout does not contain its merge parents', () => {
-    const { repo, base, environment } = pullRequestFixture(['packages/ts-sdk/src/index.ts'], 1)
+    const { repo, base, environment } = pullRequestFixture(['packages/sim-setup/src/index.ts'], 1)
     const plan = classify(repo, base, environment)
     expect(plan.fallback).toBeDefined()
     expect(Object.values(plan.flags).every(Boolean)).toBe(true)
   })
-  it('runs SDK tests without provisioning the app, browsers, or database', () => {
-    const plan = classifyFiles(['packages/ts-sdk/src/index.ts'])
+  it('runs standalone package tests without provisioning the app, browsers, or database', () => {
+    const plan = classifyFiles(['packages/sim-setup/src/index.ts'])
     expect(plan.fallback).toBeUndefined()
     expect(groups(plan)).toEqual([])
-    expect(plan.testPackages).toEqual(['simstudio-ts-sdk'])
-    expect(plan.typecheckPackages).toEqual(['simstudio-ts-sdk'])
+    expect(plan.testPackages).toEqual(['sim-setup'])
+    expect(plan.typecheckPackages).toEqual(['sim-setup'])
     expect(plan.flags).toMatchObject({
       test: true,
       test_app: false,

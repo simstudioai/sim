@@ -729,19 +729,19 @@ export const simProfile: CompetitorProfile = {
       },
       extensibilitySdk: {
         value:
-          'Official client SDKs exist for Python (simstudio-sdk, pip install simstudio-sdk) and TypeScript/JavaScript (simstudio-ts-sdk, npm install simstudio-ts-sdk), both wrapping the REST API (x-api-key header) with methods like execute_workflow / executeWorkflow, retry-with-backoff, and usage-limit lookups. Extensibility is further extended by MCP (client + server), a sandboxed code-execution block (JS/Python), custom tools, and an Agent-to-Agent (A2A) protocol block for external agent interop',
-        shortValue: 'Official Python and TypeScript SDKs, plus MCP, code block, and A2A protocol',
+          'No language-specific client SDKs: code calls the REST API directly (x-api-key header), with a published OpenAPI 3.1 specification for generating clients, and the `sim` CLI runs workflows and manages resources from a terminal or script. Extensibility is further extended by MCP (client + server), a sandboxed code-execution block (JS/Python), custom tools, and an Agent-to-Agent (A2A) protocol block for external agent interop',
+        shortValue: 'REST API with OpenAPI spec and CLI, plus MCP, code block, and A2A protocol',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/api-reference/python',
-            label: 'Sim Docs: Python SDK',
-            asOf: '2026-07-04',
+            url: 'https://docs.sim.ai/api-reference/getting-started',
+            label: 'Sim Docs: API Reference - Getting Started',
+            asOf: '2026-11-10',
           },
           {
-            url: 'https://docs.sim.ai/api-reference/typescript',
-            label: 'Sim Docs: TypeScript SDK',
-            asOf: '2026-07-04',
+            url: 'https://docs.sim.ai/cli',
+            label: 'Sim Docs: CLI',
+            asOf: '2026-11-10',
           },
           {
             url: 'https://docs.sim.ai/agents/mcp',
