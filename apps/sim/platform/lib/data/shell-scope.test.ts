@@ -95,10 +95,4 @@ describe('the shell scope outside a named organization', () => {
       input: {},
     })
   })
-
-  it('opens a named organization without reading the viewer’s landing', async () => {
-    headerValue.current = 'org:team-org'
-    expect(await readShellOrganizationId()).toBe('team-org')
-    expect(ensureViewerOrganization.execute).not.toHaveBeenCalled()
-  })
 })

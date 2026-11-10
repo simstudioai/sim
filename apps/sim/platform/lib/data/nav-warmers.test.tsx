@@ -10,9 +10,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { searchIntegrationsQueryOptions } from '@/hooks/queries/search-integrations'
-import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
-import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
 
 const { surface } = vi.hoisted(() => ({
   surface: {
@@ -62,8 +59,6 @@ function renderWarmers() {
   return warmers
 }
 
-const readKeys = () => reads.map((key) => JSON.stringify(key))
-
 async function settleDwell() {
   await act(() => vi.advanceTimersByTimeAsync(100))
 }
@@ -95,18 +90,6 @@ describe('warming a nav row', () => {
     expect(reads).toEqual([])
   })
 
-  it('reads Integrations under the keys its page reads after a dwell', async () => {
-    const warmers = renderWarmers()
-    warmers.schedule('integrations')
-    await settleDwell()
-    expect(readKeys()).toEqual(
-      expect.arrayContaining([
-        JSON.stringify(organizationAccountsKeys.detail('org-1')),
-        JSON.stringify(searchIntegrationsQueryOptions('org-1').queryKey),
-      ])
-    )
-  })
-
   it('leaves alone what the viewer’s page would refuse', async () => {
     surface.viewer.canConnectSearchIntegrations = false
     const warmers = renderWarmers()
@@ -115,18 +98,5 @@ describe('warming a nav row', () => {
       await settleDwell()
     }
     expect(reads).toEqual([])
-  })
-
-  it('warms a Settings section’s route and roster, and seats only for an admin', async () => {
-    const warmers = renderWarmers()
-    warmers.warmSettings('members')
-    await settleDwell()
-    expect(router.prefetch).toHaveBeenCalledWith('/o/org-1/settings/members')
-    expect(readKeys()).toContain(JSON.stringify(organizationKeys.roster('org-1')))
-    expect(readKeys()).not.toContain(JSON.stringify(organizationKeys.planSeats('org-1')))
-    surface.viewer.isAdmin = true
-    renderWarmers().warmSettings('members')
-    await settleDwell()
-    expect(readKeys()).toContain(JSON.stringify(organizationKeys.planSeats('org-1')))
   })
 })

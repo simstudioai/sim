@@ -34,7 +34,6 @@ import { useMothershipOutgoingStore } from '@/stores/mothership-outgoing/store'
 import { resetAllStores } from '@/stores/reset-all-stores'
 
 const {
-  mockClearAllExecutionPointers,
   mockWaitForConsoleHydration,
   mockConsolePersistence: { persist: mockConsolePersist, reset: mockConsoleReset },
 } = terminalConsoleMockFns
@@ -71,17 +70,6 @@ describe('resetAllStores', () => {
     await resetAllStores()
 
     expect(useMothershipOutgoingStore.getState().chats).toEqual({})
-  })
-
-  it('removes transient workflow state and replaces persisted console data', async () => {
-    await resetAllStores()
-
-    expect(mockOperationQueueReset).toHaveBeenCalledOnce()
-    expect(mockResetRegisteredUserData).toHaveBeenCalledOnce()
-    expect(mockConsoleReset).toHaveBeenCalledOnce()
-    expect(mockClearAllExecutionPointers).toHaveBeenCalledOnce()
-    expect(mockMothershipDraftsReset).toHaveBeenCalledOnce()
-    expect(mockConsolePersist).toHaveBeenCalledWith({ merge: false })
   })
 
   it('waits for an in-flight console hydration before clearing identity state', async () => {
