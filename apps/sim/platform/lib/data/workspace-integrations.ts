@@ -128,7 +128,7 @@ export async function resolveIntegrationsSection(
   const workspace =
     requested === undefined ? workspaces[0] : workspaces.find((item) => item.id === requested)
   if (requested !== undefined && !workspace) return { kind: 'notFound' }
-  const apps = workspace ? await readWorkspaceApps(workspace.id) : []
+  const apps: WorkspaceAppDetail[] = workspace ? await readWorkspaceApps(workspace.id) : []
   // A legacy connected-credential link names only the credential: open it in its app's page.
   const legacyAccount = Array.isArray(searchParams.account)
     ? searchParams.account[0]

@@ -1,7 +1,12 @@
 'use client'
 
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
-import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
+import {
+  defaultRangeExtractor,
+  type Range,
+  useVirtualizer,
+  type VirtualItem,
+} from '@tanstack/react-virtual'
 import styles from '@/app/(product)/_components/workspace/resource-table/resource-table.module.css'
 
 /** Rows drawn beyond the viewport, so a fast scroll never shows a blank band. */
@@ -75,7 +80,7 @@ export function useVirtualRows<Row extends { id: string }>(
     useFlushSync: false,
   })
 
-  const entries: { key: string | number; index: number; row: Row; spaceBefore: number }[] = []
+  const entries: { key: VirtualItem['key']; index: number; row: Row; spaceBefore: number }[] = []
   // Where the content before the next row ends; a spacer sits between list gaps.
   let end = margin - LIST_GAP
   for (const item of virtualizer.getVirtualItems()) {
