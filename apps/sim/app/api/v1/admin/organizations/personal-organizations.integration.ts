@@ -1,8 +1,8 @@
 /**
  * The Admin API against real PostgreSQL once every account has a personal organization: listings
  * default to teams and say which kind each organization is, a personal organization cannot be
- * renamed or deleted by hand (it converts or retires with its owner), and an account in one can
- * still be made the owner of a new team.
+ * renamed, deleted, or given team configuration by hand (it converts or retires with its owner),
+ * and an account in one can still be made the owner of a new team.
  */
 import { db } from '@sim/db'
 import { member, organization, user } from '@sim/db/schema'
@@ -16,7 +16,10 @@ vi.hoisted(() => {
 })
 
 import { createPersonalOrganization } from '@/lib/organizations/provision-personal'
+import { PATCH as patchDataRetention } from '@/app/api/v1/admin/organizations/[id]/data-retention/route'
 import { DELETE, PATCH } from '@/app/api/v1/admin/organizations/[id]/route'
+import { PATCH as patchSessionPolicy } from '@/app/api/v1/admin/organizations/[id]/session-policy/route'
+import { PATCH as patchWhitelabel } from '@/app/api/v1/admin/organizations/[id]/whitelabel/route'
 import { GET, POST } from '@/app/api/v1/admin/organizations/route'
 
 const userIds: string[] = []
@@ -80,18 +83,21 @@ afterAll(async () => {
 describe('Admin API with personal organizations', () => {
   it('lists teams by default and personal organizations only when asked, naming each kind', async () => {
     const { organizationId } = await personalOrganizationOwner()
+    /** Every page: listings sort by name, so one page of a shared database can miss the row. */
     const list = async (search: string) => {
-      const response = await GET(
-        new NextRequest(
-          `http://localhost:3000/api/v1/admin/organizations?limit=250&offset=0${search}`,
-          {
-            headers,
-          }
-        ),
-        {}
-      )
-      const body = (await response.json()) as { data: Array<{ id: string; kind: string }> }
-      return body.data
+      const rows: Array<{ id: string; kind: string }> = []
+      for (let offset = 0; ; offset += 250) {
+        const response = await GET(
+          new NextRequest(
+            `http://localhost:3000/api/v1/admin/organizations?limit=250&offset=${offset}${search}`,
+            { headers }
+          ),
+          {}
+        )
+        const body = (await response.json()) as { data: Array<{ id: string; kind: string }> }
+        rows.push(...body.data)
+        if (body.data.length < 250) return rows
+      }
     }
 
     expect((await list('')).some((row) => row.id === organizationId)).toBe(false)
@@ -135,4 +141,49 @@ describe('Admin API with personal organizations', () => {
     const body = (await response.json()) as { data: { id: string; kind: string } }
     expect(body.data).toMatchObject({ id: organizationId, kind: 'team' })
   })
+
+  it.each([
+    {
+      path: 'data-retention',
+      patch: patchDataRetention,
+      body: { logRetentionHours: 24 },
+      column: organization.dataRetentionSettings,
+    },
+    {
+      path: 'session-policy',
+      patch: patchSessionPolicy,
+      body: { maxSessionHours: 72, idleTimeoutHours: 48 },
+      column: organization.sessionPolicySettings,
+    },
+    {
+      path: 'whitelabel',
+      patch: patchWhitelabel,
+      body: { brandName: 'Acme' },
+      column: organization.whitelabelSettings,
+    },
+  ])(
+    'refuses $path team configuration on a personal organization',
+    async ({ path, patch, body, column }) => {
+      const { organizationId } = await personalOrganizationOwner()
+      const readColumn = async () => {
+        const [row] = await db
+          .select({ value: column, updatedAt: organization.updatedAt })
+          .from(organization)
+          .where(eq(organization.id, organizationId))
+        return row
+      }
+      const before = await readColumn()
+
+      const response = await patch(
+        new NextRequest(
+          `http://localhost:3000/api/v1/admin/organizations/${organizationId}/${path}`,
+          { method: 'PATCH', headers, body: JSON.stringify(body) }
+        ),
+        { params: Promise.resolve({ id: organizationId }) }
+      )
+
+      expect(response.status).toBe(409)
+      expect(await readColumn()).toEqual(before)
+    }
+  )
 })
