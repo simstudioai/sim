@@ -2,6 +2,7 @@ import type {
   GrafanaListDataSourcesParams,
   GrafanaListDataSourcesResponse,
 } from '@/tools/grafana/types'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listDataSourcesTool: ToolConfig<
@@ -12,6 +13,7 @@ export const listDataSourcesTool: ToolConfig<
   name: 'Grafana List Data Sources',
   description: 'List all data sources configured in Grafana',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

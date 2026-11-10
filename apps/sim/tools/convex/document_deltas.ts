@@ -4,6 +4,7 @@ import type {
   ConvexDocumentDeltasResponse,
 } from '@/tools/convex/types'
 import { convexApiUrl, convexAuthHeaders, parseConvexResponse } from '@/tools/convex/utils'
+import { CONVEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const documentDeltasTool: ToolConfig<
@@ -15,6 +16,7 @@ export const documentDeltasTool: ToolConfig<
   description:
     'List documents that changed after a snapshot or previous delta cursor. Deleted documents are returned with a _deleted flag. Requires streaming export, available on Convex paid plans.',
   version: '1.0.0',
+  oauth: CONVEX_CREDENTIAL_OAUTH,
 
   params: {
     deploymentUrl: {

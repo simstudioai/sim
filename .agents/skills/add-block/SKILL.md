@@ -159,6 +159,40 @@ export const {ServiceName}Block: BlockConfig = {
 
 Optional companions: `credentialLabels` (override the picker's section/connect-row copy) and `allowServiceAccounts: true` (trigger-mode only — list service accounts, which triggers otherwise exclude; set only when the trigger's polling path can resolve a service-account token). The connect modal, provider families (Google JSON key, Atlassian token, token-paste, client-credential, Slack bot), and the preview gate are all resolved from `serviceAccountProviderId` — you don't wire them per block.
 
+### Credential-only successor (replacing inline secrets)
+
+A block that takes a secret inline keeps running for existing workflows; the saved-credential
+version is a new block type that spreads it. Keep the successor an object literal with the picker
+written inline, because the docs generator reads the source text:
+
+```typescript
+export const ServiceV2Block: BlockConfig = {
+  ...ServiceBlock,
+  type: 'service_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(ServiceBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'service',
+    title: 'Service Credential',
+  }),
+}
+```
+
+- The legacy block changes only by `hideFromToolbar: true` and `sunset: { status: 'legacy',
+  replacedBy: 'service_v2' }` (an older `_v2` points at the new `_v3`). Register both types.
+- `withSavedCredential` (`blocks/utils.ts`) swaps exactly the fields its policy in
+  `SAVED_CREDENTIAL_OAUTH` supplies for the picker, places it directly under the operation
+  dropdown, inherits the replaced fields' `condition` and `required`, and leaves trigger-mode
+  fields alone. Pass `required` when the replaced fields disagree (an optional host), and `params`
+  only when the legacy params builder validates the secret: extract that builder so the legacy
+  block calls it unchanged (`blocks/legacy-builders.test.ts`) and the successor skips the check.
+- Add the pair to `serializer/saved-credentials.test.ts` (`optionalIds` for replaced fields the
+  legacy block never required), and grep for code that hard-codes the legacy type (`getBlock`,
+  `integration.type ===`, availability lookups), which now resolves to the successor.
+
 ### OAuth deployment availability (required for integration blocks)
 
 A visible tools-category block with OAuth is deployment-gated. Its `oauth-input.serviceId` is

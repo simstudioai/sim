@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   ThriveCreateCompletionParams,
   ThriveCreateCompletionResponse,
@@ -13,6 +14,7 @@ export const createCompletionTool: ToolConfig<
   name: 'Thrive Create Completion',
   description: 'Record a learning completion in Thrive for a user and content item.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

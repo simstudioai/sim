@@ -2,6 +2,7 @@ import type {
   InfisicalListSecretsParams,
   InfisicalListSecretsResponse,
 } from '@/tools/infisical/types'
+import { INFISICAL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listSecretsTool: ToolConfig<InfisicalListSecretsParams, InfisicalListSecretsResponse> =
@@ -11,6 +12,7 @@ export const listSecretsTool: ToolConfig<InfisicalListSecretsParams, InfisicalLi
     description:
       'List all secrets in a project environment. Returns secret keys, values, comments, tags, and metadata.',
     version: '1.0.0',
+    oauth: INFISICAL_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

@@ -742,7 +742,7 @@
       ]
     },
     {
-      "type": "algolia",
+      "type": "algolia_v2",
       "name": "Algolia",
       "description": "Search and manage Algolia indices",
       "category": "tools",
@@ -1563,7 +1563,7 @@
       ]
     },
     {
-      "type": "azure_devops",
+      "type": "azure_devops_v2",
       "name": "Azure DevOps",
       "description": "Interact with Azure DevOps pipelines, builds, and work items",
       "category": "tools",
@@ -2658,7 +2658,7 @@
       ]
     },
     {
-      "type": "convex",
+      "type": "convex_v2",
       "name": "Convex",
       "description": "Use Convex database",
       "category": "tools",
@@ -2970,7 +2970,7 @@
       ]
     },
     {
-      "type": "devin",
+      "type": "devin_v2",
       "name": "Devin",
       "description": "Autonomous AI software engineer",
       "category": "tools",
@@ -3176,7 +3176,7 @@
       "tools": [{ "id": "duckduckgo_search", "label": "DuckDuckGo Search" }]
     },
     {
-      "type": "dynatrace",
+      "type": "dynatrace_v2",
       "name": "Dynatrace",
       "description": "Manage Dynatrace problems, metrics, entities, logs, SLOs, settings, and security",
       "category": "tools",
@@ -3282,7 +3282,7 @@
       ]
     },
     {
-      "type": "emailbison",
+      "type": "emailbison_v2",
       "name": "Email Bison",
       "description": "Manage Email Bison leads, campaigns, replies, and tags",
       "category": "tools",
@@ -4408,7 +4408,7 @@
       ]
     },
     {
-      "type": "grafana",
+      "type": "grafana_v2",
       "name": "Grafana",
       "description": "Interact with Grafana dashboards, alerts, and annotations",
       "category": "tools",
@@ -4925,7 +4925,7 @@
       ]
     },
     {
-      "type": "infisical",
+      "type": "infisical_v2",
       "name": "Infisical",
       "description": "Manage secrets with Infisical",
       "category": "tools",
@@ -5172,7 +5172,7 @@
       ]
     },
     {
-      "type": "jotform",
+      "type": "jotform_v2",
       "name": "Jotform",
       "description": "Read submissions, manage forms, and wire up webhooks in Jotform",
       "category": "tools",
@@ -5225,7 +5225,7 @@
       ]
     },
     {
-      "type": "jupyter_v2",
+      "type": "jupyter_v3",
       "name": "Jupyter",
       "description": "Manage files, notebooks, kernels, and sessions on a Jupyter server",
       "category": "tools",
@@ -5648,7 +5648,7 @@
       ]
     },
     {
-      "type": "logfire",
+      "type": "logfire_v2",
       "name": "Logfire",
       "description": "Query traces, logs, and metrics in Pydantic Logfire",
       "category": "tools",
@@ -5862,7 +5862,7 @@
       ]
     },
     {
-      "type": "mailgun",
+      "type": "mailgun_v2",
       "name": "Mailgun",
       "description": "Send emails and manage mailing lists with Mailgun",
       "category": "tools",
@@ -6390,7 +6390,7 @@
       ]
     },
     {
-      "type": "new_relic",
+      "type": "new_relic_v2",
       "name": "New Relic",
       "description": "Query observability data and record deployments in New Relic",
       "category": "tools",
@@ -6457,7 +6457,7 @@
       ]
     },
     {
-      "type": "okta",
+      "type": "okta_v2",
       "name": "Okta",
       "description": "Manage users, groups, apps, and MFA in Okta",
       "category": "tools",
@@ -7113,7 +7113,7 @@
       ]
     },
     {
-      "type": "plane",
+      "type": "plane_v2",
       "name": "Plane",
       "description": "Manage projects and work items in Plane",
       "category": "tools",
@@ -9628,7 +9628,7 @@
       ]
     },
     {
-      "type": "supabase",
+      "type": "supabase_v2",
       "name": "Supabase",
       "description": "Use Supabase database",
       "category": "tools",
@@ -9793,7 +9793,7 @@
       ]
     },
     {
-      "type": "thrive",
+      "type": "thrive_v2",
       "name": "Thrive",
       "description": "Manage users, audiences, learning and CPD on Thrive",
       "category": "tools",
@@ -9865,7 +9865,7 @@
       ]
     },
     {
-      "type": "tinybird",
+      "type": "tinybird_v2",
       "name": "Tinybird",
       "description": "Send events, query data, and manage Data Sources with Tinybird",
       "category": "tools",
@@ -9998,7 +9998,7 @@
       ]
     },
     {
-      "type": "twilio_sms",
+      "type": "twilio_sms_v2",
       "name": "Twilio SMS",
       "description": "Send SMS messages",
       "category": "tools",
@@ -10007,7 +10007,7 @@
       "tools": [{ "id": "twilio_send_sms", "label": "Twilio Send SMS" }]
     },
     {
-      "type": "twilio_voice",
+      "type": "twilio_voice_v2",
       "name": "Twilio Voice",
       "description": "Make and manage phone calls",
       "category": "tools",
@@ -10038,7 +10038,7 @@
       ]
     },
     {
-      "type": "upstash",
+      "type": "upstash_v2",
       "name": "Upstash",
       "description": "Serverless Redis with Upstash",
       "category": "tools",

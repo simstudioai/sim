@@ -2,7 +2,7 @@
 title: Algolia
 description: Search and manage Algolia indices
 integration:
-  type: "algolia"
+  type: "algolia_v2"
   color: "#003DFF"
 ---
 
@@ -29,8 +29,6 @@ Search an Algolia index
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `applicationId` | string | Yes | Algolia Application ID |
-| `apiKey` | string | Yes | Algolia API Key |
 | `indexName` | string | Yes | Name of the Algolia index to search |
 | `query` | string | Yes | Search query text |
 | `hitsPerPage` | number | No | Number of hits per page \(default: 20\) |
@@ -82,8 +80,6 @@ Add or replace a record in an Algolia index
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `applicationId` | string | Yes | Algolia Application ID |
-| `apiKey` | string | Yes | Algolia Admin API Key |
 | `indexName` | string | Yes | Name of the Algolia index |
 | `objectID` | string | No | Object ID for the record \(auto-generated if not provided\) |
 | `record` | json | Yes | JSON object representing the record to add |
@@ -109,8 +105,6 @@ Get a record by objectID from an Algolia index
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `applicationId` | string | Yes | Algolia Application ID |
-| `apiKey` | string | Yes | Algolia API Key |
 | `indexName` | string | Yes | Name of the Algolia index |
 | `objectID` | string | Yes | The objectID of the record to retrieve |
 | `attributesToRetrieve` | string | No | Comma-separated list of attributes to retrieve |
@@ -134,8 +128,6 @@ Retrieve multiple records by objectID from one or more Algolia indices
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `applicationId` | string | Yes | Algolia Application ID |
-| `apiKey` | string | Yes | Algolia API Key |
 | `indexName` | string | Yes | Default index name for all requests |
 | `requests` | json | Yes | Array of objects specifying records to retrieve. Each must have "objectID" and optionally "indexName" and "attributesToRetrieve". |
 
@@ -158,8 +150,6 @@ Partially update a record in an Algolia index without replacing it entirely
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `applicationId` | string | Yes | Algolia Application ID |
-| `apiKey` | string | Yes | Algolia Admin API Key |
 | `indexName` | string | Yes | Name of the Algolia index |
 | `objectID` | string | Yes | The objectID of the record to update |
 | `attributes` | json | Yes | JSON object with attributes to update. Supports built-in operations like \{"stock": \{"_operation": "Decrement", "value": 1\}\} |
@@ -185,8 +175,6 @@ Delete a record by objectID from an Algolia index
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `applicationId` | string | Yes | Algolia Application ID |
-| `apiKey` | string | Yes | Algolia Admin API Key |
 | `indexName` | string | Yes | Name of the Algolia index |
 | `objectID` | string | Yes | The objectID of the record to delete |
 
@@ -209,8 +197,6 @@ Browse and iterate over all records in an Algolia index using cursor pagination
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `applicationId` | string | Yes | Algolia Application ID |
-| `apiKey` | string | Yes | Algolia API Key \(must have browse ACL\) |
 | `indexName` | string | Yes | Name of the Algolia index to browse |
 | `query` | string | No | Search query to filter browsed records |
 | `filters` | string | No | Filter string to narrow down results |
@@ -247,8 +233,6 @@ Perform batch add, update, partial update, or delete operations on records in an
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `applicationId` | string | Yes | Algolia Application ID |
-| `apiKey` | string | Yes | Algolia Admin API Key |
 | `indexName` | string | Yes | Name of the Algolia index |
 | `requests` | json | Yes | Array of batch operations. Each item has "action" \(addObject, updateObject, partialUpdateObject, partialUpdateObjectNoCreate, deleteObject, delete, clear\) and "body" \(the record data; must include objectID for update/delete; use an empty object \{\} for the index-level delete/clear actions\) |
 
@@ -271,8 +255,6 @@ List all indices in an Algolia application
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `applicationId` | string | Yes | Algolia Application ID |
-| `apiKey` | string | Yes | Algolia API Key |
 | `page` | number | No | Page number for paginating indices \(default: not paginated\) |
 | `hitsPerPage` | number | No | Number of indices per page \(default: 100\) |
 
@@ -307,8 +289,6 @@ Retrieve the settings of an Algolia index
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `applicationId` | string | Yes | Algolia Application ID |
-| `apiKey` | string | Yes | Algolia API Key |
 | `indexName` | string | Yes | Name of the Algolia index |
 
 #### Output
@@ -338,8 +318,6 @@ Update the settings of an Algolia index
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `applicationId` | string | Yes | Algolia Application ID |
-| `apiKey` | string | Yes | Algolia Admin API Key \(must have editSettings ACL\) |
 | `indexName` | string | Yes | Name of the Algolia index |
 | `settings` | json | Yes | JSON object with settings to update \(e.g., \{"searchableAttributes": \["name", "description"\], "customRanking": \["desc\(popularity\)"\]\}\) |
 | `forwardToReplicas` | boolean | No | Whether to apply changes to replica indices \(default: false\) |
@@ -363,8 +341,6 @@ Delete an entire Algolia index and all its records
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `applicationId` | string | Yes | Algolia Application ID |
-| `apiKey` | string | Yes | Algolia Admin API Key \(must have deleteIndex ACL\) |
 | `indexName` | string | Yes | Name of the Algolia index to delete |
 
 #### Output
@@ -386,8 +362,6 @@ Copy or move an Algolia index to a new destination
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `applicationId` | string | Yes | Algolia Application ID |
-| `apiKey` | string | Yes | Algolia Admin API Key |
 | `indexName` | string | Yes | Name of the source index |
 | `operation` | string | Yes | Operation to perform: "copy" or "move" |
 | `destination` | string | Yes | Name of the destination index |
@@ -412,8 +386,6 @@ Clear all records from an Algolia index while keeping settings, synonyms, and ru
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `applicationId` | string | Yes | Algolia Application ID |
-| `apiKey` | string | Yes | Algolia Admin API Key \(must have deleteIndex ACL\) |
 | `indexName` | string | Yes | Name of the Algolia index to clear |
 
 #### Output
@@ -435,8 +407,6 @@ Delete all records matching a filter from an Algolia index
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `applicationId` | string | Yes | Algolia Application ID |
-| `apiKey` | string | Yes | Algolia Admin API Key \(must have deleteIndex ACL\) |
 | `indexName` | string | Yes | Name of the Algolia index |
 | `filters` | string | No | Filter expression to match records for deletion \(e.g., "category:outdated"\) |
 | `facetFilters` | json | No | Array of facet filters \(e.g., \["brand:Acme"\]\) |
@@ -466,8 +436,6 @@ Check whether an Algolia indexing task has finished publishing
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `applicationId` | string | Yes | Algolia Application ID |
-| `apiKey` | string | Yes | Algolia API Key |
 | `indexName` | string | Yes | Name of the Algolia index the task ran against |
 | `taskID` | number | Yes | The taskID returned by a previous write operation |
 

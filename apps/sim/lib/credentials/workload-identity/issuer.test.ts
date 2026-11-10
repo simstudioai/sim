@@ -57,6 +57,19 @@ describe('workload identity issuer', () => {
     expect((payload.exp ?? 0) - (payload.iat ?? 0)).toBe(issuer.WORKLOAD_IDENTITY_TOKEN_TTL_SECONDS)
   })
 
+  it('refuses a token lifetime beyond an hour', async () => {
+    const issuer = await loadIssuer()
+
+    await expect(
+      issuer.mintWorkloadIdentityToken({
+        subject: 'sim:workspace:ws-1:credential:abc123def456',
+        audience: 'sim-databricks',
+        owner: { workspaceId: 'ws-1' },
+        ttlSeconds: 7200,
+      })
+    ).rejects.toThrow(/an hour/)
+  })
+
   it('rejects a token presented to a different audience', async () => {
     const issuer = await loadIssuer()
     const token = await issuer.mintWorkloadIdentityToken({

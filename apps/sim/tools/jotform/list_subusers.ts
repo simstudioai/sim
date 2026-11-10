@@ -1,6 +1,7 @@
 import { normalizeSubUser, toList } from '@/tools/jotform/normalize'
 import type { JotformListSubUsersParams, JotformListSubUsersResponse } from '@/tools/jotform/types'
 import { buildJotformHeaders, buildJotformUrl, parseJotformResponse } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listSubUsersTool: ToolConfig<JotformListSubUsersParams, JotformListSubUsersResponse> =
@@ -10,6 +11,7 @@ export const listSubUsersTool: ToolConfig<JotformListSubUsersParams, JotformList
     description:
       'List the sub-users on the account with the forms and folders each one can reach, and at what access level.',
     version: '1.0.0',
+    oauth: JOTFORM_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

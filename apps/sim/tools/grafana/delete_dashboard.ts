@@ -2,6 +2,7 @@ import type {
   GrafanaDeleteDashboardParams,
   GrafanaDeleteDashboardResponse,
 } from '@/tools/grafana/types'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteDashboardTool: ToolConfig<
@@ -12,6 +13,7 @@ export const deleteDashboardTool: ToolConfig<
   name: 'Grafana Delete Dashboard',
   description: 'Delete a dashboard by its UID',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

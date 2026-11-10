@@ -1,5 +1,8 @@
 import type { GetPipelineParams, GetPipelineResponse } from '@/tools/azure_devops/types'
+import { azureDevOpsProjectUrl } from '@/tools/azure_devops/utils'
+import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getPipelineTool: ToolConfig<GetPipelineParams, GetPipelineResponse> = {
   id: 'azure_devops_get_pipeline',
@@ -7,6 +10,7 @@ export const getPipelineTool: ToolConfig<GetPipelineParams, GetPipelineResponse>
   description:
     'Get details for a specific pipeline in an Azure DevOps project, including configuration and repository info.',
   version: '1.0.0',
+  oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {
     organization: {
@@ -44,7 +48,7 @@ export const getPipelineTool: ToolConfig<GetPipelineParams, GetPipelineResponse>
   request: {
     url: (params) => {
       const url = new URL(
-        `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/pipelines/${params.pipelineId}`
+        `${azureDevOpsProjectUrl(params)}/_apis/pipelines/${safeUrlPathSegment(params.pipelineId, 'pipelineId')}`
       )
       url.searchParams.set('api-version', '7.2-preview.1')
       if (params.pipelineVersion)

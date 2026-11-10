@@ -4,6 +4,7 @@ import { SQSClient } from '@aws-sdk/client-sqs'
 import { fromHttp } from '@aws-sdk/credential-providers'
 import { getAwsCredentials } from '@/lib/core/config/aws'
 import { env } from '@/lib/core/config/env'
+import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 
 /**
  * The Entitlement Service exists only here. Metering is multi-region, but a registration token is
@@ -38,7 +39,7 @@ function marketplaceClientConfig() {
   const fullUri = env.AWS_CONTAINER_CREDENTIALS_FULL_URI
   return {
     region: MARKETPLACE_REGION,
-    requestHandler: REQUEST_HANDLER,
+    requestHandler: awsRequestHandler(REQUEST_HANDLER),
     credentials:
       relativeUri || fullUri
         ? fromHttp({

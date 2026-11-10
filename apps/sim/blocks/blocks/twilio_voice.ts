@@ -1,10 +1,13 @@
 import { TwilioIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const TwilioVoiceBlock: BlockConfig = {
   type: 'twilio_voice',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'twilio_voice_v2' },
   name: 'Twilio Voice',
   description: 'Make and manage phone calls',
   authMode: AuthMode.ApiKey,
@@ -539,3 +542,17 @@ export const TwilioVoiceBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const TwilioVoiceV2Block: BlockConfig = {
+  ...TwilioVoiceBlock,
+  type: 'twilio_voice_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(TwilioVoiceBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'twilio',
+    title: 'Twilio Credential',
+  }),
+}

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaGetGroupParams, OktaGetGroupResponse, OktaGroup } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaGetGroup')
@@ -11,6 +12,7 @@ export const oktaGetGroupTool: ToolConfig<OktaGetGroupParams, OktaGetGroupRespon
   name: 'Get Group from Okta',
   description: 'Get a specific group by ID from your Okta organization',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

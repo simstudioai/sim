@@ -3679,6 +3679,32 @@ describe('Internal Route Trust', () => {
       )
     })
 
+    it('leaves a same-named param the policy does not map to the user', async () => {
+      const recordTool = {
+        ...tokenTool,
+        id: 'test_saved_token_record',
+        oauth: tokenCredentialOAuth('coda', { apiKey: 'accessToken', baseUrl: 'domain' }),
+        params: { ...tokenTool.params, domain: { type: 'string', visibility: 'user-or-llm' } },
+        request: {
+          ...tokenTool.request,
+          method: 'POST' as const,
+          body: (params: Record<string, unknown>) => ({ domain: params.domain ?? null }),
+        },
+      }
+      ;(tools as Record<string, unknown>)[recordTool.id] = recordTool
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-token',
+        credentialType: 'service_account',
+        domain: 'api.example.com',
+      })
+
+      await executeTool(recordTool.id, { credential: 'saved-credential' })
+      Reflect.deleteProperty(tools, recordTool.id)
+
+      const [, , init] = mockSecureFetchWithPinnedIP.mock.lastCall ?? []
+      expect(JSON.parse(String((init as { body?: unknown })?.body))).toEqual({ domain: null })
+    })
+
     it('fails closed when the credential lacks a mapped field', async () => {
       mockResolveExecutorCredentialToken.mockResolvedValue({
         accessToken: 'saved-token',

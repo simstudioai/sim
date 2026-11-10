@@ -7,6 +7,7 @@ import {
   normalizeNewRelicEntity,
   parseNerdGraphResponse,
 } from '@/tools/new_relic/utils'
+import { NEW_RELIC_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface GetEntityData {
@@ -21,6 +22,7 @@ export const newRelicGetEntityTool: ToolConfig<NewRelicGetEntityParams, NewRelic
     name: 'New Relic Get Entity',
     description: 'Fetch a New Relic entity by GUID.',
     version: '1.0.0',
+    oauth: NEW_RELIC_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

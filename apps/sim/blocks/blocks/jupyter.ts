@@ -1,7 +1,11 @@
 import { JupyterIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
+import {
+  createVersionedToolSelector,
+  normalizeFileInput,
+  withSavedCredential,
+} from '@/blocks/utils'
 
 const PATH_OPERATIONS = [
   'jupyter_list_contents',
@@ -35,7 +39,7 @@ export const JupyterBlock = {
   type: 'jupyter',
   name: 'Jupyter (Legacy)',
   hideFromToolbar: true,
-  sunset: { status: 'legacy', replacedBy: 'jupyter_v2' },
+  sunset: { status: 'legacy', replacedBy: 'jupyter_v3' },
   description: 'Manage files, notebooks, kernels, and sessions on a Jupyter server',
   longDescription:
     'Browse, read, create, upload, rename, copy, and delete files and notebooks; start, stop, restart, and interrupt kernels; and manage sessions that bind notebooks to kernels.',
@@ -406,8 +410,8 @@ export const JupyterV2Block: BlockConfig = {
   ...JupyterBlock,
   type: 'jupyter_v2',
   name: 'Jupyter',
-  hideFromToolbar: false,
-  sunset: undefined,
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'jupyter_v3' },
   tools: {
     ...JupyterBlock.tools,
     access: JupyterBlock.tools.access.map((toolId) =>
@@ -492,3 +496,17 @@ export const JupyterBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const JupyterV3Block: BlockConfig = {
+  ...JupyterV2Block,
+  type: 'jupyter_v3',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(JupyterV2Block, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'jupyter',
+    title: 'Jupyter Credential',
+  }),
+}

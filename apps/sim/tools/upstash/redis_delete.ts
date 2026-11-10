@@ -1,3 +1,4 @@
+import { UPSTASH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { UpstashRedisDeleteParams, UpstashRedisDeleteResponse } from '@/tools/upstash/types'
 
@@ -9,6 +10,7 @@ export const upstashRedisDeleteTool: ToolConfig<
   name: 'Upstash Redis Delete',
   description: 'Delete a key from Upstash Redis.',
   version: '1.0.0',
+  oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {
     restUrl: {

@@ -2,6 +2,7 @@ import type {
   GrafanaGetDataSourceParams,
   GrafanaGetDataSourceResponse,
 } from '@/tools/grafana/types'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getDataSourceTool: ToolConfig<
@@ -12,6 +13,7 @@ export const getDataSourceTool: ToolConfig<
   name: 'Grafana Get Data Source',
   description: 'Get a data source by its ID or UID',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -2,7 +2,7 @@
 title: Infisical
 description: Manage secrets with Infisical
 integration:
-  type: "infisical"
+  type: "infisical_v2"
   color: "#F7FE62"
 ---
 
@@ -10,12 +10,12 @@ import { ReferenceDetails } from "@sim/emcn-docs/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [Infisical](https://infisical.com/) to list, read, create, update, or delete secrets in a project environment. Configure the API key, project ID, environment slug, and any secret path required by the selected operation.
+Use [Infisical](https://infisical.com/) to list, read, create, update, or delete secrets in a project environment. Connect a saved Infisical credential (a machine identity access token), then set the project ID, environment slug, and any secret path required by the selected operation.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
 
-List, get, create, update, and delete secrets across project environments.
+List, get, create, update, and delete secrets across project environments on Infisical Cloud or a self-hosted instance.
 
 ## Actions
 
@@ -29,8 +29,6 @@ List all secrets in a project environment. Returns secret keys, values, comments
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Infisical API token |
-| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
 | `projectId` | string | Yes | The ID of the project to list secrets from |
 | `environment` | string | Yes | The environment slug \(e.g., "dev", "staging", "prod"\) |
 | `secretPath` | string | No | The path of the secrets \(default: "/"\) |
@@ -91,8 +89,6 @@ Retrieve a single secret by name from a project environment.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Infisical API token |
-| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
 | `projectId` | string | Yes | The ID of the project |
 | `environment` | string | Yes | The environment slug \(e.g., "dev", "staging", "prod"\) |
 | `secretName` | string | Yes | The name of the secret to retrieve |
@@ -152,8 +148,6 @@ Create a new secret in a project environment.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Infisical API token |
-| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
 | `projectId` | string | Yes | The ID of the project |
 | `environment` | string | Yes | The environment slug \(e.g., "dev", "staging", "prod"\) |
 | `secretName` | string | Yes | The name of the secret to create |
@@ -213,8 +207,6 @@ Update an existing secret in a project environment.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Infisical API token |
-| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
 | `projectId` | string | Yes | The ID of the project |
 | `environment` | string | Yes | The environment slug \(e.g., "dev", "staging", "prod"\) |
 | `secretName` | string | Yes | The name of the secret to update |
@@ -275,8 +267,6 @@ Delete a secret from a project environment.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Infisical API token |
-| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
 | `projectId` | string | Yes | The ID of the project |
 | `environment` | string | Yes | The environment slug \(e.g., "dev", "staging", "prod"\) |
 | `secretName` | string | Yes | The name of the secret to delete |

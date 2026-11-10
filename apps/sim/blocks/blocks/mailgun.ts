@@ -1,9 +1,12 @@
 import { MailgunIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const MailgunBlock: BlockConfig = {
   type: 'mailgun',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'mailgun_v2' },
   name: 'Mailgun',
   description: 'Send emails and manage mailing lists with Mailgun',
   longDescription:
@@ -552,3 +555,16 @@ export const MailgunBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const MailgunV2Block: BlockConfig = {
+  ...MailgunBlock,
+  type: 'mailgun_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    MailgunBlock,
+    { id: 'credential', type: 'oauth-input', serviceId: 'mailgun', title: 'Mailgun Credential' },
+    { required: true }
+  ),
+}

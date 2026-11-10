@@ -1,4 +1,5 @@
 import type { GrafanaUpdateFolderParams } from '@/tools/grafana/types'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 export const updateFolderTool: InternalToolConfig<GrafanaUpdateFolderParams, ToolResponse> = {
@@ -6,6 +7,7 @@ export const updateFolderTool: InternalToolConfig<GrafanaUpdateFolderParams, Too
   name: 'Grafana Update Folder',
   description: 'Update (rename) a folder. Fetches the current folder and merges your changes.',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

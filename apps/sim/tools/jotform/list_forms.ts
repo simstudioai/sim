@@ -6,6 +6,7 @@ import {
   buildJotformUrl,
   parseJotformResponse,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listFormsTool: ToolConfig<JotformListFormsParams, JotformListFormsResponse> = {
@@ -14,6 +15,7 @@ export const listFormsTool: ToolConfig<JotformListFormsParams, JotformListFormsR
   description:
     'List the forms on a Jotform account with their titles, status, and submission counts.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

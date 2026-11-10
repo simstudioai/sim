@@ -447,6 +447,7 @@ describe('destructive operations are gated', () => {
     'createOrganizationInvitation',
     'resendOrganizationInvitation',
     'updateOrganizationMember',
+    'updateWorkspaceMember',
     'createPermissionGroup',
     'updatePermissionGroup',
     'addPermissionGroupMember',

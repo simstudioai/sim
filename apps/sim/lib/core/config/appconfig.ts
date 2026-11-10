@@ -10,6 +10,7 @@ import { toRecordOrNull } from '@sim/utils/object'
 import { LRUCache } from 'lru-cache'
 import { getAwsCredentials } from '@/lib/core/config/aws'
 import { env } from '@/lib/core/config/env'
+import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 
 const logger = createLogger('AppConfig')
 
@@ -122,6 +123,7 @@ function getClient(): AppConfigDataClient {
     client = new AppConfigDataClient({
       region: env.AWS_REGION,
       credentials: getAwsCredentials(),
+      requestHandler: awsRequestHandler(),
     })
   }
   return client

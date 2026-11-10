@@ -2,6 +2,7 @@ import type {
   GrafanaDeleteContactPointParams,
   GrafanaDeleteContactPointResponse,
 } from '@/tools/grafana/types'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteContactPointTool: ToolConfig<
@@ -13,6 +14,7 @@ export const deleteContactPointTool: ToolConfig<
   description:
     'Permanently delete a contact point by its UID. Grafana refuses the delete while the contact point is still referenced by the notification policy tree or by an alert rule.',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

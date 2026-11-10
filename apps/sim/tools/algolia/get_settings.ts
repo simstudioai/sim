@@ -1,4 +1,5 @@
 import type { AlgoliaGetSettingsParams, AlgoliaGetSettingsResponse } from '@/tools/algolia/types'
+import { ALGOLIA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getSettingsTool: ToolConfig<AlgoliaGetSettingsParams, AlgoliaGetSettingsResponse> = {
@@ -6,6 +7,7 @@ export const getSettingsTool: ToolConfig<AlgoliaGetSettingsParams, AlgoliaGetSet
   name: 'Algolia Get Settings',
   description: 'Retrieve the settings of an Algolia index',
   version: '1.0',
+  oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {
     applicationId: {

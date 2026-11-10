@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { TWILIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TwilioListCallsOutput, TwilioListCallsParams } from '@/tools/twilio_voice/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
   name: 'Twilio Voice List Calls',
   description: 'Retrieve a list of calls made to and from an account.',
   version: '1.0.0',
+  oauth: TWILIO_CREDENTIAL_OAUTH,
 
   params: {
     accountSid: {

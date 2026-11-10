@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 import {
   type AwsSessionCredentials,
   buildAwsRoleSessionName,
@@ -23,8 +24,8 @@ import type {
  *    `context.authorizedServiceAccountCredential` (trusted context, never tool input).
  * 2. {@link withAwsCredential} resolves it to session credentials and
  *    substitutes them for `accessKeyId`/`secretAccessKey` before the contract parses.
- * 3. The family's client asks {@link awsClientCredentials} for its SDK
- *    credentials, which adds the session token for that resolved key pair.
+ * 3. The family's client builds its SDK config with {@link awsClientConfig}, whose
+ *    credentials add the session token for that resolved key pair.
  *
  * With no saved credential, step 2 calls the handler with the original request
  * object and step 3 returns the same `{ accessKeyId, secretAccessKey }` the
@@ -48,6 +49,18 @@ export function awsClientCredentials(
     return { accessKeyId, secretAccessKey, sessionToken: session.sessionToken }
   }
   return { accessKeyId, secretAccessKey }
+}
+
+/**
+ * SDK client settings for a client built from an operation's key fields: its region,
+ * {@link awsClientCredentials}, and the request handler that honors `HTTPS_PROXY`.
+ */
+export function awsClientConfig(region: string, accessKeyId: string, secretAccessKey: string) {
+  return {
+    region,
+    credentials: awsClientCredentials(accessKeyId, secretAccessKey),
+    requestHandler: awsRequestHandler(),
+  }
 }
 
 /**

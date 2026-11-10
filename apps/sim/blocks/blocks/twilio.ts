@@ -1,10 +1,13 @@
 import { TwilioIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const TwilioSMSBlock: BlockConfig = {
   type: 'twilio_sms',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'twilio_sms_v2' },
   name: 'Twilio SMS',
   description: 'Send SMS messages',
   authMode: AuthMode.ApiKey,
@@ -196,3 +199,17 @@ export const TwilioSMSBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const TwilioSMSV2Block: BlockConfig = {
+  ...TwilioSMSBlock,
+  type: 'twilio_sms_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(TwilioSMSBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'twilio',
+    title: 'Twilio Credential',
+  }),
+}

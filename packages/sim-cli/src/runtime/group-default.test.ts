@@ -43,6 +43,26 @@ describe('a nested group that defaults to its list', () => {
     expect(await searchOf(['credentials', 'providers', '--search', 'github'])).toEqual(['github'])
   })
 
+  it('lists workspace members under the shipped `workspaces members` spelling, options included', async () => {
+    const pathsAndLimits = async (argv: string[]) => {
+      const seen: string[] = []
+      await runEmbeddedCli(argv, {
+        ...identity,
+        transport: async (url) => {
+          const parsed = new URL(String(url))
+          seen.push(`${parsed.pathname}?limit=${parsed.searchParams.get('limit')}`)
+          return Response.json({ data: [], nextCursor: null })
+        },
+      })
+      return seen
+    }
+    const expected = ['/api/v2/workspaces/workspace/members?limit=5']
+    expect(await pathsAndLimits(['workspaces', 'members', '--limit', '5'])).toEqual(expected)
+    expect(await pathsAndLimits(['workspaces', 'members', 'list', '--limit', '5'])).toEqual(
+      expected
+    )
+  })
+
   it('leaves a group without a default printing its usage, sending nothing', async () => {
     const group = await run(['credentials'])
     expect(group.paths).toEqual([])

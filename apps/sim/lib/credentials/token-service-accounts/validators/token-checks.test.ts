@@ -1,13 +1,40 @@
 import { jsonResponse } from '@sim/testing/helpers/http'
-import { describe, expect, it, vi } from 'vitest'
 import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
+import {
+  validateAlgoliaServiceAccount,
   validateAshbyServiceAccount,
+  validateAzureDevOpsServiceAccount,
   validateBrexServiceAccount,
+  validateConvexServiceAccount,
+  validateDevinServiceAccount,
+  validateDynatraceServiceAccount,
   validateElevenLabsServiceAccount,
+  validateEmailBisonServiceAccount,
   validateFlintServiceAccount,
+  validateGrafanaServiceAccount,
+  validateInfisicalServiceAccount,
   validateInstantlyServiceAccount,
+  validateJotformServiceAccount,
+  validateJupyterServiceAccount,
+  validateLogfireServiceAccount,
+  validateMailgunServiceAccount,
+  validateNewRelicServiceAccount,
+  validateOktaServiceAccount,
+  validatePlaneServiceAccount,
   validateResendServiceAccount,
+  validateSupabaseServiceAccount,
+  validateThriveServiceAccount,
+  validateTinybirdServiceAccount,
+  validateTwilioServiceAccount,
   validateTypeformServiceAccount,
+  validateUpstashServiceAccount,
   validateVercelServiceAccount,
   validateYouTubeServiceAccount,
 } from '@/lib/credentials/token-service-accounts/validators/token-checks'
@@ -290,5 +317,130 @@ describe('ElevenLabs saved API key verification', () => {
     await expect(validateElevenLabsServiceAccount({ apiToken: 'sk_bad' })).rejects.toMatchObject({
       code: 'invalid_credentials',
     })
+  })
+})
+
+describe('saved credentials whose connection names a host, region, or account', () => {
+  it.each([
+    ['Algolia', validateAlgoliaServiceAccount, { providerWorkspaceId: 'evil.example.com/' }],
+    ['Azure DevOps', validateAzureDevOpsServiceAccount, { providerWorkspaceId: 'org/../other' }],
+    ['Devin', validateDevinServiceAccount, { providerWorkspaceId: 'org/sessions?x' }],
+    ['Jotform', validateJotformServiceAccount, { domain: 'evil' }],
+    ['Mailgun', validateMailgunServiceAccount, { domain: 'mars' }],
+    ['New Relic', validateNewRelicServiceAccount, { domain: 'mars' }],
+    ['Okta', validateOktaServiceAccount, { domain: 'evil.example.com' }],
+    ['Supabase', validateSupabaseServiceAccount, { domain: 'ref.evil.example.com' }],
+    [
+      'Thrive',
+      validateThriveServiceAccount,
+      { domain: 'evil.example.com', providerWorkspaceId: 't1' },
+    ],
+    ['Twilio', validateTwilioServiceAccount, { providerWorkspaceId: 'AC123/../Messages' }],
+  ])(
+    '%s refuses a typed value that could steer the request, before sending the key',
+    async (_, validate, typed) => {
+      const fetch = vi.fn()
+      vi.stubGlobal('fetch', fetch)
+
+      await expect(validate({ apiToken: 'secret', ...typed })).rejects.toMatchObject({
+        code: 'invalid_credentials',
+      })
+      expect(fetch).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rejects an Azure DevOps key that a public organization answers as an anonymous visitor', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          authenticatedUser: {
+            id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+            descriptor: 'System:PublicAccess;aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          },
+        })
+      )
+    )
+
+    await expect(
+      validateAzureDevOpsServiceAccount({ apiToken: 'bad', providerWorkspaceId: 'public-org' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+})
+
+describe('saved credentials for a host the user chose', () => {
+  const HOST_CHOSEN_VALIDATORS = [
+    ['Convex', validateConvexServiceAccount],
+    ['Dynatrace', validateDynatraceServiceAccount],
+    ['Email Bison', validateEmailBisonServiceAccount],
+    ['Grafana', validateGrafanaServiceAccount],
+    ['Infisical', validateInfisicalServiceAccount],
+    ['Jupyter', validateJupyterServiceAccount],
+    ['Logfire', validateLogfireServiceAccount],
+    ['Plane', validatePlaneServiceAccount],
+    ['Tinybird', validateTinybirdServiceAccount],
+    ['Upstash', validateUpstashServiceAccount],
+  ] as const
+
+  it.each(HOST_CHOSEN_VALIDATORS)(
+    '%s refuses credentials smuggled into the URL before sending the key anywhere',
+    async (_, validate) => {
+      inputValidationMockFns.mockSecureFetchWithValidation.mockReset()
+
+      await expect(
+        validate({ apiToken: 'secret', domain: 'https://user:pass@instance.example.com' })
+      ).rejects.toMatchObject({ code: 'invalid_credentials' })
+      expect(inputValidationMockFns.mockSecureFetchWithValidation).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(HOST_CHOSEN_VALIDATORS)(
+    '%s refuses a non-http scheme instead of reading it as a host',
+    async (_, validate) => {
+      inputValidationMockFns.mockSecureFetchWithValidation.mockReset()
+
+      await expect(
+        validate({ apiToken: 'secret', domain: 'ftp://instance.example.com' })
+      ).rejects.toMatchObject({ code: 'invalid_credentials' })
+      expect(inputValidationMockFns.mockSecureFetchWithValidation).not.toHaveBeenCalled()
+    }
+  )
+})
+
+describe('saved credentials whose vendor answers a restricted token in its error', () => {
+  const secureFetch = inputValidationMockFns.mockSecureFetchWithValidation
+
+  it.each([
+    [
+      'rejects an unknown Tinybird token',
+      validateTinybirdServiceAccount,
+      jsonResponse({ error: 'invalid authentication token. Token tok not found' }, 403),
+      'invalid_credentials',
+    ],
+    [
+      'accepts a Tinybird token without read access',
+      validateTinybirdServiceAccount,
+      jsonResponse({ error: 'Not enough permissions to read from datasources' }, 403),
+      null,
+    ],
+    [
+      'accepts an Upstash token whose ACL refuses PING',
+      validateUpstashServiceAccount,
+      jsonResponse({ error: 'NOPERM this user has no permissions to run the ping command' }, 400),
+      null,
+    ],
+    [
+      'rejects an unknown Upstash token',
+      validateUpstashServiceAccount,
+      jsonResponse({ error: 'WRONGPASS invalid or missing auth token' }, 401),
+      'invalid_credentials',
+    ],
+  ])('%s', async (_, validate, reply, code) => {
+    secureFetch.mockReset().mockResolvedValue(reply)
+
+    const result = validate({ apiToken: 'tok', domain: 'https://instance.example.com' })
+
+    if (code) await expect(result).rejects.toMatchObject({ code })
+    else await expect(result).resolves.toMatchObject({ principal: null })
   })
 })

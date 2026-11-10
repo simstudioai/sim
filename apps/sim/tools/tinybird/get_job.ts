@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { TINYBIRD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TinybirdGetJobParams, TinybirdGetJobResponse } from '@/tools/tinybird/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -16,6 +17,7 @@ export const getJobTool: ToolConfig<TinybirdGetJobParams, TinybirdGetJobResponse
   name: 'Tinybird Get Job',
   description: 'Check the status of an asynchronous Tinybird job (import, delete, etc.) by ID.',
   version: '1.0.0',
+  oauth: TINYBIRD_CREDENTIAL_OAUTH,
   errorExtractor: 'nested-error-object',
 
   params: {

@@ -6,6 +6,7 @@ import {
   parseJotformResponse,
   requireValue,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteWebhookTool: ToolConfig<JotformDeleteWebhookParams, JotformWebhooksResponse> = {
@@ -14,6 +15,7 @@ export const deleteWebhookTool: ToolConfig<JotformDeleteWebhookParams, JotformWe
   description:
     'Remove a webhook from a form. Returns the webhooks that remain registered on the form.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

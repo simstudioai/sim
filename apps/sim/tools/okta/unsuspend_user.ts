@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaUnsuspendUserParams, OktaUnsuspendUserResponse } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaUnsuspendUser')
@@ -13,6 +14,7 @@ export const oktaUnsuspendUserTool: ToolConfig<OktaUnsuspendUserParams, OktaUnsu
     description:
       'Unsuspend a previously suspended user in your Okta organization. Returns the user to ACTIVE status.',
     version: '1.0.0',
+    oauth: OKTA_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

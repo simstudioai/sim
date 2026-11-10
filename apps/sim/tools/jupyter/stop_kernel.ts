@@ -1,4 +1,5 @@
 import type { JupyterStopKernelParams, JupyterStopKernelResponse } from '@/tools/jupyter/types'
+import { JUPYTER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const jupyterStopKernelTool: InternalToolConfig<
@@ -9,6 +10,7 @@ export const jupyterStopKernelTool: InternalToolConfig<
   name: 'Jupyter Stop Kernel',
   description: 'Shut down a running kernel on a Jupyter server',
   version: '1.0.0',
+  oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {
     serverUrl: {

@@ -9,6 +9,7 @@ import {
   parseJsonParam,
 } from '@/tools/dynatrace/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { DYNATRACE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createSettingsObjectTool: ToolConfig<
@@ -20,6 +21,7 @@ export const createSettingsObjectTool: ToolConfig<
   description:
     'Create a settings object — a maintenance window, alerting profile, management zone, or any other schema-backed configuration.',
   version: '1.0.0',
+  oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {

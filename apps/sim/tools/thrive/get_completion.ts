@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveCompletionResponse, ThriveGetCompletionParams } from '@/tools/thrive/types'
 import { THRIVE_COMPLETION_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
@@ -8,6 +9,7 @@ export const getCompletionTool: ToolConfig<ThriveGetCompletionParams, ThriveComp
   name: 'Thrive Get Completion',
   description: 'Get a single learning completion record in Thrive by its ID.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

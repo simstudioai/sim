@@ -4,6 +4,7 @@ import {
   type GrafanaGetAlertRuleGroupResponse,
 } from '@/tools/grafana/types'
 import { mapAlertRule } from '@/tools/grafana/utils'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getAlertRuleGroupTool: ToolConfig<
@@ -15,6 +16,7 @@ export const getAlertRuleGroupTool: ToolConfig<
   description:
     'Read an alert rule group: its evaluation interval and every rule in it. The interval is the group-level knob that decides how often those rules are evaluated, which the individual alert rule operations do not expose.',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
