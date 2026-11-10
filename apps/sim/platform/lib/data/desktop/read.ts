@@ -16,7 +16,7 @@ interface DesktopRead<T> {
 
 /**
  * What a device settings page shows, read from the desktop shell when it opens. Outside a shell that
- * offers the page it sends the viewer to General, as the legacy pages did. A failed read stays apart
+ * offers the page it sends the viewer to General. A failed read stays apart
  * from a pending one, and `retry` reads again.
  */
 export function useDesktopRead<T>(

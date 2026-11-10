@@ -880,7 +880,7 @@ const RING_COLORS: Record<BlockRing, string> = {
 }
 
 /**
- * The ring's paint. Every legacy ring was `ring-[1.5px]`, which the outline draws as a 4.5px
+ * The ring's paint. Every ring is `ring-[1.5px]`, which the outline draws as a 4.5px
  * stroke (half of it under the silhouette); only the selection ring is solid, recoloring the
  * silhouette itself instead of stroking around it.
  */

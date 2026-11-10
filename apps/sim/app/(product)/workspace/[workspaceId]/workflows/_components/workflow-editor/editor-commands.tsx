@@ -18,7 +18,7 @@ interface EditorShortcutsProps {
 /**
  * The editor's shortcuts the empty canvas's command list and the canvas menu advertise: Mod+Shift+A
  * adds an Agent block, Mod+L opens the workspace's logs and Mod+Shift+P creates a workflow (for an
- * editor), as legacy's workflow layout registered them.
+ * editor).
  */
 export function EditorShortcuts({ workspaceId, canEdit, onNewWorkflow }: EditorShortcutsProps) {
   const router = useRouter()

@@ -220,7 +220,7 @@ interface BrowserPanelOptions {
 }
 
 /**
- * Hosts the desktop app's native browser view in the chat panel, as the legacy browser tab did:
+ * Hosts the desktop app's native browser view in the chat panel:
  * reports the host rect (with a heartbeat that renews the shell's visibility lease), hands the page
  * a captured frame while a dialog, menu or tooltip overlaps it, routes toolbar and find commands,
  * and tells the shell when the panel's own chrome owns keyboard shortcuts.
@@ -674,7 +674,7 @@ export function useBrowserPanel({ scopeId, visible, onSettings }: BrowserPanelOp
         }
       : null,
     /**
-     * The browser menu in Sim, as legacy drew it; when the page cannot be swapped for its captured
+     * The browser menu in Sim; when the page cannot be swapped for its captured
      * frame, the shell's native menu opens instead.
      */
     menu: {

@@ -58,7 +58,7 @@ type CanvasColorMode = 'light' | 'dark'
 
 type CursorStyle = 'default' | 'pointer' | 'grab'
 
-/** The container class that sets each pane cursor, as legacy's `--preview-cursor` did. */
+/** The container class that sets each pane cursor. */
 const CURSOR_CLASS: Record<CursorStyle, string | undefined> = {
   default: styles.cursorDefault,
   pointer: styles.cursorPointer,

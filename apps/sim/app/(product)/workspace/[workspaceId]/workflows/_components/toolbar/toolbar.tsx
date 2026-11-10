@@ -107,7 +107,7 @@ const ToolbarItem = memo(function ToolbarItem({
     onClick(item.type, isTriggerCapable)
   }, [item.type, isTriggerCapable, onClick])
 
-  /** The context menu adds with the section's trigger flag, as the legacy menu did. */
+  /** The context menu adds with the section's trigger flag. */
   const addToCanvas = useCallback(() => {
     onAddToCanvas(item.type, isTrigger)
   }, [item.type, isTrigger, onAddToCanvas])

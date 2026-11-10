@@ -19,7 +19,7 @@ export interface ColumnTypeOption {
   disabledReason?: string
 }
 
-/** Each stored type's glyph; the registry names the legacy icon, the zone draws the EMCN one. */
+/** Each stored type's EMCN glyph; the registry names the legacy icon. */
 const COLUMN_TYPE_GLYPHS: Record<string, IconName> = {
   string: 'type-text',
   number: 'type-number',

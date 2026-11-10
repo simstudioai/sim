@@ -207,7 +207,7 @@ export function useRequestAccess(scope: RequestScope, target: RequestTarget) {
 }
 
 /**
- * What a page a permission group hides tells its viewer, as legacy's access boundary words it: a
+ * What a page a permission group hides tells its viewer: a
  * pending request to view, an access request to send, a refresh once access is back, or why it
  * cannot be requested.
  */

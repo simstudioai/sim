@@ -940,7 +940,7 @@ async function exerciseViewport(
         if (compact) {
           const send = page.getByRole('button', { name: 'Send message', exact: true })
           await expectContained(page, send)
-          // Emir's filled icon keeps its drawn face on touch; only its target grows past it.
+          // The filled icon keeps its drawn face on touch; only its target grows past it.
           const bounds = await send.boundingBox()
           assert(
             bounds &&
@@ -1404,7 +1404,7 @@ async function exerciseViewport(
               `Run and Deploy keep the compact face: ${JSON.stringify(bounds)}`
             )
           }
-          // Emir's quiet icon takes the touch target as its box on touch, the compact face elsewhere.
+          // The quiet icon takes the touch target as its box on touch, the compact face elsewhere.
           await expectContained(page, actions)
           const actionsSize = viewport.touch ? TOUCH_TARGET_SIZE : COMPACT_CONTROL_HEIGHT
           const actionsBounds = await actions.boundingBox()

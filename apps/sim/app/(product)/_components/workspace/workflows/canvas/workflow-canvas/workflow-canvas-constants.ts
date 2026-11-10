@@ -41,7 +41,7 @@ export const reactFlowFitViewOptions = { padding: 0.6, maxZoom: 1.0 } as const
 export const reactFlowProOptions = { hideAttribution: true } as const
 
 /**
- * Fit and centre math measures React Flow's own box: the zone's panel and terminal are not the legacy
+ * Fit and centre math measures React Flow's own box: Platform's panel and terminal are not the legacy
  * `--panel-width`/`--terminal-height` insets the legacy stores still publish on the document.
  */
 export const CANVAS_VIEWPORT_OPTIONS = { embedded: true } as const

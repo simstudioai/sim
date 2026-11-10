@@ -1,7 +1,7 @@
 /**
  * The Workflows tab's logic seam. The workflow canvas runs the legacy editor's own stores, socket
- * provider, collaborative hook, execution and layout logic unchanged; only its views are ported into
- * the zone. This barrel names every module they read, so `check:platform-design` can walk the
+ * provider, collaborative hook, execution and layout logic unchanged; only its views are Platform's.
+ * This barrel names every module they read, so `check:platform-design` can walk the
  * closure (blocks and tools registry included, by the exception scoped to this folder).
  */
 

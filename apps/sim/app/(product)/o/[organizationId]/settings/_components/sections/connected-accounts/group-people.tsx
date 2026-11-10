@@ -109,7 +109,7 @@ export function GroupPeople({ people, nextCursor, shallow, actions }: GroupPeopl
         confirmLabel='Send requests'
         confirmDisabled={!recipients.some((item) => !item.invalid)}
         onConfirm={async () => {
-          // As legacy did, the valid addresses go out and an invalid one stays to be corrected.
+          // The valid addresses go out and an invalid one stays to be corrected.
           const invalid = recipients.filter((item) => item.invalid)
           const failure = await actions.invite([
             ...new Set(

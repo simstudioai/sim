@@ -4853,7 +4853,7 @@ const WorkflowContent = memo(function WorkflowContent({
 
 /**
  * The workflow editor's canvas: the legacy `WorkflowContent` with its every handler, shortcut,
- * window event, drag and drop rule, context menu, deep link and OAuth flow, drawn by the zone's
+ * window event, drag and drop rule, context menu, deep link and OAuth flow, drawn by Platform's
  * canvas views. The editor route provides the workflow scope, the React Flow provider and the one
  * global command registry (run, toolbar search, and the canvas's own shortcuts) above it.
  */

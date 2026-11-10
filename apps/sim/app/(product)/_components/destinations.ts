@@ -21,7 +21,7 @@ export function platformDestinations(scope: SurfaceScope) {
 /**
  * The legacy navigation's gates and order. Benchmark stays on the legacy surface. Integrations is
  * every member's: an organization without member-scoped accounts manages workspace credentials and
- * skills there, as legacy's workspace Integrations page did.
+ * skills there.
  */
 export function resolveLiveDestinations(organization: PlatformOrganization): ShellDestination[] {
   const { mothershipAvailable, searchAccess, navFlags } = organization

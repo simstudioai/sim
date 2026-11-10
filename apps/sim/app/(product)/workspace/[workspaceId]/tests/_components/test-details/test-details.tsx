@@ -51,7 +51,7 @@ const TestSource = dynamic(
 )
 
 /**
- * The layout one press of the layout action moves to, as legacy's test page cycled: results, then
+ * The layout one press of the layout action moves to: results, then
  * the source alone, then the source beside the results, then back to the results.
  */
 function nextLayoutAction(layout: PreviewMode, canEdit: boolean) {

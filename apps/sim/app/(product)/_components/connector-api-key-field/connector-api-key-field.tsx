@@ -20,7 +20,7 @@ interface ConnectorApiKeyFieldProps {
 /**
  * A connector's API key, which may be a `{{SECRET}}` reference: typing `{{` offers the secret names
  * at the caret (the workspace's and the viewer's, or the viewer's own for an organization's Search
- * source, as legacy offered them), and choosing one writes the reference in place.
+ * source), and choosing one writes the reference in place.
  */
 export function ConnectorApiKeyField({
   workspaceId,

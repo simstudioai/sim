@@ -80,7 +80,7 @@ export function hasServiceAccountForm(providerId: string | undefined): boolean {
 
 /**
  * Whether the shared dialog can reconnect this provider's service account in place: a cloud
- * configuration (AWS, Databricks) is saved onto the same credential, as the legacy dialogs did.
+ * configuration (AWS, Databricks) is saved onto the same credential.
  */
 export function canReconnectServiceAccount(providerId: string | null | undefined): boolean {
   return Boolean(getConfigServiceAccountDescriptor(providerId ?? undefined))

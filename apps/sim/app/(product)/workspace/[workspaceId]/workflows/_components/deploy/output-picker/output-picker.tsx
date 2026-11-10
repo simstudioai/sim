@@ -41,7 +41,7 @@ interface OutputPickerProps {
 
 /**
  * Picks block outputs of the open workflow and of the workflows its Workflow blocks call, each named
- * by its path through them, as the legacy chat, API and streamed-output selectors did.
+ * by its path through them.
  */
 export function OutputPicker({
   workflowId,

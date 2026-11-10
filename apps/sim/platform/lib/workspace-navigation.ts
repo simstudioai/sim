@@ -12,7 +12,7 @@ type WorkspaceTabFlag = 'dashboards' | 'changelog' | 'workflow-tests' | 'platfor
 export type WorkspaceTabFlags = Readonly<Partial<Record<WorkspaceTabFlag, boolean>>>
 
 /**
- * The workspace's pages, in tab order, with the data modes the zone serves each from. A page with
+ * The workspace's pages, in tab order, with the data modes Platform serves each from. A page with
  * no live adapter yet is fixture-only; a page built on live data alone has no fixtures. A `preview`
  * page waits for its design pass: its route and views stay, and live data lists it only while the
  * `platform-preview` flag is on.

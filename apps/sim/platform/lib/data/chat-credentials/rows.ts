@@ -220,7 +220,7 @@ export function useUsageLink(action: string) {
 
 /**
  * A member refused by their credit limit can ask an admin to raise it once the server confirms the
- * organization set them one, as legacy's `MemberLimitRequestAction` checked before offering it.
+ * organization set them one.
  */
 export function useMemberLimitRequest(enabled: boolean) {
   const { organization } = useOrganization()

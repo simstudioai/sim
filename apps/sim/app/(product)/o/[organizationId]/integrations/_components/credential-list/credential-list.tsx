@@ -14,7 +14,7 @@ type CredentialListProps = {
   credentials: readonly IntegrationCredential[]
 } & (
   | {
-      /** Each row's own address, so a live row is a link as legacy's was. */
+      /** Each row's own address, so a live row is a link. */
       credentialHref: (credential: IntegrationCredential) => string
       onOpen?: never
     }

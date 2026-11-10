@@ -201,8 +201,8 @@ export function useScrollMemory<T extends HTMLElement>() {
 
 /**
  * For a record's details that step to other records in place: names the record the list reveals,
- * scrolled to the nearest edge, when the reader returns to it, as legacy's list followed its
- * selection while ArrowUp and ArrowDown stepped runs.
+ * scrolled to the nearest edge, when the reader returns to it, so the list follows the selection
+ * while ArrowUp and ArrowDown step runs.
  */
 export function useRevealOnReturn() {
   const { reveal } = useSession()

@@ -1,7 +1,7 @@
 /*
  * The legacy editor's canvas tokens, under a --wf- prefix so they never shadow EMCN roles. Values are
  * copied from the legacy app's globals.css so blocks, edges, subflows and notes paint the same pixels
- * in the zone; the canvas root selects the dark set from the Platform theme.
+ * in Platform; the canvas root selects the dark set from the Platform theme.
  */
 .tokens {
   --wf-border-width: 1px;

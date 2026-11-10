@@ -13,7 +13,7 @@ interface ReconnectableCredential {
 }
 
 /**
- * How a workspace credential reconnects when it is a Dataverse one, as legacy's credential page did:
+ * How a workspace credential reconnects when it is a Dataverse one:
  * a credential bound to an environment reconnects to that same environment, an unbound one through
  * the plain OAuth flow, and one whose binding is invalid or cannot be read does not reconnect in
  * place. Any other credential reconnects as usual.

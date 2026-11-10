@@ -204,7 +204,7 @@ export function useComposerReferences(composer: ComposerController) {
       if (start === end && triggerAt(text, start, matches)?.prefix === '@')
         composer.onPickerOpen?.()
     },
-    /** Pressing the field reaches for a resource, as legacy's field did; focus alone does not. */
+    /** Pressing the field reaches for a resource; focus alone does not. */
     pointerDown: (event: PointerEvent) => {
       if (event.target === editor.current) composer.onPickerOpen?.()
     },

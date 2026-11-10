@@ -21,7 +21,7 @@ export function ToggleButton({ isExpanded, onToggle }: ToggleButtonProps) {
 }
 
 /**
- * A click on a terminal header's empty space toggles the terminal, as the legacy header did. Clicks
+ * A click on a terminal header's empty space toggles the terminal. Clicks
  * on its controls, and on menus they portal out, keep their own meaning.
  */
 export function toggleFromHeader(onToggle: () => void) {
