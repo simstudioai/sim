@@ -65,6 +65,15 @@ const CODE_FIRST_VARIANTS: ReasonedAllowlist = {
 }
 
 /**
+ * Components EMCN keeps unexported whose `CODE_FIRST_VARIANTS` entries the frozen surface
+ * (`scripts/emcn-surface.json`) cannot confirm, because it records only exported components.
+ */
+const UNEXPORTED_VARIANT_OWNERS: ReasonedAllowlist = {
+  DatePopover:
+    'Internal to @sim/emcn/picker/date-picker: DatePicker renders it as field and DateRangePicker as text; it is no public prop',
+}
+
+/**
  * Loading paints nothing (`platform/AGENTS.md`): no text such as `Loading…` stands in for content
  * whose read is pending. An action's pending label is feedback, not loading copy, so the rule passes
  * a `pendingLabel` and the pending label of a Load action (`isFetchingNextPage ? 'Loading…' :
@@ -978,6 +987,7 @@ export const PLATFORM_ALLOWLISTS = {
   FAILURE_COPY_OWNERS,
   ASCII_ELLIPSIS_COPY,
   CODE_FIRST_VARIANTS,
+  UNEXPORTED_VARIANT_OWNERS,
   LOADING_COPY_OWNERS,
   FRAMES_OUTSIDE_SURFACE,
   LOCAL_TOKEN_OWNERS,

@@ -792,6 +792,43 @@ it('fails a variant with no Paper key that CODE_FIRST_VARIANTS gives no reason f
   }
 }, 30_000)
 
+it('fails a CODE_FIRST_VARIANTS entry for a variant the frozen EMCN surface does not have', () => {
+  const { root, put, run } = productFixture()
+  try {
+    put(
+      '../../packages/emcn-platform/src/catalog/variants.json',
+      JSON.stringify({ Button: { variant: { primary: ['C0092'], bar: [] } } })
+    )
+    put(
+      '../../packages/emcn/src/components/button/button.tsx',
+      `export function Button({variant}: {variant: 'primary' | 'bar'}) { return <button data-variant={variant}/> }`
+    )
+    put(
+      'app/(product)/o/[organizationId]/home/page.tsx',
+      `import { Button } from '@sim/emcn/button'
+      export default function Page() { return <><Button variant='primary'/><Button variant='bar'/></> }`
+    )
+    writeAllowlists(root, { CODE_FIRST_VARIANTS: { 'Button.variant=bar': 'A code-first bar' } })
+    const surface = (values: string[]) =>
+      writeFileSync(
+        path.join(root, 'scripts/emcn-surface.json'),
+        JSON.stringify({
+          '@sim/emcn': { exports: { './button': { props: { Button: { variant: values } } } } },
+        })
+      )
+    surface(['primary'])
+    const added = run()
+    expect(added.status).toBe(1)
+    expect(added.output).toContain(
+      'scripts/platform-allowlists.ts [variant-evidence] CODE_FIRST_VARIANTS names Button.variant=bar'
+    )
+    surface(['bar', 'primary'])
+    expect(run()).toEqual({ status: 0, output: expect.stringContaining('passed') })
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}, 30_000)
+
 it('fails an allowlist entry without a one-line reason', () => {
   expect(
     allowlistReasonFindings({

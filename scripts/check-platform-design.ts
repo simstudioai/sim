@@ -241,6 +241,36 @@ for (const [owner, props] of Object.entries(variants)) {
   }
 }
 
+/**
+ * EMCN is frozen, so a code-first variant can only explain one EMCN already has: each
+ * `CODE_FIRST_VARIANTS` entry must name a literal value of that component's prop in the frozen
+ * surface (`scripts/emcn-surface.json`), never one added beside it. A component EMCN does not export
+ * has no recorded surface, so its owner is listed in `UNEXPORTED_VARIANT_OWNERS` with the reason.
+ */
+const surfacePath = path.join(root, 'scripts/emcn-surface.json')
+const frozenSurface: Record<string, { exports?: Record<string, unknown> }> = existsSync(surfacePath)
+  ? JSON.parse(readFileSync(surfacePath, 'utf8'))
+  : {}
+const frozenVariant = (owner: string, prop: string, value: string) =>
+  Object.values(frozenSurface).some((surface) =>
+    Object.values(surface.exports ?? {}).some((subpath) => {
+      const shape = (subpath as { props?: Record<string, Record<string, unknown>> }).props?.[
+        owner
+      ]?.[prop]
+      const values = Array.isArray(shape) ? shape : (shape as { '…types'?: unknown })?.['…types']
+      return Array.isArray(values) && values.includes(value)
+    })
+  )
+for (const variant of Object.keys(allowlists.CODE_FIRST_VARIANTS ?? {})) {
+  const [, owner = '', prop = '', value = ''] = /^(\w+)\.(\w+)=(.+)$/.exec(variant) ?? []
+  if (!frozenVariant(owner, prop, value) && !grants('UNEXPORTED_VARIANT_OWNERS', owner))
+    report(
+      'variant-evidence',
+      'scripts/platform-allowlists.ts',
+      `CODE_FIRST_VARIANTS names ${variant}, which EMCN's frozen surface (scripts/emcn-surface.json) does not have; compose an existing variant instead of adding one`
+    )
+}
+
 const dataSeam = 'platform/lib/data/'
 /** Whether a file belongs to the product route tree, whose `_components` are private to their route. */
 const inRouteTree = (file: string) => file.startsWith(PRODUCT_ROUTES)
