@@ -89,7 +89,7 @@ export function SearchSurface({ chat }: SearchSurfaceProps) {
     />
   )
   return (
-    <div className={styles.surface}>
+    <main className={styles.surface}>
       {/* The conversation stays mounted under Search so a running turn keeps streaming. */}
       {assistantAvailable && (mode === 'assistant' || surface.assistantStarted) && (
         <div className={styles.assistant} hidden={mode !== 'assistant'}>
@@ -157,6 +157,6 @@ export function SearchSurface({ chat }: SearchSurfaceProps) {
           </PageColumn>
         </div>
       )}
-    </div>
+    </main>
   )
 }
