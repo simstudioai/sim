@@ -10,7 +10,7 @@
  *     names for the agent, and only the primitive runner reaches `sim/embed`'s executor.
  *  3. cli-isolation: the public CLI package never imports agent code.
  *
- * Runs in the mothership-related sim gate alongside check:api-validation.
+ * Runs in the mothership-related sim gate alongside check:api-validation:strict.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'

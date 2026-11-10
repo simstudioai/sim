@@ -1,5 +1,5 @@
 import { generateId } from '@sim/utils/id'
-import type { ChatTurn, ComposerDraft } from '@/app/(product)/_components/composer/model'
+import type { ChatTurn, ComposerDraft } from '@/platform/lib/data/models/composer'
 
 /** The name a chat goes by until the server titles it. */
 export function draftTitle(draft: ComposerDraft): string {

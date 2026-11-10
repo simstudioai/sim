@@ -8,9 +8,9 @@ import { Icon } from '@sim/emcn/icon'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { generateId } from '@sim/utils/id'
 import { connectToastSink } from '@/lib/toast/sink'
-import type { ShellNotice } from '@/app/(product)/_components/model'
 import styles from '@/app/(product)/_components/notification-tray/notification-tray.module.css'
 import { useTrayLift } from '@/app/(product)/_components/notification-tray/tray-clearance'
+import type { ShellNotice } from '@/platform/lib/data/models/shell'
 
 type Notice = Omit<ShellNotice, 'href'> & {
   onAction?: () => void

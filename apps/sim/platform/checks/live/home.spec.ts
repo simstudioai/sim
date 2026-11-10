@@ -8,6 +8,7 @@ import {
   signIn,
   signInAsAdmin,
 } from '@/platform/checks/live/session'
+import { revealChat } from '@/platform/checks/live/support/chats'
 import {
   type SeededPerson,
   withLiveDatabase,
@@ -165,15 +166,7 @@ test.describe('Home for the seeded administrator', () => {
     await expect(
       page.getByRole('region', { name: 'Needs your attention', exact: true })
     ).toHaveCount(0)
-    const chats = page.getByRole('region', { name: 'Chats', exact: true })
-    const vendorRenewals = chats.getByRole('link', { name: 'Vendor renewals' })
-    // Chats the other live checks start sort above the seeded one, a page or more down the rail.
-    await expect(async () => {
-      if ((await vendorRenewals.count()) === 0)
-        await chats.getByRole('button', { name: 'See more', exact: true }).click()
-      await expect(vendorRenewals).toBeVisible({ timeout: 1_000 })
-    }).toPass()
-    await vendorRenewals.click()
+    await (await revealChat(page, 'Vendor renewals')).click()
     await expect(page).toHaveURL(liveRoutePattern('/search/chat/22222222-'))
     await expect(page.getByText('Here is what I found about Vendor renewals.')).toBeVisible()
   })

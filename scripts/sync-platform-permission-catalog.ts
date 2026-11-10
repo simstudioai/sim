@@ -12,10 +12,13 @@ const file = resolve(
 const catalog = projectPermissionGroupCatalog(getAccessControlBlockUniverse())
 const output = formatGeneratedSource(JSON.stringify(catalog), file, resolve(import.meta.dir, '..'))
 if (process.argv.includes('--check')) {
-  if (readFileSync(file, 'utf8') !== output)
-    throw new Error(
-      'Permission catalog is stale. Run bun scripts/sync-platform-permission-catalog.ts'
+  if (readFileSync(file, 'utf8') !== output) {
+    console.error(
+      '✗ apps/sim/platform/fixtures/settings/permission-catalog.generated.json is stale: run `bun run scripts/sync-platform-permission-catalog.ts`'
     )
+    process.exit(1)
+  }
+  console.log('✓ Platform permission catalog is current')
 } else {
   writeFileSync(file, output)
 }

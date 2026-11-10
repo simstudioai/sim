@@ -1,10 +1,12 @@
 ---
 name: make-interfaces-feel-better
 source: https://github.com/jakubkrehel/make-interfaces-feel-better — skills/make-interfaces-feel-better/SKILL.md
-description: Design engineering principles for making interfaces feel polished. Use when building UI components, reviewing frontend code, implementing animations, hover states, shadows, borders, typography, micro-interactions, enter/exit animations, or any visual detail work. Triggers on UI polish, design details, "make it feel better", "feels off", stagger animations, border radius, optical alignment, font smoothing, tabular numbers, image outlines, box shadows.
+description: Design engineering principles for making the marketing site and legacy-library UI feel polished. Use when building or reviewing UI outside the Platform - animations, hover states, shadows, borders, typography, micro-interactions, enter/exit animations, stagger, optical alignment, tabular numbers, image outlines - or when it "feels off". Platform product UI (app/(product), platform, packages/emcn*) follows apps/sim/platform/AGENTS.md instead.
 ---
 
 # Details that make interfaces feel better
+
+> **In this repo:** this skill covers the marketing site (`apps/sim/app/(landing)`) and UI built on `@sim/emcn-legacy`. Platform product UI (`apps/sim/app/(product)`, `apps/sim/platform`, `packages/emcn*`) follows `apps/sim/platform/AGENTS.md`.
 
 Great interfaces rarely come from a single thing. It's usually a collection of small details that compound into a great experience. Apply these principles when building or reviewing UI code.
 

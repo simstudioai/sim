@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -133,7 +133,7 @@ describe('package boundary command', () => {
     const LIB_FILE = 'apps/sim/platform/lib/data/widget.ts'
 
     function withFixture(
-      run: (fixture: string, audit: (...args: string[]) => ReturnType<typeof spawnSync>) => void
+      run: (fixture: string, audit: () => ReturnType<typeof spawnSync>) => void
     ) {
       const fixture = mkdtempSync(path.join(ROOT, 'node_modules/.boundary-audit-'))
       try {
@@ -143,8 +143,8 @@ describe('package boundary command', () => {
         for (const script of ['check-monorepo-boundaries.ts', 'platform-product-routes.ts']) {
           copyFileSync(path.join(ROOT, 'scripts', script), path.join(fixture, 'scripts', script))
         }
-        run(fixture, (...args) =>
-          spawnSync('bun', [path.join(fixture, 'scripts/check-monorepo-boundaries.ts'), ...args], {
+        run(fixture, () =>
+          spawnSync('bun', [path.join(fixture, 'scripts/check-monorepo-boundaries.ts')], {
             cwd: fixture,
             encoding: 'utf8',
           })
@@ -170,36 +170,24 @@ describe('package boundary command', () => {
           expect.soft(result.status, `${source}\n${result.stderr}`).toBe(allowed ? 0 : 1)
           if (!allowed) expect.soft(result.stderr).toContain(`${LIB_FILE}:1`)
         }
-        writeFileSync(path.join(fixture, LIB_FILE), "import { Row } from '@/app/(product)/row'\n")
-        audit('--update', '--init')
-        expect(audit().status).toBe(1)
       })
     })
 
-    it('ratchets view types the data layer takes: a new one fails, and the baseline only shrinks', () => {
+    it('keeps platform/lib from taking a view type from a product route', () => {
       withFixture((fixture, audit) => {
-        const baselinePath = path.join(fixture, 'scripts/check-monorepo-boundaries.baseline.json')
-        const counts = () => JSON.parse(readFileSync(baselinePath, 'utf8')).libToViewTypes
-        const target = '@/app/(product)/_components/model'
-        const one = `import type { a } from '${target}'\n`
-        const two = `${one}import type { b } from '${target}'\n`
-
-        writeFileSync(path.join(fixture, LIB_FILE), two)
-        expect(audit().status).toBe(1)
-        expect(audit('--update', '--init').status).toBe(0)
-        expect(counts()).toEqual({ [LIB_FILE]: 2 })
-        expect(audit().status).toBe(0)
-
-        writeFileSync(path.join(fixture, LIB_FILE), `${two}import type { c } from '${target}'\n`)
-        expect(audit().status).toBe(1)
-        expect(audit('--update').status).toBe(1)
-        expect(counts()).toEqual({ [LIB_FILE]: 2 })
-
-        writeFileSync(path.join(fixture, LIB_FILE), one)
-        expect(audit().status).toBe(1)
-        expect(audit('--update').status).toBe(0)
-        expect(counts()).toEqual({ [LIB_FILE]: 1 })
-        expect(audit().status).toBe(0)
+        const cases = [
+          ["import type { Row } from '@/app/(product)/_components/model'", false],
+          ["import { type Row } from '@/app/(product)/_components/model'", false],
+          ["type Row = import('@/app/(product)/_components/model').Row", false],
+          ["export type { Row } from '../../../app/(product)/o/model'", false],
+          ["import type { Row } from '@/platform/lib/data/models/shell'", true],
+        ] as const
+        for (const [source, allowed] of cases) {
+          writeFileSync(path.join(fixture, LIB_FILE), `${source}\n`)
+          const result = audit()
+          expect.soft(result.status, `${source}\n${result.stderr}`).toBe(allowed ? 0 : 1)
+          if (!allowed) expect.soft(result.stderr).toContain(`${LIB_FILE}:1`)
+        }
       })
     })
   })

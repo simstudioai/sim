@@ -5616,12 +5616,17 @@ function updateMetaJson() {
 
 if (import.meta.main) {
   CHECK_ONLY = process.argv.includes('--check')
-  const metadataProcess = Bun.spawn(
-    ['bun', path.join(__dirname, 'sync-tool-metadata.ts'), ...(CHECK_ONLY ? ['--check'] : [])],
-    { cwd: rootDir, stdout: 'inherit', stderr: 'inherit' }
-  )
-  const metadataExitCode = await metadataProcess.exited
-  if (metadataExitCode !== 0) process.exit(metadataExitCode)
+  // The docs read the generated tool metadata, so a write refreshes it first; its freshness check
+  // is `check:tool-metadata`'s alone.
+  if (!CHECK_ONLY) {
+    const metadataProcess = Bun.spawn(['bun', path.join(__dirname, 'sync-tool-metadata.ts')], {
+      cwd: rootDir,
+      stdout: 'inherit',
+      stderr: 'inherit',
+    })
+    const metadataExitCode = await metadataProcess.exited
+    if (metadataExitCode !== 0) process.exit(metadataExitCode)
+  }
 
   console.log(
     CHECK_ONLY

@@ -8,7 +8,6 @@ import { PageColumn, PageOverflow } from '@sim/emcn-platform/page-column'
 import { RecentItems } from '@sim/emcn-platform/recent-items'
 import { PlatformSurface } from '@sim/emcn-platform/surface/platform-surface'
 import { GetStarted } from '@/app/(product)/_components/get-started/get-started'
-import type { HomeMode, HomeWidget } from '@/app/(product)/_components/model'
 import { usePlatformNotices } from '@/app/(product)/_components/notification-tray/notification-tray'
 import { HomeActivityChart } from '@/app/(product)/o/[organizationId]/home/_components/activity-chart/activity-chart'
 import {
@@ -19,10 +18,8 @@ import { CalendarDay } from '@/app/(product)/o/[organizationId]/home/_components
 import { ConnectedWidget } from '@/app/(product)/o/[organizationId]/home/_components/connected-widget/connected-widget'
 import styles from '@/app/(product)/o/[organizationId]/home/_components/home-dashboard/home-dashboard.module.css'
 import { HomeWorkspaces } from '@/app/(product)/o/[organizationId]/home/_components/home-workspaces/home-workspaces'
-import type {
-  HomeActions,
-  HomeView,
-} from '@/app/(product)/o/[organizationId]/home/_components/model'
+import type { HomeActions, HomeView } from '@/platform/lib/data/models/home'
+import type { HomeMode, HomeWidget } from '@/platform/lib/data/models/shell'
 
 const WIDGETS: readonly HomeWidget[] = ['Activity', 'Workspaces', 'Email', 'Calendar']
 const ACTIVITY_METRIC_TITLES: Record<HomeMode, string> = { Build: 'Tasks run', Search: 'Searches' }

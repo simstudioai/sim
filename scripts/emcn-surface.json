@@ -1978,8 +1978,8 @@
             "disabled": ["false", "true"],
             "id": ["‹string›"],
             "inputRef": [
-              "‹(instance: HTMLTextAreaElement | null) => void | (() => VoidOrUndefinedOnly)›",
-              "‹RefObject<HTMLTextAreaElement | null>›"
+              "‹(instance: HTMLInputElement | null) => void | (() => VoidOrUndefinedOnly)›",
+              "‹RefObject<HTMLInputElement | null>›"
             ],
             "invalid": ["false", "true"],
             "label": ["‹string›"],
@@ -1998,7 +1998,7 @@
             "onScroll": ["‹UIEventHandler<HTMLInputElement>›"],
             "onSelect": {
               "()": {
-                "event": ["‹SyntheticEvent<HTMLTextAreaElement, Event>›"],
+                "event": ["‹SyntheticEvent<HTMLInputElement, Event>›"],
                 "⇒": ["‹void›"]
               }
             },

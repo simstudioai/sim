@@ -11,8 +11,8 @@ import { Modal } from '@sim/emcn/modal'
 import { RecipientField } from '@sim/emcn-platform/workspace-fields'
 import { getErrorMessage } from '@sim/utils/errors'
 import dynamic from 'next/dynamic'
-import type { ShellData, ShellOrganizationActions } from '@/app/(product)/_components/model'
 import styles from '@/app/(product)/_components/organization-menu/organization-menu.module.css'
+import type { ShellData, ShellOrganizationActions } from '@/platform/lib/data/models/shell'
 import { plural } from '@/platform/shared/plural'
 
 /** Lazy because its form reads real data, which a fixture session never loads. */

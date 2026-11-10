@@ -3,18 +3,13 @@
 import { useState } from 'react'
 import type { RecentItem } from '@sim/emcn-platform/recent-items'
 import { useRouter, useSearchParams } from 'next/navigation'
-import type { ShellWorkspace } from '@/app/(product)/_components/model'
 import {
   useInterfacePreferences,
   useRecentHistory,
 } from '@/app/(product)/_components/session/interface-preferences'
 import { ZoneHomeDashboard } from '@/app/(product)/o/[organizationId]/home/_components/home-dashboard/zone-home-dashboard'
-import type {
-  EmailItem,
-  HomeActions,
-  HomeData,
-  HomeView,
-} from '@/app/(product)/o/[organizationId]/home/_components/model'
+import type { EmailItem, HomeActions, HomeData, HomeView } from '@/platform/lib/data/models/home'
+import type { ShellWorkspace } from '@/platform/lib/data/models/shell'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'

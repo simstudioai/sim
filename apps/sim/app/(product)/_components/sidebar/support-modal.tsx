@@ -7,7 +7,7 @@ import { FileField } from '@sim/emcn/field/file-field'
 import { Modal } from '@sim/emcn/modal'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import type { ShellSupport } from '@/app/(product)/_components/model'
+import type { ShellSupport } from '@/platform/lib/data/models/shell'
 import { readFormText } from '@/platform/shared/row-links'
 
 interface SupportImage {
