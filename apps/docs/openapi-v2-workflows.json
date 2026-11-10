@@ -5275,6 +5275,20 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PreviewWorkspaceForkResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "previewFingerprint": "c7d158e8cbc5137a2d0a4fc37ddaeb51a3b9757485679a6ad82a7de3fdac4e3a",
+                        "sourceWorkspaceId": "9f4c2a10-3b7e-4d58-8f6a-2c1d0e5b7a94",
+                        "workflows": [],
+                        "selectedResourceCount": 0,
+                        "draftOnly": true
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -5466,6 +5480,25 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PreviewWorkspacePushResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "previewFingerprint": "c7d158e8cbc5137a2d0a4fc37ddaeb51a3b9757485679a6ad82a7de3fdac4e3a",
+                        "sourceWorkspaceId": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13",
+                        "targetWorkspaceId": "9f4c2a10-3b7e-4d58-8f6a-2c1d0e5b7a94",
+                        "ready": true,
+                        "workflows": [],
+                        "unresolvedBindings": [],
+                        "configuration": [],
+                        "excludedTargets": [],
+                        "triggerSlots": [],
+                        "triggerUrlChanges": []
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -5658,6 +5691,25 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PreviewWorkspacePullResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "previewFingerprint": "c7d158e8cbc5137a2d0a4fc37ddaeb51a3b9757485679a6ad82a7de3fdac4e3a",
+                        "sourceWorkspaceId": "9f4c2a10-3b7e-4d58-8f6a-2c1d0e5b7a94",
+                        "targetWorkspaceId": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13",
+                        "ready": true,
+                        "workflows": [],
+                        "unresolvedBindings": [],
+                        "configuration": [],
+                        "excludedTargets": [],
+                        "triggerSlots": [],
+                        "triggerUrlChanges": []
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -6716,6 +6768,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PreviewWorkflowImportResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "previewFingerprint": "c7d158e8cbc5137a2d0a4fc37ddaeb51a3b9757485679a6ad82a7de3fdac4e3a",
+                        "ready": true,
+                        "bindings": [],
+                        "unresolvedBindings": [],
+                        "configuration": [],
+                        "unresolvedConfiguration": [],
+                        "discovery": []
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -15566,7 +15634,18 @@
         "required": ["data"],
         "additionalProperties": false,
         "title": "Preview workspace fork response",
-        "description": "Deployed source workflows, selected-copy count, and a preview fingerprint."
+        "description": "Deployed source workflows, selected-copy count, and a preview fingerprint.",
+        "examples": [
+          {
+            "data": {
+              "previewFingerprint": "c7d158e8cbc5137a2d0a4fc37ddaeb51a3b9757485679a6ad82a7de3fdac4e3a",
+              "sourceWorkspaceId": "9f4c2a10-3b7e-4d58-8f6a-2c1d0e5b7a94",
+              "workflows": [],
+              "selectedResourceCount": 0,
+              "draftOnly": true
+            }
+          }
+        ]
       },
       "PreviewWorkspaceForkBody": {
         "type": "object",
@@ -16446,7 +16525,23 @@
         "required": ["data"],
         "additionalProperties": false,
         "title": "Preview workspace push response",
-        "description": "Current-to-other workflow actions, required choices, and preview fingerprint."
+        "description": "Current-to-other workflow actions, required choices, and preview fingerprint.",
+        "examples": [
+          {
+            "data": {
+              "previewFingerprint": "c7d158e8cbc5137a2d0a4fc37ddaeb51a3b9757485679a6ad82a7de3fdac4e3a",
+              "sourceWorkspaceId": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13",
+              "targetWorkspaceId": "9f4c2a10-3b7e-4d58-8f6a-2c1d0e5b7a94",
+              "ready": true,
+              "workflows": [],
+              "unresolvedBindings": [],
+              "configuration": [],
+              "excludedTargets": [],
+              "triggerSlots": [],
+              "triggerUrlChanges": []
+            }
+          }
+        ]
       },
       "PreviewWorkspacePushBody": {
         "type": "object",
@@ -16972,7 +17067,23 @@
         "required": ["data"],
         "additionalProperties": false,
         "title": "Preview workspace pull response",
-        "description": "Other-to-current workflow actions, required choices, and preview fingerprint."
+        "description": "Other-to-current workflow actions, required choices, and preview fingerprint.",
+        "examples": [
+          {
+            "data": {
+              "previewFingerprint": "c7d158e8cbc5137a2d0a4fc37ddaeb51a3b9757485679a6ad82a7de3fdac4e3a",
+              "sourceWorkspaceId": "9f4c2a10-3b7e-4d58-8f6a-2c1d0e5b7a94",
+              "targetWorkspaceId": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13",
+              "ready": true,
+              "workflows": [],
+              "unresolvedBindings": [],
+              "configuration": [],
+              "excludedTargets": [],
+              "triggerSlots": [],
+              "triggerUrlChanges": []
+            }
+          }
+        ]
       },
       "PreviewWorkspacePullBody": {
         "type": "object",
@@ -18487,7 +18598,20 @@
         "required": ["data"],
         "additionalProperties": false,
         "title": "Preview workflow import response",
-        "description": "Import readiness, unresolved bindings, and destination discovery instructions."
+        "description": "Import readiness, unresolved bindings, and destination discovery instructions.",
+        "examples": [
+          {
+            "data": {
+              "previewFingerprint": "c7d158e8cbc5137a2d0a4fc37ddaeb51a3b9757485679a6ad82a7de3fdac4e3a",
+              "ready": true,
+              "bindings": [],
+              "unresolvedBindings": [],
+              "configuration": [],
+              "unresolvedConfiguration": [],
+              "discovery": []
+            }
+          }
+        ]
       },
       "ImportWorkflowRequest": {
         "type": "object",
