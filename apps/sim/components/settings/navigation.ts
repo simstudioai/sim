@@ -137,7 +137,7 @@ type UnifiedNavigationSection = 'account' | 'workspace' | 'organization' | 'plat
  */
 type DesktopSettingsSurface = 'settings' | 'browser' | 'terminal'
 
-export interface UnifiedSettingsNavigationItem {
+interface UnifiedSettingsNavigationItem {
   id: UnifiedSettingsSection
   label: string
   description: string
