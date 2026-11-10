@@ -1,3 +1,4 @@
+import { toPrincipalActor } from '@sim/auth/principal'
 import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
@@ -114,7 +115,7 @@ describe('knowledge folder application use cases', () => {
         actorName: 'Workspace API key',
         metadata: expect.objectContaining({
           operation: 'knowledge.folders.create',
-          actor: createWorkspaceApiKeyPrincipal(),
+          actor: toPrincipalActor(createWorkspaceApiKeyPrincipal()),
         }),
       })
     )
