@@ -13,6 +13,7 @@ import { PrincipalKindAuthorizationError } from '@/lib/core/application/workspac
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { textArrayLiteral } from '@/lib/db/arrays'
 import type { DbTransaction } from '@/lib/db/types'
+import { inheritsOrganizationAdmin } from '@/lib/organizations/team-only'
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
 import { resolveVerifiedUserAccessControlContext } from '@/lib/permission-groups/resolve.server'
@@ -85,7 +86,7 @@ async function loadProjectMemberships(
   const memberQuery = tx
     .select({ organizationId: member.organizationId, role: member.role })
     .from(member)
-    .where(eq(member.userId, userId))
+    .where(and(eq(member.userId, userId), inheritsOrganizationAdmin()))
     .limit(1)
   const [membership] = records.some((record) => record.organizationId)
     ? await (lock ? memberQuery.for('share') : memberQuery)

@@ -18,7 +18,7 @@ export default async function OrganizationLayout({ children, params }: Organizat
   const [
     { organizationId },
     { readOrganizationSurface },
-    { readDocumentLocation, resolveOrganizationGate },
+    { deniedSurfaceHref, readDocumentLocation, resolveOrganizationGate },
   ] = await Promise.all([
     params,
     import('@/platform/lib/data/surface'),
@@ -28,7 +28,11 @@ export default async function OrganizationLayout({ children, params }: Organizat
     readOrganizationSurface(organizationId),
     readDocumentLocation(),
   ])
-  if (surface.status === 'denied') notFound()
+  if (surface.status === 'denied') {
+    const href = deniedSurfaceHref(surface.retired)
+    if (href) redirect(href)
+    notFound()
+  }
   if (surface.status !== 'ok') return <SurfaceUnavailable />
   const gate = resolveOrganizationGate(surface.organization, location)
   if (gate) redirect(gate)

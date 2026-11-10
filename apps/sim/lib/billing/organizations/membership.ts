@@ -77,6 +77,7 @@ import {
 import {
   acquirePersonalOrganizationWorkspaceLocksTx,
   createPersonalOrganizationTx,
+  type RetirePersonalOrganizationResult,
   retirePersonalOrganizationTx,
 } from '@/lib/organizations/personal'
 import { reassignOrganizationProjects } from '@/lib/projects/membership'
@@ -500,6 +501,8 @@ export interface AddMemberResult {
 export interface EnsureMemberResult extends AddMemberResult {
   alreadyMember: boolean
   existingOrgId?: string
+  /** The personal organization this join retired, when it retired one. */
+  retirement?: RetirePersonalOrganizationResult
 }
 
 export interface RemoveMemberParams {
@@ -806,13 +809,14 @@ export async function ensureUserInOrganizationTx(
     }
   }
 
-  if (existingMemberships.length > 0) {
-    await retirePersonalOrganizationTx(tx, {
-      userId,
-      targetOrganizationId: organizationId,
-      actor: params.actor,
-    })
-  }
+  const retirement =
+    existingMemberships.length > 0
+      ? await retirePersonalOrganizationTx(tx, {
+          userId,
+          targetOrganizationId: organizationId,
+          actor: params.actor,
+        })
+      : undefined
 
   const memberId = generateId()
   await tx.insert(member).values({
@@ -850,6 +854,7 @@ export async function ensureUserInOrganizationTx(
     memberId,
     alreadyMember: false,
     billingActions,
+    retirement,
   }
 }
 

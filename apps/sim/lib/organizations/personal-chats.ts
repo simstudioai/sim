@@ -4,12 +4,14 @@ import {
   copilotOrganizationRequestStops,
   copilotRequestStops,
   copilotRuns,
+  member,
+  organization,
   uploadSession,
   user,
   workspace,
 } from '@sim/db/schema'
 import { and, asc, eq, isNull, sql } from 'drizzle-orm'
-import type { DbTransaction } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
 import { enqueueChatRescopeTx } from '@/lib/mothership/chat/rescope-event'
 import { createDefaultPersonalWorkspaceInTransaction } from '@/lib/workspaces/create'
@@ -24,17 +26,12 @@ export interface RehomedPersonalChats {
   rescopeEventIds: string[]
 }
 
-/**
- * The owner's personal workspace a retiring personal organization's chats move into: the oldest
- * live workspace they own in it (creation time, then id), or, when they own none, the default
- * workspace a first visit would create, made here in the same transaction.
- */
-async function destinationWorkspaceTx(
-  tx: DbTransaction,
+async function oldestOwnedWorkspaceId(
+  executor: DbOrTx,
   organizationId: string,
   userId: string
-): Promise<string> {
-  const [oldest] = await tx
+): Promise<string | null> {
+  const [oldest] = await executor
     .select({ id: workspace.id })
     .from(workspace)
     .where(
@@ -46,7 +43,21 @@ async function destinationWorkspaceTx(
     )
     .orderBy(asc(workspace.createdAt), asc(workspace.id))
     .limit(1)
-  if (oldest) return oldest.id
+  return oldest?.id ?? null
+}
+
+/**
+ * The owner's personal workspace a retiring personal organization's chats move into: the oldest
+ * live workspace they own in it (creation time, then id), or, when they own none, the default
+ * workspace a first visit would create, made here in the same transaction.
+ */
+async function destinationWorkspaceTx(
+  tx: DbTransaction,
+  organizationId: string,
+  userId: string
+): Promise<string> {
+  const oldest = await oldestOwnedWorkspaceId(tx, organizationId, userId)
+  if (oldest) return oldest
   const [owner] = await tx
     .select({ name: user.name })
     .from(user)
@@ -58,6 +69,34 @@ async function destinationWorkspaceTx(
     personalOrganizationId: organizationId,
   })
   return created.id
+}
+
+/**
+ * The existing workspace a join would move the user's personal-organization chats into, or null
+ * when they have no chats to move or the join would create the workspace. A join that sweeps the
+ * joiner's workspaces into a team leaves this one out: in the team, its chats would reach the
+ * team's data drains.
+ */
+export async function findPersonalChatDestinationWorkspaceId(
+  executor: DbOrTx,
+  userId: string
+): Promise<string | null> {
+  const [personal] = await executor
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(and(eq(member.userId, userId), eq(organization.kind, 'personal')))
+    .limit(1)
+  if (!personal) return null
+  const [anyChat] = await executor
+    .select({ id: copilotChats.id })
+    .from(copilotChats)
+    .where(
+      and(eq(copilotChats.organizationId, personal.organizationId), eq(copilotChats.userId, userId))
+    )
+    .limit(1)
+  if (!anyChat) return null
+  return oldestOwnedWorkspaceId(executor, personal.organizationId, userId)
 }
 
 /**

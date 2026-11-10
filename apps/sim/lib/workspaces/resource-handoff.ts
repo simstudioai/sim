@@ -12,9 +12,9 @@ import {
   workspaceFile,
   workspaceFiles,
 } from '@sim/db/schema'
-import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import { inheritsOrganizationAdmin } from '@/lib/organizations/team-only'
 import {
   handoffProjectsForWorkspaceDepartureTx,
   lockProjectsForResourceDepartureTx,
@@ -78,7 +78,7 @@ async function hasWorkspaceSuccessor(
       and(
         eq(member.organizationId, row.organizationId),
         eq(member.userId, successor),
-        inArray(member.role, ORG_ADMIN_ROLES)
+        inheritsOrganizationAdmin()
       )
     )
   const [membership] = await (hold ? membershipQuery.for('share') : membershipQuery)

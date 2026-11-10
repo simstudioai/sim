@@ -1662,7 +1662,7 @@ export async function issueEnterpriseProvisioning(
        * selected ones exactly as it attaches an owner's personal workspaces, and the rest stay
        * personal.
        */
-      await convertPersonalOrganizationToTeamTx(tx, {
+      const converted = await convertPersonalOrganizationToTeamTx(tx, {
         userId: input.ownerUserId,
         name: organizationToCreate.name,
         slug: slugifyOrganizationName(organizationToCreate.name, organizationToCreate.id),
@@ -1671,6 +1671,11 @@ export async function issueEnterpriseProvisioning(
           ? { type: 'user', userId: input.requestedByUserId }
           : { type: 'system', name: input.requestedByName ?? 'Admin Panel' },
       })
+      if (converted?.organizationId !== organizationToCreate.id) {
+        throw new EnterpriseProvisioningError(
+          "The selected user's personal organization changed while issuance was starting; retry the request"
+        )
+      }
     } else if (organizationToCreate) {
       const now = new Date()
       await tx.insert(organization).values({

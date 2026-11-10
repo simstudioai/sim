@@ -40,6 +40,8 @@ describe('mapLegacyWorkspaceUrl', () => {
       'upgrade?upgraded=true&session_id=cs_1',
       '/o/org-1/settings/billing/plans?upgraded=true&session_id=cs_1',
     ],
+    ['settings', '/o/org-1/settings/general'],
+    ['settings?tab=x', '/o/org-1/settings/general?tab=x'],
     ['settings/general', '/o/org-1/settings/general'],
     ['settings/subscription', '/o/org-1/settings/billing'],
     ['settings/team?tab=pending', '/o/org-1/settings/members?tab=pending'],

@@ -100,9 +100,6 @@ type WorkspaceSettingDefinition = (typeof WORKSPACE_SETTINGS)[number]['items'][n
 
 export type WorkspaceSettingsKey = WorkspaceSettingDefinition['key']
 
-/** Where `/workspace/[id]/settings` lands: the one section every member may open. */
-export const DEFAULT_WORKSPACE_SETTING: WorkspaceSettingsKey = 'teammates'
-
 const DEFINITIONS: readonly WorkspaceSettingDefinition[] = WORKSPACE_SETTINGS.flatMap(
   (group): readonly WorkspaceSettingDefinition[] => group.items
 )

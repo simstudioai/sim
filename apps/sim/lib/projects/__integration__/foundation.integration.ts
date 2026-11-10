@@ -707,6 +707,79 @@ describe('Project foundation at the database and application boundary', () => {
   )
 
   check(
+    "a personal organization's owner gets no inherited admin over another account's environments",
+    async () => {
+      const f = await fixture(true, 1)
+      const organizationId = f.organizationId
+      if (!organizationId) throw new Error('Missing organization fixture')
+      await db
+        .update(organization)
+        .set({ kind: 'personal' })
+        .where(eq(organization.id, organizationId))
+      const forkId = generateId()
+      const forkOnlyWorkspaceId = generateId()
+      const forkOnlyProjectId = await db.transaction(async (tx) => {
+        await tx.insert(workspace).values({
+          id: forkId,
+          projectId: f.projectId,
+          name: "Teammate's fork",
+          ownerId: f.teammateId,
+          billedAccountUserId: f.teammateId,
+          organizationId,
+          workspaceMode: 'personal',
+          forkedFromWorkspaceId: f.ids[0],
+        })
+        const id = await createProjectRecord(tx, {
+          name: "Teammate's own project",
+          organizationId,
+          ownerId: f.teammateId,
+        })
+        await tx.insert(workspace).values({
+          id: forkOnlyWorkspaceId,
+          projectId: id,
+          name: "Teammate's own project",
+          ownerId: f.teammateId,
+          billedAccountUserId: f.teammateId,
+          organizationId,
+          workspaceMode: 'personal',
+        })
+        await tx.insert(permissions).values(
+          [forkId, forkOnlyWorkspaceId].map((entityId) => ({
+            id: generateId(),
+            entityType: 'workspace',
+            entityId,
+            userId: f.teammateId,
+            permissionType: 'admin' as const,
+          }))
+        )
+        return id
+      })
+
+      const result = await getProject.execute({
+        principal: f.owner,
+        input: { projectId: f.projectId },
+        request,
+      })
+      expect(result.project.environments.map((row) => row.id)).toEqual([f.ids[0]])
+      expect(result.project.capabilities.administer).toBe(false)
+      await expect(
+        getWorkspaceProject.execute({
+          principal: f.owner,
+          input: { workspaceId: forkId },
+          request,
+        })
+      ).rejects.toMatchObject({ code: 'not_found' })
+      const listed = await listProjects.execute({
+        principal: f.owner,
+        input: { limit: 10, organizationId },
+        request,
+      })
+      expect(listed.projects.map((row) => row.id)).toEqual([f.projectId])
+      expect(listed.projects.map((row) => row.id)).not.toContain(forkOnlyProjectId)
+    }
+  )
+
+  check(
     'hides inaccessible environments and denies mismatched scopes and workspace keys',
     async () => {
       const f = await fixture()

@@ -172,6 +172,9 @@ describe('ensureOrganizationForTeamSubscription', () => {
       [],
       // no team membership
       [],
+      // the personal organization whose workspace locks come first, and its workspaces
+      [{ organizationId: 'org-personal' }],
+      [],
       // the buyer's personal organization
       [{ organizationId: 'org-personal' }],
       [{ name: 'Owner', email: 'owner@example.com' }],

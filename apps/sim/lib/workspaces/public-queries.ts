@@ -1,7 +1,8 @@
 import { db } from '@sim/db'
 import { member, permissions, user, workspace } from '@sim/db/schema'
-import { ORG_ADMIN_ROLES, type PermissionType } from '@sim/platform-authz/workspace'
+import type { PermissionType } from '@sim/platform-authz/workspace'
 import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm'
+import { inheritsOrganizationAdmin } from '@/lib/organizations/team-only'
 
 export interface PublicWorkspaceDetail {
   id: string
@@ -44,10 +45,6 @@ async function countWorkspaceMembers(
   const counts = new Map<string, number>()
   if (workspaceRows.length === 0) return counts
 
-  const orgAdminRoles = sql.join(
-    ORG_ADMIN_ROLES.map((role) => sql`${role}`),
-    sql`, `
-  )
   const targets = sql.join(
     workspaceRows.map(({ id, organizationId }) => sql`(${id}::text, ${organizationId}::text)`),
     sql`, `
@@ -67,7 +64,7 @@ async function countWorkspaceMembers(
       SELECT ${member.userId} AS user_id
       FROM ${member}
       WHERE ${member.organizationId} = targets.organization_id
-        AND ${member.role} IN (${orgAdminRoles})
+        AND ${inheritsOrganizationAdmin()}
     ) AS effective_members ON true
     GROUP BY targets.workspace_id
   `)
@@ -203,7 +200,7 @@ export async function queryPublicWorkspaceMembers(
         .where(
           and(
             eq(member.organizationId, workspaceRow.organizationId),
-            inArray(member.role, [...ORG_ADMIN_ROLES]),
+            inheritsOrganizationAdmin(),
             emailCursor
           )
         )

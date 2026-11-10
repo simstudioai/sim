@@ -17,6 +17,7 @@ import { isSharedCredentialType, requireOrdinaryCredentialType } from '@/lib/cre
 import type { CredentialAuthorizationContext } from '@/lib/credentials/application/authorized-credential-use-case'
 import type { CredentialRow } from '@/lib/credentials/queries'
 import type { DbTransaction } from '@/lib/db/types'
+import { inheritsOrganizationAdmin } from '@/lib/organizations/team-only'
 import {
   getEffectiveWorkspacePermission,
   getUserEntityPermissions,
@@ -134,7 +135,7 @@ export async function listCredentialMembersPage(
             and(
               eq(member.userId, user.id),
               eq(member.organizationId, context.workspaceOrganizationId),
-              inArray(member.role, ['owner', 'admin'])
+              inheritsOrganizationAdmin()
             )
           )
       )

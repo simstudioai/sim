@@ -16,13 +16,11 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockSetActiveOrganizationForCurrentSession,
-  mockCreateOrganizationForTeamPlan,
   mockEnsureOrganizationForTeamSubscription,
   mockAttachOwnedWorkspacesToOrganization,
   WorkspaceOrganizationMembershipConflictError,
 } = vi.hoisted(() => ({
   mockSetActiveOrganizationForCurrentSession: vi.fn().mockResolvedValue(undefined),
-  mockCreateOrganizationForTeamPlan: vi.fn(),
   mockEnsureOrganizationForTeamSubscription: vi.fn(),
   mockAttachOwnedWorkspacesToOrganization: vi.fn().mockResolvedValue(undefined),
   WorkspaceOrganizationMembershipConflictError: class WorkspaceOrganizationMembershipConflictError extends Error {},
@@ -35,11 +33,11 @@ vi.mock('@/lib/auth/active-organization', () => ({
 }))
 
 vi.mock('@/lib/billing/organization', () => ({
-  createOrganizationForTeamPlan: mockCreateOrganizationForTeamPlan,
   ensureOrganizationForTeamSubscription: mockEnsureOrganizationForTeamSubscription,
 }))
 
 vi.mock('@/lib/billing/organizations/create-organization', () => ({
+  OrganizationOwnerAlreadyInTeamError: class OrganizationOwnerAlreadyInTeamError extends Error {},
   OrganizationSlugInvalidError: class OrganizationSlugInvalidError extends Error {},
   OrganizationSlugTakenError: class OrganizationSlugTakenError extends Error {},
 }))
@@ -103,7 +101,6 @@ describe('POST /api/organizations', () => {
       includeArchived: true,
       actor: { type: 'user', userId: 'user-1' },
     })
-    expect(mockCreateOrganizationForTeamPlan).not.toHaveBeenCalled()
     expect(mockEnsureOrganizationForTeamSubscription).not.toHaveBeenCalled()
     expect(mockSetActiveOrganizationForCurrentSession).toHaveBeenCalledWith('legacy-org-id')
     expect(auditMock.recordAudit).not.toHaveBeenCalled()
@@ -134,7 +131,6 @@ describe('POST /api/organizations', () => {
         'You are already a member of an organization. Leave your current organization before creating a new one.',
     })
     expect(mockEnsureOrganizationForTeamSubscription).not.toHaveBeenCalled()
-    expect(mockCreateOrganizationForTeamPlan).not.toHaveBeenCalled()
     expect(mockAttachOwnedWorkspacesToOrganization).not.toHaveBeenCalled()
   })
 

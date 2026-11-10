@@ -52,12 +52,14 @@ const { inheritedEnv, worker } = await vi.hoisted(async () => {
   return { inheritedEnv, worker: Object.assign(worker, { server }) }
 })
 
+import type { AdminApiKeyPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   copilotChats,
   copilotMessages,
   copilotRequestStops,
   copilotRuns,
+  invitation,
   member,
   organization,
   outboxEvent,
@@ -79,9 +81,15 @@ import {
 import { closeRedisConnection } from '@/lib/core/config/redis'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { copilotChatsSource } from '@/lib/data-drains/sources/copilot-chats'
+import {
+  acceptInvitation,
+  getInvitationById,
+  getInvitationJoinPreview,
+} from '@/lib/invitations/core'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { CHAT_RESCOPE_EVENT, enqueueChatRescopeTx } from '@/lib/mothership/chat/rescope-event'
 import { chatRescopeOutboxHandlers } from '@/lib/mothership/chat/rescope-outbox'
+import { addAdminOrganizationMember } from '@/lib/organizations/application/admin-members'
 import {
   createPersonalOrganization,
   provisionPersonalOrganization,
@@ -535,5 +543,144 @@ describe('moving the worker’s copy of moved chats', () => {
     } finally {
       worker.rescopeStatus = 200
     }
+  })
+})
+
+/**
+ * The two join paths that sweep the joiner's personal workspaces into the team (the Admin API add
+ * and invitation acceptance) against the chat move: the workspace that holds the moved chats stays
+ * out of the team, or the team's data drain exports them; and an owner with chats but no workspace
+ * to hold them, whose workspace the join creates, can still be added.
+ */
+describe('a team join that sweeps the joiner’s workspaces', () => {
+  const adminPrincipal: AdminApiKeyPrincipal = { kind: 'admin_api_key' }
+
+  async function workspaceOrganization(workspaceId: string) {
+    const [row] = await db
+      .select({ organizationId: workspace.organizationId })
+      .from(workspace)
+      .where(eq(workspace.id, workspaceId))
+    return row?.organizationId ?? null
+  }
+
+  async function drainedChatIds(teamId: string) {
+    const drained: string[] = []
+    for await (const rows of copilotChatsSource.pages({
+      organizationId: teamId,
+      cursor: null,
+      chunkSize: 100,
+      signal: new AbortController().signal,
+    }))
+      drained.push(...rows.map((row) => row.id))
+    return drained
+  }
+
+  async function organizationInvitation(teamId: string, inviterId: string, email: string) {
+    const id = generateId()
+    const token = generateId()
+    await db.insert(invitation).values({
+      id,
+      kind: 'organization',
+      email,
+      inviterId,
+      organizationId: teamId,
+      role: 'member',
+      token,
+      expiresAt: new Date(Date.now() + 86_400_000),
+    })
+    return { id, token }
+  }
+
+  it('lets the Admin API add an owner whose chats need a workspace the join creates', async () => {
+    const userId = await createUser()
+    const personalId = await createPersonalOrganization(userId)
+    if (!personalId) throw new Error('expected a personal organization')
+    const { teamId } = await team()
+    const chatId = await organizationChat(userId, personalId)
+
+    const added = await addAdminOrganizationMember.execute({
+      principal: adminPrincipal,
+      input: { organizationId: teamId, userId, role: 'member' },
+    })
+
+    expect(added).toMatchObject({ action: 'created' })
+    const scope = await chatScope(chatId)
+    expect(scope.organizationId).toBeNull()
+    expect(await workspaceOrganization(scope.workspaceId ?? '')).toBeNull()
+    expect(await drainedChatIds(teamId)).not.toContain(chatId)
+  })
+
+  it('keeps the Admin API add from sweeping the workspace that holds the moved chats into the team', async () => {
+    const owner = await backfilledOwner()
+    const { teamId } = await team()
+    const chatId = await organizationChat(owner.userId, owner.organizationId)
+
+    await addAdminOrganizationMember.execute({
+      principal: adminPrincipal,
+      input: { organizationId: teamId, userId: owner.userId, role: 'member' },
+    })
+
+    expect(await chatScope(chatId)).toEqual({
+      workspaceId: owner.oldestWorkspaceId,
+      organizationId: null,
+    })
+    expect(await workspaceOrganization(owner.oldestWorkspaceId)).toBeNull()
+    expect(await workspaceOrganization(owner.newerWorkspaceId)).toBe(teamId)
+    expect(await drainedChatIds(teamId)).not.toContain(chatId)
+  })
+
+  it('keeps invitation acceptance from disclosing or sweeping the workspace that holds the moved chats', async () => {
+    const owner = await backfilledOwner()
+    const { teamId, teamOwnerId } = await team()
+    const chatId = await organizationChat(owner.userId, owner.organizationId)
+    const email = `${owner.userId}@personal-chats.test`
+    const sent = await organizationInvitation(teamId, teamOwnerId, email)
+    const inv = await getInvitationById(sent.id)
+    if (!inv) throw new Error('expected the invitation')
+
+    const preview = await getInvitationJoinPreview(owner.userId, inv)
+    expect(preview).toMatchObject({
+      outcome: 'will-join',
+      workspaceIdsToMove: [owner.newerWorkspaceId],
+    })
+
+    const accepted = await acceptInvitation({
+      userId: owner.userId,
+      userEmail: email,
+      invitationId: sent.id,
+      token: sent.token,
+      disclosedWorkspaceIds: preview.workspaceIdsToMove,
+      disclosedOutcome: preview.outcome,
+    })
+
+    expect(accepted).toMatchObject({ success: true })
+    expect(await chatScope(chatId)).toEqual({
+      workspaceId: owner.oldestWorkspaceId,
+      organizationId: null,
+    })
+    expect(await workspaceOrganization(owner.oldestWorkspaceId)).toBeNull()
+    expect(await workspaceOrganization(owner.newerWorkspaceId)).toBe(teamId)
+    expect(await drainedChatIds(teamId)).not.toContain(chatId)
+  })
+
+  it('lets invitation acceptance join an owner whose chats need a workspace the join creates', async () => {
+    const userId = await createUser()
+    const personalId = await createPersonalOrganization(userId)
+    if (!personalId) throw new Error('expected a personal organization')
+    const { teamId, teamOwnerId } = await team()
+    const chatId = await organizationChat(userId, personalId)
+    const email = `${userId}@personal-chats.test`
+    const sent = await organizationInvitation(teamId, teamOwnerId, email)
+
+    const accepted = await acceptInvitation({
+      userId,
+      userEmail: email,
+      invitationId: sent.id,
+      token: sent.token,
+    })
+
+    expect(accepted).toMatchObject({ success: true })
+    const scope = await chatScope(chatId)
+    expect(await workspaceOrganization(scope.workspaceId ?? '')).toBeNull()
   })
 })
