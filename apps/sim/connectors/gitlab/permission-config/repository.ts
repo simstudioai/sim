@@ -172,6 +172,7 @@ export function prepareGitLabPermissions(
   }
 }
 
+/** Keeps CSV rows in the private payload and stores only the configured project’s reader grants. */
 export function gitLabPermissionData(prepared: PreparedGitLabPermissions): ConnectorPermissionData {
   const {
     revision: _revision,

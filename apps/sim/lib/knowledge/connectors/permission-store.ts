@@ -9,6 +9,7 @@ import type { DbTransaction } from '@/lib/db/types'
 
 export type ConnectorPermissionSnapshot = typeof knowledgeConnectorPermissionSnapshot.$inferSelect
 
+/** A complete replacement. Metadata can be read without loading the private payload or subject grants. */
 export interface ConnectorPermissionData {
   metadata: Record<string, unknown>
   payload: Record<string, unknown>
