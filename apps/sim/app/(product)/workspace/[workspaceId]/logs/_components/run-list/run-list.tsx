@@ -86,7 +86,7 @@ interface RunListProps {
   read?: WorkspaceRead
   workspace: TabWorkspace
   /** The surface's single reference instant for start ages. */
-  referenceTime: number
+  referenceTime: number | null
   /** The runs the view's period, filters and sort select, in order, as far as they have been read. */
   runs: readonly RunSummary[]
   /** What the Trigger, Workflow and Folder filters offer; no folders leaves the Folder filter out. */
@@ -375,7 +375,7 @@ export function RunList({
 interface RunRowProps {
   run: RunSummary
   href: string
-  referenceTime: number
+  referenceTime: number | null
   /** Built when the menu opens, so a closed row builds none of its commands. */
   actions?: () => readonly MenuAction[]
 }

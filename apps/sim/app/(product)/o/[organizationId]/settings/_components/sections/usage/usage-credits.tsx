@@ -4,6 +4,7 @@ import { BarChart } from '@sim/emcn/chart/charts'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import styles from '@/app/(product)/o/[organizationId]/settings/_components/sections/usage/usage-section.module.css'
 import type { useUsageOverview } from '@/platform/lib/data/usage'
+import { LOCALE } from '@/platform/shared/time'
 
 /** Headline, allowance and the source-stacked credit chart for one window. */
 export function UsageCredits({
@@ -18,7 +19,7 @@ export function UsageCredits({
     <section className={styles.block} aria-label={label} data-dimmed={overview.dimmed || undefined}>
       <h2 data-type='T093'>{label}</h2>
       <div className={styles.figure}>
-        <span data-type='T102'>{chart.loaded ? chart.used.toLocaleString() : '—'}</span>
+        <span data-type='T102'>{chart.loaded ? chart.used.toLocaleString(LOCALE) : '—'}</span>
         <span className={styles.quiet} data-type='T060'>
           {chart.used === 1 ? 'credit' : 'credits'}
         </span>
@@ -29,7 +30,7 @@ export function UsageCredits({
       </div>
       {chart.limit !== null && (
         <span className={styles.quiet} data-type='T060'>
-          {`${chart.limitPercent}% of ${chart.limit.toLocaleString()}`}
+          {`${chart.limitPercent}% of ${chart.limit.toLocaleString(LOCALE)}`}
         </span>
       )}
       {overview.failed ? (

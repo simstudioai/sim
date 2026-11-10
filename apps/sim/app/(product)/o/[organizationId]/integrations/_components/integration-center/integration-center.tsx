@@ -33,6 +33,7 @@ import {
 } from '@/platform/lib/integrations/center-navigation'
 import { clearCredentialView } from '@/platform/lib/integrations/credential-navigation'
 import { platformHref } from '@/platform/lib/navigation'
+import { compareText } from '@/platform/shared/time'
 
 interface ResourceLibrary {
   data: IntegrationCenterData
@@ -126,7 +127,7 @@ export function IntegrationCenter({
   const currentHref = destinations[tabs.findIndex((tab) => tab.id === current)]?.href ?? pathname
   const term = view.q.trim().toLowerCase()
   const compare = (a: { name: string }, b: { name: string }) =>
-    (view.order === 'asc' ? 1 : -1) * a.name.localeCompare(b.name)
+    (view.order === 'asc' ? 1 : -1) * compareText(a.name, b.name)
   const categories = [...new Set(apps.map((app) => app.category))].sort()
   const visibleApps = apps
     .filter(

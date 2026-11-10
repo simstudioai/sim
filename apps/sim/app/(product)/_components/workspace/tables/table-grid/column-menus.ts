@@ -1,5 +1,6 @@
 import type { MenuAction } from '@sim/emcn/menu/action-menu'
 import type { SortDirection } from '@/platform/lib/data/tables'
+import { LOCALE } from '@/platform/shared/time'
 
 /** Row-cap presets for the "Run N empty rows" shortcuts, shared by both run menus. */
 const LIMITED_RUN_PRESETS = [10, 1000] as const
@@ -13,7 +14,7 @@ function runMenuLabels(hasActiveFilter: boolean) {
   return {
     all: `Run all ${rows}`,
     incomplete: `Run empty ${rows}`,
-    limited: (max: number) => `Run ${max.toLocaleString()} empty ${rows}`,
+    limited: (max: number) => `Run ${max.toLocaleString(LOCALE)} empty ${rows}`,
   }
 }
 
@@ -229,7 +230,7 @@ export function cellMenuActions({
   onDuplicate,
   onDelete,
 }: CellMenuOptions): MenuAction[] {
-  const count = selectedRowCount.toLocaleString()
+  const count = selectedRowCount.toLocaleString(LOCALE)
   const many = selectedRowCount > 1
   const runLabel = workflowCellScoped
     ? many
@@ -255,7 +256,7 @@ export function cellMenuActions({
       label: onAddToChat.cellScoped
         ? 'Add cell range to Chat'
         : onAddToChat.rowCount > 1
-          ? `Add ${onAddToChat.rowCount.toLocaleString()} rows to Chat`
+          ? `Add ${onAddToChat.rowCount.toLocaleString(LOCALE)} rows to Chat`
           : 'Add row to Chat',
       icon: 'I073',
       onSelect: onAddToChat.onSelect,

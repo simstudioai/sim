@@ -5,6 +5,7 @@ import { TextField } from '@sim/emcn/field'
 import { Modal } from '@sim/emcn/modal'
 import { FailureNotice } from '@sim/emcn/status'
 import { useMemberCredits } from '@/platform/lib/data/members'
+import { LOCALE } from '@/platform/shared/time'
 
 export interface CreditsTarget {
   userId: string
@@ -55,7 +56,7 @@ export function ManageCreditsModal({ member, onClose }: ManageCreditsModalProps)
                 ? `Credits used this ${usage.billingInterval === 'year' ? 'year' : 'month'}`
                 : 'Credits used'
             }
-            value={usage?.creditsUsed.toLocaleString() ?? ''}
+            value={usage?.creditsUsed.toLocaleString(LOCALE) ?? ''}
             readOnly
           />
           <TextField

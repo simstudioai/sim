@@ -31,10 +31,7 @@ import {
   noResults,
   sortActions,
 } from '@/app/(product)/_components/workspace/resource-table/list-menus'
-import {
-  RenameDialog,
-  useMinuteClock,
-} from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
+import { RenameDialog } from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
 import {
   type ResourceColumn,
   type ResourceRow,
@@ -58,6 +55,7 @@ import {
   useWorkflowListOperations,
   workflowEditorPath,
 } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/workflows-route/operations'
+import { useMinuteClock } from '@/hooks/use-minute-clock'
 import {
   type ResourceFolder,
   SEARCH_DEBOUNCE_MS,

@@ -62,6 +62,7 @@ import {
   useUrlSort,
 } from '@/platform/lib/data/knowledge'
 import { folderChain } from '@/platform/lib/folder-chain'
+import { LOCALE } from '@/platform/shared/time'
 
 /** Chunk search feels snappier than the shared window, as it does on the legacy page. */
 const SEARCH_DEBOUNCE_MS = 200
@@ -114,7 +115,7 @@ function preview(content: string, query: string) {
 }
 
 function chunks(count: number) {
-  return `${count.toLocaleString()} chunk${count === 1 ? '' : 's'}`
+  return `${count.toLocaleString(LOCALE)} chunk${count === 1 ? '' : 's'}`
 }
 
 interface DocumentViewProps {
@@ -402,8 +403,8 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
       id: 'toggle',
       label: multiple
         ? disabledCount > 0
-          ? `Enable ${disabledCount.toLocaleString()} items`
-          : `Disable ${enabledCount.toLocaleString()} items`
+          ? `Enable ${disabledCount.toLocaleString(LOCALE)} items`
+          : `Disable ${enabledCount.toLocaleString(LOCALE)} items`
         : target.enabled
           ? 'Disable'
           : 'Enable',
@@ -424,7 +425,7 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
     })
     actions.push({
       id: 'delete',
-      label: multiple ? `Delete ${selected.size.toLocaleString()} items` : 'Delete',
+      label: multiple ? `Delete ${selected.size.toLocaleString(LOCALE)} items` : 'Delete',
       destructive: true,
       separatorBefore: true,
       disabled: !editable,

@@ -24,6 +24,7 @@ import {
   type LargeArrayManifest,
   type LargeValueRef,
 } from '@/platform/lib/data/workflow-deploy/terminal'
+import { LOCALE } from '@/platform/shared/time'
 
 type ValueType = 'null' | 'undefined' | 'array' | 'string' | 'number' | 'boolean' | 'object'
 
@@ -62,7 +63,10 @@ function getLargeArrayManifestDisplayValue(manifest: LargeArrayManifest): unknow
   const preview = manifest.preview
   if (manifest.totalCount <= preview.length) return preview
   const remaining = manifest.totalCount - preview.length
-  return [...preview, `[... ${remaining.toLocaleString()} more item${remaining === 1 ? '' : 's'}]`]
+  return [
+    ...preview,
+    `[... ${remaining.toLocaleString(LOCALE)} more item${remaining === 1 ? '' : 's'}]`,
+  ]
 }
 
 function getDisplayValue(value: unknown): unknown {

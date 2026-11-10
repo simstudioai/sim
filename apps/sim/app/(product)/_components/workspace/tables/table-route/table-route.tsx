@@ -93,6 +93,7 @@ import {
 import { folderChain } from '@/platform/lib/folder-chain'
 import { platformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
+import { LOCALE } from '@/platform/shared/time'
 
 /** Blocked-action notices carry a button, so they linger past the default. */
 const BLOCKED_TOAST_MS = 8000
@@ -1045,7 +1046,7 @@ export function TableRoute({ workspaceId, tableId }: TableRouteProps) {
         onClose={() => setDeletingAll(null)}
         title='Delete rows'
         description={(target) =>
-          `Delete ${target.estimatedCount.toLocaleString()} ${
+          `Delete ${target.estimatedCount.toLocaleString(LOCALE)} ${
             target.estimatedCount === 1 ? 'row' : 'rows'
           }${effectiveFilter ? ' matching the current filter' : ''}? This can't be undone.`
         }

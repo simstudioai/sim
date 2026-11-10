@@ -26,6 +26,7 @@ import { useInterfacePreferences } from '@/app/(product)/_components/session/int
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
+import { LOCALE } from '@/platform/shared/time'
 
 export interface ComposerOptions extends Partial<ComposerInventory> {
   draftKey: string
@@ -105,7 +106,7 @@ function useMemoryComposer({
         id: generateId(),
         kind: 'text',
         name: 'Pasted text',
-        metadata: `${value.length.toLocaleString()} characters`,
+        metadata: `${value.length.toLocaleString(LOCALE)} characters`,
         content: value,
       }
       updateDraft((current) => ({ ...current, attachments: [...current.attachments, pasted] }))

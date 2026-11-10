@@ -11,7 +11,6 @@ import { toast } from '@/lib/toast/sink'
 import { usePageCommands } from '@/app/(product)/_components/command-menu/page-commands'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
 import { sortActions } from '@/app/(product)/_components/workspace/resource-table/list-menus'
-import { useMinuteClock } from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
 import {
   OwnerCell,
   type ResourceColumn,
@@ -24,6 +23,7 @@ import {
 } from '@/app/(product)/_components/workspace/workspace-page/workspace-page'
 import type { WorkspaceRead } from '@/app/(product)/_components/workspace/workspace-session/model'
 import { TestStatus } from '@/app/(product)/workspace/[workspaceId]/tests/_components/test-status/test-status'
+import { useMinuteClock } from '@/hooks/use-minute-clock'
 import {
   SEARCH_DEBOUNCE_MS,
   useDebouncedSearchSetter,
@@ -41,7 +41,7 @@ import {
   type WorkflowTestRecord,
 } from '@/platform/lib/data/workflow-tests'
 import { platformHref } from '@/platform/lib/navigation'
-import { formatRelativeTime } from '@/platform/shared/time'
+import { formatRelativeTime, LOCALE } from '@/platform/shared/time'
 
 const EMPTY_TESTS: WorkflowTestRecord[] = []
 
@@ -142,7 +142,7 @@ export function TestList({ workspaceId }: TestListProps) {
       ),
       cells: {
         status: <TestStatus status={test.status} />,
-        cases: test.caseCount.toLocaleString(),
+        cases: test.caseCount.toLocaleString(LOCALE),
         owner: owner && <OwnerCell name={owner.name} image={owner.image} />,
         lastRun: ranAt && formatRelativeTime(Date.parse(ranAt), now),
         updated: formatRelativeTime(Date.parse(test.updatedAt), now),

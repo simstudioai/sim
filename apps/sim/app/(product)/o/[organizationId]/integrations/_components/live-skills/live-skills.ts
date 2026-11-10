@@ -8,6 +8,7 @@ import {
   serializeIntegrationsPage,
 } from '@/platform/lib/integrations/center-navigation'
 import { platformHref } from '@/platform/lib/navigation'
+import { compareText } from '@/platform/shared/time'
 
 /**
  * The live Skills tab's rows and the skill it opens. Skills belong to a workspace, so the tab lists
@@ -35,7 +36,7 @@ export function useLiveSkills(pageWorkspaceId?: string) {
   const term = view.q.trim().toLowerCase()
   const rows = (listed ?? [])
     .filter((skill) => `${skill.name} ${skill.description}`.toLowerCase().includes(term))
-    .sort((a, b) => (view.order === 'asc' ? 1 : -1) * a.name.localeCompare(b.name))
+    .sort((a, b) => (view.order === 'asc' ? 1 : -1) * compareText(a.name, b.name))
     .map((skill) => ({
       id: skill.id,
       name: skill.name,

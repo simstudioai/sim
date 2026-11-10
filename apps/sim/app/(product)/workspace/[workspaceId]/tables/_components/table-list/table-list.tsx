@@ -40,10 +40,7 @@ import {
   noResults,
   sortActions,
 } from '@/app/(product)/_components/workspace/resource-table/list-menus'
-import {
-  RenameDialog,
-  useMinuteClock,
-} from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
+import { RenameDialog } from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
 import {
   OwnerCell,
   type ResourceColumn,
@@ -60,6 +57,7 @@ import {
   WorkspaceEmpty,
 } from '@/app/(product)/_components/workspace/workspace-page/workspace-page'
 import type { WorkspaceRead } from '@/app/(product)/_components/workspace/workspace-session/model'
+import { useMinuteClock } from '@/hooks/use-minute-clock'
 import {
   type ResourceFolder,
   SEARCH_DEBOUNCE_MS,
@@ -95,7 +93,7 @@ import {
   useWorkspaceTablesRoom,
 } from '@/platform/lib/data/tables'
 import { platformHref } from '@/platform/lib/navigation'
-import { formatRelativeTime } from '@/platform/shared/time'
+import { formatRelativeTime, LOCALE } from '@/platform/shared/time'
 
 const ROOT_LABEL = 'Tables'
 const ROW_MIME = 'application/x-sim-workspace-table-rows'
@@ -623,8 +621,8 @@ export function TableList({ workspaceId }: TableListProps) {
       pinned: pinnedTables.has(table.id),
       href: tableHref(table.id),
       cells: {
-        columns: table.schema.columns.length.toLocaleString(),
-        rows: table.rowCount.toLocaleString(),
+        columns: table.schema.columns.length.toLocaleString(LOCALE),
+        rows: table.rowCount.toLocaleString(LOCALE),
         created: formatRelativeTime(timeOf(table.createdAt), now),
         owner: owner && <OwnerCell name={owner.name} image={owner.image} />,
         updated: formatRelativeTime(timeOf(table.updatedAt), now),
@@ -874,7 +872,7 @@ export function TableList({ workspaceId }: TableListProps) {
         }
         description={(target) =>
           target.kind === 'table'
-            ? `Are you sure you want to delete ${target.table.name}? All ${target.table.rowCount.toLocaleString()} rows will be removed. You can restore it from Recently Deleted in Settings.`
+            ? `Are you sure you want to delete ${target.table.name}? All ${target.table.rowCount.toLocaleString(LOCALE)} rows will be removed. You can restore it from Recently Deleted in Settings.`
             : target.kind === 'folder'
               ? `Are you sure you want to delete ${target.folder.name}? Every table and subfolder inside it will be deleted too. You can restore those tables from Recently Deleted in Settings.`
               : `Are you sure you want to delete ${target.name}? ${

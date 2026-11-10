@@ -45,6 +45,7 @@ import {
   validateEnvVarKey,
 } from '@/platform/lib/data/secrets'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
+import { LOCALE } from '@/platform/shared/time'
 
 const MAX_ENV_PASTE_ROWS = 10_000
 /** A pending create request older than this came from a tab the viewer has moved on from. */
@@ -486,7 +487,7 @@ export function SecretsEditor({
     if (countPasteRows(text, MAX_ENV_PASTE_ROWS) > MAX_ENV_PASTE_ROWS) {
       event.preventDefault()
       toast.warning('Paste has too many secrets', {
-        description: `Add up to ${MAX_ENV_PASTE_ROWS.toLocaleString()} rows at once.`,
+        description: `Add up to ${MAX_ENV_PASTE_ROWS.toLocaleString(LOCALE)} rows at once.`,
       })
       return null
     }

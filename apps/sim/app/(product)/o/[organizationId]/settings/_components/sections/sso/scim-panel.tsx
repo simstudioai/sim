@@ -19,6 +19,7 @@ import {
   SectionStack,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { GroupMappings } from '@/app/(product)/o/[organizationId]/settings/_components/sections/sso/group-mappings'
+import { useMinuteClock } from '@/hooks/use-minute-clock'
 import {
   CREDENTIAL_EXPIRY_OPTIONS,
   type CredentialExpiry,
@@ -38,7 +39,7 @@ import {
 import { plural } from '@/platform/shared/plural'
 import { formatCalendarDate, formatRelativeTime } from '@/platform/shared/time'
 
-function formatInstant(iso: string | null, now: number): string {
+function formatInstant(iso: string | null, now: number | null): string {
   return iso ? formatRelativeTime(new Date(iso).getTime(), now) : 'never'
 }
 
@@ -51,6 +52,7 @@ function ActivityList({ organizationId, active }: { organizationId: string; acti
     organizationId,
     active
   )
+  const now = useMinuteClock()
   if (isLoading) return null
   if (data === undefined && isError) {
     return (
@@ -62,7 +64,6 @@ function ActivityList({ organizationId, active }: { organizationId: string; acti
     )
   }
   if (!data || data.length === 0) return <Muted>No requests yet.</Muted>
-  const now = Date.now()
   return (
     <>
       {data.map((entry) => {
@@ -96,6 +97,7 @@ function ConnectionDetails({ organizationId, active, connection }: ConnectionDet
   const issueCredential = useIssueScimCredential()
   const revokeCredential = useRevokeScimCredential()
   const reconcile = useReconcileScimConnection()
+  const now = useMinuteClock()
   const [showRules, setShowRules] = useState(false)
   /** The one moment the token exists outside its digest. Held only in this state, never persisted. */
   const [issuedSecret, setIssuedSecret] = useState<string | null>(null)
@@ -149,7 +151,6 @@ function ConnectionDetails({ organizationId, active, connection }: ConnectionDet
     }
   }
 
-  const now = Date.now()
   return (
     <>
       <SettingsSection title='Connection'>

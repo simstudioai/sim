@@ -12,6 +12,7 @@ import { ProfileUnavailable } from '@/app/(product)/o/[organizationId]/people/_c
 import styles from '@/app/(product)/o/[organizationId]/people/_components/person/person.module.css'
 import { PersonModal } from '@/app/(product)/o/[organizationId]/people/_components/person/person-modal'
 import { PersonIdentity } from '@/app/(product)/o/[organizationId]/people/_components/person-identity/person-identity'
+import { useMinuteClock } from '@/hooks/use-minute-clock'
 import { usePeoplePath, usePeopleViewer, usePersonProfile } from '@/platform/lib/data/people'
 import {
   type Person,
@@ -24,10 +25,14 @@ import { formatCalendarDate } from '@/platform/shared/time'
 
 const NOT_PROVIDED = 'Not provided'
 
-/** `2024-01-31` as a calendar day, with how long ago it was: "Jan 31, 2024 · 2 yrs". */
-function describeStartDate(startDate: string): string {
+/**
+ * `2024-01-31` as a calendar day, with how long ago it was: "Jan 31, 2024 · 2 yrs". The tenure waits
+ * for the viewer's clock (`nowMs`).
+ */
+function describeStartDate(startDate: string, nowMs: number | null): string {
+  if (nowMs === null) return formatCalendarDate(startDate, 'full')
   const start = new Date(`${startDate}T00:00:00Z`)
-  const now = new Date()
+  const now = new Date(nowMs)
   const months =
     (now.getUTCFullYear() - start.getUTCFullYear()) * 12 +
     now.getUTCMonth() -
@@ -50,6 +55,7 @@ interface AboutProps {
 }
 
 function About({ person, departmentHref }: AboutProps) {
+  const now = useMinuteClock()
   const facts: { label: string; value: string; href?: string }[] = [
     { label: 'Email', value: person.email, href: `mailto:${person.email}` },
     {
@@ -60,7 +66,7 @@ function About({ person, departmentHref }: AboutProps) {
     { label: 'Location', value: person.location ?? NOT_PROVIDED },
     {
       label: 'Start date',
-      value: person.startDate ? describeStartDate(person.startDate) : NOT_PROVIDED,
+      value: person.startDate ? describeStartDate(person.startDate, now) : NOT_PROVIDED,
     },
   ]
   return (

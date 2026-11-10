@@ -11,6 +11,7 @@ import {
   ResourceList,
   SectionToolbar,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { useMinuteClock } from '@/hooks/use-minute-clock'
 import {
   INBOX_STATUS_FILTERS,
   type InboxTaskItem,
@@ -73,7 +74,7 @@ export function InboxTaskList({ workspaceId, address }: InboxTaskListProps) {
   const scope = useSurfaceScope()
   const filters = useInboxTaskFilters()
   const tasks = useInboxTasks(workspaceId, { status: filters.status })
-  const now = Date.now()
+  const now = useMinuteClock()
 
   const term = filters.search.trim().toLowerCase()
   const filtered = (tasks.data?.tasks ?? []).filter(
