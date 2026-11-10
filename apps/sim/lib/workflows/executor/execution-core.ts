@@ -686,6 +686,10 @@ async function executeWorkflowCoreImpl(
   if (resumeFromSnapshot && !useDraftState && !resumeDeploymentVersionId) {
     throw new Error('Deployed resume requires its admitted deployment version')
   }
+  const pinnedDeploymentVersionId = metadata.pinnedDeploymentVersionId
+  if (pinnedDeploymentVersionId && (useDraftState || metadata.workflowStateOverride)) {
+    throw new Error('A pinned deployment version cannot run draft or overridden workflow state')
+  }
 
   let processedInput = input || {}
   let deploymentVersionId: string | undefined
@@ -740,6 +744,22 @@ async function executeWorkflowCoreImpl(
           loops: deployedData.loops,
           parallels: deployedData.parallels,
           deploymentVersionId: deployedData.deploymentVersionId,
+        }
+      }
+
+      if (pinnedDeploymentVersionId) {
+        const pinnedData = await loadWorkflowDeploymentVersionState(
+          workflowId,
+          pinnedDeploymentVersionId,
+          providedWorkspaceId
+        )
+        logger.info('Using pinned deployment version state', { requestId })
+        return {
+          blocks: pinnedData.blocks,
+          edges: pinnedData.edges,
+          loops: pinnedData.loops,
+          parallels: pinnedData.parallels,
+          deploymentVersionId: pinnedData.deploymentVersionId,
         }
       }
 
