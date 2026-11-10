@@ -8,7 +8,7 @@ import { SearchField } from '@sim/emcn/search-field'
 import { DestinationTabs } from '@sim/emcn-platform/destination-tabs'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useQueryStates } from 'nuqs'
+import { type Nullable, useQueryStates } from 'nuqs'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
 import { DirectoryBack } from '@/app/(product)/_components/resource-directory/resource-directory'
 import styles from '@/app/(product)/o/[organizationId]/integrations/_components/integration-center/integration-center.module.css'
@@ -109,7 +109,7 @@ export function IntegrationCenter({
       )
   const current: IntegrationTab = tabs.some((tab) => tab.id === view.tab) ? view.tab : 'apps'
   const base = platformHref(pathname, search)
-  const linkTo = (change: Partial<typeof view>) =>
+  const linkTo = (change: Partial<Nullable<typeof view>>) =>
     serializeIntegrationsPage(base, { ...view, ...change })
   const destinations = tabs.map((tab) => ({
     label: tab.label,
