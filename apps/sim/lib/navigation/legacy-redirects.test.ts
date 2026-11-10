@@ -66,6 +66,17 @@ describe('mapLegacyWorkspaceUrl', () => {
     expect(map(path)).toBe(expected)
   })
 
+  it('encodes each decoded id exactly once', () => {
+    expect(
+      mapLegacyWorkspaceUrl({
+        workspaceId: 'ws-1',
+        segments: ['chat', 'a/b c'],
+        query: new URLSearchParams(),
+        organizationId: 'org-1',
+      })
+    ).toBe('/o/org-1/chat/a%2Fb%20c')
+  })
+
   it.each(['home', 'chat/chat-1', 'skills', 'integrations', 'upgrade', 'settings/general'])(
     'gives a viewer who cannot open the workspace no destination for %s',
     (path) => {

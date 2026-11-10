@@ -1,5 +1,7 @@
 import { EmptyState } from '@sim/emcn/empty-state'
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
+import { decodePathSegments } from '@/lib/navigation/paths'
 import { SettingsLeaveGuard } from '@/app/(product)/_components/session-state/settings-leave-guard'
 import { LiveSettingsRoute } from '@/app/(product)/o/[organizationId]/settings/_components/live-settings/live-settings-route'
 import { SettingsScreen } from '@/app/(product)/o/[organizationId]/settings/_components/settings-screen/settings-screen'
@@ -19,7 +21,9 @@ export default async function Page({
   searchParams,
   params,
 }: ProductPageProps<{ organizationId: string; section?: string[] }>) {
-  const [query, { section: path = [] }] = await Promise.all([searchParams, params])
+  const [query, { section: encodedPath = [] }] = await Promise.all([searchParams, params])
+  const path = decodePathSegments(encodedPath)
+  if (!path) notFound()
   // Inlined at build time, so a normal build carries neither this branch nor the example data.
   if (process.env.SIM_PLATFORM_FIXTURES === '1') {
     const { loadSettingsFixture } = await import('@/platform/fixtures')
