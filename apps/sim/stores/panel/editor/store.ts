@@ -7,6 +7,7 @@ import type {
   WorkflowSearchTarget,
   WorkflowSearchValuePath,
 } from '@/lib/workflows/search-replace/types'
+import { useVariablesModalStore } from '@/stores/modals/variables/store'
 import { usePanelStore } from '../store'
 
 let renameCallback: (() => void) | null = null
@@ -100,6 +101,8 @@ export const usePanelEditorStore = create<PanelEditorState>()(
         set({ currentBlockId: blockId })
         if (blockId !== null) {
           usePanelStore.getState().setActiveTab('editor')
+          /* The Variables tab covers the editor, even when this block was already the current one. */
+          useVariablesModalStore.getState().setIsOpen(false)
         }
       },
       clearCurrentBlock: () => {
