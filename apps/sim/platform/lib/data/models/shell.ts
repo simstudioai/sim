@@ -31,6 +31,8 @@ export interface ShellWorkspace {
   workflows?: readonly { id: string; name: string; folder?: string }[]
   permissions?: 'admin' | 'write' | 'read' | null
   isPinned?: boolean
+  /** The viewer may leave: they neither own the workspace nor hold it as an organization admin. */
+  canLeave?: boolean
 }
 
 export interface ShellChat extends ShellItem {
@@ -116,6 +118,8 @@ export interface ShellWorkspaceActions {
   /** Resolves with where the new workspace opens. */
   create?: (name: string) => Promise<string>
   rename?: (id: string, name: string) => Promise<void>
+  /** Removes the viewer from the workspace. */
+  leave?: (id: string) => Promise<void>
   setPinned: (id: string, pinned: boolean) => void
   retry?: () => void
 }
