@@ -184,7 +184,7 @@ Crawl entire websites and extract structured content from all accessible pages
 | --------- | ---- | -------- | ----------- |
 | `url` | string | Yes | The website URL to crawl \(e.g., "https://example.com" or "https://docs.example.com/guide") |
 | `limit` | number | No | Maximum number of pages to crawl \(e.g., 50, 100, 500\). Default: 100 |
-| `maxDepth` | number | No | Maximum depth to crawl from the starting URL \(e.g., 1, 2, 3\). Controls how many levels deep to follow links |
+| `maxDepth` | number | No | Maximum URL path depth \(e.g., 1 allows /docs and /docs/index.html\). Independent of link discovery depth |
 | `formats` | json | No | Output formats for scraped content \(e.g., \["markdown"\], \["markdown", "html"\], \["markdown", "links"\]\) |
 | `prompt` | string | No | Natural-language crawl guidance supplied by existing configurations |
 | `excludePaths` | json | No | URL paths to exclude from crawling \(e.g., \["/blog/*", "/admin/*", "/*.pdf"\]\) |
