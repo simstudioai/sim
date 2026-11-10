@@ -1,9 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from '@sim/emcn-legacy'
-import { useQueries, useQueryClient } from '@tanstack/react-query'
-import { flushSync } from 'react-dom'
+import { useQueries } from '@tanstack/react-query'
 import { usePromptEditor } from '@/components/mothership-chat/user-input/components/prompt-editor'
 import { organizationSkillOptions } from '@/components/mothership-chat/user-input/components/skills-menu-dropdown/organization-skill-options'
 import { usePromptHistory } from '@/components/mothership-chat/user-input/hooks/use-prompt-history'
@@ -13,8 +12,7 @@ import { UNAVAILABLE_CONTEXT_NOTICE } from '@/lib/mothership/chat/context'
 import type { ChatMessage, ChatRequestMode } from '@/lib/mothership/chat/types'
 import { useOrganization } from '@/lib/organizations/provider'
 import { getSkillsQueryOptions } from '@/hooks/queries/skills'
-import { useWorkspaceListOrganizationId } from '@/hooks/queries/utils/workspace-list-organization'
-import { fetchWorkspacesList, useWorkspacesQuery } from '@/hooks/queries/workspace'
+import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
 import type {
   PendingComposerSubmission,
@@ -24,7 +22,7 @@ import { useVoiceInput } from '@/hooks/use-voice-input'
 import { readDraft, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext } from '@/stores/panel'
 
-/** What a conversation hands whichever composer view its surface draws. */
+/** What the conversation hands the panel's composer. */
 export interface ConversationComposerProps {
   requestMode: ChatRequestMode
   onPlanChange?: () => void
@@ -32,8 +30,6 @@ export interface ConversationComposerProps {
   draftKeys: readonly string[]
   files: ReturnType<typeof useFileAttachments>
   submission: ReturnType<typeof useComposerSubmission>
-  /** On the empty home the placeholder types itself and the field is taller; in a chat it is the plain footer input. */
-  isInitialView: boolean
   isSending: boolean
   restoredContexts: ChatContext[]
   onSubmit: (
@@ -45,37 +41,13 @@ export interface ConversationComposerProps {
 }
 
 interface UseComposerOptions extends ConversationComposerProps {
-  /** The full page loads lists on intent and holds a `/name` until they land; the panel loads them on open and never holds. */
-  waitsForFullLists: boolean
   /** Attachments the view shows itself, which count as something to send. */
   hasAdditionalAttachments?: boolean
 }
 
-/** A `/` starting a token: typed, pasted, or carried in by a draft, all of which skills can chip. */
-const SLASH_TOKEN = /(^|\s)\//
 /**
- * How long a send waits on the skill lists. The request layer sets no deadline, so this is the only
- * bound on a list that never lands, and the message waits in the field when it passes.
- */
-const SKILL_LISTS_WAIT_MS = 10_000
-
-/** A send waiting for the skill lists, so a `/name` in it is not sent as plain text. */
-interface HeldSend {
-  text: string
-  /** Editing the text aborts this, ending the wait. */
-  cancel: AbortController
-}
-
-function whenAborted(signal: AbortSignal) {
-  return new Promise<void>((resolve) => {
-    signal.addEventListener('abort', () => resolve(), { once: true })
-  })
-}
-
-/**
- * The organization composer's behavior: editing, draft sync, voice, the skill lists, and submission.
- * Its two views draw it, the extension's panel and the page's. This module stays free of the design
- * system so the extension can bundle it.
+ * The organization composer's behavior in the extension's side panel: editing, draft sync, voice, the
+ * skill lists, and submission. The skill lists load on open, so a send never waits on them.
  */
 export function useComposer({
   requestMode,
@@ -85,33 +57,20 @@ export function useComposer({
   restoredContexts,
   onSubmit,
   messages,
-  waitsForFullLists,
   hasAdditionalAttachments = false,
 }: UseComposerOptions) {
   const [draftKey] = draftKeys
   const value = useMothershipDraftsStore((state) => readDraft(state.drafts, draftKeys)?.text ?? '')
   const imagesOnly = requestMode === 'assistant'
   const { organization } = useOrganization()
-  const queryClient = useQueryClient()
-  const listOrganizationId = useWorkspaceListOrganizationId()
-  const { data: allWorkspaces = [], isPending: workspacesPending } = useWorkspacesQuery(!imagesOnly)
-  const waitsForLists = waitsForFullLists && !imagesOnly
+  const { data: allWorkspaces = [] } = useWorkspacesQuery(!imagesOnly)
   const workspaces = (imagesOnly ? [] : allWorkspaces).filter(
     (workspace) => workspace.organizationId === organization.id
   )
   // The field takes focus on load, so focus alone says nothing about wanting these per-workspace lists.
   const [resourceIntent, setResourceIntent] = useState(false)
-  const [heldSend, setHeldSend] = useState<HeldSend | null>(null)
-  /** The text the viewer was told would go out unchipped if they sent it again. */
-  const [declinedWaitText, setDeclinedWaitText] = useState<string | null>(null)
-  if (declinedWaitText !== null && value !== declinedWaitText) setDeclinedWaitText(null)
-  const skillsWanted =
-    !waitsForFullLists || resourceIntent || heldSend !== null || SLASH_TOKEN.test(value)
   const skillQueries = useQueries({
-    queries: workspaces.map((workspace) => ({
-      ...getSkillsQueryOptions(workspace.id),
-      enabled: skillsWanted,
-    })),
+    queries: workspaces.map((workspace) => getSkillsQueryOptions(workspace.id)),
   })
   const skills = imagesOnly
     ? []
@@ -121,13 +80,9 @@ export function useComposer({
           skills: skillQueries[index].isPlaceholderData ? [] : (skillQueries[index].data ?? []),
         }))
       )
-  const skillListsPending =
-    (waitsForLists && workspacesPending) || skillQueries.some((query) => query.isPending)
   const editor = usePromptEditor({
     workspaceId: '',
     availableSkills: skills,
-    skillsLoading: waitsForFullLists && skillsWanted && skillListsPending,
-    waitsForFullResources: waitsForLists,
     resourceIntent,
     onResourceIntent: () => setResourceIntent(true),
     organizationId: organization.id,
@@ -202,62 +157,6 @@ export function useComposer({
     )
   }
 
-  /** A continuation resumes after renders it did not see, so it sends through the latest closure. */
-  const sendRef = useRef(send)
-  sendRef.current = send
-
-  const settleSkillLists = async () => {
-    const pendingIds = workspacesPending
-      ? (await fetchWorkspacesList(queryClient, listOrganizationId))
-          .filter((workspace) => workspace.organizationId === organization.id)
-          .map((workspace) => workspace.id)
-      : workspaces.flatMap((workspace, index) =>
-          skillQueries[index].isPending ? [workspace.id] : []
-        )
-    const results = await Promise.allSettled(
-      pendingIds.map((id) => queryClient.fetchQuery(getSkillsQueryOptions(id)))
-    )
-    return results.every((result) => result.status === 'fulfilled')
-  }
-
-  const holdSend = async (text: string) => {
-    const cancel = new AbortController()
-    setHeldSend({ text, cancel })
-    const timeout = AbortSignal.timeout(SKILL_LISTS_WAIT_MS)
-    const allLanded = await Promise.race([
-      settleSkillLists().catch(() => false),
-      whenAborted(timeout).then(() => false),
-      whenAborted(cancel.signal).then(() => false),
-    ])
-    if (cancel.signal.aborted || !textareaRef.current || getPlainValue() !== text) return
-    // Query observers notify on their own schedule. Render now, so the editor has the lists to chip with.
-    flushSync(() => setHeldSend({ text, cancel }))
-    flushSync(() => setValue(text))
-    setHeldSend(null)
-    if (!allLanded && SLASH_TOKEN.test(getValue())) {
-      setDeclinedWaitText(text)
-      toast.error(
-        "Your skills didn't load, so this wasn't sent. Send again to send it as plain text."
-      )
-      return
-    }
-    sendRef.current()
-  }
-
-  const submit = () => {
-    const text = getPlainValue()
-    if (waitsForLists && skillListsPending && SLASH_TOKEN.test(text) && text !== declinedWaitText) {
-      if (heldSend?.text !== text) void holdSend(text)
-      return
-    }
-    send()
-  }
-  useEffect(() => {
-    if (!heldSend || getPlainValue() === heldSend.text) return
-    heldSend.cancel.abort()
-    setHeldSend(null)
-  }, [heldSend, editor.value, getPlainValue])
-
   const openResourceMenu = (event: { currentTarget: Element }) => {
     const rect = event.currentTarget.getBoundingClientRect()
     editor.openResourceMenu({ left: rect.left, top: rect.top })
@@ -267,16 +166,15 @@ export function useComposer({
     editor,
     voice,
     imagesOnly,
-    value,
-    canSend: canSubmit && !heldSend,
-    submit,
+    canSend: canSubmit,
+    submit: send,
     openResourceMenu,
     /** Enter and the arrow keys' policy, shared by the prompt editor and the plain Assistant field. */
     keyPolicy: {
       onNavigateHistory: hasAdditionalAttachments ? undefined : history.navigate,
     },
     frameProps: {
-      'aria-busy': preparingSubmission || Boolean(heldSend) || undefined,
+      'aria-busy': preparingSubmission || undefined,
       inert: preparingSubmission,
       onDragEnter: files.handleDragEnter,
       onDragLeave: files.handleDragLeave,

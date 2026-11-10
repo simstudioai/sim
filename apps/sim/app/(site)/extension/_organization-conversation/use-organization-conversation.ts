@@ -1,9 +1,8 @@
 'use client'
 
-import { type RefObject, useEffect, useMemo, useRef, useState } from 'react'
+import { type RefObject, useEffect, useMemo, useState } from 'react'
 import { toast } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
-import { toRecord } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
 import { createSerializer, useQueryStates } from 'nuqs'
 import { fetchWorkspaceResourceRef } from '@/components/mothership-chat/resolve-resource-ref'
@@ -15,7 +14,6 @@ import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
 import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
-import { BrowserStorage } from '@/lib/core/utils/browser-storage'
 import { resourceParam, searchFilterParsers } from '@/lib/mothership/chat/search-params'
 import type {
   ChatRequestMode,
@@ -23,10 +21,9 @@ import type {
   WorkspaceResourceRef,
 } from '@/lib/mothership/chat/types'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { organizationDraftKey, SEARCH_ASSISTANT_DRAFT_SLOT } from '@/lib/organizations/draft-key'
+import { organizationDraftKey } from '@/lib/organizations/draft-key'
 import { useOrganization } from '@/lib/organizations/provider'
 import {
-  type OrganizationSummaryRequest,
   organizationSearchParsers,
   organizationSearchUrlKeys,
 } from '@/lib/organizations/search-params'
@@ -38,7 +35,7 @@ import {
   ASSISTANT_IMAGE_MAX_TOTAL_BYTES,
   isAssistantImageType,
 } from '@/lib/uploads/shared/assistant-images'
-import type { ConversationComposerProps } from '@/app/_organization-conversation/composer'
+import type { ConversationComposerProps } from '@/app/(site)/extension/_organization-conversation/composer'
 import { getMothershipUseChatOptions, useChat } from '@/hooks/mothership-chat/use-chat'
 import {
   useChatResourcePanel,
@@ -91,22 +88,6 @@ function toApiAttachments(files: readonly AttachedFile[]): FileAttachmentForApi[
   )
 }
 
-/** Where the conversation runs: what differs beyond how it is drawn. */
-type ConversationSurface =
-  | {
-      kind: 'page'
-      /** Names this surface's new-chat draft, for a surface that must not share another's. */
-      draftSlot?: string
-    }
-  | {
-      kind: 'panel'
-      draftNamespace: string
-      fileDropTarget: RefObject<HTMLElement | null>
-      onChatIdResolved: (chatId: string) => void
-      prepareSubmission: PrepareChatSubmission
-      onSubmitted: () => void
-    }
-
 interface UseConversationGateOptions {
   chatId?: string
   requestMode: ChatRequestMode
@@ -128,29 +109,29 @@ export function useConversationGate({ chatId, requestMode }: UseConversationGate
 }
 
 interface UseOrganizationConversationOptions {
-  surface: ConversationSurface
   chatId?: string
   requestMode: ChatRequestMode
-  active?: boolean
-  summaryRequest?: OrganizationSummaryRequest
-  onSummaryConsumed?: (id: string) => void
+  draftNamespace: string
+  fileDropTarget: RefObject<HTMLElement | null>
+  onChatIdResolved: (chatId: string) => void
+  prepareSubmission: PrepareChatSubmission
+  onSubmitted: () => void
 }
 
 /**
- * An organization conversation's behavior: the chat, its drafts, attachments, submission, and
- * resources. Its two views draw it, the extension's panel and the page's. This module stays free of
- * the design system so the extension can bundle it.
+ * An organization conversation's behavior in the extension's side panel: the chat, its drafts,
+ * attachments, submission, and resources.
  */
 export function useOrganizationConversation({
-  surface,
   chatId,
   requestMode: destinationMode,
-  active = true,
-  summaryRequest,
-  onSummaryConsumed,
+  draftNamespace,
+  fileDropTarget,
+  onChatIdResolved,
+  prepareSubmission,
+  onSubmitted,
 }: UseOrganizationConversationOptions) {
   const { organization, viewer } = useOrganization()
-  const panelSurface = surface.kind === 'panel' ? surface : null
   const userId = viewer.userId
   const planEnabled = useFeatureFlag('mothership-plan-mode')
   const [planning, setPlanning] = useState(false)
@@ -180,42 +161,22 @@ export function useOrganizationConversation({
             ? (id) =>
                 serializeSearchConversation(organizationRoutes(organization.id).searchChat(id), {
                   ...searchParams,
-                  mode: active ? 'assistant' : 'search',
+                  mode: 'assistant',
                   resource: controller.activeResourceState[0],
                 })
             : undefined,
         onResourceEvent: controller.onResourceEvent,
         activeResourceState: controller.activeResourceState,
       }),
-      ...(panelSurface
-        ? { projectsDesktopTabs: false, onChatIdResolved: panelSurface.onChatIdResolved }
-        : {}),
+      projectsDesktopTabs: false,
+      onChatIdResolved,
     }
   )
-  const newDraftSlot =
-    surface.kind === 'panel'
-      ? 'home'
-      : (surface.draftSlot ??
-        (destinationMode === 'assistant' ? SEARCH_ASSISTANT_DRAFT_SLOT : 'home'))
   const draftKeyFor = (slot: string) =>
-    organizationDraftKey(userId, organization.id, slot, {
-      namespace: panelSurface?.draftNamespace,
-    })
-  const initialDraftKey = draftKeyFor(chatId ?? newDraftSlot)
-  const draftKey = draftKeyFor(chat.resolvedChatId ?? chatId ?? newDraftSlot)
-  const [legacyDraftKey] = useState(() => {
-    if (panelSurface || chatId) return null
-    const key = organizationDraftKey(userId, organization.id, 'new')
-    if (!useMothershipDraftsStore.getState().drafts[key]) return null
-    const persisted = toRecord(BrowserStorage.getItem<unknown>('organization-chat-mode', null))
-    const modes = toRecord(toRecord(persisted.state).modes)
-    const legacyMode = modes[`${userId}:${organization.id}`] === 'assistant' ? 'assistant' : 'agent'
-    return legacyMode === destinationMode ? key : null
-  })
-  const draftKeys = useMemo(
-    () => [draftKey, initialDraftKey, ...(legacyDraftKey ? [legacyDraftKey] : [])],
-    [draftKey, initialDraftKey, legacyDraftKey]
-  )
+    organizationDraftKey(userId, organization.id, slot, { namespace: draftNamespace })
+  const initialDraftKey = draftKeyFor(chatId ?? 'home')
+  const draftKey = draftKeyFor(chat.resolvedChatId ?? chatId ?? 'home')
+  const draftKeys = useMemo(() => [draftKey, initialDraftKey], [draftKey, initialDraftKey])
   const [initialDraft] = useState(() =>
     readDraft(useMothershipDraftsStore.getState().drafts, draftKeys)
   )
@@ -223,10 +184,8 @@ export function useOrganizationConversation({
     () => initialDraft?.contexts ?? []
   )
   useEffect(() => {
-    const store = useMothershipDraftsStore.getState()
-    if (legacyDraftKey) store.migrateDraft(legacyDraftKey, initialDraftKey)
-    store.migrateDraft(initialDraftKey, draftKey)
-  }, [initialDraftKey, draftKey, legacyDraftKey])
+    useMothershipDraftsStore.getState().migrateDraft(initialDraftKey, draftKey)
+  }, [initialDraftKey, draftKey])
   const hasChat = Boolean(chatId || chat.messages.length)
   const panel = useChatResourcePanel(chat, controller, userId)
   const addResource = panel.addResourceFromUser
@@ -235,48 +194,46 @@ export function useOrganizationConversation({
       toast.error('This resource has no workspace address.')
       return
     }
-    const destination = panelSurface ? window.open('about:blank', '_blank') : null
-    if (panelSurface && !destination) {
+    const destination = window.open('about:blank', '_blank')
+    if (!destination) {
       toast.error('Allow pop-ups to open this resource in Sim.')
       return
     }
-    if (destination) destination.opener = null
+    destination.opener = null
     try {
       const host = await requestJson(getWorkspaceHostContextContract, {
         params: { id: ref.workspaceId },
       })
       if (host.hostOrganizationId !== organization.id) {
-        destination?.close()
+        destination.close()
         toast.error('This resource is outside this organization.')
         return
       }
       const resource = await fetchWorkspaceResourceRef(queryClient, ref.workspaceId, ref)
       if (!resource) {
-        destination?.close()
+        destination.close()
         toast.error(`Couldn't find "${ref.title}" in its workspace`)
         return
       }
-      if (destination) {
-        const kind =
-          resource.type === 'knowledgebase'
-            ? 'knowledge'
-            : resource.type === 'filefolder'
-              ? 'folder'
-              : resource.type
-        destination.location.replace(
-          isWorkspaceResourceKind(kind)
-            ? workspaceResourcePath(ref.workspaceId, kind, resource.id)
-            : `${organizationRoutes(organization.id).home}?${new URLSearchParams({ resource: resource.id })}`
-        )
-      } else addResource({ ...resource, workspaceId: ref.workspaceId })
+      const kind =
+        resource.type === 'knowledgebase'
+          ? 'knowledge'
+          : resource.type === 'filefolder'
+            ? 'folder'
+            : resource.type
+      destination.location.replace(
+        isWorkspaceResourceKind(kind)
+          ? workspaceResourcePath(ref.workspaceId, kind, resource.id)
+          : `${organizationRoutes(organization.id).home}?${new URLSearchParams({ resource: resource.id })}`
+      )
     } catch {
-      destination?.close()
+      destination.close()
       toast.error(`Couldn't open "${ref.title}". Check your access and try again.`)
     }
   }
   const submission = useComposerSubmission({ mode: requestMode })
   const files = useFileAttachments({
-    fileDropTarget: panelSurface?.fileDropTarget,
+    fileDropTarget,
     disabled: submission.pending,
     userId,
     organizationId: organization.id,
@@ -299,23 +256,9 @@ export function useOrganizationConversation({
   const { mutate: markRead } = useMarkMothershipChatRead({ organizationId: organization.id })
 
   useEffect(() => {
-    if (active && chat.resolvedChatId && !chat.isSending && !chat.isReconnecting)
+    if (chat.resolvedChatId && !chat.isSending && !chat.isReconnecting)
       markRead(chat.resolvedChatId)
-  }, [active, chat.resolvedChatId, chat.isSending, chat.isReconnecting, markRead])
-
-  const consumedSummary = useRef<string | null>(null)
-  useEffect(() => {
-    if (!active || !scopeKnown || !summaryRequest || consumedSummary.current === summaryRequest.id)
-      return
-    consumedSummary.current = summaryRequest.id
-    onSummaryConsumed?.(summaryRequest.id)
-    void sendMessage(
-      summaryRequest.message,
-      undefined,
-      undefined,
-      chatSendOptions('assistant', summaryRequest.assistantSearch)
-    )
-  }, [active, scopeKnown, summaryRequest, onSummaryConsumed, sendMessage])
+  }, [chat.resolvedChatId, chat.isSending, chat.isReconnecting, markRead])
 
   const send = (
     message: string,
@@ -325,7 +268,6 @@ export function useOrganizationConversation({
   ) => {
     if (!scopeKnown) return
     if (requestMode === 'assistant') recordQuery(message)
-    if (requestMode !== 'assistant' && !panelSurface) panel.prepareResourceViewForAgentTurn()
     void sendMessage(
       message,
       fileAttachments,
@@ -362,16 +304,13 @@ export function useOrganizationConversation({
       if (!message && !attachments.length) return false
       useMothershipDraftsStore.getState().clearDraft(draftKey)
       send(message, attachments.length ? attachments : undefined, preparedContexts)
-      panelSurface?.onSubmitted()
+      onSubmitted()
       setRestoredContexts([])
       files.clearAttachedFiles()
     }
-    return panelSurface
-      ? panelSurface.prepareSubmission(text.trim(), contexts, commit)
-      : commit({ message: text.trim(), contexts })
+    return prepareSubmission(text.trim(), contexts, commit)
   }
 
-  const allowBuildControls = requestMode !== 'assistant'
   const stopGeneration = () => {
     void chat.stopGeneration()
   }
@@ -386,12 +325,10 @@ export function useOrganizationConversation({
     restoredContexts,
     messages: chat.messages,
     files,
-    isInitialView: !hasChat,
     isSending: chat.isSending || chat.isReconnecting,
     onSubmit: submit,
     onStop: stopGeneration,
   }
-  /** What both views' threads take; each adds its own layout around them. */
   const threadProps = {
     onViewSources: (messageId: string, requestId?: string) =>
       addResource({
@@ -411,7 +348,7 @@ export function useOrganizationConversation({
     userId,
     chatId: chat.resolvedChatId,
     onWorkspaceResourceSelect: requestMode !== 'assistant' ? selectResource : undefined,
-    reserveResourceHeader: chat.resources.length > 0 || allowBuildControls,
+    reserveResourceHeader: chat.resources.length > 0 || requestMode !== 'assistant',
   }
   const reviewProps = {
     organizationId: organization.id,
@@ -421,15 +358,9 @@ export function useOrganizationConversation({
     enabled: requestMode === 'assistant',
   }
   return {
-    organization,
     chat,
     controller,
-    panel,
     hasChat,
-    requestMode,
-    allowBuildControls,
-    searchParams,
-    send,
     composerProps,
     threadProps,
     reviewProps,

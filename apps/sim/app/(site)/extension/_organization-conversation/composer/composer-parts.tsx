@@ -5,7 +5,7 @@ import { AttachedFilesList } from '@/components/mothership-chat/user-input/compo
 import { DropOverlay } from '@/components/mothership-chat/user-input/components/drop-overlay/drop-overlay'
 import { ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE } from '@/lib/uploads/shared/assistant-images'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
-import type { ConversationComposerProps } from '@/app/_organization-conversation/composer/use-composer'
+import type { ConversationComposerProps } from '@/app/(site)/extension/_organization-conversation/composer/use-composer'
 
 interface ComposerAttachmentsProps {
   files: ConversationComposerProps['files']
