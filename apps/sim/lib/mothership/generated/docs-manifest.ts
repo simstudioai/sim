@@ -85,6 +85,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/asana-service-account.mdx',
   'integrations/asana.mdx',
   'integrations/ashby.mdx',
+  'integrations/asin.mdx',
   'integrations/athena.mdx',
   'integrations/atlassian-service-account.mdx',
   'integrations/attio-service-account.mdx',

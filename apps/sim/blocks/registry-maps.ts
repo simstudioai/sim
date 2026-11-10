@@ -16,6 +16,7 @@ import { AppConfigBlock, AppConfigBlockMeta } from '@/blocks/blocks/appconfig'
 import { ArxivBlock, ArxivBlockMeta } from '@/blocks/blocks/arxiv'
 import { AsanaBlock, AsanaBlockMeta } from '@/blocks/blocks/asana'
 import { AshbyBlock, AshbyBlockMeta } from '@/blocks/blocks/ashby'
+import { AsinBlock, AsinBlockMeta } from '@/blocks/blocks/asin'
 import { AthenaBlock, AthenaBlockMeta } from '@/blocks/blocks/athena'
 import { AttioBlock, AttioBlockMeta } from '@/blocks/blocks/attio'
 import {
@@ -425,6 +426,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   arxiv: ArxivBlock,
   asana: AsanaBlock,
   ashby: AshbyBlock,
+  asin: AsinBlock,
   athena: AthenaBlock,
   attio: AttioBlock,
   azure_data_explorer: AzureDataExplorerBlock,
@@ -811,6 +813,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   arxiv: ArxivBlockMeta,
   asana: AsanaBlockMeta,
   ashby: AshbyBlockMeta,
+  asin: AsinBlockMeta,
   athena: AthenaBlockMeta,
   attio: AttioBlockMeta,
   azure_data_explorer: AzureDataExplorerBlockMeta,

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-06",
+  "updatedAt": "2026-11-10",
   "integrations": [
     {
       "type": "onepassword",
@@ -1902,6 +1902,42 @@
       "integrationType": "hr",
       "tags": ["hiring"],
       "updatedAt": "2026-10-14"
+    },
+    {
+      "type": "asin",
+      "slug": "asin",
+      "name": "Asin",
+      "description": "Search Amazon and read product offers and price history",
+      "longDescription": "Search an Amazon store, read every seller's offer for an ASIN with Amazon's own price and the lowest new and used offers, and get a product's price history with its lowest, highest and average price, across 11 Amazon marketplaces.",
+      "bgColor": "#FFFFFF",
+      "iconName": "AsinIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/asin",
+      "operations": [
+        {
+          "name": "Search Products",
+          "description": "Search an Amazon store and get up to 60 results, sponsored ones included, with ASIN, title, price, rating and review count."
+        },
+        {
+          "name": "Read Offers",
+          "description": "Read every offer for an ASIN from Amazon now (uses a credit): seller, price, whether Amazon ships it (FBA), delivery, with Amazon's own price and the lowest new and used offers."
+        },
+        {
+          "name": "Get Last Known Offers",
+          "description": "Get the offers last read for an ASIN, cheapest first, with Amazon's own price and the lowest new and used offers, without reading Amazon again."
+        },
+        {
+          "name": "Get Price History",
+          "description": "Get every price read for an ASIN over a period, oldest first, with its lowest, highest and average price."
+        }
+      ],
+      "operationCount": 4,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["web-scraping", "monitoring", "data-analytics"],
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "athena",

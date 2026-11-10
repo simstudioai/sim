@@ -1,0 +1,171 @@
+---
+title: Asin
+description: Search Amazon and read product offers and price history
+integration:
+  type: "asin"
+  color: "#FFFFFF"
+---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
+
+{/* MANUAL-CONTENT-START:intro */}
+[Asin](https://www.asin.dev/) tracks Amazon prices: it searches Amazon, reads every seller's offer for a product and keeps its price history, across 11 Amazon stores.
+
+With the Asin block, you can:
+
+- **Search Amazon**: find products in a store with their ASIN, price, rating and review count
+- **Read offers**: get every seller's offer for an ASIN, with Amazon's own price and the lowest new and used prices, either read live from Amazon or as last known
+- **Follow prices**: get a product's price history with its lowest, highest and average price, stock and Buy Box seller
+
+Create a personal API key in your [Asin account](https://www.asin.dev/) and paste it into the block.
+
+In Sim, the Asin block lets your agents watch competitor prices, spot unauthorized sellers on your listings and tell whether today's price is a real deal.
+{/* MANUAL-CONTENT-END */}
+
+## Use the block [#usage-instructions]
+
+Search an Amazon store, read every seller's offer for an ASIN with Amazon's own price and the lowest new and used offers, and get a product's price history with its lowest, highest and average price, across 11 Amazon marketplaces.
+
+## Actions
+
+### Asin Search Products
+
+Search an Amazon store and get up to 60 results, sponsored ones included, with ASIN, title, price, rating and review count.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Search terms \(e.g., "wireless earbuds"\) |
+| `marketplace` | string | No | Amazon store: com, co.uk, de, fr, it, es, ca, co.jp, com.br, com.mx or in \(defaults to "com"\) |
+| `apiKey` | string | Yes | Asin API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Products found on Amazon |
+|   ↳ `asin` | string | The ASIN of the product |
+|   ↳ `title` | string | Product title |
+|   ↳ `image` | string | URL of the main product image |
+|   ↳ `price` | number | Price shown in the results |
+|   ↳ `currency` | string | ISO 4217 code of the marketplace currency |
+|   ↳ `rating` | number | Average rating out of 5 |
+|   ↳ `reviewsCount` | number | Number of reviews |
+
+</ReferenceDetails>
+
+### Asin Read Offers
+
+Read every offer for an ASIN from Amazon now (uses a credit): seller, price, whether Amazon ships it (FBA), delivery, with Amazon's own price and the lowest new and used offers.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `asin` | string | Yes | The 10-character ASIN of the product \(e.g., "B09DFCB66S"\) |
+| `marketplace` | string | No | Amazon store: com, co.uk, de, fr, it, es, ca, co.jp, com.br, com.mx or in \(defaults to "com"\) |
+| `apiKey` | string | Yes | Asin API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `asin` | string | The ASIN of the product |
+| `marketplace` | string | Amazon store the offers come from |
+| `currency` | string | ISO 4217 code of the marketplace currency |
+| `fetchedAt` | string | When Amazon was read; null when the product was never read |
+| `charged` | boolean | Whether the request used a credit |
+| `amazonPrice` | number | Amazon's own price, when Amazon sells the product |
+| `lowestNewPrice` | number | Lowest price among offers that are not used |
+| `lowestUsedPrice` | number | Lowest used or renewed price |
+| `offers` | array | Offers for the product, cheapest first |
+|   ↳ `seller` | string | Name of the seller |
+|   ↳ `sellerId` | string | Amazon's ID of the seller |
+|   ↳ `price` | number | Price of the offer in the marketplace currency |
+|   ↳ `amazon` | boolean | Whether Amazon itself sells the offer |
+|   ↳ `fulfilledByAmazon` | boolean | Whether Amazon ships the offer |
+|   ↳ `used` | boolean | Whether the offer is used or renewed |
+|   ↳ `deliveryTime` | string | Delivery date, as Amazon shows it |
+|   ↳ `deliveryPrice` | string | Delivery cost, as Amazon shows it |
+
+</ReferenceDetails>
+
+### Asin Get Last Known Offers
+
+Get the offers last read for an ASIN, cheapest first, with Amazon's own price and the lowest new and used offers, without reading Amazon again.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `asin` | string | Yes | The 10-character ASIN of the product \(e.g., "B09DFCB66S"\) |
+| `marketplace` | string | No | Amazon store: com, co.uk, de, fr, it, es, ca, co.jp, com.br, com.mx or in \(defaults to "com"\) |
+| `apiKey` | string | Yes | Asin API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `asin` | string | The ASIN of the product |
+| `marketplace` | string | Amazon store the offers come from |
+| `currency` | string | ISO 4217 code of the marketplace currency |
+| `fetchedAt` | string | When Amazon was read; null when the product was never read |
+| `charged` | boolean | Whether the request used a credit |
+| `amazonPrice` | number | Amazon's own price, when Amazon sells the product |
+| `lowestNewPrice` | number | Lowest price among offers that are not used |
+| `lowestUsedPrice` | number | Lowest used or renewed price |
+| `offers` | array | Offers for the product, cheapest first |
+|   ↳ `seller` | string | Name of the seller |
+|   ↳ `sellerId` | string | Amazon's ID of the seller |
+|   ↳ `price` | number | Price of the offer in the marketplace currency |
+|   ↳ `amazon` | boolean | Whether Amazon itself sells the offer |
+|   ↳ `fulfilledByAmazon` | boolean | Whether Amazon ships the offer |
+|   ↳ `used` | boolean | Whether the offer is used or renewed |
+|   ↳ `deliveryTime` | string | Delivery date, as Amazon shows it |
+|   ↳ `deliveryPrice` | string | Delivery cost, as Amazon shows it |
+
+</ReferenceDetails>
+
+### Asin Get Price History
+
+Get every price read for an ASIN over a period, oldest first, with its lowest, highest and average price.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `asin` | string | Yes | The 10-character ASIN of the product \(e.g., "B09DFCB66S"\) |
+| `marketplace` | string | No | Amazon store: com, co.uk, de, fr, it, es, ca, co.jp, com.br, com.mx or in \(defaults to "com"\) |
+| `days` | number | No | Days of history to return \(defaults to 30\) |
+| `apiKey` | string | Yes | Asin API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `asin` | string | The ASIN of the product |
+| `marketplace` | string | Amazon store the prices come from |
+| `currency` | string | ISO 4217 code of the marketplace currency |
+| `lowestPrice` | number | Lowest price of the period |
+| `highestPrice` | number | Highest price of the period |
+| `averagePrice` | number | Average price of the period |
+| `history` | array | Prices read over the period, oldest first |
+|   ↳ `price` | number | Price of the offer shown; null when there was no offer |
+|   ↳ `inStock` | boolean | Whether the product was in stock |
+|   ↳ `coupon` | string | Coupon shown, if any |
+|   ↳ `seller` | string | Seller of the offer shown \(Buy Box\) |
+|   ↳ `checkedAt` | string | When Amazon was read |
+
+</ReferenceDetails>
+
+

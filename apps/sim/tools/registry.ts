@@ -338,6 +338,12 @@ import {
   ashbyUploadResumeTool,
 } from '@/tools/ashby'
 import {
+  asinGetOffersTool,
+  asinGetPriceHistoryTool,
+  asinReadOffersTool,
+  asinSearchProductsTool,
+} from '@/tools/asin'
+import {
   athenaBatchGetNamedQueryTool,
   athenaBatchGetPreparedStatementTool,
   athenaBatchGetQueryExecutionTool,
@@ -6985,6 +6991,10 @@ export const tools: Record<string, ExecutableToolConfig> = {
   ashby_transfer_application: ashbyTransferApplicationTool,
   ashby_upload_candidate_file: ashbyUploadCandidateFileTool,
   ashby_upload_resume: ashbyUploadResumeTool,
+  asin_search_products: asinSearchProductsTool,
+  asin_read_offers: asinReadOffersTool,
+  asin_get_offers: asinGetOffersTool,
+  asin_get_price_history: asinGetPriceHistoryTool,
   athena_batch_get_named_query: athenaBatchGetNamedQueryTool,
   athena_batch_get_prepared_statement: athenaBatchGetPreparedStatementTool,
   athena_batch_get_query_execution: athenaBatchGetQueryExecutionTool,

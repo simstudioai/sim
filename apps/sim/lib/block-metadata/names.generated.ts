@@ -20,6 +20,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   arxiv: 'ArXiv',
   asana: 'Asana',
   ashby: 'Ashby',
+  asin: 'Asin',
   athena: 'Athena',
   attio: 'Attio',
   azure_data_explorer: 'Azure Data Explorer',
