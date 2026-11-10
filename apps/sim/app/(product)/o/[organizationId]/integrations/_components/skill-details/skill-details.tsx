@@ -5,7 +5,6 @@ import { Avatar } from '@sim/emcn/avatar'
 import { Button } from '@sim/emcn/button'
 import { DataTable, TableLabel } from '@sim/emcn/data-display'
 import { EmptyState } from '@sim/emcn/empty-state'
-import { TextAreaField, TextField } from '@sim/emcn/field'
 import { Icon } from '@sim/emcn/icon'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
@@ -19,16 +18,19 @@ import {
   DirectoryHeading,
 } from '@/app/(product)/_components/resource-directory/resource-directory'
 import { SettingsLeaveGuard } from '@/app/(product)/_components/session-state/settings-leave-guard'
+import {
+  type SkillDraft,
+  type SkillErrors,
+  SkillFields,
+  validateSkillDraft,
+} from '@/app/(product)/_components/skill-fields/skill-fields'
 import { PeopleSentence } from '@/app/(product)/o/[organizationId]/integrations/_components/people-sentence/people-sentence'
 import { QueryFailure } from '@/app/(product)/o/[organizationId]/integrations/_components/query-failure/query-failure'
 import styles from '@/app/(product)/o/[organizationId]/integrations/_components/skill-details/skill-details.module.css'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import {
   isSkillNameConflictError,
-  type ParsedSkill,
-  parseSkillMarkdown,
   readSkillFile,
-  SKILL_DESCRIPTION_MAX_LENGTH,
   SKILL_IMPORT_ACCEPT,
   type SkillDefinition,
   useCreateSkill,
@@ -39,26 +41,13 @@ import {
   useUpdateSkill,
   useUpsertSkillMember,
   useWorkspacePermissionsQuery,
-  validateSkillName,
 } from '@/platform/lib/data/skills'
 import { resourceDetailParams } from '@/platform/lib/integrations/center-navigation'
-
-type SkillDraft = Pick<ParsedSkill, 'name' | 'description' | 'content'>
-type SkillErrors = Partial<Record<keyof SkillDraft, string>>
 
 const EMPTY_DRAFT: SkillDraft = { name: '', description: '', content: '' }
 
 function draftOf(skill: SkillDefinition): SkillDraft {
   return { name: skill.name, description: skill.description, content: skill.content }
-}
-
-function validate(draft: SkillDraft): SkillErrors {
-  const errors: SkillErrors = {}
-  const nameError = validateSkillName(draft.name)
-  if (nameError) errors.name = nameError
-  if (!draft.description.trim()) errors.description = 'Description is required'
-  if (!draft.content.trim()) errors.content = 'Content is required'
-  return errors
 }
 
 interface SkillDetailsProps {
@@ -115,17 +104,13 @@ export function SkillDetails({
   }
   const { guardBack } = useSettingsUnsavedGuard({ isDirty: dirty, onDiscard: discard })
 
-  function edit(field: keyof SkillDraft, value: string) {
-    setDraft((current) => ({ ...current, [field]: value }))
-    setErrors((current) => ({ ...current, [field]: undefined }))
-  }
-
-  /** A full SKILL.md in Content fills every field, as pasting one does in legacy. */
-  function editContent(value: string) {
-    const parsed = parseSkillMarkdown(value)
-    if (!parsed.nameFromFrontmatter) return edit('content', value)
-    setDraft({ name: parsed.name, description: parsed.description, content: parsed.content })
-    setErrors({})
+  function edit(next: SkillDraft, changed: readonly (keyof SkillDraft)[]) {
+    setDraft(next)
+    setErrors((current) => {
+      const remaining = { ...current }
+      for (const field of changed) delete remaining[field]
+      return remaining
+    })
   }
 
   async function importFile(file: File) {
@@ -145,7 +130,7 @@ export function SkillDetails({
 
   async function save() {
     if (!workspaceId || !editable || !dirty || pending) return
-    const found = validate(draft)
+    const found = validateSkillDraft(draft)
     if (Object.keys(found).length) return setErrors(found)
     try {
       if (!skill) {
@@ -212,39 +197,12 @@ export function SkillDetails({
       : 'You need to be a skill editor to edit this skill'
   const details = (
     <div className={styles.fields}>
-      <TextField
-        label='Name'
-        name='name'
-        placeholder='Skill name'
-        hint={lockReason}
-        error={errors.name}
-        value={draft.name}
-        onChange={(value) => edit('name', value)}
+      <SkillFields
+        draft={draft}
+        errors={errors}
+        onEdit={edit}
         viewOnly={!editable}
-        required
-        maxLength={64}
-      />
-      <TextAreaField
-        label='Description'
-        name='description'
-        placeholder='Describe what this is for'
-        error={errors.description}
-        value={draft.description}
-        onChange={(value) => edit('description', value)}
-        viewOnly={!editable}
-        required
-        maxLength={SKILL_DESCRIPTION_MAX_LENGTH}
-      />
-      <TextAreaField
-        label='Instructions'
-        name='content'
-        placeholder='Describe what this skill should do'
-        defaultSize='large'
-        error={errors.content}
-        value={draft.content}
-        onChange={editContent}
-        viewOnly={!editable}
-        required
+        nameHint={lockReason}
       />
     </div>
   )
