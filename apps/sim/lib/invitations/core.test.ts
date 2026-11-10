@@ -61,9 +61,25 @@ vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
 
 vi.mock('@/lib/credentials/environment', () => credentialsEnvironmentMock)
 
+/** The joiner's attachable workspaces, read from the queued rows the way the real helpers read them. */
+async function queuedWorkspaceIds(executor: {
+  select: () => { from: () => { where: () => Promise<Array<{ id: string }>> } }
+}) {
+  return (await executor.select().from().where()).map((row) => row.id).sort()
+}
+
 vi.mock('@/lib/workspaces/organization-workspaces', () => ({
   attachOwnedWorkspacesToOrganizationTx: mockAttachOwnedWorkspacesToOrganizationTx,
   ownedAttachableWorkspacesWhere: vi.fn(),
+  joinAttachableWorkspaceIds: queuedWorkspaceIds,
+  joinAttachSetUnchangedTx: async (
+    tx: Parameters<typeof queuedWorkspaceIds>[0],
+    { plannedWorkspaceIds }: { plannedWorkspaceIds: string[] }
+  ) => (await queuedWorkspaceIds(tx)).join() === [...plannedWorkspaceIds].sort().join(),
+}))
+
+vi.mock('@/lib/organizations/personal-chats', () => ({
+  findPersonalChatDestinationWorkspaceId: vi.fn().mockResolvedValue(null),
 }))
 
 vi.mock('@/lib/workspaces/policy', () => workspacesPolicyMock)

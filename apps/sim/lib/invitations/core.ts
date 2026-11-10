@@ -42,6 +42,7 @@ import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { APP_ENTRY_PATH, organizationRoutes } from '@/lib/navigation/paths'
+import { findPersonalChatDestinationWorkspaceId } from '@/lib/organizations/personal-chats'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   attachOwnedWorkspacesToOrganizationTx,
@@ -543,15 +544,14 @@ export async function getInvitationJoinPreview(
     }
   }
 
-  const attachableIds = await joinAttachableWorkspaceIds(db, inviteeUserId)
-  const ownedWorkspaces =
-    attachableIds.length > 0
-      ? await db
-          .select({ id: workspace.id, name: workspace.name })
-          .from(workspace)
-          .where(inArray(workspace.id, attachableIds))
-          .orderBy(asc(workspace.name))
-      : []
+  const attachable = await db
+    .select({ id: workspace.id, name: workspace.name })
+    .from(workspace)
+    .where(ownedAttachableWorkspacesWhere({ userId: inviteeUserId, includeArchived: true }))
+    .orderBy(asc(workspace.name))
+  /** The workspace that will hold their moved personal-organization chats stays theirs. */
+  const chatWorkspaceId = await findPersonalChatDestinationWorkspaceId(db, inviteeUserId)
+  const ownedWorkspaces = attachable.filter((row) => row.id !== chatWorkspaceId)
 
   let targetOrganizationName: string | null = null
   if (workspaceOrganizationId) {
