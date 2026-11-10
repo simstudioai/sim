@@ -193,9 +193,10 @@ test('the actual desktop renderer shares product routes, reserves native chrome 
     await panel.getByRole('button', { name: 'Expand panel' }).click()
     const firstTab = panel.getByRole('tab', { name: 'Terminal' })
     // The panel expands with a transition, so the gap is read until it settles, within a pixel.
+    const expandSidebar = page.getByRole('button', { name: 'Expand sidebar' })
     await expect
       .poll(async () => {
-        const navigation = await page.getByRole('button', { name: 'Expand sidebar' }).boundingBox()
+        const navigation = await expandSidebar.boundingBox()
         const firstTabBox = await firstTab.boundingBox()
         if (!navigation || !firstTabBox) return Number.NEGATIVE_INFINITY
         return firstTabBox.x - (navigation.x + navigation.width)
