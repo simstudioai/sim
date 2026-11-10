@@ -36,6 +36,7 @@ function queueChat(mode = 'plan', membership = true) {
     { userId: 'actor', organizationId: 'org-1', workspaceId: null, type: 'mothership', mode },
   ])
   queueTableRows(member, membership ? [{ role: 'member' }] : [])
+  queueTableRows(organization, [{ id: 'org-1' }])
 }
 describe('private memory scope', () => {
   beforeEach(() => {
@@ -72,6 +73,7 @@ describe('private memory scope', () => {
       },
     ])
     queueTableRows(member, [{ role: 'member' }])
+    queueTableRows(organization, [{ id: 'org-1' }])
     expect(await readMemoryScope.execute({ principal: principal(), input })).toEqual({
       enabled: false,
       userId: 'actor',

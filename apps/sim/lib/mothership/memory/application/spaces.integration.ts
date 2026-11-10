@@ -80,7 +80,12 @@ const create = (name: string) =>
 const select = (spaceId: string | null) =>
   selectMemorySpace.execute({ principal: principal(), input: { ...input, spaceId } })
 const list = () => listMemorySpaces.execute({ principal: principal(), input })
-async function scope(chatId: string, workspaceId?: string, userId = ids.owner) {
+async function scope(
+  chatId: string,
+  workspaceId?: string,
+  userId = ids.owner,
+  organizationId = ids.org
+) {
   const options = { audience: MEMORY_SCOPE_AUDIENCE, ttlMs: 60_000 }
   const caller = workspaceId
     ? createTrustedCopilotPrincipal(
@@ -88,7 +93,7 @@ async function scope(chatId: string, workspaceId?: string, userId = ids.owner) {
         options
       )
     : createTrustedOrganizationCopilotPrincipal(
-        { userId, organizationId: ids.org, chatId, delegationId: generateId() },
+        { userId, organizationId, chatId, delegationId: generateId() },
         options
       )
   return readMemoryScope.execute({
@@ -635,6 +640,29 @@ describe('a workspace chat moved into its owner’s personal organization', () =
       organizationId: null,
       workspaceId: ids.personalWorkspace,
     })
+  })
+
+  it('shares that personal graph with an organization chat in the same personal organization', async () => {
+    const workspaceChatId = await workspaceChat(ids.personalWorkspace)
+    const organizationChat = await createOrganizationChatRecord(
+      { userId: ids.personalOwner, organizationId: personalOrganizationId },
+      'agent'
+    )
+
+    const workspaceGraph = await scope(workspaceChatId, ids.personalWorkspace, ids.personalOwner)
+    expect(
+      await scope(organizationChat.id, undefined, ids.personalOwner, personalOrganizationId)
+    ).toEqual({
+      enabled: true,
+      userId: ids.personalOwner,
+      organizationId: workspaceGraph.organizationId,
+      workspaceId: null,
+    })
+    const teamChat = await createOrganizationChatRecord(
+      { userId: ids.other, organizationId: ids.org },
+      'agent'
+    )
+    expect((await scope(teamChat.id, undefined, ids.other)).organizationId).toBe(ids.org)
   })
 
   it('keeps the default graph when a chosen space has no organization to own it', async () => {
