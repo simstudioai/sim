@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, organization, user, userStats, workspace } from '@sim/db/schema'
+import { member, organization, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
@@ -20,7 +20,8 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import {
   attachOwnedWorkspacesToOrganizationTx,
-  ownedAttachableWorkspacesWhere,
+  joinAttachableWorkspaceIds,
+  joinAttachSetUnchangedTx,
 } from '@/lib/workspaces/organization-workspaces'
 
 const logger = createLogger('AdminOrganizationMembersAPI')
@@ -284,12 +285,8 @@ export const addAdminOrganizationMember: OperationUseCase<
     const organizationHasFixedSeats = isEnterprise(organizationSubscription?.plan)
 
     const result = await db.transaction(async (tx) => {
-      const ownedWorkspaceIds = (
-        await tx
-          .select({ id: workspace.id })
-          .from(workspace)
-          .where(ownedAttachableWorkspacesWhere({ userId, includeArchived: true }))
-      ).map((row) => row.id)
+      /** The workspace that will hold their moved personal-organization chats stays out. */
+      const ownedWorkspaceIds = await joinAttachableWorkspaceIds(tx, userId)
       if (ownedWorkspaceIds.length > 0) {
         await acquireInvitationMutationLocks(tx, {
           invitationIds: [],
@@ -321,15 +318,15 @@ export const addAdminOrganizationMember: OperationUseCase<
        * workspace creation also takes — so re-reading the owned set here is race-free. A set that
        * changed since the pre-lock capture means a workspace escaped the advisory-lock plan: abort
        * the whole add (rolling back the membership) rather than committing a member whose
-       * workspace dodged the sweep. Safe to retry immediately.
+       * workspace dodged the sweep. Safe to retry immediately. The workspace the retirement moved
+       * the chats into, possibly created by it, is neither compared nor attached.
        */
-      const currentOwnedIds = (
-        await tx
-          .select({ id: workspace.id })
-          .from(workspace)
-          .where(ownedAttachableWorkspacesWhere({ userId, includeArchived: true }))
-      ).map((row) => row.id)
-      if ([...currentOwnedIds].sort().join() !== [...ownedWorkspaceIds].sort().join()) {
+      const unchanged = await joinAttachSetUnchangedTx(tx, {
+        userId,
+        plannedWorkspaceIds: ownedWorkspaceIds,
+        chatWorkspaceId: membership.retirement?.chatWorkspaceId ?? null,
+      })
+      if (!unchanged) {
         throw new AdminMemberAddRefusedError(
           "The user's workspaces changed while adding them — retry the add."
         )

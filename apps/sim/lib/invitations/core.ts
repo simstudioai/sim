@@ -45,6 +45,8 @@ import { APP_ENTRY_PATH, organizationRoutes } from '@/lib/navigation/paths'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   attachOwnedWorkspacesToOrganizationTx,
+  joinAttachableWorkspaceIds,
+  joinAttachSetUnchangedTx,
   ownedAttachableWorkspacesWhere,
 } from '@/lib/workspaces/organization-workspaces'
 import { getWorkspaceWithOwner, type WorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
@@ -541,11 +543,15 @@ export async function getInvitationJoinPreview(
     }
   }
 
-  const ownedWorkspaces = await db
-    .select({ id: workspace.id, name: workspace.name })
-    .from(workspace)
-    .where(ownedAttachableWorkspacesWhere({ userId: inviteeUserId, includeArchived: true }))
-    .orderBy(asc(workspace.name))
+  const attachableIds = await joinAttachableWorkspaceIds(db, inviteeUserId)
+  const ownedWorkspaces =
+    attachableIds.length > 0
+      ? await db
+          .select({ id: workspace.id, name: workspace.name })
+          .from(workspace)
+          .where(inArray(workspace.id, attachableIds))
+          .orderBy(asc(workspace.name))
+      : []
 
   let targetOrganizationName: string | null = null
   if (workspaceOrganizationId) {
@@ -753,14 +759,7 @@ async function getInvitationAcceptanceWorkspaceLockIds(
    * in-flight) provably rules a join out.
    */
   const joinerAttachWorkspaceIds =
-    inv.membershipIntent === 'external'
-      ? []
-      : (
-          await tx
-            .select({ id: workspace.id })
-            .from(workspace)
-            .where(ownedAttachableWorkspacesWhere({ userId: inviteeUserId, includeArchived: true }))
-        ).map((row) => row.id)
+    inv.membershipIntent === 'external' ? [] : await joinAttachableWorkspaceIds(tx, inviteeUserId)
 
   const billingOwnerCanAttach =
     isBillingEnabled &&
@@ -1209,19 +1208,17 @@ async function acceptLockedInvitation(
        * re-read here race-free. A set that changed since the pre-lock plan
        * means a workspace escaped the advisory locks: the acceptance is
        * rolled back (retry succeeds with the fresh set) instead of committing
-       * a member whose workspace dodged the sweep.
+       * a member whose workspace dodged the sweep. The workspace that holds
+       * their moved personal-organization chats stays theirs, out of the
+       * organization, so its data drains never export those chats.
        */
       if (joinedDuringThisAcceptance) {
-        const currentOwnedIds = (
-          await tx
-            .select({ id: workspace.id })
-            .from(workspace)
-            .where(ownedAttachableWorkspacesWhere({ userId: input.userId, includeArchived: true }))
-        ).map((row) => row.id)
-        if (
-          [...currentOwnedIds].sort().join() !==
-          [...lockPlan.joinerAttachWorkspaceIds].sort().join()
-        ) {
+        const unchanged = await joinAttachSetUnchangedTx(tx, {
+          userId: input.userId,
+          plannedWorkspaceIds: lockPlan.joinerAttachWorkspaceIds,
+          chatWorkspaceId: membershipResult.retirement?.chatWorkspaceId ?? null,
+        })
+        if (!unchanged) {
           throw new JoinerWorkspacesChangedDuringAcceptError()
         }
 

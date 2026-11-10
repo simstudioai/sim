@@ -14,6 +14,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import type { PersonalOrganizationAuditActor } from '@/lib/organizations/lifecycle-audit'
+import { findPersonalChatDestinationWorkspaceId } from '@/lib/organizations/personal-chats'
 import { findSplitProjectWorkspaceIds, transferWorkspaceProjects } from '@/lib/projects/membership'
 import { invalidateWorkspaceTableLimitsCache } from '@/lib/table/billing'
 import { getOrganizationOwnerId, WORKSPACE_MODE } from '@/lib/workspaces/policy'
@@ -108,6 +109,52 @@ export function ownedAttachableWorkspacesWhere({
     ne(workspace.workspaceMode, WORKSPACE_MODE.ORGANIZATION),
     ...(includeArchived ? [] : [isNull(workspace.archivedAt)])
   )
+}
+
+/**
+ * The joiner's owned workspaces a team join sweeps into the team, sorted: every attachable one
+ * (archived included) except the workspace their personal organization's chats move into, which
+ * stays theirs and outside the team so the team's data drains never export those chats.
+ */
+export async function joinAttachableWorkspaceIds(
+  executor: DbOrTx,
+  userId: string
+): Promise<string[]> {
+  const owned = await executor
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(ownedAttachableWorkspacesWhere({ userId, includeArchived: true }))
+  const chatWorkspaceId = await findPersonalChatDestinationWorkspaceId(executor, userId)
+  return owned
+    .map((row) => row.id)
+    .filter((id) => id !== chatWorkspaceId)
+    .sort()
+}
+
+/**
+ * Whether the joiner's attachable workspaces, re-read under the join's locks, are still the set
+ * planned before them. The workspace the join's retirement moved the chats into is left out of
+ * the re-read, since the retirement may just have created it, and a plan that would attach it (a
+ * chat written after the plan) is stale.
+ */
+export async function joinAttachSetUnchangedTx(
+  tx: DbTransaction,
+  {
+    userId,
+    plannedWorkspaceIds,
+    chatWorkspaceId,
+  }: { userId: string; plannedWorkspaceIds: string[]; chatWorkspaceId: string | null }
+): Promise<boolean> {
+  if (chatWorkspaceId && plannedWorkspaceIds.includes(chatWorkspaceId)) return false
+  const current = await tx
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(ownedAttachableWorkspacesWhere({ userId, includeArchived: true }))
+  const currentIds = current
+    .map((row) => row.id)
+    .filter((id) => id !== chatWorkspaceId)
+    .sort()
+  return currentIds.join() === [...plannedWorkspaceIds].sort().join()
 }
 
 /**
