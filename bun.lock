@@ -822,16 +822,6 @@
         "stripe",
       ],
     },
-    "packages/ts-sdk": {
-      "name": "simstudio-ts-sdk",
-      "version": "0.2.1",
-      "devDependencies": {
-        "@sim/tsconfig": "workspace:*",
-        "@types/node": "24.19.2",
-        "typescript": "^7.0.2",
-        "vitest": "^5.1.0",
-      },
-    },
     "packages/tsconfig": {
       "name": "@sim/tsconfig",
       "version": "0.0.0",
@@ -4319,8 +4309,6 @@
     "sim-setup": ["sim-setup@workspace:packages/sim-setup"],
 
     "simple-update-notifier": ["simple-update-notifier@2.0.0", "", { "dependencies": { "semver": "^7.5.3" } }, "sha512-a2B9Y0KlNXl9u/vsW6sTIu9vGEpfKu2wRV6l1H3XEas/0gUIzGzBoP/IouTcUQbm9JWZLH3COxyn03TYlFax6w=="],
-
-    "simstudio-ts-sdk": ["simstudio-ts-sdk@workspace:packages/ts-sdk"],
 
     "sisteransi": ["sisteransi@1.0.5", "", {}, "sha512-bLGGlR1QxBcynn2d5YmDX4MGjlZvy2MRBDRNHLJ8VI6l6+9FUiyTFNJ0IveOSP0bcXgVDPRcfGqA0pjaqUpfVg=="],
 

@@ -46,12 +46,6 @@ export async function GET() {
           `${DOCS_URL}/api-reference/getting-started`,
           'Create an API key and run a deployed workflow'
         ),
-        linkLine(
-          'TypeScript SDK',
-          `${DOCS_URL}/api-reference/typescript`,
-          '`bun add simstudio-ts-sdk`'
-        ),
-        linkLine('Python SDK', `${DOCS_URL}/api-reference/python`, '`pip install simstudio-sdk`'),
         linkLine('CLI', `${DOCS_URL}/cli`, '`bun add -g sim`'),
         linkLine('MCP server', `${DOCS_URL}/mcp/overview`, 'Connect an AI app to Sim'),
       ]),
