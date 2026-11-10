@@ -6,6 +6,8 @@ import { isOllamaConfigured } from '@/lib/core/config/env-flags'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import { containsReference } from '@/lib/workflows/sanitization/references'
+import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
+import { isTriggerModeSubBlock } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import {
   findProviderFromModel,
@@ -24,6 +26,10 @@ import { isPiSupportedModel } from '@/providers/pi-providers'
 import type { ProviderId } from '@/providers/types'
 import { getProviderFromModel } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
+import {
+  SAVED_CREDENTIAL_OAUTH,
+  type SavedCredentialService,
+} from '@/tools/shared/saved-credentials'
 
 export const AZURE_MODELS = [
   ...getProviderModels('azure-openai'),
@@ -50,76 +56,11 @@ export const SERVICE_ACCOUNT_SUBBLOCKS: SubBlockConfig[] = [
   },
 ]
 
-/** The inline secret fields (subblock and input ids) each saved-credential service replaces. */
-const INLINE_SECRET_FIELDS = {
-  affinity: ['apiKey'],
-  agentmail: ['apiKey'],
-  agentphone: ['apiKey'],
-  ahrefs: ['apiKey'],
-  apify: ['apiKey'],
-  apollo: ['apiKey'],
-  aws: ['accessKeyId', 'secretAccessKey', 'awsAccessKeyId', 'awsSecretAccessKey'],
-  brex: ['apiKey'],
-  brightdata: ['apiKey'],
-  browser_use: ['apiKey'],
-  buffer: ['apiKey'],
-  circleback: ['apiKey'],
-  clerk: ['secretKey'],
-  cloudflare: ['apiKey'],
-  crunchbase: ['apiKey'],
-  cursor: ['apiKey'],
-  databricks: ['host', 'apiKey'],
-  daytona: ['apiKey'],
-  discord: ['botToken'],
-  dub: ['apiKey'],
-  elevenlabs: ['apiKey'],
-  enrich: ['apiKey'],
-  extend: ['apiKey'],
-  fireflies: ['apiKey'],
-  flint: ['apiKey'],
-  gamma: ['apiKey'],
-  hex: ['apiKey'],
-  huggingface: ['apiKey'],
-  incidentio: ['apiKey'],
-  instantly: ['apiKey'],
-  intercom: ['accessToken'],
-  langsmith: ['apiKey'],
-  launchdarkly: ['apiKey'],
-  linq: ['apiKey'],
-  loops: ['apiKey'],
-  luma: ['apiKey'],
-  mailchimp: ['apiKey'],
-  mem0: ['apiKey'],
-  otter: ['apiKey'],
-  persona: ['apiKey'],
-  profound: ['apiKey'],
-  pulse: ['apiKey'],
-  quartr: ['apiKey'],
-  quiver: ['apiKey'],
-  rb2b: ['apiKey'],
-  reducto: ['apiKey'],
-  rippling: ['apiKey'],
-  rocketlane: ['apiKey'],
-  sendgrid: ['apiKey'],
-  similarweb: ['apiKey'],
-  sixtyfour: ['apiKey'],
-  smartlead: ['apiKey'],
-  sportmonks: ['apiKey'],
-  square: ['apiKey'],
-  tailscale: ['apiKey'],
-  tavily: ['apiKey'],
-  trigger_dev: ['apiKey'],
-  uptimerobot: ['apiKey'],
-  youcom: ['apiKey'],
-  youtube: ['apiKey'],
-  zep: ['apiKey'],
-} as const satisfies Record<string, readonly string[]>
-
 /** The saved-credential picker; {@link withSavedCredential} completes the standard fields. */
 interface SavedCredentialPicker {
   id: 'credential'
   type: 'oauth-input'
-  serviceId: keyof typeof INLINE_SECRET_FIELDS
+  serviceId: SavedCredentialService
   title: string
 }
 
@@ -150,14 +91,14 @@ export function withSavedCredential(
   picker: SavedCredentialPicker,
   options: SavedCredentialOptions = {}
 ): Pick<BlockConfig, 'subBlocks' | 'inputs' | 'tools'> {
-  const replaced = new Set<string>(INLINE_SECRET_FIELDS[picker.serviceId])
+  const replaced = new Set<string>(
+    SAVED_CREDENTIAL_OAUTH[picker.serviceId].credentialSuppliedParams
+  )
   // Trigger fields can share a secret's id (a webhook registers with its own key);
   // they belong to the trigger, not the tools, so they are left exactly as they are.
-  const isTriggerField = (subBlock: SubBlockConfig) =>
-    subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced'
   // A basic/advanced pair shares its canonical id, so both halves are replaced.
   const isReplaced = (subBlock: SubBlockConfig) =>
-    replaced.has(subBlock.canonicalParamId ?? subBlock.id) && !isTriggerField(subBlock)
+    replaced.has(subBlock.canonicalParamId ?? subBlock.id) && !isTriggerModeSubBlock(subBlock)
   const at = legacy.subBlocks.findIndex(isReplaced)
   if (at === -1) {
     throw new Error(`Block "${legacy.type}" has none of the fields a saved credential replaces`)
@@ -189,7 +130,7 @@ export function withSavedCredential(
   const subBlocks = legacy.subBlocks
     .filter((subBlock) => !isReplaced(subBlock))
     .map((subBlock) =>
-      isTriggerField(subBlock)
+      isTriggerModeSubBlock(subBlock)
         ? subBlock
         : dependOnCredential(subBlock, replaced, options.selectorKeys, usedSelectorKeys)
     )
@@ -229,18 +170,18 @@ export function withSavedCredential(
   const inputs = Object.fromEntries(
     Object.entries(legacy.inputs).filter(([key]) => !replaced.has(key))
   )
+  const { params } = options
   const config = legacy.tools.config
-  if (options.params && !config) {
-    throw new Error(`Block "${legacy.type}" has no tool params builder to replace`)
+  let tools = legacy.tools
+  if (params) {
+    if (!config) throw new Error(`Block "${legacy.type}" has no tool params builder to replace`)
+    tools = { ...legacy.tools, config: { ...config, params } }
   }
 
   return {
     subBlocks,
     inputs: { oauthCredential: { type: 'string', description: `${picker.title} ID` }, ...inputs },
-    tools:
-      options.params && config
-        ? { ...legacy.tools, config: { ...config, params: options.params } }
-        : legacy.tools,
+    tools,
   }
 }
 
@@ -252,10 +193,7 @@ function dependOnCredential(
 ): SubBlockConfig {
   const { dependsOn } = subBlock
   if (!dependsOn) return subBlock
-  const fields = Array.isArray(dependsOn)
-    ? dependsOn
-    : [...(dependsOn.all ?? []), ...(dependsOn.any ?? [])]
-  if (!fields.some((field) => replaced.has(field))) return subBlock
+  if (!getDependsOnFields(dependsOn).some((field) => replaced.has(field))) return subBlock
 
   const selectorKey = subBlock.selectorKey && selectorKeys?.[subBlock.selectorKey]
   if (subBlock.selectorKey && !selectorKey) {

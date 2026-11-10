@@ -28,9 +28,10 @@ interface TokenCheck {
    */
   request: (fields: TokenServiceAccountFields) => TokenCheckRequest
   /**
-   * The vendor answers 401 to an unknown key and 403 to a valid key that lacks
-   * this endpoint's scope, so the vendor's JSON 403 still proves the key
-   * authenticated. Set only for vendors confirmed to reject unknown keys with 401.
+   * The vendor answers 403 to a valid key that lacks this endpoint's scope, so
+   * the vendor's JSON 403 still proves the key authenticated. A vendor that
+   * also answers an unknown key with 403 must set {@link rejectsKey} to tell
+   * the two apart.
    */
   forbiddenMeansScoped?: boolean
   /**
@@ -49,7 +50,8 @@ interface TokenCheck {
 
 const MAX_CHECK_RESPONSE_BYTES = 64 * 1024
 
-function readJsonBody(response: Response, serviceLabel: string): Promise<unknown> {
+/** Reads a credential check's JSON response, capped so a hostile body can't exhaust memory. */
+export function readJsonBody(response: Response, serviceLabel: string): Promise<unknown> {
   return readResponseJsonWithLimit(response, {
     maxBytes: MAX_CHECK_RESPONSE_BYTES,
     label: `${serviceLabel} credential check`,
@@ -63,6 +65,11 @@ function readJsonBody(response: Response, serviceLabel: string): Promise<unknown
  * token is never forwarded to another host.
  */
 export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValidator {
+  const accepted: TokenServiceAccountValidationResult = {
+    displayName: check.serviceLabel,
+    principal: null,
+    auditMetadata: {},
+  }
   return async (fields): Promise<TokenServiceAccountValidationResult> => {
     const { url, method = 'GET', headers, body } = check.request(fields)
     const response = await fetchProvider(
@@ -81,7 +88,7 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
         throw new TokenServiceAccountValidationError('invalid_credentials', 400, { step: 'verify' })
       }
       if (scopedForbidden) {
-        return { displayName: check.serviceLabel, principal: null, auditMetadata: {} }
+        return accepted
       }
       const callerError =
         response.status >= 400 &&
@@ -108,9 +115,9 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
       if (!check.acceptsBody(body)) {
         throw new TokenServiceAccountValidationError('invalid_credentials', 400, { step: 'verify' })
       }
-      return { displayName: check.serviceLabel, principal: null, auditMetadata: {} }
+      return accepted
     }
     await response.body?.cancel().catch(() => undefined)
-    return { displayName: check.serviceLabel, principal: null, auditMetadata: {} }
+    return accepted
   }
 }

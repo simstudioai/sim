@@ -90,9 +90,11 @@ describe('saving a keyless AWS role', () => {
   it('does not save when the any-subject check cannot be completed', async () => {
     roleTrusting(true)
     const pinned = hoisted.send.getMockImplementation()
-    let webIdentityCalls = 0
     hoisted.send.mockImplementation(async (command: unknown) => {
-      if (command instanceof AssumeRoleWithWebIdentityCommand && ++webIdentityCalls === 2) {
+      const probesUnboundSubject =
+        command instanceof AssumeRoleWithWebIdentityCommand &&
+        command.input.WebIdentityToken !== `token-for:${SUBJECT}`
+      if (probesUnboundSubject) {
         throw Object.assign(new Error('socket hang up'), { name: 'TimeoutError' })
       }
       return pinned?.(command)

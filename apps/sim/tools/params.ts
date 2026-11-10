@@ -359,7 +359,7 @@ export async function createLLMToolSchema(
     .map(([paramId]) => paramId)
   // A hybrid tool (inline secrets or an optional saved credential) never takes its
   // credential selection, or the values the executor derives from it, from a model.
-  if (toolConfig.oauth && toolConfig.oauth.required === false) {
+  if (toolConfig.oauth?.required === false) {
     modelBlockedParams.push(
       ...HYBRID_CREDENTIAL_MODEL_BLOCKED_PARAMS,
       ...(toolConfig.oauth.authoritativeParams ?? [])

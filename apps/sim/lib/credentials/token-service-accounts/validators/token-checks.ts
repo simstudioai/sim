@@ -1,5 +1,4 @@
 import { toArray, toRecord } from '@sim/utils/object'
-import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   fetchProvider,
   TokenServiceAccountValidationError,
@@ -9,7 +8,10 @@ import type {
   TokenServiceAccountFields,
   TokenServiceAccountValidationResult,
 } from '@/lib/credentials/token-service-accounts/server'
-import { tokenCheckValidator } from '@/lib/credentials/token-service-accounts/validators/http'
+import {
+  readJsonBody,
+  tokenCheckValidator,
+} from '@/lib/credentials/token-service-accounts/validators/http'
 
 /**
  * Token checks for saved-credential providers whose key is verified by one
@@ -307,12 +309,7 @@ export async function validateFlintServiceAccount(
   }
   if (response.status !== 404) await throwForProviderResponse(response, 'get_task')
   // Only Flint's own JSON answer proves the key; an HTML 404 from a proxy proves nothing.
-  const body = toRecord(
-    await readResponseJsonWithLimit(response, {
-      maxBytes: 64 * 1024,
-      label: 'Flint credential check',
-    }).catch(() => null)
-  )
+  const body = toRecord(await readJsonBody(response, 'Flint').catch(() => null))
   if (body.error !== 'Task not found') {
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step: 'get_task',

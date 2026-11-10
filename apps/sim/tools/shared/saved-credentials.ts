@@ -57,6 +57,17 @@ export function tokenCredentialOAuth(
   } as const satisfies OAuthConfig
 }
 
+/** Whether a subblock is the saved-credential picker `withSavedCredential` inserts. */
+export function isSavedCredentialPicker(
+  subBlock: Pick<SubBlockConfig, 'type' | 'credentialKind' | 'canonicalParamId'>
+): boolean {
+  return (
+    subBlock.type === 'oauth-input' &&
+    subBlock.credentialKind === 'service-account' &&
+    subBlock.canonicalParamId === 'oauthCredential'
+  )
+}
+
 /**
  * The tool params a block's saved-credential picker supplies: the tool's
  * `credentialSuppliedParams` when the block has a picker feeding
@@ -193,3 +204,74 @@ export const UPTIMEROBOT_CREDENTIAL_OAUTH = tokenCredentialOAuth('uptimerobot', 
 export const YOUCOM_CREDENTIAL_OAUTH = tokenCredentialOAuth('youcom', { apiKey: 'accessToken' })
 export const YOUTUBE_CREDENTIAL_OAUTH = tokenCredentialOAuth('youtube', { apiKey: 'accessToken' })
 export const ZEP_CREDENTIAL_OAUTH = tokenCredentialOAuth('zep', { apiKey: 'accessToken' })
+
+/**
+ * Every saved-credential policy keyed by the picker's service id. A
+ * credential-only block replaces exactly the params its policy supplies, so
+ * the block and its tools read one table.
+ */
+export const SAVED_CREDENTIAL_OAUTH = {
+  affinity: AFFINITY_CREDENTIAL_OAUTH,
+  agentmail: AGENTMAIL_CREDENTIAL_OAUTH,
+  agentphone: AGENTPHONE_CREDENTIAL_OAUTH,
+  ahrefs: AHREFS_CREDENTIAL_OAUTH,
+  apify: APIFY_CREDENTIAL_OAUTH,
+  apollo: APOLLO_CREDENTIAL_OAUTH,
+  aws: AWS_CREDENTIAL_OAUTH,
+  brex: BREX_CREDENTIAL_OAUTH,
+  brightdata: BRIGHTDATA_CREDENTIAL_OAUTH,
+  browser_use: BROWSER_USE_CREDENTIAL_OAUTH,
+  buffer: BUFFER_CREDENTIAL_OAUTH,
+  circleback: CIRCLEBACK_CREDENTIAL_OAUTH,
+  clerk: CLERK_CREDENTIAL_OAUTH,
+  cloudflare: CLOUDFLARE_CREDENTIAL_OAUTH,
+  crunchbase: CRUNCHBASE_CREDENTIAL_OAUTH,
+  cursor: CURSOR_CREDENTIAL_OAUTH,
+  databricks: DATABRICKS_CREDENTIAL_OAUTH,
+  daytona: DAYTONA_CREDENTIAL_OAUTH,
+  discord: DISCORD_CREDENTIAL_OAUTH,
+  dub: DUB_CREDENTIAL_OAUTH,
+  elevenlabs: ELEVENLABS_CREDENTIAL_OAUTH,
+  enrich: ENRICH_CREDENTIAL_OAUTH,
+  extend: EXTEND_CREDENTIAL_OAUTH,
+  fireflies: FIREFLIES_CREDENTIAL_OAUTH,
+  flint: FLINT_CREDENTIAL_OAUTH,
+  gamma: GAMMA_CREDENTIAL_OAUTH,
+  hex: HEX_CREDENTIAL_OAUTH,
+  huggingface: HUGGINGFACE_CREDENTIAL_OAUTH,
+  incidentio: INCIDENTIO_CREDENTIAL_OAUTH,
+  instantly: INSTANTLY_CREDENTIAL_OAUTH,
+  intercom: INTERCOM_CREDENTIAL_OAUTH,
+  langsmith: LANGSMITH_CREDENTIAL_OAUTH,
+  launchdarkly: LAUNCHDARKLY_CREDENTIAL_OAUTH,
+  linq: LINQ_CREDENTIAL_OAUTH,
+  loops: LOOPS_CREDENTIAL_OAUTH,
+  luma: LUMA_CREDENTIAL_OAUTH,
+  mailchimp: MAILCHIMP_CREDENTIAL_OAUTH,
+  mem0: MEM0_CREDENTIAL_OAUTH,
+  otter: OTTER_CREDENTIAL_OAUTH,
+  persona: PERSONA_CREDENTIAL_OAUTH,
+  profound: PROFOUND_CREDENTIAL_OAUTH,
+  pulse: PULSE_CREDENTIAL_OAUTH,
+  quartr: QUARTR_CREDENTIAL_OAUTH,
+  quiver: QUIVER_CREDENTIAL_OAUTH,
+  rb2b: RB2B_CREDENTIAL_OAUTH,
+  reducto: REDUCTO_CREDENTIAL_OAUTH,
+  rippling: RIPPLING_CREDENTIAL_OAUTH,
+  rocketlane: ROCKETLANE_CREDENTIAL_OAUTH,
+  sendgrid: SENDGRID_CREDENTIAL_OAUTH,
+  similarweb: SIMILARWEB_CREDENTIAL_OAUTH,
+  sixtyfour: SIXTYFOUR_CREDENTIAL_OAUTH,
+  smartlead: SMARTLEAD_CREDENTIAL_OAUTH,
+  sportmonks: SPORTMONKS_CREDENTIAL_OAUTH,
+  square: SQUARE_CREDENTIAL_OAUTH,
+  tailscale: TAILSCALE_CREDENTIAL_OAUTH,
+  tavily: TAVILY_CREDENTIAL_OAUTH,
+  trigger_dev: TRIGGER_DEV_CREDENTIAL_OAUTH,
+  uptimerobot: UPTIMEROBOT_CREDENTIAL_OAUTH,
+  youcom: YOUCOM_CREDENTIAL_OAUTH,
+  youtube: YOUTUBE_CREDENTIAL_OAUTH,
+  zep: ZEP_CREDENTIAL_OAUTH,
+} as const
+
+export type SavedCredentialService = keyof typeof SAVED_CREDENTIAL_OAUTH

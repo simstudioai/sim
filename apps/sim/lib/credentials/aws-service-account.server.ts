@@ -8,7 +8,6 @@ import {
 import { db } from '@sim/db'
 import { credential } from '@sim/db/schema'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
@@ -20,6 +19,7 @@ import {
 } from '@/lib/credentials/workload-identity/issuer'
 import {
   bindWorkloadIdentitySubject,
+  newWorkloadIdentitySubject,
   type WorkloadIdentityCredentialOwner,
   WorkloadIdentitySubjectError,
 } from '@/lib/credentials/workload-identity/subject'
@@ -276,28 +276,38 @@ export async function verifyAndEncryptAwsCredential(
     config = submitted
   }
 
-  let callerArn: string
-  try {
-    const signal = AbortSignal.timeout(VERIFY_TIMEOUT_MS)
-    const session = await resolveAwsSessionCredentials(config, owner, {
-      roleSessionName: buildAwsRoleSessionName('verify'),
-      signal,
-    })
-    const identity = await new STSClient({
-      region: stsRegionFor(config),
-      credentials: session,
-    }).send(new GetCallerIdentityCommand({}), { abortSignal: signal })
-    if (!identity.Arn) throw new Error('AWS returned no caller identity')
-    callerArn = identity.Arn
-  } catch (error) {
-    throw verificationFailure(config, error)
-  }
-  if (config.authType === 'oidc_role') await assertRolePinsSubject(config, owner)
+  // The trust-pin probe is independent of the verification, so both run at once;
+  // a verification failure still reports first.
+  const [verified, pinned] = await Promise.allSettled([
+    verifyCallerArn(config, owner),
+    config.authType === 'oidc_role' ? assertRolePinsSubject(config, owner) : undefined,
+  ])
+  if (verified.status === 'rejected') throw verificationFailure(config, verified.reason)
+  if (pinned.status === 'rejected') throw pinned.reason
+  const callerArn = verified.value
 
   const { encrypted } = await encryptSecret(
     JSON.stringify({ type: AWS_CREDENTIAL_SECRET_TYPE, config })
   )
   return { encryptedServiceAccountKey: encrypted, callerArn }
+}
+
+/** Resolves the configuration and returns the caller ARN AWS reports for it. */
+async function verifyCallerArn(
+  config: AwsCredentialConfig,
+  owner: WorkloadIdentityOwner
+): Promise<string> {
+  const signal = AbortSignal.timeout(VERIFY_TIMEOUT_MS)
+  const session = await resolveAwsSessionCredentials(config, owner, {
+    roleSessionName: buildAwsRoleSessionName('verify'),
+    signal,
+  })
+  const identity = await new STSClient({
+    region: stsRegionFor(config),
+    credentials: session,
+  }).send(new GetCallerIdentityCommand({}), { abortSignal: signal })
+  if (!identity.Arn) throw new Error('AWS returned no caller identity')
+  return identity.Arn
 }
 
 /**
@@ -310,7 +320,7 @@ async function assertRolePinsSubject(
   config: Extract<AwsCredentialConfig, { authType: 'oidc_role' }>,
   owner: WorkloadIdentityOwner
 ): Promise<void> {
-  const unboundSubject = config.subject.replace(/[^:]+$/, generateId().replace(/-/g, ''))
+  const unboundSubject = newWorkloadIdentitySubject(owner)
   try {
     await resolveAwsSessionCredentials({ ...config, subject: unboundSubject }, owner, {
       roleSessionName: buildAwsRoleSessionName('verify'),

@@ -26,6 +26,7 @@ export async function workloadIdentityDiscoveryResponse() {
 }
 
 export async function workloadIdentityJwksResponse() {
-  if (!(await isWorkloadIdentityConfigured())) return notConfigured()
-  return NextResponse.json(await getWorkloadIdentityJwks(), { headers: DISCOVERY_HEADERS })
+  const jwks = await getWorkloadIdentityJwks().catch(() => null)
+  if (!jwks) return notConfigured()
+  return NextResponse.json(jwks, { headers: DISCOVERY_HEADERS })
 }

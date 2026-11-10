@@ -131,7 +131,7 @@ import {
   projectToolModelInputParams,
   readRequestedDeadline,
 } from '@/tools/request-transport'
-import { AWS_SESSION_SIGNED_TOOL_IDS } from '@/tools/shared/saved-credentials'
+import { AWS_CREDENTIAL_OAUTH, AWS_SESSION_SIGNED_TOOL_IDS } from '@/tools/shared/saved-credentials'
 import type {
   BYOKProviderId,
   CredentialParamSource,
@@ -2219,7 +2219,10 @@ async function executeToolImplementation(
       }
     }
 
-    if (authorizedServiceAccountCredential?.service === 'aws' && !tool.operation) {
+    if (
+      authorizedServiceAccountCredential?.service === AWS_CREDENTIAL_OAUTH.provider &&
+      !tool.operation
+    ) {
       // AWS tools that sign their own HTTP request need the session keys themselves.
       if (typeof window !== 'undefined') {
         throw new Error('Saved AWS credentials can only be used on the server')

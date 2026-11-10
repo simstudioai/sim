@@ -58,9 +58,9 @@ async function toPublicJwk(key: KeyObject): Promise<JWK> {
 let signingMaterial: Promise<SigningMaterial> | undefined
 
 /**
- * Loads the signing key once per process. The key is immutable config, not a
- * remote read, so this is a memoized derivation rather than a cache; a failed
- * load is not memoized so a fixed deployment recovers without a restart.
+ * Loads the signing key once per process. The key is immutable config (it only
+ * changes on redeploy), so this is a memoized derivation rather than a cache,
+ * and a malformed key is parsed and reported once rather than per request.
  */
 function loadSigningMaterial(): Promise<SigningMaterial> {
   const signingKey = env.WORKLOAD_IDENTITY_SIGNING_KEY
@@ -77,8 +77,8 @@ function loadSigningMaterial(): Promise<SigningMaterial> {
       }
       return { privateKey, kid: current.kid as string, jwks: { keys } }
     })()
-    signingMaterial.catch(() => {
-      signingMaterial = undefined
+    signingMaterial.catch((error: unknown) => {
+      logger.error('Workload identity signing key is set but unusable', { error })
     })
   }
   return signingMaterial
@@ -90,13 +90,10 @@ function loadSigningMaterial(): Promise<SigningMaterial> {
  */
 export async function isWorkloadIdentityConfigured(): Promise<boolean> {
   if (!env.WORKLOAD_IDENTITY_SIGNING_KEY) return false
-  try {
-    await loadSigningMaterial()
-    return true
-  } catch (error) {
-    logger.error('Workload identity signing key is set but unusable', { error })
-    return false
-  }
+  return loadSigningMaterial().then(
+    () => true,
+    () => false
+  )
 }
 
 /** The issuer URL customers register as an OIDC identity provider. Stable for the deployment's life. */

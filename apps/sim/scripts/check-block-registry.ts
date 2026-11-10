@@ -50,6 +50,7 @@ import { hostSteeringParams } from '@/scripts/saved-credential-contract'
 import { getToolMetadata } from '@/tools/metadata'
 import {
   credentialSuppliedParamsFor,
+  isSavedCredentialPicker,
   OPERATION_RESOLVED_CREDENTIAL_PROVIDERS,
 } from '@/tools/shared/saved-credentials'
 import { getTool } from '@/tools/utils'
@@ -390,30 +391,21 @@ function selectedToolId(block: BlockConfig, values: Record<string, unknown>): st
  */
 function checkSavedCredentialContract(): CheckResult {
   const errors: string[] = []
-  const successors = new Set(
-    getAllBlocks().flatMap((block) => (block.sunset?.replacedBy ? [block.sunset.replacedBy] : []))
-  )
+  const legaciesBySuccessor = new Map<string, BlockConfig[]>()
+  for (const legacy of getAllBlocks()) {
+    const successor = legacy.sunset?.replacedBy
+    if (successor)
+      legaciesBySuccessor.set(successor, [...(legaciesBySuccessor.get(successor) ?? []), legacy])
+  }
 
   for (const block of getAllBlocks()) {
-    if (!successors.has(block.type)) continue
-    // The picker shape withSavedCredential produces.
-    const hasServiceAccountPicker = block.subBlocks.some(
-      (subBlock) =>
-        subBlock.type === 'oauth-input' &&
-        subBlock.credentialKind === 'service-account' &&
-        subBlock.canonicalParamId === 'oauthCredential'
-    )
+    const legacies = legaciesBySuccessor.get(block.type)
+    if (!legacies) continue
+    const picker = block.subBlocks.find(isSavedCredentialPicker)
     const takesSavedCredential = (block.tools?.access ?? []).some(
       (toolId) => (getToolMetadata(toolId)?.oauth?.credentialSuppliedParams?.length ?? 0) > 0
     )
-    if (!takesSavedCredential && !hasServiceAccountPicker) continue
-    const picker = block.subBlocks.find(
-      (subBlock) =>
-        subBlock.type === 'oauth-input' &&
-        subBlock.credentialKind === 'service-account' &&
-        subBlock.canonicalParamId === 'oauthCredential' &&
-        subBlock.serviceId
-    )
+    if (!takesSavedCredential && !picker) continue
     if (!picker?.serviceId) {
       errors.push(
         `Block "${block.type}": its tools take a saved credential but it has no service-account picker with a serviceId and canonicalParamId 'oauthCredential'.`
@@ -443,8 +435,7 @@ function checkSavedCredentialContract(): CheckResult {
 
     const successorFields = new Set(block.subBlocks.map((subBlock) => subBlock.id))
     const replacedSecrets = new Set(
-      getAllBlocks()
-        .filter((legacy) => legacy.sunset?.replacedBy === block.type)
+      legacies
         .flatMap((legacy) => legacy.subBlocks.map((subBlock) => subBlock.id))
         .filter((id) => !successorFields.has(id))
     )
@@ -481,8 +472,6 @@ function checkSavedCredentialContract(): CheckResult {
             )
           }
         }
-      }
-      if (!OPERATION_RESOLVED_CREDENTIAL_PROVIDERS.has(oauth.provider)) {
         const pinned = new Set<string>([...mapped, ...(oauth.authoritativeParams ?? [])])
         const executable = getTool(toolId)
         if (!executable) {

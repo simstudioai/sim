@@ -66,6 +66,11 @@ function sign(
     .digest('base64url')
 }
 
+/** A fresh subject for this owner that no credential holds yet. */
+export function newWorkloadIdentitySubject(owner: WorkloadIdentityOwner): string {
+  return buildWorkloadIdentitySubject(owner, generateId().replace(/-/g, ''))
+}
+
 export interface WorkloadIdentitySubjectGrant {
   subject: string
   subjectProof: string
@@ -79,7 +84,7 @@ export function issueWorkloadIdentitySubject(
   userId: string,
   now: number = Date.now()
 ): WorkloadIdentitySubjectGrant {
-  const subject = buildWorkloadIdentitySubject(owner, generateId().replace(/-/g, ''))
+  const subject = newWorkloadIdentitySubject(owner)
   const expiresAt = now + SUBJECT_PROOF_TTL_MS
   return {
     subject,
