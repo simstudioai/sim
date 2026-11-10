@@ -3,6 +3,7 @@ import type {
   GitLabUpdateInvitationResponse,
 } from '@/tools/gitlab/types'
 import { getGitLabApiBase, getGitLabResourcePath } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabUpdateInvitationTool: ToolConfig<
@@ -14,6 +15,7 @@ export const gitlabUpdateInvitationTool: ToolConfig<
   name: 'GitLab Update Invitation',
   description: 'Update a pending invitation to a GitLab project or group',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {

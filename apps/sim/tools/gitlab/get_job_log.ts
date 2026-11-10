@@ -1,6 +1,7 @@
 import { truncate } from '@sim/utils/string'
 import type { GitLabGetJobLogParams, GitLabGetJobLogResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 /**
@@ -16,6 +17,7 @@ export const gitlabGetJobLogTool: ToolConfig<GitLabGetJobLogParams, GitLabGetJob
   name: 'GitLab Get Job Log',
   description: 'Get the log (trace) of a GitLab job',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {

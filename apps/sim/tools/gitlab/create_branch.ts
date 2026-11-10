@@ -1,5 +1,6 @@
 import type { GitLabCreateBranchParams, GitLabCreateBranchResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabCreateBranchTool: ToolConfig<
@@ -11,6 +12,7 @@ export const gitlabCreateBranchTool: ToolConfig<
   name: 'GitLab Create Branch',
   description: 'Create a new branch in a GitLab project repository',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {

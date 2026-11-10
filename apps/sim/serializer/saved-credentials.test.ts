@@ -41,6 +41,7 @@ import { FathomBlock, FathomV2Block } from '@/blocks/blocks/fathom'
 import { FirefliesV2Block, FirefliesV3Block } from '@/blocks/blocks/fireflies'
 import { FlintBlock, FlintV2Block } from '@/blocks/blocks/flint'
 import { GammaBlock, GammaV2Block } from '@/blocks/blocks/gamma'
+import { GitLabBlock, GitLabV2Block } from '@/blocks/blocks/gitlab'
 import { GrainV2Block, GrainV3Block } from '@/blocks/blocks/grain'
 import { GranolaBlock, GranolaV2Block } from '@/blocks/blocks/granola'
 import { HexBlock, HexV2Block } from '@/blocks/blocks/hex'
@@ -117,6 +118,8 @@ const VERSIONS: Array<{
   legacy: BlockConfig
   successor: BlockConfig
   secretIds: readonly string[]
+  /** Replaced connection fields the legacy block never required (a host defaulting to the vendor's). */
+  optionalIds?: readonly string[]
 }> = [
   {
     legacy: AppConfigBlock,
@@ -262,6 +265,12 @@ const VERSIONS: Array<{
   { legacy: TypeformBlock, successor: TypeformV2Block, secretIds: ['apiKey'] },
   { legacy: VercelBlock, successor: VercelV2Block, secretIds: ['apiKey'] },
   { legacy: WhatsAppBlock, successor: WhatsAppV2Block, secretIds: ['accessToken'] },
+  {
+    legacy: GitLabBlock,
+    successor: GitLabV2Block,
+    secretIds: ['accessToken', 'host'],
+    optionalIds: ['host'],
+  },
 ]
 
 function valuesFor(ids: readonly string[], prefix: string): Record<string, string> {
@@ -313,7 +322,7 @@ function missingRequiredFields(block: BlockState): string {
   }
 }
 
-describe.each(VERSIONS)('$legacy.type legacy block', ({ legacy, secretIds }) => {
+describe.each(VERSIONS)('$legacy.type legacy block', ({ legacy, secretIds, optionalIds = [] }) => {
   beforeEach(() => {
     vi.spyOn(blocks, 'getBlock').mockReturnValue(legacy)
   })
@@ -326,10 +335,11 @@ describe.each(VERSIONS)('$legacy.type legacy block', ({ legacy, secretIds }) => 
   })
 
   it('still requires its inline secrets', () => {
+    const requiredIds = secretIds.filter((id) => !optionalIds.includes(id))
     const message = missingRequiredFields(buildBlock(legacy, {}))
-    const titles = fieldTitles(legacy, secretIds)
+    const titles = fieldTitles(legacy, requiredIds)
 
-    expect(titles).toHaveLength(secretIds.length)
+    expect(titles).toHaveLength(requiredIds.length)
     for (const title of titles) expect(message).toContain(title)
   })
 })

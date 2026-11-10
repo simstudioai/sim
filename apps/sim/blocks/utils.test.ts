@@ -430,6 +430,19 @@ describe('withSavedCredential', () => {
     expect(() => withSavedCredential(mismatched, picker)).toThrow(/show or require differently/)
   })
 
+  it('accepts replaced fields that differ only in what the successor states itself', () => {
+    const optionalHost: BlockConfig = {
+      ...legacy,
+      subBlocks: legacy.subBlocks.map((subBlock) =>
+        subBlock.id === 'secretAccessKey' ? { ...subBlock, required: false } : subBlock
+      ),
+    }
+
+    const { subBlocks } = withSavedCredential(optionalHost, picker, { required: true })
+
+    expect(subBlocks.find((subBlock) => subBlock.id === 'credential')?.required).toBe(true)
+  })
+
   it('refuses options that would silently do nothing', () => {
     expect(() =>
       withSavedCredential(legacy, picker, {

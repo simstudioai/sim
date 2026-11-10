@@ -1,5 +1,6 @@
 import type { GitLabSearchUsersParams, GitLabSearchUsersResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabSearchUsersTool: ToolConfig<GitLabSearchUsersParams, GitLabSearchUsersResponse> =
@@ -11,6 +12,7 @@ export const gitlabSearchUsersTool: ToolConfig<GitLabSearchUsersParams, GitLabSe
     description:
       'Search for GitLab users by name, username, or email. Email matches must be exact; private emails match only with an admin token. Use this to resolve an email to a user ID before adding a member.',
     version: '1.0.0',
+    oauth: GITLAB_CREDENTIAL_OAUTH,
 
     params: {
       accessToken: {

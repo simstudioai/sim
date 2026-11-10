@@ -1,5 +1,6 @@
 import type { GitLabInviteMemberParams, GitLabInviteMemberResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase, getGitLabResourcePath } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabInviteMemberTool: ToolConfig<
@@ -11,6 +12,7 @@ export const gitlabInviteMemberTool: ToolConfig<
   name: 'GitLab Invite Member',
   description: 'Invite a person to a GitLab project or group by email address',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {

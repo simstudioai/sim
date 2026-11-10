@@ -3,6 +3,7 @@ import type {
   GitLabListPipelineJobsResponse,
 } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabListPipelineJobsTool: ToolConfig<
@@ -14,6 +15,7 @@ export const gitlabListPipelineJobsTool: ToolConfig<
   name: 'GitLab List Pipeline Jobs',
   description: 'List jobs for a GitLab pipeline',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {

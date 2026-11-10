@@ -59,6 +59,7 @@ export const BLOCK_ACCESS_SUCCESSORS: Record<string, string> = {
   flint: 'flint_v2',
   gamma: 'gamma_v2',
   github: 'github_v2',
+  gitlab: 'gitlab_v2',
   gmail: 'gmail_v2',
   google_calendar: 'google_calendar_v2',
   google_sheets: 'google_sheets_v2',

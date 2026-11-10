@@ -10547,7 +10547,7 @@
       "updatedAt": "2026-10-20"
     },
     {
-      "type": "gitlab",
+      "type": "gitlab_v2",
       "slug": "gitlab",
       "name": "GitLab",
       "description": "Interact with GitLab projects, issues, merge requests, and pipelines",
@@ -10851,11 +10851,12 @@
         }
       ],
       "triggerCount": 6,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "gitlab",
       "category": "tools",
       "integrationType": "devops",
       "tags": ["version-control", "ci-cd"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "gmail_v2",

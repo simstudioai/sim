@@ -119,7 +119,7 @@ import {
   GitHubV2Block,
   GitHubV2BlockMeta,
 } from '@/blocks/blocks/github'
-import { GitLabBlock, GitLabBlockMeta } from '@/blocks/blocks/gitlab'
+import { GitLabBlock, GitLabBlockMeta, GitLabV2Block } from '@/blocks/blocks/gitlab'
 import { GmailBlock, GmailBlockMeta, GmailV2Block, GmailV2BlockMeta } from '@/blocks/blocks/gmail'
 import { GongBlock, GongBlockMeta } from '@/blocks/blocks/gong'
 import { GoogleSearchBlock, GoogleSearchBlockMeta } from '@/blocks/blocks/google'
@@ -609,6 +609,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   github: GitHubBlock,
   github_v2: GitHubV2Block,
   gitlab: GitLabBlock,
+  gitlab_v2: GitLabV2Block,
   gmail: GmailBlock,
   gmail_v2: GmailV2Block,
   gong: GongBlock,

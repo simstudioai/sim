@@ -85,6 +85,7 @@ export const FLOW_SERVICE_ACCOUNT_PROVIDER_ID = 'flow-service-account' as const
 export const CODA_SERVICE_ACCOUNT_PROVIDER_ID = 'coda-service-account' as const
 export const GAUGE_SERVICE_ACCOUNT_PROVIDER_ID = 'gauge-service-account' as const
 export const HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID = 'higgsfield-service-account' as const
+export const GITLAB_SERVICE_ACCOUNT_PROVIDER_ID = 'gitlab-service-account' as const
 export const WHATSAPP_SERVICE_ACCOUNT_PROVIDER_ID = 'whatsapp-service-account' as const
 export const VERCEL_SERVICE_ACCOUNT_PROVIDER_ID = 'vercel-service-account' as const
 export const TYPEFORM_SERVICE_ACCOUNT_PROVIDER_ID = 'typeform-service-account' as const
@@ -191,6 +192,7 @@ export type TokenServiceAccountProviderId =
   | typeof CODA_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof GAUGE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof GITLAB_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof WHATSAPP_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof VERCEL_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof TYPEFORM_SERVICE_ACCOUNT_PROVIDER_ID
@@ -1771,6 +1773,21 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       'Use a permanent system user access token from Meta Business Settings with the whatsapp_business_messaging permission. Temporary tokens from the App Dashboard expire after 24 hours.',
     invalidCredentialsHelp:
       'Meta rejected this token. Check that it has not expired or been revoked; temporary App Dashboard tokens last only 24 hours.',
+  },
+  [GITLAB_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: GITLAB_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'GitLab',
+    tokenNoun: 'access token',
+    connectNoun: 'access token',
+    fields: [
+      { id: 'apiToken', label: 'Access token', placeholder: 'glpat-...', secret: true },
+      { id: 'domain', label: 'GitLab host', placeholder: 'gitlab.com', secret: false },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/gitlab',
+    helpText:
+      'Use a personal, project, or group access token with the api scope (read_api for read-only workflows). Enter gitlab.com, or your self-managed host.',
+    invalidCredentialsHelp:
+      'GitLab rejected this token. Check that it is active, has the api or read_api scope, and belongs to the host you entered.',
   },
 }
 

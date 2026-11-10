@@ -1,5 +1,6 @@
 import type { GitLabListMembersParams, GitLabListMembersResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase, getGitLabResourcePath } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabListMembersTool: ToolConfig<GitLabListMembersParams, GitLabListMembersResponse> =
@@ -11,6 +12,7 @@ export const gitlabListMembersTool: ToolConfig<GitLabListMembersParams, GitLabLi
     description:
       'List members of a GitLab project or group. Includes members inherited from ancestor groups by default.',
     version: '1.0.0',
+    oauth: GITLAB_CREDENTIAL_OAUTH,
 
     params: {
       accessToken: {

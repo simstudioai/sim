@@ -41,6 +41,7 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   fivetran: 'fivetran-service-account',
   flint: 'flint-service-account',
   gamma: 'gamma-service-account',
+  gitlab: 'gitlab-service-account',
   gmail: 'google-service-account',
   'google-bigquery': 'google-service-account',
   'google-calendar': 'google-service-account',

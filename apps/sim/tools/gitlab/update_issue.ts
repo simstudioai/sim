@@ -1,5 +1,6 @@
 import type { GitLabUpdateIssueParams, GitLabUpdateIssueResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabUpdateIssueTool: ToolConfig<GitLabUpdateIssueParams, GitLabUpdateIssueResponse> =
@@ -9,6 +10,7 @@ export const gitlabUpdateIssueTool: ToolConfig<GitLabUpdateIssueParams, GitLabUp
     name: 'GitLab Update Issue',
     description: 'Update an existing issue in a GitLab project',
     version: '1.0.0',
+    oauth: GITLAB_CREDENTIAL_OAUTH,
 
     params: {
       accessToken: {

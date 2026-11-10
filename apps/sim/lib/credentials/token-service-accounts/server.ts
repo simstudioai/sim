@@ -37,6 +37,7 @@ import {
   FLOW_SERVICE_ACCOUNT_PROVIDER_ID,
   GAMMA_SERVICE_ACCOUNT_PROVIDER_ID,
   GAUGE_SERVICE_ACCOUNT_PROVIDER_ID,
+  GITLAB_SERVICE_ACCOUNT_PROVIDER_ID,
   GRAIN_SERVICE_ACCOUNT_PROVIDER_ID,
   GRANOLA_SERVICE_ACCOUNT_PROVIDER_ID,
   HARMONIC_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -109,6 +110,7 @@ import { validateClickupServiceAccount } from '@/lib/credentials/token-service-a
 import { validateCodaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/coda'
 import { validateFlowServiceAccount } from '@/lib/credentials/token-service-accounts/validators/flow'
 import { validateGaugeServiceAccount } from '@/lib/credentials/token-service-accounts/validators/gauge'
+import { validateGitLabServiceAccount } from '@/lib/credentials/token-service-accounts/validators/gitlab'
 import { validateHarmonicServiceAccount } from '@/lib/credentials/token-service-accounts/validators/harmonic'
 import { validateHiggsfieldServiceAccount } from '@/lib/credentials/token-service-accounts/validators/higgsfield'
 import { validateHubspotServiceAccount } from '@/lib/credentials/token-service-accounts/validators/hubspot'
@@ -324,6 +326,7 @@ const TOKEN_SERVICE_ACCOUNT_VALIDATORS: Record<
   [AGENTMAIL_SERVICE_ACCOUNT_PROVIDER_ID]: validateAgentMailServiceAccount,
   [AFFINITY_SERVICE_ACCOUNT_PROVIDER_ID]: validateAffinityServiceAccount,
   [TAVILY_SERVICE_ACCOUNT_PROVIDER_ID]: validateTavilyServiceAccount,
+  [GITLAB_SERVICE_ACCOUNT_PROVIDER_ID]: validateGitLabServiceAccount,
   [ASHBY_SERVICE_ACCOUNT_PROVIDER_ID]: validateAshbyServiceAccount,
   [CALENDLY_SERVICE_ACCOUNT_PROVIDER_ID]: validateCalendlyServiceAccount,
   [CHECKR_SERVICE_ACCOUNT_PROVIDER_ID]: validateCheckrServiceAccount,

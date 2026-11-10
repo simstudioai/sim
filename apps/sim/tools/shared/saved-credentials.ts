@@ -228,6 +228,10 @@ export const WHATSAPP_CREDENTIAL_OAUTH = tokenCredentialOAuth('whatsapp', {
 export const YOUCOM_CREDENTIAL_OAUTH = tokenCredentialOAuth('youcom', { apiKey: 'accessToken' })
 export const YOUTUBE_CREDENTIAL_OAUTH = tokenCredentialOAuth('youtube', { apiKey: 'accessToken' })
 export const ZEP_CREDENTIAL_OAUTH = tokenCredentialOAuth('zep', { apiKey: 'accessToken' })
+export const GITLAB_CREDENTIAL_OAUTH = tokenCredentialOAuth('gitlab', {
+  accessToken: 'accessToken',
+  host: 'domain',
+})
 
 /**
  * Every saved-credential policy keyed by the picker's service id. A
@@ -312,6 +316,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   youcom: YOUCOM_CREDENTIAL_OAUTH,
   youtube: YOUTUBE_CREDENTIAL_OAUTH,
   zep: ZEP_CREDENTIAL_OAUTH,
+  gitlab: GITLAB_CREDENTIAL_OAUTH,
 } as const
 
 export type SavedCredentialService = keyof typeof SAVED_CREDENTIAL_OAUTH

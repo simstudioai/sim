@@ -425,6 +425,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   github: GithubIcon,
   github_v2: GithubIcon,
   gitlab: GitLabIcon,
+  gitlab_v2: GitLabIcon,
   gmail: GmailIcon,
   gmail_v2: GmailIcon,
   gong: GongIcon,

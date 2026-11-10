@@ -53,6 +53,7 @@ import {
   GammaIcon,
   GaugeIcon,
   GithubIcon,
+  GitLabIcon,
   GmailIcon,
   GoogleAdsIcon,
   GoogleBigQueryIcon,
@@ -3065,6 +3066,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'whatsapp',
+  },
+  gitlab: {
+    name: 'GitLab',
+    icon: GitLabIcon,
+    services: {
+      gitlab: {
+        name: 'GitLab',
+        description:
+          'Manage GitLab projects, issues, merge requests, pipelines, repositories, and members.',
+        providerId: 'gitlab',
+        serviceAccountProviderId: 'gitlab-service-account',
+        icon: GitLabIcon,
+        baseProviderIcon: GitLabIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'gitlab',
   },
   higgsfield: {
     name: 'Higgsfield',

@@ -1,5 +1,6 @@
 import type { GitLabCancelPipelineParams, GitLabCancelPipelineResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabCancelPipelineTool: ToolConfig<
@@ -11,6 +12,7 @@ export const gitlabCancelPipelineTool: ToolConfig<
   name: 'GitLab Cancel Pipeline',
   description: 'Cancel a running GitLab pipeline',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {

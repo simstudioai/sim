@@ -105,11 +105,15 @@ export function withSavedCredential(
     throw new Error(`Block "${legacy.type}" has none of the fields a saved credential replaces`)
   }
 
-  // The picker shows and is required exactly where the secrets it replaces were.
+  // The picker shows and is required exactly where the secrets it replaces were,
+  // unless the successor states where; replaced fields must agree on whatever it inherits.
   const { condition: secretCondition, required: secretRequired } = legacy.subBlocks[at]
-  const visibility = (subBlock: SubBlockConfig) =>
-    JSON.stringify([subBlock.condition ?? null, subBlock.required ?? null])
-  if (new Set(legacy.subBlocks.filter(isReplaced).map(visibility)).size > 1) {
+  const inherited = (subBlock: SubBlockConfig) =>
+    JSON.stringify([
+      options.condition === undefined ? (subBlock.condition ?? null) : null,
+      options.required === undefined ? (subBlock.required ?? null) : null,
+    ])
+  if (new Set(legacy.subBlocks.filter(isReplaced).map(inherited)).size > 1) {
     throw new Error(`Block "${legacy.type}": the replaced secrets show or require differently`)
   }
   const condition = options.condition ?? secretCondition
