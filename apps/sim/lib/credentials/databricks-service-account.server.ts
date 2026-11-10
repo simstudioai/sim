@@ -255,9 +255,10 @@ async function verifyWorkspaceIdentity(
 
 /**
  * Sim signs tokens for any service principal a member names, and every Sim
- * tenant shares the issuer and audience, so a federation policy that doesn't
- * pin `subject` would let any Sim workspace act as the principal. Exchanging a
- * subject no credential holds must be refused before the credential is saved.
+ * tenant shares the issuer and audience, so a federation policy that matches on
+ * a claim other than `sub` (a `subject_claim` of `sim_workspace_id`, say) would
+ * let other Sim credentials act as the principal. Exchanging a subject no
+ * credential holds must be refused before the credential is saved.
  */
 async function assertPolicyPinsSubject(
   config: Extract<DatabricksCredentialConfig, { authType: 'oidc_federation' }>,
@@ -280,7 +281,7 @@ async function assertPolicyPinsSubject(
     )
   }
   throw new DatabricksCredentialError(
-    `This service principal's federation policy trusts every Sim subject. Use the policy shown in the dialog, whose subject is ${config.subject}, so only this credential can use it.`
+    `This service principal's federation policy also trusts other Sim credentials. Use the policy shown in the dialog, which matches the sub claim to ${config.subject}, so only this credential can use it.`
   )
 }
 

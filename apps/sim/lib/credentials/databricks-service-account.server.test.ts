@@ -115,7 +115,7 @@ describe('saving a keyless Databricks connection', () => {
 
     await expect(
       verifyAndEncryptDatabricksCredential(JSON.stringify(config), reconnectOwner)
-    ).rejects.toThrow(/every Sim subject/)
+    ).rejects.toThrow(/also trusts other Sim credentials/)
     expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
   })
 

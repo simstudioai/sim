@@ -109,7 +109,12 @@ function loadSigningMaterial(): Promise<SigningMaterial> {
       return { privateKey, kid: current.kid as string, jwks: { keys } }
     })()
     signingMaterial.catch((error: unknown) => {
-      logger.error('Workload identity signing key is set but unusable', { error })
+      logger.error(
+        'Workload identity is configured but unusable (check the signing key and issuer)',
+        {
+          error,
+        }
+      )
     })
   }
   return signingMaterial
