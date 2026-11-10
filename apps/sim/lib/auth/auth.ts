@@ -503,12 +503,18 @@ export const auth = betterAuth({
        * discarded, and when the runs the cascade orphaned are stopped: in-flight ones at once,
        * queued ones by the outbox worker, since this module cannot load that delivery. The cleanup
        * of the chats the cascade erases is queued, delayed, before the delete instead, and a
-       * failure to queue it refuses the removal.
+       * failure to queue it refuses the removal. The personal organization, which the membership
+       * cascade would leave behind with no member, is deleted before it too, as account deletion
+       * deletes it (imported lazily to keep the organization graph out of this module's load path).
        */
       delete: {
         before: async (user) => {
           await holdAdminRemovalStops(user)
           await enqueueAdminRemovedChatCleanup(user)
+          const { deletePersonalOrganizationOfRemovedUser } = await import(
+            '@/lib/organizations/deletion'
+          )
+          await deletePersonalOrganizationOfRemovedUser(user.id)
         },
         after: async (user) => {
           await stopAdminRemovedRuns(user)

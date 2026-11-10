@@ -39,6 +39,7 @@ import {
 } from '@/lib/billing/organizations/membership'
 import { resolveStorageBillingContext } from '@/lib/billing/storage/context'
 import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
+import { deletePersonalOrganizationOfRemovedUser } from '@/lib/organizations/deletion'
 import { provisionPersonalOrganization } from '@/lib/organizations/provision-personal'
 import { deleteUserAccount, getAccountDeletionPlan } from '@/lib/users/account-deletion'
 import { createWorkspaceInTransaction } from '@/lib/workspaces/create'
@@ -693,6 +694,19 @@ describe('deleting an account', () => {
       .from(member)
       .where(eq(member.organizationId, provisioned.organizationId))
     expect(membership).toBeUndefined()
+  })
+
+  /** Drives the handler Better Auth runs as the user delete's `before` hook, then its bare delete. */
+  it('leaves no memberless personal organization behind when the admin plugin removes the user', async () => {
+    const ownerId = await createUser()
+    const provisioned = await provisionPersonalOrganization(ownerId)
+    if (provisioned.status !== 'provisioned') throw new Error('expected provisioning')
+    await createOrganizationContent(ownerId, provisioned.organizationId)
+
+    await deletePersonalOrganizationOfRemovedUser(ownerId)
+    await db.delete(user).where(eq(user.id, ownerId))
+
+    expect(await organizationExists(provisioned.organizationId)).toBe(false)
   })
 })
 
