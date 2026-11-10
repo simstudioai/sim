@@ -105,7 +105,7 @@
     "@calcom/embed-react": "1.5.3",
     "@cerebras/cerebras_cloud_sdk": "^1.91.0",
     "@daytona/sdk": "0.207.0",
-    "@e2b/code-interpreter": "2.7.1",
+    "@e2b/code-interpreter": "2.9.1",
     "@earendil-works/pi-ai": "1.0.0",
     "@earendil-works/pi-coding-agent": "1.0.0",
     "@floating-ui/dom": "1.7.6",
