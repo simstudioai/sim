@@ -47,6 +47,10 @@ import {
   verifyAndBuildServiceAccountSecret,
 } from '@/lib/credentials/service-account-secret'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
+import {
+  assertWorkloadIdentitySubjectUnclaimed,
+  WorkloadIdentitySubjectError,
+} from '@/lib/credentials/workload-identity/subject'
 import { invalidateEffectiveDecryptedEnvCache } from '@/lib/environment/utils'
 import { findSlackSearchInstallation } from '@/lib/knowledge/application/slack-search/repository'
 import {
@@ -312,6 +316,7 @@ export async function updateCredentialRecord(
 
     let rotatedSlackBotUserId: string | undefined
     let rotatedAuditMetadata: Record<string, string> | undefined
+    let rotatedWorkloadIdentitySubject: string | undefined
     if (hasRotationSecret) {
       const providerId = params.credential.providerId ?? ''
 
@@ -453,6 +458,7 @@ export async function updateCredentialRecord(
         updates.encryptedServiceAccountKey = secret.encryptedServiceAccountKey
         rotatedSlackBotUserId = secret.botUserId
         rotatedAuditMetadata = secret.auditMetadata
+        rotatedWorkloadIdentitySubject = secret.newWorkloadIdentitySubject
 
         if (needsStoredIdentity) {
           const previousIdentity = deriveStoredDisplayName(storedBlob)
@@ -515,7 +521,26 @@ export async function updateCredentialRecord(
     }
 
     updates.updatedAt = new Date()
-    await db.update(credential).set(updates).where(eq(credential.id, params.credentialId))
+    if (rotatedWorkloadIdentitySubject) {
+      const subject = rotatedWorkloadIdentitySubject
+      try {
+        await db.transaction(async (tx) => {
+          await assertWorkloadIdentitySubjectUnclaimed(tx, {
+            subject,
+            scope: resourceScopeFromOwner(params.credential),
+            credentialId: params.credentialId,
+          })
+          await tx.update(credential).set(updates).where(eq(credential.id, params.credentialId))
+        })
+      } catch (error) {
+        if (error instanceof WorkloadIdentitySubjectError) {
+          return { success: false, error: error.message, errorCode: 'conflict' }
+        }
+        throw error
+      }
+    } else {
+      await db.update(credential).set(updates).where(eq(credential.id, params.credentialId))
+    }
 
     // The flag rides the environment snapshot into every run's redaction catalog, so a flip
     // must not serve stale from the same-process snapshot cache. Cross-process readers are

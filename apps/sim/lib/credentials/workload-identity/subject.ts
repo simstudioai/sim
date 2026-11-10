@@ -1,9 +1,20 @@
 import { createHmac } from 'node:crypto'
+import { credential } from '@sim/db/schema'
 import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
+import { and, inArray, isNull, ne, sql } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
+import type { ResourceScope } from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
+import { decryptSecret } from '@/lib/core/security/encryption'
 import type { WorkloadIdentityProvider } from '@/lib/credentials/workload-identity/audiences'
 import type { WorkloadIdentityOwner } from '@/lib/credentials/workload-identity/issuer'
+import type { DbOrTx } from '@/lib/db/types'
+import {
+  AWS_SERVICE_ACCOUNT_PROVIDER_ID,
+  DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
+} from '@/lib/oauth/types'
 
 /**
  * Credential-scoped workload-identity subjects.
@@ -144,4 +155,55 @@ export function bindWorkloadIdentitySubject(input: {
   }
   verifyWorkloadIdentitySubject(provider, owner, owner.actorUserId, subject, subjectProof)
   return subject
+}
+
+/** Providers whose stored secret can hold a bound subject at `config.subject`. */
+const KEYLESS_PROVIDER_IDS = [
+  AWS_SERVICE_ACCOUNT_PROVIDER_ID,
+  DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
+]
+
+/**
+ * Refuses a subject that another live credential of the same owner already
+ * holds. A proof stays valid for a day and is not tied to one credential, so
+ * without this a member removed from a keyless credential could save a second
+ * credential with the same subject and keep assuming the customer's role.
+ *
+ * The subject lives only inside each credential's encrypted secret, so this
+ * decrypts the owner's keyless credentials (one owner holds few) rather than
+ * relying on a unique index. Call it inside the transaction that writes the
+ * credential: the advisory lock holds concurrent saves of one subject until
+ * commit, so the later save sees the earlier row.
+ *
+ * @param credentialId The credential being reconnected, which may keep its own subject.
+ */
+export async function assertWorkloadIdentitySubjectUnclaimed(
+  tx: DbOrTx,
+  input: { subject: string; scope: ResourceScope; credentialId?: string }
+): Promise<void> {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`workload-identity-subject:${input.subject}`}, 0))`
+  )
+  const rows = await tx
+    .select({ encryptedServiceAccountKey: credential.encryptedServiceAccountKey })
+    .from(credential)
+    .where(
+      and(
+        resourceScopeCondition(credential, input.scope),
+        inArray(credential.providerId, KEYLESS_PROVIDER_IDS),
+        isNull(credential.revokedAt),
+        input.credentialId ? ne(credential.id, input.credentialId) : undefined
+      )
+    )
+  for (const row of rows) {
+    if (!row.encryptedServiceAccountKey) continue
+    const { decrypted } = await decryptSecret(row.encryptedServiceAccountKey)
+    const stored: unknown = JSON.parse(decrypted)
+    const config = isRecordLike(stored) ? stored.config : undefined
+    if (isRecordLike(config) && config.subject === input.subject) {
+      throw new WorkloadIdentitySubjectError(
+        'Another credential already uses this trust setup. Start the keyless connection again.'
+      )
+    }
+  }
 }

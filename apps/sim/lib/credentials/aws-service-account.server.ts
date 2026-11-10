@@ -258,13 +258,14 @@ function verificationFailure(config: AwsCredentialConfig, error: unknown): AwsCr
 
 /**
  * Validates the submitted configuration, proves it works by resolving it and
- * calling `sts:GetCallerIdentity`, and returns the encrypted blob plus the
- * caller ARN AWS reports.
+ * calling `sts:GetCallerIdentity`, and returns the encrypted blob, the caller
+ * ARN AWS reports, and the keyless subject it newly binds, if any (a
+ * reconnect keeping its stored subject binds none).
  */
 export async function verifyAndEncryptAwsCredential(
   serialized: string,
   owner: WorkloadIdentityCredentialOwner
-): Promise<{ encryptedServiceAccountKey: string; callerArn: string }> {
+): Promise<{ encryptedServiceAccountKey: string; callerArn: string; newSubject?: string }> {
   const parsed = parseServiceAccountConfig(serialized, submittedConfigSchema, 'AWS credential')
   if (!parsed.success) throw new AwsCredentialError(parsed.message)
   const submitted = parsed.data
@@ -292,7 +293,13 @@ export async function verifyAndEncryptAwsCredential(
   const { encrypted } = await encryptSecret(
     JSON.stringify({ type: AWS_CREDENTIAL_SECRET_TYPE, config })
   )
-  return { encryptedServiceAccountKey: encrypted, callerArn }
+  return {
+    encryptedServiceAccountKey: encrypted,
+    callerArn,
+    ...(config.authType === 'oidc_role' && config.subject !== readStoredSubject(owner.storedSecret)
+      ? { newSubject: config.subject }
+      : {}),
+  }
 }
 
 /** Resolves the configuration and returns the caller ARN AWS reports for it. */
