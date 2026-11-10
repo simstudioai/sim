@@ -51,7 +51,6 @@ export function SlackSetupDialog({ target, flow }: SlackSetupDialogProps) {
         open
         onOpenChange={change}
         title='Install the Sim Search app'
-        description='Add Sim Search to your Slack workspace to ask questions and get answers from your connected sources.'
         confirmLabel='Continue with Slack'
         confirmDisabled={!flow.manifest || unavailable}
         pending={flow.pending}

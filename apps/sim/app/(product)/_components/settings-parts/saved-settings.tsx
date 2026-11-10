@@ -26,28 +26,31 @@ export function SavedSettingsSection({ title, children }: SavedSettingsSectionPr
 interface BooleanRowProps {
   setting: Parameters<typeof useBooleanSetting>[0]
   label: string
-  description: string
-  preview?: 'auto-connect-on-drop' | 'auto-focus-on-click' | 'canvas-error-notification'
+  /** A clip of the behavior and the one line that explains it, both in the row's About tooltip. */
+  preview?: {
+    clip: 'auto-connect-on-drop' | 'auto-focus-on-click' | 'canvas-error-notification'
+    caption: string
+  }
 }
 
 /** A saved on-or-off preference. */
-export function BooleanRow({ setting, label, description, preview }: BooleanRowProps) {
+export function BooleanRow({ setting, label, preview }: BooleanRowProps) {
   const { checked, disabled, set } = useBooleanSetting(setting)
   return (
-    <SettingsRow label={label} description={description}>
+    <SettingsRow label={label}>
       {preview && (
         <Tooltip
-          label={description}
+          label={preview.caption}
           panel={
             <span className={styles.preview} data-material='floating' data-elevation='menu'>
-              <span data-type='T060'>{description}</span>
+              <span data-type='T060'>{preview.caption}</span>
               <video
                 aria-label={`${label} example`}
                 autoPlay
                 muted
                 playsInline
-                loop={preview !== 'canvas-error-notification'}
-                src={`/tooltips/${preview}.mp4`}
+                loop={preview.clip !== 'canvas-error-notification'}
+                src={`/tooltips/${preview.clip}.mp4`}
               />
             </span>
           }

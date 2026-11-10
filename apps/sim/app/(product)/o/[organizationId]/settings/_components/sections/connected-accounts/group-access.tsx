@@ -120,7 +120,10 @@ export function GroupAccess({ data, actions }: GroupAccessProps) {
               label='Integrations'
               searchLabel='Search integrations'
               placeholder='Select integrations'
-              options={[{ value: 'all', label: 'All integrations' }, ...data.credentialTypes]}
+              options={[
+                { value: 'all', label: 'All integrations, including future ones' },
+                ...data.credentialTypes,
+              ]}
               value={editing.types === 'all' ? ['all'] : editing.types}
               onValueChange={(values) =>
                 setEditing({
@@ -130,9 +133,6 @@ export function GroupAccess({ data, actions }: GroupAccessProps) {
                       ? 'all'
                       : values.filter((value) => value !== 'all'),
                 })
-              }
-              hint={
-                editing.types === 'all' ? 'Includes integrations added in the future.' : undefined
               }
             />
             {existing && (

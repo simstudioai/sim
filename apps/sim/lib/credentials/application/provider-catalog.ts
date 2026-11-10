@@ -111,11 +111,7 @@ function providerField(
       ? { requiredForAuthMethods: [...field.requiredForAuthMethods] }
       : {}),
     ...('options' in field && field.options ? { options: [...field.options] } : {}),
-    ...('hint' in field && field.hint
-      ? { hint: field.hint }
-      : 'hintMessage' in field && field.hintMessage
-        ? { hint: field.hintMessage }
-        : {}),
+    ...(field.hintMessage ? { hint: field.hintMessage } : {}),
   }
 }
 
@@ -429,7 +425,6 @@ export async function listCredentialProviderCatalog(
         secret: field.secret,
         multiline: false,
         ...(field.options ? { options: [...field.options] } : {}),
-        ...(field.hint ? { hint: field.hint } : {}),
       })),
     }
   })

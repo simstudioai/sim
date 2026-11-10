@@ -28,11 +28,7 @@ function UsageLimit(props: Parameters<typeof useUsageLimitField>[0]) {
   const field = useUsageLimitField(props)
   return (
     <SettingsSection title='Usage limit'>
-      <SettingsRow
-        label='Monthly limit, in credits'
-        description="Max usage per month. 1,000 credits = $5. By default it's your plan's included usage, but you can set it beyond."
-        field
-      >
+      <SettingsRow label='Monthly limit, in credits' field>
         <Input
           label='Monthly limit, in credits'
           inputMode='numeric'
@@ -108,7 +104,6 @@ export function BillingView({
           <BooleanRow
             setting='billingUsageNotificationsEnabled'
             label='Email me when I reach 80% usage'
-            description='Sent when usage reaches 80% of the monthly limit'
           />
         </SavedSettingsSection>
       )}

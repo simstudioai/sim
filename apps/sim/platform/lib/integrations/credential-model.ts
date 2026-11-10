@@ -52,7 +52,6 @@ export interface CredentialField {
   id: string
   label: string
   placeholder?: string
-  hint?: string
   secret?: boolean
   multiline?: boolean
   optional?: boolean

@@ -130,7 +130,6 @@ interface ChoicePromptProps {
   fieldLabel: string
   placeholder: string
   options: readonly { value: string; label: string }[]
-  hintFor?: (choiceId: string) => string | undefined
   /** A refusal the page should remember, offered beside Cancel. */
   refuse?: { label: string; onSelect: () => void }
   onCancel: () => void
@@ -147,7 +146,6 @@ function ChoicePrompt({
   fieldLabel,
   placeholder,
   options,
-  hintFor,
   refuse,
   onCancel,
   onChoose,
@@ -191,7 +189,6 @@ function ChoicePrompt({
           options={options}
           value={choiceId || undefined}
           onValueChange={setChoiceId}
-          hint={choiceId ? hintFor?.(choiceId) : undefined}
         />
       </div>
     </Modal>
@@ -227,14 +224,8 @@ function ClientCertificatePrompt({ prompt, respond }: PromptModalProps<'client-c
       placeholder='Choose a certificate'
       options={prompt.certificates.map((certificate) => ({
         value: certificate.id,
-        label: certificate.subject || certificate.id,
+        label: `${certificate.subject || certificate.id} · ${certificate.issuer || 'Unknown issuer'} · Expires ${formatInstantDate(certificate.expiresAt)}`,
       }))}
-      hintFor={(choiceId) => {
-        const chosen = prompt.certificates.find((certificate) => certificate.id === choiceId)
-        return chosen
-          ? `Issued by ${chosen.issuer || 'unknown issuer'} · Expires ${formatInstantDate(chosen.expiresAt)}`
-          : undefined
-      }}
       refuse={{
         label: "Don't send",
         onSelect: () => respond({ allowed: false, remember: true }),

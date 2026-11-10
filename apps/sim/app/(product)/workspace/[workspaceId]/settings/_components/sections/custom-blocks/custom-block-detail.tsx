@@ -383,7 +383,6 @@ export function CustomBlockDetail({ existing, workspaceId, onBack }: CustomBlock
         backLabel='Custom blocks'
         onBack={() => guard.guardBack(onBack)}
         title={existing?.name || 'New block'}
-        description='Publish a deployed workflow as a reusable, org-wide block.'
       />
       {error && <InlineNotice intent='danger' message={error} />}
       <FormFieldset disabled={fieldsDisabled}>
@@ -423,9 +422,8 @@ export function CustomBlockDetail({ existing, workspaceId, onBack }: CustomBlock
                   options={workflows.map((w) => ({ value: w.id, label: w.name }))}
                   value={selectedWorkflowId || null}
                   onValueChange={(next) => setSelectedWorkflowId(next ?? '')}
-                  placeholder='Select a workflow'
+                  placeholder='Select a deployed workflow'
                   searchLabel='Search workflows'
-                  hint='Only deployed workflows can be published.'
                   error={
                     notDeployed
                       ? 'This workflow isn’t deployed. Deploy it first, then publish it as a block.'
@@ -444,8 +442,7 @@ export function CustomBlockDetail({ existing, workspaceId, onBack }: CustomBlock
           <FieldStack>
             <FileField
               kind='image'
-              label='Icon'
-              hint='Square image (PNG, JPEG, or SVG).'
+              label='Icon (square)'
               accept={ICON_ACCEPT}
               optional
               disabled={fieldsDisabled}
@@ -481,10 +478,6 @@ export function CustomBlockDetail({ existing, workspaceId, onBack }: CustomBlock
         </SettingsSection>
         <SettingsSection title='Inputs'>
           <FieldStack>
-            <Muted>
-              Every Start input is exposed. Add a placeholder for each; its own description carries
-              over.
-            </Muted>
             {!deployed.isLoading && visibleInputs.length === 0 && (
               <Muted>This workflow’s Start block has no inputs.</Muted>
             )}
@@ -502,8 +495,7 @@ export function CustomBlockDetail({ existing, workspaceId, onBack }: CustomBlock
         <SettingsSection title='Outputs'>
           <FieldStack>
             <MultiSelect
-              label='Outputs'
-              hint='Pick which workflow outputs consumers see and name each one. At least one is required.'
+              label='Outputs (at least one)'
               options={outputOptions}
               value={selectedOutputKeys}
               onValueChange={handleOutputsChange}
@@ -622,11 +614,10 @@ function InputOverride({ input, disabled, onChange }: InputOverrideProps) {
   return (
     <>
       <TextField
-        label={input.name}
-        hint={input.description ? `${input.type} · ${input.description}` : input.type}
+        label={`${input.name} (${input.type})`}
         value={input.placeholder ?? ''}
         onChange={(placeholder) => onChange({ placeholder })}
-        placeholder='Shown in the empty field'
+        placeholder={input.description || 'Shown in the empty field'}
         maxLength={200}
         disabled={disabled}
       />

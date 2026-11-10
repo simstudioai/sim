@@ -76,7 +76,6 @@ export function PersonalTokenModal({ workspaceId, replacing, onClose }: Personal
         onChange={setToken}
         name='gitlab_personal_access_token'
         autoComplete='new-password'
-        hint='Only you can use this connection.'
         required
       />
     </Modal>

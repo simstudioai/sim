@@ -93,7 +93,6 @@ export function SandboxCreateModal({
         onChange={sandbox.setDependencies}
         placeholder={DEPENDENCY_PLACEHOLDERS[sandbox.draft.language]}
         defaultSize='expanded'
-        hint='One per line. Version pins are optional.'
         error={issueText(sandbox.dependencyIssues)}
         disabled={sandbox.saving}
       />
@@ -111,7 +110,6 @@ export function SandboxCreateModal({
         value={sandbox.draft.systemPackages}
         onChange={sandbox.setSystemPackages}
         placeholder={SYSTEM_PACKAGE_PLACEHOLDER}
-        hint='One Debian/APT package per line. Version pins are optional.'
         error={issueText(sandbox.systemPackageIssues)}
         disabled={sandbox.saving}
       />

@@ -189,10 +189,7 @@ export function ServerDetail({
         </SettingsRow>
         {client === 'sim' ? (
           <>
-            <SettingsRow
-              label='Add to workspace'
-              description='Add this MCP server to your workspace so you can use its tools in other workflows via the MCP block.'
-            >
+            <SettingsRow label='Add to workspace'>
               <Button
                 size='compact'
                 variant='primary'

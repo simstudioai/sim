@@ -300,11 +300,6 @@ export function ConnectorSettingsFields({
             label='Account for browsing'
             searchLabel='Search accounts…'
             placeholder={`Select your ${connectorConfig.name} account`}
-            hint={
-              isSearchIndex
-                ? 'Members sync with their own accounts connected in Integrations.'
-                : undefined
-            }
             options={fields.rawCredentials.map((credential) => ({
               value: credential.id,
               label: credential.name || credential.provider,

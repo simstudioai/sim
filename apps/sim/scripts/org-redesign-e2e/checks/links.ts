@@ -189,12 +189,14 @@ export async function linksChecks() {
           await rowFor(page, NAMED_LINKS.handbook.name).click({ button: 'right' })
           await menuEntry(page, 'Edit').click()
           const modal = dialog(page, `Edit ${NAMED_LINKS.handbook.name}`)
+          const unlisted = modal.getByRole('checkbox', { name: 'Hide from the Links page' })
+          await expect(unlisted).toBeDisabled()
+          await unlisted.hover()
           await expect(
-            modal.getByText('Only the creator or an organization admin can change access.')
+            page.getByRole('tooltip', {
+              name: 'Only the creator or an organization admin can change access.',
+            })
           ).toBeVisible()
-          await expect(
-            modal.getByRole('checkbox', { name: 'Hide from the Links page' })
-          ).toBeDisabled()
           await expect(
             modal.getByRole('checkbox', { name: 'Only the creator and admins can edit' })
           ).toBeDisabled()

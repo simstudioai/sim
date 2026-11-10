@@ -194,10 +194,9 @@ function KeyFormModal({
               placeholder={field.placeholder}
               viewOnly
               spellCheck={false}
-              hint={field.hint}
             />
           ) : (
-            <CopyField key={field.id} label={field.label} value={field.value} hint={field.hint} />
+            <CopyField key={field.id} label={field.label} value={field.value} />
           )
         ) : field.options ? (
           <SelectField
@@ -206,7 +205,6 @@ function KeyFormModal({
             value={field.value}
             onValueChange={(value) => form.setField(field.id, value)}
             options={field.options}
-            hint={field.hint}
             error={field.error}
             optional={!field.required}
           />
@@ -221,7 +219,7 @@ function KeyFormModal({
             spellCheck={false}
             required={field.required}
             optional={!field.required}
-            hint={field.hint}
+            hint={field.formatWarning}
             error={field.error}
           />
         ) : field.secret ? (
@@ -234,7 +232,7 @@ function KeyFormModal({
             autoComplete='new-password'
             required={field.required}
             optional={!field.required}
-            hint={field.hint}
+            hint={field.formatWarning}
             error={field.error}
           />
         ) : (
@@ -247,7 +245,7 @@ function KeyFormModal({
             autoComplete='off'
             required={field.required}
             optional={!field.required}
-            hint={field.hint}
+            hint={field.formatWarning}
             error={field.error}
           />
         )
@@ -256,7 +254,7 @@ function KeyFormModal({
         label='Display name'
         value={form.displayName}
         onChange={form.setDisplayName}
-        placeholder={form.displayNamePlaceholder}
+        placeholder={`${form.vendorName ?? serviceName} ${form.connectNoun}`}
         autoComplete='off'
         optional
       />
@@ -264,7 +262,7 @@ function KeyFormModal({
         label='Description'
         value={form.description}
         onChange={form.setDescription}
-        placeholder='Optional description'
+        placeholder='What will you use this connection for?'
         maxLength={500}
         optional
       />

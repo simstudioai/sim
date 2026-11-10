@@ -75,11 +75,10 @@ function ClientSecretField({
       <>
         <TextField
           placeholder='Saved client secret'
-          label='Client secret'
+          label='Client secret (saved)'
           value={maskedClientSecret(storedHint)}
           readOnly
           autoComplete='off'
-          hint={storedHint ? `Saved client secret ending ${storedHint}` : 'Saved client secret'}
         />
         <ActionRow>
           <Button size='compact' onClick={onReplace}>
@@ -96,7 +95,6 @@ function ClientSecretField({
         name='sso_client_key'
         placeholder='Enter Client Secret'
         autoComplete='new-password'
-        hint={isReplacing ? 'Replaces the saved secret when you save.' : undefined}
         error={error}
         value={value}
         onChange={onChange}
@@ -241,23 +239,17 @@ export function ProviderForm({
             <FieldStack>
               <SelectField
                 label='Provider type'
-                hint='Choose the protocol configured in your identity provider.'
                 options={PROVIDER_TYPE_OPTIONS}
                 value={form.providerType}
                 onValueChange={(value) => changeType(value as SsoProviderForm['providerType'])}
               />
               {isEditing ? (
-                <CopyField
-                  label='Provider ID'
-                  value={form.providerId}
-                  hint='Cannot be changed after saving.'
-                />
+                <CopyField label='Provider ID' value={form.providerId} />
               ) : (
                 <SearchableSelect
-                  label='Provider ID'
+                  label='Provider ID (permanent)'
                   searchLabel='Select or enter a provider ID'
-                  placeholder='Select or enter a provider ID'
-                  hint='Unique across Sim, e.g. acme-entra. Cannot be changed later.'
+                  placeholder='acme-entra'
                   error={errorFor('providerId')}
                   options={providerIdOptions}
                   value={form.providerId || null}
@@ -289,7 +281,6 @@ export function ProviderForm({
                 name='sso_identity_domain'
                 autoComplete='off'
                 placeholder='company.com'
-                hint='The verified email domain your members use to sign in.'
                 error={errorFor('domain')}
                 value={form.domain}
                 onChange={(value) => set('domain', value)}
@@ -390,7 +381,6 @@ export function ProviderForm({
                         label='Scopes'
                         autoComplete='off'
                         placeholder='openid,profile,email'
-                        hint='Comma-separated list of OIDC scopes to request'
                         error={errorFor('scopes')}
                         value={form.scopes}
                         onChange={(value) => set('scopes', value)}
@@ -419,7 +409,6 @@ export function ProviderForm({
                         type='url'
                         autoComplete='off'
                         placeholder='Discovered from the issuer'
-                        hint="Sim reads these from the issuer's discovery document. Set them only if your provider does not publish one."
                         value={form.jwksEndpoint}
                         onChange={(value) => set('jwksEndpoint', value)}
                       />
@@ -430,15 +419,8 @@ export function ProviderForm({
               <CopyField
                 label={isSaml ? 'ACS URL (Reply URL)' : 'Callback URL'}
                 value={ssoFormCallbackUrl(form, existingProvider, baseUrl)}
-                hint='Configure this in your identity provider'
               />
-              {isSaml && (
-                <CopyField
-                  label='SP Entity ID'
-                  value={baseUrl}
-                  hint="Use this as Sim's entity ID in your identity provider."
-                />
-              )}
+              {isSaml && <CopyField label='SP Entity ID' value={baseUrl} />}
               <Disclosure
                 label='Attribute mapping'
                 open={showMapping}
@@ -462,11 +444,10 @@ export function ProviderForm({
                     onChange={(value) => set('mapName', value)}
                   />
                   <TextField
-                    label='User ID attribute'
+                    label='User ID attribute (stable, unique)'
                     optional
                     autoComplete='off'
                     placeholder={mappingDefaults.id}
-                    hint='Must be stable and unique per user — changing it later re-links accounts.'
                     value={form.mapId}
                     onChange={(value) => set('mapId', value)}
                   />

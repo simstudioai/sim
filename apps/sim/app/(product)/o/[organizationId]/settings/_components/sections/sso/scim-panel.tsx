@@ -155,11 +155,7 @@ function ConnectionDetails({ organizationId, active, connection }: ConnectionDet
     <>
       <SettingsSection title='Connection'>
         <FieldStack>
-          <CopyField
-            label='Base URL'
-            value={connection.baseUrl}
-            hint='Enter this as the tenant or connector URL in your identity provider.'
-          />
+          <CopyField label='Base URL' value={connection.baseUrl} />
           <Muted>
             {plural(connection.userCount, 'provisioned member')},{' '}
             {plural(connection.groupCount, 'group')}. Last request{' '}
@@ -347,10 +343,7 @@ export function ScimPanel({ organizationId, active, onOpenDomains }: ScimPanelPr
   return (
     <SectionStack>
       <SettingsSection title='Directory provisioning'>
-        <SettingsRow
-          label='Enable directory provisioning'
-          description='Create, update, and deactivate members from your identity provider with SCIM 2.0.'
-        >
+        <SettingsRow label='Enable directory provisioning'>
           <Switch
             label='Enable directory provisioning'
             checked={enabled}

@@ -4,11 +4,7 @@ import { SYNC_SOURCE_NAMES, type SyncSource } from '@/platform/shared/people'
 
 export const SOURCE_MARKS: Record<SyncSource, string> = { okta: 'O', entra: 'E', scim: 'S' }
 
-const SOURCES = [
-  { source: 'okta', hint: 'Sync your Okta directory' },
-  { source: 'entra', hint: 'Sync your Entra directory' },
-  { source: 'scim', hint: 'Use existing provisioning' },
-] as const
+const SOURCES = ['okta', 'entra', 'scim'] as const
 
 interface DirectorySourcesProps {
   canProvision: boolean
@@ -19,7 +15,7 @@ interface DirectorySourcesProps {
 export function DirectorySources({ canProvision, onConnect }: DirectorySourcesProps) {
   return (
     <div className={styles.sources}>
-      {SOURCES.filter(({ source }) => source !== 'scim' || canProvision).map(({ source, hint }) => (
+      {SOURCES.filter((source) => source !== 'scim' || canProvision).map((source) => (
         <button
           key={source}
           type='button'
@@ -32,9 +28,6 @@ export function DirectorySources({ canProvision, onConnect }: DirectorySourcesPr
           </span>
           <span className={styles.sourceCopy}>
             <span data-type='T042'>{source === 'scim' ? 'SCIM' : SYNC_SOURCE_NAMES[source]}</span>
-            <span className={styles.secondary} data-type='T050'>
-              {hint}
-            </span>
           </span>
           <span className={styles.sourceAction} data-type='T043'>
             Connect

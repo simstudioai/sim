@@ -112,7 +112,6 @@ export function OAuthConnectModal({
             value={connect.clientFieldValues[field.id] ?? ''}
             onValueChange={(value) => connect.setClientField(field.id, value)}
             options={field.options}
-            hint={field.hint}
           />
         ) : field.secret ? (
           <SecretField
@@ -123,7 +122,6 @@ export function OAuthConnectModal({
             placeholder={field.placeholder}
             autoComplete='new-password'
             required
-            hint={field.hint}
           />
         ) : (
           <TextField
@@ -134,7 +132,6 @@ export function OAuthConnectModal({
             placeholder={field.placeholder}
             autoComplete='off'
             required
-            hint={field.hint}
           />
         )
       )}

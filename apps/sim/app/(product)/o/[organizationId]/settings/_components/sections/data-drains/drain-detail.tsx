@@ -110,10 +110,7 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
         description={`${SOURCE_LABELS[drain.source]} → ${DESTINATION_LABELS[drain.destinationType]} · ${CADENCE_LABELS[drain.scheduleCadence]}`}
       />
       <SettingsSection title='Status'>
-        <SettingsRow
-          label='Enabled'
-          description='Disabled drains keep their cursor and resume where they left off.'
-        >
+        <SettingsRow label='Enabled'>
           <Switch
             label='Enabled'
             checked={drain.enabled}

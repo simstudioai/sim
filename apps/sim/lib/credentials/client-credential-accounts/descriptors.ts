@@ -74,8 +74,6 @@ export interface ClientCredentialAccountField {
    * without them would silently not appear.
    */
   options?: ReadonlyArray<ClientCredentialAccountOption>
-  /** Always-visible guidance, for a field whose value is not self-explanatory. */
-  hint?: string
   /** Soft-format hint shown while the current value doesn't match `hintPattern`. */
   hintPattern?: RegExp
   hintMessage?: string
@@ -467,7 +465,6 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
         label: 'App ID',
         placeholder: 'Paste the App ID',
         secret: false,
-        hint: 'Create the app in Help Scout under Your Profile > My Apps.',
       },
       {
         id: 'clientSecret',
@@ -527,7 +524,6 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
         label: 'API key',
         placeholder: 'Paste the API key',
         secret: true,
-        hint: 'In Fivetran, click your username, then API Key > Generate API key. The key acts with your Fivetran permissions.',
       },
       {
         id: 'clientSecret',
@@ -633,7 +629,6 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
         requiredForAuthMethods: ['jwt_bearer'],
         hintPattern: SALESFORCE_PRIVATE_KEY_REGEX,
         hintMessage: 'Expected a PEM private key (server.key), not the certificate.',
-        hint: 'Must match the certificate uploaded to the app.',
       },
       {
         id: 'username',
@@ -697,7 +692,6 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
         secret: false,
         optional: true,
         options: ZOHO_DESK_DATA_CENTER_OPTIONS,
-        hint: 'The region your Zoho account signs in to. New credentials default to the United States.',
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/zoho-desk-service-account',
@@ -739,7 +733,6 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
         multiline: true,
         hintPattern: /-----BEGIN (?:EC |RSA )?PRIVATE KEY-----/,
         hintMessage: 'Expected the PEM private key paired with the uploaded certificate.',
-        hint: 'Must match the certificate mapping in this NetSuite account and environment.',
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/netsuite-service-account',
@@ -758,14 +751,12 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
         secret: false,
         hintPattern: /^https:\/\//,
         hintMessage: 'Expected the HTTPS REST base URL for one Oracle EPM environment.',
-        hint: 'Enter the HTTPS base URL for your environment without /epmcloud or an API endpoint path. Include a gateway prefix only if your deployment requires it.',
       },
       {
         id: 'clientId',
-        label: 'Integration username',
+        label: 'Integration username (no MFA)',
         placeholder: 'integration.user@example.com',
         secret: false,
-        hint: 'Basic authentication requires a user without MFA. Credentials are checked on the first product request.',
       },
       {
         id: 'clientSecret',

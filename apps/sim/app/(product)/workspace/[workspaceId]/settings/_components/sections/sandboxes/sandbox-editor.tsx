@@ -171,7 +171,6 @@ export function SandboxEditor({
         backLabel='Sandboxes'
         onBack={onBack}
         title={sandbox ? sandbox.name : 'New sandbox'}
-        description='Dependencies, system packages, and managed CLI tools available to your Function blocks.'
       />
       <FormFieldset disabled={disabled}>
         <SettingsSection title='Details'>
@@ -204,7 +203,6 @@ export function SandboxEditor({
               defaultSize='expanded'
               spellCheck={false}
               autoComplete='off'
-              hint='One per line. Version pins are optional.'
               error={issueText(dependencyIssues)}
               disabled={disabled}
             />
@@ -227,7 +225,6 @@ export function SandboxEditor({
               defaultSize='expanded'
               spellCheck={false}
               autoComplete='off'
-              hint='One Debian/APT package per line. Version pins are optional.'
               error={issueText(systemPackageIssues)}
               disabled={disabled}
             />

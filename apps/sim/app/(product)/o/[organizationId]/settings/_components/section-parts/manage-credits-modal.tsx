@@ -69,7 +69,6 @@ export function ManageCreditsModal({ member, onClose }: ManageCreditsModalProps)
             error={
               valid ? undefined : 'Enter a whole number of credits, or leave blank for no limit.'
             }
-            hint="Leave blank for no limit. Set in credits, Sim's usage unit (1,000 credits = $5). Caps this member's usage across this organization's workspaces each billing period."
           />
         </>
       )}

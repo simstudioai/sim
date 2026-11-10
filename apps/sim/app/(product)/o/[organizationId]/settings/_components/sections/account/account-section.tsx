@@ -31,15 +31,8 @@ interface AccountSettingsSubviewProps {
 }
 
 const VIEWS = {
-  'authorized-apps': {
-    title: 'Authorized apps',
-    description: 'Review and revoke apps that can act on your account.',
-  },
-  'organization-accounts': {
-    title: 'Connected organization accounts',
-    description:
-      'Disconnect accounts you connected for an organization, including ones you have left.',
-  },
+  'authorized-apps': { title: 'Authorized apps' },
+  'organization-accounts': { title: 'Connected organization accounts' },
 } as const
 
 export function AccountSettingsSubview({
@@ -50,12 +43,7 @@ export function AccountSettingsSubview({
   if (organization.navFlags.anonymous) return null
   return (
     <>
-      <DetailHeader
-        backLabel='General'
-        backHref={backHref}
-        title={VIEWS[view].title}
-        description={VIEWS[view].description}
-      />
+      <DetailHeader backLabel='General' backHref={backHref} title={VIEWS[view].title} />
       {view === 'authorized-apps' ? <AuthorizedApps /> : <OrganizationAccounts />}
     </>
   )
@@ -88,7 +76,7 @@ function SignedInRows({
           Manage
         </Button>
       </SettingsRow>
-      <SettingsRow label='Reset password' description='Email yourself a password reset link'>
+      <SettingsRow label='Reset password'>
         <Button
           size='compact'
           disabled={!email || actionsUnavailable}
@@ -97,7 +85,7 @@ function SignedInRows({
           Reset password
         </Button>
       </SettingsRow>
-      <SettingsRow label='Sign out' description='End your session on this device'>
+      <SettingsRow label='Sign out'>
         <Button
           size='compact'
           disabled={actionsUnavailable || signingOut}
@@ -152,7 +140,7 @@ export function AccountSettingsRows(props: AccountSettingsRowsProps) {
   return (
     <SettingsSection title='Account'>
       {organization.deployment.hosted && (
-        <SettingsRow label='Home page' description='Open Sim’s public home page'>
+        <SettingsRow label='Home page'>
           <Button
             size='compact'
             render={

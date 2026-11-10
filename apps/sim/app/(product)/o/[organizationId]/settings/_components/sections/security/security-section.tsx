@@ -89,15 +89,13 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
       <FieldStack>
         <TextField
           label='Max session lifetime (hours)'
-          hint='Members must sign in again this many hours after signing in, regardless of activity. Leave empty for the default 30-day sliding session.'
           inputMode='numeric'
           placeholder='No limit'
           value={maxHours}
           onChange={setMaxHours}
         />
         <TextField
-          label='Idle timeout (hours)'
-          hint={`Sessions expire after this many hours without activity. Minimum ${MIN_IDLE_TIMEOUT_HOURS} hours.`}
+          label={`Idle timeout (hours, min ${MIN_IDLE_TIMEOUT_HOURS})`}
           inputMode='numeric'
           placeholder='No limit'
           value={idleHours}
@@ -118,10 +116,7 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
           )}
         </ActionRow>
       </FieldStack>
-      <SettingsRow
-        label='End all sessions'
-        description='Members must sign in again. Your current session stays active.'
-      >
+      <SettingsRow label='End all sessions'>
         <Button variant='quiet' destructive onClick={() => setConfirmingRevoke(true)}>
           Sign out all members
         </Button>

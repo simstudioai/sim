@@ -69,9 +69,7 @@ export function ConnectorAccess({
   const hint =
     canAdmin && isAvailabilityReady && !currentMode?.allowed
       ? `This connection method is not available in this ${scope.kind}.`
-      : value.accessMode === 'workspace'
-        ? 'Everyone in this workspace can search these documents.'
-        : undefined
+      : undefined
   return (
     <FieldFrame
       label={slackSetupOnly ? 'Slack app' : allowWorkspace ? 'Connection method' : 'Sync using'}

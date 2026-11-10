@@ -3,11 +3,7 @@
 import { SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
-import {
-  FieldStack,
-  Muted,
-  SectionStack,
-} from '@/app/(product)/_components/settings-parts/settings-parts'
+import { FieldStack, SectionStack } from '@/app/(product)/_components/settings-parts/settings-parts'
 import type { WorkspaceSettingsSectionProps } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
 import { InboxEnableToggle } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/inbox/inbox-enable-toggle'
 import { InboxSettings } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/inbox/inbox-settings'
@@ -72,7 +68,6 @@ export default function InboxSection({ workspaceId }: WorkspaceSettingsSectionPr
       {config.enabled && (
         <SettingsSection title='Inbox'>
           <FieldStack>
-            <Muted>Email tasks received by this workspace.</Muted>
             <InboxTaskList workspaceId={workspaceId} address={config.address} />
           </FieldStack>
         </SettingsSection>

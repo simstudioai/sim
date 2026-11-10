@@ -144,7 +144,6 @@ export function ChatTab({ workflowId, chat, canRevealPassword }: ChatTabProps) {
         placeholder='Enter a welcome message for your chat'
         value={form.welcomeMessage}
         onChange={(value) => update('welcomeMessage', value)}
-        hint='Shown when someone first opens the chat.'
         disabled={submitting}
       />
     </>

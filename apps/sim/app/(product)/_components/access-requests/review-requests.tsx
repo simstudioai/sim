@@ -56,7 +56,7 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
             label='Allow requests'
             description={
               settings.allowed
-                ? 'People can send requests for administrators to review.'
+                ? undefined
                 : 'New requests and approvals are paused. You can still view history and decline pending requests.'
             }
           >

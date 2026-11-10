@@ -324,10 +324,7 @@ function SourceSettingsForm({
       {queryError}
       <SettingsSection title='Connection'>
         {connector.connectorType === 'gitlab' && (
-          <SettingsRow
-            label='Organization-managed GitLab'
-            description='Admin tokens check current permissions. Other tokens use the CSV mappings below.'
-          />
+          <SettingsRow label='Organization-managed GitLab' />
         )}
         <FieldStack>
           <ConnectorSettingsFields fields={form.fieldsProps} />

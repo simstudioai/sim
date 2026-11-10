@@ -97,21 +97,18 @@ export function ProviderDetail({
           <CopyField
             label={isSaml ? 'ACS URL (Reply URL)' : 'Callback URL'}
             value={ssoProviderCallbackUrl(provider, baseUrl)}
-            hint='Configure this in your identity provider'
           />
           {isSaml && <CopyField label='SP Entity ID' value={baseUrl} />}
           {isOidc && (
             <CopyField
               label='Initiate login URL'
               value={`${baseUrl}/sso/launch/${encodedProviderId}`}
-              hint='Configure this in your identity provider to open Sim from its app dashboard'
             />
           )}
           {onMakePrimary && (
             <CopyField
               label='Test sign-in link'
               value={`${baseUrl}/sso?provider=${encodedProviderId}`}
-              hint={`People at ${provider.domain} still sign in through the primary provider. Share this link to try this one first.`}
             />
           )}
         </FieldStack>

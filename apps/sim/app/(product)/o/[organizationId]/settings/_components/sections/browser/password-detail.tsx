@@ -151,10 +151,7 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
         </SettingsRow>
       </SettingsSection>
       <SettingsSection title='Manage password'>
-        <SettingsRow
-          label='Forget password'
-          description='Delete the saved password for this site from this device.'
-        >
+        <SettingsRow label='Forget password'>
           <Button
             variant='quiet'
             destructive

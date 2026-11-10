@@ -28,13 +28,10 @@ const ACCESS_OPTIONS = [
 const MEMBERSHIP_OPTIONS = [
   { value: 'member', label: 'Member' },
   { value: 'admin', label: 'Admin' },
-  { value: 'external', label: 'External' },
+  { value: 'external', label: 'External (no seat, paid plan only)' },
 ] as const
 
 type Membership = (typeof MEMBERSHIP_OPTIONS)[number]['value']
-
-const EXTERNAL_HINT =
-  'Access to the selected workspaces only — no seat. Only available for people already on a paid Sim plan.'
 
 interface Recipient {
   address: string
@@ -117,7 +114,7 @@ export function InviteTeammatesModal({
   )
   const seatWarning =
     seatCapped && membership !== 'external' && recipients.length > availableSeats
-      ? `Only ${plural(availableSeats, 'seat')} available — invites beyond that may fail. External collaborators and existing members do not use seats.`
+      ? `Only ${plural(availableSeats, 'seat')} available — invites beyond that may fail.`
       : undefined
 
   const viewerEmail = session?.user?.email?.toLowerCase()
@@ -194,7 +191,6 @@ export function InviteTeammatesModal({
           options={membershipOptions}
           value={membership}
           onValueChange={setMembership}
-          hint={membership === 'external' ? EXTERNAL_HINT : undefined}
           disabled={blocked}
         />
       )}

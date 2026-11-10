@@ -4,11 +4,7 @@ import { Button } from '@sim/emcn/button'
 import { TextField } from '@sim/emcn/field'
 import { SettingsSection } from '@sim/emcn/settings-section'
 import { InlineNotice } from '@sim/emcn/status'
-import {
-  ActionRow,
-  FieldStack,
-  Muted,
-} from '@/app/(product)/_components/settings-parts/settings-parts'
+import { ActionRow, FieldStack } from '@/app/(product)/_components/settings-parts/settings-parts'
 import type { AdminConsole, ImportInputs } from '@/platform/lib/data/admin-model'
 
 interface WorkflowImportProps {
@@ -33,7 +29,6 @@ export function WorkflowImport({ importer, inputs, onChange, onImported }: Workf
         }}
       >
         <FieldStack>
-          <Muted>Import a workflow and its copilot chats into a target workspace.</Muted>
           <TextField
             label='Source workflow ID'
             placeholder={importer.placeholders.workflow}

@@ -55,12 +55,7 @@ export function CreditUsage({ available }: { available: boolean }) {
 
   return (
     <>
-      <DetailHeader
-        backLabel='Subscription'
-        backHref={log.backHref}
-        title='Credit usage'
-        description='Every credit-consuming event behind your usage.'
-      >
+      <DetailHeader backLabel='Subscription' backHref={log.backHref} title='Credit usage'>
         <Button
           icon='I049'
           disabled={log.rows.length === 0 || log.dimmed || exporting}

@@ -288,7 +288,6 @@ export function CreateBaseModal({
           <TextField
             label='Regex pattern'
             placeholder='e.g. \n\n or (?<=\})\s*(?=\{)'
-            hint='Text will be split at each match of this regex pattern.'
             value={draft.regexPattern}
             onChange={(value) => update('regexPattern', value)}
             error={errors.regexPattern}

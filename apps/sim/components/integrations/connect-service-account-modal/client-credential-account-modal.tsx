@@ -267,9 +267,7 @@ function ClientCredentialAccountModalForm({
           // pasted. A live format hint still wins, matching the token modal's
           // precedence.
           const hint =
-            hintFor(field, value.trim()) ??
-            field.hint ??
-            (field.id === 'orgId' ? descriptor.helpText : undefined)
+            hintFor(field, value.trim()) ?? (field.id === 'orgId' ? descriptor.helpText : undefined)
 
           if (field.options) {
             return (

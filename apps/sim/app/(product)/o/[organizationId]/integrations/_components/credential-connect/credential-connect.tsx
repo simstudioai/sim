@@ -38,7 +38,6 @@ function ConnectionField({ field, value, onChange }: ConnectionFieldProps) {
         value={value}
         onValueChange={onChange}
         options={field.options}
-        hint={field.hint}
         optional={field.optional}
       />
     )
@@ -49,7 +48,6 @@ function ConnectionField({ field, value, onChange }: ConnectionFieldProps) {
         value={value}
         onChange={onChange}
         placeholder={field.placeholder ?? `Enter ${field.label.toLowerCase()}`}
-        hint={field.hint}
         optional={field.optional}
         required={!field.optional}
       />
@@ -61,7 +59,6 @@ function ConnectionField({ field, value, onChange }: ConnectionFieldProps) {
         value={value}
         onChange={onChange}
         placeholder={field.placeholder ?? `Enter ${field.label.toLowerCase()}`}
-        hint={field.hint}
         optional={field.optional}
         required={!field.optional}
         autoComplete='new-password'
@@ -73,7 +70,6 @@ function ConnectionField({ field, value, onChange }: ConnectionFieldProps) {
       value={value}
       onChange={onChange}
       placeholder={field.placeholder ?? `Enter ${field.label.toLowerCase()}`}
-      hint={field.hint}
       optional={field.optional}
       required={!field.optional}
       autoComplete='off'
@@ -153,11 +149,6 @@ function CredentialConnectForm({
           : connection.setup === 'oauth' || connection.setup === 'mcp-oauth'
             ? 'Continue'
             : 'Connect'
-      }
-      description={
-        connection.setup === 'oauth' || connection.setup === 'mcp-oauth'
-          ? `Review access before continuing to ${integrationName}.`
-          : undefined
       }
       confirmDisabled={disabled}
       onOpenChange={(open) => {

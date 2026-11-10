@@ -5,7 +5,6 @@ export {
   readSkillFile,
   SKILL_IMPORT_ACCEPT,
 } from '@/lib/skills/authoring'
-export { SKILL_NAME_HINT } from '@/lib/skills/copy'
 export { useMcpToolsQuery } from '@/hooks/queries/mcp'
 export {
   type SkillDefinition,

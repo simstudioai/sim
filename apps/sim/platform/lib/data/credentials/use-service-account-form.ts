@@ -103,7 +103,8 @@ export interface ServiceAccountFormField {
   /** A value Sim issues for the viewer to copy into their provider, never entered. */
   copy?: boolean
   value: string
-  hint?: string
+  /** A soft format warning, shown only while the value misses the provider's usual shape. */
+  formatWarning?: string
   /** A format warning that holds the field as invalid. */
   error?: string
 }
@@ -232,7 +233,7 @@ export function useServiceAccountForm({
         multiline: false,
         required: true,
         value: raw,
-        hint: field.id === 'apiToken' ? (warning ?? tokenDescriptor.helpText) : undefined,
+        formatWarning: field.id === 'apiToken' ? warning : undefined,
         error: field.id === 'domain' ? warning : undefined,
       }
     })
@@ -261,10 +262,7 @@ export function useServiceAccountForm({
         required: requiredIds.has(field.id),
         options: field.options,
         value: raw,
-        hint:
-          formatHint(field, raw.trim()) ??
-          field.hint ??
-          (field.id === 'orgId' ? clientDescriptor.helpText : undefined),
+        formatWarning: formatHint(field, raw.trim()),
       }
     })
   } else if (configDescriptor) {
@@ -364,9 +362,6 @@ export function useServiceAccountForm({
     /** The vendor a cloud configuration is titled with ("AWS" on the S3 page), over the app's name. */
     vendorName: configDescriptor?.serviceLabel,
     connectNoun: descriptor?.connectNoun ?? '',
-    displayNamePlaceholder:
-      configDescriptor?.displayNamePlaceholder ??
-      `Defaults to the ${descriptor?.serviceLabel ?? ''} account name`,
     docsUrl: descriptor?.docsUrl,
     fields,
     setField,

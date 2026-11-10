@@ -82,7 +82,6 @@ interface OAuthClientField {
   label: string
   placeholder: string
   secret: boolean
-  hint?: string
   options?: readonly { value: string; label: string }[]
 }
 

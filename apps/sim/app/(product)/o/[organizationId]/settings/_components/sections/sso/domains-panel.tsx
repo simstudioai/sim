@@ -138,7 +138,6 @@ export function DomainsPanel({
           <FieldStack>
             <TextField
               label='Add a domain'
-              hint='Prove ownership with a DNS record before using this domain for SSO or directory provisioning.'
               placeholder='acme.com'
               value={newDomain}
               onChange={setNewDomain}

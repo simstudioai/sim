@@ -44,10 +44,7 @@ export default function KnowledgeGraphsSection({ organization }: SettingsSection
             </SettingsRow>
           ))
         )}
-        <SettingsRow
-          label='New knowledge graph'
-          description='New chats use the active graph. Existing chats keep their original graph.'
-        >
+        <SettingsRow label='New knowledge graph'>
           <Button
             size='compact'
             icon='I074'
@@ -72,7 +69,6 @@ export default function KnowledgeGraphsSection({ organization }: SettingsSection
         <TextField
           label='Name'
           placeholder='e.g. Fresh exploration'
-          hint='Creates an empty graph and makes it active for new chats. Your other graphs are kept.'
           maxLength={graphs.nameMaxLength}
           disabled={graphs.creating}
           value={name}

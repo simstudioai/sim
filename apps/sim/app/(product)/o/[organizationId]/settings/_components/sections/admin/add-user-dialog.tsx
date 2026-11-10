@@ -75,11 +75,6 @@ export function AddUserDialog({ onClose, onAdd }: AddUserDialogProps) {
           options={CREDENTIALS}
           value={credentials}
           onValueChange={setCredentials}
-          hint={
-            credentials === 'email'
-              ? 'They choose their password from the emailed reset link.'
-              : undefined
-          }
         />
         {setsPassword && (
           <SecretField
@@ -101,7 +96,6 @@ export function AddUserDialog({ onClose, onAdd }: AddUserDialogProps) {
           value={emailStatus}
           options={EMAIL_STATUS}
           onValueChange={setEmailStatus}
-          hint='Verified users can sign in when email verification is required.'
         />
       </FieldStack>
     </Modal>

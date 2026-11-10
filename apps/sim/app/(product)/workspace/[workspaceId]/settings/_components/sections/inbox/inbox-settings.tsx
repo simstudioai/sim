@@ -57,18 +57,9 @@ export function InboxSettings({
       {address && (
         <SettingsSection title='Sim’s email'>
           <FieldStack>
-            <TextField
-              label='Address'
-              value={address}
-              viewOnly
-              placeholder=''
-              hint='Send emails here to create tasks.'
-            />
+            <TextField label='Address' value={address} viewOnly placeholder='' />
           </FieldStack>
-          <SettingsRow
-            label='Change address'
-            description='Changing the address creates a new inbox. The old address stops receiving emails immediately.'
-          >
+          <SettingsRow label='Change address'>
             <Button
               variant='quiet'
               destructive
@@ -83,9 +74,6 @@ export function InboxSettings({
         </SettingsSection>
       )}
       <SettingsSection title='Allowed senders'>
-        <FieldStack>
-          <Muted>Only emails from these addresses can create tasks.</Muted>
-        </FieldStack>
         {senders.isPending ? null : senders.data === undefined ? (
           <FieldStack>
             <FailureNotice

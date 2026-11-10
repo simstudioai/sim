@@ -58,10 +58,7 @@ export function AdminPanel({ console: admin }: { console: AdminConsole }) {
                 </SettingsRow>
               )}
               {settings.superUserModeEnabled && (
-                <SettingsRow
-                  label='Mothership environment'
-                  description='Default uses the configured Sim agent URL.'
-                >
+                <SettingsRow label='Mothership environment'>
                   <ChoiceMenu
                     label='Mothership environment'
                     value={settings.mothershipEnvironment}

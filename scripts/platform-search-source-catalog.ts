@@ -43,7 +43,6 @@ export function sourceProviderCatalog(
         .map((field) => ({
           id: field.canonicalParamId ?? field.id,
           label: field.titleInAdminMode ?? field.title,
-          hint: field.descriptionInAdminMode ?? field.description,
           required: Boolean(field.required || field.requiredInAdminMode),
           optional: field.setupGroup === 'options',
           placeholder: field.placeholder,
