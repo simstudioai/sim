@@ -49,10 +49,9 @@ interface EncryptedBYOKKey {
   encryptedApiKey: string
 }
 
-interface BYOKKeyScope {
-  workspaceId: string
-  organizationId?: string
-}
+type BYOKKeyScope =
+  | { workspaceId: string; organizationId?: string }
+  | { workspaceId?: undefined; organizationId: string }
 
 /**
  * Advances the per-process round-robin cursor for a rotation pool and returns
@@ -117,13 +116,46 @@ export async function getBYOKKey(
   options: { signal?: AbortSignal } = {}
 ): Promise<BYOKKeyResult | null> {
   if (!workspaceId) return null
+  return lookUpBYOKKey(
+    (signal) => resolveBYOKKey(workspaceId, providerId, signal),
+    { workspaceId },
+    providerId,
+    options.signal
+  )
+}
 
+/**
+ * Resolves an organization's own BYOK key for work that has no workspace, such as an organization
+ * chat. The pool is the one a workspace in the organization inherits, behind the same entitlement,
+ * which no personal organization holds. The same rules as {@link getBYOKKey}: only confirmed
+ * absence of an eligible key returns null, and a lookup or decryption failure rejects.
+ */
+export async function getOrganizationBYOKKey(
+  organizationId: string,
+  providerId: BYOKProviderId,
+  options: { signal?: AbortSignal } = {}
+): Promise<BYOKKeyResult | null> {
+  return lookUpBYOKKey(
+    (signal) => resolveOrganizationBYOKKey(organizationId, providerId, signal),
+    { organizationId },
+    providerId,
+    options.signal
+  )
+}
+
+/** Runs one key lookup within the deadline, retrying transient database reads before any provider call. */
+async function lookUpBYOKKey(
+  resolve: (signal: AbortSignal) => Promise<BYOKKeyResult | null>,
+  scope: BYOKKeyScope,
+  providerId: BYOKProviderId,
+  callerSignal: AbortSignal | undefined
+): Promise<BYOKKeyResult | null> {
   return withinDeadline(
     async (signal) => {
       for (let attempt = 1; ; attempt++) {
         signal.throwIfAborted()
         try {
-          const result = await resolveBYOKKey(workspaceId, providerId, signal)
+          const result = await resolve(signal)
           signal.throwIfAborted()
           return result
         } catch (error) {
@@ -134,7 +166,7 @@ export async function getBYOKKey(
           }
           const delayMs = backoffWithJitter(attempt, null, BYOK_LOOKUP_BACKOFF)
           logger.warn('Retrying BYOK credential lookup', {
-            workspaceId,
+            ...scope,
             providerId,
             attempt,
             failureClass,
@@ -145,7 +177,38 @@ export async function getBYOKKey(
       }
     },
     Date.now() + BYOK_LOOKUP_TIMEOUT_MS,
-    options.signal
+    callerSignal
+  )
+}
+
+async function resolveOrganizationBYOKKey(
+  organizationId: string,
+  providerId: BYOKProviderId,
+  signal: AbortSignal
+): Promise<BYOKKeyResult | null> {
+  const organizationKeys = await db
+    .select({ id: organizationBYOKKeys.id, encryptedApiKey: organizationBYOKKeys.encryptedApiKey })
+    .from(organizationBYOKKeys)
+    .where(
+      and(
+        eq(organizationBYOKKeys.organizationId, organizationId),
+        eq(organizationBYOKKeys.providerId, providerId)
+      )
+    )
+    .orderBy(asc(organizationBYOKKeys.createdAt), asc(organizationBYOKKeys.id))
+
+  signal.throwIfAborted()
+  if (!organizationKeys.length) return null
+  const entitled = await isOrganizationBYOKEntitledCached(organizationId)
+  signal.throwIfAborted()
+  if (!entitled) return null
+
+  return decryptBYOKPool(
+    organizationKeys,
+    `organization:${organizationId}:${providerId}`,
+    providerId,
+    { organizationId },
+    'organization'
   )
 }
 

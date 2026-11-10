@@ -792,7 +792,7 @@ export async function requestChatTitle(params: {
     const { fetchGo } = await import('@/lib/mothership/request/go/fetch')
     const mothershipBaseURL = await getMothershipBaseURL({ userId })
     // Title reads the user's message content, so an enterprise chat pins its key here too.
-    const byokApiKey = await resolveEnterpriseByokKey(workspaceId)
+    const byokApiKey = await resolveEnterpriseByokKey({ workspaceId, organizationId })
     const context = await buildChatTitleContext(params)
     const response = await fetchGo(`${mothershipBaseURL}/api/generate-chat-title`, {
       method: 'POST',

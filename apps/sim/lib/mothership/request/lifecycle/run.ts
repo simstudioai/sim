@@ -1067,7 +1067,10 @@ async function driveOneChildChain(
     }
     // Same per-leg BYOK rule as the main loop: this child-chain resume can also land on
     // a dead run and become a hosted-key continuation without it.
-    const byokApiKey = await resolveEnterpriseByokKey(workspaceId)
+    const byokApiKey = await resolveEnterpriseByokKey({
+      workspaceId,
+      organizationId: nonBlankString(execContext.organizationId),
+    })
     await runResumeLegWithRetry(
       `${baseURL}/api/tools/resume`,
       {
@@ -1266,7 +1269,10 @@ async function runCheckpointLoop(
     // Enterprise BYOK rides EVERY leg, resume included: a resume that lands on a dead
     // run becomes a continuation with no closure holding the key. Re-resolved per leg so
     // revocation is immediate (key rows are read fresh; entitlement is cached).
-    payload = await withEnterpriseByokKey(payload, route, lifecycleWorkspaceId)
+    payload = await withEnterpriseByokKey(payload, route, {
+      workspaceId: lifecycleWorkspaceId,
+      organizationId: lifecycleOrganizationId,
+    })
 
     if (isAborted(options, context)) {
       cancelPendingTools(context)
@@ -1869,10 +1875,10 @@ const BYOK_ROUTES = [
 async function withEnterpriseByokKey(
   payload: Record<string, unknown>,
   route: string,
-  workspaceId?: string
+  scope: { workspaceId?: string; organizationId?: string }
 ): Promise<Record<string, unknown>> {
   if (!BYOK_ROUTES.includes(route)) return payload
-  const byokApiKey = await resolveEnterpriseByokKey(workspaceId)
+  const byokApiKey = await resolveEnterpriseByokKey(scope)
   const refreshed = omit(payload, [
     'byokApiKey',
     /** The hidden hosted default must not override the customer-key provider pin. */
