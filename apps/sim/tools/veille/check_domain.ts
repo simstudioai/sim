@@ -1,9 +1,25 @@
 import { toBooleanOrNull, toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
-import { toArray, toRecord } from '@sim/utils/object'
+import { toArray, toRecord, toRecordOrNull } from '@sim/utils/object'
 import type { ToolConfig } from '@/tools/types'
-import type { VeilleCheckDomainParams, VeilleCheckDomainResponse } from '@/tools/veille/types'
+import type {
+  VeilleCheckDomainParams,
+  VeilleCheckDomainResponse,
+  VeilleWhois,
+} from '@/tools/veille/types'
 import { VEILLE_DNS_OUTPUT_PROPERTIES, VEILLE_WHOIS_OUTPUT_PROPERTIES } from '@/tools/veille/types'
-import { mapVeilleDns, mapVeilleWhois } from '@/tools/veille/utils'
+import { mapVeilleDns } from '@/tools/veille/utils'
+
+/** Reads a `VeilleWhois` from an untyped Veille API payload. */
+function mapVeilleWhois(value: unknown): VeilleWhois | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    registrar: toStringOrNull(record.registrar),
+    creationDate: toStringOrNull(record.creation_date),
+    updatedDate: toStringOrNull(record.updated_date),
+    expirationDate: toStringOrNull(record.expiration_date),
+  }
+}
 
 export const veilleCheckDomainTool: ToolConfig<VeilleCheckDomainParams, VeilleCheckDomainResponse> =
   {

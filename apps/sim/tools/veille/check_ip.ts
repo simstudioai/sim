@@ -1,12 +1,51 @@
 import { toBooleanOrNull, toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
-import { toRecord } from '@sim/utils/object'
+import { toRecord, toRecordOrNull } from '@sim/utils/object'
 import type { ToolConfig } from '@/tools/types'
-import type { VeilleCheckIpParams, VeilleCheckIpResponse } from '@/tools/veille/types'
+import type {
+  VeilleAsn,
+  VeilleCheckIpParams,
+  VeilleCheckIpResponse,
+  VeilleIpLocation,
+} from '@/tools/veille/types'
 import {
   VEILLE_ASN_OUTPUT_PROPERTIES,
   VEILLE_IP_LOCATION_OUTPUT_PROPERTIES,
 } from '@/tools/veille/types'
-import { mapVeilleAsn, mapVeilleIpLocation } from '@/tools/veille/utils'
+
+/** Reads a `VeilleAsn` from an untyped Veille API payload. */
+function mapVeilleAsn(value: unknown): VeilleAsn | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    asn: toNumberOrNull(record.asn),
+    org: toStringOrNull(record.org),
+    type: toStringOrNull(record.type),
+    route: toStringOrNull(record.route),
+    domain: toStringOrNull(record.domain),
+    country: toStringOrNull(record.country),
+    abuse: toStringOrNull(record.abuse),
+    active: toBooleanOrNull(record.active),
+  }
+}
+
+/** Reads a `VeilleIpLocation` from an untyped Veille API payload. */
+function mapVeilleIpLocation(value: unknown): VeilleIpLocation | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    city: toStringOrNull(record.city),
+    state: toStringOrNull(record.state),
+    country: toStringOrNull(record.country),
+    countryCode: toStringOrNull(record.country_code),
+    continent: toStringOrNull(record.continent),
+    zip: toStringOrNull(record.zip),
+    latitude: toNumberOrNull(record.latitude),
+    longitude: toNumberOrNull(record.longitude),
+    timezone: toStringOrNull(record.timezone),
+    isEuMember: toBooleanOrNull(record.is_eu_member),
+    currencyCode: toStringOrNull(record.currency_code),
+  }
+}
 
 export const veilleCheckIpTool: ToolConfig<VeilleCheckIpParams, VeilleCheckIpResponse> = {
   id: 'veille_check_ip',

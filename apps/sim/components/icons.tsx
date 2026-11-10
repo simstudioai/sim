@@ -10460,6 +10460,7 @@ export function PlaneIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+/** Veille logo, as used by the Veille block. */
 export function VeilleIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox='-2.3 -0.3 20.6 20.6' fill='none' xmlns='http://www.w3.org/2000/svg' {...props}>
