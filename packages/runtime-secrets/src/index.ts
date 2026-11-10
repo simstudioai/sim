@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
+import { FetchHttpHandler } from '@smithy/fetch-http-handler'
 
 const logger = createLogger('RuntimeSecrets')
 
@@ -56,9 +57,11 @@ export async function loadRuntimeSecrets(): Promise<void> {
  * times, then throws, so a caller never proceeds on a partial or missing secret.
  */
 export async function fetchRuntimeSecrets(secretId: string): Promise<Record<string, string>> {
-  const client = new SecretsManagerClient(
-    process.env.AWS_REGION ? { region: process.env.AWS_REGION } : {}
-  )
+  const requestHandler = proxyAwareRequestHandler()
+  const client = new SecretsManagerClient({
+    ...(process.env.AWS_REGION ? { region: process.env.AWS_REGION } : {}),
+    ...(requestHandler ? { requestHandler } : {}),
+  })
   const entries = parseSecretJson(await fetchSecretString(client, secretId))
   return Object.fromEntries(
     Object.entries(entries).map(([key, value]) => [
@@ -66,6 +69,22 @@ export async function fetchRuntimeSecrets(secretId: string): Promise<Record<stri
       typeof value === 'string' ? value : JSON.stringify(value),
     ])
   )
+}
+
+const PROXY_ENV = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'] as const
+
+/**
+ * The SDK's default Node handler ignores `HTTPS_PROXY`, so a container whose only egress is a
+ * proxy could not fetch its config and would never boot. While a proxy is set under Bun (both
+ * container bootstraps run on Bun), requests go through Bun's `fetch`, which honors
+ * `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY`. The app's `awsRequestHandler` lives in `apps/sim`,
+ * which packages cannot import, and the realtime bootstrap needs this path too. Undefined
+ * otherwise, leaving the SDK default in place.
+ */
+function proxyAwareRequestHandler(): FetchHttpHandler | undefined {
+  if (!process.versions.bun) return undefined
+  if (!PROXY_ENV.some((name) => process.env[name]?.trim())) return undefined
+  return new FetchHttpHandler()
 }
 
 async function fetchSecretString(client: SecretsManagerClient, secretId: string): Promise<string> {

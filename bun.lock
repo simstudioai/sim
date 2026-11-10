@@ -724,6 +724,7 @@
         "@aws-sdk/client-secrets-manager": "3.1150.0",
         "@sim/logger": "workspace:*",
         "@sim/utils": "workspace:*",
+        "@smithy/fetch-http-handler": "5.8.0",
       },
       "devDependencies": {
         "@sim/tsconfig": "workspace:*",
