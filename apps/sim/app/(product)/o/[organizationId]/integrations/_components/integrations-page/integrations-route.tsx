@@ -151,24 +151,15 @@ export function IntegrationsRoute({
       content: skills.query.error ? (
         <QueryFailure message='Could not load skills' query={skills.query} />
       ) : (
-        <>
-          <LiveGroup
-            title='Workspace skills'
-            glyph='I044'
-            rows={skills.rows.filter((row) => !row.builtin)}
-            onOpen={(row) => skills.open(row.id)}
-          />
-          <LiveGroup
-            title='Built-in skills'
-            glyph='I044'
-            rows={skills.rows.filter((row) => row.builtin)}
-            onOpen={(row) => skills.open(row.id)}
-          />
-        </>
+        <LiveGroup
+          title='Shared'
+          glyph='I044'
+          rows={skills.rows}
+          onOpen={(row) => skills.open(row.id)}
+        />
       ),
       empty: !skills.rows.length && !skills.query.error,
       settled: skills.settled,
-      emptyDescription: 'Skills in this workspace appear here.',
     }
     const mcpTab: LiveTab | undefined = workspace && {
       actions: mcps.connectHref && (
@@ -193,7 +184,6 @@ export function IntegrationsRoute({
       ),
       empty: !servers.length && !mcps.query.error,
       settled: Boolean(mcps.servers),
-      emptyDescription: 'MCP servers in this workspace appear here.',
     }
     return (
       <IntegrationsPage>

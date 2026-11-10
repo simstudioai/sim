@@ -54,8 +54,6 @@ export interface LiveTab {
   content: ReactNode
   empty: boolean
   settled: boolean
-  /** What the tab reads with nothing in it yet. */
-  emptyDescription: string
 }
 
 interface IntegrationCenterProps {
@@ -74,8 +72,6 @@ interface IntegrationCenterProps {
   settled?: boolean
   /** The choice every tab lists within, such as the workspace whose credentials and skills it shows. */
   scopeFilter?: ReactNode
-  /** What the Apps tab reads with nothing connected or available yet. */
-  appsEmptyDescription?: string
 }
 
 const RESOURCE_KIND = { skills: 'skill', mcps: 'mcp', credentials: 'credential' } as const
@@ -96,7 +92,6 @@ export function IntegrationCenter({
   createCredentialHref,
   settled = true,
   scopeFilter,
-  appsEmptyDescription = 'Apps available to your organization appear here.',
 }: IntegrationCenterProps) {
   const pathname = usePathname()
   const router = useRouter()
@@ -422,10 +417,8 @@ export function IntegrationCenter({
                 {term
                   ? 'Try a different name or clear your filters.'
                   : current === 'apps'
-                    ? appsEmptyDescription
-                    : live
-                      ? live.emptyDescription
-                      : 'Your personal and shared connections appear here.'}
+                    ? 'Apps available to your organization appear here.'
+                    : 'Your personal and shared connections appear here.'}
               </p>
             </section>
           )}

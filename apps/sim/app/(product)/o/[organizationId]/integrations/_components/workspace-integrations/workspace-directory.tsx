@@ -12,11 +12,7 @@ import {
   integrationCenterHref,
   withIntegrationsWorkspace,
 } from '@/platform/lib/integrations/center-navigation'
-import {
-  appCredentials,
-  UNCONFIGURED_APP_REASON,
-  type WorkspaceApp,
-} from '@/platform/lib/integrations/workspace-catalog'
+import { appCredentials, type WorkspaceApp } from '@/platform/lib/integrations/workspace-catalog'
 
 /** Credential kinds that hold a pasted secret, which the Credentials tab lists beside the secrets. */
 const SECRET_CREDENTIAL_TYPES: ReadonlySet<string> = new Set(['service_account', 'personal_token'])
@@ -67,7 +63,7 @@ export function useWorkspaceDirectory(
       providerId: app.id,
       href: appHref(app.id),
       name: app.name,
-      description: app.access === 'unconfigured' ? UNCONFIGURED_APP_REASON : app.description,
+      description: app.description,
       category: app.category,
       connected: connected.length > 0,
       credentialCount: connected.length,

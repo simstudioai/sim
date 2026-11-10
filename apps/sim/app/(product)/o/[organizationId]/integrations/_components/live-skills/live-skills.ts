@@ -39,7 +39,6 @@ export function useLiveSkills(pageWorkspaceId?: string) {
       id: skill.id,
       name: skill.name,
       description: skill.description,
-      builtin: Boolean(skill.readOnly),
       href: serializeCenter(base, { resource: skill.id, resourceTab: null }),
     }))
   const open = (resource: string) =>
