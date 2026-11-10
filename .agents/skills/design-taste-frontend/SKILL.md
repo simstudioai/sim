@@ -1,10 +1,10 @@
 ---
 name: design-taste-frontend
 source: https://github.com/leonxlnx/taste-skill — skills/taste-skill/SKILL.md
-description: Anti-slop frontend skill for landing pages, portfolios, and redesigns. The agent reads the brief, infers the right design direction, and ships interfaces that do not look templated. Real design systems when applicable, audit-first on redesigns, strict pre-flight check.
+description: Anti-slop design for marketing pages under apps/sim/app/(landing)/ and their redesigns. Reads the brief, infers a design direction, and ships pages that do not look templated, with an audit-first redesign path and a strict pre-flight check. Product UI (app/(product), platform, packages/emcn*) follows apps/sim/platform/AGENTS.md instead.
 ---
 
-> **In this repo:** Tailwind 4 (CSS-first config in `apps/sim/app/_styles/globals.css`); animation via `import { motion } from 'framer-motion'` (not `motion/react`); icons from `@sim/emcn-legacy/icons`; colors through the CSS-variable tokens in `.claude/rules/sim-styling.md` (no hardcoded `text-gray-*`/hex/`zinc` utilities, no paired `dark:` utilities). This note overrides any conflicting guidance or code sample anywhere in this file. Fonts are fixed (Season body, Inter); never introduce new families, and never use Martian Mono on landing (`apps/sim/app/(landing)/CLAUDE.md`). Font weight is only `font-normal`/`font-medium`/`font-semibold`. Elevation uses the `shadow-subtle|medium|overlay|card` tokens. Type size uses named tokens, never `text-[Npx]`. Every labeled field inside a `ChipModalBody` is a `ChipModalField`. Use `bunx`, never `npx`. Do not add GSAP, Lenis, Three, or shadcn. On landing pages, motion is CSS first; an animation library stays out of the initial bundle and loads below the fold through `next/dynamic` (`apps/sim/app/(landing)/CLAUDE.md`). Landing copy and SEO follow `.claude/rules/constitution.md` and `.claude/rules/landing-seo-geo.md`.
+> **In this repo:** this skill covers the marketing site, `apps/sim/app/(landing)/**`. Product UI (`apps/sim/app/(product)`, `apps/sim/platform`, `packages/emcn*`) follows `apps/sim/platform/AGENTS.md`. Tailwind 4 (CSS-first config in `apps/sim/app/_styles/globals.css`); animation via `import { motion } from 'framer-motion'` (not `motion/react`); icons from `@sim/emcn-legacy/icons`; colors through the CSS-variable tokens in `.claude/rules/sim-styling.md` (no hardcoded `text-gray-*`/hex/`zinc` utilities, no paired `dark:` utilities). This note overrides any conflicting guidance or code sample anywhere in this file. Fonts are fixed (Season body, Inter); never introduce new families, and never use Martian Mono on landing (`apps/sim/app/(landing)/CLAUDE.md`). Font weight is only `font-normal`/`font-medium`/`font-semibold`. Elevation uses the `shadow-subtle|medium|overlay|card` tokens. Type size uses named tokens, never `text-[Npx]`. Every labeled field inside a `ChipModalBody` is a `ChipModalField`. Use `bunx`, never `npx`. Do not add GSAP, Lenis, Three, or shadcn. On landing pages, motion is CSS first; an animation library stays out of the initial bundle and loads below the fold through `next/dynamic` (`apps/sim/app/(landing)/CLAUDE.md`). Landing copy and SEO follow `.claude/rules/constitution.md` and `.claude/rules/landing-seo-geo.md`.
 
 # tasteskill: Anti-Slop Frontend Skill
 
@@ -78,7 +78,7 @@ After the design read, set three dials. Every layout, motion, and density decisi
 | Redesign - overhaul | +2 | +2 | match |
 
 ### 1.C How the Dials Drive Output
-Use these (or user-overridden values) as global variables. Cross-references throughout this document refer to these exact variable names - never invent aliases like `LAYOUT_VARIANCE` or `ANIM_LEVEL`.
+Use these (or user-overridden values) as global variables. Cross-references throughout this document use these exact variable names.
 
 ---
 
@@ -92,7 +92,7 @@ Once you have the design read (Section 0) and dials (Section 1), pick the right 
 | Microsoft / enterprise SaaS / dashboards | `@fluentui/react-components` or `@fluentui/web-components` | Official Fluent UI, Microsoft tokens, accessibility done |
 | Google-ish UI, Material-flavored product | `@material/web` + Material 3 tokens | Official, theme-able via Material Theming |
 | IBM-style B2B / enterprise analytics | `@carbon/react` + `@carbon/styles` | Official Carbon, mature data-density patterns |
-| Shopify app surfaces | `polaris.js` web components / Polaris React | Required for Shopify admin UI |
+| Shopify app surfaces | Polaris web components / Polaris React | Required for Shopify admin UI |
 | Atlassian / Jira-style product | `@atlaskit/*` + `@atlaskit/tokens` | Official Atlassian DS |
 | GitHub-style devtool / community page | `@primer/css` or `@primer/react-brand` | Official Primer; Brand variant for marketing |
 | Public-sector UK service | `govuk-frontend` | Legally / regulatorily expected |
@@ -118,7 +118,7 @@ For these directions, there is **no single official package**. Build with native
 | Dark tech / hacker | Mono + accent neon, terminal motifs. No library. |
 | Aurora / mesh gradients | SVG or layered radial gradients. No library. |
 | Kinetic typography | Native CSS animations, scroll-driven animations, GSAP for hijacks. No library. |
-| **Apple Liquid Glass** | Apple documents this for Apple platforms only. **There is no official `liquid-glass.css`.** Web implementations are approximations using `backdrop-filter` + layered borders + highlights. Label clearly as approximation. |
+| **Apple Liquid Glass** | Apple documents this for Apple platforms only. **There is no official Liquid Glass stylesheet.** Web implementations are approximations using `backdrop-filter` + layered borders + highlights. Label clearly as approximation. |
 
 ---
 
@@ -131,7 +131,7 @@ Unless the design read picks a real design system (Section 2.A), these are the d
   * **RSC SAFETY:** Global state works ONLY in Client Components. In Next.js, wrap providers in a `"use client"` component.
   * **INTERACTIVITY ISOLATION:** Any component using Motion, scroll listeners, or pointer physics MUST be an isolated leaf with `'use client'` at the top. Server Components render static layouts only.
 * **Styling:** **Tailwind v4** (default). Tailwind v3 only if the existing project demands it.
-  * For v4: do NOT use `tailwindcss` plugin in `postcss.config.js`. Use `@tailwindcss/postcss` or the Vite plugin.
+  * For v4: configure PostCSS with `@tailwindcss/postcss` (or use the Vite plugin), never the `tailwindcss` plugin.
 * **Animation:** **Motion** (the library formerly known as Framer Motion). Outside this repo import from `motion/react`; in this repo import from `framer-motion` (see the note at the top).
 * **Fonts:** Always use `next/font` (Next.js) or self-host with `@font-face` + `font-display: swap`. Never link Google Fonts via `<link>` in production.
 
@@ -759,7 +759,7 @@ Document the current state before proposing changes:
 * **Content blocks** - what exists, what's doing work, what's filler.
 * **Patterns to preserve** - signature interactions, recognisable hero, copy voice.
 * **Patterns to retire** - AI-slop tells, broken layouts, dead links, generic stock imagery, perf traps.
-* **Dial reading of the existing site** - infer current `DESIGN_VARIANCE` / `MOTION_INTENSITY` / `VISUAL_DENSITY`. That's your starting point, not the baseline.
+* **Dial reading of the existing site** - infer the current DESIGN_VARIANCE / MOTION_INTENSITY / VISUAL_DENSITY dials. That's your starting point, not the baseline.
 * **SEO baseline** - current ranking pages, meta titles, structured data, OG cards. **SEO migration is the #1 redesign risk.**
 
 ### 11.C Preservation Rules
@@ -774,7 +774,7 @@ Apply in order - stop when the brief is satisfied:
 1. **Typography refresh** - biggest visual lift per unit of risk.
 2. **Spacing & rhythm** - increase section padding, fix vertical rhythm.
 3. **Color recalibration** - desaturate, unify neutrals, keep brand accent.
-4. **Motion layer** - add `MOTION_INTENSITY`-appropriate micro-interactions to existing components.
+4. **Motion layer** - add micro-interactions that match MOTION_INTENSITY to existing components.
 5. **Hero & key-section recomposition** - restructure top-of-funnel using Section 10 vocabulary.
 6. **Full block replacement** - only when the existing block is unsalvageable.
 
@@ -1021,7 +1021,7 @@ Relevant official docs:
 - SwiftUI → Material
 
 ### What is NOT official
-There is no `liquid-glass.css` from Apple for normal websites.
+Apple publishes no Liquid Glass stylesheet for normal websites.
 
 A web approximation can use:
 - `backdrop-filter`
