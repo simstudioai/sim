@@ -6,13 +6,7 @@ export {
   SKILL_IMPORT_ACCEPT,
   validateSkillName,
 } from '@/lib/skills/authoring'
-export {
-  SKILL_CONTENT_PLACEHOLDER,
-  SKILL_DESCRIPTION_MAX_LENGTH,
-  SKILL_DESCRIPTION_PLACEHOLDER,
-  SKILL_NAME_HINT,
-  SKILL_NAME_PLACEHOLDER,
-} from '@/lib/skills/copy'
+export { SKILL_DESCRIPTION_MAX_LENGTH } from '@/lib/skills/copy'
 export {
   type SkillDefinition,
   useCreateSkill,

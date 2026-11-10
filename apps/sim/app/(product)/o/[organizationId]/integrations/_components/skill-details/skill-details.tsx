@@ -28,12 +28,8 @@ import {
   type ParsedSkill,
   parseSkillMarkdown,
   readSkillFile,
-  SKILL_CONTENT_PLACEHOLDER,
   SKILL_DESCRIPTION_MAX_LENGTH,
-  SKILL_DESCRIPTION_PLACEHOLDER,
   SKILL_IMPORT_ACCEPT,
-  SKILL_NAME_HINT,
-  SKILL_NAME_PLACEHOLDER,
   type SkillDefinition,
   useCreateSkill,
   useDeleteSkill,
@@ -219,8 +215,8 @@ export function SkillDetails({
       <TextField
         label='Name'
         name='name'
-        placeholder={SKILL_NAME_PLACEHOLDER}
-        hint={lockReason ?? SKILL_NAME_HINT}
+        placeholder='Skill name'
+        hint={lockReason}
         error={errors.name}
         value={draft.name}
         onChange={(value) => edit('name', value)}
@@ -231,7 +227,7 @@ export function SkillDetails({
       <TextAreaField
         label='Description'
         name='description'
-        placeholder={SKILL_DESCRIPTION_PLACEHOLDER}
+        placeholder='Describe what this is for'
         error={errors.description}
         value={draft.description}
         onChange={(value) => edit('description', value)}
@@ -242,7 +238,7 @@ export function SkillDetails({
       <TextAreaField
         label='Instructions'
         name='content'
-        placeholder={SKILL_CONTENT_PLACEHOLDER}
+        placeholder='Describe what this skill should do'
         defaultSize='large'
         error={errors.content}
         value={draft.content}
@@ -259,13 +255,7 @@ export function SkillDetails({
       {back}
       <DirectoryHeading
         title={skill?.name ?? 'Create skill'}
-        description={
-          skill
-            ? builtin
-              ? 'Built-in skill'
-              : skill.description
-            : 'Write a skill, or import an existing SKILL.md'
-        }
+        description={skill?.description}
         leading={<Icon name='I044' />}
       />
       <form
@@ -353,7 +343,7 @@ export function SkillDetails({
         <Modal
           open
           title={`Delete ${skill.name}?`}
-          description='This action cannot be undone.'
+          description='This removes it from your integrations.'
           variant='confirm'
           confirmLabel='Delete skill'
           destructive
