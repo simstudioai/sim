@@ -13,11 +13,6 @@ export const organizationAccountsKeys = {
     [...organizationAccountsKeys.workspaces(), workspaceId ?? ''] as const,
   access: (id?: string) => [...organizationAccountsKeys.detail(id), 'access'] as const,
   people: (id?: string) => [...organizationAccountsKeys.detail(id), 'people'] as const,
-  peopleList: (id: string, search?: string, optionId?: string) =>
-    [
-      ...organizationAccountsKeys.people(id),
-      { search: search ?? '', optionId: optionId ?? '' },
-    ] as const,
   databricks: (id?: string) => [...organizationAccountsKeys.detail(id), 'databricks'] as const,
   details: () => [...organizationAccountsKeys.all, 'detail'] as const,
   detail: (organizationId?: string) =>

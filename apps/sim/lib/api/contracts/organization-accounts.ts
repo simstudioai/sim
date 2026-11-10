@@ -272,9 +272,6 @@ export const removeOrganizationAccountMcpProviderContract = defineRouteContract(
 export type OrganizationAccountPeoplePage = z.output<
   typeof listOrganizationAccountPeopleContract.response.schema
 >
-export type OrganizationAccountPeopleQuery = z.input<
-  NonNullable<typeof listOrganizationAccountPeopleContract.query>
->
 
 export const configureOrganizationMcpContract = defineRouteContract({
   method: 'PUT',
