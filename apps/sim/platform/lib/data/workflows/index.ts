@@ -149,8 +149,6 @@ export {
   useWorkflowScope,
   WorkflowScopeProvider,
 } from '@/components/workspace-providers/workflow-scope-provider'
-/** The read-only preview's last workspace fallback; nothing in the zone provides it yet. */
-export { useOptionalWorkspaceHostContext } from '@/components/workspace-providers/workspace-host-context'
 export {
   useUserPermissionsContext,
   useWorkspacePermissionsContext,
