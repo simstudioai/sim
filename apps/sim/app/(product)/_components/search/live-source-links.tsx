@@ -6,7 +6,7 @@ import {
   SourceActionsMenu,
   type SourceActionsProps,
   SourceActionsProvider,
-} from '@/app/(product)/_components/source-row/source-row'
+} from '@/app/(product)/_components/search/source-row'
 import { type LinkDraft, useSourceLinkAction } from '@/platform/lib/data/links'
 import { useOrganization } from '@/platform/lib/data/organization'
 

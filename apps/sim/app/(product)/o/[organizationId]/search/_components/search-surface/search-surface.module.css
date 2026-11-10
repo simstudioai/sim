@@ -28,8 +28,6 @@
 }
 .switch {
   display: flex;
-  align-items: center;
-  gap: var(--ui-action-gap);
   min-inline-size: 0;
 }
 .column {
@@ -43,18 +41,6 @@
   align-items: center;
   gap: var(--ui-action-gap);
   min-inline-size: 0;
-}
-/* On touch, the field's buttons keep their drawn size while their targets grow to the touch target. */
-@media (pointer: coarse) {
-  .field > button {
-    position: relative;
-  }
-  .field > button::after {
-    content: "";
-    position: absolute;
-    inset-block: calc((var(--spacing-28) - var(--spacing-app-touch-target)) / 2);
-    inset-inline: 0;
-  }
 }
 .field > :first-child {
   flex: 1;

@@ -16,15 +16,16 @@ import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useSearchField, useSearchSurface } from '@/platform/lib/data/search'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
-interface SearchFieldProps {
+interface SearchFormProps {
   query: string
   searching: boolean
   onSubmit: (value: string) => void
   onStop: () => void
-  newSearch?: { label: string; disabled: boolean; onStart: () => void }
+  newSearch?: { disabled: boolean; onStart: () => void }
 }
 
-function SearchField({ query, searching, onSubmit, onStop, newSearch }: SearchFieldProps) {
+/** Keyed by the committed query, so each query opens on its own saved draft. */
+function SearchForm({ query, searching, onSubmit, onStop, newSearch }: SearchFormProps) {
   const field = useSearchField({ query, searching, onSubmit, onStop })
   function submit(event: FormEvent) {
     event.preventDefault()
@@ -60,7 +61,7 @@ function SearchField({ query, searching, onSubmit, onStop, newSearch }: SearchFi
           disabled={newSearch.disabled}
           onClick={newSearch.onStart}
         >
-          {newSearch.label}
+          New search
         </Button>
       )}
     </form>
@@ -76,9 +77,6 @@ export function SearchSurface({ chat }: SearchSurfaceProps) {
   const surface = useSearchSurface(chat?.id)
   const scope = useSurfaceScope()
   const { mode, query, assistantAvailable, history } = surface
-  const newAction = surface.canStartNew
-    ? { label: surface.newLabel, disabled: surface.startingNew, onStart: surface.startNew }
-    : undefined
   const modeSwitch = assistantAvailable && (
     <SegmentedControl
       label='Search mode'
@@ -91,7 +89,7 @@ export function SearchSurface({ chat }: SearchSurfaceProps) {
     />
   )
   return (
-    <main className={styles.surface}>
+    <div className={styles.surface}>
       {/* The conversation stays mounted under Search so a running turn keeps streaming. */}
       {assistantAvailable && (mode === 'assistant' || surface.assistantStarted) && (
         <div className={styles.assistant} hidden={mode !== 'assistant'}>
@@ -103,22 +101,7 @@ export function SearchSurface({ chat }: SearchSurfaceProps) {
             searchView={mode}
             summaryRequest={surface.pendingSummary}
             onSummaryConsumed={surface.consumeSummary}
-            header={
-              <div className={styles.switch}>
-                {modeSwitch}
-                {mode === 'assistant' && newAction && (
-                  <Button
-                    variant='quiet'
-                    size='compact'
-                    icon='I074'
-                    disabled={newAction.disabled}
-                    onClick={newAction.onStart}
-                  >
-                    {newAction.label}
-                  </Button>
-                )}
-              </div>
-            }
+            header={<div className={styles.switch}>{modeSwitch}</div>}
           />
         </div>
       )}
@@ -130,13 +113,17 @@ export function SearchSurface({ chat }: SearchSurfaceProps) {
           </header>
           <PageColumn>
             <div className={styles.column}>
-              <SearchField
+              <SearchForm
                 key={query}
                 query={query}
                 searching={surface.searching}
                 onSubmit={surface.submit}
                 onStop={surface.stop}
-                newSearch={newAction}
+                newSearch={
+                  surface.canStartNew
+                    ? { disabled: surface.startingNew, onStart: surface.startNew }
+                    : undefined
+                }
               />
               {query || surface.filtered ? (
                 <SearchResults results={surface.results} />
@@ -170,6 +157,6 @@ export function SearchSurface({ chat }: SearchSurfaceProps) {
           </PageColumn>
         </div>
       )}
-    </main>
+    </div>
   )
 }
