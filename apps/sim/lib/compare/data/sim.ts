@@ -285,7 +285,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/components/share-modal/share-modal.tsx',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/(product)/_components/workspace/files/share-modal/share-modal.tsx',
             label: 'Sim codebase: file share modal (password/email/SSO modes)',
             asOf: '2026-07-08',
           },
