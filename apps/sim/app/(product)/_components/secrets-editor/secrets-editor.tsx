@@ -73,7 +73,7 @@ const FULL_ACCESS: SecretRowAccess = { canEdit: true, canReveal: true }
 type GuardBack = (leave: () => void) => void
 
 /** Whose secrets the editor holds. */
-export type SecretsEditorScope =
+type SecretsEditorScope =
   | { kind: 'organization' | 'member'; organizationId: string }
   | { kind: 'workspace'; workspaceId: string; onViewDetails: (credentialId: string) => void }
 

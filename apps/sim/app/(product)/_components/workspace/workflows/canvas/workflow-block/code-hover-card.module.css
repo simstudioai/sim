@@ -38,7 +38,7 @@
 }
 
 .theme {
-  composes: codeTokens from "../workflow-canvas/code-tokens.module.css";
+  composes: codeTokens from "../workflow-canvas/canvas-tokens.module.css";
   position: relative;
   margin-top: 0;
   padding-top: 0;

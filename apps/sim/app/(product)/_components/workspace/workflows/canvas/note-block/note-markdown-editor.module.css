@@ -9,7 +9,7 @@
  */
 
 .prose {
-  composes: codeTokens from "../workflow-canvas/code-tokens.module.css";
+  composes: codeTokens from "../workflow-canvas/canvas-tokens.module.css";
   min-height: 100%;
   width: 100%;
   color: currentColor;
