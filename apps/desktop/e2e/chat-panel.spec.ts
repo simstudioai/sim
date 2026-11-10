@@ -33,11 +33,20 @@ import {
 } from '@/lib/browser-agent/transport'
 import { ChatPanelTrigger } from '@/app/(product)/_components/chat/panel/chat-panel-trigger'
 import { ResourcePanels } from '@/app/(product)/_components/chat/panel/resource-panels'
+import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context'
 import { useMothershipResize } from '@/hooks/mothership-chat/use-mothership-resize'
 import { SurfaceScopeProvider } from '@/platform/lib/surface-scope'
 import { useChatPanelStore } from '@/stores/chat-panel/store'
 
 const queryClient = new QueryClient()
+
+/** The server-resolved flags the product's providers hand every chat surface. */
+const FEATURE_FLAGS = {
+  dashboards: false,
+  'workflow-tests': false,
+  'mothership-model-selector': false,
+  'mothership-plan-mode': false,
+}
 
 const router: AppRouterInstance = {
   bfcacheId: 'fixture',
@@ -67,6 +76,7 @@ function ChatFixture({ scopeId, userId }: ChatFixtureProps) {
   }
   return (
     <ResourcePanels
+      alwaysOpenable={false}
       panel={{
         resources: [{ id: 'fixture-browser', type: 'browser', title: 'Browser', active: true }],
         collapsed,
@@ -86,10 +96,7 @@ function ChatFixture({ scopeId, userId }: ChatFixtureProps) {
         picker: {
           items: [],
           onOpen: () => {},
-          onWorkspaceOpen: () => {},
           onSearchChange: () => {},
-          moreFor: () => undefined,
-          workspaceLoaded: () => false,
           onSelect: () => {},
         },
       }}
@@ -113,6 +120,7 @@ function ChatPanelFixture() {
   useEffect(() => initBrowserAgentTransport(), [])
   return (
     <QueryClientProvider client={queryClient}>
+    <FeatureFlagsProvider flags={FEATURE_FLAGS}>
     <AppRouterContext.Provider value={router}>
       <SurfaceScopeProvider routePrefix='/o/fixture-organization'>
         <PlatformSurface theme='dark' canvas>
@@ -162,6 +170,7 @@ function ChatPanelFixture() {
         </PlatformSurface>
       </SurfaceScopeProvider>
     </AppRouterContext.Provider>
+    </FeatureFlagsProvider>
     </QueryClientProvider>
   )
 }
