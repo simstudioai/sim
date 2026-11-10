@@ -6,7 +6,7 @@ import type {
 import type { MemberSecretSource } from '@/platform/lib/integrations/member-secret-source'
 import { platformHref } from '@/platform/lib/navigation'
 
-export type AccountMethod = 'oauth' | 'mcp' | 'slack'
+export type AccountMethod = 'oauth' | 'service_account' | 'mcp' | 'slack'
 
 export interface IntegrationAccount {
   id: string

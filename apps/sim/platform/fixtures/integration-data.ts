@@ -39,7 +39,7 @@ function ready(
 }
 
 const full: Record<string, Connection> = {
-  fireflies: ready(account('fireflies', 'Fireflies', 'mcp')),
+  fireflies: ready(account('fireflies', 'Fireflies', 'service_account')),
   github: {
     ...ready(account('github', 'emir@sim.ai', 'oauth')),
     accessDescription: 'Selected repositories you can access',
@@ -193,7 +193,7 @@ function credentialExamples(
           providerId:
             integrationCatalog
               .find((entry) => entry.id === appId)
-              ?.connections.find((entry) => entry.kind === 'oauth')?.providerId ?? appId,
+              ?.connections.find((entry) => entry.kind === account.method)?.providerId ?? appId,
           type: account.method,
           displayName: account.label,
           description: appId === 'gmail' ? 'Customer conversations and account updates.' : '',

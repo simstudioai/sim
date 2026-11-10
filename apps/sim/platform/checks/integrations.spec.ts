@@ -202,17 +202,17 @@ test('a private connection keeps its identity when shared and protects its only 
   await expect(people.getByText('Nina Patel', { exact: true })).toBeVisible()
 })
 
-test('Fireflies uses its managed MCP method and keeps every template in page flow', async ({
+test('Granola uses its managed MCP method and keeps every template in page flow', async ({
   page,
 }) => {
-  await page.goto(fixtureUrl('/integrations/fireflies?state=full'))
+  await page.goto(fixtureUrl('/integrations/granola?state=full'))
   const main = page.getByRole('main')
   const templates = main.getByRole('region', { name: 'Agent templates', exact: true })
-  await expect(templates.getByRole('listitem')).toHaveCount(10)
-  expect(new Set(await templates.getByRole('listitem').allTextContents()).size).toBe(10)
+  await expect(templates.getByRole('listitem')).toHaveCount(7)
+  expect(new Set(await templates.getByRole('listitem').allTextContents()).size).toBe(7)
   await expect(templates.getByRole('button', { name: 'Next', exact: true })).toHaveCount(0)
   await main.getByRole('button', { name: 'Connect integration', exact: true }).click()
-  const connect = page.getByRole('dialog', { name: 'Connect Fireflies', exact: true })
+  const connect = page.getByRole('dialog', { name: 'Connect Granola', exact: true })
   await expect(connect.getByRole('textbox')).toHaveCount(2)
   await expect(
     connect.getByRole('region', { name: 'Connection access', exact: true })
