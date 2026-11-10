@@ -80,6 +80,22 @@ export const railRegion = (page: Page, name: string) =>
 export const railSection = (page: Page, name: string) =>
   railRegion(page, name).locator('summary', { hasText: name })
 
+/**
+ * A chat's rail link, paging the Chats section with See more until it lists: the section shows a
+ * page at a time by last activity, and chats seeded together share theirs, so their order is not
+ * one to wait on.
+ */
+export async function revealRailChat(page: Page, title: string) {
+  const chats = railRegion(page, 'Chats')
+  const link = chats.getByRole('link', { name: title, exact: true })
+  await expect(async () => {
+    if ((await link.count()) === 0)
+      await chats.getByRole('button', { name: 'See more', exact: true }).click({ timeout: 1_000 })
+    await expect(link).toBeVisible({ timeout: 1_000 })
+  }).toPass({ timeout: 20_000 })
+  return link
+}
+
 /** Opens a section row's options menu: the button appears on hover. */
 export async function openRowMenu(page: Page, label: string) {
   const link = railLink(page, label)

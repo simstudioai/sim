@@ -23,7 +23,7 @@ import {
 import {
   composer,
   expectPageNotFound,
-  railLink,
+  revealRailChat,
   searchField,
 } from '@/scripts/org-redesign-e2e/locators'
 
@@ -75,8 +75,7 @@ export async function landingChecks() {
   await check(
     "a member's agent chat opens as a chat, Search hands it back to the chat, and it lists in the rail",
     async () => {
-      await withSession(MEMBER, async (session) => {
-        const { page } = session
+      await withSession(MEMBER, async ({ page }) => {
         const transcript = page.getByText(`Here is what I found about ${MEMBER_CHATS.agent.title}.`)
         await page.goto(url(org.chat(MEMBER_CHATS.agent.id)))
         await expect(page).toHaveURL(url(org.chat(MEMBER_CHATS.agent.id)))
@@ -87,8 +86,7 @@ export async function landingChecks() {
         await expect(transcript).toBeVisible()
         await expect(searchField(page)).toHaveCount(0)
         await page.goto(url(org.home))
-        await session.settle()
-        await expect(railLink(page, MEMBER_CHATS.agent.title)).toBeVisible()
+        await revealRailChat(page, MEMBER_CHATS.agent.title)
       })
     }
   )
