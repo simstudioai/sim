@@ -10459,3 +10459,25 @@ export function PlaneIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function AsinIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg' {...props}>
+      <title>Asin</title>
+      <rect width='32' height='32' rx='8' fill='#0f172a' />
+      <path
+        d='M8.5 6.5h8.2c.7 0 1.3.3 1.8.7l6.6 6.6c1 1 1 2.6 0 3.6l-7.4 7.4c-1 1-2.6 1-3.6 0l-6.6-6.6c-.5-.5-.7-1.1-.7-1.8V8.2c0-.9.8-1.7 1.7-1.7Z'
+        fill='#fff'
+      />
+      <circle cx='11.4' cy='11.2' r='1.8' fill='#0f172a' />
+      <path
+        d='M11.8 19.6l2.6-2.6 2 2 3.6-3.6'
+        fill='none'
+        stroke='#0f172a'
+        strokeWidth='2'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+    </svg>
+  )
+}
