@@ -749,6 +749,7 @@ const seamHelpers: ReasonedAllowlist = {
       'hooks/use-webhook-management',
       'lib/credential-groups/managed-mcp-connector-icons',
       'lib/credentials/client-credential-accounts/descriptors',
+      'lib/credentials/config-service-accounts/descriptors',
       'lib/credentials/service-account-provider-ids',
       'lib/credentials/token-service-accounts/descriptors',
       'lib/execution/languages',

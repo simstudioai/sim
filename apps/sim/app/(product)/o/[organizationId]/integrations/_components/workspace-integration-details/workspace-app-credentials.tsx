@@ -6,6 +6,7 @@ import { ServiceAccountModal } from '@/app/(product)/_components/service-account
 import { CredentialDetail } from '@/app/(product)/o/[organizationId]/integrations/_components/credential-detail/credential-detail'
 import { PersonalTokenModal } from '@/app/(product)/o/[organizationId]/integrations/_components/workspace-integration-details/personal-token-modal'
 import {
+  canReconnectServiceAccount,
   hasServiceAccountForm,
   useDataverseReconnect,
   type WorkspaceCredential,
@@ -49,6 +50,7 @@ export function useWorkspaceAppCredentials(
     )
   const reconnectable = (credential: WorkspaceCredential) =>
     (credential.type === 'personal_token' && credential.providerId === 'gitlab') ||
+    (credential.type === 'service_account' && canReconnectServiceAccount(credential.providerId)) ||
     (Boolean(oauthFor(credential.providerId)) &&
       (credential.id !== selected?.id || (!dataverse.pending && !dataverse.blockedReason)))
 
@@ -148,7 +150,22 @@ export function WorkspaceAppDialogs({ app, workspaceId, dialogs }: WorkspaceAppD
           onClose={close}
         />
       )}
-      {reconnecting?.providerId && (
+      {reconnecting?.type === 'service_account' && reconnecting.providerId && (
+        <ServiceAccountModal
+          open
+          onOpenChange={onOpenChange}
+          scope={scope}
+          serviceAccountProviderId={reconnecting.providerId}
+          serviceName={app.name}
+          onCreated={close}
+          replacedAccount={{
+            credentialId: reconnecting.id,
+            displayName: reconnecting.displayName,
+            description: reconnecting.description ?? undefined,
+          }}
+        />
+      )}
+      {reconnecting?.type !== 'service_account' && reconnecting?.providerId && (
         <OAuthConnectModal
           open
           onOpenChange={onOpenChange}

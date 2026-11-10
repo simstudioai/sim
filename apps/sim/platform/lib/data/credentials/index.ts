@@ -21,6 +21,7 @@ export { useOracleDatabaseAccount } from './oracle-database-account'
 export { type SlackSlashCommandDraft, useSlackBotForm } from './slack-bot'
 export { type OAuthConnectOptions, useOAuthConnect } from './use-oauth-connect'
 export {
+  canReconnectServiceAccount,
   hasServiceAccountForm,
   serviceAccountSetupKind,
   useServiceAccountForm,

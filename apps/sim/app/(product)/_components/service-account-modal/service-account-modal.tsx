@@ -1,7 +1,7 @@
 'use client'
 
 import { SelectField, TextAreaField, TextField } from '@sim/emcn/field'
-import { SecretField } from '@sim/emcn/field/value-fields'
+import { CopyField, SecretField } from '@sim/emcn/field/value-fields'
 import { Modal } from '@sim/emcn/modal'
 import { AtlassianServiceAccountModal } from '@/app/(product)/_components/service-account-modal/atlassian-service-account-modal'
 import { GoogleServiceAccountModal } from '@/app/(product)/_components/service-account-modal/google-service-account-modal'
@@ -28,8 +28,12 @@ interface SetupModalProps {
 interface KeyFormSubmitProps {
   submitCredentials?: (fields: Record<string, string>) => Promise<string>
   submitPending?: boolean
-  /** An account `submitCredentials` replaces, titled Reconnect and keeping its name. */
-  replacedAccount?: { displayName?: string }
+  /**
+   * An account the dialog replaces, titled Reconnect and keeping its name. With `credentialId`, a
+   * cloud configuration (AWS, Databricks) is saved onto that credential in place; otherwise
+   * `submitCredentials` replaces it.
+   */
+  replacedAccount?: { credentialId?: string; displayName?: string; description?: string }
 }
 
 interface ServiceAccountModalProps extends SetupModalProps, KeyFormSubmitProps {
@@ -43,11 +47,12 @@ interface ServiceAccountModalProps extends SetupModalProps, KeyFormSubmitProps {
 /**
  * Adds a service account in place, from a workflow block's credential picker, a knowledge connector
  * or an organization's Search source, owned by the workspace or organization `scope` names, with the
- * dialog its provider needs: a pasted token or an app's client credentials, a
- * Google JSON key, an Atlassian API token, an OCI signing key, an Oracle Database wallet or a custom
- * Slack bot. The provider verifies the secret before it is stored, and `onCreated` receives the new
- * credential to select. `submitCredentials` saves a pasted token or client credentials through
- * another operation, as a member's saved Search account does.
+ * dialog its provider needs: a pasted token, an app's client credentials, a cloud configuration
+ * (AWS, Databricks, keyless sign-in included), a Google JSON key, an Atlassian API token, an OCI
+ * signing key, an Oracle Database wallet or a custom Slack bot. The provider verifies the secret
+ * before it is stored, and `onCreated` receives the new credential to select. `submitCredentials`
+ * saves a pasted token or client credentials through another operation, as a member's saved Search
+ * account does.
  */
 export function ServiceAccountModal({
   serviceAccountProviderId,
@@ -153,6 +158,8 @@ function KeyFormModal({
     submitCredentials,
     submitPending,
     initialDisplayName: replacedAccount?.displayName,
+    initialDescription: replacedAccount?.description,
+    reconnectCredentialId: replacedAccount?.credentialId,
   })
   const docsUrl = form.docsUrl
   const verb = replacedAccount ? 'Reconnect' : 'Add'
@@ -162,7 +169,7 @@ function KeyFormModal({
     <Modal
       open={open}
       onOpenChange={onOpenChange}
-      title={`${verb} ${serviceName} ${form.connectNoun}`}
+      title={`${verb} ${form.vendorName ?? serviceName} ${form.connectNoun}`}
       confirmLabel={form.isPending ? pendingLabel : `${verb} ${form.connectNoun}`}
       confirmDisabled={form.confirmDisabled}
       pending={form.isPending}
@@ -178,7 +185,21 @@ function KeyFormModal({
       }
     >
       {form.fields.map((field) =>
-        field.options ? (
+        field.copy ? (
+          field.multiline ? (
+            <TextAreaField
+              key={field.id}
+              label={field.label}
+              value={field.value}
+              placeholder={field.placeholder}
+              viewOnly
+              spellCheck={false}
+              hint={field.hint}
+            />
+          ) : (
+            <CopyField key={field.id} label={field.label} value={field.value} hint={field.hint} />
+          )
+        ) : field.options ? (
           <SelectField
             key={field.id}
             label={field.label}
@@ -186,6 +207,7 @@ function KeyFormModal({
             onValueChange={(value) => form.setField(field.id, value)}
             options={field.options}
             hint={field.hint}
+            error={field.error}
             optional={!field.required}
           />
         ) : field.multiline ? (
@@ -234,7 +256,7 @@ function KeyFormModal({
         label='Display name'
         value={form.displayName}
         onChange={form.setDisplayName}
-        placeholder={`Defaults to the ${form.serviceLabel} account name`}
+        placeholder={form.displayNamePlaceholder}
         autoComplete='off'
         optional
       />

@@ -6,6 +6,7 @@ import {
   type ClientCredentialAccountField,
   getClientCredentialAccountDescriptor,
 } from '../apps/sim/lib/credentials/client-credential-accounts/descriptors'
+import { getConfigServiceAccountDescriptor } from '../apps/sim/lib/credentials/config-service-accounts/descriptors'
 import { getServiceAccountConnectNoun } from '../apps/sim/lib/credentials/service-account-provider-ids'
 import {
   getTokenServiceAccountDescriptor,
@@ -59,6 +60,35 @@ function descriptorField(
       : field.hintMessage
         ? { hint: field.hintMessage }
         : {}),
+  }
+}
+
+/**
+ * A cloud configuration's auth type choice and each type's own fields. Keyless sign-in is listed as
+ * a choice; the issuer, audience and subject it shows come from the live deployment, not the catalog.
+ */
+function configSetup(providerId: string): Pick<CredentialConnection, 'setup' | 'fields'> | null {
+  const descriptor = getConfigServiceAccountDescriptor(providerId)
+  if (!descriptor) return null
+  return {
+    setup: 'fields',
+    fields: [
+      {
+        id: 'authType',
+        label: 'Authentication',
+        defaultValue: descriptor.keyedDefault,
+        options: descriptor.authTypes.map(({ value, label }) => ({ value, label })),
+      },
+      ...descriptor.fields.map((field) => ({
+        id: field.id,
+        label: field.label,
+        placeholder: field.placeholder,
+        ...(field.secret ? { secret: true } : {}),
+        ...(field.optional ? { optional: true } : {}),
+        ...(field.hint ? { hint: field.hint } : {}),
+        visibleWhen: { field: 'authType', values: field.authTypes },
+      })),
+    ],
   }
 }
 
@@ -202,7 +232,7 @@ function serviceAccountConnection(providerId: string): CredentialConnection | nu
         setup: 'fields' as const,
         fields: descriptor.fields.map((field) => descriptorField(field, client?.defaultAuthMethod)),
       }
-    : bespokeSetup(providerId)
+    : (configSetup(providerId) ?? bespokeSetup(providerId))
   if (!setup) return null
   return {
     id: providerId,

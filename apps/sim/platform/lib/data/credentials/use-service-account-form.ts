@@ -10,6 +10,7 @@ import {
   getClientCredentialAccountDescriptor,
   partitionClientCredentialFields,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
+import { getConfigServiceAccountDescriptor } from '@/lib/credentials/config-service-accounts/descriptors'
 import {
   getTokenServiceAccountDescriptor,
   getTokenServiceAccountErrorMessage,
@@ -22,15 +23,21 @@ import {
   ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
-import { useCreateScopedCredential } from '@/hooks/queries/scoped-credentials'
+import {
+  useCreateScopedCredential,
+  useUpdateScopedCredential,
+} from '@/hooks/queries/scoped-credentials'
+import { useConfigServiceAccountForm } from '@/platform/lib/data/credentials/config-service-account'
 
 const logger = createLogger('ServiceAccountForm')
 
 const CLIENT_CREDENTIAL_FALLBACK = "We couldn't save this credential. Try again in a moment."
+const CONFIG_FALLBACK = 'Could not verify the credential. Check the details and try again.'
 
 /**
  * The dialog that adds a service account of this provider, as the legacy setup modal dispatches:
- * a pasted token or an app's client credentials share one form, and each remaining kind has its own.
+ * a pasted token, an app's client credentials and a cloud configuration (AWS, Databricks) share one
+ * form, and each remaining kind has its own.
  */
 export type ServiceAccountSetupKind =
   | 'form'
@@ -46,7 +53,8 @@ export function serviceAccountSetupKind(
 ): ServiceAccountSetupKind | null {
   if (
     getTokenServiceAccountDescriptor(providerId) ??
-    getClientCredentialAccountDescriptor(providerId)
+    getClientCredentialAccountDescriptor(providerId) ??
+    getConfigServiceAccountDescriptor(providerId)
   )
     return 'form'
   switch (providerId) {
@@ -70,15 +78,30 @@ export function hasServiceAccountForm(providerId: string | undefined): boolean {
   return serviceAccountSetupKind(providerId) !== null
 }
 
+/**
+ * Whether the shared dialog can reconnect this provider's service account in place: a cloud
+ * configuration (AWS, Databricks) is saved onto the same credential, as the legacy dialogs did.
+ */
+export function canReconnectServiceAccount(providerId: string | null | undefined): boolean {
+  return Boolean(getConfigServiceAccountDescriptor(providerId ?? undefined))
+}
+
 /** One field of the setup form, with the hint or format warning it currently shows. */
-interface ServiceAccountFormField {
+export interface ServiceAccountFormField {
   id: string
   label: string
   placeholder: string
   secret: boolean
   multiline: boolean
   required: boolean
-  options?: readonly { value: string; label: string }[]
+  options?: readonly {
+    value: string
+    label: string
+    disabled?: boolean
+    disabledReason?: string
+  }[]
+  /** A value Sim issues for the viewer to copy into their provider, never entered. */
+  copy?: boolean
   value: string
   hint?: string
   /** A format warning that holds the field as invalid. */
@@ -142,6 +165,13 @@ interface UseServiceAccountFormOptions {
   submitPending?: boolean
   /** The name an account being replaced already has, which the form starts with. */
   initialDisplayName?: string
+  /** The description an account being replaced already has, which the form starts with. */
+  initialDescription?: string
+  /**
+   * The credential a cloud configuration (AWS, Databricks) replaces in place, keeping its id and
+   * members. Its stored secrets are never prefilled.
+   */
+  reconnectCredentialId?: string
 }
 
 /**
@@ -157,19 +187,32 @@ export function useServiceAccountForm({
   submitCredentials,
   submitPending = false,
   initialDisplayName = '',
+  initialDescription = '',
+  reconnectCredentialId,
 }: UseServiceAccountFormOptions) {
   const tokenDescriptor = getTokenServiceAccountDescriptor(serviceAccountProviderId)
   const clientDescriptor = tokenDescriptor
     ? undefined
     : getClientCredentialAccountDescriptor(serviceAccountProviderId)
-  const descriptor = tokenDescriptor ?? clientDescriptor
+  const configDescriptor =
+    tokenDescriptor || clientDescriptor
+      ? undefined
+      : getConfigServiceAccountDescriptor(serviceAccountProviderId)
+  const descriptor = tokenDescriptor ?? clientDescriptor ?? configDescriptor
   const [values, setValues] = useState<Record<string, string>>({})
   const [displayName, setDisplayName] = useState(initialDisplayName)
-  const [description, setDescription] = useState('')
+  const [description, setDescription] = useState(initialDescription)
   const createCredential = useCreateScopedCredential()
+  const updateCredential = useUpdateScopedCredential()
+  const configForm = useConfigServiceAccountForm({
+    descriptor: configDescriptor,
+    scope,
+    reconnectCredentialId,
+  })
 
-  const setField = (id: string, value: string) =>
-    setValues((current) => ({ ...current, [id]: value }))
+  const setField = configDescriptor
+    ? configForm.setField
+    : (id: string, value: string) => setValues((current) => ({ ...current, [id]: value }))
 
   let fields: ServiceAccountFormField[] = []
   const secretFields: Record<string, string> = {}
@@ -224,15 +267,56 @@ export function useServiceAccountForm({
           (field.id === 'orgId' ? clientDescriptor.helpText : undefined),
       }
     })
+  } else if (configDescriptor) {
+    fields = configForm.fields
   }
 
-  const missingRequired = fields.some(
-    (field) => field.required && !field.value.trim() && field.id !== AUTH_METHOD_FIELD_ID
-  )
-  const isPending = createCredential.isPending || submitPending
+  const missingRequired = configDescriptor
+    ? !configForm.config
+    : fields.some(
+        (field) => field.required && !field.value.trim() && field.id !== AUTH_METHOD_FIELD_ID
+      )
+  const isPending = createCredential.isPending || updateCredential.isPending || submitPending
+
+  const submitConfig = async (config: Record<string, string>) => {
+    const owner = resourceScopeFields(scope)
+    const shared = {
+      serviceAccountJson: JSON.stringify(config),
+      displayName: displayName.trim() || undefined,
+    }
+    try {
+      if (reconnectCredentialId) {
+        await updateCredential.mutateAsync({
+          ...owner,
+          ...shared,
+          credentialId: reconnectCredentialId,
+          description: description.trim() || null,
+        })
+        onCreated(reconnectCredentialId)
+        return undefined
+      }
+      const created = await createCredential.mutateAsync({
+        ...owner,
+        ...shared,
+        description: description.trim() || undefined,
+        type: 'service_account',
+        providerId: serviceAccountProviderId,
+      })
+      onCreated(created.credential.id)
+      return undefined
+    } catch (error) {
+      logger.error(`Failed to save ${configDescriptor?.serviceLabel} credential`, error)
+      if (isApiClientError(error) && error.code === 'duplicate_display_name')
+        throw new Error(
+          'A credential with that name already exists. Choose a different display name.'
+        )
+      throw new Error(isApiClientError(error) && error.message ? error.message : CONFIG_FALLBACK)
+    }
+  }
 
   const submit = async () => {
     if (!descriptor || missingRequired) return false
+    if (configDescriptor) return configForm.config ? submitConfig(configForm.config) : false
     if (submitCredentials) {
       const fields: Record<string, string> = { ...secretFields }
       if (displayName.trim()) fields.displayName = displayName.trim()
@@ -274,7 +358,12 @@ export function useServiceAccountForm({
   return {
     available: Boolean(descriptor),
     serviceLabel: descriptor?.serviceLabel ?? '',
+    /** The vendor a cloud configuration is titled with ("AWS" on the S3 page), over the app's name. */
+    vendorName: configDescriptor?.serviceLabel,
     connectNoun: descriptor?.connectNoun ?? '',
+    displayNamePlaceholder:
+      configDescriptor?.displayNamePlaceholder ??
+      `Defaults to the ${descriptor?.serviceLabel ?? ''} account name`,
     docsUrl: descriptor?.docsUrl,
     fields,
     setField,
