@@ -148,7 +148,12 @@ export function SearchSurface({ chat }: SearchSurfaceProps) {
                       onSelect={surface.submit}
                     />
                   )}
-                  <Button variant='muted' size='compact' onClick={history.clear}>
+                  <Button
+                    variant='muted'
+                    size='compact'
+                    disabled={history.clearing}
+                    onClick={() => void history.clear()}
+                  >
                     Clear history
                   </Button>
                 </section>

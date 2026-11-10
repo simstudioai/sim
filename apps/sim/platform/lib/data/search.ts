@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useIsFetching, useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
@@ -26,6 +27,7 @@ import {
   searchModeInUrl,
 } from '@/lib/organizations/search-params'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
+import { toast } from '@/lib/toast/sink'
 import { useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
 import {
   useClearSearchHistory,
@@ -333,7 +335,18 @@ export function useSearchSurface(chatId: string | undefined) {
         label: item.query,
       })),
       openSource: (url: string) => window.open(url, '_blank', 'noopener,noreferrer'),
-      clear: () => clearHistory.mutate(),
+      /** True while a clear is in flight, so a second click cannot send another. */
+      clearing: clearHistory.isPending,
+      clear: async () => {
+        if (clearHistory.isPending) return
+        try {
+          await clearHistory.mutateAsync()
+        } catch (error) {
+          toast.error("Couldn't clear search history", {
+            description: getErrorMessage(error, 'Please try again in a moment.'),
+          })
+        }
+      },
     },
   }
 }
