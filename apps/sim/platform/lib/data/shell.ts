@@ -24,8 +24,8 @@ import { useWorkspaceActions } from '@/platform/lib/data/workspaces'
 import { workspaceHomePath } from '@/platform/lib/workspace-navigation'
 import type { ShellDestination } from '@/platform/shared/shell'
 
-/** The legacy sidebar's page size for its Workspaces section. */
-const WORKSPACE_PAGE_SIZE = 5
+/** The legacy sidebar's page size for its Workspaces section, which the Chats section shares. */
+const SIDEBAR_PAGE_SIZE = 5
 
 /** A workspace opens in the zone, on the page its live data serves first. */
 const liveWorkspaceHome = (workspaceId: string) => workspaceHomePath(workspaceId, 'live')
@@ -128,7 +128,8 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
         profile: profile.status,
       },
       workspaceCreation: toWorkspaceCreation(creationPolicy.data),
-      workspacePageSize: WORKSPACE_PAGE_SIZE,
+      workspacePageSize: SIDEBAR_PAGE_SIZE,
+      chatPageSize: SIDEBAR_PAGE_SIZE,
       chatsAvailable,
       surface: organization,
       destinations: navigation.destinations,

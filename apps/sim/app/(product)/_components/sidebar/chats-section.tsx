@@ -13,6 +13,7 @@ import type { ShellActions, ShellChat } from '@/app/(product)/_components/model'
 import { SidebarSortMenu } from '@/app/(product)/_components/sidebar/collection-order'
 import { linkMenuActions, pinAction } from '@/app/(product)/_components/sidebar/row-links'
 import { SectionStatus } from '@/app/(product)/_components/sidebar/section-status'
+import { useSeeMore } from '@/app/(product)/_components/sidebar/see-more'
 import styles from '@/app/(product)/_components/sidebar/sidebar-collections.module.css'
 import { useSidebarLayout } from '@/app/(product)/_components/sidebar/sidebar-layout'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
@@ -42,6 +43,8 @@ function chatStatus(chat: ShellChat, isCurrent: boolean) {
 
 interface ChatsSectionProps {
   chats: readonly ShellChat[]
+  /** Rows shown before See more. Absent means every row. */
+  pageSize?: number
   status?: ShellQueryStatus
   activeChat?: string
   actions: ShellActions['chats']
@@ -50,7 +53,14 @@ interface ChatsSectionProps {
 
 type ChatEdit = { kind: 'rename'; chatId: string } | { kind: 'remove'; chats: readonly ShellChat[] }
 
-export function ChatsSection({ chats, status, activeChat, actions, navigate }: ChatsSectionProps) {
+export function ChatsSection({
+  chats,
+  pageSize,
+  status,
+  activeChat,
+  actions,
+  navigate,
+}: ChatsSectionProps) {
   const query = useSearchParams()
   const scope = useSurfaceScope()
   const { chatsOpen, setChatsOpen, chatOrder, setChatOrder } = useSidebarLayout()
@@ -58,6 +68,7 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
   const [selected, setSelected] = useState(NO_SELECTION)
   const selectionAnchor = useRef<string | null>(null)
   const cancelPrefetch = useRef<(() => void) | null>(null)
+  const page = useSeeMore(chats, pageSize)
   const selectedChats = chats.filter((chat) => selected.has(chat.id))
   const isMultiSelecting = selectedChats.length > 1
 
@@ -79,7 +90,7 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
 
   function extendSelection(id: string) {
     const anchor = selectionAnchor.current
-    const ids = chats.map((chat) => chat.id)
+    const ids = page.visible.map((chat) => chat.id)
     if (!anchor || !ids.includes(anchor)) {
       selectOnly(id)
       return
@@ -190,7 +201,7 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
             items='chats'
             onRetry={actions.retry}
           />
-          {chats.map((item) => {
+          {page.visible.map((item) => {
             const href = item.href ?? surfaceHref(scope, `/chat/${item.id}`)
             const rows = rowActions(item)
             const isCurrent = activeChat === item.id
@@ -240,6 +251,7 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
               </ContextActionMenu>
             )
           })}
+          {page.control}
         </div>
       </Disclosure>
       {renamingChat && (

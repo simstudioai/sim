@@ -81,6 +81,8 @@ export interface ShellData {
   workspaceCreation?: { canCreate: boolean; organizationId: string | null; reason: string | null }
   /** Rows the Workspaces section shows before See more. Absent means every row. */
   workspacePageSize?: number
+  /** Rows the Chats section shows before See more. Absent means every row. */
+  chatPageSize?: number
   /** False when the viewer's chat list would be refused, so the section is not offered. */
   chatsAvailable?: boolean
   /** Absent outside a live session. */
