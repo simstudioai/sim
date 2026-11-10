@@ -26,8 +26,9 @@ import {
   userStats,
   workspace,
 } from '@sim/db/schema'
+import { backendPid, waitForBackendBlockedBy } from '@sim/db/testing/lock-waits'
+import { deleteOutboxEventsNaming } from '@sim/db/testing/outbox-fixtures'
 import { getPostgresErrorCode } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -121,6 +122,7 @@ afterAll(async () => {
     .select({ id: member.organizationId })
     .from(member)
     .where(inArray(member.userId, userIds))
+  await deleteOutboxEventsNaming(db, [...userIds, ...organizations.map((row) => row.id)])
   if (organizations.length > 0) {
     await db.delete(organization).where(
       inArray(
@@ -277,18 +279,6 @@ async function recordPersonalOrganizationAudit(organizationId: string): Promise<
 }
 
 /** Resolves once some backend sits waiting on a row lock, i.e. the racing statement is parked. */
-async function waitForLockWaiter(): Promise<void> {
-  for (let attempt = 0; attempt < 200; attempt++) {
-    const [{ waiting }] = await db.execute<{ waiting: number }>(sql`
-      SELECT count(*)::int AS waiting FROM pg_stat_activity
-      WHERE datname = current_database() AND wait_event_type = 'Lock'
-    `)
-    if (waiting > 0) return
-    await sleep(25)
-  }
-  throw new Error('no statement ever waited on a lock')
-}
-
 /**
  * Runs `write` in a transaction and holds it open, uncommitted, until `release`: the moment a
  * racing request arrives in production. Resolves once `write` has run.
@@ -302,14 +292,16 @@ async function holdOpen<T>(write: (tx: DbTransaction) => Promise<T>) {
   const wrote = new Promise<void>((resolve) => {
     written = resolve
   })
+  let holderPid = 0
   const settled = db.transaction(async (tx) => {
+    holderPid = await backendPid(tx)
     const result = await write(tx)
     written()
     await held
     return result
   })
   await Promise.race([wrote, settled])
-  return { release, settled }
+  return { release, settled, holderPid }
 }
 
 describe('joining a team while the personal organization is still being written to', () => {
@@ -328,7 +320,9 @@ describe('joining a team while the personal organization is still being written 
       chatInserted = resolve
     })
     /** Another tab's chat insert: holds `FOR KEY SHARE` on the personal organization until commit. */
+    let holderPid = 0
     const otherTab = db.transaction(async (tx) => {
+      holderPid = await backendPid(tx)
       await tx
         .insert(copilotChats)
         .values({ id: chatId, userId: joinerId, organizationId: personalId })
@@ -345,7 +339,7 @@ describe('joining a team while the personal organization is still being written 
       skipBillingLogic: true,
       skipSeatValidation: true,
     })
-    await waitForLockWaiter()
+    await waitForBackendBlockedBy(db, holderPid)
     commitChat()
     await otherTab
 
@@ -375,7 +369,11 @@ describe('joining a team while the personal organization is still being written 
       .values({ id: generateId(), userId: joinerId, organizationId: personalId })
 
     // The first acceptance has joined and moved everything, uncommitted, when the second arrives.
-    const { release, settled: first } = await holdOpen((tx) =>
+    const {
+      release,
+      settled: first,
+      holderPid,
+    } = await holdOpen((tx) =>
       ensureUserInOrganizationTx(tx, {
         actor: { type: 'system', name: 'Test' },
         userId: joinerId,
@@ -393,7 +391,7 @@ describe('joining a team while the personal organization is still being written 
       skipBillingLogic: true,
       skipSeatValidation: true,
     })
-    await waitForLockWaiter()
+    await waitForBackendBlockedBy(db, holderPid)
     release()
 
     expect(await first).toMatchObject({ success: true, alreadyMember: false })
@@ -426,7 +424,11 @@ describe('joining a team while the personal organization is still being written 
     const teamId = await team(await createUser())
 
     // The join has written its membership, uncommitted, when the first page load provisions.
-    const { release, settled: joined } = await holdOpen((tx) =>
+    const {
+      release,
+      settled: joined,
+      holderPid,
+    } = await holdOpen((tx) =>
       ensureUserInOrganizationTx(tx, {
         actor: { type: 'system', name: 'Test' },
         userId: joinerId,
@@ -437,7 +439,7 @@ describe('joining a team while the personal organization is still being written 
       })
     )
     const provisioned = createPersonalOrganization(joinerId)
-    await waitForLockWaiter()
+    await waitForBackendBlockedBy(db, holderPid)
     release()
 
     expect(await joined).toMatchObject({ success: true })
@@ -470,7 +472,11 @@ describe('joining a team while an invitation into a personal workspace is being 
     )
 
     // The acceptance holds the workspace's advisory lock and row, as it does while it decides.
-    const { release, settled: acceptance } = await holdOpen(async (tx) => {
+    const {
+      release,
+      settled: acceptance,
+      holderPid,
+    } = await holdOpen(async (tx) => {
       await acquireInvitationMutationLocks(tx, {
         invitationIds: [],
         workspaceIds: [personalWorkspace.id],
@@ -485,7 +491,7 @@ describe('joining a team while an invitation into a personal workspace is being 
       skipBillingLogic: true,
       skipSeatValidation: true,
     })
-    await waitForLockWaiter()
+    await waitForBackendBlockedBy(db, holderPid)
     const identityFree = await db.transaction((tx) =>
       tryAcquireAdvisoryXactLock(tx, 'user_billing_identity', `user-billing-identity:${joinerId}`)
     )

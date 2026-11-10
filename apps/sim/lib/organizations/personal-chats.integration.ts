@@ -63,6 +63,7 @@ import {
   userStats,
   workspace,
 } from '@sim/db/schema'
+import { deleteOutboxEventsNaming } from '@sim/db/testing/outbox-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
@@ -189,14 +190,7 @@ async function rescopeEvents(organizationId: string) {
 afterAll(async () => {
   await new Promise<void>((resolve) => worker.server.close(() => resolve()))
   if (userIds.length > 0) {
-    await db
-      .delete(outboxEvent)
-      .where(
-        and(
-          eq(outboxEvent.eventType, CHAT_RESCOPE_EVENT),
-          inArray(sql`${outboxEvent.payload}->>'userId'`, userIds)
-        )
-      )
+    await deleteOutboxEventsNaming(db, userIds)
     await db.delete(uploadSession).where(inArray(uploadSession.userId, userIds))
     const workspaces = await db
       .select({ id: workspace.id, projectId: workspace.projectId })

@@ -19,10 +19,11 @@ import {
   userStats,
   workspace,
 } from '@sim/db/schema'
+import { backendPid, waitForBackendBlockedBy } from '@sim/db/testing/lock-waits'
+import { deleteOutboxEventsNaming } from '@sim/db/testing/outbox-fixtures'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
-import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray, sql } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
 import { OrganizationMembershipNotFoundError } from '@/lib/core/application/organization-authorization'
@@ -146,19 +147,6 @@ async function shellOrganization(workspaceId: string, userId: string) {
   }
 }
 
-/** Resolves once some backend sits waiting on a lock, i.e. the racing statement is parked. */
-async function waitForLockWaiter(): Promise<void> {
-  for (let attempt = 0; attempt < 200; attempt++) {
-    const [{ waiting }] = await db.execute<{ waiting: number }>(sql`
-      SELECT count(*)::int AS waiting FROM pg_stat_activity
-      WHERE datname = current_database() AND wait_event_type = 'Lock'
-    `)
-    if (waiting > 0) return
-    await sleep(25)
-  }
-  throw new Error('no statement ever waited on a lock')
-}
-
 afterAll(async () => {
   if (userIds.length === 0) return
   const workspaces = await db
@@ -169,6 +157,7 @@ afterAll(async () => {
     .select({ id: member.organizationId })
     .from(member)
     .where(inArray(member.userId, userIds))
+  await deleteOutboxEventsNaming(db, [...userIds, ...organizations.map((row) => row.id)])
   if (workspaces.length > 0) {
     await db.delete(workspace).where(
       inArray(
@@ -292,7 +281,9 @@ describe('on-demand personal organization provisioning', () => {
     const written = new Promise<void>((resolve) => {
       firstWritten = resolve
     })
+    let holderPid = 0
     const first = db.transaction(async (tx) => {
+      holderPid = await backendPid(tx)
       const organizationId = await createPersonalOrganizationTx(tx, ownerId, {
         type: 'user',
         userId: ownerId,
@@ -304,7 +295,7 @@ describe('on-demand personal organization provisioning', () => {
     await written
 
     const second = landingOrganization(ownerId)
-    await waitForLockWaiter()
+    await waitForBackendBlockedBy(db, holderPid)
     commitFirst()
     const [firstId, secondId] = await Promise.all([first, second])
 

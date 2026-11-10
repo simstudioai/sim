@@ -20,6 +20,7 @@ import {
   workspace,
   workspaceFiles,
 } from '@sim/db/schema'
+import { deleteOutboxEventsNaming } from '@sim/db/testing/outbox-fixtures'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
@@ -208,6 +209,7 @@ afterAll(async () => {
     .select({ id: member.organizationId })
     .from(member)
     .where(inArray(member.userId, userIds))
+  await deleteOutboxEventsNaming(db, [...userIds, ...organizations.map((row) => row.id)])
   await db
     .delete(subscription)
     .where(inArray(subscription.referenceId, [...userIds, ...organizations.map((row) => row.id)]))
@@ -728,7 +730,7 @@ describe('deleting an account', () => {
 })
 
 describe('joining another organization over colliding content', () => {
-  it('admits an SSO or invitation join whose personal go link shares a name with the team’s, keeping the team’s', async () => {
+  it('keeps the team’s go link when a joiner’s personal one shares its name', async () => {
     const teamOwnerId = await createUser()
     const joinerId = await createUser()
     const { organizationId: teamId } = await createOrganizationWithOwner({

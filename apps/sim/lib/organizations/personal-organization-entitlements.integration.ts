@@ -6,6 +6,7 @@
  */
 import { db } from '@sim/db'
 import { member, organization, user, userStats } from '@sim/db/schema'
+import { deleteOutboxEventsNaming } from '@sim/db/testing/outbox-fixtures'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { generateId } from '@sim/utils/id'
 import { inArray } from 'drizzle-orm'
@@ -69,6 +70,7 @@ afterAll(async () => {
     .select({ id: member.organizationId })
     .from(member)
     .where(inArray(member.userId, userIds))
+  await deleteOutboxEventsNaming(db, [...userIds, ...organizations.map((row) => row.id)])
   if (organizations.length > 0) {
     await db.delete(organization).where(
       inArray(

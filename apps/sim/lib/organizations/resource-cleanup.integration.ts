@@ -17,6 +17,7 @@ import {
   userStats,
   workspaceFiles,
 } from '@sim/db/schema'
+import { deleteOutboxEventsNaming } from '@sim/db/testing/outbox-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -138,10 +139,8 @@ beforeEach(() => {
 })
 
 afterAll(async () => {
+  await deleteOutboxEventsNaming(db, [...userIds, ...organizationIds])
   if (organizationIds.length > 0) {
-    await db
-      .delete(outboxEvent)
-      .where(inArray(sql`${outboxEvent.payload}->>'organizationId'`, organizationIds))
     await db.delete(organization).where(inArray(organization.id, organizationIds))
   }
   if (userIds.length > 0) await db.delete(user).where(inArray(user.id, userIds))
