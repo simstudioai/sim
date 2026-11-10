@@ -30,6 +30,8 @@
 # (`bun run check:emcn-surface`). Listed before the dependency rules, which still own package.json.
 /packages/emcn/ @emir-karabeg
 /packages/emcn-platform/ @emir-karabeg
+/packages/emcn-auth/ @emir-karabeg
+/packages/emcn-docs/ @emir-karabeg
 /scripts/emcn-surface.json @emir-karabeg
 
 # Dependency manifests and package-manager config. Any change here — adding,
