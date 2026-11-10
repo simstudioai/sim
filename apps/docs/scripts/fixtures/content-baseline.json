@@ -18851,42 +18851,15 @@
       "media": [
         {
           "type": "Image",
-          "src": "/static/docs-captures/files-formatting.webp",
-          "alt": "Selected text in the Markdown editor with the text style, bold, italic, link, and more formatting controls",
+          "src": "/static/docs-captures/files-markdown.webp",
+          "alt": "A release brief open in the Markdown editor beside Chat, with a launch checklist, owner table, and highlighted JSON code block",
           "width": {
-            "expression": "900"
+            "expression": "2400"
           },
           "height": {
-            "expression": "340"
-          },
-          "variant": "detail",
-          "background": "architecture"
-        },
-        {
-          "type": "Image",
-          "src": "/static/docs-captures/files-table.webp",
-          "alt": "A Markdown owner table with controls for adding a row, managing columns, and deleting the table",
-          "width": {
             "expression": "1200"
           },
-          "height": {
-            "expression": "460"
-          },
-          "variant": "detail",
-          "background": "architecture"
-        },
-        {
-          "type": "Image",
-          "src": "/static/docs-captures/files-code.webp",
-          "alt": "A highlighted JSON code block with language, line wrap, and copy controls",
-          "width": {
-            "expression": "1200"
-          },
-          "height": {
-            "expression": "400"
-          },
-          "variant": "detail",
-          "background": "architecture"
+          "variant": "overview"
         }
       ]
     },

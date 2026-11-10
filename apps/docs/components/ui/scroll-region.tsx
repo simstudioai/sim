@@ -8,12 +8,12 @@ interface ScrollRegionProps extends HTMLAttributes<HTMLDivElement> {
   label: string
 }
 
-/** Keeps scrolling keyboard-accessible before hydration, then skips regions without overflow. */
+/** Keeps scrolling keyboard-accessible before hydration, then skips nonoverflowing regions unless opted in. */
 export function ScrollRegion({
   label,
   className,
   children,
-  tabIndex = 0,
+  tabIndex,
   ...props
 }: ScrollRegionProps) {
   const region = useRef<HTMLDivElement>(null)
@@ -21,7 +21,8 @@ export function ScrollRegion({
     const element = region.current
     if (!element) return
     function updateFocusability() {
-      if (element) element.tabIndex = element.scrollWidth > element.clientWidth + 1 ? tabIndex : -1
+      if (element)
+        element.tabIndex = tabIndex ?? (element.scrollWidth > element.clientWidth + 1 ? 0 : -1)
     }
     const observer = new ResizeObserver(updateFocusability)
     observer.observe(element)
@@ -32,7 +33,7 @@ export function ScrollRegion({
     <div
       {...props}
       ref={region}
-      tabIndex={tabIndex}
+      tabIndex={tabIndex ?? 0}
       role='region'
       aria-label={label}
       className={cn(
