@@ -86,7 +86,7 @@ interface BackfillReport {
  * while still owning a workspace that has none. On an instance-organization deployment, only users
  * in no organization.
  */
-function candidateUsersWhere(cursor: string | null, instanceMode: boolean): SQL {
+function candidateUsersWhere(cursor: string | null, instanceMode: boolean): SQL | undefined {
   const inPersonalOrganization = exists(
     db
       .select({ id: member.id })
@@ -105,8 +105,8 @@ function candidateUsersWhere(cursor: string | null, instanceMode: boolean): SQL 
   )
   const candidate = instanceMode
     ? inNoOrganization
-    : (or(inNoOrganization, and(inPersonalOrganization, ownsUnassignedWorkspace)) as SQL)
-  return cursor ? (and(gt(user.id, cursor), candidate) as SQL) : candidate
+    : or(inNoOrganization, and(inPersonalOrganization, ownsUnassignedWorkspace))
+  return cursor ? and(gt(user.id, cursor), candidate) : candidate
 }
 
 /** The next page of candidate user ids after `cursor`, in id order. */
