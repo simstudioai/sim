@@ -130,18 +130,21 @@ const workloadIdentityKeys = {
 /** A setup's subject is minted once per modal session and never refreshed. */
 const WORKLOAD_IDENTITY_SETUP_STALE_TIME = Number.POSITIVE_INFINITY
 
+interface UseWorkloadIdentitySetupProps {
+  workspaceId?: string
+  provider: WorkloadIdentityProvider
+  /** One per modal session, so each open gets its own subject. */
+  sessionKey: string
+  enabled: boolean
+}
+
 /**
  * The trust setup for a new keyless AWS role or Databricks service principal:
  * the issuer to register and the signed subject it must trust. Each fetch
  * mints a new subject, so the key carries the modal session and the result
  * never goes stale or refetches while the person is copying it.
  */
-export function useWorkloadIdentitySetup(input: {
-  workspaceId?: string
-  provider: WorkloadIdentityProvider
-  sessionKey: string
-  enabled: boolean
-}) {
+export function useWorkloadIdentitySetup(input: UseWorkloadIdentitySetupProps) {
   return useQuery({
     queryKey: workloadIdentityKeys.setup(input.workspaceId, input.provider, input.sessionKey),
     queryFn: async ({ signal }) =>

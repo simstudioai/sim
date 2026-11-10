@@ -61,6 +61,22 @@ describe('Brex saved token verification', () => {
     })
   })
 
+  it('does not accept a 403 whose body cannot be read to tell a bad token apart', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response('{"message": "Invalid or Revoked', {
+          status: 403,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    )
+
+    await expect(validateBrexServiceAccount({ apiToken: 'bxt_unknown' })).rejects.toMatchObject({
+      code: 'provider_unavailable',
+    })
+  })
+
   it('accepts a valid token that only lacks the user scope', async () => {
     vi.stubGlobal(
       'fetch',

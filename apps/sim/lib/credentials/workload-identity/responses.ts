@@ -20,11 +20,13 @@ function notConfigured() {
   return new NextResponse(null, { status: 404 })
 }
 
+/** The issuer's OpenID discovery document, or 404 when this deployment has no usable signing key. */
 export async function workloadIdentityDiscoveryResponse() {
   if (!(await isWorkloadIdentityConfigured())) return notConfigured()
   return NextResponse.json(getWorkloadIdentityDiscoveryDocument(), { headers: DISCOVERY_HEADERS })
 }
 
+/** The issuer's public signing keys (JWKS), or 404 when this deployment has no usable signing key. */
 export async function workloadIdentityJwksResponse() {
   const jwks = await getWorkloadIdentityJwks().catch(() => null)
   if (!jwks) return notConfigured()

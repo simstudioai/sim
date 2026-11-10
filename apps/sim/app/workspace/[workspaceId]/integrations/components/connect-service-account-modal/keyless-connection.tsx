@@ -74,8 +74,12 @@ export function keylessSubjectFields(setup: KeylessSetup) {
   return setup.trust ? { subject: setup.trust.subject, subjectProof: setup.trust.subjectProof } : {}
 }
 
+interface KeylessTrustFieldsProps {
+  setup: KeylessSetup
+}
+
 /** Reconnect choice plus the issuer, audience, and subject the customer configures. */
-export function KeylessTrustFields({ setup }: { setup: KeylessSetup }) {
+export function KeylessTrustFields({ setup }: KeylessTrustFieldsProps) {
   return (
     <>
       {setup.isReconnect && (

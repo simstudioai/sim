@@ -83,11 +83,19 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
       response.status === 403 &&
       (response.headers.get('content-type') ?? '').includes('application/json')
     if (check.rejectsKey && !response.ok) {
-      const errorBody = await readJsonBody(response, check.serviceLabel).catch(() => null)
-      if (check.rejectsKey(errorBody)) {
+      const unreadable = Symbol('unreadable')
+      const errorBody = await readJsonBody(response, check.serviceLabel).catch(() => unreadable)
+      if (errorBody !== unreadable && check.rejectsKey(errorBody)) {
         throw new TokenServiceAccountValidationError('invalid_credentials', 400, { step: 'verify' })
       }
       if (scopedForbidden) {
+        // Only a body that was read and doesn't name a bad key proves the token.
+        if (errorBody === unreadable) {
+          throw new TokenServiceAccountValidationError('provider_unavailable', response.status, {
+            step: 'verify',
+            reason: 'unreadable 403 body',
+          })
+        }
         return accepted
       }
       const callerError =
@@ -97,7 +105,10 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
       throw new TokenServiceAccountValidationError(
         callerError ? 'invalid_credentials' : 'provider_unavailable',
         response.status,
-        { step: 'verify', body: truncate(JSON.stringify(errorBody) ?? '', 500) }
+        {
+          step: 'verify',
+          body: errorBody === unreadable ? '' : truncate(JSON.stringify(errorBody) ?? '', 500),
+        }
       )
     }
     if (!scopedForbidden) {
