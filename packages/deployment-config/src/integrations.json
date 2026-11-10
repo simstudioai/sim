@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-06",
+  "updatedAt": "2026-11-10",
   "integrations": [
     {
       "type": "onepassword",
@@ -20043,6 +20043,70 @@
       "integrationType": "security",
       "tags": ["identity"],
       "updatedAt": "2026-10-14"
+    },
+    {
+      "type": "piloterr",
+      "slug": "piloterr",
+      "name": "Piloterr",
+      "description": "Scrape web pages, search engines, marketplaces and company data",
+      "longDescription": "Fetch or render any web page, take screenshots, detect a website's technologies, search Google, Amazon and eBay, and get structured LinkedIn and Crunchbase company profiles and Zillow properties, with proxies and anti-bot handling included.",
+      "bgColor": "#FFFFFF",
+      "iconName": "PiloterrIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/piloterr",
+      "operations": [
+        {
+          "name": "Fetch HTML",
+          "description": "Fetch a public web page over fast HTTP, without running JavaScript, and get its HTML."
+        },
+        {
+          "name": "Render HTML",
+          "description": "Render a JavaScript-heavy page in a headless browser and get the HTML after rendering."
+        },
+        {
+          "name": "Take Screenshot",
+          "description": "Capture a public web page as a PNG, JPEG, WebP image or a PDF, by viewport, full page or CSS selector, and store it as a file."
+        },
+        {
+          "name": "Detect Technologies",
+          "description": "Detect the technologies a website runs, such as its CMS, frameworks, analytics, CDN and hosting."
+        },
+        {
+          "name": "Google Search",
+          "description": "Search Google and get organic results with their position, title, link and snippet, and the estimated total."
+        },
+        {
+          "name": "Amazon Search",
+          "description": "Search an Amazon marketplace and get products with ASIN, title, price, rating and review count."
+        },
+        {
+          "name": "Get eBay Listing",
+          "description": "Get an eBay listing by item ID or URL, with its price, condition, availability, seller, shipping and item specifics."
+        },
+        {
+          "name": "eBay Search",
+          "description": "Search eBay listings by keyword or search URL and get their price, condition, buying format, shipping and seller."
+        },
+        {
+          "name": "Get LinkedIn Company",
+          "description": "Get a LinkedIn company's profile by page URL, slug or ID, or by website domain: industry, size, headquarters, specialties and followers."
+        },
+        {
+          "name": "Get Crunchbase Company",
+          "description": "Get a company's Crunchbase profile by name, permalink or URL, or by website domain: description, size, categories, locations, investors and products."
+        },
+        {
+          "name": "Get Zillow Property",
+          "description": "Get a Zillow home from its homedetails URL: address, price, Zestimate, status, size, rooms, year built and photos."
+        }
+      ],
+      "operationCount": 11,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "search",
+      "tags": ["web-scraping", "enrichment", "seo"],
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "pinecone",

@@ -1,0 +1,421 @@
+---
+title: Piloterr
+description: Scrape web pages, search engines, marketplaces and company data
+integration:
+  type: "piloterr"
+  color: "#FFFFFF"
+---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
+
+{/* MANUAL-CONTENT-START:intro */}
+[Piloterr](https://www.piloterr.com/) is a web scraping API with ready-made endpoints for search engines, marketplaces and company data, proxies and anti-bot handling included.
+
+With the Piloterr block, you can:
+
+- **Scrape pages**: fetch a page's HTML over HTTP, render a JavaScript page in a browser, or take a screenshot
+- **Research websites**: detect the technologies a website runs
+- **Search**: get Google organic results, and Amazon and eBay products with their prices and sellers
+- **Enrich companies**: get LinkedIn and Crunchbase company profiles by page, name or website domain
+- **Read listings**: get an eBay listing or a Zillow home with its price and details
+
+Create an API key in the [Piloterr dashboard](https://app.piloterr.com/) and paste it into the block.
+
+In Sim, the Piloterr block lets your agents monitor marketplace prices, enrich accounts and track search rankings.
+{/* MANUAL-CONTENT-END */}
+
+## Use the block [#usage-instructions]
+
+Fetch or render any web page, take screenshots, detect a website's technologies, search Google, Amazon and eBay, and get structured LinkedIn and Crunchbase company profiles and Zillow properties, with proxies and anti-bot handling included.
+
+## Actions
+
+### Piloterr Fetch HTML
+
+Fetch a public web page over fast HTTP, without running JavaScript, and get its HTML.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | URL of the page \(e.g., "https://example.com") |
+| `apiKey` | string | Yes | Piloterr API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `html` | string | HTML of the page |
+
+</ReferenceDetails>
+
+### Piloterr Render HTML
+
+Render a JavaScript-heavy page in a headless browser and get the HTML after rendering.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | URL of the page \(e.g., "https://example.com") |
+| `waitInSeconds` | number | No | Seconds to wait after the page loads before reading the HTML \(defaults to 0\) |
+| `blockAds` | boolean | No | Block ad requests while rendering |
+| `apiKey` | string | Yes | Piloterr API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `html` | string | HTML of the page after rendering |
+
+</ReferenceDetails>
+
+### Piloterr Take Screenshot
+
+Capture a public web page as a PNG, JPEG, WebP image or a PDF, by viewport, full page or CSS selector, and store it as a file.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | URL of the page \(e.g., "https://example.com") |
+| `format` | string | No | Output format: png, jpeg, webp or pdf \(defaults to "png"\) |
+| `fullPage` | boolean | No | Capture the entire page instead of the visible viewport |
+| `device` | string | No | Device to emulate \(e.g., "iphone_14_pro"\) |
+| `selector` | string | No | CSS selector of one element to capture \(e.g., "#pricing"\) |
+| `viewportWidth` | number | No | Width of the browser viewport in pixels \(defaults to 1280\) |
+| `viewportHeight` | number | No | Height of the browser viewport in pixels \(defaults to 1024\) |
+| `delay` | number | No | Seconds to wait before capturing \(defaults to 0\) |
+| `removeCookieBanners` | boolean | No | Remove cookie banners before capturing |
+| `removeAds` | boolean | No | Remove ads before capturing |
+| `apiKey` | string | Yes | Piloterr API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Screenshot or PDF of the page, stored in the execution files |
+
+</ReferenceDetails>
+
+### Piloterr Detect Technologies
+
+Detect the technologies a website runs, such as its CMS, frameworks, analytics, CDN and hosting.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | URL of the page \(e.g., "https://example.com") |
+| `apiKey` | string | Yes | Piloterr API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `technologies` | array | Technologies detected on the website |
+|   ↳ `name` | string | Name of the technology |
+|   ↳ `slug` | string | Identifier of the technology |
+|   ↳ `version` | string | Version, when it can be detected |
+|   ↳ `website` | string | Website of the technology |
+|   ↳ `description` | string | What the technology does |
+|   ↳ `confidence` | number | Confidence of the detection, from 0 to 100 |
+|   ↳ `categories` | array | Categories of the technology |
+|     ↳ `name` | string | Name of the category, such as CDN or CMS |
+|     ↳ `slug` | string | Identifier of the category |
+
+</ReferenceDetails>
+
+### Piloterr Google Search
+
+Search Google and get organic results with their position, title, link and snippet, and the estimated total.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Search query \(e.g., "best electric cars"\) |
+| `country` | string | No | Two-letter country code to search from \(e.g., "us"\) |
+| `language` | string | No | Two-letter language code of the results \(e.g., "en"\) |
+| `location` | string | No | City or region to search from \(e.g., "Paris, France"\) |
+| `page` | number | No | Page of results, starting at 1 |
+| `numResults` | number | No | Number of results per page \(e.g., 10\) |
+| `apiKey` | string | Yes | Piloterr API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Organic results |
+|   ↳ `position` | number | Position of the result on the page |
+|   ↳ `title` | string | Title of the result |
+|   ↳ `link` | string | URL of the result |
+|   ↳ `domain` | string | Domain of the result |
+|   ↳ `displayedLink` | string | Link as Google displays it |
+|   ↳ `source` | string | Source or site name |
+|   ↳ `snippet` | string | Snippet shown under the title |
+| `totalResults` | number | Estimated total number of results |
+| `hasNextPage` | boolean | Whether another page of results exists |
+
+</ReferenceDetails>
+
+### Piloterr Amazon Search
+
+Search an Amazon marketplace and get products with ASIN, title, price, rating and review count.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Keyword or phrase to search for \(e.g., "playstation 5"\) |
+| `marketplace` | string | No | Amazon domain extension of the marketplace \(e.g., "com", "fr", "co.uk"; defaults to "com"\) |
+| `page` | number | No | Page of results, starting at 1 |
+| `apiKey` | string | Yes | Piloterr API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `products` | array | Products found on Amazon |
+|   ↳ `asin` | string | ASIN of the product |
+|   ↳ `title` | string | Title of the product |
+|   ↳ `url` | string | URL of the product page |
+|   ↳ `price` | number | Price shown in the results |
+|   ↳ `realPrice` | number | List price before discount, when shown |
+|   ↳ `rating` | number | Average rating out of 5 |
+|   ↳ `reviewsCount` | number | Number of reviews |
+
+</ReferenceDetails>
+
+### Piloterr Get eBay Listing
+
+Get an eBay listing by item ID or URL, with its price, condition, availability, seller, shipping and item specifics.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `item` | string | Yes | eBay item ID or listing URL \(e.g., "257758922911"\) |
+| `apiKey` | string | Yes | Piloterr API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `itemId` | string | eBay item ID |
+| `title` | string | Title of the listing |
+| `url` | string | URL of the listing |
+| `price` | number | Price of the listing |
+| `currency` | string | ISO 4217 code of the price |
+| `priceDisplay` | string | Price as eBay displays it |
+| `condition` | string | Condition of the item, such as New or Used |
+| `conditionDescription` | string | Seller's description of the condition |
+| `availability` | string | Availability, such as InStock or OutOfStock |
+| `isBuyItNow` | boolean | Whether the listing can be bought now |
+| `isBestOffer` | boolean | Whether the seller accepts best offers |
+| `watchers` | number | Number of people watching the listing |
+| `imageUrl` | string | URL of the main image |
+| `seller` | object | Seller of the listing |
+|   ↳ `name` | string | Name of the seller |
+|   ↳ `feedback` | string | Feedback count of the seller |
+|   ↳ `positiveFeedbackPercent` | number | Share of positive feedback, in percent |
+| `shipping` | string | Shipping summary |
+| `returns` | string | Returns policy summary |
+| `specifications` | array | Item specifics |
+|   ↳ `name` | string | Name of the specific |
+|   ↳ `value` | string | Value of the specific |
+| `paymentMethods` | array | Accepted payment methods |
+
+</ReferenceDetails>
+
+### Piloterr eBay Search
+
+Search eBay listings by keyword or search URL and get their price, condition, buying format, shipping and seller.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Keyword on ebay.com, or a search URL on a supported eBay site \(e.g., "laptop"\) |
+| `page` | number | No | Page of results, starting at 1 |
+| `apiKey` | string | Yes | Piloterr API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `listings` | array | Listings found on eBay |
+|   ↳ `position` | number | Position of the listing on the page |
+|   ↳ `itemId` | string | eBay item ID |
+|   ↳ `title` | string | Title of the listing |
+|   ↳ `subtitle` | string | Subtitle of the listing |
+|   ↳ `url` | string | URL of the listing |
+|   ↳ `price` | number | Price of the listing |
+|   ↳ `currency` | string | ISO 4217 code of the price |
+|   ↳ `priceDisplay` | string | Price as eBay displays it |
+|   ↳ `condition` | string | Condition of the item |
+|   ↳ `buyingFormat` | string | Buying format, such as Buy It Now or Auction |
+|   ↳ `shipping` | string | Shipping cost or summary |
+|   ↳ `imageUrl` | string | URL of the main image |
+|   ↳ `seller` | object | Seller of the listing |
+|     ↳ `name` | string | Name of the seller |
+|     ↳ `feedback` | string | Feedback count of the seller |
+|     ↳ `positiveFeedbackPercent` | number | Share of positive feedback, in percent |
+| `nextPageUrl` | string | URL of the next page of results |
+| `page` | number | Current page |
+
+</ReferenceDetails>
+
+### Piloterr Get LinkedIn Company
+
+Get a LinkedIn company's profile by page URL, slug or ID, or by website domain: industry, size, headquarters, specialties and followers.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | No | LinkedIn company page URL, slug or ID \(e.g., "https://www.linkedin.com/company/ferrari") |
+| `domain` | string | No | Company website domain, when the LinkedIn page is unknown \(e.g., "ferrari.com"\) |
+| `apiKey` | string | Yes | Piloterr API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companyName` | string | Name of the company |
+| `companyId` | number | LinkedIn ID of the company |
+| `companyUrl` | string | URL of the LinkedIn page |
+| `tagline` | string | Tagline of the company |
+| `description` | string | About text of the company |
+| `website` | string | Website of the company |
+| `industry` | string | Industry of the company |
+| `founded` | number | Year the company was founded |
+| `staffCount` | number | Number of employees on LinkedIn |
+| `staffRange` | string | Company size range |
+| `followerCount` | number | Number of LinkedIn followers |
+| `logoUrl` | string | URL of the company logo |
+| `specialities` | array | Specialties of the company |
+| `locations` | array | Office addresses |
+| `headquarter` | object | Headquarters address |
+|   ↳ `line1` | string | Street address |
+|   ↳ `city` | string | City |
+|   ↳ `postalCode` | string | Postal code |
+|   ↳ `country` | string | Country code |
+| `similarCompanies` | array | Similar companies LinkedIn suggests |
+|   ↳ `companyName` | string | Name of the company |
+|   ↳ `companyUrl` | string | URL of its LinkedIn page |
+
+</ReferenceDetails>
+
+### Piloterr Get Crunchbase Company
+
+Get a company's Crunchbase profile by name, permalink or URL, or by website domain: description, size, categories, locations, investors and products.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | No | Company name, Crunchbase permalink or URL \(e.g., "openai"\) |
+| `domain` | string | No | Company website domain, for a reverse lookup \(e.g., "openai.com"\) |
+| `apiKey` | string | Yes | Piloterr API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Name of the company |
+| `permalink` | string | Crunchbase permalink of the company |
+| `headline` | string | Short description |
+| `description` | string | Full description |
+| `website` | string | Website of the company |
+| `logo` | string | URL of the company logo |
+| `companyType` | string | Company type, such as for profit |
+| `employeeCount` | string | Employee count range |
+| `foundedOn` | string | Founding date |
+| `phoneNumber` | string | Phone number of the company |
+| `contactEmail` | string | Contact email of the company |
+| `heatScore` | number | Crunchbase heat score |
+| `growthScore` | number | Crunchbase growth score |
+| `aliases` | array | Other names of the company |
+| `tags` | array | Crunchbase tags, such as unicorn |
+| `categories` | array | Industry categories |
+|   ↳ `name` | string | Name of the category |
+|   ↳ `permalink` | string | Crunchbase permalink of the category |
+| `headquartersLocation` | array | Headquarters location, from city to continent |
+|   ↳ `name` | string | Name of the place |
+|   ↳ `type` | string | Type of place, such as city or country |
+| `investors` | array | Investors of the company |
+|   ↳ `name` | string | Name of the investor |
+|   ↳ `permalink` | string | Crunchbase permalink of the investor |
+|   ↳ `fundingRound` | string | Funding round the investor took part in |
+| `products` | array | Products of the company |
+|   ↳ `name` | string | Name of the product |
+|   ↳ `description` | string | Description of the product |
+
+</ReferenceDetails>
+
+### Piloterr Get Zillow Property
+
+Get a Zillow home from its homedetails URL: address, price, Zestimate, status, size, rooms, year built and photos.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Full Zillow homedetails URL \(e.g., "https://www.zillow.com/homedetails/20-Kyle-Ct-Staten-Island-NY-10312/32361983_zpid/") |
+| `apiKey` | string | Yes | Piloterr API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `zpid` | number | Zillow property ID |
+| `streetAddress` | string | Street address |
+| `city` | string | City |
+| `state` | string | State |
+| `zipcode` | string | ZIP code |
+| `county` | string | County |
+| `price` | number | Listing or last sale price |
+| `currency` | string | ISO 4217 code of the prices |
+| `zestimate` | number | Zillow's estimated market value |
+| `homeStatus` | string | Status, such as FOR_SALE or RECENTLY_SOLD |
+| `homeType` | string | Home type, such as SINGLE_FAMILY |
+| `bedrooms` | number | Number of bedrooms |
+| `bathrooms` | number | Number of bathrooms |
+| `livingArea` | number | Living area in square feet |
+| `lotSize` | number | Lot size in square feet |
+| `yearBuilt` | number | Year the home was built |
+| `pricePerSquareFoot` | number | Price per square foot |
+| `description` | string | Listing description |
+| `latitude` | number | Latitude |
+| `longitude` | number | Longitude |
+| `photos` | array | Photos of the home |
+|   ↳ `url` | string | URL of the photo |
+|   ↳ `width` | number | Width of the photo in pixels |
+
+</ReferenceDetails>
+
+
