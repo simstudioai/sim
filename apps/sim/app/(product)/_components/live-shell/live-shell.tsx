@@ -9,7 +9,7 @@ import { ProductSession } from '@/app/(product)/_components/product-session'
 import { LiveSourceLinks } from '@/app/(product)/_components/search/live-source-links'
 import { SessionState } from '@/app/(product)/_components/session-state/session-state'
 import { AccessDenied, SurfaceUnavailable } from '@/app/(product)/_components/shell-gate/shell-gate'
-import { prefetchShell } from '@/platform/lib/data/prefetch-shell'
+import { startShellPrefetch } from '@/platform/lib/data/prefetch-shell'
 import { LiveProviders } from '@/platform/lib/data/providers'
 import {
   followProductRoute,
@@ -55,6 +55,8 @@ export async function LiveShell({
   telemetry: ReactNode
   children: ReactNode
 }) {
+  // The viewer's own reads need no organization gate, so they run alongside it.
+  const shellPrefetch = startShellPrefetch()
   const [surface, location, cookieStore] = await Promise.all([
     readOrganizationSurface(),
     readDocumentLocation(),
@@ -83,7 +85,7 @@ export async function LiveShell({
   const { organization } = surface
   const [, dehydratedState] = await Promise.all([
     location && followProductRoute(organization, location),
-    prefetchShell(organization),
+    shellPrefetch.finish(organization),
   ])
 
   return (

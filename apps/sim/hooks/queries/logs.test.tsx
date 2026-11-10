@@ -21,6 +21,7 @@ vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 import {
   type LogFilters,
   NEW_LOG_COUNT_STALE_TIME,
+  trimLogsSnapshotToFirstPage,
   useCancelExecution,
   useLogSnapshotUpdates,
   useLogsSnapshot,
@@ -197,6 +198,33 @@ describe('manually refreshed logs', () => {
         }),
       })
     )
+  })
+
+  it('reads only the first page again when new runs join a list read several pages deep', async () => {
+    const hook = renderHookWithClient(() => useLogs())
+    unmount = hook.unmount
+    await flushQueries()
+    await act(async () => {
+      await hook.result().list.fetchNextPage()
+    })
+    await flushQueries()
+    expect(hook.result().list.data?.pages).toHaveLength(2)
+
+    snapshotAt = NEXT_SNAPSHOT_AT
+    mockRequestJson.mockClear()
+    await act(async () => {
+      trimLogsSnapshotToFirstPage(hook.queryClient, 'ws-1', LOG_FILTERS)
+      await hook.result().list.refetch()
+    })
+    await flushQueries()
+
+    const pageReads = mockRequestJson.mock.calls.filter(
+      ([, request]) => !request.query.countOnly && !request.query.startedAfter
+    )
+    expect(pageReads).toHaveLength(1)
+    expect(hook.result().list.data?.pages).toHaveLength(1)
+    expect(hook.result().list.data?.pages[0]?.logs[0]?.id).toBe(NEXT_SNAPSHOT_AT)
+    expect(hook.result().list.hasNextPage).toBe(true)
   })
 
   it('stops pagination when a row moves across the sort cursor and recovers on refresh', async () => {

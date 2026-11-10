@@ -9,7 +9,7 @@ import {
   v2UpdateCredentialBodySchema,
 } from '@/lib/api/contracts/v2/credentials'
 import { mintOracleEpmServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/oracle-epm'
-import { parseClientCredentialAccountSecretBlob } from '@/lib/credentials/client-credential-accounts/server'
+import { parseClientCredentialAccountSecretBlob } from '@/lib/credentials/client-credential-accounts/secret-blob'
 import { verifyAndBuildServiceAccountSecret } from '@/lib/credentials/service-account-secret'
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)

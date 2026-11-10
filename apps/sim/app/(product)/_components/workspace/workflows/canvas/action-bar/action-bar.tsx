@@ -22,7 +22,6 @@ import {
   Circle,
   DEFAULT_NOTE_COLOR,
   Duplicate,
-  getRunFromBlockDependencyState,
   isInputDefinitionTrigger,
   isNoteColor,
   Lock,
@@ -32,6 +31,7 @@ import {
   Palette,
   PlayOutline,
   Square,
+  selectRunFromBlockDependenciesSatisfied,
   Trash,
   Unlock,
   useCollaborativeWorkflow,
@@ -270,14 +270,15 @@ export const ActionBar = memo(
     const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
     const snapshot = useLastExecutionSnapshot(activeWorkflowId)
     const userPermissions = useUserPermissionsContext()
-    const edges = useWorkflowStore((state) => state.edges)
+    const dependenciesSatisfied = useWorkflowStore((state) =>
+      selectRunFromBlockDependenciesSatisfied(blockId, state.edges, snapshot)
+    )
 
     const isStartBlock = isInputDefinitionTrigger(blockType)
     const isResponseBlock = blockType === 'response'
     const isNoteBlock = blockType === 'note'
     const isInsideSubflow = parentId && (parentType === 'loop' || parentType === 'parallel')
 
-    const { dependenciesSatisfied } = getRunFromBlockDependencyState(blockId, edges, snapshot)
     const canRunFromBlock =
       dependenciesSatisfied && !isNoteBlock && !isInsideSubflow && !isWorkflowRunning
     /*

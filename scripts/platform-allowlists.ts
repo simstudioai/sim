@@ -120,7 +120,7 @@ const LOCAL_TOKEN_OWNERS: ReasonedAllowlist = {
 const serverSeamHelpers: ReasonedAllowlist = {
   'lib/auth': "getSession, the viewer's session that every server read and redirect starts from",
   'lib/auth/session-response':
-    'toAppSession and getActiveOrganizationId, the session shape prefetchShell seeds',
+    'toAppSession and getActiveOrganizationId, the session shape startShellPrefetch seeds',
   'lib/billing/application/organization-billing/get-organization-billing-summary':
     "The billing summary use case behind the billing route, prefetched for Settings' Billing",
   'lib/core/application/organization-authorization':
@@ -163,7 +163,10 @@ const serverSeamHelpers: ReasonedAllowlist = {
     'The workflow definition use case a workspace entry reads to open a workflow',
   'lib/workspaces/application/workspace-shell':
     "The workspace shell use case behind the shell's scope",
-  'lib/workspaces/list': 'listWorkspacesForViewer, the workspaces a viewer may open',
+  'lib/workspaces/utils':
+    'listAccessibleWorkspaceRowsForUser, the workspaces a viewer may open, which Integrations lists',
+  'lib/workspaces/visits':
+    "The viewer's workspace visit order, which Integrations lists its workspaces in",
   'lib/workspaces/host-context':
     'getWorkspaceHostContextForViewer, who bills a workspace, which the legacy upgrade URL answers with',
   'lib/workspaces/application/viewer-workspaces':

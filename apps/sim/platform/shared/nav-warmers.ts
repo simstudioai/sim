@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { organizationAccountsQueryOptions } from '@/hooks/queries/organization-accounts'
@@ -29,41 +29,50 @@ interface NavWarmerHost {
  * and payloads are the same ones. Only the cheap database reads: slow provider reads stay on the page.
  */
 export function useNavWarmers(host: NavWarmerHost) {
-  const { organizationId } = host
   const queryClient = useQueryClient()
   const router = useRouter()
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // The warmers keep one identity for the shell's context; each warm reads the host as it fires.
+  const latestHost = useRef(host)
+  useLayoutEffect(() => {
+    latestHost.current = host
+  })
 
-  function cancel() {
-    if (timer.current) clearTimeout(timer.current)
-    timer.current = null
-  }
-
-  useEffect(() => cancel, [])
-
-  function warm(destination: string) {
-    if (destination === 'integrations' && host.canReadIntegrations) {
-      prefetchQueryOnIntent(queryClient, organizationAccountsQueryOptions(organizationId))
-      prefetchQueryOnIntent(queryClient, searchIntegrationsQueryOptions(organizationId))
+  const warmers = useMemo(() => {
+    function cancel() {
+      if (timer.current) clearTimeout(timer.current)
+      timer.current = null
     }
-    if (destination === 'people' && host.isAdmin) {
-      const options = peopleListQueryOptions(organizationId, '', '', { scope: 'roots' })
-      void queryClient
-        .prefetchInfiniteQuery(options)
-        .then(() => dropFailedSpeculativeQuery(queryClient, options.queryKey))
-    }
-  }
 
-  return {
-    cancel,
-    schedule(destination: string) {
-      cancel()
-      timer.current = setTimeout(() => warm(destination), NAV_WARM_DWELL_MS)
-    },
-    /** A menu holding a Settings entry just opened, so its section's route and reads go ahead. */
-    warmSettings(section: WarmedSettingsSection) {
-      router.prefetch(host.settingsHref(section))
-      host.warmSettingsSection(queryClient, section)
-    },
-  }
+    function warm(destination: string) {
+      const { organizationId, canReadIntegrations, isAdmin } = latestHost.current
+      if (destination === 'integrations' && canReadIntegrations) {
+        prefetchQueryOnIntent(queryClient, organizationAccountsQueryOptions(organizationId))
+        prefetchQueryOnIntent(queryClient, searchIntegrationsQueryOptions(organizationId))
+      }
+      if (destination === 'people' && isAdmin) {
+        const options = peopleListQueryOptions(organizationId, '', '', { scope: 'roots' })
+        void queryClient
+          .prefetchInfiniteQuery(options)
+          .then(() => dropFailedSpeculativeQuery(queryClient, options.queryKey))
+      }
+    }
+
+    return {
+      cancel,
+      schedule(destination: string) {
+        cancel()
+        timer.current = setTimeout(() => warm(destination), NAV_WARM_DWELL_MS)
+      },
+      /** A menu holding a Settings entry just opened, so its section's route and reads go ahead. */
+      warmSettings(section: WarmedSettingsSection) {
+        router.prefetch(latestHost.current.settingsHref(section))
+        latestHost.current.warmSettingsSection(queryClient, section)
+      },
+    }
+  }, [queryClient, router])
+
+  useEffect(() => warmers.cancel, [warmers])
+
+  return warmers
 }

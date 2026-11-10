@@ -18,9 +18,9 @@ import {
   partitionClientCredentialFields,
   resolveClientCredentialAuthMethod,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
+import type { ClientCredentialAccountSecretBlob } from '@/lib/credentials/client-credential-accounts/secret-blob'
 import {
   type ClientCredentialAccountFields,
-  type ClientCredentialAccountSecretBlob,
   getClientCredentialAccountMinter,
 } from '@/lib/credentials/client-credential-accounts/server'
 import {
@@ -40,10 +40,8 @@ import {
   isTokenServiceAccountProviderId,
   TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
 } from '@/lib/credentials/token-service-accounts/descriptors'
-import {
-  getTokenServiceAccountValidator,
-  type TokenServiceAccountSecretBlob,
-} from '@/lib/credentials/token-service-accounts/server'
+import type { TokenServiceAccountSecretBlob } from '@/lib/credentials/token-service-accounts/secret-blob'
+import { getTokenServiceAccountValidator } from '@/lib/credentials/token-service-accounts/server'
 import type { WorkloadIdentityCredentialOwner } from '@/lib/credentials/workload-identity/subject'
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import {

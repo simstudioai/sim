@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE } from '@/lib/credentials/client-credential-accounts/descriptors'
-import { parseClientCredentialAccountSecretBlob } from '@/lib/credentials/client-credential-accounts/server'
+import { parseClientCredentialAccountSecretBlob } from '@/lib/credentials/client-credential-accounts/secret-blob'
 
 const MALFORMED = 'Stored client-credential service-account secret is malformed'
 

@@ -24,21 +24,20 @@ vi.mock('@/platform/lib/data/server-read', async (importOriginal) => ({
     activeOrganizationId: 'org-a',
   }),
 }))
-vi.mock('@/lib/workspaces/list', () => ({
-  listWorkspacesForViewer: async () => ({
-    workspaces: viewerWorkspaces.current.map((workspace) => ({
-      ...workspace,
-      name: workspace.id,
-      ownerId: 'owner',
-      workspaceMode: workspace.organizationId ? 'organization' : 'personal',
+vi.mock('@/lib/workspaces/utils', () => ({
+  listAccessibleWorkspaceRowsForUser: async () =>
+    viewerWorkspaces.current.map((workspace) => ({
+      workspace: { ...workspace, name: workspace.id },
+      permissionType: 'write',
+      viaOrgAdmin: false,
     })),
-    lastActiveWorkspaceId: null,
-    pinnedWorkspaceIds: [],
-    creationPolicy: null,
-  }),
+}))
+vi.mock('@/lib/workspaces/visits', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/workspaces/visits')>()),
+  listRecentWorkspaceIds: async () => [],
 }))
 vi.mock('@/lib/workspaces/application/workspace-shell', () => ({
-  resolveWorkspaceShellOrganizationId: async (workspaceOrganizationId: string | null) =>
+  readWorkspaceShellResolver: async () => (workspaceOrganizationId: string | null) =>
     shellOrganizations.get(workspaceOrganizationId) ?? null,
 }))
 vi.mock('@/lib/catalog/application/list-workspace-apps', () => ({

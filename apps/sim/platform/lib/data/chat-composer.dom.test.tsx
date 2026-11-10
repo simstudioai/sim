@@ -108,7 +108,7 @@ const SAVED_DRAFT: DraftPayload = {
   ],
 }
 
-/** The session entry `prefetchShell` seeds, under the key the session query reads. */
+/** The session entry `startShellPrefetch` seeds, under the key the session query reads. */
 function seededSession(): DehydratedState {
   const client = new QueryClient()
   client.setQueryData(sessionKeys.detail(), {

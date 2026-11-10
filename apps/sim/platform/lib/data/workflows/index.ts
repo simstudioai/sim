@@ -122,7 +122,10 @@ export {
   clampPositionToContainer,
   estimateBlockDimensions,
 } from '@/components/workflow-editor/utils/node-position'
-export { getRunFromBlockDependencyState } from '@/components/workflow-editor/utils/run-from-block'
+export {
+  getRunFromBlockDependencyState,
+  selectRunFromBlockDependenciesSatisfied,
+} from '@/components/workflow-editor/utils/run-from-block'
 export {
   clearDragHighlights,
   computeClampedPositionUpdates,

@@ -14,10 +14,8 @@ import {
   isClientCredentialAccountProviderId,
   VANTA_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
-import {
-  getClientCredentialAccountMinter,
-  parseClientCredentialAccountSecretBlob,
-} from '@/lib/credentials/client-credential-accounts/server'
+import { parseClientCredentialAccountSecretBlob } from '@/lib/credentials/client-credential-accounts/secret-blob'
+import { getClientCredentialAccountMinter } from '@/lib/credentials/client-credential-accounts/server'
 import {
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
@@ -25,7 +23,7 @@ import {
 import {
   parseTokenServiceAccountSecretBlob,
   type TokenServiceAccountSecretBlob,
-} from '@/lib/credentials/token-service-accounts/server'
+} from '@/lib/credentials/token-service-accounts/secret-blob'
 import { CLEARED_REFRESH_REVOCATION, CredentialRevokedError } from '@/lib/oauth/credential-revoked'
 import {
   parseGitHubInstallationBinding,
