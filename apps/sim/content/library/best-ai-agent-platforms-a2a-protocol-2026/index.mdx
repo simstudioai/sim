@@ -25,7 +25,7 @@ faq:
   - q: "Can Sim expose a workflow as an A2A agent?"
     a: "Sim's A2A integration documentation does not document exposing a Sim workflow as an A2A server as of November 2026."
   - q: "What authentication does Sim use for A2A?"
-    a: "Sim accepts an A2A endpoint URL and an optional API key, while the remote agent remains responsible for authenticating callers and authorizing access to task IDs."
+    a: "Sim sends the optional API key only in the X-API-Key header, so the field does not support agents that require Bearer authentication. Agent Card discovery occurs before the key is attached, so the card must be publicly readable."
   - q: "Are A2A task IDs scoped to Sim?"
     a: "Sim does not scope remote A2A task IDs, so the remote agent must prevent unauthorized users from retrieving or cancelling tasks belonging to other callers."
   - q: "Is A2A the same as MCP?"
@@ -115,7 +115,7 @@ Teams evaluating tool connectivity can compare implementations in [Best AI Agent
 
 ## What fits agents that hand off tasks mid-workflow?
 
-Sim fits teams that need to place an A2A handoff inside a visual workflow. [Sim's A2A integration](https://docs.sim.ai/integrations/a2a) accepts a remote endpoint URL and an optional API key, then exposes four operations:
+Sim fits teams that need to place an A2A handoff inside a visual workflow. [Sim's A2A integration](https://docs.sim.ai/integrations/a2a) accepts a remote endpoint URL and an optional API key. Sim sends the key only through the `X-API-Key` header, so the field does not support agents that require Bearer authentication. Agent Card discovery occurs before Sim attaches the key, so the card must be publicly readable. The integration exposes four operations:
 
 - **A2A Send Message** sends a request to the remote agent.
 - **A2A Get Task** retrieves the state of a remote task.
