@@ -17,7 +17,7 @@ import { ResourcePanels } from '@/app/(product)/_components/chat/panel/resource-
 import { GetStarted } from '@/app/(product)/_components/get-started/get-started'
 import { LiveSearchTab } from '@/app/(product)/_components/search/live-search-tab'
 import { SearchTabProvider } from '@/app/(product)/_components/search/search-results-host'
-import { useLiveChatRuntime } from '@/platform/lib/data/chat'
+import { type OpenedChat, useLiveChatRuntime } from '@/platform/lib/data/chat'
 import { useLiveComposer } from '@/platform/lib/data/chat-composer'
 import { usePanelResources } from '@/platform/lib/data/chat-panel'
 import { useChatMountable, useViewerId } from '@/platform/lib/data/chat-restore'
@@ -43,7 +43,8 @@ function AssistantGetStarted() {
 }
 
 interface LiveChatProps {
-  chatId?: string
+  /** The chat its route's gate opened; absent for a new conversation. */
+  chat?: OpenedChat
   destination: 'agent' | 'assistant'
   /** A surface's own controls in place of the chat title. */
   header?: ReactNode
@@ -55,7 +56,7 @@ interface LiveChatProps {
 }
 
 function LiveConversation({
-  chatId,
+  chat: opened,
   destination,
   header,
   chatPath,
@@ -64,9 +65,10 @@ function LiveConversation({
   onSummaryConsumed,
 }: LiveChatProps) {
   const [planning, setPlanning] = useState(false)
+  const chatId = opened?.id
   const requestMode = destination === 'agent' && !chatId && planning ? 'plan' : destination
   const { runtime, chat, panel, controller } = useLiveChatRuntime({
-    chatId,
+    opened,
     requestMode,
     chatPath,
     searchView,
@@ -80,7 +82,13 @@ function LiveConversation({
     chatId: chat.resolvedChatId,
     onPlanChange: destination === 'agent' ? setPlanning : undefined,
   })
-  const resources = usePanelResources({ chat, turns: runtime.turns, panel, controller })
+  const resources = usePanelResources({
+    chat,
+    chatWorkspaceId: opened?.workspaceId,
+    turns: runtime.turns,
+    panel,
+    controller,
+  })
   const { organization } = useOrganization()
   const hasChat = Boolean(chat.resolvedChatId ?? chatId) || runtime.turns.length > 0
   return (
@@ -112,7 +120,7 @@ function LiveConversation({
  * viewer, organization, chat and mode, which is how the hook starts each chat clean.
  */
 export function LiveChat({
-  chatId,
+  chat,
   destination,
   header,
   chatPath,
@@ -122,12 +130,13 @@ export function LiveChat({
 }: LiveChatProps) {
   const { organization } = useOrganization()
   const userId = useViewerId()
+  const chatId = chat?.id
   const mountable = useChatMountable(chatId, destination)
   if (!mountable || !userId) return null
   return (
     <LiveConversation
       key={`${userId}:${organization.id}:${chatId ?? 'new'}:${destination}`}
-      chatId={chatId}
+      chat={chat}
       destination={destination}
       header={header}
       chatPath={chatPath}

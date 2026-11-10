@@ -2,7 +2,7 @@ import 'server-only'
 import { notFound, redirect } from 'next/navigation'
 import { ChatScreen } from '@/app/(product)/_components/chat/conversation/chat-screen'
 import { LiveChat } from '@/app/(product)/_components/chat/live/live-chat'
-import { readChatMode } from '@/platform/lib/data/chat-gate'
+import { readOpenChat } from '@/platform/lib/data/chat-gate'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 
@@ -15,14 +15,12 @@ export async function LiveChatRoute({ chatId }: { chatId?: string }) {
     redirect(
       surfaceHref(organization, organization.searchAccess.memberScoped ? '/search' : '/settings')
     )
-  if (chatId) {
-    const mode = await readChatMode(chatId, organization.organization.id)
-    if (!mode) notFound()
-    if (mode === 'assistant') redirect(surfaceHref(organization, `/search/chat/${chatId}`))
-  }
+  const entry = chatId ? await readOpenChat(chatId, organization.organization.id) : null
+  if (chatId && !entry) notFound()
+  if (entry?.mode === 'assistant') redirect(surfaceHref(organization, `/search/chat/${chatId}`))
   return (
     <ChatScreen>
-      <LiveChat chatId={chatId} destination='agent' />
+      <LiveChat chat={entry?.chat} destination='agent' />
     </ChatScreen>
   )
 }

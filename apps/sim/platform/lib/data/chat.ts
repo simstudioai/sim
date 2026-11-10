@@ -96,8 +96,19 @@ const serializeSearchChat = createSerializer({
   [resourceParam.key]: resourceParam.parser,
 })
 
+/**
+ * A chat a route opened, as its server gate read it (`readOpenChat`): its id and, for a workspace
+ * chat, the workspace it lives in. Only the gate builds one, so a chat's id never reaches the hook
+ * without the scope its sends and Stops must name.
+ */
+export interface OpenedChat {
+  id: string
+  workspaceId?: string
+}
+
 interface LiveChatOptions {
-  chatId?: string
+  /** The chat to open; absent for a new one, which belongs to the organization. */
+  opened?: OpenedChat
   requestMode: ChatRequestMode
   /** A chat's URL, for a surface other than Chat. */
   chatPath?: (chatId: string) => string
@@ -116,7 +127,7 @@ interface LiveChatOptions {
  * reconnect rule stays in `useChat`; this module only supplies this app's URLs and projects its state.
  */
 export function useLiveChatRuntime({
-  chatId,
+  opened,
   requestMode,
   chatPath,
   searchView = 'assistant',
@@ -134,7 +145,8 @@ export function useLiveChatRuntime({
     { ...organizationSearchParsers, ...searchFilterParsers },
     organizationSearchUrlKeys
   )
-  const chat = useChat({ organizationId }, chatId, {
+  const chatId = opened?.id
+  const chat = useChat({ organizationId, workspaceId: opened?.workspaceId }, chatId, {
     ...getMothershipUseChatOptions({
       requestMode,
       isNewChatRoute: (pathname) =>
@@ -285,7 +297,8 @@ export function useLiveChatRuntime({
     enabled: requestMode === 'assistant',
   })
 
-  const openResource: ChatRuntime['openResource'] = ({ type, id, title, workspaceId }) => {
+  const openResource: ChatRuntime['openResource'] = ({ type, id, title, ...resource }) => {
+    const workspaceId = resource.workspaceId ?? opened?.workspaceId
     if (!workspaceId) {
       toast.error('This resource has no workspace address.')
       return

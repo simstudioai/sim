@@ -53,6 +53,12 @@ function resourceHref(scope: SurfaceScope, resource: MothershipResource): string
   return `${surfaceHref(scope, '/home')}?${new URLSearchParams({ resource: resource.id })}`
 }
 
+/** A kind that belongs to one workspace, which a workspace chat's older tabs leave implied. */
+function livesInWorkspace(type: string): boolean {
+  const kind = RESOURCE_KIND[type] ?? type
+  return isWorkspaceResourceKind(kind) || kind === 'dashboard' || kind === 'log'
+}
+
 /** A Sources tab lists what its answer cited; the transcript already holds that evidence. */
 function citedBy(
   resource: MothershipResource,
@@ -153,6 +159,8 @@ function fileStreamFor(
 
 interface PanelResourcesOptions {
   chat: ReturnType<typeof useChat>
+  /** A workspace chat's workspace, which its tabs stored before they named one live in. */
+  chatWorkspaceId?: string
   turns: readonly PlatformTurn[]
   panel: ReturnType<typeof useChatResourcePanel>
   controller: ReturnType<typeof useResourcePanelController>
@@ -165,6 +173,7 @@ interface PanelResourcesOptions {
  */
 export function usePanelResources({
   chat,
+  chatWorkspaceId,
   turns,
   panel,
   controller,
@@ -174,18 +183,24 @@ export function usePanelResources({
   const scope = useOrganization()
   const picker = usePanelPicker(panel)
   const locked = useAgentFileEditLock(chat.previewSession?.status === 'streaming', chat.isSending)
-  const resources: PlatformResource[] = chat.resources.map((resource) => ({
-    id: resource.id,
-    type: resource.type,
-    title: resource.title,
-    workspaceId: resource.workspaceId,
-    href: resourceHref(scope, resource),
-    executionId: resource.executionId,
-    active: resource.id === chat.activeResourceId,
-    search: resource.search,
-    sources: citedBy(resource, turns),
-    stream: fileStreamFor(resource, chat.previewSession, locked, chat.desktopScopeId),
-  }))
+  const resources: PlatformResource[] = chat.resources.map((stored) => {
+    const resource =
+      stored.workspaceId || !chatWorkspaceId || !livesInWorkspace(stored.type)
+        ? stored
+        : { ...stored, workspaceId: chatWorkspaceId }
+    return {
+      id: resource.id,
+      type: resource.type,
+      title: resource.title,
+      workspaceId: resource.workspaceId,
+      href: resourceHref(scope, resource),
+      executionId: resource.executionId,
+      active: resource.id === chat.activeResourceId,
+      search: resource.search,
+      sources: citedBy(resource, turns),
+      stream: fileStreamFor(resource, chat.previewSession, locked, chat.desktopScopeId),
+    }
+  })
   return {
     resources,
     collapsed: controller.isResourceCollapsed,

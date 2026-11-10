@@ -2,7 +2,7 @@ import 'server-only'
 import { HydrationBoundary } from '@tanstack/react-query'
 import { notFound, redirect } from 'next/navigation'
 import { SearchSurface } from '@/app/(product)/o/[organizationId]/search/_components/search-surface/search-surface'
-import { readChatMode } from '@/platform/lib/data/chat-gate'
+import { readOpenChat } from '@/platform/lib/data/chat-gate'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { prefetchSearch } from '@/platform/lib/data/prefetch-search'
 import { followProductRoute, productLocation } from '@/platform/lib/data/route-resolution'
@@ -24,10 +24,10 @@ export async function LiveSearchRoute({ chatId, searchParams = {} }: LiveSearchR
     productLocation(surfaceHref(organization, path), searchParams)
   )
   if (chatId) {
-    const mode = await readChatMode(chatId, organization.organization.id)
-    if (!mode) notFound()
-    if (mode !== 'assistant') redirect(surfaceHref(organization, `/chat/${chatId}`))
-    return <SearchSurface chatId={chatId} />
+    const entry = await readOpenChat(chatId, organization.organization.id)
+    if (!entry) notFound()
+    if (entry.mode !== 'assistant') redirect(surfaceHref(organization, `/chat/${chatId}`))
+    return <SearchSurface chat={entry.chat} />
   }
   return (
     <HydrationBoundary state={await prefetchSearch(organization)}>
