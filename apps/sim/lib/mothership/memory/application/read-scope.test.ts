@@ -170,68 +170,6 @@ describe('private memory scope', () => {
   })
 })
 
-describe('a workspace chat moved into its owner’s personal organization', () => {
-  const caller = () =>
-    createTrustedCopilotPrincipal(
-      { userId: 'actor', workspaceId: 'workspace', chatId: 'chat-1', delegationId: 'memory' },
-      { audience: MEMORY_SCOPE_AUDIENCE, ttlMs: 60000 }
-    )
-  function queuePersonalWorkspaceChat(
-    organizationId: string | null,
-    memorySpaceId: string | null = null
-  ) {
-    queueTableRows(copilotChats, [
-      {
-        userId: 'actor',
-        organizationId: null,
-        workspaceId: 'workspace',
-        type: 'mothership',
-        mode: 'plan',
-        memorySpaceId,
-      },
-    ])
-    queueTableRows(workspace, [
-      {
-        id: 'workspace',
-        organizationId,
-        allowPersonalApiKeys: true,
-        billedAccountUserId: 'actor',
-      },
-    ])
-    // A personal organization is not a payer, so the team lookup finds nothing.
-    queueTableRows(organization, [])
-  }
-  beforeEach(() => {
-    resetDbChainMock()
-    setEnvFlags({ isMothershipBenchmarkEnabled: true })
-    queueTableRows(user, [{ role: 'admin' }])
-    queueTableRows(settings, [{ superUserModeEnabled: true }])
-    authBanMockFns.mockGetActivelyBannedUserIds.mockResolvedValue([])
-    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
-    mocks.capability.mockResolvedValue(undefined)
-  })
-
-  it('keeps the personal graph it had before the backfill, not one named for the organization', async () => {
-    queuePersonalWorkspaceChat('personal-org')
-    expect(await readMemoryScope.execute({ principal: caller(), input })).toEqual({
-      enabled: true,
-      userId: 'actor',
-      organizationId: null,
-      workspaceId: 'workspace',
-    })
-  })
-
-  it('keeps the default graph when a chosen space has no organization to own it', async () => {
-    queuePersonalWorkspaceChat(null, 'orphaned-space')
-    expect(await readMemoryScope.execute({ principal: caller(), input })).toEqual({
-      enabled: true,
-      userId: 'actor',
-      organizationId: null,
-      workspaceId: 'workspace',
-    })
-  })
-})
-
 vi.mock('@/lib/auth/ban', () => authBanMock)
 
 vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)

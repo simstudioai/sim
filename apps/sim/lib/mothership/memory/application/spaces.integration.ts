@@ -39,6 +39,7 @@ import {
   listMemorySpaces,
   selectMemorySpace,
 } from '@/lib/mothership/memory/application/spaces'
+import { createPersonalOrganization } from '@/lib/organizations/provision-personal'
 import { transferWorkspaceProjects } from '@/lib/projects/membership'
 
 const inheritedBenchmarkEnabled = vi.hoisted(() => {
@@ -62,7 +63,12 @@ const ids = {
   secondOrg: generateId(),
   workspace: generateId(),
   secondWorkspace: generateId(),
+  personalOwner: generateId(),
+  personalWorkspace: generateId(),
+  unownedWorkspace: generateId(),
 }
+/** The personal organization `ids.personalOwner` is given in `beforeAll`. */
+let personalOrganizationId = ''
 const principal = (userId = ids.owner) => ({
   kind: 'session' as const,
   userId,
@@ -94,10 +100,10 @@ async function scope(chatId: string, workspaceId?: string, userId = ids.owner) {
 beforeAll(async () => {
   const now = new Date()
   await db.insert(user).values(
-    [ids.owner, ids.other, ids.outsider, ids.regular].map((id) => ({
+    [ids.owner, ids.other, ids.outsider, ids.regular, ids.personalOwner].map((id) => ({
       id,
       name: 'KG fixture',
-      role: id === ids.owner || id === ids.other ? 'admin' : 'user',
+      role: id === ids.owner || id === ids.other || id === ids.personalOwner ? 'admin' : 'user',
       email: `${id}@fixture.test`,
       emailVerified: true,
       createdAt: now,
@@ -105,10 +111,37 @@ beforeAll(async () => {
     }))
   )
   await db.insert(settings).values(
-    [ids.owner, ids.other, ids.regular].map((userId) => ({
+    [ids.owner, ids.other, ids.regular, ids.personalOwner].map((userId) => ({
       id: generateId(),
       userId,
       superUserModeEnabled: true,
+    }))
+  )
+  personalOrganizationId = (await createPersonalOrganization(ids.personalOwner)) ?? ''
+  if (!personalOrganizationId) throw new Error('expected a personal organization')
+  await insertWorkspaceFixture(db, [
+    {
+      id: ids.personalWorkspace,
+      name: 'KG personal workspace',
+      organizationId: personalOrganizationId,
+      ownerId: ids.personalOwner,
+      billedAccountUserId: ids.personalOwner,
+    },
+    {
+      id: ids.unownedWorkspace,
+      name: 'KG workspace in no organization',
+      organizationId: null,
+      ownerId: ids.personalOwner,
+      billedAccountUserId: ids.personalOwner,
+    },
+  ])
+  await db.insert(permissions).values(
+    [ids.personalWorkspace, ids.unownedWorkspace].map((entityId) => ({
+      id: generateId(),
+      userId: ids.personalOwner,
+      entityId,
+      entityType: 'workspace' as const,
+      permissionType: 'admin' as const,
     }))
   )
   await db
@@ -145,9 +178,21 @@ afterAll(async () => {
   if (inheritedBenchmarkEnabled === undefined)
     Reflect.deleteProperty(process.env, 'MOTHERSHIP_BENCHMARK_ENABLED')
   else process.env.MOTHERSHIP_BENCHMARK_ENABLED = inheritedBenchmarkEnabled
-  await deleteWorkspaceFixture(db, inArray(workspace.id, [ids.workspace, ids.secondWorkspace]))
-  await db.delete(organization).where(inArray(organization.id, [ids.org, ids.secondOrg]))
-  await db.delete(user).where(inArray(user.id, [ids.owner, ids.other, ids.outsider, ids.regular]))
+  await deleteWorkspaceFixture(
+    db,
+    inArray(workspace.id, [
+      ids.workspace,
+      ids.secondWorkspace,
+      ids.personalWorkspace,
+      ids.unownedWorkspace,
+    ])
+  )
+  await db
+    .delete(organization)
+    .where(inArray(organization.id, [ids.org, ids.secondOrg, personalOrganizationId]))
+  await db
+    .delete(user)
+    .where(inArray(user.id, [ids.owner, ids.other, ids.outsider, ids.regular, ids.personalOwner]))
 })
 
 describe('private KG selection through authorized application boundaries', () => {
@@ -564,5 +609,43 @@ describe('private KG selection through authorized application boundaries', () =>
       .where(and(eq(member.userId, ids.owner), eq(member.organizationId, ids.org)))
     await expect(scope(chat.id)).rejects.toMatchObject({ code: 'not_found' })
     await expect(list()).rejects.toMatchObject({ code: 'not_found' })
+  })
+})
+
+describe('a workspace chat moved into its owner’s personal organization', () => {
+  async function workspaceChat(workspaceId: string, memorySpaceId: string | null = null) {
+    const [chat] = await db
+      .insert(copilotChats)
+      .values({
+        userId: ids.personalOwner,
+        workspaceId,
+        type: 'mothership',
+        mode: 'plan',
+        memorySpaceId,
+      })
+      .returning({ id: copilotChats.id })
+    return chat.id
+  }
+
+  it('keeps the personal graph it had before the backfill, not one named for the organization', async () => {
+    const chatId = await workspaceChat(ids.personalWorkspace)
+
+    expect(await scope(chatId, ids.personalWorkspace, ids.personalOwner)).toEqual({
+      enabled: true,
+      userId: ids.personalOwner,
+      organizationId: null,
+      workspaceId: ids.personalWorkspace,
+    })
+  })
+
+  it('keeps the default graph when a chosen space has no organization to own it', async () => {
+    const chatId = await workspaceChat(ids.unownedWorkspace, generateId())
+
+    expect(await scope(chatId, ids.unownedWorkspace, ids.personalOwner)).toEqual({
+      enabled: true,
+      userId: ids.personalOwner,
+      organizationId: null,
+      workspaceId: ids.unownedWorkspace,
+    })
   })
 })
