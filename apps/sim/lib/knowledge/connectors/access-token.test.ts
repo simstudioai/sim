@@ -53,6 +53,27 @@ describe('resolveConnectorAccessToken', () => {
     mockResolveTokenBundle.mockResolvedValue({ accessToken: 'access-token' })
   })
 
+  it("seeds a minted credential's bound account into the sync context, and nothing for OAuth", async () => {
+    const bound =
+      'https://na3.docusign.net/restapi/v2.1/accounts/99999999-0000-0000-0000-000000000002'
+    const resolveDocuSign = () =>
+      resolveConnectorAccessToken({
+        auth: { mode: 'oauth', provider: 'docusign', requiredScopes: ['signature'] },
+        connector: credentialConnector('docusign-credential'),
+        userId: 'user-1',
+        requestId: 'req-1',
+        sourceConfig: {},
+      })
+
+    mockResolveTokenBundle.mockResolvedValueOnce({ accessToken: 'jwt-token', instanceUrl: bound })
+    const jwtToken = await resolveDocuSign()
+    expect(syncContextForToken(jwtToken!)).toEqual({ credentialInstanceUrl: bound })
+
+    mockResolveTokenBundle.mockResolvedValueOnce({ accessToken: 'oauth-token' })
+    const oauthToken = await resolveDocuSign()
+    expect(syncContextForToken(oauthToken!)).toEqual({})
+  })
+
   it('does not accept an undeclared key alternative on other OAuth connectors', async () => {
     await expect(
       resolveConnectorAccessToken({

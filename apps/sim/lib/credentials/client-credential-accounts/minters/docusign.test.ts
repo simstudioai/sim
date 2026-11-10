@@ -19,6 +19,11 @@ const EC_PEM = generateKeyPairSync('ec', {
   privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
   publicKeyEncoding: { type: 'spki', format: 'pem' },
 }).privateKey
+const SHORT_RSA_PEM = generateKeyPairSync('rsa', {
+  modulusLength: 1024,
+  privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+  publicKeyEncoding: { type: 'spki', format: 'pem' },
+}).privateKey
 
 const FIELDS = {
   clientId: INTEGRATION_KEY,
@@ -202,6 +207,32 @@ describe('mintDocuSignServiceAccountToken', () => {
       logDetail: expect.objectContaining({ hint }),
     })
   })
+
+  it('refuses an RSA key under 2048 bits with copy that says so, before any request', async () => {
+    await expect(
+      mintDocuSignServiceAccountToken({ ...FIELDS, privateKey: SHORT_RSA_PEM })
+    ).rejects.toMatchObject({
+      code: 'invalid_credentials',
+      logDetail: expect.objectContaining({ reason: expect.stringContaining('1024-bit') }),
+    })
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [900, 360],
+    [300, 240],
+  ])(
+    'reports a short %ss token so the cache reuses it before, never past, its expiry',
+    async (expiresIn, reported) => {
+      mockFetch
+        .mockResolvedValueOnce(jsonResponse({ access_token: ACCESS_TOKEN, expires_in: expiresIn }))
+        .mockResolvedValueOnce(userinfo(DEMO_ACCOUNTS))
+
+      const result = await mintDocuSignServiceAccountToken(FIELDS)
+
+      expect(result.expiresInSeconds).toBe(reported)
+    }
+  )
 
   it.each([429, 503])('treats a %s from the token endpoint as an outage', async (status) => {
     mockFetch.mockResolvedValueOnce(jsonResponse({ error: 'busy' }, status))

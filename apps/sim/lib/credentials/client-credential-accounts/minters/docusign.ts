@@ -43,6 +43,28 @@ const TOKEN_EXPIRY_MARGIN_SECONDS = 600
 const DEFAULT_TOKEN_LIFETIME_SECONDS = 3600
 
 /**
+ * Floor for the reported lifetime when DocuSign ever returns a short
+ * `expires_in`: one minute above the resolver's 5-minute reuse threshold, so a
+ * token is reused briefly instead of re-minted on every call. Never more than
+ * a minute short of the real expiry.
+ */
+const SHORT_TOKEN_CACHE_SECONDS = 360
+const SHORT_TOKEN_EXPIRY_MARGIN_SECONDS = 60
+
+/** Smallest RSA key DocuSign's RS256 signing accepts in `jose`. */
+const MIN_RSA_MODULUS_BITS = 2048
+
+/** Lifetime to report to the token cache for a token that really lasts `lifetime` seconds. */
+function cacheLifetimeSeconds(lifetime: number): number {
+  const advised = lifetime - TOKEN_EXPIRY_MARGIN_SECONDS
+  const shortTokenFloor = Math.min(
+    lifetime - SHORT_TOKEN_EXPIRY_MARGIN_SECONDS,
+    SHORT_TOKEN_CACHE_SECONDS
+  )
+  return Math.max(advised, shortTokenFloor, 0)
+}
+
+/**
  * eSignature REST hosts per environment. Demo accounts live only on
  * `demo.docusign.net`; production accounts on a regional `*.docusign.net`
  * host (`na3`, `eu`, …). A `base_uri` outside its environment's shape is never
@@ -77,8 +99,9 @@ function invalid(reason: string, step = VALIDATION_STEP): TokenServiceAccountVal
 /**
  * Loads the pasted RSA key. DocuSign generates PKCS#1 (`BEGIN RSA PRIVATE
  * KEY`); PKCS#8 is accepted too. Encrypted keys and certificates fail to load
- * (Sim collects no passphrase), and keys past 4096 bits are refused because
- * signing cost grows sharply with modulus size.
+ * (Sim collects no passphrase). Keys under 2048 bits are refused because
+ * `jose` will not sign RS256 with them, and keys past 4096 bits because signing
+ * cost grows sharply with modulus size.
  */
 function loadDocuSignPrivateKey(privateKeyPem: string): KeyObject {
   let key: KeyObject
@@ -90,7 +113,13 @@ function loadDocuSignPrivateKey(privateKeyPem: string): KeyObject {
   if (key.asymmetricKeyType !== 'rsa') {
     throw invalid('DocuSign signs assertions with RS256, which needs an RSA key')
   }
-  if ((key.asymmetricKeyDetails?.modulusLength ?? 0) > 4096) {
+  const modulusLength = key.asymmetricKeyDetails?.modulusLength ?? 0
+  if (modulusLength < MIN_RSA_MODULUS_BITS) {
+    throw invalid(
+      `RSA key is ${modulusLength}-bit; generate a 2048-bit keypair on the integration key`
+    )
+  }
+  if (modulusLength > 4096) {
     throw invalid('RSA key is larger than 4096 bits')
   }
   return key
@@ -256,7 +285,7 @@ export async function mintDocuSignServiceAccountToken(
     typeof payload.expires_in === 'number' && payload.expires_in > 0
       ? payload.expires_in
       : DEFAULT_TOKEN_LIFETIME_SECONDS
-  const expiresInSeconds = Math.max(lifetime - TOKEN_EXPIRY_MARGIN_SECONDS, 0)
+  const expiresInSeconds = cacheLifetimeSeconds(lifetime)
 
   const userinfoRes = await fetchProvider(
     `https://${authHost}/oauth/userinfo`,
