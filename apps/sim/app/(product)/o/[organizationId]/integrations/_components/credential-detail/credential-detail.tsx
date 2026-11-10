@@ -204,6 +204,7 @@ export function CredentialDetail({
                 {sites && sites.length > 0 && (
                   <TextAreaField
                     label='Sites'
+                    placeholder='Sites'
                     value={sites.map((site) => `${site.name} (${siteHost(site.url)})`).join('\n')}
                     viewOnly
                   />

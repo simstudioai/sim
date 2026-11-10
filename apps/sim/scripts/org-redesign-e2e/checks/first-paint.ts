@@ -203,10 +203,7 @@ export async function firstPaintChecks() {
               .map(([label, count]) => `${label} x${count}`)
             const perWorkspaceReads = labelled.filter((label) => {
               const path = label.replace(/^\S+ /, '')
-              return (
-                isPerWorkspaceRead(path) &&
-                !('ownReads' in entry && entry.ownReads.some((read) => read.test(path)))
-              )
+              return isPerWorkspaceRead(path) && !entry.ownReads?.some((read) => read.test(path))
             })
             const refetched = entry.prefetched.flatMap(({ label, pattern }) =>
               api.some(({ method, path }) => method === 'GET' && pattern.test(path)) ? [label] : []
