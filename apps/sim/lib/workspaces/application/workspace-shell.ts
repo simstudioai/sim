@@ -45,17 +45,28 @@ export const readWorkspaceShell = defineAuthorizedWorkspaceUseCase({
   resolveContext: ({ input }: { input: ReadWorkspaceShellInput }) =>
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   authorizationOptions: {},
-  execute: async ({ principal, context }): Promise<WorkspaceShell> => {
-    const { workspaceOrganizationId } = context
-    if (
-      workspaceOrganizationId &&
-      (await isOrganizationMember(workspaceOrganizationId, principal.userId))
-    ) {
-      return { organizationId: workspaceOrganizationId }
-    }
-    return { organizationId: await resolveOrganizationLanding(principal.userId, null) }
-  },
+  execute: async ({ principal, context }): Promise<WorkspaceShell> => ({
+    organizationId: await resolveWorkspaceShellOrganizationId(
+      context.workspaceOrganizationId ?? null,
+      principal.userId
+    ),
+  }),
 })
+
+/**
+ * The organization whose shell a workspace in `workspaceOrganizationId` renders in for `userId`, as
+ * {@link readWorkspaceShell} answers it: its own when they are a member of it, otherwise their
+ * landing organization (`null` when they belong to none). Authorizes nothing; callers check the
+ * viewer's access to the workspace themselves.
+ */
+export async function resolveWorkspaceShellOrganizationId(
+  workspaceOrganizationId: string | null,
+  userId: string
+): Promise<string | null> {
+  if (workspaceOrganizationId && (await isOrganizationMember(workspaceOrganizationId, userId)))
+    return workspaceOrganizationId
+  return resolveOrganizationLanding(userId, null)
+}
 
 /** A refusal of {@link readWorkspaceShell}: the viewer cannot open the workspace, or it is gone. */
 export function isWorkspaceShellRefusal(error: unknown): boolean {
