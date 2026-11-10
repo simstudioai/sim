@@ -8,6 +8,7 @@
  *   curl -H "x-admin-key: your_admin_key" https://your-instance/api/v1/admin/...
  */
 
+import type { AdminApiKeyPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import type { NextRequest } from 'next/server'
@@ -17,6 +18,8 @@ const logger = createLogger('AdminAuth')
 
 interface AdminAuthSuccess {
   authenticated: true
+  /** The only place an {@link AdminApiKeyPrincipal} is constructed. */
+  principal: AdminApiKeyPrincipal
 }
 
 interface AdminAuthFailure {
@@ -62,5 +65,5 @@ export function authenticateAdminRequest(request: NextRequest): AdminAuthResult 
     }
   }
 
-  return { authenticated: true }
+  return { authenticated: true, principal: { kind: 'admin_api_key' } }
 }
