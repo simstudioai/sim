@@ -54,6 +54,7 @@ import {
   v2ListWorkflowFoldersContract,
   v2ListWorkflowRunsContract,
   v2ListWorkflowsContract,
+  v2ListWorkflowTriggersContract,
   v2ListWorkflowVersionsContract,
   v2MoveWorkflowsContract,
   v2RelocateWorkflowFolderContract,
@@ -67,6 +68,7 @@ import {
   v2UndeployWorkflowContract,
   v2UpdateWorkflowContract,
   v2UpdateWorkflowPublicApiContract,
+  v2UpdateWorkflowTriggerContract,
   v2UpdateWorkflowVersionContract,
 } from '@/lib/api/contracts/v2/workflows'
 import {
@@ -94,6 +96,21 @@ const WORKFLOW_EXAMPLE = {
   lastRunAt: '2026-08-09T18:04:11.000Z',
   createdAt: '2026-05-01T09:00:00.000Z',
   updatedAt: '2026-08-09T18:04:11.000Z',
+} as const
+
+const WORKFLOW_TRIGGER_EXAMPLE = {
+  blockId: 'blk_01J8ZK3QW4M6X2R9T7B5C0V4',
+  kind: 'schedule',
+  provider: null,
+  enabled: false,
+  status: 'disabled',
+  failedCount: 100,
+  lastFailedAt: '2026-08-09T18:04:11.000Z',
+  nextRunAt: null,
+  lastRanAt: '2026-08-09T18:04:00.000Z',
+  cronExpression: '0 * * * *',
+  timezone: 'UTC',
+  url: null,
 } as const
 
 const WORKFLOW_FOLDER_EXAMPLE = {
@@ -901,6 +918,61 @@ const declaredRoutes = [
         'Update workflow public API response',
         'Public API access after the update.',
         [{ data: { id: WORKFLOW_ID, isPublicApi: true } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ListWorkflowTriggersContract,
+    workflowOperation({
+      applicationOperation: workflowOperations.readTriggers,
+      operationId: 'listWorkflowTriggers',
+      summary: 'List workflow triggers',
+      description: `List the schedules, polling triggers, internal-event triggers, and webhooks the live deployment serves, including disabled ones, with their failure counts. Requires workspace read access. Schedules and polling triggers disable themselves after 100 consecutive failures; a \`webhook\` trigger's failures happen at the sender, so its \`failedCount\` stays 0. Empty while the workflow is not deployed. ${FULL_SET_LIST}`,
+      errors: RESOURCE_ERRORS,
+      success: jsonSuccess("The live deployment's triggers."),
+    }),
+    {
+      query: v2ListWorkflowTriggersContract.query,
+      params: v2ListWorkflowTriggersContract.params,
+      response: documentedSchema(
+        v2ListWorkflowTriggersContract.response.schema,
+        'WorkflowTriggerListResponse',
+        'Workflow trigger list response',
+        'Every trigger the live deployment serves.',
+        [{ data: [WORKFLOW_TRIGGER_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2UpdateWorkflowTriggerContract,
+    workflowOperation({
+      applicationOperation: workflowOperations.setTriggerEnabled,
+      operationId: 'updateWorkflowTrigger',
+      summary: 'Update workflow trigger',
+      description: `Enable or disable one trigger of the live deployment without redeploying. Requires workspace write access. Enabling resets \`failedCount\`, schedules the next run, and clears any polling backoff; a schedule with no future runs returns \`409\` and an invalid cron expression returns \`400\`. A permission group that blocks webhook triggers returns \`403\` when enabling a polling, internal-event, or webhook trigger. Requesting the current state changes nothing.\n\nDisabling only stops Sim from accepting the trigger; nothing is removed at the provider. Deliveries to a disabled webhook receive \`404\`, and some providers disable their subscription after repeated failures, which requires a redeploy to restore.`,
+      errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
+      success: jsonSuccess('The trigger after the update.'),
+    }),
+    {
+      query: v2UpdateWorkflowTriggerContract.query,
+      params: v2UpdateWorkflowTriggerContract.params,
+      body: v2UpdateWorkflowTriggerContract.body,
+      response: documentedSchema(
+        v2UpdateWorkflowTriggerContract.response.schema,
+        'UpdateWorkflowTriggerResponse',
+        'Update workflow trigger response',
+        'The trigger after the update.',
+        [
+          {
+            data: {
+              ...WORKFLOW_TRIGGER_EXAMPLE,
+              enabled: true,
+              status: 'active',
+              failedCount: 0,
+              nextRunAt: '2026-08-10T09:00:00.000Z',
+            },
+          },
+        ]
       ),
     }
   ),

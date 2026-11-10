@@ -22,6 +22,8 @@
     "importWorkflow",
     "getWorkflowDeployment",
     "updateWorkflowPublicApi",
+    "listWorkflowTriggers",
+    "updateWorkflowTrigger",
     "deployWorkflow",
     "undeployWorkflow",
     "rollbackWorkflow",

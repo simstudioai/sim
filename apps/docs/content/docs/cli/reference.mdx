@@ -8228,6 +8228,57 @@ sim workflows list [options]
 
 API request and response schemas: [listWorkflows](/api-reference/workflows/listWorkflows).
 
+### sim workflows triggers list
+
+Show the health of every trigger the live deployment serves
+
+```bash
+sim workflows triggers list <workflowId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+API request and response schemas: [listWorkflowTriggers](/api-reference/workflows/listWorkflowTriggers).
+
+### sim workflows triggers update
+
+Enable or disable one trigger of the live deployment
+
+```bash
+sim workflows triggers update <workflowId> <blockId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+| `blockId` | Yes | Trigger block in the deployed workflow. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--enabled <true\|false>` | Yes | Whether the trigger should fire. Accepted values: `true`, `false`. |
+
+</CommandTable>
+
+API request and response schemas: [updateWorkflowTrigger](/api-reference/workflows/updateWorkflowTrigger).
+
 ### sim workflows move
 
 Move workflows

@@ -316,6 +316,7 @@ import {
   v2ListWorkflowFoldersContract,
   v2ListWorkflowRunsContract,
   v2ListWorkflowsContract,
+  v2ListWorkflowTriggersContract,
   v2ListWorkflowVersionsContract,
   v2MoveWorkflowsContract,
   v2PreviewWorkflowImportContract,
@@ -328,6 +329,7 @@ import {
   v2UndeployWorkflowContract,
   v2UpdateWorkflowContract,
   v2UpdateWorkflowPublicApiContract,
+  v2UpdateWorkflowTriggerContract,
   v2UpdateWorkflowVersionContract,
 } from '@/lib/api/contracts/v2/workflows'
 import {
@@ -2196,6 +2198,14 @@ export const V2_MCP_OPERATIONS = {
       'List active workflows in a workspace. Requires workspace read access.\n\nUse `scope=archived` to find workflows available for restoration. Filter by folder, deployment, or name; sort and page with the returned cursor. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/workflows/route').then((route) => route.GET),
   },
+  listWorkflowTriggers: {
+    contract: v2ListWorkflowTriggersContract,
+    summary: 'List workflow triggers',
+    description:
+      "List the schedules, polling triggers, internal-event triggers, and webhooks the live deployment serves, including disabled ones, with their failure counts. Requires workspace read access. Schedules and polling triggers disable themselves after 100 consecutive failures; a `webhook` trigger's failures happen at the sender, so its `failedCount` stays 0. Empty while the workflow is not deployed. Returns one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
+    handler: () =>
+      import('@/app/api/v2/workflows/[workflowId]/triggers/route').then((route) => route.GET),
+  },
   listWorkflowVersions: {
     contract: v2ListWorkflowVersionsContract,
     summary: 'List workflow versions',
@@ -2975,6 +2985,16 @@ export const V2_MCP_OPERATIONS = {
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/deployment/route').then((route) => route.PATCH),
+  },
+  updateWorkflowTrigger: {
+    contract: v2UpdateWorkflowTriggerContract,
+    summary: 'Update workflow trigger',
+    description:
+      'Enable or disable one trigger of the live deployment without redeploying. Requires workspace write access. Enabling resets `failedCount`, schedules the next run, and clears any polling backoff; a schedule with no future runs returns `409` and an invalid cron expression returns `400`. A permission group that blocks webhook triggers returns `403` when enabling a polling, internal-event, or webhook trigger. Requesting the current state changes nothing.\n\nDisabling only stops Sim from accepting the trigger; nothing is removed at the provider. Deliveries to a disabled webhook receive `404`, and some providers disable their subscription after repeated failures, which requires a redeploy to restore.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import('@/app/api/v2/workflows/[workflowId]/triggers/[blockId]/route').then(
+        (route) => route.PATCH
+      ),
   },
   updateWorkflowVersion: {
     contract: v2UpdateWorkflowVersionContract,

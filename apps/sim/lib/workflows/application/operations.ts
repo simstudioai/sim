@@ -342,6 +342,32 @@ export const workflowOperations = {
     principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
     delegatedServices: ['copilot'],
   }),
+  // permission-group-exempt: trigger health is deployment state, governed by workspace role like the deployment read that already lists webhook URLs
+  readTriggers: defineWorkspaceOperation({
+    id: 'workflows.triggers.read',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    contentDelivery: 'none',
+    ...WORKFLOW_READ_PRINCIPAL_POLICY,
+  }),
+  /**
+   * Pausing or resuming one trigger of the live deployment. Not a deploy: the
+   * deployed graph and its provider registrations are untouched, so it is a
+   * write rather than an admin act, and a workspace key may perform it.
+   *
+   * permission-group-exempt: `triggers.webhook` is asserted inside the use case and only for enabling a webhook-table row, because a group that withholds inbound webhooks must still let a member switch a live one off
+   */
+  setTriggerEnabled: defineWorkspaceOperation({
+    id: 'workflows.triggers.set_enabled',
+    oauthScope: 'api:write',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    contentDelivery: 'none',
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+  }),
   activateVersion: defineWorkspaceOperation({
     id: 'workflows.versions.activate',
     oauthScope: 'api:write',

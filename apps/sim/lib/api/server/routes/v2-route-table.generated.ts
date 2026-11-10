@@ -840,6 +840,14 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/workflows/[workflowId]/state/route'),
   },
   {
+    pattern: '/api/v2/workflows/{workflowId}/triggers',
+    load: () => import('@/app/api/v2/workflows/[workflowId]/triggers/route'),
+  },
+  {
+    pattern: '/api/v2/workflows/{workflowId}/triggers/{blockId}',
+    load: () => import('@/app/api/v2/workflows/[workflowId]/triggers/[blockId]/route'),
+  },
+  {
     pattern: '/api/v2/workflows/{workflowId}/variables',
     load: () => import('@/app/api/v2/workflows/[workflowId]/variables/route'),
   },

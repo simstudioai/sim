@@ -355,6 +355,21 @@ export const CLI_CONTRACT: CliContract = {
     renamedFrom: ['workflows deployment list'],
     describe: 'Show a workflow’s current deployment',
   },
+  listWorkflowTriggers: {
+    describe: 'Show the health of every trigger the live deployment serves',
+    columns: [
+      { header: 'block', path: 'blockId' },
+      { header: 'kind' },
+      { header: 'provider' },
+      { header: 'status' },
+      { header: 'failures', path: 'failedCount' },
+      { header: 'last failed', path: 'lastFailedAt', format: 'timestamp' },
+      { header: 'next run', path: 'nextRunAt', format: 'timestamp' },
+    ],
+  },
+  updateWorkflowTrigger: {
+    describe: 'Enable or disable one trigger of the live deployment',
+  },
   setSecret: { hidden: true },
 
   // Soft deletes, all three: `tables restore`, `knowledge restore` and

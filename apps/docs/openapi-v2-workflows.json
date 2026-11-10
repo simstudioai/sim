@@ -2565,6 +2565,246 @@
         }
       }
     },
+    "/api/v2/workflows/{workflowId}/triggers": {
+      "get": {
+        "operationId": "listWorkflowTriggers",
+        "summary": "List workflow triggers",
+        "description": "List the schedules, polling triggers, internal-event triggers, and webhooks the live deployment serves, including disabled ones, with their failure counts. Requires workspace read access. Schedules and polling triggers disable themselves after 100 consecutive failures; a `webhook` trigger's failures happen at the sender, so its `failedCount` stays 0. Empty while the workflow is not deployed. Returns one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "workflows.triggers.read",
+        "x-oauth-scope": "api:read",
+        "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The live deployment's triggers.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowTriggerListResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": [
+                        {
+                          "blockId": "blk_01J8ZK3QW4M6X2R9T7B5C0V4",
+                          "kind": "schedule",
+                          "provider": null,
+                          "enabled": false,
+                          "status": "disabled",
+                          "failedCount": 100,
+                          "lastFailedAt": "2026-08-09T18:04:11.000Z",
+                          "nextRunAt": null,
+                          "lastRanAt": "2026-08-09T18:04:00.000Z",
+                          "cronExpression": "0 * * * *",
+                          "timezone": "UTC",
+                          "url": null
+                        }
+                      ],
+                      "nextCursor": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{workflowId}/triggers/{blockId}": {
+      "patch": {
+        "operationId": "updateWorkflowTrigger",
+        "summary": "Update workflow trigger",
+        "description": "Enable or disable one trigger of the live deployment without redeploying. Requires workspace write access. Enabling resets `failedCount`, schedules the next run, and clears any polling backoff; a schedule with no future runs returns `409` and an invalid cron expression returns `400`. A permission group that blocks webhook triggers returns `403` when enabling a polling, internal-event, or webhook trigger. Requesting the current state changes nothing.\n\nDisabling only stops Sim from accepting the trigger; nothing is removed at the provider. Deliveries to a disabled webhook receive `404`, and some providers disable their subscription after repeated failures, which requires a redeploy to restore.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "workflows.triggers.set_enabled",
+        "x-oauth-scope": "api:write",
+        "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          },
+          {
+            "name": "blockId",
+            "in": "path",
+            "required": true,
+            "description": "Trigger block in the deployed workflow.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Trigger block in the deployed workflow."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Enable or disable one trigger of the live deployment.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkflowTriggerRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "enabled": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The trigger after the update.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateWorkflowTriggerResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "blockId": "blk_01J8ZK3QW4M6X2R9T7B5C0V4",
+                        "kind": "schedule",
+                        "provider": null,
+                        "enabled": true,
+                        "status": "active",
+                        "failedCount": 0,
+                        "lastFailedAt": "2026-08-09T18:04:11.000Z",
+                        "nextRunAt": "2026-08-10T09:00:00.000Z",
+                        "lastRanAt": "2026-08-09T18:04:00.000Z",
+                        "cronExpression": "0 * * * *",
+                        "timezone": "UTC",
+                        "url": null
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/workflows/{workflowId}/deploy": {
       "post": {
         "operationId": "deployWorkflow",
@@ -12578,6 +12818,230 @@
         "examples": [
           {
             "isPublicApi": true
+          }
+        ]
+      },
+      "WorkflowTrigger": {
+        "type": "object",
+        "properties": {
+          "blockId": {
+            "type": "string",
+            "description": "Trigger block in the deployed workflow."
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["schedule", "polling", "event", "webhook"],
+            "description": "How the trigger fires: `schedule` on a cron, `polling` when Sim polls the source, `event` on an event raised inside Sim, `webhook` when an external sender delivers to its URL."
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Trigger provider, e.g. `gmail` or `github`; null for schedules."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the trigger currently fires."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "disabled", "completed"],
+            "description": "`disabled` after a manual disable or an automatic one following repeated failures. `completed` applies only to schedules that have no runs left."
+          },
+          "failedCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Consecutive failures since the last success; the trigger disables itself at 100. Always 0 for `webhook` and `event` triggers."
+          },
+          "lastFailedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp of the most recent counted failure, or null.",
+            "format": "date-time"
+          },
+          "nextRunAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp of the next scheduled run; null when disabled and for non-schedules.",
+            "format": "date-time"
+          },
+          "lastRanAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp of the last scheduled run; null for non-schedules.",
+            "format": "date-time"
+          },
+          "cronExpression": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cron expression of a schedule; null for non-schedules."
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "IANA timezone the cron expression runs in; null for non-schedules."
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Delivery URL of a `webhook` trigger; null for other kinds and for providers on a shared endpoint."
+          }
+        },
+        "required": [
+          "blockId",
+          "kind",
+          "provider",
+          "enabled",
+          "status",
+          "failedCount",
+          "lastFailedAt",
+          "nextRunAt",
+          "lastRanAt",
+          "cronExpression",
+          "timezone",
+          "url"
+        ],
+        "additionalProperties": false,
+        "title": "Workflow trigger",
+        "description": "Health and enablement of one trigger the live deployment serves."
+      },
+      "WorkflowTriggerListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowTrigger"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Always `null`. This list has no `cursor` or `limit` parameters; see the operation for inventory limits."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Workflow trigger list response",
+        "description": "Every trigger the live deployment serves.",
+        "examples": [
+          {
+            "data": [
+              {
+                "blockId": "blk_01J8ZK3QW4M6X2R9T7B5C0V4",
+                "kind": "schedule",
+                "provider": null,
+                "enabled": false,
+                "status": "disabled",
+                "failedCount": 100,
+                "lastFailedAt": "2026-08-09T18:04:11.000Z",
+                "nextRunAt": null,
+                "lastRanAt": "2026-08-09T18:04:00.000Z",
+                "cronExpression": "0 * * * *",
+                "timezone": "UTC",
+                "url": null
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "UpdateWorkflowTriggerResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowTrigger"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update workflow trigger response",
+        "description": "The trigger after the update.",
+        "examples": [
+          {
+            "data": {
+              "blockId": "blk_01J8ZK3QW4M6X2R9T7B5C0V4",
+              "kind": "schedule",
+              "provider": null,
+              "enabled": true,
+              "status": "active",
+              "failedCount": 0,
+              "lastFailedAt": "2026-08-09T18:04:11.000Z",
+              "nextRunAt": "2026-08-10T09:00:00.000Z",
+              "lastRanAt": "2026-08-09T18:04:00.000Z",
+              "cronExpression": "0 * * * *",
+              "timezone": "UTC",
+              "url": null
+            }
+          }
+        ]
+      },
+      "UpdateWorkflowTriggerRequest": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the trigger should fire."
+          }
+        },
+        "required": ["enabled"],
+        "additionalProperties": false,
+        "title": "Update workflow trigger request",
+        "description": "Enable or disable one trigger of the live deployment.",
+        "examples": [
+          {
+            "enabled": true
           }
         ]
       },
