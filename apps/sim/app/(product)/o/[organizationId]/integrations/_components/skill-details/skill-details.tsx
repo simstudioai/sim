@@ -18,7 +18,6 @@ import {
   DirectoryBack,
   DirectoryHeading,
 } from '@/app/(product)/_components/resource-directory/resource-directory'
-import { SettingsLeaveGuard } from '@/app/(product)/_components/session-state/settings-leave-guard'
 import {
   type SkillDraft,
   type SkillErrors,
@@ -217,7 +216,6 @@ export function SkillDetails({
 
   return (
     <>
-      <SettingsLeaveGuard />
       {back}
       <DirectoryHeading
         title={skill?.name ?? 'Create skill'}

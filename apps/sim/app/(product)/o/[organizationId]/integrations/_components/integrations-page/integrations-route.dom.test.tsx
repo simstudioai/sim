@@ -6,12 +6,13 @@
  * tab offered with no workspace to hold a skill; tabs and secrets links the viewer's permission
  * group withholds in Settings (MCP tools, skills, the Secrets section) offered here anyway; and the
  * MCPs tab listing servers Search manages for a connected account or managed connector; and
- * Create skill or Connect MCP offered to a read-only member, whom the server refuses.
+ * Create skill or Connect MCP offered to a read-only member, whom the server refuses; and an open
+ * skill mounting its own discard dialog beside the shell's, so leaving a draft stacks two.
  */
 import { act } from 'react'
 import { flushMacrotask } from '@sim/testing/helpers/async'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
-import { stubResizeObserver } from '@sim/testing/mocks/browser-apis.mock'
+import { stubDialog, stubResizeObserver } from '@sim/testing/mocks/browser-apis.mock'
 import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
@@ -21,9 +22,11 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/auth/client', () => authClientMock)
 
+import { SettingsLeaveGuard } from '@/app/(product)/_components/session-state/settings-leave-guard'
 import { IntegrationsRoute } from '@/app/(product)/o/[organizationId]/integrations/_components/integrations-page/integrations-route'
 import type { IntegrationsWorkspaceScope } from '@/app/(product)/o/[organizationId]/integrations/_components/workspace-integrations/workspace-directory'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/platform/lib/data/permission-policy'
+import { requestSettingsLeave, useSettingsDirtyStore } from '@/platform/lib/data/settings-guard'
 import type { WorkspaceApp } from '@/platform/lib/integrations/workspace-catalog'
 import { SurfaceScopeProvider } from '@/platform/lib/surface-scope'
 
@@ -114,6 +117,7 @@ async function respond(url: URL) {
 
 beforeEach(() => {
   stubResizeObserver()
+  stubDialog()
   restrictions = {}
   credentialsHeld = Promise.resolve()
   mcpServers = []
@@ -137,6 +141,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
+  useSettingsDirtyStore.getState().reset()
 })
 
 async function settle() {
@@ -150,6 +155,7 @@ async function render(search: string, workspace: IntegrationsWorkspaceScope = IN
       <QueryClientProvider client={queryClient}>
         <NuqsTestingAdapter searchParams={search}>
           <SurfaceScopeProvider routePrefix='/o/org'>
+            <SettingsLeaveGuard />
             <IntegrationsRoute organizationId='org' member={false} workspace={workspace} />
           </SurfaceScopeProvider>
         </NuqsTestingAdapter>
@@ -261,4 +267,19 @@ it('opens a new skill read-only for a read-only member', async () => {
 it('opens a new skill editable for a member who can write', async () => {
   await render('?tab=skills&resource=new')
   expect(buttonNamed('Create')).toBeDefined()
+})
+
+it('asks once before leaving an unsaved skill, with the shell’s one discard dialog', async () => {
+  await render('?tab=skills&resource=new')
+  const name = container.querySelector<HTMLInputElement>('form[aria-label="Skill details"] input')
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+  act(() => {
+    setter?.call(name, 'triage')
+    name?.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  act(() => requestSettingsLeave(() => undefined))
+  const prompts = [...document.querySelectorAll('dialog[open]')].filter((dialog) =>
+    dialog.textContent?.includes('Unsaved changes')
+  )
+  expect(prompts).toHaveLength(1)
 })
