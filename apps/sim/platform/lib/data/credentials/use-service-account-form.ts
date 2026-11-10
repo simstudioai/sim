@@ -305,7 +305,7 @@ export function useServiceAccountForm({
       onCreated(created.credential.id)
       return undefined
     } catch (error) {
-      logger.error(`Failed to save ${configDescriptor?.serviceLabel} credential`, error)
+      logger.error('Failed to save credential', { service: configDescriptor?.serviceLabel, error })
       if (isApiClientError(error) && error.code === 'duplicate_display_name')
         throw new Error(
           'A credential with that name already exists. Choose a different display name.'
@@ -325,7 +325,7 @@ export function useServiceAccountForm({
         onCreated(await submitCredentials(fields))
         return undefined
       } catch (error) {
-        logger.error(`Failed to save ${descriptor.serviceLabel} credential`, error)
+        logger.error('Failed to save credential', { service: descriptor.serviceLabel, error })
         throw new Error(getErrorMessage(error, CLIENT_CREDENTIAL_FALLBACK))
       }
     }
@@ -341,7 +341,10 @@ export function useServiceAccountForm({
       onCreated(created.credential.id)
       return undefined
     } catch (error) {
-      logger.error(`Failed to add ${descriptor.serviceLabel} service account credential`, error)
+      logger.error('Failed to add service account credential', {
+        service: descriptor.serviceLabel,
+        error,
+      })
       throw new Error(
         tokenDescriptor
           ? getTokenServiceAccountErrorMessage(
