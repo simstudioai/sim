@@ -2,7 +2,8 @@
 
 Every account outside a team gets a personal organization (`organization.kind = 'personal'`)
 that holds its personal workspaces; on an instance-organization deployment it joins the instance
-organization instead. The release that introduces it must roll out in this order.
+organization instead, unless the audit log records that it left the instance organization (an
+admin, the Admin API or SCIM removed it, or it left). The release that introduces it must roll out in this order.
 
 ## Rollout
 
