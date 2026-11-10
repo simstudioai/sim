@@ -6,6 +6,10 @@ import { z } from 'zod'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { validateDatabricksWorkspaceHost } from '@/lib/core/security/input-validation'
 import { parseServiceAccountConfig } from '@/lib/credentials/service-account-config'
+import {
+  isTransientProviderStatus,
+  TokenServiceAccountValidationError,
+} from '@/lib/credentials/token-service-accounts/errors'
 import { WORKLOAD_IDENTITY_AUDIENCES } from '@/lib/credentials/workload-identity/audiences'
 import {
   mintWorkloadIdentityToken,
@@ -112,7 +116,11 @@ const storedSecretSchema = z
   .strict()
 
 export class DatabricksCredentialError extends Error {
-  constructor(message: string) {
+  /** @param status Databricks' HTTP status, when Databricks itself refused the request. */
+  constructor(
+    message: string,
+    readonly status?: number
+  ) {
     super(message)
     this.name = 'DatabricksCredentialError'
   }
@@ -145,7 +153,10 @@ async function requestWorkspaceToken(
         : typeof payload.error === 'string'
           ? payload.error
           : `HTTP ${response.status}`
-    throw new DatabricksCredentialError(`Databricks rejected the token request: ${reason}`)
+    throw new DatabricksCredentialError(
+      `Databricks rejected the token request: ${reason}`,
+      response.status
+    )
   }
   return payload.access_token
 }
@@ -299,8 +310,20 @@ export async function resolveDatabricksCredentialToken(
   const owner: WorkloadIdentityOwner = row.workspaceId
     ? { workspaceId: row.workspaceId }
     : { organizationId: row.organizationId ?? undefined }
-  return {
-    accessToken: await resolveDatabricksAccessToken(config, owner, signal),
-    domain: config.host,
+  try {
+    return {
+      accessToken: await resolveDatabricksAccessToken(config, owner, signal),
+      domain: config.host,
+    }
+  } catch (error) {
+    if (!(error instanceof DatabricksCredentialError)) throw error
+    // Report in the shared service-account codes: an outage is not a bad credential.
+    const unavailable =
+      error.status !== undefined && (error.status >= 500 || isTransientProviderStatus(error.status))
+    throw new TokenServiceAccountValidationError(
+      unavailable ? 'provider_unavailable' : 'invalid_credentials',
+      error.status ?? 400,
+      { step: 'token', reason: error.message }
+    )
   }
 }

@@ -667,8 +667,17 @@ export const validateYouComServiceAccount = tokenCheckValidator({
   }),
 })
 
-/** Google's 403 reasons that a valid key gets when it is only out of quota for now. */
-const YOUTUBE_QUOTA_REASONS = new Set(['quotaExceeded', 'dailyLimitExceeded', 'rateLimitExceeded'])
+/**
+ * Google's 403 reasons for a valid key that is only out of quota for now. Mirrors
+ * `isGoogleQuotaReason` in the Google connectors, whose module is too heavy for this graph.
+ */
+const YOUTUBE_QUOTA_REASONS = new Set([
+  'quotaExceeded',
+  'dailyLimitExceeded',
+  'rateLimitExceeded',
+  'userRateLimitExceeded',
+  'RATE_LIMIT_EXCEEDED',
+])
 
 /**
  * Listing video categories costs one quota unit. Google answers 400 for an invalid key and 403
@@ -684,7 +693,7 @@ export const validateYouTubeServiceAccount = tokenCheckValidator({
   forbiddenMeansScoped: true,
   rejectsKey: (errorBody) => {
     const error = toRecord(toRecord(errorBody).error)
-    if (error.code !== 400 && error.code !== 403) return false
+    if (error.code !== 403) return false
     return !toArray(error.errors).some((entry) =>
       YOUTUBE_QUOTA_REASONS.has(String(toRecord(entry).reason))
     )

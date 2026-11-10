@@ -435,11 +435,6 @@ export async function resolveCredentialToken(
             }
           }
         }
-        // Its messages name the trust, secret, or host problem and carry no secrets. Matched by
-        // name because the Databricks module is loaded lazily, off this module's graph.
-        if (error instanceof Error && error.name === 'DatabricksCredentialError') {
-          return { ok: false, status: 401, error: error.message }
-        }
         return { ok: false, status: 401, error: 'Failed to get service account token' }
       }
     }
