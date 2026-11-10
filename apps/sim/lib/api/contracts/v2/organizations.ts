@@ -1,8 +1,5 @@
 import { z } from 'zod'
-import {
-  gitLabPermissionInputSchema,
-  gitLabPermissionSummarySchema,
-} from '@/lib/api/contracts/knowledge/gitlab-permissions'
+import { connectorPermissionGrantsSchema } from '@/lib/api/contracts/knowledge/connector-permissions'
 import {
   noInputSchema,
   nonEmptyIdSchema,
@@ -323,34 +320,41 @@ export const v2ResendOrganizationInvitationContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(v2OrganizationInvitationSchema) },
 })
 
-const gitLabSearchSourceParamsSchema = v2OrganizationParamsSchema.extend({
-  sourceId: nonEmptyIdSchema
-    .max(255)
-    .describe('Identifier of the configured GitLab Search source.'),
+const searchSourceParamsSchema = v2OrganizationParamsSchema.extend({
+  sourceId: nonEmptyIdSchema.max(255).describe('Identifier of the configured Search source.'),
 })
-const gitLabSearchRevisionResponse = v2DataResponse(
-  gitLabPermissionSummarySchema.pick({ revision: true }).meta({
-    id: 'GitLabSearchPermissionRevision',
-    title: 'GitLab Search permission revision',
-    description: 'Revision of the permission CSVs for this source.',
-  })
+const searchSourceRevisionResponse = v2DataResponse(
+  z
+    .object({ revision: z.number().int().nonnegative().describe('Current permission revision.') })
+    .meta({
+      id: 'SearchSourcePermissionRevision',
+      title: 'Search source permission revision',
+      description: 'Revision of this source’s permission grants.',
+    })
 )
 
-export const v2GetGitLabSearchPermissionsContract = defineRouteContract({
+export const v2GetSearchSourcePermissionsContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]/gitlab-permissions',
-  params: gitLabSearchSourceParamsSchema,
+  path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions',
+  params: searchSourceParamsSchema,
   query: noInputSchema,
-  response: { mode: 'json', schema: gitLabSearchRevisionResponse },
+  response: { mode: 'json', schema: searchSourceRevisionResponse },
 })
 
-export const v2ReplaceGitLabSearchPermissionsContract = defineRouteContract({
+export const v2ReplaceSearchSourcePermissionsContract = defineRouteContract({
   method: 'PUT',
-  path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]/gitlab-permissions',
-  params: gitLabSearchSourceParamsSchema,
+  path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions',
+  params: searchSourceParamsSchema,
   query: noInputSchema,
-  body: gitLabPermissionInputSchema
-    .pick({ expectedRevision: true, userMapping: true, projectPermissions: true })
-    .required(),
-  response: { mode: 'json', schema: gitLabSearchRevisionResponse },
+  body: z.strictObject({
+    expectedRevision: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Permission revision read before exporting the grants.'),
+    permissions: connectorPermissionGrantsSchema.describe(
+      'Complete permission grants in the source provider’s format.'
+    ),
+  }),
+  response: { mode: 'json', schema: searchSourceRevisionResponse },
 })

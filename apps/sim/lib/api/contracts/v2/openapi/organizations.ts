@@ -7,38 +7,38 @@ import {
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   v2CreateOrganizationInvitationContract,
-  v2GetGitLabSearchPermissionsContract,
   v2GetOrganizationContract,
   v2GetOrganizationInvitationContract,
+  v2GetSearchSourcePermissionsContract,
   v2ListOrganizationInvitationsContract,
   v2ListOrganizationInvitationWorkspacesContract,
   v2ListOrganizationMembersContract,
   v2ListOrganizationsContract,
   v2ListOrganizationWorkspacesContract,
   v2RemoveOrganizationMemberContract,
-  v2ReplaceGitLabSearchPermissionsContract,
+  v2ReplaceSearchSourcePermissionsContract,
   v2ResendOrganizationInvitationContract,
   v2RevokeOrganizationInvitationContract,
   v2UpdateOrganizationMemberContract,
 } from '@/lib/api/contracts/v2/organizations'
 import { defineOpenApiRoute } from '@/lib/api/openapi/types'
 import { invitationOperations } from '@/lib/invitations/application/operations'
-import { gitLabSearchPermissionOperations } from '@/lib/knowledge/application/operations'
+import { searchSourcePermissionOperations } from '@/lib/knowledge/application/operations'
 import { organizationOperations } from '@/lib/organizations/application/operations'
 
 const TIMESTAMP = '2026-06-01T09:00:00.000Z'
 
-const gitLabSearchPermissionParams = documentedSchema(
-  v2GetGitLabSearchPermissionsContract.params,
-  'GitLabSearchPermissionParams',
-  'GitLab Search permission parameters',
+const searchSourcePermissionParams = documentedSchema(
+  v2GetSearchSourcePermissionsContract.params,
+  'SearchSourcePermissionParams',
+  'Search source permission parameters',
   'Organization and Search source identifiers.'
 )
-const gitLabSearchPermissionResponse = documentedSchema(
-  v2GetGitLabSearchPermissionsContract.response.schema,
-  'GitLabSearchPermissionResponse',
-  'GitLab Search permission response',
-  'Current revision of the permission CSVs.',
+const searchSourcePermissionResponse = documentedSchema(
+  v2GetSearchSourcePermissionsContract.response.schema,
+  'SearchSourcePermissionResponse',
+  'Search source permission response',
+  'Current revision of the source permission grants.',
   [{ data: { revision: 3 } }]
 )
 
@@ -570,56 +570,59 @@ export const organizationOpenApiRoutes = [
     }
   ),
   defineOpenApiRoute(
-    v2GetGitLabSearchPermissionsContract,
+    v2GetSearchSourcePermissionsContract,
     {
-      applicationOperation: gitLabSearchPermissionOperations.read,
-      operationId: 'getGitLabSearchPermissions',
-      summary: 'Get GitLab Search permission revision',
-      description: `Read the current revision of an existing GitLab Search source in CSV permission mode. Requires organization Admin access. ${WORKSPACE_API_KEY_DENIED}`,
+      applicationOperation: searchSourcePermissionOperations.read,
+      operationId: 'getSearchSourcePermissions',
+      summary: 'Get Search source permission revision',
+      description: `Read the permission revision for a Search source that accepts externally managed grants. Requires organization Admin access. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_ERRORS,
       success: { description: 'The current permission revision.', headers: RATE_LIMIT_HEADERS },
     },
     {
-      params: gitLabSearchPermissionParams,
-      query: v2GetGitLabSearchPermissionsContract.query,
-      response: gitLabSearchPermissionResponse,
+      params: searchSourcePermissionParams,
+      query: v2GetSearchSourcePermissionsContract.query,
+      response: searchSourcePermissionResponse,
     }
   ),
   defineOpenApiRoute(
-    v2ReplaceGitLabSearchPermissionsContract,
+    v2ReplaceSearchSourcePermissionsContract,
     {
-      applicationOperation: gitLabSearchPermissionOperations.replace,
-      operationId: 'replaceGitLabSearchPermissions',
-      summary: 'Replace GitLab Search permission CSVs',
-      description: `Replace both permission CSVs for an existing GitLab Search source in CSV mode. Requires organization Admin access. Supply the current revision. A concurrent change returns 409 and leaves both files untouched. Each file accepts up to 4 MiB and 100,000 data rows. ${WORKSPACE_API_KEY_DENIED}`,
+      applicationOperation: searchSourcePermissionOperations.replace,
+      operationId: 'replaceSearchSourcePermissions',
+      summary: 'Replace Search source permissions',
+      description: `Replace the complete permission grants for one Search source. Requires organization Admin access. Supply the current revision and the grants for the configured provider. A stale revision returns 409. GitLab CSV mode accepts both files together, up to 4 MiB and 100,000 data rows each. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The new permission revision.', headers: RATE_LIMIT_HEADERS },
     },
     {
-      params: gitLabSearchPermissionParams,
-      query: v2ReplaceGitLabSearchPermissionsContract.query,
+      params: searchSourcePermissionParams,
+      query: v2ReplaceSearchSourcePermissionsContract.query,
       body: documentedSchema(
-        v2ReplaceGitLabSearchPermissionsContract.body,
-        'ReplaceGitLabSearchPermissionsBody',
-        'GitLab Search permission CSVs',
-        'The expected revision and complete contents of both UTF-8 CSV files.',
+        v2ReplaceSearchSourcePermissionsContract.body,
+        'ReplaceSearchSourcePermissionsBody',
+        'Search source permission grants',
+        'The expected revision and complete replacement grants for the provider.',
         [
           {
             expectedRevision: 2,
-            userMapping: {
-              filename: 'users.csv',
-              content: 'user_id,email\n42,reader@example.com\n',
-            },
-            projectPermissions: {
-              filename: 'projects.csv',
-              content: 'project_path,user_id\nteam/project,42\n',
+            permissions: {
+              provider: 'gitlab',
+              userMapping: {
+                filename: 'users.csv',
+                content: 'user_id,email\n42,reader@example.com\n',
+              },
+              projectPermissions: {
+                filename: 'projects.csv',
+                content: 'project_path,user_id\nteam/project,42\n',
+              },
             },
           },
         ]
       ),
-      response: gitLabSearchPermissionResponse,
+      response: searchSourcePermissionResponse,
     }
   ),
 ] as const

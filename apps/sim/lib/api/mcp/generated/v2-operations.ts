@@ -167,16 +167,16 @@ import {
 } from '@/lib/api/contracts/v2/organization-usage'
 import {
   v2CreateOrganizationInvitationContract,
-  v2GetGitLabSearchPermissionsContract,
   v2GetOrganizationContract,
   v2GetOrganizationInvitationContract,
+  v2GetSearchSourcePermissionsContract,
   v2ListOrganizationInvitationsContract,
   v2ListOrganizationInvitationWorkspacesContract,
   v2ListOrganizationMembersContract,
   v2ListOrganizationsContract,
   v2ListOrganizationWorkspacesContract,
   v2RemoveOrganizationMemberContract,
-  v2ReplaceGitLabSearchPermissionsContract,
+  v2ReplaceSearchSourcePermissionsContract,
   v2ResendOrganizationInvitationContract,
   v2RevokeOrganizationInvitationContract,
   v2UpdateOrganizationMemberContract,
@@ -1328,17 +1328,6 @@ export const V2_MCP_OPERATIONS = {
     handler: () =>
       import('@/app/api/v2/files/[fileId]/versions/[version]/route').then((route) => route.GET),
   },
-  getGitLabSearchPermissions: {
-    contract: v2GetGitLabSearchPermissionsContract,
-    summary: 'Get GitLab Search permission revision',
-    description:
-      'Read the current revision of an existing GitLab Search source in CSV permission mode. Requires organization Admin access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
-    workspaceKeyUnsupported: true,
-    handler: () =>
-      import(
-        '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/gitlab-permissions/route'
-      ).then((route) => route.GET),
-  },
   getKnowledgeBase: {
     contract: v2GetKnowledgeBaseContract,
     summary: 'Get knowledge base',
@@ -1518,6 +1507,17 @@ export const V2_MCP_OPERATIONS = {
     description:
       'Get a sandbox’s dependency configuration, current build state, and any build failure. Requires workspace read access.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/sandboxes/[sandboxId]/route').then((route) => route.GET),
+  },
+  getSearchSourcePermissions: {
+    contract: v2GetSearchSourcePermissionsContract,
+    summary: 'Get Search source permission revision',
+    description:
+      'Read the permission revision for a Search source that accepts externally managed grants. Requires organization Admin access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/route'
+      ).then((route) => route.GET),
   },
   getSelector: {
     contract: v2GetSelectorContract,
@@ -2451,15 +2451,15 @@ export const V2_MCP_OPERATIONS = {
       'Rename a workspace file without changing its containing folder.\n\nOAuth scope: `api:write`.',
     handler: () => import('@/app/api/v2/files/[fileId]/route').then((route) => route.PATCH),
   },
-  replaceGitLabSearchPermissions: {
-    contract: v2ReplaceGitLabSearchPermissionsContract,
-    summary: 'Replace GitLab Search permission CSVs',
+  replaceSearchSourcePermissions: {
+    contract: v2ReplaceSearchSourcePermissionsContract,
+    summary: 'Replace Search source permissions',
     description:
-      'Replace both permission CSVs for an existing GitLab Search source in CSV mode. Requires organization Admin access. Supply the current revision. A concurrent change returns 409 and leaves both files untouched. Each file accepts up to 4 MiB and 100,000 data rows. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+      'Replace the complete permission grants for one Search source. Requires organization Admin access. Supply the current revision and the grants for the configured provider. A stale revision returns 409. GitLab CSV mode accepts both files together, up to 4 MiB and 100,000 data rows each. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import(
-        '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/gitlab-permissions/route'
+        '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/route'
       ).then((route) => route.PUT),
   },
   replaceWorkflowChatDeployment: {

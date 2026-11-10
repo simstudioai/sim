@@ -9643,12 +9643,12 @@
         }
       }
     },
-    "/api/v2/organizations/{organizationId}/search/sources/{sourceId}/gitlab-permissions": {
+    "/api/v2/organizations/{organizationId}/search/sources/{sourceId}/permissions": {
       "get": {
-        "operationId": "getGitLabSearchPermissions",
-        "summary": "Get GitLab Search permission revision",
-        "description": "Read the current revision of an existing GitLab Search source in CSV permission mode. Requires organization Admin access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
-        "x-sim-operation": "knowledge.search.gitlab_permissions.read",
+        "operationId": "getSearchSourcePermissions",
+        "summary": "Get Search source permission revision",
+        "description": "Read the permission revision for a Search source that accepts externally managed grants. Requires organization Admin access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "knowledge.search.source_permissions.read",
         "x-oauth-scope": "api:read",
         "tags": ["Organizations"],
         "security": [
@@ -9675,12 +9675,12 @@
             "name": "sourceId",
             "in": "path",
             "required": true,
-            "description": "Identifier of the configured GitLab Search source.",
+            "description": "Identifier of the configured Search source.",
             "schema": {
               "type": "string",
               "minLength": 1,
               "maxLength": 255,
-              "description": "Identifier of the configured GitLab Search source."
+              "description": "Identifier of the configured Search source."
             }
           }
         ],
@@ -9701,7 +9701,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GitLabSearchPermissionResponse"
+                  "$ref": "#/components/schemas/SearchSourcePermissionResponse"
                 },
                 "examples": {
                   "example1": {
@@ -9740,10 +9740,10 @@
         }
       },
       "put": {
-        "operationId": "replaceGitLabSearchPermissions",
-        "summary": "Replace GitLab Search permission CSVs",
-        "description": "Replace both permission CSVs for an existing GitLab Search source in CSV mode. Requires organization Admin access. Supply the current revision. A concurrent change returns 409 and leaves both files untouched. Each file accepts up to 4 MiB and 100,000 data rows. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
-        "x-sim-operation": "knowledge.search.gitlab_permissions.replace",
+        "operationId": "replaceSearchSourcePermissions",
+        "summary": "Replace Search source permissions",
+        "description": "Replace the complete permission grants for one Search source. Requires organization Admin access. Supply the current revision and the grants for the configured provider. A stale revision returns 409. GitLab CSV mode accepts both files together, up to 4 MiB and 100,000 data rows each. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "knowledge.search.source_permissions.replace",
         "x-oauth-scope": "api:write",
         "tags": ["Organizations"],
         "security": [
@@ -9770,35 +9770,38 @@
             "name": "sourceId",
             "in": "path",
             "required": true,
-            "description": "Identifier of the configured GitLab Search source.",
+            "description": "Identifier of the configured Search source.",
             "schema": {
               "type": "string",
               "minLength": 1,
               "maxLength": 255,
-              "description": "Identifier of the configured GitLab Search source."
+              "description": "Identifier of the configured Search source."
             }
           }
         ],
         "requestBody": {
           "required": true,
-          "description": "The expected revision and complete contents of both UTF-8 CSV files.",
+          "description": "The expected revision and complete replacement grants for the provider.",
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ReplaceGitLabSearchPermissionsBody"
+                "$ref": "#/components/schemas/ReplaceSearchSourcePermissionsBody"
               },
               "examples": {
                 "example1": {
                   "summary": "Request example 1",
                   "value": {
                     "expectedRevision": 2,
-                    "userMapping": {
-                      "filename": "users.csv",
-                      "content": "user_id,email\n42,reader@example.com\n"
-                    },
-                    "projectPermissions": {
-                      "filename": "projects.csv",
-                      "content": "project_path,user_id\nteam/project,42\n"
+                    "permissions": {
+                      "provider": "gitlab",
+                      "userMapping": {
+                        "filename": "users.csv",
+                        "content": "user_id,email\n42,reader@example.com\n"
+                      },
+                      "projectPermissions": {
+                        "filename": "projects.csv",
+                        "content": "project_path,user_id\nteam/project,42\n"
+                      }
                     }
                   }
                 }
@@ -9823,7 +9826,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GitLabSearchPermissionResponse"
+                  "$ref": "#/components/schemas/SearchSourcePermissionResponse"
                 },
                 "examples": {
                   "example1": {
@@ -23526,33 +23529,33 @@
           }
         ]
       },
-      "GitLabSearchPermissionRevision": {
+      "SearchSourcePermissionRevision": {
         "type": "object",
         "properties": {
           "revision": {
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Current revision of the stored permissions."
+            "description": "Current permission revision."
           }
         },
         "required": ["revision"],
         "additionalProperties": false,
-        "title": "GitLab Search permission revision",
-        "description": "Revision of the permission CSVs for this source."
+        "title": "Search source permission revision",
+        "description": "Revision of this source’s permission grants."
       },
-      "GitLabSearchPermissionResponse": {
+      "SearchSourcePermissionResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/GitLabSearchPermissionRevision"
+            "$ref": "#/components/schemas/SearchSourcePermissionRevision"
           }
         },
         "required": ["data"],
         "additionalProperties": false,
-        "title": "GitLab Search permission response",
-        "description": "Current revision of the permission CSVs.",
+        "title": "Search source permission response",
+        "description": "Current revision of the source permission grants.",
         "examples": [
           {
             "data": {
@@ -23561,70 +23564,90 @@
           }
         ]
       },
-      "ReplaceGitLabSearchPermissionsBody": {
+      "ReplaceSearchSourcePermissionsBody": {
         "type": "object",
         "properties": {
           "expectedRevision": {
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Current permission revision obtained before generating this snapshot."
+            "description": "Permission revision read before exporting the grants."
           },
-          "userMapping": {
-            "type": "object",
-            "properties": {
-              "filename": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 255,
-                "description": "CSV filename without path separators."
-              },
-              "content": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 4194304,
-                "description": "UTF-8 CSV contents, up to 4 MiB."
+          "permissions": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "const": "gitlab",
+                    "description": "Provider of the configured Search source."
+                  },
+                  "userMapping": {
+                    "type": "object",
+                    "properties": {
+                      "filename": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255,
+                        "description": "CSV filename without path separators."
+                      },
+                      "content": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4194304,
+                        "description": "UTF-8 CSV contents, up to 4 MiB."
+                      }
+                    },
+                    "required": ["filename", "content"],
+                    "additionalProperties": false,
+                    "description": "GitLab user IDs and their verified Sim email addresses."
+                  },
+                  "projectPermissions": {
+                    "type": "object",
+                    "properties": {
+                      "filename": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255,
+                        "description": "CSV filename without path separators."
+                      },
+                      "content": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4194304,
+                        "description": "UTF-8 CSV contents, up to 4 MiB."
+                      }
+                    },
+                    "required": ["filename", "content"],
+                    "additionalProperties": false,
+                    "description": "GitLab project paths and the IDs of users granted access."
+                  }
+                },
+                "required": ["provider", "userMapping", "projectPermissions"],
+                "additionalProperties": false
               }
-            },
-            "required": ["filename", "content"],
-            "additionalProperties": false,
-            "description": "GitLab user IDs and their verified Sim email addresses."
-          },
-          "projectPermissions": {
-            "type": "object",
-            "properties": {
-              "filename": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 255,
-                "description": "CSV filename without path separators."
-              },
-              "content": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 4194304,
-                "description": "UTF-8 CSV contents, up to 4 MiB."
-              }
-            },
-            "required": ["filename", "content"],
-            "additionalProperties": false,
-            "description": "GitLab project paths and the IDs of users granted access."
+            ],
+            "description": "Complete permission grants in the source provider’s format."
           }
         },
-        "required": ["expectedRevision", "userMapping", "projectPermissions"],
+        "required": ["expectedRevision", "permissions"],
         "additionalProperties": false,
-        "title": "GitLab Search permission CSVs",
-        "description": "The expected revision and complete contents of both UTF-8 CSV files.",
+        "title": "Search source permission grants",
+        "description": "The expected revision and complete replacement grants for the provider.",
         "examples": [
           {
             "expectedRevision": 2,
-            "userMapping": {
-              "filename": "users.csv",
-              "content": "user_id,email\n42,reader@example.com\n"
-            },
-            "projectPermissions": {
-              "filename": "projects.csv",
-              "content": "project_path,user_id\nteam/project,42\n"
+            "permissions": {
+              "provider": "gitlab",
+              "userMapping": {
+                "filename": "users.csv",
+                "content": "user_id,email\n42,reader@example.com\n"
+              },
+              "projectPermissions": {
+                "filename": "projects.csv",
+                "content": "project_path,user_id\nteam/project,42\n"
+              }
             }
           }
         ]

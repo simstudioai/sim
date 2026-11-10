@@ -447,10 +447,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
       ),
   },
   {
-    pattern: '/api/v2/organizations/{organizationId}/search/sources/{sourceId}/gitlab-permissions',
+    pattern: '/api/v2/organizations/{organizationId}/search/sources/{sourceId}/permissions',
     load: () =>
       import(
-        '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/gitlab-permissions/route'
+        '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/route'
       ),
   },
   {

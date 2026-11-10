@@ -16,7 +16,7 @@ const gitLabCsvUploadSchema = z
   .strict()
 export const gitLabPermissionInputSchema = z
   .object({
-    provider: z.literal('gitlab'),
+    provider: z.literal('gitlab').describe('Provider of the configured Search source.'),
     mode: z.enum(GITLAB_PERMISSION_MODES),
     expectedRevision: z
       .number()
