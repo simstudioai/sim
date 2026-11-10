@@ -10,11 +10,11 @@ import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { parseAsString, useQueryState } from 'nuqs'
 import { FieldStack, SectionStack } from '@/app/(product)/_components/settings-parts/settings-parts'
-import type { CredentialGroupsData } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/model'
 import type {
   CredentialGroupActions,
   WorkspaceGrant,
 } from '@/platform/lib/data/credential-group-actions'
+import type { CredentialGroupsData } from '@/platform/lib/data/models/connected-accounts'
 
 interface GroupAccessProps {
   data: CredentialGroupsData

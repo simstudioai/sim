@@ -13,11 +13,6 @@ import type {
 } from '@/lib/api/contracts/assistant-actions'
 import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
 import { type ChatMessage, ToolCallStatus } from '@/lib/mothership/chat/types'
-import type {
-  AssistantReceipt,
-  AssistantReviewField,
-  ChatRuntime,
-} from '@/app/(product)/_components/chat/model'
 import {
   useAssistantActionReceiptBatches,
   useAssistantActionReview,
@@ -25,6 +20,11 @@ import {
   useDecideAssistantAction,
   useRefreshAssistantActionReceipts,
 } from '@/hooks/queries/assistant-actions'
+import type {
+  AssistantReceipt,
+  AssistantReviewField,
+  ChatRuntime,
+} from '@/platform/lib/data/models/chat'
 import { getAssistantToolEffect } from '@/tools/assistant-effects'
 
 type ReceiptState = AssistantActionReceiptsResponse['receipts'][number]['state']

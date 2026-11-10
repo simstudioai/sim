@@ -1,7 +1,7 @@
 'use client'
 
 import { type KeyboardEvent, type RefObject, useLayoutEffect, useRef } from 'react'
-import type { ComposerController, ComposerDraft } from '@/app/(product)/_components/composer/model'
+import type { ComposerController, ComposerDraft } from '@/platform/lib/data/models/composer'
 
 /** A message the person sent earlier in this conversation. */
 export interface PromptHistoryEntry {

@@ -3,14 +3,10 @@
 import { createContext, type ReactNode, useContext, useState } from 'react'
 import { generateId } from '@sim/utils/id'
 import { useRouter, useSearchParams } from 'next/navigation'
-import type {
-  ChatRuntime,
-  PlatformPart,
-  PlatformTurn,
-} from '@/app/(product)/_components/chat/model'
-import type { ChatTurn, ComposerDraft } from '@/app/(product)/_components/composer/model'
 import { draftTitle, userTurn } from '@/app/(product)/_components/composer/user-turn'
-import type { ShellChat } from '@/app/(product)/_components/model'
+import type { ChatRuntime, PlatformPart, PlatformTurn } from '@/platform/lib/data/models/chat'
+import type { ChatTurn, ComposerDraft } from '@/platform/lib/data/models/composer'
+import type { ShellChat } from '@/platform/lib/data/models/shell'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'

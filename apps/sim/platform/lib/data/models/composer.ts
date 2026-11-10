@@ -155,3 +155,24 @@ export interface ComposerController extends ComposerInventory {
   /** Accepted file types, when a mode narrows them. */
   accept?: string
 }
+
+export interface ComposerOptions extends Partial<ComposerInventory> {
+  draftKey: string
+  /** Assistant mode accepts images instead of workspace references. */
+  requestMode?: 'agent' | 'assistant' | 'plan'
+  chatId?: string
+  initialAttachments?: ChatAttachment[]
+}
+
+/**
+ * What the shell can start from outside a conversation. A hook pair so Home and Chat read one
+ * composer whichever session they are in; a session never changes kind while mounted.
+ */
+export interface ComposerHost {
+  useComposer: (options: ComposerOptions) => ComposerController
+  /** Starts a chat from Home's composer and enters it. */
+  useStartChat: () => (draft: ComposerDraft) => undefined | false
+  /** Opens Search with a query, where Home's Search segment leads; null when the viewer can't. */
+  useStartSearch: () => ((query: string) => void) | null
+  useAppendHomePrompt: () => ((prompt: string) => void) | null
+}

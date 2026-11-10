@@ -1,8 +1,8 @@
 'use client'
 
 import { FileViewer } from '@/components/file-viewer/file-viewer'
-import type { FileStream } from '@/app/(product)/_components/chat/model'
 import styles from '@/app/(product)/_components/chat/panel/workspace-resource/workspace-resource.module.css'
+import type { FileStream } from '@/platform/lib/data/models/chat'
 
 interface StreamingFileProps {
   file: NonNullable<FileStream['unsaved']>

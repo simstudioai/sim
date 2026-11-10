@@ -1,13 +1,13 @@
 'use client'
 
 import { CredentialGroups } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/credential-groups'
-import type { CredentialGroupsData } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/model'
 import { SlackMemberSetup } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/slack-member-setup'
 import {
   type CredentialGroupManagement,
   useDatabricksConfiguration,
   useLiveCredentialGroupActions,
 } from '@/platform/lib/data/credential-group-actions'
+import type { CredentialGroupsData } from '@/platform/lib/data/models/connected-accounts'
 
 interface LiveCredentialGroupsProps {
   organizationId: string
