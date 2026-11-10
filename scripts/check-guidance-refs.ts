@@ -296,7 +296,7 @@ function trimProse(ref: string): string {
 }
 
 /** Whether a name is shaped like an identifier rather than a word: camel humps or SNAKE_CASE. */
-export function isIdentifierShaped(name: string): boolean {
+function isIdentifierShaped(name: string): boolean {
   return /^[A-Za-z][A-Za-z0-9]*$/.test(name)
     ? /[a-z][A-Z]/.test(name)
     : /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/.test(name)
