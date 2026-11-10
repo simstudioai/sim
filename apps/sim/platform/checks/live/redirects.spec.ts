@@ -24,11 +24,8 @@ const REDIRECTS: readonly (readonly [string, string])[] = [
   [liveRoute('/links?search=hand'), liveRoute('/settings/links?search=hand')],
   [`${WORKSPACE}/w`, `${WORKSPACE}/workflows`],
   [`${WORKSPACE}/home`, liveRoute('/home')],
-  // The upgrade prompt carries why it was shown and nothing else.
-  [
-    `${WORKSPACE}/upgrade?reason=credits&ref=x`,
-    liveRoute('/settings/billing/plans?reason=credits'),
-  ],
+  // The seeded organization is on Enterprise, whose plans page exits to Billing, as legacy's did.
+  [`${WORKSPACE}/upgrade?reason=credits&ref=x`, liveRoute('/settings/billing')],
 ]
 
 for (const [from, to] of REDIRECTS) {
@@ -62,7 +59,11 @@ const QUERY_REDIRECTS: readonly (readonly [string, string])[] = [
   [`${WORKSPACE}/settings/apikeys?from=mail`, `${WORKSPACE}/settings/api-keys?from=mail`],
   [
     `${WORKSPACE}/access-requests?requestId=req-1`,
-    `${WORKSPACE}/settings/requests?requestId=req-1`,
+    `${WORKSPACE}/settings/requests?view=requests&requestId=req-1`,
+  ],
+  [
+    `${WORKSPACE}/upgrade?reason=credits&ref=x`,
+    liveRoute('/settings/billing/plans?reason=credits&ref=x'),
   ],
 ]
 
@@ -112,14 +113,19 @@ test('every legacy sub-path of a workspace the viewer cannot open is a branded n
   }
 })
 
-test('an organization the viewer does not belong to is the branded not-found, not a failed read', async ({
+test('an organization the viewer does not belong to is the access denial, not a failed read', async ({
   page,
 }) => {
   await signInAsAdmin(page, liveRoute('/home'))
   const outside = `/o/${organizationId()}-outside`
   for (const route of ['/home', '/settings/members']) {
     await page.goto(`${outside}${route}`)
-    await expect(page.getByRole('heading', { name: 'Page not found' }), route).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Organization access denied' }),
+      route
+    ).toBeVisible()
+    await expect(page.getByRole('button', { name: 'View your workspaces' }), route).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Something went wrong' }), route).toHaveCount(0)
   }
 })
 
