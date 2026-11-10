@@ -18,16 +18,17 @@ const logger = createLogger('FirecrawlCrawlTool')
 const POLL_INTERVAL_MS = 5000
 const MAX_POLL_TIME_MS = DEFAULT_EXECUTION_TIMEOUT_MS
 
-/** Path segments in a URL, ignoring index files, as Firecrawl v1 measured crawl depth. */
-function startUrlPathDepth(url: string): number {
-  try {
-    return new URL(url).pathname
-      .split('/')
-      .filter((segment) => segment !== '' && segment !== 'index.html' && segment !== 'index.php')
-      .length
-  } catch {
-    return 0
-  }
+/**
+ * Path segments of a URL as Firecrawl v1 counted them: index files add no depth. A URL without
+ * a scheme is read as https, as Firecrawl reads it.
+ */
+function urlPathDepth(url: string): number {
+  const absolute = /^[a-z][a-z\d+.-]*:\/\//i.test(url) ? url : `https://${url}`
+  if (!URL.canParse(absolute)) return 0
+  return new URL(absolute).pathname
+    .split('/')
+    .filter((segment) => segment !== '' && segment !== 'index.html' && segment !== 'index.php')
+    .length
 }
 
 export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse> = {
@@ -54,7 +55,7 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Maximum URL path depth (e.g., 1 allows /docs and /docs/index.html). Independent of link discovery depth',
+        'Maximum URL path depth below the starting URL (e.g., from /docs, 1 allows /docs/guide). Independent of link discovery depth',
     },
     formats: {
       type: 'json',
@@ -167,14 +168,15 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       if (params.maxConcurrency) body.maxConcurrency = Number(params.maxConcurrency)
       if (params.excludePaths) body.excludePaths = params.excludePaths
       if (params.includePaths) body.includePaths = params.includePaths
-      if (params.maxDepth != null && String(params.maxDepth).trim() !== '') {
+      if (params.maxDepth != null) {
         const requestedDepth = Number(params.maxDepth)
         if (!Number.isSafeInteger(requestedDepth) || requestedDepth < 0) {
           throw new Error('maxDepth must be a non-negative integer')
         }
-        // v1 counted path segments below the start URL's own depth; v2 discovery depth counts link hops.
-        const maxDepth = requestedDepth + startUrlPathDepth(params.url)
+        // v1 counted depth from the start URL, so the start page itself always passes the filter.
+        const maxDepth = requestedDepth + urlPathDepth(params.url)
 
+        // v1 depth counted URL path segments; v2 discovery depth counts link hops.
         body.regexOnFullURL = false
         if (params.includePaths?.length) {
           const indexFiles = ['index.html', 'index.php']
