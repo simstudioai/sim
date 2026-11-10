@@ -1,7 +1,13 @@
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { auditLedger, hideSwitches, liveTestTitles } from './check-platform-parity'
+import {
+  auditLedger,
+  hideSwitches,
+  liveTestTitles,
+  type ReportSuite,
+  worstOutcomes,
+} from './check-platform-parity'
 
 /** A parameterized Playwright title as its source spells it. */
 const TEMPLATE_TITLE = ['a saved ', '{from} lands on ', '{to}'].join('$')
@@ -226,4 +232,31 @@ it('fails with a clear message when a --report file is missing', () => {
   )
   expect(result.status).toBe(1)
   expect(result.stderr).toContain('--report /missing.json does not exist')
+})
+
+describe('worstOutcomes', () => {
+  const spec = (title: string, status: 'passed' | 'failed' | 'skipped') => ({
+    title,
+    ok: status === 'passed',
+    tests: [{ results: [{ status }] }],
+  })
+  const report = (...specs: ReturnType<typeof spec>[]): ReportSuite => ({ suites: [{ specs }] })
+
+  it('keeps the worst status of a title that ran more than once, in either order', () => {
+    const title = 'a saved link lands on its page'
+    for (const reports of [
+      [report(spec(title, 'passed'), spec(title, 'failed'))],
+      [report(spec(title, 'failed')), report(spec(title, 'passed'))],
+    ])
+      expect(worstOutcomes(reports).get(title)).toBe('failed')
+    expect(
+      worstOutcomes([report(spec(title, 'passed')), report(spec(title, 'skipped'))]).get(title)
+    ).toBe('skipped')
+    expect(
+      worstOutcomes([report(spec(title, 'skipped')), report(spec(title, 'failed'))]).get(title)
+    ).toBe('failed')
+    expect(worstOutcomes([report(spec(title, 'passed'), spec(title, 'passed'))]).get(title)).toBe(
+      'passed'
+    )
+  })
 })
