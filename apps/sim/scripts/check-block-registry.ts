@@ -42,7 +42,9 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import ts from '@typescript/typescript6'
 import { SUBBLOCK_ID_MIGRATIONS } from '@/lib/workflows/migrations/subblock-migrations'
+import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { getAllBlocks, getBlock, getBlockMeta, getBlockRegistry } from '@/blocks/registry'
+import type { BlockConfig } from '@/blocks/types'
 import { readBlockRegistryAtRef } from '@/scripts/block-registry-snapshot'
 import { hostSteeringParams } from '@/scripts/saved-credential-contract'
 import { getToolMetadata } from '@/tools/metadata'
@@ -361,6 +363,23 @@ function findSelectorCoercions(file: string, source: ts.SourceFile): string[] {
   return errors
 }
 
+function operationIds(block: BlockConfig): (string | undefined)[] {
+  const operation = block.subBlocks.find((subBlock) => subBlock.id === 'operation')
+  const options =
+    typeof operation?.options === 'function' ? operation.options() : operation?.options
+  const ids = (options ?? []).map((option) => option.id).filter((id): id is string => Boolean(id))
+  return ids.length > 0 ? ids : [undefined]
+}
+
+function selectedToolId(block: BlockConfig, values: Record<string, unknown>): string | undefined {
+  const access = block.tools?.access ?? []
+  try {
+    return block.tools?.config?.tool?.(values) ?? (access.length === 1 ? access[0] : undefined)
+  } catch {
+    return access.length === 1 ? access[0] : undefined
+  }
+}
+
 /**
  * A credential-only successor (a block some legacy block's `sunset.replacedBy`
  * names, with a saved-credential picker) must actually receive its credential:
@@ -400,6 +419,26 @@ function checkSavedCredentialContract(): CheckResult {
         `Block "${block.type}": its tools take a saved credential but it has no service-account picker with a serviceId and canonicalParamId 'oauthCredential'.`
       )
       continue
+    }
+
+    // Wherever the picker is hidden or optional, the selected tool must not need a credential-supplied param.
+    for (const operation of operationIds(block)) {
+      const values = operation === undefined ? {} : { operation }
+      const pickerNeeded =
+        evaluateSubBlockCondition(picker.condition, values) &&
+        (picker.required === true ||
+          (typeof picker.required === 'object' &&
+            evaluateSubBlockCondition(picker.required, values)))
+      if (pickerNeeded) continue
+      const toolId = selectedToolId(block, values)
+      const tool = toolId ? getToolMetadata(toolId) : undefined
+      for (const param of tool?.oauth?.credentialSuppliedParams ?? []) {
+        if (tool?.params?.[param]?.required) {
+          errors.push(
+            `Block "${block.type}" (operation ${operation ?? 'default'}) → tool "${toolId}": the credential is not required there but "${param}" is.`
+          )
+        }
+      }
     }
 
     const successorFields = new Set(block.subBlocks.map((subBlock) => subBlock.id))
@@ -446,20 +485,15 @@ function checkSavedCredentialContract(): CheckResult {
       if (!OPERATION_RESOLVED_CREDENTIAL_PROVIDERS.has(oauth.provider)) {
         const pinned = new Set<string>([...mapped, ...(oauth.authoritativeParams ?? [])])
         const executable = getTool(toolId)
+        if (!executable) {
+          errors.push(
+            `Block "${block.type}" → tool "${toolId}": not in the executable tool registry.`
+          )
+        }
         for (const param of executable ? hostSteeringParams(executable).params : []) {
           if (!pinned.has(param)) {
             errors.push(
               `Block "${block.type}" → tool "${toolId}": "${param}" decides the host the saved credential is sent to but the credential does not fill it (map it in credentialParams).`
-            )
-          }
-        }
-      }
-      // A conditional requirement (STS's unsigned calls) is the block's own decision.
-      if (!picker.required) {
-        for (const param of oauth.credentialSuppliedParams ?? []) {
-          if (tool.params?.[param]?.required) {
-            errors.push(
-              `Block "${block.type}" → tool "${toolId}": the credential is optional but "${param}" is required; make the param optional or the credential required.`
             )
           }
         }

@@ -29,7 +29,8 @@ export interface HostSteeringResult {
  * Where no placeholder set builds the URL, params named like a destination are
  * treated as host-steering — deliberately broad, since a miss leaks a secret.
  */
-const DESTINATION_PARAM = /(host|hostname|domain|endpoint|url|uri|origin|server|region)$/i
+const DESTINATION_PARAM =
+  /(host|hostname|domain|endpoint|url|uri|origin|server|region|instance|shop|account|site|org|tenant)$/i
 
 const PROBE_HOST = 'hostprobe.example.net'
 const PROBE_VALUES = [PROBE_HOST, `https://${PROBE_HOST}`]
@@ -79,22 +80,50 @@ export function hostSteeringParams(tool: ProbeableTool): HostSteeringResult {
     }
   }
 
+  const steering = new Set<string>()
+  let probed = false
   for (const text of STRING_PLACEHOLDERS) {
-    // Optional params stay unset (their validation is skipped) unless probed.
-    const placeholders = Object.fromEntries(
+    const required = Object.fromEntries(
       params
         .filter(([, param]) => param.required === true)
         .map(([name, param]) => [name, placeholderFor(param, text)])
     )
-    if (hostOf(placeholders) === null) continue
-    return {
-      params: stringParams.filter((name) =>
-        PROBE_VALUES.some((probe) =>
-          hostOf({ ...placeholders, [name]: probe })?.includes(PROBE_HOST)
-        )
+    // Optional params usually stay unset, but some gate a different host
+    // (a "custom endpoint" switch), so each context is probed in turn.
+    const withOptionalFlags = {
+      ...required,
+      ...Object.fromEntries(
+        params.filter(([, param]) => param.type === 'boolean').map(([name]) => [name, true])
       ),
-      probed: true,
+    }
+    const withOptionalValues = {
+      ...withOptionalFlags,
+      ...Object.fromEntries(
+        params
+          .filter(([, param]) => param.required !== true && param.type === 'string')
+          .map(([name]) => [name, text])
+      ),
+    }
+    for (const context of [required, withOptionalFlags, withOptionalValues]) {
+      const baseHost = hostOf(context)
+      if (baseHost === null) continue
+      probed = true
+      const probes = [
+        ...PROBE_VALUES,
+        // Defeat a suffix check (`endsWith('.vendor.com')`) that does not parse the host.
+        `${PROBE_HOST}#.${baseHost}`,
+        `${PROBE_HOST}/?.${baseHost}`,
+        `https://${PROBE_HOST}#.${baseHost}`,
+      ]
+      for (const name of stringParams) {
+        if (probes.some((probe) => hostOf({ ...context, [name]: probe })?.includes(PROBE_HOST))) {
+          steering.add(name)
+        }
+      }
     }
   }
-  return { params: stringParams.filter((name) => DESTINATION_PARAM.test(name)), probed: false }
+  if (!probed) {
+    return { params: stringParams.filter((name) => DESTINATION_PARAM.test(name)), probed: false }
+  }
+  return { params: [...steering], probed: true }
 }

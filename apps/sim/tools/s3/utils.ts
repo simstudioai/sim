@@ -35,6 +35,7 @@ export function parseS3Uri(
   region: string
   objectKey: string
 } {
+  let parsed: { bucketName: string; region: string; objectKey: string }
   try {
     const url = new URL(s3Uri)
     const hostname = url.hostname
@@ -91,17 +92,17 @@ export function parseS3Uri(
     if (!bucketName || !objectKey) {
       throw new Error('Invalid S3 URI format')
     }
-    // Both become part of the request host, so neither may carry anything but its own name.
-    if (!S3_BUCKET_NAME.test(bucketName) || !validateAwsRegion(region).isValid) {
-      throw new Error('Invalid S3 bucket or region')
-    }
-
-    return { bucketName, region, objectKey }
+    parsed = { bucketName, region, objectKey }
   } catch (_error) {
     throw new Error(
       'Invalid S3 Object URL format. Expected S3 virtual-hosted or path-style URL with object key.'
     )
   }
+  // Both become part of the request host, so neither may carry anything but its own name.
+  if (!S3_BUCKET_NAME.test(parsed.bucketName) || !validateAwsRegion(parsed.region).isValid) {
+    throw new Error('Invalid S3 bucket name or region')
+  }
+  return parsed
 }
 
 export function generatePresignedUrl(params: any, expiresIn = 3600): string {

@@ -52,4 +52,31 @@ describe('hostSteeringParams', () => {
 
     expect(hostSteeringParams(tool)).toEqual({ params: ['serverUrl'], probed: false })
   })
+
+  it('defeats a host suffix check that does not parse the host', () => {
+    const tool = {
+      params: { indexHost: optional, id: required },
+      request: {
+        url: (p: Record<string, string>) => {
+          const host = p.indexHost ?? 'default.svc.pinecone.io'
+          if (!host.endsWith('.pinecone.io')) throw new Error('not a Pinecone host')
+          return `https://${host}/vectors/${p.id}`
+        },
+      },
+    }
+
+    expect(hostSteeringParams(tool).params).toEqual(['indexHost'])
+  })
+
+  it('finds a host behind an optional switch', () => {
+    const tool = {
+      params: { useCustom: { type: 'boolean' }, customUrl: optional, id: required },
+      request: {
+        url: (p: Record<string, unknown>) =>
+          `${p.useCustom ? String(p.customUrl) : 'https://api.example.com'}/items/${p.id}`,
+      },
+    }
+
+    expect(hostSteeringParams(tool).params).toEqual(['customUrl'])
+  })
 })

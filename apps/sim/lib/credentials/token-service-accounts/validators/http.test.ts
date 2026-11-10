@@ -59,6 +59,19 @@ describe('tokenCheckValidator', () => {
     })
 
     await expect(scoped({ apiToken: 'token' })).resolves.toMatchObject({ displayName: 'Scoped' })
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response('<html>Access denied</html>', {
+          status: 403,
+          headers: { 'Content-Type': 'text/html' },
+        })
+      )
+    )
+    await expect(scoped({ apiToken: 'token' })).rejects.toMatchObject({
+      code: 'invalid_credentials',
+    })
     await expect(validate({ apiToken: 'token' })).rejects.toMatchObject({
       code: 'invalid_credentials',
     })

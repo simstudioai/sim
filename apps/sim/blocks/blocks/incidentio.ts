@@ -2074,6 +2074,6 @@ export const IncidentioV2Block: BlockConfig = {
       title: 'incident.io Credential',
     },
     // Alert events authenticate with their own alert source token.
-    { required: { field: 'operation', value: 'incidentio_alert_events_create', not: true } }
+    { condition: { field: 'operation', value: 'incidentio_alert_events_create', not: true } }
   ),
 }

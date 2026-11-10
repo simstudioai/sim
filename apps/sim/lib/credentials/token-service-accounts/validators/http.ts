@@ -27,8 +27,8 @@ interface TokenCheck {
   request: (fields: TokenServiceAccountFields) => TokenCheckRequest
   /**
    * The vendor answers 401 to an unknown key and 403 to a valid key that lacks
-   * this endpoint's scope, so a 403 still proves the key authenticated. Set only
-   * for vendors confirmed to reject unknown keys with 401.
+   * this endpoint's scope, so the vendor's JSON 403 still proves the key
+   * authenticated. Set only for vendors confirmed to reject unknown keys with 401.
    */
   forbiddenMeansScoped?: boolean
   /**
@@ -54,7 +54,12 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
       { method, headers, body, redirect: 'error' },
       'verify'
     )
-    if (!(check.forbiddenMeansScoped && response.status === 403)) {
+    // A JSON 403 is the vendor's own answer; an HTML one is a firewall or CDN page.
+    const scopedForbidden =
+      check.forbiddenMeansScoped &&
+      response.status === 403 &&
+      (response.headers.get('content-type') ?? '').includes('application/json')
+    if (!scopedForbidden) {
       await throwForProviderResponse(response, 'verify')
     }
     if (check.acceptsBody && response.ok) {

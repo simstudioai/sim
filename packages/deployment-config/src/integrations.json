@@ -20155,7 +20155,7 @@
       "category": "tools",
       "integrationType": "databases",
       "tags": ["vector-search", "knowledge-base"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-10-14"
     },
     {
       "type": "pipedrive",
@@ -25222,7 +25222,7 @@
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["seo", "marketing", "data-analytics"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-10-14"
     },
     {
       "type": "sendblue",

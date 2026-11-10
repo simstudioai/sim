@@ -122,6 +122,8 @@ interface SavedCredentialOptions {
    * endpoints, keyless self-hosted servers) passes a condition or `false`.
    */
   required?: SubBlockConfig['required']
+  /** Where the picker shows. Defaults to the replaced secret's own `condition`. */
+  condition?: SubBlockConfig['condition']
 }
 
 /**
@@ -150,14 +152,24 @@ export function withSavedCredential(
   }
 
   // The picker shows and is required exactly where the secrets it replaces were.
-  const { condition, required: secretRequired } = legacy.subBlocks[at]
+  const { condition: secretCondition, required: secretRequired } = legacy.subBlocks[at]
   const visibility = (subBlock: SubBlockConfig) =>
     JSON.stringify([subBlock.condition ?? null, subBlock.required ?? null])
   if (new Set(legacy.subBlocks.filter(isReplaced).map(visibility)).size > 1) {
     throw new Error(`Block "${legacy.type}": the replaced secrets show or require differently`)
   }
-  if (typeof condition === 'function' || (condition && replaced.has(condition.field))) {
-    throw new Error(`Block "${legacy.type}": the replaced secret's condition cannot carry over`)
+  const condition = options.condition ?? secretCondition
+  const conditionFields = (value: SubBlockConfig['condition']): string[] =>
+    value && typeof value !== 'function'
+      ? [value.field, ...conditionFields(value.and as SubBlockConfig['condition'])]
+      : []
+  if (
+    typeof condition === 'function' ||
+    conditionFields(condition).some((field) => replaced.has(field))
+  ) {
+    throw new Error(
+      `Block "${legacy.type}": the picker's condition cannot depend on a replaced secret`
+    )
   }
   const required = options.required ?? secretRequired ?? true
 
