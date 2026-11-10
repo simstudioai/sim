@@ -117,8 +117,10 @@ async function resolveOrganizationSurfaceGate(
       userId,
       role: access.role,
       isAdmin: access.isAdmin,
+      /** A personal organization holds only its owner; the server refuses its invitations. */
       canInviteMembers:
         access.isAdmin &&
+        row.kind !== 'personal' &&
         !deployment.invitationsDisabled &&
         !capabilityDeniedBy('invitations.send', config),
       canConnectSearchIntegrations: canConnectSearchIntegrations(config),

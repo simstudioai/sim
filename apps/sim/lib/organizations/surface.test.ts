@@ -207,6 +207,20 @@ describe('getOrganizationSurfaceContext', () => {
     }
   )
 
+  it('offers no Invite to the owner of a personal organization, which the server refuses', async () => {
+    queueTableRows(member, [{ role: 'owner' }])
+    queueTableRows(organization, [
+      { id: 'org-1', name: 'Ada', slug: 'ada', logo: null, kind: 'personal' },
+    ])
+    queueTableRows(member, [{ memberCount: 1 }])
+    setEnvFlags({ isInvitationsDisabled: false, isInvitationUiDisabled: false })
+    mockPermissionConfig.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
+
+    await expect(getOrganizationSurfaceContext('org-1', 'viewer')).resolves.toMatchObject({
+      viewer: { isAdmin: true, canInviteMembers: false },
+    })
+  })
+
   it.each([
     { disablePersonalApiKeys: false, disableOAuthAppAccess: false, allowed: true },
     { disablePersonalApiKeys: true, disableOAuthAppAccess: false, allowed: false },
