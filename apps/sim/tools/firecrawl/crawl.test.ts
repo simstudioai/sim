@@ -72,6 +72,7 @@ describe('Firecrawl legacy crawl depth', () => {
     ['https://example.com/docs/guide/', '/docs/guide/setup', true],
     ['https://example.com/docs/guide/index.html', '/docs/guide/setup', true],
     ['https://example.com/docs/guide', '/docs/guide/setup/advanced', false],
+    ['docs.example.com/guide', '/guide/setup', true],
   ])('counts depth from the start URL %s for %s', (url, path, accepted) => {
     const body = crawlBody({ maxDepth: 1, url })
     const patterns = (body.includePaths as string[]).map((pattern) => new RegExp(pattern))

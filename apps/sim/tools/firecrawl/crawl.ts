@@ -18,10 +18,14 @@ const logger = createLogger('FirecrawlCrawlTool')
 const POLL_INTERVAL_MS = 5000
 const MAX_POLL_TIME_MS = DEFAULT_EXECUTION_TIMEOUT_MS
 
-/** Path segments of a URL as Firecrawl v1 counted them: index files add no depth. */
+/**
+ * Path segments of a URL as Firecrawl v1 counted them: index files add no depth. A URL without
+ * a scheme is read as https, as Firecrawl reads it.
+ */
 function urlPathDepth(url: string): number {
-  if (!URL.canParse(url)) return 0
-  return new URL(url).pathname
+  const absolute = /^[a-z][a-z\d+.-]*:\/\//i.test(url) ? url : `https://${url}`
+  if (!URL.canParse(absolute)) return 0
+  return new URL(absolute).pathname
     .split('/')
     .filter((segment) => segment !== '' && segment !== 'index.html' && segment !== 'index.php')
     .length

@@ -148,7 +148,7 @@ The easiest way to run Sim locally is the interactive setup wizard:
 npx sim-setup
 ```
 
-When it finishes, open [http://localhost:3000/](http://localhost:3000/) in your browser. Inside a cloned Sim repository, run `bun run sim-setup` for the local development mode.
+When it finishes, open [http://localhost:3000/](http://localhost:3000/) in your browser. Inside a cloned Sim repository, run `bun run sim-setup --mode dev` for the local development mode.
 
 #### Requirements
 
