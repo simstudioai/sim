@@ -201,7 +201,9 @@ afterAll(async () => {
     .select({ id: member.organizationId })
     .from(member)
     .where(inArray(member.userId, userIds))
-  await db.delete(subscription).where(inArray(subscription.referenceId, userIds))
+  await db
+    .delete(subscription)
+    .where(inArray(subscription.referenceId, [...userIds, ...organizations.map((row) => row.id)]))
   if (workspaces.length > 0) {
     await db.delete(workspace).where(
       inArray(
@@ -572,6 +574,37 @@ describe('starting a team from a personal organization', () => {
       .from(permissions)
       .where(and(eq(permissions.userId, collaboratorId), eq(permissions.entityId, ownerWorkspace)))
     expect(collaboratorAccess).toEqual({ permissionType: 'write' })
+  })
+
+  it('attaches the owner’s workspaces when the webhook retries after the first attach failed', async () => {
+    const ownerId = await createUser()
+    const ownerWorkspace = await createLegacyPersonalWorkspace(ownerId, 'Owner workspace')
+    const personal = await provisionPersonalOrganization(ownerId)
+    if (personal.status !== 'provisioned') throw new Error('expected provisioning')
+    // The first delivery committed the team and the subscription transfer, then its attach threw.
+    const { organizationId: teamId } = await createOrganizationWithOwner({
+      ownerUserId: ownerId,
+      name: 'Team',
+      slug: `team-${generateId()}`.toLowerCase(),
+      metadata: { createdForTeamPlan: true, originalUserId: ownerId },
+    })
+    const teamSubscription = {
+      id: generateId(),
+      plan: 'team',
+      referenceId: teamId,
+      status: 'active',
+      seats: 5,
+    }
+    await db.insert(subscription).values(teamSubscription)
+    expect((await workspaceRow(ownerWorkspace)).organizationId).toBeNull()
+
+    await ensureOrganizationForTeamSubscription(teamSubscription)
+
+    expect(await workspaceRow(ownerWorkspace)).toMatchObject({
+      organizationId: teamId,
+      workspaceMode: 'organization',
+      billedAccountUserId: ownerId,
+    })
   })
 })
 

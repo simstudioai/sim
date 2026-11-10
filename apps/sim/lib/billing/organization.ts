@@ -16,7 +16,10 @@ import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/iden
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { isEnterprise, isOrgPlan, isPaid } from '@/lib/billing/plan-helpers'
 import { SubscriptionReferenceNotFoundError } from '@/lib/billing/subscriptions/errors'
-import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
+import {
+  ENTITLED_SUBSCRIPTION_STATUSES,
+  hasPaidSubscriptionStatus,
+} from '@/lib/billing/subscriptions/utils'
 import { toDecimal } from '@/lib/billing/utils/decimal'
 import type { DbTransaction } from '@/lib/db/types'
 import {
@@ -95,6 +98,37 @@ export async function createOrganizationForTeamPlan(
   }
 }
 
+/**
+ * Re-runs, on every later delivery for an organization this flow created, the attach the creating
+ * delivery runs after its own commit: when that attach throws, the webhook's retry finds the
+ * subscription already organization-scoped and would otherwise never attach the owner's
+ * workspaces. Idempotent: the attach picks up only workspaces the owner still holds outside an
+ * organization, and returns at once when there are none.
+ */
+async function attachTeamPlanOwnerWorkspaces(subscription: SubscriptionData): Promise<void> {
+  if (!hasPaidSubscriptionStatus(subscription.status)) return
+  const [owner] = await db
+    .select({ userId: member.userId })
+    .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(
+      and(
+        eq(member.organizationId, subscription.referenceId),
+        eq(member.role, 'owner'),
+        eq(organization.kind, 'team'),
+        sql`${organization.metadata}->>'createdForTeamPlan' = 'true'`
+      )
+    )
+    .limit(1)
+  if (!owner) return
+  await attachOwnedWorkspacesToOrganization({
+    ownerUserId: owner.userId,
+    organizationId: subscription.referenceId,
+    externalMemberPolicy: 'keep-external',
+    includeArchived: true,
+  })
+}
+
 export async function ensureOrganizationForTeamSubscription(
   subscription: SubscriptionData
 ): Promise<SubscriptionData> {
@@ -111,6 +145,7 @@ export async function ensureOrganizationForTeamSubscription(
         subscription.enterpriseOperationId ?? null
       )
     })
+    await attachTeamPlanOwnerWorkspaces(subscription)
     return subscription
   }
 
