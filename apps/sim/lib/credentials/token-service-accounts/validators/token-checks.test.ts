@@ -385,30 +385,30 @@ describe('saved credentials for a host the user chose', () => {
   it.each(HOST_CHOSEN_VALIDATORS)(
     '%s refuses credentials smuggled into the URL before sending the key anywhere',
     async (_, validate) => {
-      inputValidationMockFns.mockSecureFetchWithValidation.mockReset()
+      inputValidationMockFns.mockSecureFetchWithPinnedIP.mockReset()
 
       await expect(
         validate({ apiToken: 'secret', domain: 'https://user:pass@instance.example.com' })
       ).rejects.toMatchObject({ code: 'invalid_credentials' })
-      expect(inputValidationMockFns.mockSecureFetchWithValidation).not.toHaveBeenCalled()
+      expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
     }
   )
 
   it.each(HOST_CHOSEN_VALIDATORS)(
     '%s refuses a non-http scheme instead of reading it as a host',
     async (_, validate) => {
-      inputValidationMockFns.mockSecureFetchWithValidation.mockReset()
+      inputValidationMockFns.mockSecureFetchWithPinnedIP.mockReset()
 
       await expect(
         validate({ apiToken: 'secret', domain: 'ftp://instance.example.com' })
       ).rejects.toMatchObject({ code: 'invalid_credentials' })
-      expect(inputValidationMockFns.mockSecureFetchWithValidation).not.toHaveBeenCalled()
+      expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
     }
   )
 })
 
 describe('saved credentials whose vendor answers a restricted token in its error', () => {
-  const secureFetch = inputValidationMockFns.mockSecureFetchWithValidation
+  const secureFetch = inputValidationMockFns.mockSecureFetchWithPinnedIP
 
   it.each([
     [
@@ -436,6 +436,11 @@ describe('saved credentials whose vendor answers a restricted token in its error
       'invalid_credentials',
     ],
   ])('%s', async (_, validate, reply, code) => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockReset().mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.7',
+      originalHostname: 'instance.example.com',
+    })
     secureFetch.mockReset().mockResolvedValue(reply)
 
     const result = validate({ apiToken: 'tok', domain: 'https://instance.example.com' })

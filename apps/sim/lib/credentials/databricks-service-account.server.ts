@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { validateDatabricksWorkspaceHost } from '@/lib/core/security/input-validation'
+import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { parseServiceAccountConfig } from '@/lib/credentials/service-account-config'
 import {
   providerFailureCode,
@@ -42,6 +43,8 @@ const DATABRICKS_CREDENTIAL_SECRET_TYPE = 'databricks_credential_v1' as const
 const DATABRICKS_WORKLOAD_IDENTITY_AUDIENCE = WORKLOAD_IDENTITY_AUDIENCES.databricks
 
 const REQUEST_TIMEOUT_MS = 15_000
+/** Token and identity responses are small; the cap keeps a misbehaving host from exhausting memory. */
+const MAX_RESPONSE_BYTES = 1024 * 1024
 const CLIENT_ID_PATTERN = /^[A-Za-z0-9-]{8,128}$/
 
 /** Workspace origin with Databricks' own host allowlist as the SSRF guard. */
@@ -143,7 +146,10 @@ async function requestWorkspaceToken(
     redirect: 'error',
     signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
   })
-  const payload = (await response.json().catch(() => ({}))) as {
+  const payload = (await readResponseJsonWithLimit(response, {
+    maxBytes: MAX_RESPONSE_BYTES,
+    label: 'Databricks token response',
+  }).catch(() => ({}))) as {
     access_token?: unknown
     error_description?: unknown
     error?: unknown
@@ -240,7 +246,10 @@ async function verifyWorkspaceIdentity(
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
     if (!response.ok) throw new Error(`workspace returned HTTP ${response.status}`)
-    const me = (await response.json().catch(() => ({}))) as {
+    const me = (await readResponseJsonWithLimit(response, {
+      maxBytes: MAX_RESPONSE_BYTES,
+      label: 'Databricks identity response',
+    }).catch(() => ({}))) as {
       userName?: unknown
       displayName?: unknown
     }
