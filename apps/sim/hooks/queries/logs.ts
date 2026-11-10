@@ -264,6 +264,67 @@ export function trimLogsSnapshotToFirstPage(
   )
 }
 
+/**
+ * Joins the runs that started since a newest-first snapshot was taken to its head, reading one page
+ * and a revision count instead of every page held, so a reader deep in the list keeps their place.
+ * The fresh first page replaces the held copies of the runs it carries, so a run that changed near
+ * the head shows its new state, and the later pages keep their cursors into the held snapshot.
+ *
+ * Changes nothing and answers false when only reading every page again is exact: the list is not
+ * newest first or holds one page; the held snapshot no longer reads as it did (a run joined, left
+ * or moved at or before its instant); more runs started than one page holds, leaving a gap; or the
+ * snapshot changed while the merge read.
+ */
+export async function mergeNewLogsIntoSnapshot(
+  queryClient: QueryClient,
+  workspaceId: string | undefined,
+  filters: LogFilters
+): Promise<boolean> {
+  const key = logKeys.snapshot(workspaceId, filters)
+  const held =
+    queryClient.getQueryData<InfiniteData<LogSnapshotPage, LogSnapshotCursor | null>>(key)
+  const head = held?.pages[0]
+  if (
+    !workspaceId ||
+    !held ||
+    !head?.revision ||
+    !head.snapshotAt ||
+    held.pages.length < 2 ||
+    filters.sortBy !== 'date' ||
+    filters.sortOrder !== 'desc'
+  )
+    return false
+  const [fresh, recheck] = await Promise.all([
+    requestJson(listLogsContract, {
+      query: { ...head.query, snapshotAt: 'now', includeRevision: true },
+    }),
+    requestJson(listLogsContract, {
+      query: { ...head.query, snapshotAt: head.snapshotAt, countOnly: true, includeRevision: true },
+    }),
+  ])
+  if (recheck.revision !== head.revision) return false
+  const freshIds = new Set(fresh.data.map((log) => log.id))
+  const reachesHeld =
+    fresh.nextCursor === null ||
+    held.pages.some((page) => page.logs.some((log) => freshIds.has(log.id)))
+  if (!reachesHeld || queryClient.getQueryData(key) !== held) return false
+  queryClient.setQueryData<InfiniteData<LogSnapshotPage, LogSnapshotCursor | null>>(key, {
+    pages: held.pages.map((page, index) => {
+      const kept = page.logs.filter((log) => !freshIds.has(log.id))
+      return index === 0
+        ? {
+            ...page,
+            logs: [...fresh.data, ...kept],
+            snapshotAt: fresh.snapshotAt,
+            revision: fresh.revision,
+          }
+        : { ...page, logs: kept }
+    }),
+    pageParams: held.pageParams,
+  })
+  return true
+}
+
 /** Checks older matching rows for late visibility or sort changes, stopping once refresh is needed. */
 export function useLogSnapshotUpdates(
   workspaceId: string | undefined,

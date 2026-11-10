@@ -142,6 +142,7 @@ export function LiveRuns({ workspaceId, integrationTriggers }: LiveRunsProps) {
       workflows={options.workflows}
       folders={options.folders}
       more={live.more}
+      onRowsInView={live.onRowsInView}
       rowActions={rowActions}
       exportAction={{
         href: exportHref,

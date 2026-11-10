@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { inferParserType } from 'nuqs'
@@ -23,6 +23,7 @@ import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/t
 import { useFolderMap } from '@/hooks/queries/folders'
 import {
   type LogFilters,
+  mergeNewLogsIntoSnapshot,
   trimLogsSnapshotToFirstPage,
   useCancelExecution,
   useDashboardStats,
@@ -462,8 +463,11 @@ export function useRunFilterOptions(workspaceId: string) {
 /**
  * The workspace's runs for a list view, paged by the server in the view's order. The list holds a
  * snapshot, as legacy's does, and reads its first page again on its own once new or changed runs
- * match it, so new runs join without a refresh control and later pages load again as the reader
- * nears the end. The dashboard view reads none of it.
+ * match it, so new runs join without a refresh control. How it reads again keeps the reader's
+ * place: with every row in view on the first page, the list drops to that page and later pages load
+ * again as the reader nears the end; deeper in a newest-first list, runs that only started since
+ * join the head and the later pages stay; otherwise every page held is read again. The list reports
+ * the last row in view through `onRowsInView`. The dashboard view reads none of it.
  */
 export function useLiveRuns(workspaceId: string, view: RunListView) {
   const queryClient = useQueryClient()
@@ -477,12 +481,30 @@ export function useLiveRuns(workspaceId: string, view: RunListView) {
     enabled: enabled && newRuns === 0 && !changedPage,
   }).data
   const stale = newRuns > 0 || updated === true || changedPage
+  const onlyNewRuns = newRuns > 0 && updated !== true && !changedPage
   const { refetch, isFetching } = snapshot
+  const lastRowInView = useRef(0)
+  const merging = useRef(false)
   useEffect(() => {
-    if (!enabled || !stale || isFetching) return
-    trimLogsSnapshotToFirstPage(queryClient, workspaceId, filters)
-    void refetch()
-  }, [enabled, stale, isFetching, refetch, queryClient, workspaceId, filters])
+    if (!enabled || !stale || isFetching || merging.current) return
+    const firstPageRuns = first?.logs.filter((log) => log.executionId).length ?? 0
+    if (lastRowInView.current < firstPageRuns) {
+      trimLogsSnapshotToFirstPage(queryClient, workspaceId, filters)
+      void refetch()
+      return
+    }
+    if (!onlyNewRuns) {
+      void refetch()
+      return
+    }
+    merging.current = true
+    void mergeNewLogsIntoSnapshot(queryClient, workspaceId, filters)
+      .catch(() => false)
+      .then((merged) => {
+        merging.current = false
+        if (!merged) void refetch()
+      })
+  }, [enabled, stale, onlyNewRuns, isFetching, first, refetch, queryClient, workspaceId, filters])
   const read = queryRead(snapshot, 'Runs could not be loaded.')
   const pages = snapshot.data?.pages
   const { runs, commands } = useMemo(() => {
@@ -508,6 +530,10 @@ export function useLiveRuns(workspaceId: string, view: RunListView) {
         ? getErrorMessage(snapshot.error, 'More runs could not be loaded.')
         : undefined,
       onLoadMore: () => void snapshot.fetchNextPage(),
+    },
+    /** The index of the last run in view, which decides how a refresh keeps the reader's place. */
+    onRowsInView: (lastIndex: number) => {
+      lastRowInView.current = lastIndex
     },
   }
 }

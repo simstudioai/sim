@@ -5,6 +5,7 @@ import {
   memo,
   type ReactNode,
   useCallback,
+  useEffect,
   useId,
   useLayoutEffect,
   useRef,
@@ -111,6 +112,8 @@ interface RunListProps {
   folders?: readonly RunFilterOption[]
   /** Reading further down the list; the page refreshes itself, so new runs join on their own. */
   more: ListEndProps
+  /** Told the index of the last run in view as the reader scrolls, so a refresh can keep their place. */
+  onRowsInView?: (lastIndex: number) => void
   /** A row's commands on its ellipsis and right-click; without them a row has no menu. */
   rowActions?: (run: RunSummary) => RunRowActions
   /** Where Export downloads the view's runs as CSV, and whether the viewer may. */
@@ -133,6 +136,7 @@ export function RunList({
   workflows,
   folders = [],
   more,
+  onRowsInView,
   rowActions,
   exportAction,
   dashboard,
@@ -158,6 +162,10 @@ export function RunList({
   const { listRef, virtualizer, entries, spaceAfter } = useVirtualRows(runs, {
     pinnedId: revealedRun,
   })
+  const lastRowInView = virtualizer.range?.endIndex ?? 0
+  useEffect(() => {
+    onRowsInView?.(lastRowInView)
+  }, [onRowsInView, lastRowInView])
   const clearFilters = () =>
     void setView({
       period: null,
