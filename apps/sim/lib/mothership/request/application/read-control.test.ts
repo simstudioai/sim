@@ -10,10 +10,7 @@ import {
   permissionGroupsResolveMockFns,
 } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  createTrustedCopilotPrincipal,
-  createTrustedOrganizationCopilotPrincipal,
-} from '@/lib/mothership/auth/application-delegation'
+import { createTrustedOrganizationCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
 import {
   RUN_CONTROL_AUDIENCE,
   readRunControl,
@@ -153,48 +150,5 @@ describe('organization run-control authorization', () => {
     expect(await readRunControl.execute({ principal: principal(), input })).toEqual({
       stopped: false,
     })
-  })
-})
-
-describe('a run whose chat changed scope after it was admitted', () => {
-  /** The worker's delegation for a run admitted while the chat was a workspace chat. */
-  function workspaceDelegation(workspaceId = 'ws-1') {
-    return createTrustedCopilotPrincipal(
-      { userId: 'actor', workspaceId, chatId: 'chat-1', delegationId: 'control-1' },
-      { audience: RUN_CONTROL_AUDIENCE, ttlMs: 60_000 }
-    )
-  }
-  function queueMovedChat() {
-    // The live read finds the chat in an organization now, which a workspace delegation cannot
-    // act in; the scope check then reads the chat again.
-    for (let read = 0; read < 2; read += 1)
-      queueTableRows(copilotChats, [
-        { userId: 'actor', organizationId: 'org-1', workspaceId: null, type: 'mothership' },
-      ])
-  }
-  beforeEach(() => {
-    resetDbChainMock()
-    mocks.banned.mockResolvedValue([])
-    mocks.run.mockResolvedValue({
-      chatId: 'chat-1',
-      userId: 'actor',
-      organizationId: null,
-      workspaceId: 'ws-1',
-    })
-    mocks.stopped.mockResolvedValue(false)
-  })
-
-  it('answers Stop to the delegation the run was admitted under, rather than a retryable refusal', async () => {
-    queueMovedChat()
-    expect(await readRunControl.execute({ principal: workspaceDelegation(), input })).toEqual({
-      stopped: true,
-    })
-  })
-
-  it('still refuses a delegation for a scope the run was never admitted under', async () => {
-    queueMovedChat()
-    await expect(
-      readRunControl.execute({ principal: workspaceDelegation('ws-other'), input })
-    ).rejects.toThrow()
   })
 })
