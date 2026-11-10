@@ -7,7 +7,7 @@ import { SelectField, TextField } from '@sim/emcn/field'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
 import { DatePicker } from '@sim/emcn/picker/date-picker'
-import { InlineNotice } from '@sim/emcn/status'
+import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import {
   ALL_TAG_SLOTS,
   type DocumentData,
@@ -159,6 +159,8 @@ export function DocumentTagsModal({
   const [pending, setPending] = useState<DocumentTag[] | null>(null)
 
   const baseTags = baseDefinitions.data ?? []
+  /** Without the base's definitions, free slots and reusable tags are unknown, so adding waits. */
+  const baseFailed = Boolean(baseDefinitions.error && !baseDefinitions.data)
   /** The form reads what is saved: the pending list would count the tag being applied as taken. */
   const saved = document ? buildTags(document, documentDefinitions.data ?? []) : []
   const tags = pending ?? saved
@@ -348,11 +350,24 @@ export function DocumentTagsModal({
       footerStartAction={{
         label: 'Add tag',
         variant: 'secondary',
-        disabled: !canAdd || !document,
+        disabled: !canAdd || !document || baseFailed,
         onClick: startCreate,
       }}
     >
-      {document && documentDefinitions.status === 'success' && tags.length === 0 ? (
+      {baseFailed && (
+        <FailureNotice
+          message='Could not load this knowledge base’s tags'
+          retrying={baseDefinitions.isFetching}
+          onRetry={() => void baseDefinitions.refetch()}
+        />
+      )}
+      {documentDefinitions.error && !documentDefinitions.data ? (
+        <FailureNotice
+          message='Could not load this document’s tags'
+          retrying={documentDefinitions.isFetching}
+          onRetry={() => void documentDefinitions.refetch()}
+        />
+      ) : document && documentDefinitions.status === 'success' && tags.length === 0 ? (
         <EmptyState
           title='No tags on this document'
           description='Add a tag to organize and filter documents.'
