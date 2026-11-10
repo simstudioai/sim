@@ -112,7 +112,12 @@ export const settingsSections: Record<MothershipSettingsScope, readonly Settings
       id: 'teammates',
       label: 'Teammates',
       uiSection: 'teammates',
-      cli: ['workspaces members', 'workspaces invitations create'],
+      cli: [
+        'workspaces members list',
+        'workspaces members update',
+        'workspaces members remove',
+        'workspaces invitations create',
+      ],
     },
     {
       id: 'secrets',

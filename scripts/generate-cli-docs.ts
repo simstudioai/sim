@@ -475,6 +475,15 @@ const LEGACY_COMMAND_ANCHORS: Record<string, string> = {
     'wait-for-copy-and-deployment-readiness-exit-3-for-configuration-1-for-failure-or-4-for-timeout',
 }
 
+/**
+ * Reference-page anchors a renamed command keeps, so links to the spelling it
+ * shipped under still land on it. `workspaces members` became a group whose
+ * default subcommand is `list`.
+ */
+const LEGACY_REFERENCE_ANCHORS: Record<string, string> = {
+  'workspaces members list': 'sim-workspaces-members',
+}
+
 const VERB_ORDER = [
   'list',
   'ls',
@@ -922,7 +931,9 @@ function renderCommand(entry: DocumentedCommand, options: RenderOptions = {}): s
   const description = entry.command.description()
   const operation = operationOf(entry.command)
   const spec = operation ? CLI_CONTRACT[operation] : undefined
-  const anchor = commandHeadings ? undefined : LEGACY_COMMAND_ANCHORS[entry.path.join(' ')]
+  const anchor = (commandHeadings ? LEGACY_REFERENCE_ANCHORS : LEGACY_COMMAND_ANCHORS)[
+    entry.path.join(' ')
+  ]
   const lines = [`${'#'.repeat(level)} ${escapeProse(heading)}${anchor ? ` [#${anchor}]` : ''}`, '']
   if (commandHeadings && description) lines.push(escapeProse(sentenceCase(description)), '')
   if (!commandHeadings) {

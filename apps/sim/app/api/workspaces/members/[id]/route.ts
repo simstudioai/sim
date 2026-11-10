@@ -11,16 +11,14 @@ import {
   NoWorkspaceAccessError,
 } from '@/lib/core/application/workspace-authorization'
 import { captureServerEvent } from '@/lib/posthog/server'
-import {
-  removeWorkspaceMember,
-  removeWorkspaceMemberOperation,
-} from '@/lib/workspaces/application/remove-member'
+import { workspaceMemberOperations } from '@/lib/workspaces/application/operations'
+import { removeWorkspaceMember } from '@/lib/workspaces/application/remove-member'
 import { WorkspaceBillingAccountRemovalError } from '@/lib/workspaces/utils'
 
 export const DELETE = defineInternalJsonRoute({
   contract: removeWorkspaceMemberContract,
   auth: internalSessionAuth,
-  operation: removeWorkspaceMemberOperation,
+  operation: workspaceMemberOperations.remove,
   rateLimit: internalRateLimits.none({
     reason: 'Preserve existing workspace member removal policy.',
   }),

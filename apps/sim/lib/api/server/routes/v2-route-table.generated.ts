@@ -973,6 +973,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/members/route'),
   },
   {
+    pattern: '/api/v2/workspaces/{workspaceId}/members/{userId}',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/members/[userId]/route'),
+  },
+  {
     pattern: '/api/v2/workspaces/{workspaceId}/operations',
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/operations/route'),
   },

@@ -78,7 +78,7 @@ class WorkspaceContextChangedError extends HttpError {
  * reach the client as a generic server error, which is what bounding the lock
  * wait would otherwise have produced.
  */
-class WorkspaceBusyError extends HttpError {
+export class WorkspaceBusyError extends HttpError {
   readonly statusCode = 409
 
   constructor() {
@@ -87,12 +87,16 @@ class WorkspaceBusyError extends HttpError {
   }
 }
 
-/** A target whose membership the organization's directory owns; the guard's own wording names the remedy. */
+/**
+ * A target whose membership the organization's directory owns; the guard's own
+ * wording names the remedy. The coded refusal stays its `cause` so surfaces that
+ * publish `details.code` can still name it.
+ */
 class DirectoryManagedMemberError extends HttpError {
   readonly statusCode = 403
 
   constructor(cause: ForbiddenOperationError) {
-    super(cause.message)
+    super(cause.message, { cause })
     this.name = 'DirectoryManagedMemberError'
   }
 }

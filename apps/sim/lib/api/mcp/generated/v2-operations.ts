@@ -359,6 +359,8 @@ import {
   v2GetWorkspaceContract,
   v2ListWorkspaceMembersContract,
   v2ListWorkspacesContract,
+  v2RemoveWorkspaceMemberContract,
+  v2UpdateWorkspaceMemberContract,
 } from '@/lib/api/contracts/v2/workspaces'
 import type { V2McpOperation } from '@/lib/api/mcp/types'
 
@@ -2454,6 +2456,17 @@ export const V2_MCP_OPERATIONS = {
         '@/app/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/[userId]/route'
       ).then((route) => route.DELETE),
   },
+  removeWorkspaceMember: {
+    contract: v2RemoveWorkspaceMemberContract,
+    summary: 'Remove workspace member',
+    description:
+      'Remove a member’s workspace access, or leave the workspace by naming yourself. Removing someone else requires workspace Admin access; any member may leave. The last Admin cannot leave, organization Admins hold access through their organization role and cannot be removed here, and the workspace billing account cannot be removed until billing is reassigned. Removing the workspace owner transfers ownership to the billing account. When this was the member’s last workspace in its organization, their organization membership and seat are removed too and all of their sessions end, since this endpoint is called with an API key or OAuth token rather than from a signed-in browser session. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/members/[userId]/route').then(
+        (route) => route.DELETE
+      ),
+  },
   renameFile: {
     contract: v2RenameFileContract,
     summary: 'Rename file',
@@ -3026,6 +3039,17 @@ export const V2_MCP_OPERATIONS = {
     handler: () =>
       import('@/app/api/v2/workspaces/[workspaceId]/fork/mappings/route').then(
         (route) => route.PUT
+      ),
+  },
+  updateWorkspaceMember: {
+    contract: v2UpdateWorkspaceMemberContract,
+    summary: 'Update workspace member',
+    description:
+      'Change one existing member’s workspace role. Requires workspace Admin access. Only existing members can be changed; anyone else is Not found, and people are added with Create workspace invitations. You cannot lower your own role, and organization Admins, the workspace owner, and the workspace billing account always keep Admin. Members whose organization membership an identity provider manages cannot be changed here. Requesting the role a member already holds changes nothing and records no audit entry, except that an organization Admin is refused whatever role is requested. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/members/[userId]/route').then(
+        (route) => route.PATCH
       ),
   },
   upsertCredentialMember: {

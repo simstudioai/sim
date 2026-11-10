@@ -8900,12 +8900,12 @@ sim workspaces fork-resources [options]
 
 API request and response schemas: [listWorkspaceForkResources](/api-reference/workspace-sync/listWorkspaceForkResources).
 
-### sim workspaces members
+### sim workspaces members list [#sim-workspaces-members]
 
 List workspace members
 
 ```bash
-sim workspaces members [options]
+sim workspaces members list [options]
 ```
 
 **Options**
@@ -8919,6 +8919,68 @@ sim workspaces members [options]
 </CommandTable>
 
 API request and response schemas: [listWorkspaceMembers](/api-reference/workspaces/listWorkspaceMembers).
+
+### sim workspaces members remove
+
+Remove workspace member (OAuth login or personal API key required)
+
+This removes the member’s workspace access. If it was their last workspace in the organization, their organization membership is removed and their sessions end.
+
+```bash
+sim workspaces members remove <userId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `userId` | Yes | User identifier of the workspace member, as returned by List workspace members. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+API request and response schemas: [removeWorkspaceMember](/api-reference/workspaces/removeWorkspaceMember).
+
+### sim workspaces members update
+
+Update workspace member (OAuth login or personal API key required)
+
+```bash
+sim workspaces members update <userId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `userId` | Yes | User identifier of the workspace member, as returned by List workspace members. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--role <value>` | Yes | New workspace role. Inherited organization Admin access, the workspace owner, and the workspace billing account keep Admin and cannot be changed here. Accepted values: `admin`, `write`, `read`. |
+
+</CommandTable>
+
+API request and response schemas: [updateWorkspaceMember](/api-reference/workspaces/updateWorkspaceMember).
 
 ### sim workspaces list
 
