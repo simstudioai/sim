@@ -43,13 +43,6 @@ export const organizationMemberQuerySchema = z
   })
   .passthrough()
 
-export const createOrganizationBodySchema = z
-  .object({
-    name: z.string().optional(),
-    slug: z.string().optional(),
-  })
-  .passthrough()
-
 export const updateOrganizationBodySchema = z.object({
   name: z.string().trim().min(1, 'Organization name is required').optional(),
   slug: z

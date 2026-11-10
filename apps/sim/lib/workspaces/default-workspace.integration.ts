@@ -1,9 +1,10 @@
 /**
- * The default workspace a first visit creates, against real PostgreSQL. The shell's server render,
- * the client's list read and the `/workspace` entry all run `listWorkspacesEnsuringDefault` for the
- * same viewer at once. Failure modes: concurrent first visits each creating a default workspace;
- * a later visit creating another; and a visit returning a list that misses the workspace another
- * visit created.
+ * The default workspace a first visit creates, against real PostgreSQL. The shell's server render
+ * and the client's list read (both naming the shell's organization) and the `/workspace` entry
+ * (naming none) all run `listViewerWorkspaces` for the same viewer at once. Failure modes:
+ * concurrent first visits each creating a default workspace; a later visit creating another; a
+ * visit returning a list that misses the workspace another visit created; and a named
+ * organization the viewer does not belong to deciding anything.
  */
 import { db } from '@sim/db'
 import {
@@ -18,7 +19,9 @@ import {
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
+import { OrganizationMembershipNotFoundError } from '@/lib/core/application/organization-authorization'
 import { ensureUserOrganization } from '@/lib/organizations/provision-personal'
+import { listViewerWorkspaces } from '@/lib/workspaces/application/viewer-workspaces'
 import { listWorkspacesEnsuringDefault } from '@/lib/workspaces/create'
 
 const userIds: string[] = []
@@ -86,12 +89,7 @@ describe('listWorkspacesEnsuringDefault', () => {
   it('creates exactly one default workspace across concurrent first visits', async () => {
     const userId = await createUser()
     await ensureUserOrganization(userId)
-    const visit = () =>
-      listWorkspacesEnsuringDefault({
-        userId,
-        userName: 'Ada Lovelace',
-        activeOrganizationId: null,
-      })
+    const visit = () => listWorkspacesEnsuringDefault({ userId, activeOrganizationId: null })
 
     const payloads = await Promise.all([visit(), visit(), visit(), visit(), visit()])
 
@@ -103,5 +101,21 @@ describe('listWorkspacesEnsuringDefault', () => {
 
     await visit()
     expect(await workspaceIdsOf(userId)).toEqual(created)
+  })
+
+  it('refuses a named organization the viewer does not belong to before creating anything', async () => {
+    const outsiderId = await createUser()
+    const userId = await createUser()
+    const foreignOrganizationId = await ensureUserOrganization(outsiderId)
+    if (!foreignOrganizationId) throw new Error('Expected the outsider to own an organization')
+    const principal = { kind: 'session' as const, userId, sessionId: `session-${generateId()}` }
+
+    await expect(
+      listViewerWorkspaces.execute({
+        principal,
+        input: { scope: 'active', organizationId: foreignOrganizationId },
+      })
+    ).rejects.toBeInstanceOf(OrganizationMembershipNotFoundError)
+    expect(await workspaceIdsOf(userId)).toEqual([])
   })
 })

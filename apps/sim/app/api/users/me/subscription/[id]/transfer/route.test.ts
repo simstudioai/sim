@@ -58,13 +58,14 @@ function makeRequest(body: unknown, id = 'sub-1') {
 describe('POST /api/users/me/subscription/[id]/transfer', () => {
   beforeEach(() => {
     resetDbChainMock()
-    authMockFns.mockGetSession.mockResolvedValue(
-      createSession({
+    authMockFns.mockGetSession.mockResolvedValue({
+      ...createSession({
         userId: 'user-1',
         email: 'owner@example.com',
         name: 'Owner',
-      })
-    )
+      }),
+      session: { id: 'session-1' },
+    })
   })
 
   it('rejects transfers for non-organization subscriptions', async () => {

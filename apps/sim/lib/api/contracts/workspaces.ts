@@ -68,16 +68,21 @@ export const workspaceCreationPolicySchema = z.object({
 
 export type WorkspaceCreationPolicy = z.output<typeof workspaceCreationPolicySchema>
 
-export const listWorkspacesQuerySchema = z.object({
+const listWorkspacesQuerySchema = z.object({
   scope: workspaceScopeSchema.default('active'),
+  /**
+   * The organization the viewer is working in (the shell's), which the creation policy and a
+   * default workspace target in place of their landing organization. Membership is re-checked.
+   */
+  organizationId: z.string().min(1).optional(),
 })
 
 export type WorkspaceQueryScope = NonNullable<z.input<typeof listWorkspacesQuerySchema>['scope']>
 
 export const createWorkspaceBodySchema = createWorkspaceInputSchema.extend({
   /**
-   * The organization the creator is working in, which the creation policy targets in place of the
-   * session's active organization. The creation transaction re-checks the creator's membership.
+   * The organization the creator is working in, which the creation policy targets in place of
+   * their landing organization. Membership is re-checked.
    */
   organizationId: z.string().min(1).optional(),
 })

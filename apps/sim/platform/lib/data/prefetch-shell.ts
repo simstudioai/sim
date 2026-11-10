@@ -37,7 +37,7 @@ import {
  * browser may hold, so first paint makes no `get-session` request of its own.
  */
 export async function prefetchShell(organization: PlatformOrganization): Promise<DehydratedState> {
-  const { principal, userName } = await requireSessionViewer()
+  const { principal } = await requireSessionViewer()
   const organizationId = organization.organization.id
   const queryClient = makeQueryClient()
   const session = toAppSession(await getSession())
@@ -59,11 +59,7 @@ export async function prefetchShell(organization: PlatformOrganization): Promise
           }),
         staleTime: MOTHERSHIP_CHAT_LIST_STALE_TIME,
       }),
-    seedWorkspaceList(
-      queryClient,
-      { userId: principal.userId, userName, activeOrganizationId: organizationId },
-      withinPrefetchBudget
-    ),
+    seedWorkspaceList(queryClient, { principal, organizationId }, withinPrefetchBudget),
     queryClient.prefetchQuery({
       queryKey: userProfileKeys.profile(),
       queryFn: () =>

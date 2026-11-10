@@ -454,7 +454,6 @@
     "apps/sim/app/api/mothership/chats/read/route.ts": 2,
     "apps/sim/app/api/organizations/[id]/members/[memberId]/route.ts": 2,
     "apps/sim/app/api/organizations/[id]/transfer-ownership/route.ts": 2,
-    "apps/sim/app/api/organizations/route.ts": 2,
     "apps/sim/app/api/pinned-items/[resourceType]/[resourceId]/route.ts": 1,
     "apps/sim/app/api/pinned-items/route.ts": 1,
     "apps/sim/app/api/resume/poll/route.ts": 2,
@@ -463,7 +462,6 @@
     "apps/sim/app/api/schedules/route.ts": 2,
     "apps/sim/app/api/superuser/import-workflow/route.ts": 2,
     "apps/sim/app/api/tools/custom/route.ts": 2,
-    "apps/sim/app/api/users/me/subscription/[id]/transfer/route.ts": 2,
     "apps/sim/app/api/v1/admin/access-control/route.ts": 2,
     "apps/sim/app/api/v1/admin/audit-logs/[id]/route.ts": 2,
     "apps/sim/app/api/v1/admin/audit-logs/route.ts": 2,
@@ -518,8 +516,7 @@
     "apps/sim/app/api/workspaces/[id]/environment/route.ts": 2,
     "apps/sim/app/api/workspaces/[id]/inbox/senders/route.ts": 1,
     "apps/sim/app/api/workspaces/[id]/inbox/tasks/route.ts": 1,
-    "apps/sim/app/api/workspaces/[id]/route.ts": 3,
-    "apps/sim/app/api/workspaces/route.ts": 2
+    "apps/sim/app/api/workspaces/[id]/route.ts": 3
   },
   "bare-route-handler": {
     "apps/sim/app/api/health/route.ts": 1,

@@ -19,15 +19,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockCreateWorkspace,
   mockListWorkspacesEnsuringDefault,
-  mockResolveRolledOutOrganizationId,
+  mockResolveSessionOrganizationLanding,
 } = vi.hoisted(() => ({
   mockCreateWorkspace: vi.fn(),
   mockListWorkspacesEnsuringDefault: vi.fn(),
-  mockResolveRolledOutOrganizationId: vi.fn(),
+  mockResolveSessionOrganizationLanding: vi.fn(),
 }))
 
-vi.mock('@/lib/auth/session-response', () => ({
-  getActiveOrganizationId: () => null,
+vi.mock('@/lib/organizations/application/viewer-organization', () => ({
+  ensureViewerOrganization: { execute: vi.fn().mockResolvedValue('org-landing') },
 }))
 
 vi.mock('@/lib/workspaces/create', () => ({
@@ -39,8 +39,8 @@ vi.mock('@/lib/workspaces/list', () => ({
   listWorkspacesForViewer: vi.fn(),
 }))
 
-vi.mock('@/lib/navigation/resolve-app-entry', () => ({
-  resolveRolledOutOrganizationId: mockResolveRolledOutOrganizationId,
+vi.mock('@/lib/organizations/surface', () => ({
+  resolveSessionOrganizationLanding: mockResolveSessionOrganizationLanding,
 }))
 
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
@@ -71,6 +71,7 @@ describe('POST /api/workspaces capability refusal', () => {
   beforeEach(() => {
     mockGetSession.mockResolvedValue({
       user: { id: 'user-1', name: 'A', email: 'a@example.com' },
+      session: { id: 'session-1' },
     })
   })
 
@@ -92,7 +93,10 @@ describe('POST /api/workspaces capability refusal', () => {
    * create the default one for a user who no longer exists.
    */
   it('answers a default-workspace insert for a deleted user with 401', async () => {
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1', name: 'Gone' } })
+    mockGetSession.mockResolvedValue({
+      user: { id: 'user-1', name: 'Gone' },
+      session: { id: 'session-1' },
+    })
     mockListWorkspacesEnsuringDefault.mockRejectedValue(new WorkspaceOwnerMissingError('user-1'))
 
     const response = await GET(
@@ -109,7 +113,14 @@ describe('GET /api/workspaces blocked viewer forwarding', () => {
     workspaces: [],
     lastActiveWorkspaceId: null,
     pinnedWorkspaceIds: [],
-    creationPolicy: { canCreate: false },
+    creationPolicy: {
+      canCreate: false,
+      workspaceMode: 'personal',
+      organizationId: null,
+      maxWorkspaces: null,
+      currentWorkspaceCount: 0,
+      reason: null,
+    },
   }
   const routeContext = { params: Promise.resolve({}) }
   const listRequest = () =>
@@ -118,24 +129,25 @@ describe('GET /api/workspaces blocked viewer forwarding', () => {
   beforeEach(() => {
     mockGetSession.mockResolvedValue({
       user: { id: 'user-1', name: 'A', email: 'a@example.com' },
+      session: { id: 'session-1' },
     })
     mockListWorkspacesEnsuringDefault.mockResolvedValue(blockedList)
   })
 
   it('names the organization that can serve a viewer with nothing to pick', async () => {
-    mockResolveRolledOutOrganizationId.mockResolvedValue('org-1')
+    mockResolveSessionOrganizationLanding.mockResolvedValue('org-1')
     const response = await GET(listRequest(), routeContext)
     expect((await response.json()).forwardOrganizationId).toBe('org-1')
   })
 
   it('leaves the blocked picker in place when no organization can serve them', async () => {
-    mockResolveRolledOutOrganizationId.mockResolvedValue(null)
+    mockResolveSessionOrganizationLanding.mockResolvedValue(null)
     const response = await GET(listRequest(), routeContext)
     expect(await response.json()).not.toHaveProperty('forwardOrganizationId')
   })
 
   it('still returns the list when the organization lookup fails', async () => {
-    mockResolveRolledOutOrganizationId.mockRejectedValue(new Error('down'))
+    mockResolveSessionOrganizationLanding.mockRejectedValue(new Error('down'))
     const response = await GET(listRequest(), routeContext)
     expect(response.status).toBe(200)
     expect(await response.json()).not.toHaveProperty('forwardOrganizationId')

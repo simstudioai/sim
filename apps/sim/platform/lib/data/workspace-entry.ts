@@ -8,11 +8,10 @@ import { isUpgradeReason, UPGRADE_REASON_PARAM } from '@/lib/billing/upgrade-rea
 import { workspaceEntry, workspacePath } from '@/lib/navigation/paths'
 import { resolveRolledOutOrganizationId } from '@/lib/navigation/resolve-app-entry'
 import { readWorkflowDefinition } from '@/lib/workflows/application/read-workflow-definition'
-import { listWorkspacesEnsuringDefault } from '@/lib/workspaces/create'
+import { listViewerWorkspaces } from '@/lib/workspaces/application/viewer-workspaces'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { resolveOrganizationGate } from '@/platform/lib/data/route-resolution'
 import { asRouteResponse, requireSessionViewer } from '@/platform/lib/data/server-read'
-import { ensureViewerLandingOrganization } from '@/platform/lib/data/shell-scope'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 import { DEFAULT_WORKSPACE_SETTING } from '@/platform/lib/data/workspace-settings'
 
@@ -64,14 +63,10 @@ async function workflowDestination(workflowId: string, fallbackWorkspaceId: stri
 export async function resolveWorkspaceEntry(
   query: WorkspaceEntryQuery
 ): Promise<WorkspaceEntryDecision> {
-  const { principal, userName, activeOrganizationId } = await requireSessionViewer()
-  /** The viewer's organization, provisioned for an account in none, before the list decides. */
-  const organizationId = await ensureViewerLandingOrganization()
-  const list = await listWorkspacesEnsuringDefault({
-    userId: principal.userId,
-    userName,
-    activeOrganizationId: organizationId,
-  })
+  const { principal, activeOrganizationId } = await requireSessionViewer()
+  /** No shell names an organization here, so the list decides in the viewer's landing one. */
+  const list = await listViewerWorkspaces
+    .execute({ principal, input: { scope: 'active' } })
     .then((payload) => asRouteResponse(listWorkspacesContract, payload))
     .catch((error: unknown) => {
       logger.error('Could not read the viewer’s workspaces', { error })
