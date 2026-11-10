@@ -141,7 +141,7 @@ export function IntegrationsRoute({
       .filter((server) => `${server.name} ${server.description}`.toLowerCase().includes(term))
       .sort((a, b) => (order === 'asc' ? 1 : -1) * compareText(a.name, b.name))
     const skillsTab: LiveTab | undefined = skills && {
-      actions: (
+      actions: skills.canCreate && (
         <Button variant='secondary' size='compact' icon='I074' onClick={() => skills.open('new')}>
           Create skill
         </Button>

@@ -42,6 +42,7 @@ import {
   useUpsertSkillMember,
   useWorkspacePermissionsQuery,
 } from '@/platform/lib/data/skills'
+import { useWorkspaceUserPermissions } from '@/platform/lib/data/tables/permissions'
 import { resourceDetailParams } from '@/platform/lib/integrations/center-navigation'
 
 const EMPTY_DRAFT: SkillDraft = { name: '', description: '', content: '' }
@@ -79,7 +80,8 @@ export function SkillDetails({
   const listed = skills.isPlaceholderData ? undefined : skills.data
   const skill = skillId ? listed?.find((item) => item.id === skillId) : undefined
   const builtin = Boolean(skill?.readOnly)
-  const editable = skillId === null || (Boolean(skill?.canEdit) && !builtin)
+  const { canEdit: canWrite } = useWorkspaceUserPermissions(workspaceId ?? '')
+  const editable = skillId === null ? canWrite : Boolean(skill?.canEdit) && !builtin
   const saved = skill ? draftOf(skill) : EMPTY_DRAFT
   const [draft, setDraft] = useState(EMPTY_DRAFT)
   const [seededId, setSeededId] = useState<string | null>(null)
@@ -198,7 +200,9 @@ export function SkillDetails({
     ? undefined
     : builtin
       ? 'Built-in skills are read-only'
-      : 'You need to be a skill editor to edit this skill'
+      : skill
+        ? 'You need to be a skill editor to edit this skill'
+        : 'You need write access to this workspace to create a skill'
   const details = (
     <div className={styles.fields}>
       <SkillFields
