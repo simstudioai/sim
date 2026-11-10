@@ -1,4 +1,5 @@
 import { expect } from '@playwright/test'
+import { SIM_SITE_URL } from '@sim/utils/site'
 import { signInAsAdmin } from '@/platform/checks/live/session'
 import { firstHopFrom } from '@/platform/checks/live/support/navigation'
 import { liveRoute, liveRoutePattern } from '@/platform/checks/routes'
@@ -30,15 +31,19 @@ test('a self-hosted shell renders every section a member uses', async ({ page })
   }
 })
 
-test('self-hosted settings offer no billing section, and a saved billing link is not found', async ({
+test('self-hosted settings offer no billing section, a saved billing link is not found, and plans go to the hosted app', async ({
   page,
 }) => {
   await signInAsAdmin(page, liveRoute('/settings'))
   await expect(page.getByRole('link', { name: 'Billing', exact: true })).toHaveCount(0)
-  for (const route of ['/settings/billing', '/settings/billing/plans']) {
-    await page.goto(liveRoute(route))
-    await expect(page.getByRole('heading', { name: 'Page not found' }), route).toBeVisible()
-  }
+  await page.goto(liveRoute('/settings/billing'))
+  await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
+  // A self-hosted deployment buys its plan on the hosted app, as the legacy upgrade page sent it.
+  await page.route(`${SIM_SITE_URL}/**`, (route) =>
+    route.fulfill({ status: 200, contentType: 'text/html', body: 'Hosted upgrade stand-in' })
+  )
+  await page.goto(liveRoute('/settings/billing/plans?reason=credits'))
+  await expect(page).toHaveURL(`${SIM_SITE_URL}/upgrade?reason=credits`)
 })
 
 for (const [from, to] of [

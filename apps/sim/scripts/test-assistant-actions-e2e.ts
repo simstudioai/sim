@@ -608,7 +608,8 @@ try {
     await expect(connectIntegration).toHaveCount(0)
     const policy = page.getByRole('group', { name: 'Create Task in Salesforce permission' })
     await expect(policy).toBeVisible({ timeout: 180_000 })
-    await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toBeVisible()
+    // This deployment has no Salesforce or Jira OAuth client, so its accounts cannot reconnect.
+    await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toHaveCount(0)
     await capture('integration-account-actions')
     await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
     const confirmation = page.getByRole('dialog', {
@@ -704,7 +705,7 @@ try {
       await expect(
         page.getByRole('heading', { name: 'launch-team@acme.example', exact: true })
       ).toBeVisible()
-      await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toHaveCount(0)
       await capture('integration-selected-account-actions')
       await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
       const confirmation = page.getByRole('dialog', {

@@ -14,3 +14,10 @@
 [data-sim-desktop-title-bar] [data-desktop-drag] :is(button, a, input, textarea, [role="tab"]) {
   -webkit-app-region: no-drag;
 }
+
+/* iOS zooms the page into a focused text field set below 16px, so a touch phone reads them at 16px. */
+@media (pointer: coarse) and (width < 48rem) {
+  [data-emcn] :is(input, textarea)[data-type] {
+    font-size: var(--text-reading);
+  }
+}

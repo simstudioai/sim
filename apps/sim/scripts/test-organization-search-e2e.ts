@@ -62,8 +62,10 @@ const STAGES = {
   bookmark: 'Existing assistant bookmarks redirect into Search',
   denied: 'Assistant history rejects a chat from another organization',
   streamedDenied: 'A streamed denied chat remains navigable after hydration',
-  searchOnly:
-    'Search-only members land on Search with the Assistant and their history, but no agent chat',
+  noWorkspaceCreation:
+    'A member who may not create workspaces keeps Home, agent chat and Assistant history',
+  noChat:
+    'A member whose permission group withholds chat lands on Search, and chat URLs return there',
 } as const
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []
@@ -823,7 +825,9 @@ try {
       try {
         await page.goto(appUrl(`${routes.search}?q=Launch`), { waitUntil: 'commit' })
         await expect(input).toBeVisible()
-        await expect(input).toBeDisabled()
+        // The field takes typing before hydration; only submitting waits for it.
+        await expect(input).toBeEditable()
+        await expect(input).toHaveValue('Launch')
         await expect(
           page.getByRole('search').getByRole('button', { name: 'Search', exact: true })
         ).toBeDisabled()
@@ -1064,21 +1068,35 @@ try {
     await expect(sourcesPanel).toBeVisible()
     await capture('assistant-resources-mobile')
   })
-  await check(STAGES.searchOnly, async () => {
+  const restrictedGroupId = generateId()
+  await check(STAGES.noWorkspaceCreation, async () => {
+    // Chat follows the permission group's `copilot.use`, never workspace creation.
     await sql`insert into permission_group (id, organization_id, name, config, created_by, is_default)
-      values (${generateId()}, ${organizationId}, 'Search only',
+      values (${restrictedGroupId}, ${organizationId}, 'No workspace creation',
         ${sql.json({ disableWorkspaceCreation: true })}, ${userId}, true)`
     await page.goto(appUrl(routes.home))
-    await expect(page).toHaveURL((url) => url.pathname === routes.search)
-    await expect(searchMode(page, 'Assistant')).toBeVisible()
+    await expect(homeComposer(page)).toBeVisible()
+    assert.equal(new URL(page.url()).pathname, routes.home)
     await page.goto(appUrl(routes.chat(agentId)))
-    await expect(page).toHaveURL((url) => url.pathname === routes.search)
+    await expect(page).toHaveURL((url) => url.pathname === routes.chat(agentId))
     await page.goto(appUrl(routes.searchChat(assistantId)))
     await expect(page.getByText(answer, { exact: true })).toBeVisible()
   })
-  await check('Search-only members recover legacy drafts without a remembered mode', () =>
-    verifyLegacyDraft(undefined, 'assistant')
+  await check('A member who may not create workspaces recovers legacy drafts on Home', () =>
+    verifyLegacyDraft(undefined, 'agent')
   )
+  await check(STAGES.noChat, async () => {
+    await sql`update permission_group set config = ${sql.json({ hideCopilot: true })}
+      where id = ${restrictedGroupId}`
+    await page.goto(appUrl(routes.home))
+    await expect(page).toHaveURL((url) => url.pathname === routes.search)
+    await expect(searchField(page)).toBeVisible()
+    await page.goto(appUrl(routes.chat(agentId)))
+    await expect(page).toHaveURL((url) => url.pathname === routes.search)
+    await page.goto(appUrl(routes.searchChat(assistantId)))
+    await expect(page).toHaveURL((url) => url.pathname === routes.search)
+    await expect(page.getByText(answer, { exact: true })).toHaveCount(0)
+  })
   await check('The UI completes without unexpected browser runtime errors', async () => {
     // Server redirects inside a streamed page surface as a handled React error on the client.
     const handledRedirects = [
@@ -1088,8 +1106,9 @@ try {
         from: routes.chat(assistantId),
         to: routes.searchChat(assistantId),
       },
-      { stage: STAGES.searchOnly, from: routes.home, to: routes.search },
-      { stage: STAGES.searchOnly, from: routes.chat(agentId), to: routes.search },
+      { stage: STAGES.noChat, from: routes.home, to: routes.search },
+      { stage: STAGES.noChat, from: routes.chat(agentId), to: routes.search },
+      { stage: STAGES.noChat, from: routes.searchChat(assistantId), to: routes.search },
     ]
     const handledRedirectCount = () =>
       browserErrorEvents.reduce(

@@ -62,18 +62,18 @@ export async function seedPerson(
  */
 async function removePerson(person: SeededPerson) {
   await withLiveDatabase(async (sql) => {
-    await sql`delete from organization where kind = 'personal' and id in (
-      select organization_id from member where user_id = ${person.id})`
-    const owned = await sql<{ id: string; projectId: string | null }[]>`
-      select id, project_id as "projectId" from workspace where owner_id = ${person.id}`
+    const owned = await sql<{ id: string }[]>`
+      select id from workspace where owner_id = ${person.id}`
     if (owned.length > 0) {
       const workspaceIds = owned.map(({ id }) => id)
       await sql`delete from permissions
         where entity_type = 'workspace' and entity_id in ${sql(workspaceIds)}`
       await sql`delete from workspace where id in ${sql(workspaceIds)}`
-      const projects = owned.flatMap(({ projectId }) => (projectId ? [projectId] : []))
-      if (projects.length > 0) await sql`delete from project where id in ${sql(projects)}`
     }
+    // A project restricts deleting its organization and its owner, so it goes before both.
+    await sql`delete from project where owner_id = ${person.id}`
+    await sql`delete from organization where kind = 'personal' and id in (
+      select organization_id from member where user_id = ${person.id})`
     await sql`delete from "user" where id = ${person.id}`
   })
 }

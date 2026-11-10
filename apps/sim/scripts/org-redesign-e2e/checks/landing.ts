@@ -73,7 +73,7 @@ export async function landingChecks() {
     })
   })
   await check(
-    "a member's agent chat opens as a chat, is absent under Search, and lists in the rail",
+    "a member's agent chat opens as a chat, Search hands it back to the chat, and it lists in the rail",
     async () => {
       await withSession(MEMBER, async (session) => {
         const { page } = session
@@ -81,18 +81,15 @@ export async function landingChecks() {
         await page.goto(url(org.chat(MEMBER_CHATS.agent.id)))
         await expect(page).toHaveURL(url(org.chat(MEMBER_CHATS.agent.id)))
         await expect(transcript).toBeVisible()
-        // Search only opens assistant chats, so an agent chat there is absent, as in legacy.
+        // Search opens only assistant chats; a Search URL for an agent chat returns to the chat.
         await page.goto(url(org.searchChat(MEMBER_CHATS.agent.id)))
-        await expectPageNotFound(page)
-        await expect(transcript).toHaveCount(0)
+        await expect(page).toHaveURL(url(org.chat(MEMBER_CHATS.agent.id)))
+        await expect(transcript).toBeVisible()
+        await expect(searchField(page)).toHaveCount(0)
         await page.goto(url(org.home))
         await session.settle()
         await expect(railLink(page, MEMBER_CHATS.agent.title)).toBeVisible()
       })
-    },
-    {
-      // The member's own agent chat, which Search does not open.
-      allow: [refused(404, 'GET', org.searchChat(MEMBER_CHATS.agent.id))],
     }
   )
   await check(
