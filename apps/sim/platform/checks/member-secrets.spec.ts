@@ -2,7 +2,11 @@ import { expect } from '@playwright/test'
 import { fixtureUrl } from '@/platform/checks/routes'
 import { test } from '@/platform/checks/test'
 
-test('the member secrets destination delivers only the credential names the viewer can inspect', async ({
+/**
+ * Rendering only: the fixture build decides which names the viewer may inspect. That the server
+ * withholds them is the secrets read's to prove, not this page's.
+ */
+test('the secrets destination renders personal names in member mode and none in organization mode', async ({
   page,
 }) => {
   const link = page.getByRole('main').getByRole('link', { name: /^Generic Secrets/ })

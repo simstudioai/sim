@@ -236,7 +236,11 @@ for (const theme of ['light', 'dark']) {
       expect(roleGeometry.horizontalInsets).toBeLessThanOrEqual(18)
       const lockedRole = people.getByRole('button', { name: /^Role for Nina Patel:/ })
       await expect(lockedRole).toBeDisabled()
-      await expect(lockedRole).toHaveCSS('opacity', '1')
+      // Locked is not dimmed: it paints at the opacity of a role the viewer may change.
+      const editableOpacity = await people
+        .getByRole('button', { name: /^Role for Alex Chen:/ })
+        .evaluate((node) => getComputedStyle(node).opacity)
+      await expect(lockedRole).toHaveCSS('opacity', editableOpacity)
       await expect(lockedRole).toHaveCSS('cursor', 'not-allowed')
       const restPaint = await lockedRole.evaluate((node) => {
         const style = getComputedStyle(node)

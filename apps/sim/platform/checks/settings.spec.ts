@@ -47,7 +47,12 @@ test('preferences apply to the interface and survive settings navigation in this
   await expect(page.locator('[data-platform-ui]')).toHaveAttribute('data-theme', 'dark')
 })
 
-test('a platform administration link is gated in the sidebar and at its bookmarked URL', async ({
+/**
+ * Rendering only: the fixture viewer's platform role decides it here. That a real non-administrator
+ * is refused is proved live by "a member who is not a platform administrator gets not found from
+ * the platform-admin sections" (`live/concealment.spec.ts`).
+ */
+test('the Admin link and page render only for a fixture platform administrator', async ({
   page,
 }) => {
   await page.goto(fixtureUrl('/settings?state=full'))
