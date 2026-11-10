@@ -684,8 +684,6 @@ export function KnowledgeList({ workspaceId }: KnowledgeListProps) {
     }
   })
 
-  /** A failed members read keeps the member filter on screen, disabled, so an applied filter stays visible. */
-  const membersFailed = Boolean(membersQuery.error && !membersQuery.data)
   const memberOptions = (membersQuery.data ?? []).map((member) => ({
     value: member.userId,
     label: member.name,
@@ -754,7 +752,7 @@ export function KnowledgeList({ workspaceId }: KnowledgeListProps) {
         value={filters.content[0] ?? 'all'}
         onValueChange={(value) => preferences.setFilter('content', value === 'all' ? [] : [value])}
       />
-      {(memberOptions.length > 0 || membersFailed) && (
+      {memberOptions.length > 0 && (
         <MultiSelect
           variant='text'
           label='Owner'
@@ -764,8 +762,6 @@ export function KnowledgeList({ workspaceId }: KnowledgeListProps) {
           onValueChange={(next) => preferences.setFilter('owner', next)}
           placeholder='All owners'
           searchLabel='Search members'
-          disabled={membersFailed}
-          disabledReason='Could not load workspace members'
         />
       )}
       <ActionMenu
@@ -799,6 +795,12 @@ export function KnowledgeList({ workspaceId }: KnowledgeListProps) {
   const failedRead = [basesQuery, foldersQuery].find(
     (query) => query.isError && query.data === undefined
   )
+  /**
+   * An applied member filter keeps narrowing the list while a failed members read hides its
+   * control, so that failure is the list's own until it reads again.
+   */
+  const failedMembersRead =
+    filters.owner.length > 0 && membersQuery.isError && membersQuery.data === undefined
   const read: WorkspaceRead = failedRead
     ? {
         status: 'error',
@@ -806,10 +808,17 @@ export function KnowledgeList({ workspaceId }: KnowledgeListProps) {
         retrying: failedRead.isFetching,
         onRetry: () => void failedRead.refetch(),
       }
-    : !access.settled ||
-        (!access.hidden && (basesQuery.isPending || !foldersResolved || !preferences.isReady))
-      ? { status: 'pending' }
-      : { status: 'ready' }
+    : failedMembersRead
+      ? {
+          status: 'error',
+          message: 'Workspace members could not be loaded.',
+          retrying: membersQuery.isFetching,
+          onRetry: () => void membersQuery.refetch(),
+        }
+      : !access.settled ||
+          (!access.hidden && (basesQuery.isPending || !foldersResolved || !preferences.isReady))
+        ? { status: 'pending' }
+        : { status: 'ready' }
 
   const copy = noResults(search, filtered)
   const empty =

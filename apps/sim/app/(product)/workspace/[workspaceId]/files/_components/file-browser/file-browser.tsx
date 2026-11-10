@@ -914,8 +914,6 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
       ? `${progress.done}/${progress.total} · ${progress.percent}%`
       : `${progress.done}/${progress.total}`
     : 'Upload'
-  /** A failed members read keeps the member filter on screen, disabled, so an applied filter stays visible. */
-  const membersFailed = Boolean(membersQuery.error && !membersQuery.data)
   const memberOptions = (membersQuery.data ?? []).map((member) => ({
     value: member.userId,
     label: member.name,
@@ -997,7 +995,7 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
           onChange: (next) => preferences.setFilter('size', next),
         })}
       />
-      {(memberOptions.length > 0 || membersFailed) && (
+      {memberOptions.length > 0 && (
         <MultiSelect
           variant='text'
           label='Uploaded by'
@@ -1007,8 +1005,6 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
           onValueChange={(next) => preferences.setFilter('uploadedBy', next)}
           placeholder='All uploaders'
           searchLabel='Search members'
-          disabled={membersFailed}
-          disabledReason='Could not load workspace members'
         />
       )}
       <ActionMenu
@@ -1051,6 +1047,12 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
   const failedRead = [fileList, foldersQuery].find(
     (query) => query.isError && query.data === undefined
   )
+  /**
+   * An applied member filter keeps narrowing the list while a failed members read hides its
+   * control, so that failure is the list's own until it reads again.
+   */
+  const failedMembersRead =
+    filters.uploadedBy.length > 0 && membersQuery.isError && membersQuery.data === undefined
   const read: WorkspaceRead = failedRead
     ? {
         status: 'error',
@@ -1058,10 +1060,17 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
         retrying: failedRead.isFetching,
         onRetry: () => void failedRead.refetch(),
       }
-    : !access.settled ||
-        (!access.hidden && (fileList.isPending || !foldersResolved || !preferences.isReady))
-      ? { status: 'pending' }
-      : { status: 'ready' }
+    : failedMembersRead
+      ? {
+          status: 'error',
+          message: 'Workspace members could not be loaded.',
+          retrying: membersQuery.isFetching,
+          onRetry: () => void membersQuery.refetch(),
+        }
+      : !access.settled ||
+          (!access.hidden && (fileList.isPending || !foldersResolved || !preferences.isReady))
+        ? { status: 'pending' }
+        : { status: 'ready' }
 
   const copyText = noResults(search, filtered)
   const empty =
