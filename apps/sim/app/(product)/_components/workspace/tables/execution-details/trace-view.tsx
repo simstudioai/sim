@@ -2,18 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@sim/emcn/button'
-import { CopyButton } from '@sim/emcn/button/copy-button'
 import { Icon, type IconName } from '@sim/emcn/icon'
 import { FALLBACK_PROVIDER_MARK, providerMark } from '@sim/emcn/icon/provider-marks'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { SearchField } from '@sim/emcn/search-field'
 import { formatDuration } from '@sim/utils/formatting'
-import {
-  type MetadataField,
-  MetadataFields,
-} from '@/app/(product)/_components/workspace/metadata-fields/metadata-fields'
+import { RunStatusText } from '@/app/(product)/_components/workspace/logs/run-status/run-status'
+import { FindableSpanInspector } from '@/app/(product)/_components/workspace/span-inspector/span-inspector'
 import styles from '@/app/(product)/_components/workspace/tables/execution-details/execution-details.module.css'
-import { Payload } from '@/app/(product)/_components/workspace/tables/execution-details/payload'
 import {
   collectAllIds,
   collectMatchingIds,
@@ -35,14 +31,17 @@ import {
   spanFailed,
 } from '@/app/(product)/_components/workspace/tables/execution-details/trace'
 import {
-  type TracePaint,
+  spanPaint,
   type TraceRow,
+  TraceToolbar,
   TraceTree,
 } from '@/app/(product)/_components/workspace/trace-tree/trace-tree'
 import { useViewerTimeZone } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
+import { spanKind, toTraceSpan, tracePayload } from '@/platform/lib/data/logs'
 import { formatCreditCost, normalizeToolId, type TraceSpan } from '@/platform/lib/data/tables'
 import { isCustomBlockType } from '@/platform/lib/data/workflows/records'
 import { formatClockTime } from '@/platform/shared/time'
+import type { TraceSpan as InspectedSpan } from '@/platform/shared/workspace-records'
 
 /** Why a custom block's steps are absent; a joined child run is its own evidence. */
 const CHILD_TRACE_ACCESS_LABEL: Record<string, string> = {
@@ -89,17 +88,6 @@ function SpanMark({ span }: { span: TraceSpan }) {
   return provider ? <Icon providerId={provider} /> : <Icon name='I127' />
 }
 
-/** The timing paint of a span's bar; a failure takes precedence. */
-function spanPaint(span: TraceSpan, failed: boolean): TracePaint {
-  if (failed) return 'error'
-  const type = span.type?.toLowerCase() ?? ''
-  if (type === 'agent' || type === 'model') return 'agent'
-  if (type === 'loop' || type === 'loop-iteration') return 'loop'
-  if (type === 'parallel' || type === 'parallel-iteration') return 'parallel'
-  if (type === 'workflow') return 'workflow'
-  return 'neutral'
-}
-
 function durationLabel(ms: number): string {
   return formatDuration(ms, { precision: 2 }) || '—'
 }
@@ -144,7 +132,10 @@ function traceRow(
     bar: {
       start: offsetPct,
       width: Math.max(MIN_BAR_PCT, Math.min(100 - offsetPct, rawPct)),
-      paint: spanPaint(span, failed),
+      paint: spanPaint({
+        status: failed ? 'error' : span.errorHandled ? 'handled' : 'success',
+        kind: spanKind(span.type?.toLowerCase() ?? ''),
+      }),
     },
     startLabel: `Started at +${durationLabel(offsetMs)}`,
     timing,
@@ -153,15 +144,22 @@ function traceRow(
   }
 }
 
-/** The facts the legacy span detail lists, in its order; per-span cost is never shown. */
-function spanFacts(span: TraceSpan, duration: number): MetadataField[] {
-  const facts: MetadataField[] = [
-    { id: 'type', label: 'Type', value: isCustomBlockType(span.type) ? 'custom block' : span.type },
-  ]
+/**
+ * The facts the legacy span detail lists, in its order, beyond the step type, status and duration
+ * the inspector leads with; per-span cost is never shown.
+ */
+function spanFacts(
+  span: TraceSpan,
+  duration: number,
+  inspected: InspectedSpan,
+  timeZone: string | undefined
+): InspectedSpan['context'] {
+  const facts: { id: string; label: string; value: string }[] = []
+  const type = isCustomBlockType(span.type) ? 'custom block' : span.type
+  if (span.type !== inspected.kind) facts.push({ id: 'type', label: 'Type', value: type })
   const childRunState = span.childTraceAccess ?? (span.childTraceDisabled ? 'disabled' : undefined)
   const childRun = childRunState ? CHILD_TRACE_ACCESS_LABEL[childRunState] : undefined
   if (childRun) facts.push({ id: 'child-run', label: 'Child run', value: childRun })
-  facts.push({ id: 'duration', label: 'Duration', value: durationLabel(duration) })
   if (span.tries !== undefined)
     facts.push({ id: 'tries', label: 'Tries', value: String(span.tries) })
   if (span.provider) facts.push({ id: 'provider', label: 'Provider', value: span.provider })
@@ -188,59 +186,39 @@ function spanFacts(span: TraceSpan, duration: number): MetadataField[] {
     const value = formatTokenCount(count)
     if (value) facts.push({ id, label, value })
   }
-  if (span.errorType) facts.push({ id: 'error-type', label: 'Error type', value: span.errorType })
   if (span.iterationIndex !== undefined)
     facts.push({ id: 'iteration', label: 'Iteration', value: String(span.iterationIndex + 1) })
+  const startedAt = parseTime(span.startTime)
+  const endedAt = parseTime(span.endTime)
+  if (startedAt > 0)
+    facts.push({ id: 'started', label: 'Started', value: formatClockTime(startedAt, timeZone) })
+  if (endedAt > 0)
+    facts.push({ id: 'ended', label: 'Ended', value: formatClockTime(endedAt, timeZone) })
   return facts
 }
 
-/** The selected step: what it was, how it went, and what it read and wrote. */
-function SpanInspector({ span }: { span: TraceSpan }) {
+/** The selected step in the shared inspector, with the legacy detail's facts and extra payloads. */
+function SelectedSpan({ span, runStartMs }: { span: TraceSpan; runStartMs: number }) {
   const timeZone = useViewerTimeZone()
-  const duration = spanDuration(span)
-  const failed = spanFailed(span, 0)
-  const directError = span.status === 'error'
-  const startedAt = parseTime(span.startTime)
-  const endedAt = parseTime(span.endTime)
-  const name = getDisplayName(span)
+  const { children: _children, toolCalls: _toolCalls, tokens, ...step } = span
+  const base = toTraceSpan({ ...step, tokens: tokens && { ...tokens } }, runStartMs)
+  const inspected: InspectedSpan = {
+    ...base,
+    name: getDisplayName(span),
+    durationMs: spanDuration(span),
+    context: spanFacts(span, spanDuration(span), base, timeZone),
+    children: undefined,
+  }
+  const thinking = span.thinking ? tracePayload(span.thinking) : undefined
+  const toolCalls = span.modelToolCalls?.length ? tracePayload(span.modelToolCalls) : undefined
   return (
-    <section className={styles.inspector} aria-label={`${name} step`}>
-      <header className={styles.inspectorHeader}>
-        {!isIterationType(span.type) && (
-          <span className={styles.spanMark} aria-hidden='true'>
-            <SpanMark span={span} />
-          </span>
-        )}
-        <span className={styles.inspectorTitle}>
-          <h3 className={styles.inspectorName} data-type='T059' data-failed={failed || undefined}>
-            {name}
-          </h3>
-          <span className={styles.inspectorMeta} data-type='T052'>
-            <span className={styles.runStatus} data-status={failed ? 'error' : 'success'}>
-              {failed ? 'Error' : 'Success'}
-            </span>
-            <span>{durationLabel(duration)}</span>
-            {startedAt > 0 && <span>{formatClockTime(startedAt, timeZone)}</span>}
-          </span>
-        </span>
-      </header>
-      <MetadataFields label={`${name} facts`} fields={spanFacts(span, duration)} />
-      {span.input != null && <Payload label='Input' data={span.input} />}
-      {span.output != null && (
-        <Payload label={directError ? 'Error' : 'Output'} data={span.output} />
-      )}
-      {span.thinking && <Payload label='Thinking' data={span.thinking} />}
-      {span.modelToolCalls && span.modelToolCalls.length > 0 && (
-        <Payload label='Tool calls' data={span.modelToolCalls} />
-      )}
-      {span.errorMessage && <Payload label='Error message' data={span.errorMessage} />}
-      {startedAt > 0 && endedAt > 0 && (
-        <p className={styles.inspectorTimes} data-type='T052'>
-          <span>Started {formatClockTime(startedAt, timeZone)}</span>
-          <span>Ended {formatClockTime(endedAt, timeZone)}</span>
-        </p>
-      )}
-    </section>
+    <FindableSpanInspector
+      span={inspected}
+      extraPayloads={[
+        ...(thinking ? [{ id: 'thinking', label: 'Thinking', payload: thinking }] : []),
+        ...(toolCalls ? [{ id: 'tool-calls', label: 'Tool calls', payload: toolCalls }] : []),
+      ]}
+    />
   )
 }
 
@@ -334,9 +312,7 @@ export function TraceView({ traceSpans, runCostDollars }: TraceViewProps) {
   return (
     <div className={styles.trace}>
       <div className={styles.traceHeader} data-type='T052'>
-        <span className={styles.runStatus} data-status={runFailed ? 'error' : 'success'}>
-          {runFailed ? 'Error' : 'Success'}
-        </span>
+        <RunStatusText status={runFailed ? 'failed' : 'completed'} />
         <span>{durationLabel(totalDuration)}</span>
         <span>
           {allIds.length} {allIds.length === 1 ? 'span' : 'spans'}
@@ -350,8 +326,8 @@ export function TraceView({ traceSpans, runCostDollars }: TraceViewProps) {
           </span>
         )}
       </div>
-      <div className={styles.traceToolbar}>
-        <span className={styles.traceSearch}>
+      <TraceToolbar
+        search={
           <SearchField
             label='Filter spans'
             placeholder='Filter spans'
@@ -359,15 +335,11 @@ export function TraceView({ traceSpans, runCostDollars }: TraceViewProps) {
             value={query}
             onValueChange={setQuery}
           />
-        </span>
-        <CopyButton label='Copy raw trace' text={JSON.stringify(traceSpans, null, 2)} />
-        <Button variant='quiet' size='compact' onClick={() => setExpanded(new Set(allIds))}>
-          Expand all
-        </Button>
-        <Button variant='quiet' size='compact' onClick={() => setExpanded(new Set())}>
-          Collapse all
-        </Button>
-      </div>
+        }
+        copyText={JSON.stringify(traceSpans, null, 2)}
+        onExpandAll={() => setExpanded(new Set(allIds))}
+        onCollapseAll={() => setExpanded(new Set())}
+      />
       {rows.length === 0 ? (
         <p className={styles.note} data-type='T060'>
           No matching spans
@@ -384,7 +356,7 @@ export function TraceView({ traceSpans, runCostDollars }: TraceViewProps) {
         </div>
       )}
       {selectedSpan ? (
-        <SpanInspector key={getSpanId(selectedSpan)} span={selectedSpan} />
+        <SelectedSpan key={getSpanId(selectedSpan)} span={selectedSpan} runStartMs={runStartMs} />
       ) : (
         <p className={styles.note} data-type='T060'>
           Select a span to see details.

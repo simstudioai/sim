@@ -14,10 +14,11 @@ import {
 import styles from '@/app/(product)/_components/workspace/logs/run-details/run-details.module.css'
 import { RUN_STATUS_LABEL } from '@/app/(product)/_components/workspace/logs/run-status/run-status'
 import { MetadataFields } from '@/app/(product)/_components/workspace/metadata-fields/metadata-fields'
-import { SpanInspector } from '@/app/(product)/_components/workspace/span-inspector/span-inspector'
+import { FindableSpanInspector } from '@/app/(product)/_components/workspace/span-inspector/span-inspector'
 import {
-  type TracePaint,
+  spanPaint,
   type TraceRow,
+  TraceToolbar,
   TraceTree,
 } from '@/app/(product)/_components/workspace/trace-tree/trace-tree'
 import {
@@ -45,26 +46,6 @@ const KIND_ICON: Record<TraceSpan['kind'], IconName> = {
 const PROVIDER_ICON: Partial<Record<string, IconName>> = { slack: 'I123', openai: 'I124' }
 /** Providers whose own mark the shared icon catalog carries. */
 const PROVIDER_MARKS = new Set(['salesforce', 'notion', 'github', 'linear', 'jira', 'hubspot'])
-
-/** A span's timing paint, from its recorded family and provider; failures take precedence. */
-function spanPaint(span: TraceSpan): TracePaint {
-  if (span.status === 'error') return 'error'
-  if (span.status === 'handled') return 'handled'
-  if (span.providerId === 'slack') return 'slack'
-  if (span.providerId === 'anthropic') return 'anthropic'
-  if (span.providerId === 'openai') return 'neutral'
-  switch (span.kind) {
-    case 'agent':
-    case 'loop':
-    case 'iteration':
-    case 'parallel':
-    case 'workflow':
-    case 'mcp':
-      return span.kind
-    default:
-      return 'neutral'
-  }
-}
 
 function spanMark(span: TraceSpan) {
   const providerIcon = span.providerId ? PROVIDER_ICON[span.providerId] : undefined
@@ -107,6 +88,13 @@ function traceRows(
         : []),
     ]
   })
+}
+
+/** Every step that has steps beneath it, so Collapse all closes each one. */
+function parentIds(spans: readonly TraceSpan[]): string[] {
+  return spans.flatMap((span) =>
+    span.children?.length ? [span.id, ...parentIds(span.children)] : []
+  )
 }
 
 function findSpan(spans: readonly TraceSpan[], id: string): TraceSpan | undefined {
@@ -157,7 +145,7 @@ export function RunDetails({ run, back, read, actions }: RunDetailsProps) {
       label={`Run ${shortId} trace`}
       railKind='inspector'
       railLabel='Selected step'
-      rail={selected && <SpanInspector key={selected.id} span={selected} />}
+      rail={selected && <FindableSpanInspector key={selected.id} span={selected} />}
     >
       <DirectoryHeading title={`Run ${shortId}`} />
       <MetadataFields
@@ -179,6 +167,11 @@ export function RunDetails({ run, back, read, actions }: RunDetailsProps) {
       />
       {root && (
         <DetailSection title='Trace'>
+          <TraceToolbar
+            copyText={JSON.stringify(run.trace, null, 2)}
+            onExpandAll={() => setCollapsed(new Set())}
+            onCollapseAll={() => setCollapsed(new Set(parentIds(run.trace)))}
+          />
           <TraceTree
             label={`Run ${shortId} steps`}
             rows={traceRows(run.trace, collapsed, root.durationMs)}

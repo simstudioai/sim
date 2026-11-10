@@ -1,6 +1,5 @@
 .overview,
-.trace,
-.inspector {
+.trace {
   display: flex;
   flex-direction: column;
   min-inline-size: 0;
@@ -9,40 +8,6 @@
 .note {
   margin: 0;
   color: var(--ui-secondary);
-}
-
-/* A run's facts as the workspace Logs page reads them: caption over value, in shared columns. */
-
-/* A payload in the chat tool payload's monospace; each wrapped line keeps its indent. */
-.payload {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  min-inline-size: 0;
-  margin-block-start: var(--spacing-8);
-  gap: var(--spacing-8);
-}
-.payloadBody {
-  display: grid;
-  margin: 0;
-  color: var(--ui-ink);
-}
-.payloadLine {
-  display: flex;
-  min-inline-size: 0;
-}
-.payloadIndent {
-  flex: none;
-  white-space: pre;
-}
-.payloadCode {
-  min-inline-size: 0;
-  padding-inline-start: var(--spacing-16);
-  text-indent: calc(-1 * var(--spacing-16));
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.payloadMore {
-  justify-self: start;
 }
 
 .files {
@@ -79,9 +44,7 @@
 }
 
 /* The trace's summary: status, duration, spans and cost, then Jump to error at the end. */
-.traceHeader,
-.inspectorMeta,
-.inspectorTimes {
+.traceHeader {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -90,28 +53,8 @@
   color: var(--ui-secondary);
   font-variant-numeric: tabular-nums;
 }
-.inspectorTimes {
-  justify-content: space-between;
-}
 .traceHeaderAction {
   margin-inline-start: auto;
-}
-.runStatus[data-status="success"] {
-  color: var(--status-success);
-}
-.runStatus[data-status="error"] {
-  color: var(--control-danger);
-}
-.traceToolbar {
-  display: flex;
-  align-items: center;
-  min-inline-size: 0;
-  gap: var(--ui-action-gap);
-}
-.traceSearch {
-  display: flex;
-  flex: 1;
-  min-inline-size: 0;
 }
 
 /*
@@ -126,34 +69,4 @@
   padding-inline: var(--ui-row-inset);
   overflow-y: auto;
   overscroll-behavior: contain;
-}
-.spanMark {
-  display: grid;
-  flex: none;
-  place-items: center;
-  color: var(--ui-secondary);
-}
-
-.inspectorHeader {
-  display: flex;
-  align-items: flex-start;
-  min-inline-size: 0;
-  gap: var(--ui-row-gap);
-}
-.inspectorHeader .spanMark {
-  block-size: var(--spacing-20);
-}
-.inspectorTitle {
-  display: flex;
-  flex-direction: column;
-  min-inline-size: 0;
-  gap: var(--ui-stack-gap);
-}
-.inspectorName {
-  margin: 0;
-  color: var(--ui-ink);
-  overflow-wrap: anywhere;
-}
-.inspectorName[data-failed] {
-  color: var(--control-danger);
 }

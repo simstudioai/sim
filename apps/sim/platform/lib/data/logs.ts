@@ -213,14 +213,15 @@ const WITHHELD: TracePayload = {
   reason: 'This content could not be shown safely, so the log does not include it.',
 }
 
-function payload(value: unknown, withheld: boolean): TracePayload | undefined {
+/** A step's or run's data as the inspector shows it; withheld when projection omitted it. */
+export function tracePayload(value: unknown, withheld = false): TracePayload | undefined {
   if (value === undefined) return withheld ? WITHHELD : undefined
   return typeof value === 'string'
     ? { format: 'text', content: value }
     : { format: 'json', content: JSON.stringify(value, null, 2) }
 }
 
-function spanKind(type: string): TraceSpan['kind'] {
+export function spanKind(type: string): TraceSpan['kind'] {
   switch (type) {
     case 'agent':
     case 'model':
@@ -276,7 +277,8 @@ function spanContext(span: LogTraceSpan): TraceSpan['context'] {
   ]
 }
 
-function toTraceSpan(span: LogTraceSpan, origin: number): TraceSpan {
+/** A logged span as the Platform's trace reads it, timed from `origin`. */
+export function toTraceSpan(span: LogTraceSpan, origin: number): TraceSpan {
   const withheld = span.contentWithheld === true
   const start = span.startTime ? Date.parse(span.startTime) - origin : 0
   return {
@@ -287,8 +289,8 @@ function toTraceSpan(span: LogTraceSpan, origin: number): TraceSpan {
     startMs: Math.max(0, span.relativeStartMs ?? start),
     durationMs: span.duration ?? span.durationMs ?? 0,
     context: spanContext(span),
-    input: payload(span.input, withheld),
-    output: payload(span.output, withheld),
+    input: tracePayload(span.input, withheld),
+    output: tracePayload(span.output, withheld),
     notice: span.errorMessage
       ? {
           tone: span.errorHandled ? 'warning' : 'danger',
@@ -398,8 +400,8 @@ function toRunDetail(log: WorkflowLogDetail & { executionId: string }, traced: b
             startMs: 0,
             durationMs: total,
             context: [],
-            input: payload(execution.workflowInput, false),
-            output: payload(filterHiddenOutputKeys(execution.finalOutput), false),
+            input: tracePayload(execution.workflowInput),
+            output: tracePayload(filterHiddenOutputKeys(execution.finalOutput)),
             children: spans.map((span) => toTraceSpan(span, summary.startedAt)),
           },
         ]

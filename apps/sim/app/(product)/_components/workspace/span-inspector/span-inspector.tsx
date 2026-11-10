@@ -1,13 +1,16 @@
 'use client'
 
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { CopyButton } from '@sim/emcn/button/copy-button'
 import { InlineNotice } from '@sim/emcn/status'
 import { escapeRegExp } from '@sim/utils/string'
+import { FindBar } from '@/components/find-bar/find-bar'
 import { MetadataFields } from '@/app/(product)/_components/workspace/metadata-fields/metadata-fields'
 import styles from '@/app/(product)/_components/workspace/span-inspector/span-inspector.module.css'
 import { formatDuration } from '@/app/(product)/_components/workspace/workspace-session/format'
+import { useFindShortcut } from '@/platform/lib/data/find-shortcut'
+import { useCodeViewerFeatures } from '@/platform/lib/data/workflow-deploy/terminal'
 import type { TracePayload, TraceSpan } from '@/platform/shared/workspace-records'
 
 const STEP_TYPE: Record<TraceSpan['kind'], string> = {
@@ -139,9 +142,9 @@ function PayloadBody({ content, search }: PayloadBodyProps) {
 
 /**
  * Paper's trace payload: a caption with the format and a copy action above the content, which has
- * no surface of its own.
+ * no surface of its own. Withheld content shows why in its place.
  */
-function Payload({ label, payload, search }: PayloadProps) {
+export function Payload({ label, payload, search }: PayloadProps) {
   return (
     <section className={styles.payload} aria-label={label}>
       <header className={styles.payloadHeader}>
@@ -166,17 +169,29 @@ function shownContent(payload: TracePayload | undefined) {
   return payload && payload.format !== 'withheld' ? payload.content : ''
 }
 
+/** A payload a step carries beyond its input and output, such as a model's thinking. */
+interface ExtraPayload {
+  id: string
+  label: string
+  payload: TracePayload
+}
+
 interface SpanInspectorProps {
   span: TraceSpan
-  /** Marks a find's matches in the input, then the output, and reports how many there are. */
+  /** Marks a find's matches in the input, the output, then each extra payload, and reports the total. */
   search?: PayloadSearch
+  extraPayloads?: readonly ExtraPayload[]
 }
 
 /** The selected step: what it was, how it went, the context it ran in and what it read and wrote. */
-export function SpanInspector({ span, search }: SpanInspectorProps) {
+export function SpanInspector({ span, search, extraPayloads = [] }: SpanInspectorProps) {
   const pattern = searchPattern(search?.query)
-  const inputMatches = countMatches(toLines(shownContent(span.input)), pattern)
-  const total = inputMatches + countMatches(toLines(shownContent(span.output)), pattern)
+  const counts = [span.input, span.output, ...extraPayloads.map((extra) => extra.payload)].map(
+    (payload) => countMatches(toLines(shownContent(payload)), pattern)
+  )
+  const firstMatch = (index: number) =>
+    counts.slice(0, index).reduce((sum, count) => sum + count, 0)
+  const total = firstMatch(counts.length)
   const report = search?.onMatchCountChange
   useEffect(() => {
     report?.(total)
@@ -210,9 +225,62 @@ export function SpanInspector({ span, search }: SpanInspectorProps) {
         <Payload
           label='Output'
           payload={span.output}
-          search={{ pattern, first: inputMatches, current }}
+          search={{ pattern, first: firstMatch(1), current }}
         />
       )}
+      {extraPayloads.map((extra, index) => (
+        <Payload
+          key={extra.id}
+          label={extra.label}
+          payload={extra.payload}
+          search={{ pattern, first: firstMatch(index + 2), current }}
+        />
+      ))}
     </section>
+  )
+}
+
+/**
+ * The inspector with its own find: Cmd/Ctrl+F inside it opens a find bar over the step's payloads,
+ * stepping through the matches it marks.
+ */
+export function FindableSpanInspector({ span, extraPayloads }: Omit<SpanInspectorProps, 'search'>) {
+  const container = useRef<HTMLDivElement>(null)
+  const find = useCodeViewerFeatures({ contentRef: container })
+  const onKeyDown = useFindShortcut({
+    enabled: true,
+    inputRef: find.searchInputRef,
+    containerRef: container,
+    onOpen: find.activateSearch,
+  })
+  return (
+    <div ref={container} className={styles.findable} onKeyDown={onKeyDown}>
+      {find.isSearchActive && (
+        <FindBar
+          label='Find in step'
+          query={find.searchQuery}
+          onQueryChange={find.setSearchQuery}
+          inputRef={find.searchInputRef}
+          results={{ index: find.currentMatchIndex, count: find.matchCount }}
+          onStep={(direction) =>
+            direction === 1 ? find.goToNextMatch() : find.goToPreviousMatch()
+          }
+          onClose={find.closeSearch}
+        />
+      )}
+      <SpanInspector
+        span={span}
+        extraPayloads={extraPayloads}
+        search={
+          find.isSearchActive
+            ? {
+                query: find.searchQuery,
+                currentMatchIndex: find.currentMatchIndex,
+                onMatchCountChange: find.handleMatchCountChange,
+              }
+            : undefined
+        }
+      />
+    </div>
   )
 }
