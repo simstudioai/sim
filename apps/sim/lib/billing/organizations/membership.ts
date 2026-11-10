@@ -74,6 +74,7 @@ import {
   revokeUserSessionsTx,
 } from '@/lib/organizations/members/revocation'
 import {
+  acquirePersonalOrganizationWorkspaceLocksTx,
   createPersonalOrganizationTx,
   retirePersonalOrganizationTx,
 } from '@/lib/organizations/personal'
@@ -675,6 +676,8 @@ export async function ensureUserInOrganizationTx(
     proCancelledAtPeriodEnd: false,
   }
 
+  /** A join may retire the personal organization, which row-locks its workspaces. */
+  await acquirePersonalOrganizationWorkspaceLocksTx(tx, userId)
   await acquireOrganizationMutationLock(tx, organizationId)
   await acquireUserBillingIdentityLock(tx, userId)
   await acquireOrgMembershipLock(tx, userId, organizationId)

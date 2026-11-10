@@ -21,8 +21,10 @@ import {
   organizationSearchMcpInvocation,
   organizationSecretSource,
   outboxEvent,
+  project,
   user,
   userStats,
+  workspace,
 } from '@sim/db/schema'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
@@ -35,11 +37,14 @@ import {
   addUserToOrganization,
   ensureUserInOrganizationTx,
 } from '@/lib/billing/organizations/membership'
+import { tryAcquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbTransaction } from '@/lib/db/types'
+import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { personalOrganizationAuditOutboxHandlers } from '@/lib/organizations/lifecycle-audit'
 import { PERSONAL_ORGANIZATION_AUDIT_EVENT } from '@/lib/organizations/lifecycle-audit-event'
 import { findCascadingOrganizationContentTx } from '@/lib/organizations/personal'
 import { createPersonalOrganization } from '@/lib/organizations/provision-personal'
+import { createDefaultPersonalWorkspaceInTransaction } from '@/lib/workspaces/create'
 
 const userIds: string[] = []
 
@@ -92,6 +97,24 @@ async function postgresErrorCode(write: Promise<unknown>): Promise<string | unde
 
 afterAll(async () => {
   if (userIds.length === 0) return
+  const workspaces = await db
+    .select({ id: workspace.id, projectId: workspace.projectId })
+    .from(workspace)
+    .where(inArray(workspace.ownerId, userIds))
+  if (workspaces.length > 0) {
+    await db.delete(workspace).where(
+      inArray(
+        workspace.id,
+        workspaces.map((row) => row.id)
+      )
+    )
+    await db.delete(project).where(
+      inArray(
+        project.id,
+        workspaces.flatMap((row) => (row.projectId ? [row.projectId] : []))
+      )
+    )
+  }
   const organizations = await db
     .select({ id: member.organizationId })
     .from(member)
@@ -382,6 +405,47 @@ describe('joining a team while the personal organization is still being written 
       .from(organization)
       .where(eq(organization.slug, `personal-${joinerId.toLowerCase()}`))
     expect(orphans).toEqual([])
+  })
+})
+
+describe('joining a team while an invitation into a personal workspace is being accepted', () => {
+  it('queues behind the acceptance before taking the joiner’s billing identity', async () => {
+    const joinerId = await createUser()
+    const teamId = await team(await createUser())
+    const personalId = await personalOrganizationOf(joinerId)
+    const personalWorkspace = await db.transaction((tx) =>
+      createDefaultPersonalWorkspaceInTransaction(tx, {
+        userId: joinerId,
+        userName: 'Join Test',
+        personalOrganizationId: personalId,
+      })
+    )
+
+    // The acceptance holds the workspace's advisory lock and row, as it does while it decides.
+    const { release, settled: acceptance } = await holdOpen(async (tx) => {
+      await acquireInvitationMutationLocks(tx, {
+        invitationIds: [],
+        workspaceIds: [personalWorkspace.id],
+      })
+      await tx.execute(sql`SELECT id FROM workspace WHERE id = ${personalWorkspace.id} FOR UPDATE`)
+    })
+    const join = addUserToOrganization({
+      userId: joinerId,
+      organizationId: teamId,
+      role: 'member',
+      skipBillingLogic: true,
+      skipSeatValidation: true,
+    })
+    await waitForLockWaiter()
+    const identityFree = await db.transaction((tx) =>
+      tryAcquireAdvisoryXactLock(tx, 'user_billing_identity', `user-billing-identity:${joinerId}`)
+    )
+    release()
+    await acceptance
+    const joined = await join
+
+    expect(identityFree).toBe(true)
+    expect(joined).toMatchObject({ success: true })
   })
 })
 
