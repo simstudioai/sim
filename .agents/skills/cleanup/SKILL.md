@@ -25,7 +25,7 @@ Run these in parallel on the parsed `scope`:
 3. `/you-might-not-need-a-callback <scope> fix=false`
 4. `/you-might-not-need-state <scope> fix=false`
 5. `/react-query-best-practices <scope> fix=false`
-6. Design review: route `apps/sim/platform/**` to [implement-platform](../implement-platform/SKILL.md) and existing app EMCN paths to [emcn-design-review](../emcn-design-review/SKILL.md). For a mixed diff, the same pass reviews each subset with its own contract. Both reviews are read-only and return proposals for Step 2.
+6. Design review: route `apps/sim/app/(product)/**` and `apps/sim/platform/**` to [implement-platform](../implement-platform/SKILL.md) and legacy app UI to [emcn-design-review](../emcn-design-review/SKILL.md). For a mixed diff, the same pass reviews each subset with its own contract. Both reviews are read-only and return proposals for Step 2.
 7. `/you-might-not-need-url-state <scope> fix=false`
 8. `/you-might-not-need-a-comment <scope> fix=false`
 9. `/test-audit audit <test paths>` — read-only; only when the scope adds or changes test files (`*.test.ts(x)`, `*.integration.ts`, `**/e2e/**`, `apps/sim/scripts/test-*-e2e.ts`). First resolve a free-form scope to the concrete list of added or changed test paths (`git diff --name-only` against the scope's base) and pass those paths. It applies the authoring gate to every new or changed test and proposes deleting the ones that fail it.
