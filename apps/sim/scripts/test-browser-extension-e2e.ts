@@ -2330,12 +2330,19 @@ try {
           await tx`update member set role = 'member' where organization_id = ${organizationId} and user_id = ${viewer}`
         })
         demoted = true
-        const followUp = chatPost()
-        await composer.fill('QA scoped follow-up')
-        await composer.press('Enter')
-        const refusal = (await followUp).status()
+        // The panel may already show the chat as unavailable once a refetch notices the lost
+        // access, so the follow-up goes to the server directly, in the panel's own request shape.
+        const followUp = await browserContext.request.post(`${base.origin}/api/mothership/chat`, {
+          headers: { origin: base.origin },
+          data: {
+            ...payload,
+            message: 'QA scoped follow-up',
+            userMessageId: generateId(),
+            createNewChat: false,
+          },
+        })
         // A workspace the sender cannot reach is not found to them, answered before any run.
-        assert.equal(refusal, 404, `The follow-up was answered ${refusal}`)
+        assert.equal(followUp.status(), 404, `The follow-up was answered ${followUp.status()}`)
         // Refused, not re-scoped: no run under the organization, and the chat keeps its workspace.
         assert.deepEqual(await runs(), [{ workspaceId: scopedWorkspaceId, organizationId: null }])
         const [chat] = await sql<{ workspaceId: string | null; organizationId: string | null }[]>`
