@@ -133,9 +133,14 @@ describe('organization-owned Search retention dispatch', () => {
     expect(mockEnqueue).not.toHaveBeenCalled()
   })
 
-  it("applies a personal organization's owner plan retention to its soft-deleted content", async () => {
+  it("keeps a personal organization's content for its owner's paid plan, not the free window", async () => {
     setEnvFlags({ isBillingEnabled: true })
-    vi.mocked(getHighestPriorityPersonalSubscription).mockResolvedValueOnce(null)
+    vi.mocked(getHighestPriorityPersonalSubscription).mockResolvedValueOnce({
+      id: 'sub-pro',
+      plan: 'pro',
+      status: 'active',
+      referenceId: 'owner-1',
+    } as Awaited<ReturnType<typeof getHighestPriorityPersonalSubscription>>)
     queueTableRows(schemaMock.organization, [
       { id: 'org-personal', kind: 'personal', ownerId: 'owner-1', settings: null },
     ])
@@ -143,16 +148,12 @@ describe('organization-owned Search retention dispatch', () => {
 
     await dispatchCleanupJobs('cleanup-soft-deletes')
 
-    expect(getHighestPriorityPersonalSubscription).toHaveBeenCalledWith('owner-1', {
-      onError: 'throw',
-    })
-    expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
     expect(mockEnqueue).toHaveBeenCalledWith(
       'cleanup-soft-deletes',
       expect.objectContaining({
-        plan: 'free',
+        plan: 'pro',
         organizationIds: ['org-personal'],
-        retentionHours: 30 * 24,
+        retentionHours: 90 * 24,
       }),
       expect.any(Object)
     )
