@@ -65,11 +65,9 @@ export const readMemoryScope = defineAuthorizedChatUseCase({
       )
     }
     // The worker keys a graph by this id (`["organization", id]`, else `["personal"]`). A personal
-    // workspace moved into its owner's personal organization keeps the personal graph it had, so a
-    // workspace chat names only a team (the payer rule); an organization chat names its own.
-    const graphOrganizationId =
-      context.organizationId ??
-      (await resolvePayerOrganizationId(db, context.workspaceOrganizationId ?? null))
+    // organization has one member, so its workspace and organization chats share that member's
+    // personal graph: the scope names only a team (the payer rule).
+    const graphOrganizationId = await resolvePayerOrganizationId(db, spaceOrganizationId)
     return {
       enabled,
       ...(spaceId ? { spaceId } : {}),
