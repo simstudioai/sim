@@ -1,5 +1,9 @@
 import { z } from 'zod'
 import {
+  gitLabPermissionInputSchema,
+  gitLabPermissionSummarySchema,
+} from '@/lib/api/contracts/knowledge/gitlab-permissions'
+import {
   noInputSchema,
   nonEmptyIdSchema,
   organizationIdSchema,
@@ -317,4 +321,36 @@ export const v2ResendOrganizationInvitationContract = defineRouteContract({
   query: noInputSchema,
   body: noInputSchema.optional().default({}),
   response: { mode: 'json', schema: v2DataResponse(v2OrganizationInvitationSchema) },
+})
+
+const gitLabSearchSourceParamsSchema = v2OrganizationParamsSchema.extend({
+  sourceId: nonEmptyIdSchema
+    .max(255)
+    .describe('Identifier of the configured GitLab Search source.'),
+})
+const gitLabSearchRevisionResponse = v2DataResponse(
+  gitLabPermissionSummarySchema.pick({ revision: true }).meta({
+    id: 'GitLabSearchPermissionRevision',
+    title: 'GitLab Search permission revision',
+    description: 'Revision of the permission CSVs for this source.',
+  })
+)
+
+export const v2GetGitLabSearchPermissionsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]/gitlab-permissions',
+  params: gitLabSearchSourceParamsSchema,
+  query: noInputSchema,
+  response: { mode: 'json', schema: gitLabSearchRevisionResponse },
+})
+
+export const v2ReplaceGitLabSearchPermissionsContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]/gitlab-permissions',
+  params: gitLabSearchSourceParamsSchema,
+  query: noInputSchema,
+  body: gitLabPermissionInputSchema
+    .pick({ expectedRevision: true, userMapping: true, projectPermissions: true })
+    .required(),
+  response: { mode: 'json', schema: gitLabSearchRevisionResponse },
 })

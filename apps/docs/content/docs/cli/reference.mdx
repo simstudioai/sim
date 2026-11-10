@@ -4288,6 +4288,69 @@ sim organizations sso policy update [options]
 
 API request and response schemas: [updateSsoPolicy](/api-reference/organizations/updateSsoPolicy).
 
+### sim organizations gitlab-permissions get
+
+Get GitLab search permission revision (OAuth login or personal API key required)
+
+```bash
+sim organizations gitlab-permissions get <sourceId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `sourceId` | Yes | Identifier of the configured GitLab Search source. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+API request and response schemas: [getGitLabSearchPermissions](/api-reference/organizations/getGitLabSearchPermissions).
+
+### sim organizations gitlab-permissions replace
+
+Replace GitLab search permission CSVs (OAuth login or personal API key required)
+
+```bash
+sim organizations gitlab-permissions replace <sourceId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `sourceId` | Yes | Identifier of the configured GitLab Search source. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--expected-revision <value>` | Yes | Current permission revision obtained before generating this snapshot. |
+| `--user-mapping <json\|@file>` | Yes | GitLab user IDs and their verified Sim email addresses. (JSON, or @path / @- to read a file or stdin). |
+| `--project-permissions <json\|@file>` | Yes | GitLab project paths and the IDs of users granted access. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+API request and response schemas: [replaceGitLabSearchPermissions](/api-reference/organizations/replaceGitLabSearchPermissions).
+
 ### sim organizations get
 
 Get organization (OAuth login or personal API key required)

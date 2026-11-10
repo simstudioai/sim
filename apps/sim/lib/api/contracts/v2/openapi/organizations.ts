@@ -7,6 +7,7 @@ import {
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   v2CreateOrganizationInvitationContract,
+  v2GetGitLabSearchPermissionsContract,
   v2GetOrganizationContract,
   v2GetOrganizationInvitationContract,
   v2ListOrganizationInvitationsContract,
@@ -15,15 +16,31 @@ import {
   v2ListOrganizationsContract,
   v2ListOrganizationWorkspacesContract,
   v2RemoveOrganizationMemberContract,
+  v2ReplaceGitLabSearchPermissionsContract,
   v2ResendOrganizationInvitationContract,
   v2RevokeOrganizationInvitationContract,
   v2UpdateOrganizationMemberContract,
 } from '@/lib/api/contracts/v2/organizations'
 import { defineOpenApiRoute } from '@/lib/api/openapi/types'
 import { invitationOperations } from '@/lib/invitations/application/operations'
+import { gitLabSearchPermissionOperations } from '@/lib/knowledge/application/gitlab-search-permission-operations'
 import { organizationOperations } from '@/lib/organizations/application/operations'
 
 const TIMESTAMP = '2026-06-01T09:00:00.000Z'
+
+const gitLabSearchPermissionParams = documentedSchema(
+  v2GetGitLabSearchPermissionsContract.params,
+  'GitLabSearchPermissionParams',
+  'GitLab Search permission parameters',
+  'Organization and Search source identifiers.'
+)
+const gitLabSearchPermissionResponse = documentedSchema(
+  v2GetGitLabSearchPermissionsContract.response.schema,
+  'GitLabSearchPermissionResponse',
+  'GitLab Search permission response',
+  'Current revision of the permission CSVs.',
+  [{ data: { revision: 3 } }]
+)
 
 export const organizationOpenApiRoutes = [
   defineOpenApiRoute(
@@ -550,6 +567,59 @@ export const organizationOpenApiRoutes = [
         'Acknowledgement that the pending invitation was cancelled.',
         [{ data: { id: 'invitation-123', status: 'cancelled' } }]
       ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2GetGitLabSearchPermissionsContract,
+    {
+      applicationOperation: gitLabSearchPermissionOperations.read,
+      operationId: 'getGitLabSearchPermissions',
+      summary: 'Get GitLab Search permission revision',
+      description: `Read the current revision of an existing GitLab Search source in CSV permission mode. Requires organization Admin access. ${WORKSPACE_API_KEY_DENIED}`,
+      tags: ['Organizations'],
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The current permission revision.', headers: RATE_LIMIT_HEADERS },
+    },
+    {
+      params: gitLabSearchPermissionParams,
+      query: v2GetGitLabSearchPermissionsContract.query,
+      response: gitLabSearchPermissionResponse,
+    }
+  ),
+  defineOpenApiRoute(
+    v2ReplaceGitLabSearchPermissionsContract,
+    {
+      applicationOperation: gitLabSearchPermissionOperations.replace,
+      operationId: 'replaceGitLabSearchPermissions',
+      summary: 'Replace GitLab Search permission CSVs',
+      description: `Replace both permission CSVs for an existing GitLab Search source in CSV mode. Requires organization Admin access. Supply the current revision. A concurrent change returns 409 and leaves both files untouched. Each file accepts up to 4 MiB and 100,000 data rows. ${WORKSPACE_API_KEY_DENIED}`,
+      tags: ['Organizations'],
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'The new permission revision.', headers: RATE_LIMIT_HEADERS },
+    },
+    {
+      params: gitLabSearchPermissionParams,
+      query: v2ReplaceGitLabSearchPermissionsContract.query,
+      body: documentedSchema(
+        v2ReplaceGitLabSearchPermissionsContract.body,
+        'ReplaceGitLabSearchPermissionsBody',
+        'GitLab Search permission CSVs',
+        'The expected revision and complete contents of both UTF-8 CSV files.',
+        [
+          {
+            expectedRevision: 2,
+            userMapping: {
+              filename: 'users.csv',
+              content: 'user_id,email\n42,reader@example.com\n',
+            },
+            projectPermissions: {
+              filename: 'projects.csv',
+              content: 'project_path,user_id\nteam/project,42\n',
+            },
+          },
+        ]
+      ),
+      response: gitLabSearchPermissionResponse,
     }
   ),
 ] as const

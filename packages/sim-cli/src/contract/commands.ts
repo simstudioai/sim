@@ -1238,6 +1238,14 @@ export const CLI_CONTRACT: CliContract = {
     columns: [{ header: 'id' }, { header: 'name' }, { header: 'role' }],
   },
   getOrganization: { command: 'organizations get' },
+  getGitLabSearchPermissions: {
+    command: 'organizations gitlab-permissions get',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  replaceGitLabSearchPermissions: {
+    command: 'organizations gitlab-permissions replace',
+    pathFlags: ORGANIZATION_FLAG,
+  },
   listSsoProviders: {
     command: 'organizations sso providers list',
     pathFlags: ORGANIZATION_FLAG,
