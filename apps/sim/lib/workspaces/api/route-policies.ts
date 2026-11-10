@@ -19,11 +19,9 @@ export const v2WorkspaceErrorPolicies = {
     notFoundMessage: 'Workspace not found',
   }),
   /**
-   * Member administration adds two failures a caller can act on that the
-   * shared projection would answer as 500: an owner whose removal leaves no
-   * billing account to inherit the workspace (a state conflict, resolved by
-   * reassigning billing), and contention that outlived the transaction (resolved
-   * by waiting).
+   * Member administration adds two actionable failures the shared projection
+   * would answer as 500: an owner removal with no billing account to inherit
+   * (409) and contention that outlived the transaction (503).
    */
   manageWorkspaceMembers: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Workspace not found',

@@ -1,8 +1,9 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalSubject } from '@sim/auth/principal'
 import type { PermissionType } from '@sim/platform-authz/workspace'
+import { findCause } from '@sim/utils/errors'
 import { defineAuthorizedWorkspaceUseCase, ForbiddenOperationError } from '@/lib/core/application'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 import { workspacePermissionOperations } from '@/lib/workspaces/application/member-operations'
@@ -54,45 +55,37 @@ export const readWorkspacePermissions = defineAuthorizedWorkspaceUseCase({
   },
 })
 
+const STORE_FAILURE_CODES: Partial<Record<number, OrchestrationErrorCode>> = {
+  400: 'validation',
+  403: 'forbidden',
+  404: 'not_found',
+  409: 'conflict',
+}
+
 /**
  * The caller-safe failure a store error stands for, or the error itself when it
- * names nothing a caller may see.
- *
- * This store's typed errors promise caller-safe wording; driver failures remain
- * private. A coded refusal anywhere in the chain wins over the HTTP error that
- * wraps it, so a directory-managed member keeps its `SCIM_MANAGED_MEMBERSHIP`
- * code instead of collapsing into a bare forbidden.
+ * names nothing a caller may see: the store's typed errors promise caller-safe
+ * wording, driver failures stay private. A coded refusal the HTTP error wraps
+ * keeps its code (`SCIM_MANAGED_MEMBERSHIP`), and the HTTP error stays the
+ * `cause` the internal route renders.
  */
 function callerSafeStoreFailure(error: unknown): unknown {
-  const chain: Error[] = []
-  for (
-    let cause: unknown = error;
-    cause instanceof Error && !chain.includes(cause);
-    cause = cause.cause
-  ) {
-    chain.push(cause)
-  }
-  const refusal = chain.find((cause) => cause instanceof ForbiddenOperationError)
-  if (refusal) return refusal
-  for (const cause of chain) {
-    if (!(cause instanceof HttpError)) continue
-    const code =
-      cause.statusCode === 400
-        ? 'validation'
-        : cause.statusCode === 403
-          ? 'forbidden'
-          : cause.statusCode === 404
-            ? 'not_found'
-            : cause.statusCode === 409
-              ? 'conflict'
-              : undefined
-    if (code) {
-      const failure = new OrchestrationError(code, cause.message)
-      failure.cause = cause
-      return failure
-    }
-  }
-  return error
+  const httpError = findCause(
+    error,
+    (cause): cause is HttpError =>
+      cause instanceof HttpError && STORE_FAILURE_CODES[cause.statusCode] !== undefined
+  )
+  const code = httpError && STORE_FAILURE_CODES[httpError.statusCode]
+  if (!httpError || !code) return error
+  const refusal = findCause(
+    httpError.cause,
+    (cause): cause is ForbiddenOperationError => cause instanceof ForbiddenOperationError
+  )
+  const failure = refusal
+    ? new ForbiddenOperationError(refusal.detailCode, httpError.message)
+    : new OrchestrationError(code, httpError.message)
+  failure.cause = httpError
+  return failure
 }
 
 async function applyPermissionUpdates(
@@ -145,14 +138,11 @@ export interface UpdateWorkspaceMemberInput extends ReadWorkspacePermissionsInpu
 }
 
 /**
- * One member's role change, answered with that member as the roster shows them
- * afterwards. The same operation and store as {@link updateWorkspacePermissions};
- * a request for the role the member already holds changes and audits nothing.
- *
- * The member is read before the write: audit is projected only once `execute`
- * returns, so a read failing after the commit would leave a durable role change
- * with no audit entry. A successful write leaves exactly the requested role,
- * because the store refuses inherited (organization admin) roles outright.
+ * One member's role change through the same operation and store as
+ * {@link updateWorkspacePermissions}, answered with the member as the roster
+ * shows them; requesting the current role changes and audits nothing. The
+ * member is read before the write so a failed read cannot leave a committed,
+ * unaudited change.
  */
 export const updateWorkspaceMember = defineAuthorizedWorkspaceUseCase({
   operation: workspacePermissionOperations.update,
@@ -163,7 +153,7 @@ export const updateWorkspaceMember = defineAuthorizedWorkspaceUseCase({
     const changes = await applyPermissionUpdates(context.workspaceId, principal, [
       { userId: input.userId, permissions: input.role },
     ])
-    /** Granted between the read and the locked write; the store vetted them as a member. */
+    // Granted between the read and the locked write; the store vetted them as a member.
     const member = before ?? (await getPublicWorkspaceMember(context.workspaceId, input.userId))
     if (!member) {
       throw new OrchestrationError(

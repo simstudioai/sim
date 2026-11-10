@@ -179,6 +179,8 @@ describe('workspace permission operations', () => {
       .catch((error: unknown) => error)
     expect(forbiddenErrorDetails(result)).toEqual({ code: 'SCIM_MANAGED_MEMBERSHIP' })
     expect(result).toMatchObject({ code: 'forbidden', message: refusal.message })
+    // The internal route renders the store's HTTP error, so it must stay the cause.
+    expect((result as Error).cause).toBeInstanceOf(DirectoryRefusal)
     expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 

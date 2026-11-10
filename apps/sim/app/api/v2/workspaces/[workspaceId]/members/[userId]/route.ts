@@ -19,11 +19,7 @@ export const PATCH = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2WorkspaceErrorPolicies.manageWorkspaceMembers,
-  mapInput: ({ params, body }) => ({
-    workspaceId: params.workspaceId,
-    userId: params.userId,
-    role: body.role,
-  }),
+  mapInput: ({ params, body }) => ({ ...params, ...body }),
   useCase: updateWorkspaceMember,
   present: ({ member }) => ({ data: presentWorkspaceMember(member) }),
 })
