@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-import { validateGitLabServiceAccount } from '@/lib/credentials/token-service-accounts/validators/gitlab'
+import { validateGitLabServiceAccount } from '@/lib/credentials/token-service-accounts/validators/token-checks'
 
 const activeToken = { name: 'sim-workflows', active: true, revoked: false, scopes: ['api'] }
 

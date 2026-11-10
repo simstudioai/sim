@@ -153,11 +153,16 @@ export async function parseProviderJson<T>(res: Response, step: string): Promise
   }
 }
 
+/** The parts of a provider response the error helpers read; a guarded egress response has them too. */
+type ProviderErrorResponse = Pick<Response, 'ok' | 'status' | 'body'> & {
+  headers: { get(name: string): string | null }
+}
+
 /**
  * Reads a bounded snippet of a provider error body for server logs. Never
  * throws — an unreadable body logs as an empty string.
  */
-export async function readProviderErrorSnippet(res: Response): Promise<string> {
+export async function readProviderErrorSnippet(res: ProviderErrorResponse): Promise<string> {
   try {
     // Bounded: a provider or proxy can answer with an arbitrarily large error body.
     const text = await readResponseTextWithLimit(res, {
@@ -189,7 +194,7 @@ export async function readProviderErrorSnippet(res: Response): Promise<string> {
  * Snowflake, Atlassian) already raise `site_not_found` before reaching here.
  */
 export async function throwForProviderResponse(
-  res: Response,
+  res: ProviderErrorResponse,
   step: string,
   context: Record<string, unknown> = {}
 ): Promise<void> {

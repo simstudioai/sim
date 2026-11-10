@@ -14,6 +14,7 @@ import {
 } from '@/lib/credentials/token-service-accounts/validators/http'
 import { ashbyAuthHeaders } from '@/tools/ashby/utils'
 import { checkrHeaders } from '@/tools/checkr/utils'
+import { normalizeGitLabHost } from '@/tools/gitlab/utils'
 import { GRANOLA_API_BASE, granolaHeaders } from '@/tools/granola/utils'
 import { WHATSAPP_GRAPH_VERSION } from '@/tools/whatsapp/utils'
 
@@ -421,6 +422,38 @@ export const validateGranolaServiceAccount = tokenCheckValidator({
     url: `${GRANOLA_API_BASE}/notes?page_size=1`,
     headers: { ...granolaHeaders(apiToken), Accept: 'application/json' },
   }),
+})
+
+/** Scopes that let the GitLab tools call the REST API. */
+const GITLAB_API_SCOPES = new Set(['api', 'read_api'])
+
+/**
+ * GitLab's token self-lookup answers for a personal, project, or group access token at the
+ * instance it was typed with (gitlab.com or self-managed); the token must be active and carry an
+ * API scope. A reply that isn't a token lookup is the instance misbehaving, not a bad token.
+ */
+export const validateGitLabServiceAccount = tokenCheckValidator({
+  serviceLabel: 'GitLab',
+  domain: ({ domain }) => normalizeGitLabHost(domain),
+  egress: 'configuredEndpoint',
+  request: ({ apiToken, domain }) => ({
+    url: `https://${domain}/api/v4/personal_access_tokens/self`,
+    headers: { 'PRIVATE-TOKEN': apiToken, Accept: 'application/json' },
+  }),
+  acceptsBody: (body) => {
+    const token = toRecord(body)
+    if (typeof token.active !== 'boolean' || !Array.isArray(token.scopes)) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'GitLab returned an unexpected token lookup',
+      })
+    }
+    return (
+      token.active &&
+      token.revoked !== true &&
+      token.scopes.some((scope) => GITLAB_API_SCOPES.has(String(scope)))
+    )
+  },
 })
 
 /** Hex's list-projects endpoint (the one the Hex tools call) answers 200 for a valid token and 401 otherwise. */

@@ -110,7 +110,6 @@ import { validateClickupServiceAccount } from '@/lib/credentials/token-service-a
 import { validateCodaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/coda'
 import { validateFlowServiceAccount } from '@/lib/credentials/token-service-accounts/validators/flow'
 import { validateGaugeServiceAccount } from '@/lib/credentials/token-service-accounts/validators/gauge'
-import { validateGitLabServiceAccount } from '@/lib/credentials/token-service-accounts/validators/gitlab'
 import { validateHarmonicServiceAccount } from '@/lib/credentials/token-service-accounts/validators/harmonic'
 import { validateHiggsfieldServiceAccount } from '@/lib/credentials/token-service-accounts/validators/higgsfield'
 import { validateHubspotServiceAccount } from '@/lib/credentials/token-service-accounts/validators/hubspot'
@@ -149,6 +148,7 @@ import {
   validateFirefliesServiceAccount,
   validateFlintServiceAccount,
   validateGammaServiceAccount,
+  validateGitLabServiceAccount,
   validateGrainServiceAccount,
   validateGranolaServiceAccount,
   validateHexServiceAccount,
