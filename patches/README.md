@@ -48,7 +48,7 @@ closure handling. Keep the reconnect regression tests when upgrading.
 
 # Drizzle development push policy
 
-`drizzle-kit@0.31.10` prompts when it sees both additions and removals, even with
+`drizzle-kit@0.31.11` prompts when it sees both additions and removals, even with
 `--force`. Its PostgreSQL push path also catches errors and exits successfully,
 which lets post-push work run against a schema that was not applied.
 
@@ -57,8 +57,11 @@ resolvers and makes PostgreSQL push failures and cancellations return nonzero.
 `packages/db/scripts/push.ts` enables the policy only in its Drizzle subprocess
 using `SIM_DB_PUSH_RENAME_MODE=create`. `--interactive-renames` selects the native
 chooser and requires a terminal. Normal migration generation keeps its rename
-prompts. Data-loss confirmations, table filters, introspection, and generated SQL
-remain owned by Drizzle; `--force` still controls data-loss approval.
+prompts. Data-loss confirmations, table filters, and generated SQL remain owned
+by Drizzle; `--force` still controls data-loss approval. Introspection changes in
+one place: PostgreSQL unique constraints read their columns from
+`key_column_usage` in ordinal order, so a composite unique constraint is compared
+by its own columns in declared order.
 
 The same policy answers Drizzle's prompt to truncate a populated table before
 adding a unique constraint with its non-destructive choice: the constraint is
@@ -102,7 +105,7 @@ upstream release provides equivalent font handling and these tests pass.
 
 # Next.js application Vary preservation
 
-`next@16.4.1` replaces application `Vary` values when the Node App Page handler
+`next@16.4.5` replaces application `Vary` values when the Node App Page handler
 sets its router cache dimensions. The docs proxy's `Vary: Accept` therefore
 vanishes from the final HTML response, allowing downstream caches to confuse
 HTML with negotiated Markdown.

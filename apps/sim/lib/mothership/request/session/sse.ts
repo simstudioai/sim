@@ -14,7 +14,4 @@ export function encodeSSEEnvelope(envelope: unknown): Uint8Array {
   return encoder.encode(`data: ${JSON.stringify(presented)}\n\n`)
 }
 
-export const SSE_RESPONSE_HEADERS = {
-  ...SSE_HEADERS,
-  'Content-Encoding': 'none',
-} as const
+export const SSE_RESPONSE_HEADERS = SSE_HEADERS
