@@ -974,9 +974,6 @@
   "apps/sim/lib/billing/webhooks/outbox-handlers.test.ts": {
     "TS2739": 4
   },
-  "apps/sim/lib/billing/workspace-permissions.test.ts": {
-    "TS2741": 1
-  },
   "apps/sim/lib/browser-agent/transport.test.ts": {
     "TS2345": 1
   },
