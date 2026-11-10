@@ -30,6 +30,22 @@ export interface HostSteeringResult {
 const DESTINATION_PARAM =
   /(host|hostname|domain|endpoint|url|uri|origin|server|region|instance|shop|account|site|org|tenant|workspace|team|subdomain|space|cluster|environment|location|project)(name|slug|id)?$/i
 
+/**
+ * Destination-named params of operation-backed tools that are request data, not the host
+ * the credential goes to: each operation sends its token only to the vendor's fixed API.
+ */
+const OPERATION_PAYLOAD_PARAMS: Readonly<Record<string, readonly string[]>> = {
+  // The page the remote browser opens; the token goes to api.browser-use.com.
+  browser_use_run_task: ['startUrl'],
+  // A guild id in the discord.com API path.
+  discord_send_message: ['serverId'],
+  // The audio Fireflies downloads; the token goes to api.fireflies.ai.
+  fireflies_upload_audio: ['audioUrl'],
+  // The status page's own domain, sent as a form field to the UptimeRobot API.
+  uptimerobot_create_psp: ['customDomain'],
+  uptimerobot_update_psp: ['customDomain'],
+}
+
 const PROBE_HOST = 'hostprobe.example.net'
 const PROBE_VALUES = [PROBE_HOST, `https://${PROBE_HOST}`]
 
@@ -78,11 +94,18 @@ function alternateValues(value: unknown): string[] {
 }
 
 export function hostSteeringParams(tool: ExecutableToolConfig): HostSteeringResult {
-  // An internal operation has no request URL to probe: its server handler picks the
-  // destination, and the AWS families' handlers reach only AWS endpoints.
-  if (isInternalToolConfig(tool)) return { params: [], probed: true }
   const params: [string, ProbeableParam][] = Object.entries(tool.params ?? {})
   const stringParams = params.filter(([, param]) => param.type === 'string').map(([name]) => name)
+  // An internal operation has no request URL to probe: its server handler picks the
+  // destination from its input, so a destination-named param counts as steering.
+  // AWS families resolve their credential in the operation and are skipped by the caller.
+  if (isInternalToolConfig(tool)) {
+    const payload = new Set(OPERATION_PAYLOAD_PARAMS[tool.id] ?? [])
+    return {
+      params: stringParams.filter((name) => DESTINATION_PARAM.test(name) && !payload.has(name)),
+      probed: false,
+    }
+  }
 
   // The URL the shared transport would request, so the probe sees exactly what runs.
   const hostOf = (values: Record<string, unknown>): string | null => {
@@ -143,7 +166,11 @@ export function hostSteeringParams(tool: ExecutableToolConfig): HostSteeringResu
     }
   }
   if (!probed) {
-    return { params: stringParams.filter((name) => DESTINATION_PARAM.test(name)), probed: false }
+    const payload = new Set(OPERATION_PAYLOAD_PARAMS[tool.id] ?? [])
+    return {
+      params: stringParams.filter((name) => DESTINATION_PARAM.test(name) && !payload.has(name)),
+      probed: false,
+    }
   }
   return { params: [...steering], probed: true }
 }
