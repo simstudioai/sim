@@ -301,19 +301,30 @@ const READ_WINDOW_LIMIT = 3
 const SCALED_READ_CALL_CHARACTERS = 40_000
 
 /**
- * Characters one read returns. A live document is one chunk, so a caller that scales the window
- * gets a longer one when it asks for more chunks than the default, bounded by an even share of
- * the call's budget across the documents it reads, and never shorter than the standard page. At
- * or below the default limit, and for every other caller, the window is the standard page.
+ * Where one read's window ends. A live document is one chunk, so a caller that scales the window
+ * gets a longer one when it asks for more chunks than the default, bounded by an even share of the
+ * call's budget across the documents it reads. The share counts the window as the result encodes
+ * it, since JSON escapes quotes, backslashes and line breaks, so a longer window is shortened until
+ * its encoded text fits. The window is never shorter than the standard page, which is also what a
+ * read at or below the default limit, or from any other caller, returns.
  */
-function readWindowCharacters({
-  limit,
-  scaledWindow,
-}: Pick<LiveReadInput, 'limit' | 'scaledWindow'>) {
-  if (!scaledWindow || limit <= READ_WINDOW_LIMIT) return READ_WINDOW_CHARACTERS
+function readWindowEnd(
+  content: string,
+  start: number,
+  { limit, scaledWindow }: Pick<LiveReadInput, 'limit' | 'scaledWindow'>
+): number {
+  const standardEnd = Math.min(content.length, start + READ_WINDOW_CHARACTERS)
+  if (!scaledWindow || limit <= READ_WINDOW_LIMIT) return standardEnd
   const scaled = Math.floor((READ_WINDOW_CHARACTERS * limit) / READ_WINDOW_LIMIT)
   const share = Math.floor(SCALED_READ_CALL_CHARACTERS / Math.max(1, scaledWindow.documentsInCall))
-  return Math.max(READ_WINDOW_CHARACTERS, Math.min(scaled, share))
+  const budget = Math.min(scaled, share)
+  let end = Math.min(content.length, start + budget)
+  for (let attempt = 0; attempt < 3 && end > standardEnd; attempt++) {
+    const encoded = JSON.stringify(content.slice(start, end)).length - 2
+    if (encoded <= budget) return end
+    end = start + Math.floor(((end - start) * budget) / encoded)
+  }
+  return standardEnd
 }
 
 /**
@@ -1008,7 +1019,7 @@ export type LiveReadInput = ResourceOwner & {
   limit: number
   /**
    * Lengthens the window for a limit above the default, sharing one call's budget across the
-   * documents it reads, as {@link readWindowCharacters} sizes it.
+   * documents it reads, as {@link readWindowEnd} sizes it.
    */
   scaledWindow?: { documentsInCall: number }
   startChunkIndex?: number
@@ -1156,7 +1167,7 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
         'validation',
         'This document changed. Read again from the beginning'
       )
-    const end = Math.min(content.length, start + readWindowCharacters(input))
+    const end = readWindowEnd(content, start, input)
     return {
       documentId: input.documentId,
       knowledgeBaseId: '',

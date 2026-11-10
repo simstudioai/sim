@@ -1191,10 +1191,10 @@ describe('authorized live retrieval', () => {
   })
   describe('read window', () => {
     const content = 'x'.repeat(30_000)
-    async function readWindow(extra: Record<string, unknown>) {
+    async function readWindow(extra: Record<string, unknown>, text = content) {
       const [result] = (await searchLiveKnowledge.execute({ principal, input })).results
       if (!result) throw new Error('Expected the search fixture to return a result')
-      mocks.read.mockResolvedValue({ ...document, content })
+      mocks.read.mockResolvedValue({ ...document, content: text })
       const read = await readLiveDocument.execute({
         principal,
         input: {
@@ -1207,7 +1207,11 @@ describe('authorized live retrieval', () => {
       })
       const [chunk] = read.chunks
       if (!chunk) throw new Error('Expected the read to return a window')
-      return { length: chunk.content.length, next: read.next }
+      return {
+        length: chunk.content.length,
+        encoded: JSON.stringify(chunk.content).length - 2,
+        next: read.next,
+      }
     }
 
     const scaled = (documentsInCall: number) => ({ scaledWindow: { documentsInCall } })
@@ -1235,6 +1239,28 @@ describe('authorized live retrieval', () => {
         expect((await readWindow({ limit, ...scaled(documentsInCall) })).length).toBe(expected)
       }
     )
+
+    it.each([
+      [1, 21_333],
+      [2, 20_000],
+    ])(
+      'keeps a quote-heavy window within its share once JSON-encoded, across %i documents',
+      async (documentsInCall, share) => {
+        const quotes = '"'.repeat(30_000)
+        const { length, encoded, next } = await readWindow(
+          { limit: 8, ...scaled(documentsInCall) },
+          quotes
+        )
+        expect(encoded).toBeLessThanOrEqual(share)
+        expect(length).toBeGreaterThanOrEqual(8_000)
+        expect(next).toEqual({ startChunkIndex: 0, startOffset: length })
+      }
+    )
+
+    it('keeps the standard window for quote-heavy text at the default limit', async () => {
+      const { length } = await readWindow({ limit: 3, ...scaled(1) }, '"'.repeat(30_000))
+      expect(length).toBe(8_000)
+    })
 
     it.each([
       ['at the default limit', { limit: 3, ...scaled(1) }],
