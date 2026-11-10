@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type {
   IncidentioSchedulesDeleteParams,
   IncidentioSchedulesDeleteResponse,
@@ -12,6 +13,7 @@ export const schedulesDeleteTool: ToolConfig<
   name: 'Delete Schedule',
   description: 'Delete a schedule in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

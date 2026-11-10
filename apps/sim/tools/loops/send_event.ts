@@ -1,3 +1,4 @@
+import { LOOPS_CREDENTIAL_OAUTH } from '@/tools/loops/credential'
 import type { LoopsSendEventParams, LoopsSendEventResponse } from '@/tools/loops/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -7,6 +8,7 @@ export const loopsSendEventTool: ToolConfig<LoopsSendEventParams, LoopsSendEvent
   description:
     'Send an event to Loops to trigger automated email sequences for a contact. Identify the contact by email or userId and include optional event properties and mailing list changes.',
   version: '1.0.0',
+  oauth: LOOPS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

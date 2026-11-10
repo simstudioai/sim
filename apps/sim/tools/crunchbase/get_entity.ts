@@ -1,3 +1,4 @@
+import { CRUNCHBASE_CREDENTIAL_OAUTH } from '@/tools/crunchbase/credential'
 import type { CrunchbaseEntityParams, CrunchbaseEntityResponse } from '@/tools/crunchbase/types'
 import {
   assertCollection,
@@ -22,6 +23,7 @@ export const crunchbaseGetEntityTool: ToolConfig<
   description:
     'Look up a single entity in any Crunchbase collection — events, jobs, ipos, funds, investments, press references, insights, predictions, and more — by permalink or UUID.',
   version: '1.0.0',
+  oauth: CRUNCHBASE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.CRUNCHBASE_ERRORS,
 
   params: {

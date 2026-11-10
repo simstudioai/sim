@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityEntityResponse,
   AffinityGetListFieldDropdownOptionParams,
@@ -21,6 +22,7 @@ export const affinityGetListFieldDropdownOptionTool: ToolConfig<
   name: 'Affinity Get List Field Dropdown Option',
   description: 'Read one dropdown option on a list field.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

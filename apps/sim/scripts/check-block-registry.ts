@@ -49,6 +49,7 @@ import {
   credentialSuppliedParamsFor,
   OPERATION_RESOLVED_CREDENTIAL_PROVIDERS,
 } from '@/tools/shared/saved-credentials'
+import { getTool } from '@/tools/utils'
 
 const baseRef = process.argv[2] || 'HEAD~1'
 
@@ -359,28 +360,45 @@ function findSelectorCoercions(file: string, source: ts.SourceFile): string[] {
   return errors
 }
 
+const HOST_PROBE = 'host-probe.invalid'
+
+/** Param names that usually carry a host, used only where a URL cannot be probed. */
+const HOST_LIKE_PARAM =
+  /^(domain|subdomain|host(name)?|(api|base|server|instance|environment|deployment|tenant|workspace)_?url|api_?host|base_?url)$/i
+
 /**
- * Params that choose the host a request goes to. On a credential-only block the
- * credential must fill them, or anyone allowed to use a shared credential could
- * send its token to a server of their choosing.
+ * The params of a request tool that steer the host its request goes to. The
+ * tool's real URL is built with a probe value in each string param; a param is
+ * host-steering when the probe lands in the host. A URL that cannot be built
+ * from placeholders (it validates a vendor host) falls back to host-like param
+ * names. Internal-operation tools have no request URL; their host is in code.
  */
-const HOST_PARAM_NAMES = new Set([
-  'domain',
-  'subdomain',
-  'host',
-  'hostname',
-  'baseUrl',
-  'base_url',
-  'apiHost',
-  'apiBaseUrl',
-  'apiUrl',
-  'serverUrl',
-  'instanceUrl',
-  'environmentUrl',
-  'deploymentUrl',
-  'tenantUrl',
-  'workspaceUrl',
-])
+function hostSteeringParams(toolId: string): string[] {
+  const tool = getTool(toolId)
+  const url = tool?.request?.url
+  if (!tool || typeof url !== 'function') return []
+  const params = Object.entries(tool.params ?? {})
+  const stringParams = params.filter(([, param]) => param.type === 'string').map(([name]) => name)
+  const placeholders = Object.fromEntries(
+    params.map(([name, param]) => [
+      name,
+      param.type === 'number' ? 1 : param.type === 'boolean' ? false : 'x',
+    ])
+  )
+  const hostWith = (values: Record<string, unknown>) => {
+    try {
+      return new URL(String(url(values))).host
+    } catch {
+      return null
+    }
+  }
+  if (hostWith(placeholders) === null) {
+    return stringParams.filter((name) => HOST_LIKE_PARAM.test(name))
+  }
+  return stringParams.filter((name) =>
+    hostWith({ ...placeholders, [name]: HOST_PROBE })?.includes(HOST_PROBE)
+  )
+}
 
 /**
  * A credential-only successor (a block some legacy block's `sunset.replacedBy`
@@ -416,11 +434,25 @@ function checkSavedCredentialContract(): CheckResult {
       continue
     }
 
+    const successorFields = new Set(block.subBlocks.map((subBlock) => subBlock.id))
+    const replacedSecrets = new Set(
+      getAllBlocks()
+        .filter((legacy) => legacy.sunset?.replacedBy === block.type)
+        .flatMap((legacy) => legacy.subBlocks.map((subBlock) => subBlock.id))
+        .filter((id) => !successorFields.has(id))
+    )
+
     for (const toolId of block.tools?.access ?? []) {
       const tool = getToolMetadata(toolId)
       const oauth = tool?.oauth
       if (!tool || !oauth) {
-        errors.push(`Block "${block.type}" → tool "${toolId}": no credential policy (oauth).`)
+        // A tool that takes none of the replaced secrets (its own per-call auth) needs no policy.
+        const takesReplacedSecret = Object.keys(tool?.params ?? {}).some((param) =>
+          replacedSecrets.has(param)
+        )
+        if (takesReplacedSecret) {
+          errors.push(`Block "${block.type}" → tool "${toolId}": no credential policy (oauth).`)
+        }
         continue
       }
       if (oauth.credentialKind !== 'service-account') {
@@ -445,10 +477,10 @@ function checkSavedCredentialContract(): CheckResult {
       }
       if (!OPERATION_RESOLVED_CREDENTIAL_PROVIDERS.has(oauth.provider)) {
         const pinned = new Set<string>([...mapped, ...(oauth.authoritativeParams ?? [])])
-        for (const param of Object.keys(tool.params ?? {})) {
-          if (HOST_PARAM_NAMES.has(param) && !pinned.has(param)) {
+        for (const param of hostSteeringParams(toolId)) {
+          if (!pinned.has(param)) {
             errors.push(
-              `Block "${block.type}" → tool "${toolId}": "${param}" decides where the saved credential is sent but the credential does not fill it (map it in credentialParams).`
+              `Block "${block.type}" → tool "${toolId}": "${param}" decides the host the saved credential is sent to but the credential does not fill it (map it in credentialParams).`
             )
           }
         }

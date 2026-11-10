@@ -1,3 +1,4 @@
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import {
   type CirclebackTaggedMeetingsResponse,
   type CirclebackTagMeetingsParams,
@@ -21,6 +22,7 @@ export const addTagToMeetingsTool: ToolConfig<
   description:
     'Applies an existing Circleback tag to one or more meetings and returns the updated meetings.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

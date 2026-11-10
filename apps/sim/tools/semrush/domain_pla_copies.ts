@@ -1,3 +1,4 @@
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushDomainPlaCopiesParams,
   SemrushDomainPlaCopiesResponse,
@@ -22,6 +23,7 @@ export const semrushDomainPlaCopiesTool: ToolConfig<
   description:
     'List the unique product listing ads a domain runs, with product title, price, and shop name.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

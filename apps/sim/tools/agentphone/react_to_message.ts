@@ -1,3 +1,4 @@
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/agentphone/credential'
 import type {
   AgentPhoneReactToMessageParams,
   AgentPhoneReactToMessageResult,
@@ -12,6 +13,7 @@ export const agentphoneReactToMessageTool: ToolConfig<
   name: 'React to Message',
   description: 'Send an iMessage tapback reaction to a message (iMessage only)',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

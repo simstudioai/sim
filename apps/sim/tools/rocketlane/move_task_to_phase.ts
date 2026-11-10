@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapTask,
   ROCKETLANE_API_BASE,
@@ -17,6 +18,7 @@ export const rocketlaneMoveTaskToPhaseTool: ToolConfig<
   name: 'Rocketlane Move Task To Phase',
   description: 'Move a Rocketlane task to a given phase, associating the task with that phase',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

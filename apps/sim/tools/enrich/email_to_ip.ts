@@ -1,3 +1,4 @@
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/enrich/credential'
 import type { EnrichEmailToIpParams, EnrichEmailToIpResponse } from '@/tools/enrich/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const emailToIpTool: ToolConfig<EnrichEmailToIpParams, EnrichEmailToIpRes
   name: 'Enrich Email to IP',
   description: 'Discover an IP address associated with an email address.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

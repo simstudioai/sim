@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import {
   INCIDENTIO_ACTION_RECORD_OUTPUT_PROPERTIES,
   type IncidentioActionsCreateParams,
@@ -13,6 +14,7 @@ export const actionsCreateTool: ToolConfig<
   name: 'Create Action',
   description: 'Create a new action on an incident in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

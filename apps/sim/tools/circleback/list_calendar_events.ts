@@ -1,3 +1,4 @@
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import {
   CALENDAR_EVENT_OUTPUT_PROPERTIES,
   type CirclebackCalendarEventListResponse,
@@ -20,6 +21,7 @@ export const listCalendarEventsTool: ToolConfig<
   description:
     'Lists upcoming calendar events from the authenticated user connected calendars, with pagination and a configurable time window.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

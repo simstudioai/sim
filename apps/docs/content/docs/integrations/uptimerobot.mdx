@@ -2,7 +2,7 @@
 title: UptimeRobot
 description: Monitor uptime, manage incidents, maintenance windows, and status pages
 integration:
-  type: "uptimerobot"
+  type: "uptimerobot_v2"
   color: "#111921"
 ---
 
@@ -31,7 +31,6 @@ List monitors in your UptimeRobot account, with optional filters and pagination
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `limit` | number | No | Number of monitors per page \(1-200, default 50\) |
 | `status` | string | No | Comma-separated statuses to filter by \(PAUSED, STARTED, UP, LOOKS_DOWN, DOWN\) |
 | `name` | string | No | Partial friendly-name filter |
@@ -96,7 +95,6 @@ Get the details of a single UptimeRobot monitor by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `monitorId` | number | Yes | ID of the monitor to retrieve |
 
 #### Output
@@ -154,7 +152,6 @@ Create a new monitor in UptimeRobot
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `friendlyName` | string | Yes | Friendly name of the monitor |
 | `type` | string | Yes | Monitor type: HTTP, KEYWORD, PING, PORT, HEARTBEAT, DNS, API, or UDP |
 | `url` | string | No | URL or host to monitor \(not required for Heartbeat monitors\) |
@@ -235,7 +232,6 @@ Update an existing UptimeRobot monitor. Only the provided fields are changed.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `monitorId` | number | Yes | ID of the monitor to update |
 | `friendlyName` | string | No | New friendly name |
 | `url` | string | No | New URL or host to monitor |
@@ -314,7 +310,6 @@ Permanently delete an UptimeRobot monitor by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `monitorId` | number | Yes | ID of the monitor to delete |
 
 #### Output
@@ -336,7 +331,6 @@ Pause an UptimeRobot monitor so it stops running checks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `monitorId` | number | Yes | ID of the monitor to pause |
 
 #### Output
@@ -394,7 +388,6 @@ Resume a paused UptimeRobot monitor so it starts running checks again
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `monitorId` | number | Yes | ID of the monitor to start |
 
 #### Output
@@ -452,7 +445,6 @@ List incidents across your UptimeRobot account (last 24 hours by default), with 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `monitorId` | number | No | Filter incidents by monitor ID |
 | `monitorName` | string | No | Filter incidents by monitor name |
 | `startedAfter` | string | No | Only include incidents started after this ISO 8601 timestamp |
@@ -490,7 +482,6 @@ Get the details of a single UptimeRobot incident by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `incidentId` | string | Yes | ID of the incident to retrieve |
 
 #### Output
@@ -522,7 +513,6 @@ List maintenance windows in your UptimeRobot account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `cursor` | string | No | Pagination cursor returned by a previous request |
 
 #### Output
@@ -556,7 +546,6 @@ Get the details of a single UptimeRobot maintenance window by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `maintenanceWindowId` | number | Yes | ID of the maintenance window to retrieve |
 
 #### Output
@@ -589,7 +578,6 @@ Create a new maintenance window to suppress alerts during planned downtime
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `name` | string | Yes | Name of the maintenance window |
 | `interval` | string | Yes | Recurrence interval: once, daily, weekly, or monthly |
 | `date` | string | Yes | Start date in YYYY-MM-DD format |
@@ -629,7 +617,6 @@ Update an existing maintenance window. Only the provided fields are changed.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `maintenanceWindowId` | number | Yes | ID of the maintenance window to update |
 | `name` | string | No | New name of the maintenance window |
 | `interval` | string | No | Recurrence interval: once, daily, weekly, or monthly |
@@ -670,7 +657,6 @@ Permanently delete an UptimeRobot maintenance window by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `maintenanceWindowId` | number | Yes | ID of the maintenance window to delete |
 
 #### Output
@@ -692,7 +678,6 @@ List the personal alert contacts in your UptimeRobot account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `cursor` | number | No | Pagination cursor returned by a previous request |
 
 #### Output
@@ -722,7 +707,6 @@ Get the details of a single UptimeRobot alert contact by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `alertContactId` | number | Yes | ID of the alert contact to retrieve |
 
 #### Output
@@ -751,7 +735,6 @@ Create an email alert contact in UptimeRobot. The contact must be confirmed via 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `value` | string | Yes | Email address for the alert contact |
 | `friendlyName` | string | No | Display name for the alert contact |
 | `enableNotificationsFor` | number | No | Which monitor events to notify for: 0, 1, 2, or 3 |
@@ -782,7 +765,6 @@ Permanently delete an UptimeRobot alert contact by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `alertContactId` | number | Yes | ID of the alert contact to delete |
 
 #### Output
@@ -804,7 +786,6 @@ List the public status pages in your UptimeRobot account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `cursor` | number | No | Pagination cursor returned by a previous request |
 
 #### Output
@@ -842,7 +823,6 @@ Get the details of a single UptimeRobot public status page by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `pspId` | number | Yes | ID of the status page to retrieve |
 
 #### Output
@@ -879,7 +859,6 @@ Create a public status page in UptimeRobot, optionally with a logo and icon imag
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `friendlyName` | string | Yes | Name of the public status page |
 | `monitorIds` | string | No | Comma-separated monitor IDs to display on the page |
 | `status` | string | No | Status of the page: ENABLED \(published\) or PAUSED \(unpublished\) |
@@ -924,7 +903,6 @@ Update a public status page in UptimeRobot. Only the provided fields are changed
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `pspId` | number | Yes | ID of the status page to update |
 | `friendlyName` | string | No | New name of the public status page |
 | `monitorIds` | string | No | Comma-separated monitor IDs to display on the page |
@@ -970,7 +948,6 @@ Permanently delete an UptimeRobot public status page by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 | `pspId` | number | Yes | ID of the status page to delete |
 
 #### Output
@@ -992,7 +969,6 @@ Get details about the authenticated UptimeRobot account, including plan and limi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | UptimeRobot API key |
 
 #### Output
 

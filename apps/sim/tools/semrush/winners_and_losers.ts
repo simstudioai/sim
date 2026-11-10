@@ -1,3 +1,4 @@
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushWinnersAndLosersParams,
   SemrushWinnersAndLosersResponse,
@@ -37,6 +38,7 @@ export const semrushWinnersAndLosersTool: ToolConfig<
   description:
     'List the domains that gained or lost the most organic and paid search visibility in a database.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

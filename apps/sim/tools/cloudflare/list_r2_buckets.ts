@@ -1,4 +1,5 @@
 import { toRecord } from '@sim/utils/object'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import { R2_BUCKET_OUTPUTS, RESULT_INFO_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareListR2BucketsParams,
@@ -23,6 +24,7 @@ export const listR2BucketsTool: ToolConfig<
   description:
     'Lists the R2 object storage buckets in an account. Requires an API token with Account Workers R2 Storage Read.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     order: {

@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type {
   IncidentioIncidentAlertsListParams,
   IncidentioIncidentAlertsListResponse,
@@ -16,6 +17,7 @@ export const incidentAlertsListTool: ToolConfig<
   description:
     'List the connections between incidents and alerts in incident.io — which alerts triggered an incident, or which incident an alert was attached to',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import {
   type BrexDeliveryContextParams,
   brexIdempotencyHeader,
@@ -20,6 +21,7 @@ export const brexCreateVendorTool: ToolConfig<
   name: 'Brex Create Vendor',
   description: 'Create a new vendor in the Brex account',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/clerk/credential'
 import type {
   ClerkApiError,
   ClerkDeleteBlocklistIdentifierParams,
@@ -17,6 +18,7 @@ export const clerkDeleteBlocklistIdentifierTool: ToolConfig<
   name: 'Delete Blocklist Identifier from Clerk',
   description: 'Remove an identifier from your Clerk instance blocklist',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

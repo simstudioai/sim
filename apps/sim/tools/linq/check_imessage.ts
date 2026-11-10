@@ -1,3 +1,4 @@
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/linq/credential'
 import type { LinqCapabilityCheckParams, LinqCapabilityCheckResult } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -10,6 +11,7 @@ export const linqCheckImessageTool: ToolConfig<
   name: 'Check iMessage Capability',
   description: 'Check whether an address (phone number or email) supports iMessage',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

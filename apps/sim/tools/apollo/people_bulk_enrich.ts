@@ -1,3 +1,4 @@
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/apollo/credential'
 import type {
   ApolloPeopleBulkEnrichParams,
   ApolloPeopleBulkEnrichResponse,
@@ -12,6 +13,7 @@ export const apolloPeopleBulkEnrichTool: ToolConfig<
   name: 'Apollo Bulk People Enrichment',
   description: 'Enrich data for up to 10 people at once using Apollo',
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

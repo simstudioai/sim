@@ -1,3 +1,4 @@
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushDomainPaidKeywordsParams,
   SemrushDomainPaidKeywordsResponse,
@@ -38,6 +39,7 @@ export const semrushDomainPaidKeywordsTool: ToolConfig<
   description:
     'List the keywords a domain buys in Google Ads, with ad position, copy, and traffic share.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

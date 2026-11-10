@@ -1,3 +1,4 @@
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import { ACCESS_APPLICATION_OUTPUTS, RESULT_INFO_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareListAccessApplicationsParams,
@@ -22,6 +23,7 @@ export const listAccessApplicationsTool: ToolConfig<
   description:
     'Lists the Cloudflare Access (Zero Trust) applications protecting an account. Requires an API token with Account Access: Apps and Policies Read.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     target_attributes: {

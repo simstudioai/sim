@@ -1,3 +1,4 @@
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/agentphone/credential'
 import type {
   AgentPhoneGetUsageDailyParams,
   AgentPhoneGetUsageDailyResult,
@@ -13,6 +14,7 @@ export const agentphoneGetUsageDailyTool: ToolConfig<
   name: 'Get Daily Usage',
   description: 'Get a daily breakdown of usage (messages, calls, webhooks) for the last N days',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

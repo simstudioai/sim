@@ -1,3 +1,4 @@
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/persona/credential'
 import type { PersonaListReportsParams, PersonaListReportsResponse } from '@/tools/persona/types'
 import {
   asResourceList,
@@ -19,6 +20,7 @@ export const personaListReportsTool: ToolConfig<
   description:
     'List screening reports, optionally filtered by account ID or reference ID. Results are cursor-paginated.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

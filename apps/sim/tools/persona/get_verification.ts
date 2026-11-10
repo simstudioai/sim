@@ -1,3 +1,4 @@
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/persona/credential'
 import type {
   PersonaGetVerificationParams,
   PersonaVerificationResponse,
@@ -21,6 +22,7 @@ export const personaGetVerificationTool: ToolConfig<
   description:
     'Retrieve a single verification by ID (government ID, selfie, document, database, and more), including its status and the checks that ran.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

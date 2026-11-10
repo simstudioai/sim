@@ -1,3 +1,4 @@
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type {
   BrexListCashTransactionsParams,
   BrexListCashTransactionsResponse,
@@ -20,6 +21,7 @@ export const brexListCashTransactionsTool: ToolConfig<
   name: 'Brex List Cash Transactions',
   description: 'List transactions for a Brex cash account',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

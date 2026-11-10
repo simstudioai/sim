@@ -1,3 +1,4 @@
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/buffer/credential'
 import { bufferInputDescription, bufferSelection, parseBufferInput } from '@/tools/buffer/schema'
 import {
   ACCOUNT_OUTPUT_PROPERTIES,
@@ -20,6 +21,7 @@ export const bufferGetAccountTool: ToolConfig<BufferGetAccountParams, BufferAcco
   description:
     'Get the authenticated Buffer account, including its organizations and their IDs (needed for channel and post operations)',
   version: '1.0.0',
+  oauth: BUFFER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

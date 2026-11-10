@@ -1,6 +1,7 @@
 import { RocketlaneIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 /**
  * Who a membership change targets, for the card sentences below. Rocketlane
@@ -807,6 +808,8 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
 
 export const RocketlaneBlock: BlockConfig = {
   type: 'rocketlane',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'rocketlane_v2' },
   name: 'Rocketlane',
   description: 'Manage client onboarding projects, tasks, time tracking, and invoices',
   longDescription:
@@ -3209,3 +3212,17 @@ export const RocketlaneBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const RocketlaneV2Block: BlockConfig = {
+  ...RocketlaneBlock,
+  type: 'rocketlane_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(RocketlaneBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'rocketlane',
+    title: 'Rocketlane Credential',
+  }),
+}

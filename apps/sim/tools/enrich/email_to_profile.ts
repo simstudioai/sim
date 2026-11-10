@@ -1,3 +1,4 @@
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/enrich/credential'
 import type { EnrichEmailToProfileParams, EnrichEmailToProfileResponse } from '@/tools/enrich/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -10,6 +11,7 @@ export const emailToProfileTool: ToolConfig<
   description:
     'Retrieve detailed LinkedIn profile information using an email address including work history, education, and skills.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/buffer/credential'
 import { bufferInputDescription } from '@/tools/buffer/schema'
 import {
   type BufferEditPostParams,
@@ -13,6 +14,7 @@ export const bufferEditPostTool: InternalToolConfig<BufferEditPostParams, Buffer
   description:
     'Edit an existing Buffer post — update its text, schedule, or media. Attaching new media replaces the existing attachments',
   version: '1.0.0',
+  oauth: BUFFER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

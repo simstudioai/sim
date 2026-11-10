@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   FIELD_OUTPUT_PROPERTIES,
   mapField,
@@ -18,6 +19,7 @@ export const rocketlaneUpdateFieldTool: ToolConfig<
   description:
     'Update the label, description, enabled state, or privacy of an existing Rocketlane field',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

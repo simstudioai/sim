@@ -62,7 +62,7 @@
       "updatedAt": "2026-08-18"
     },
     {
-      "type": "affinity",
+      "type": "affinity_v2",
       "slug": "affinity",
       "name": "Affinity",
       "description": "Read and write companies, people, lists, notes, and relationships in Affinity",
@@ -355,18 +355,19 @@
       "operationCount": 70,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "affinity",
       "category": "tools",
       "integrationType": "sales",
       "tags": ["sales-engagement", "enrichment"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
-      "type": "agentmail",
+      "type": "agentmail_v2",
       "slug": "agentmail",
       "name": "AgentMail",
       "description": "Manage email inboxes, threads, and messages with AgentMail",
-      "longDescription": "Create and manage email inboxes, send and receive messages, reply to threads, manage drafts, and organize threads with labels. Requires an API key.",
+      "longDescription": "Create and manage email inboxes, send and receive messages, reply to threads, manage drafts, and organize threads with labels.",
       "bgColor": "#000000",
       "iconName": "AgentMailIcon",
       "docsUrl": "https://docs.sim.ai/integrations/agentmail",
@@ -459,18 +460,19 @@
       "operationCount": 21,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "agentmail",
       "category": "tools",
       "integrationType": "email",
       "tags": ["messaging", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
-      "type": "agentphone",
+      "type": "agentphone_v2",
       "slug": "agentphone",
       "name": "AgentPhone",
       "description": "Provision numbers, send SMS and iMessage, and place voice calls with AgentPhone",
-      "longDescription": "Provision SMS- and voice-enabled numbers, send messages and tapback reactions, place outbound calls, manage conversations and contacts, and inspect usage with an AgentPhone API key.",
+      "longDescription": "Provision SMS- and voice-enabled numbers, send messages and tapback reactions, place outbound calls, manage conversations and contacts, and inspect usage.",
       "bgColor": "linear-gradient(135deg, #1a1a1a 0%, #0a2a14 100%)",
       "iconName": "AgentPhoneIcon",
       "docsUrl": "https://docs.sim.ai/integrations/agentphone",
@@ -567,11 +569,12 @@
       "operationCount": 22,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "agentphone",
       "category": "tools",
       "integrationType": "communication",
       "tags": ["messaging", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "agiloft",
@@ -666,11 +669,11 @@
       "updatedAt": "2026-08-18"
     },
     {
-      "type": "ahrefs",
+      "type": "ahrefs_v2",
       "slug": "ahrefs",
       "name": "Ahrefs",
       "description": "SEO analysis with Ahrefs",
-      "longDescription": "Analyze domain ratings, backlinks, organic keywords, top pages, and more. Requires an Ahrefs API key with access to the selected endpoints; API v3 is available on Lite and higher plans.",
+      "longDescription": "Analyze domain ratings, backlinks, organic keywords, top pages, and more. API v3 is available on Lite and higher plans.",
       "bgColor": "#FFFFFF",
       "iconName": "AhrefsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/ahrefs",
@@ -771,11 +774,12 @@
       "operationCount": 23,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "ahrefs",
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["seo", "marketing", "data-analytics"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "airtable",
@@ -1357,7 +1361,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "apify",
+      "type": "apify_v2",
       "slug": "apify",
       "name": "Apify",
       "description": "Run Apify actors and retrieve results",
@@ -1390,14 +1394,15 @@
       "operationCount": 5,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "apify",
       "category": "tools",
       "integrationType": "search",
       "tags": ["web-scraping", "automation", "data-analytics"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
-      "type": "apollo",
+      "type": "apollo_v2",
       "slug": "apollo",
       "name": "Apollo",
       "description": "Search, enrich, and manage contacts with Apollo.io",
@@ -1510,11 +1515,12 @@
       "operationCount": 25,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "apollo",
       "category": "tools",
       "integrationType": "sales",
       "tags": ["enrichment", "sales-engagement"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "arxiv",
@@ -3704,7 +3710,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "brex",
+      "type": "brex_v2",
       "slug": "brex",
       "name": "Brex",
       "description": "Manage expenses, receipts, transactions, and team data in Brex",
@@ -3853,14 +3859,15 @@
       "operationCount": 34,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "brex",
       "category": "tools",
       "integrationType": "commerce",
       "tags": ["payments"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
-      "type": "brightdata",
+      "type": "brightdata_v2",
       "slug": "bright-data",
       "name": "Bright Data",
       "description": "Scrape websites, search engines, and extract structured data",
@@ -3905,14 +3912,15 @@
       "operationCount": 8,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "brightdata",
       "category": "tools",
       "integrationType": "search",
       "tags": ["web-scraping", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
-      "type": "browser_use",
+      "type": "browser_use_v2",
       "slug": "browser-use",
       "name": "Browser Use",
       "description": "Run browser automation tasks",
@@ -3929,14 +3937,15 @@
       "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "browser_use",
       "category": "tools",
       "integrationType": "ai",
       "tags": ["web-scraping", "automation", "agentic"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
-      "type": "buffer",
+      "type": "buffer_v2",
       "slug": "buffer",
       "name": "Buffer",
       "description": "Schedule and publish social media posts across connected channels",
@@ -4001,11 +4010,12 @@
       "operationCount": 13,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "buffer",
       "category": "tools",
       "integrationType": "marketing",
       "tags": ["marketing", "scheduling", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "calcom",
@@ -4788,7 +4798,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "circleback",
+      "type": "circleback_v2",
       "slug": "circleback",
       "name": "Circleback",
       "description": "Read Circleback meetings, notes, transcripts, and action items",
@@ -4897,11 +4907,12 @@
         }
       ],
       "triggerCount": 3,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "circleback",
       "category": "tools",
       "integrationType": "ai",
       "tags": ["meeting", "note-taking"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "managed_agent",
@@ -4992,7 +5003,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "clerk",
+      "type": "clerk_v2",
       "slug": "clerk",
       "name": "Clerk",
       "description": "Manage users, organizations, and sessions in Clerk",
@@ -5212,11 +5223,12 @@
         }
       ],
       "triggerCount": 14,
-      "authType": "none",
+      "authType": "oauth",
+      "oauthServiceId": "clerk",
       "category": "tools",
       "integrationType": "security",
       "tags": ["identity", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "clickhouse",
@@ -5662,7 +5674,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "cloudflare",
+      "type": "cloudflare_v2",
       "slug": "cloudflare",
       "name": "Cloudflare",
       "description": "Manage DNS, WAF, Zero Trust access, and edge infrastructure",
@@ -5979,11 +5991,12 @@
       "operationCount": 76,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "cloudflare",
       "category": "tools",
       "integrationType": "devops",
       "tags": ["cloud", "monitoring"],
-      "updatedAt": "2026-10-18"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "cloudformation_v2",
@@ -7123,7 +7136,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "crunchbase",
+      "type": "crunchbase_v2",
       "slug": "crunchbase",
       "name": "Crunchbase",
       "description": "Search and look up companies, people, funding rounds, and acquisitions",
@@ -7192,11 +7205,12 @@
       "operationCount": 14,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "crunchbase",
       "category": "tools",
       "integrationType": "sales",
       "tags": ["enrichment", "data-analytics"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "cursor_v2",
@@ -7820,7 +7834,7 @@
       "updatedAt": "2026-08-18"
     },
     {
-      "type": "daytona",
+      "type": "daytona_v2",
       "slug": "daytona",
       "name": "Daytona",
       "description": "Run code and commands in secure cloud sandboxes",
@@ -7881,11 +7895,12 @@
       "operationCount": 12,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "daytona",
       "category": "tools",
       "integrationType": "devops",
       "tags": ["agentic", "cloud", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "devin",
@@ -8782,7 +8797,7 @@
       "updatedAt": "2026-10-20"
     },
     {
-      "type": "elevenlabs",
+      "type": "elevenlabs_v2",
       "slug": "elevenlabs",
       "name": "ElevenLabs",
       "description": "Generate and transform audio with ElevenLabs",
@@ -8835,11 +8850,12 @@
       "operationCount": 10,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "elevenlabs",
       "category": "tools",
       "integrationType": "ai",
       "tags": ["text-to-speech"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "emailbison",
@@ -9044,7 +9060,7 @@
       "updatedAt": "2026-10-02"
     },
     {
-      "type": "enrich",
+      "type": "enrich_v2",
       "slug": "enrich",
       "name": "Enrich",
       "description": "B2B data enrichment and LinkedIn intelligence with Enrich.so",
@@ -9185,11 +9201,12 @@
       "operationCount": 32,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "enrich",
       "category": "tools",
       "integrationType": "sales",
       "tags": ["enrichment"],
-      "updatedAt": "2026-10-20"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "enrow",
@@ -9927,7 +9944,7 @@
       "updatedAt": "2026-11-06"
     },
     {
-      "type": "gamma",
+      "type": "gamma_v2",
       "slug": "gamma",
       "name": "Gamma",
       "description": "Generate presentations, documents, and webpages with AI",
@@ -9960,11 +9977,12 @@
       "operationCount": 5,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "gamma",
       "category": "tools",
       "integrationType": "marketing",
       "tags": ["document-processing", "content-management"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "gauge",
@@ -13331,11 +13349,11 @@
       "updatedAt": "2026-10-21"
     },
     {
-      "type": "hex",
+      "type": "hex_v2",
       "slug": "hex",
       "name": "Hex",
       "description": "Run and manage Hex projects",
-      "longDescription": "Run projects, check run status, manage collections and groups (including membership and deactivating users), list users, and view data connections. Requires a Hex API token.",
+      "longDescription": "Run projects, check run status, manage collections and groups (including membership and deactivating users), list users, and view data connections.",
       "bgColor": "#14151A",
       "iconName": "HexIcon",
       "docsUrl": "https://docs.sim.ai/integrations/hex",
@@ -13428,11 +13446,12 @@
       "operationCount": 21,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "hex",
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["data-analytics"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "higgsfield",
@@ -13718,7 +13737,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "huggingface",
+      "type": "huggingface_v2",
       "slug": "hugging-face",
       "name": "Hugging Face",
       "description": "Use Hugging Face Inference API",
@@ -13735,11 +13754,12 @@
       "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "huggingface",
       "category": "tools",
       "integrationType": "ai",
       "tags": ["llm", "agentic"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "hunter",
@@ -13814,7 +13834,7 @@
       "updatedAt": "2026-08-18"
     },
     {
-      "type": "incidentio",
+      "type": "incidentio_v2",
       "slug": "incident-io",
       "name": "incident.io",
       "description": "Manage incidents with incident.io",
@@ -14108,11 +14128,12 @@
         }
       ],
       "triggerCount": 4,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "incidentio",
       "category": "tools",
       "integrationType": "observability",
       "tags": ["incident-management", "monitoring"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "infisical",
@@ -14155,7 +14176,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "instantly",
+      "type": "instantly_v2",
       "slug": "instantly",
       "name": "Instantly",
       "description": "Manage Instantly leads, campaigns, emails, and lead lists",
@@ -14333,11 +14354,12 @@
         }
       ],
       "triggerCount": 20,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "instantly",
       "category": "tools",
       "integrationType": "email",
       "tags": ["sales-engagement", "email-marketing", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "intercom_v2",
@@ -15815,7 +15837,7 @@
       "updatedAt": "2026-11-09"
     },
     {
-      "type": "langsmith",
+      "type": "langsmith_v2",
       "slug": "langsmith",
       "name": "LangSmith",
       "description": "Forward workflow runs to LangSmith for observability",
@@ -15848,11 +15870,12 @@
       "operationCount": 5,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "langsmith",
       "category": "tools",
       "integrationType": "observability",
       "tags": ["monitoring", "llm"],
-      "updatedAt": "2026-08-18"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "latex",
@@ -15891,11 +15914,11 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "launchdarkly",
+      "type": "launchdarkly_v2",
       "slug": "launchdarkly",
       "name": "LaunchDarkly",
       "description": "Manage feature flags with LaunchDarkly",
-      "longDescription": "List, create, update, toggle, and delete feature flags. Read projects, environments, segments, members, and audit logs. Requires an API key.",
+      "longDescription": "List, create, update, toggle, and delete feature flags. Read projects, environments, segments, members, and audit logs.",
       "bgColor": "#191919",
       "iconName": "LaunchDarklyIcon",
       "docsUrl": "https://docs.sim.ai/integrations/launchdarkly",
@@ -15952,11 +15975,12 @@
       "operationCount": 12,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "launchdarkly",
       "category": "tools",
       "integrationType": "devops",
       "tags": ["feature-flags", "ci-cd"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "leadmagic",
@@ -16555,11 +16579,11 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "linq",
+      "type": "linq_v2",
       "slug": "linq",
       "name": "Linq",
       "description": "Send iMessage, SMS, and RCS messages and manage conversations with Linq",
-      "longDescription": "Reach people on iMessage, SMS, and RCS through Linq. Start chats, send messages with media, links, effects, and replies, send voice memos, react with tapbacks, manage group participants, check iMessage/RCS capability, configure contact cards, and subscribe to webhook events — all through a single Linq API key.",
+      "longDescription": "Reach people on iMessage, SMS, and RCS through Linq. Start chats, send messages with media, links, effects, and replies, send voice memos, react with tapbacks, manage group participants, check iMessage/RCS capability, configure contact cards, and subscribe to webhook events.",
       "bgColor": "#000000",
       "iconName": "LinqIcon",
       "docsUrl": "https://docs.sim.ai/integrations/linq",
@@ -16735,11 +16759,12 @@
         }
       ],
       "triggerCount": 6,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "linq",
       "category": "tools",
       "integrationType": "communication",
       "tags": ["messaging", "automation", "webhooks"],
-      "updatedAt": "2026-08-18"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "logfire",
@@ -16822,7 +16847,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "loops",
+      "type": "loops_v2",
       "slug": "loops",
       "name": "Loops",
       "description": "Manage contacts and send emails with Loops",
@@ -16928,14 +16953,15 @@
         }
       ],
       "triggerCount": 8,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "loops",
       "category": "tools",
       "integrationType": "email",
       "tags": ["email-marketing", "marketing", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
-      "type": "luma",
+      "type": "luma_v2",
       "slug": "luma",
       "name": "Luma",
       "description": "Manage events and guests on Luma",
@@ -16992,14 +17018,15 @@
       "operationCount": 11,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "luma",
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["events", "calendar", "scheduling"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
-      "type": "mailchimp",
+      "type": "mailchimp_v2",
       "slug": "mailchimp",
       "name": "Mailchimp",
       "description": "Manage audiences, campaigns, and marketing automation in Mailchimp",
@@ -17304,11 +17331,12 @@
       "operationCount": 73,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "mailchimp",
       "category": "tools",
       "integrationType": "email",
       "tags": ["email-marketing", "marketing", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "mailgun",
@@ -19518,7 +19546,7 @@
       "updatedAt": "2026-08-18"
     },
     {
-      "type": "otter",
+      "type": "otter_v2",
       "slug": "otter-ai",
       "name": "Otter.ai",
       "description": "Read Otter.ai meeting conversations, transcripts, and summaries",
@@ -19579,11 +19607,12 @@
         }
       ],
       "triggerCount": 3,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "otter",
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["meeting", "note-taking", "speech-to-text"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "outlook",
@@ -19940,7 +19969,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "persona",
+      "type": "persona_v2",
       "slug": "persona",
       "name": "Persona",
       "description": "Verify identities with Persona",
@@ -20057,14 +20086,15 @@
       "operationCount": 26,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "persona",
       "category": "tools",
       "integrationType": "security",
       "tags": ["identity"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
-      "type": "pinecone",
+      "type": "pinecone_v2",
       "slug": "pinecone",
       "name": "Pinecone",
       "description": "Use Pinecone vector database",
@@ -20121,11 +20151,12 @@
       "operationCount": 11,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "pinecone",
       "category": "tools",
       "integrationType": "databases",
       "tags": ["vector-search", "knowledge-base"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "pipedrive",
@@ -21603,7 +21634,7 @@
       "updatedAt": "2026-10-02"
     },
     {
-      "type": "profound",
+      "type": "profound_v2",
       "slug": "profound",
       "name": "Profound",
       "description": "AI visibility and analytics with Profound",
@@ -21712,11 +21743,12 @@
       "operationCount": 24,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "profound",
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["seo", "data-analytics"],
-      "updatedAt": "2026-08-18"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "prospeo",
@@ -21827,11 +21859,11 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "quartr",
+      "type": "quartr_v2",
       "slug": "quartr",
       "name": "Quartr",
       "description": "Access earnings calls, transcripts, filings, and slides",
-      "longDescription": "Look up companies, corporate events, and event types, retrieve AI-generated event summaries, list and download reports, slide decks, and transcripts, and access archived audio or live event streams. Supply a Quartr API key.",
+      "longDescription": "Look up companies, corporate events, and event types, retrieve AI-generated event summaries, list and download reports, slide decks, and transcripts, and access archived audio or live event streams.",
       "bgColor": "#000000",
       "iconName": "QuartrIcon",
       "docsUrl": "https://docs.sim.ai/integrations/quartr",
@@ -21908,11 +21940,12 @@
       "operationCount": 17,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "quartr",
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["data-analytics", "enrichment", "document-processing"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "quickbooks",
@@ -22623,11 +22656,11 @@
       "updatedAt": "2026-10-08"
     },
     {
-      "type": "rb2b",
+      "type": "rb2b_v2",
       "slug": "rb2b",
       "name": "RB2B",
       "description": "Identify and enrich website visitors",
-      "longDescription": "Resolve IP addresses, hashed emails, and LinkedIn profiles into person-level identity and B2B enrichment data using the RB2B API. Convert IPs to hashed emails, MAIDs, and company domains; enrich emails into LinkedIn profiles, business profiles, and mobile IDs; and look up emails or phone numbers from LinkedIn. Requires an RB2B API key.",
+      "longDescription": "Resolve IP addresses, hashed emails, and LinkedIn profiles into person-level identity and B2B enrichment data using the RB2B API. Convert IPs to hashed emails, MAIDs, and company domains; enrich emails into LinkedIn profiles, business profiles, and mobile IDs; and look up emails or phone numbers from LinkedIn.",
       "bgColor": "#51FF00",
       "iconName": "RB2BIcon",
       "docsUrl": "https://docs.sim.ai/integrations/rb2b",
@@ -22696,11 +22729,12 @@
       "operationCount": 15,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "rb2b",
       "category": "tools",
       "integrationType": "sales",
       "tags": ["enrichment", "sales-engagement", "identity"],
-      "updatedAt": "2026-08-18"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "reddit",
@@ -23220,7 +23254,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "rippling",
+      "type": "rippling_v2",
       "slug": "rippling",
       "name": "Rippling",
       "description": "Manage workers, departments, custom objects, and company data in Rippling",
@@ -23577,14 +23611,15 @@
       "operationCount": 86,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "rippling",
       "category": "tools",
       "integrationType": "hr",
       "tags": ["hiring"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
-      "type": "rocketlane",
+      "type": "rocketlane_v2",
       "slug": "rocketlane",
       "name": "Rocketlane",
       "description": "Manage client onboarding projects, tasks, time tracking, and invoices",
@@ -23853,11 +23888,12 @@
       "operationCount": 64,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "rocketlane",
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["project-management", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "rootly",
@@ -24994,7 +25030,7 @@
       "updatedAt": "2026-09-08"
     },
     {
-      "type": "semrush",
+      "type": "semrush_v2",
       "slug": "semrush",
       "name": "Semrush",
       "description": "Research SEO and paid search data with Semrush",
@@ -25183,11 +25219,12 @@
       "operationCount": 44,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "semrush",
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["seo", "marketing", "data-analytics"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "sendblue",
@@ -25241,7 +25278,7 @@
       "updatedAt": "2026-08-18"
     },
     {
-      "type": "sendgrid",
+      "type": "sendgrid_v2",
       "slug": "sendgrid",
       "name": "SendGrid",
       "description": "Send emails and manage contacts, lists, and templates with SendGrid",
@@ -25318,11 +25355,12 @@
       "operationCount": 16,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "sendgrid",
       "category": "tools",
       "integrationType": "email",
       "tags": ["email-marketing", "messaging"],
-      "updatedAt": "2026-10-20"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "sentry",
@@ -25895,7 +25933,7 @@
       "updatedAt": "2026-10-09"
     },
     {
-      "type": "similarweb",
+      "type": "similarweb_v2",
       "slug": "similarweb",
       "name": "Similarweb",
       "description": "Website traffic and analytics data",
@@ -25932,14 +25970,15 @@
       "operationCount": 6,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "similarweb",
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["marketing", "data-analytics", "seo"],
-      "updatedAt": "2026-10-20"
+      "updatedAt": "2026-11-10"
     },
     {
-      "type": "sixtyfour",
+      "type": "sixtyfour_v2",
       "slug": "sixtyfour-ai",
       "name": "Sixtyfour AI",
       "description": "Enrich leads and companies with AI-powered research",
@@ -25968,11 +26007,12 @@
       "operationCount": 4,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "sixtyfour",
       "category": "tools",
       "integrationType": "sales",
       "tags": ["enrichment", "sales-engagement"],
-      "updatedAt": "2026-08-18"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "slack_v2",
@@ -26411,7 +26451,7 @@
       "updatedAt": "2026-09-24"
     },
     {
-      "type": "smartlead",
+      "type": "smartlead_v2",
       "slug": "smartlead",
       "name": "Smartlead",
       "description": "Manage Smartlead cold email campaigns, sequences, and leads",
@@ -26612,11 +26652,12 @@
       "operationCount": 47,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "smartlead",
       "category": "tools",
       "integrationType": "email",
       "tags": ["sales-engagement", "email-marketing", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "smtp",
@@ -26859,7 +26900,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "sportmonks",
+      "type": "sportmonks_v2",
       "slug": "sportmonks",
       "name": "Sportmonks",
       "description": "Access Sportmonks football, motorsport, odds, and reference data",
@@ -27756,18 +27797,19 @@
       "operationCount": 221,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "sportmonks",
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["data-analytics"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
-      "type": "square",
+      "type": "square_v2",
       "slug": "square",
       "name": "Square",
       "description": "Process payments and manage Square commerce data",
-      "longDescription": "Take and refund payments, manage customers, build catalog items and images, create and search orders, and issue invoices. Authenticate with a Square access token (personal access token).",
+      "longDescription": "Take and refund payments, manage customers, build catalog items and images, create and search orders, and issue invoices.",
       "bgColor": "#000000",
       "iconName": "SquareIcon",
       "docsUrl": "https://docs.sim.ai/integrations/square",
@@ -27912,11 +27954,12 @@
       "operationCount": 34,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "square",
       "category": "tools",
       "integrationType": "commerce",
       "tags": ["payments", "subscriptions", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "ssh_v2",
@@ -28369,7 +28412,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "tailscale",
+      "type": "tailscale_v2",
       "slug": "tailscale",
       "name": "Tailscale",
       "description": "Manage devices and network settings in your Tailscale tailnet",
@@ -28542,11 +28585,12 @@
       "operationCount": 40,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "tailscale",
       "category": "tools",
       "integrationType": "security",
       "tags": ["monitoring"],
-      "updatedAt": "2026-10-26"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "tavily_v2",
@@ -29277,7 +29321,7 @@
       "updatedAt": "2026-08-18"
     },
     {
-      "type": "trigger_dev",
+      "type": "trigger_dev_v2",
       "slug": "trigger-dev",
       "name": "Trigger.dev",
       "description": "Trigger tasks and manage runs and schedules",
@@ -29466,11 +29510,12 @@
       "operationCount": 44,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "trigger_dev",
       "category": "tools",
       "integrationType": "devops",
       "tags": ["automation", "ci-cd", "monitoring"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "twilio_sms",
@@ -29688,7 +29733,7 @@
       "updatedAt": "2026-08-18"
     },
     {
-      "type": "uptimerobot",
+      "type": "uptimerobot_v2",
       "slug": "uptimerobot",
       "name": "UptimeRobot",
       "description": "Monitor uptime, manage incidents, maintenance windows, and status pages",
@@ -29797,11 +29842,12 @@
       "operationCount": 24,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "uptimerobot",
       "category": "tools",
       "integrationType": "observability",
       "tags": ["monitoring", "incident-management", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "vanta",
@@ -30933,7 +30979,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "youcom",
+      "type": "youcom_v2",
       "slug": "you-com",
       "name": "You.com",
       "description": "Search, read, and research the web with You.com",
@@ -30978,14 +31024,15 @@
       "operationCount": 8,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "youcom",
       "category": "tools",
       "integrationType": "search",
       "tags": ["web-scraping", "llm", "agentic"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
-      "type": "youtube",
+      "type": "youtube_v2",
       "slug": "youtube",
       "name": "YouTube",
       "description": "Interact with YouTube videos, channels, and playlists",
@@ -31034,11 +31081,12 @@
       "operationCount": 9,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "youtube",
       "category": "tools",
       "integrationType": "communication",
       "tags": ["marketing", "content-management"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "zendesk",

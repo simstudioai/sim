@@ -1,3 +1,4 @@
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/apollo/credential'
 import type { ApolloAccountUpdateParams, ApolloAccountUpdateResponse } from '@/tools/apollo/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const apolloAccountUpdateTool: ToolConfig<
   name: 'Apollo Update Account',
   description: 'Update an existing account in your Apollo database',
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

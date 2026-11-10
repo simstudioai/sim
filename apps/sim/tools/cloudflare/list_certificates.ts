@@ -1,3 +1,4 @@
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import { CERTIFICATE_OUTPUTS, RESULT_INFO_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareListCertificatesParams,
@@ -19,6 +20,7 @@ export const listCertificatesTool: ToolConfig<
   name: 'Cloudflare List Certificates',
   description: 'Lists SSL/TLS certificate packs for a zone.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     zoneId: {

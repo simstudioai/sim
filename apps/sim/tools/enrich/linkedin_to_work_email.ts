@@ -1,3 +1,4 @@
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/enrich/credential'
 import type {
   EnrichLinkedInToWorkEmailParams,
   EnrichLinkedInToWorkEmailResponse,
@@ -12,6 +13,7 @@ export const linkedInToWorkEmailTool: ToolConfig<
   name: 'Enrich LinkedIn to Work Email',
   description: 'Find a work email address from a LinkedIn profile URL.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

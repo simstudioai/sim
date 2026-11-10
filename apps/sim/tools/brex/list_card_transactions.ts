@@ -1,3 +1,4 @@
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type {
   BrexListCardTransactionsParams,
   BrexListCardTransactionsResponse,
@@ -21,6 +22,7 @@ export const brexListCardTransactionsTool: ToolConfig<
   name: 'Brex List Card Transactions',
   description: 'List settled card transactions for all Brex card accounts',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

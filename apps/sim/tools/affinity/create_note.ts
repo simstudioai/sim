@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityCreateNoteParams, AffinityEntityResponse } from '@/tools/affinity/types'
 import { NOTE_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import {
@@ -27,6 +28,7 @@ export const affinityCreateNoteTool: ToolConfig<
   description:
     'Write a note — attached to companies, persons, and opportunities, anchored to a meeting, call, or chat message, or posted as a reply to an existing note.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

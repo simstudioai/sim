@@ -1,3 +1,4 @@
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushReferringDomainsParams,
   SemrushReferringDomainsResponse,
@@ -30,6 +31,7 @@ export const semrushReferringDomainsTool: ToolConfig<
   description:
     'List the domains linking to a target, with Authority Score, backlink count, and country.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/ahrefs/credential'
 import type {
   AhrefsRefdomainsHistoryParams,
   AhrefsRefdomainsHistoryResponse,
@@ -13,6 +14,7 @@ export const refdomainsHistoryTool: ToolConfig<
   description:
     'Get the historical referring domains trend for a target domain or URL over a date range, grouped daily, weekly, or monthly.',
   version: '1.0.0',
+  oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {
     target: {

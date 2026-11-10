@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityCollectionResponse,
   AffinityListRelationshipsParams,
@@ -24,6 +25,7 @@ export const affinityListEntityRelationshipsTool: ToolConfig<
   description:
     'List who knows a company or person, scored 0.0 to 1.0 by how much the two actually interact. Strongest first by default.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

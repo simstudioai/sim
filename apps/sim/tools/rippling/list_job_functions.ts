@@ -1,3 +1,4 @@
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/rippling/credential'
 import type { RipplingListJobFunctionsParams } from '@/tools/rippling/types'
 import { JOB_FUNCTION_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const ripplingListJobFunctionsTool: ToolConfig<RipplingListJobFunctionsPa
   name: 'Rippling List Job Functions',
   description: 'List all job functions',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

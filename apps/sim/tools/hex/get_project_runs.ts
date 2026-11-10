@@ -1,3 +1,4 @@
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/hex/credential'
 import type { HexGetProjectRunsParams, HexGetProjectRunsResponse } from '@/tools/hex/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -7,6 +8,7 @@ export const getProjectRunsTool: ToolConfig<HexGetProjectRunsParams, HexGetProje
   description:
     'Retrieve API-triggered runs for a Hex project with optional filtering by status and pagination.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

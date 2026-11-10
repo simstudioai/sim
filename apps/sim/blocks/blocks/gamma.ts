@@ -1,8 +1,11 @@
 import { GammaIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const GammaBlock: BlockConfig = {
   type: 'gamma',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'gamma_v2' },
   name: 'Gamma',
   description: 'Generate presentations, documents, and webpages with AI',
   longDescription:
@@ -463,3 +466,17 @@ export const GammaBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const GammaV2Block: BlockConfig = {
+  ...GammaBlock,
+  type: 'gamma_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(GammaBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'gamma',
+    title: 'Gamma Credential',
+  }),
+}

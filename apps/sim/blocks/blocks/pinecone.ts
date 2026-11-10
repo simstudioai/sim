@@ -1,9 +1,12 @@
 import { PineconeIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const PineconeBlock: BlockConfig = {
   type: 'pinecone',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'pinecone_v2' },
   name: 'Pinecone',
   description: 'Use Pinecone vector database',
   authMode: AuthMode.ApiKey,
@@ -732,3 +735,17 @@ export const PineconeBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const PineconeV2Block: BlockConfig = {
+  ...PineconeBlock,
+  type: 'pinecone_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(PineconeBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'pinecone',
+    title: 'Pinecone Credential',
+  }),
+}

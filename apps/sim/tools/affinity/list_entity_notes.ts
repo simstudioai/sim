@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityCollectionResponse, AffinityEntityScopedParams } from '@/tools/affinity/types'
 import { NOTE_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import {
@@ -20,6 +21,7 @@ export const affinityListEntityNotesTool: ToolConfig<
   description:
     'List the notes relevant to one company, person, or opportunity — directly attached notes plus notes reaching it through its people and meetings.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

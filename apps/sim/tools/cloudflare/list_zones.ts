@@ -1,3 +1,4 @@
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import { RESULT_INFO_OUTPUTS, ZONE_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareListZonesParams,
@@ -16,6 +17,7 @@ export const listZonesTool: ToolConfig<CloudflareListZonesParams, CloudflareList
   name: 'Cloudflare List Zones',
   description: 'Lists one page of zones (domains) in the Cloudflare account.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     type: {

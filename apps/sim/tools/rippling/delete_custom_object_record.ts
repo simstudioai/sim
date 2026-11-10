@@ -1,3 +1,4 @@
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/rippling/credential'
 import type { RipplingDeleteCustomObjectRecordParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -7,6 +8,7 @@ export const ripplingDeleteCustomObjectRecordTool: ToolConfig<RipplingDeleteCust
     name: 'Rippling Delete Custom Object Record',
     description: 'Delete a custom object record',
     version: '1.0.0',
+    oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {
         type: 'string',

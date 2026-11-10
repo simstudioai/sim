@@ -1,6 +1,7 @@
 import { TailscaleIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 const SWITCH_DEFAULTS = {
   authorize_device: { authorized: true },
@@ -13,6 +14,8 @@ const SWITCH_DEFAULTS = {
 
 export const TailscaleBlock: BlockConfig = {
   type: 'tailscale',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'tailscale_v2' },
   name: 'Tailscale',
   description: 'Manage devices and network settings in your Tailscale tailnet',
   longDescription:
@@ -1071,3 +1074,17 @@ export const TailscaleBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const TailscaleV2Block: BlockConfig = {
+  ...TailscaleBlock,
+  type: 'tailscale_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(TailscaleBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'tailscale',
+    title: 'Tailscale Credential',
+  }),
+}

@@ -1,3 +1,4 @@
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushBatchKeywordOverviewParams,
   SemrushBatchKeywordOverviewResponse,
@@ -17,6 +18,7 @@ export const semrushBatchKeywordOverviewTool: ToolConfig<
   description:
     'Get search volume, CPC, competition, difficulty, and intent for up to 100 keywords at once.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

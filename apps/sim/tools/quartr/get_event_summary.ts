@@ -1,3 +1,4 @@
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/quartr/credential'
 import {
   QUARTR_SUMMARY_SOURCE_OUTPUT_PROPERTIES,
   type QuartrGetEventSummaryParams,
@@ -22,6 +23,7 @@ export const quartrGetEventSummaryTool: ToolConfig<
   description:
     'Retrieve the AI-generated summary of a corporate event from Quartr, with selectable length and optional plain-text formatting.',
   version: '1.0.0',
+  oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/mailchimp/credential'
 import {
   buildMailchimpUrl,
   handleMailchimpError,
@@ -26,6 +27,7 @@ export const mailchimpGetCampaignReportTool: ToolConfig<
   name: 'Get Campaign Report from Mailchimp',
   description: 'Retrieve the report for a specific campaign from Mailchimp',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

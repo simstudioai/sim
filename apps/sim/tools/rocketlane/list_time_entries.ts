@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapPagination,
   mapTimeEntry,
@@ -20,6 +21,7 @@ export const rocketlaneListTimeEntriesTool: ToolConfig<
   description:
     'List Rocketlane time entries with optional filters, sorting, and cursor-based pagination',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

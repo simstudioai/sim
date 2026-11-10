@@ -1,3 +1,4 @@
+import { CRUNCHBASE_CREDENTIAL_OAUTH } from '@/tools/crunchbase/credential'
 import type {
   CrunchbaseAutocompleteEntity,
   CrunchbaseAutocompleteParams,
@@ -27,6 +28,7 @@ export const crunchbaseAutocompleteTool: ToolConfig<
   description:
     'Suggest Crunchbase entities matching a typed query, returning the permalinks and UUIDs the lookup and search operations take.',
   version: '1.0.0',
+  oauth: CRUNCHBASE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.CRUNCHBASE_ERRORS,
 
   params: {

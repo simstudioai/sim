@@ -1,4 +1,5 @@
 import { toArray } from '@sim/utils/object'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/buffer/credential'
 import {
   BUFFER_API_URL,
   type BufferGetIdeaGroupsParams,
@@ -29,6 +30,7 @@ export const bufferGetIdeaGroupsTool: ToolConfig<
   description:
     'List idea groups (board columns) in a Buffer organization, including the group IDs used when creating ideas',
   version: '1.0.0',
+  oauth: BUFFER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

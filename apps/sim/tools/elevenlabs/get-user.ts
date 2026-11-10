@@ -1,3 +1,4 @@
+import { ELEVENLABS_CREDENTIAL_OAUTH } from '@/tools/elevenlabs/credential'
 import type { ElevenLabsGetUserParams, ElevenLabsGetUserResponse } from '@/tools/elevenlabs/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -7,6 +8,7 @@ export const elevenLabsGetUserTool: ToolConfig<ElevenLabsGetUserParams, ElevenLa
     name: 'ElevenLabs Get User',
     description: 'Get account and subscription information for the ElevenLabs user',
     version: '1.0.0',
+    oauth: ELEVENLABS_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

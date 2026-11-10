@@ -1,3 +1,4 @@
+import { OTTER_CREDENTIAL_OAUTH } from '@/tools/otter/credential'
 import type {
   OtterListConversationsResponse,
   OtterListWorkspaceConversationsParams,
@@ -24,6 +25,7 @@ export const otterListWorkspaceConversationsTool: ToolConfig<
   description:
     'List every conversation in an Otter workspace, most recent first. Requires an Otter Super Admin API key in a workspace with Super Admin enabled.',
   version: '1.0.0',
+  oauth: OTTER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

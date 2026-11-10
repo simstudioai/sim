@@ -1,3 +1,4 @@
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/mailchimp/credential'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -25,6 +26,7 @@ export const mailchimpGetInterestCategoriesTool: ToolConfig<
   name: 'Get Interest Categories from Mailchimp Audience',
   description: 'Retrieve a list of interest categories from a Mailchimp audience',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

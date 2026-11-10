@@ -1,3 +1,4 @@
+import { LANGSMITH_CREDENTIAL_OAUTH } from '@/tools/langsmith/credential'
 import type { LangsmithGetRunParams, LangsmithGetRunResponse } from '@/tools/langsmith/types'
 import { LANGSMITH_API_BASE, truncateLangsmithErrorText } from '@/tools/langsmith/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const langsmithGetRunTool: ToolConfig<LangsmithGetRunParams, LangsmithGet
   name: 'LangSmith Get Run',
   description: 'Retrieve a single LangSmith run by ID.',
   version: '1.0.0',
+  oauth: LANGSMITH_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

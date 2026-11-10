@@ -1,3 +1,4 @@
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/quartr/credential'
 import {
   QUARTR_EVENT_TYPE_OUTPUT_PROPERTIES,
   type QuartrEventTypeDto,
@@ -17,6 +18,7 @@ export const quartrListEventTypesTool: ToolConfig<
   description:
     'List the event types available in Quartr (e.g., earnings calls), useful for filtering events by type ID.',
   version: '1.0.0',
+  oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

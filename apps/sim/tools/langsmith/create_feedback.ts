@@ -1,5 +1,6 @@
 import { generateId } from '@sim/utils/id'
 import { filterUndefined } from '@sim/utils/object'
+import { LANGSMITH_CREDENTIAL_OAUTH } from '@/tools/langsmith/credential'
 import type {
   LangsmithCreateFeedbackParams,
   LangsmithCreateFeedbackResponse,
@@ -15,6 +16,7 @@ export const langsmithCreateFeedbackTool: ToolConfig<
   name: 'LangSmith Create Feedback',
   description: 'Attach a score, correction, or comment to a LangSmith run.',
   version: '1.0.0',
+  oauth: LANGSMITH_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

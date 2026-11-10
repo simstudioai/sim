@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapPhase,
   PHASE_OUTPUT_PROPERTIES,
@@ -15,6 +16,7 @@ export const rocketlaneGetPhaseTool: ToolConfig<RocketlaneGetPhaseParams, Rocket
     name: 'Rocketlane Get Phase',
     description: 'Retrieve a single Rocketlane phase by ID',
     version: '1.0.0',
+    oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

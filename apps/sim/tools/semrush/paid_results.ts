@@ -1,3 +1,4 @@
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushPaidResultsParams,
   SemrushPaidResultsResponse,
@@ -21,6 +22,7 @@ export const semrushPaidResultsTool: ToolConfig<
   name: 'Semrush Paid Results',
   description: 'List the domains and URLs advertising on a keyword in Google paid search results.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

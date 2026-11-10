@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { YOUTUBE_CREDENTIAL_OAUTH } from '@/tools/youtube/credential'
 import type { YouTubeChannelInfoParams, YouTubeChannelInfoResponse } from '@/tools/youtube/types'
 
 export const youtubeChannelInfoTool: ToolConfig<
@@ -10,6 +11,7 @@ export const youtubeChannelInfoTool: ToolConfig<
   description:
     'Get detailed information about a YouTube channel including statistics, branding, and content details.',
   version: '1.1.0',
+  oauth: YOUTUBE_CREDENTIAL_OAUTH,
   params: {
     channelId: {
       type: 'string',

@@ -1,3 +1,4 @@
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/agentmail/credential'
 import type { UpdateMessageParams, UpdateMessageResult } from '@/tools/agentmail/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const agentmailUpdateMessageTool: ToolConfig<UpdateMessageParams, UpdateM
   name: 'Update Message',
   description: 'Add or remove labels on an email message in AgentMail',
   version: '1.0.0',
+  oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapTask,
   ROCKETLANE_API_BASE,
@@ -17,6 +18,7 @@ export const rocketlaneAddTaskDependenciesTool: ToolConfig<
   name: 'Rocketlane Add Task Dependencies',
   description: 'Add finish-to-start dependencies between a Rocketlane task and other tasks',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { LUMA_CREDENTIAL_OAUTH } from '@/tools/luma/credential'
 import type { LumaGetEventParams, LumaGetEventResponse } from '@/tools/luma/types'
 import { LUMA_EVENT_OUTPUT_PROPERTIES, LUMA_HOST_OUTPUT_PROPERTIES } from '@/tools/luma/types'
 import type { ToolConfig } from '@/tools/types'
@@ -8,6 +9,7 @@ export const getEventTool: ToolConfig<LumaGetEventParams, LumaGetEventResponse> 
   description:
     'Retrieve details of a Luma event including name, time, location, hosts, and visibility settings.',
   version: '1.0.0',
+  oauth: LUMA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { DAYTONA_CREDENTIAL_OAUTH } from '@/tools/daytona/credential'
 import type {
   DaytonaListSandboxesParams,
   DaytonaListSandboxesResponse,
@@ -20,6 +21,7 @@ export const daytonaListSandboxesTool: ToolConfig<
   name: 'Daytona List Sandboxes',
   description: 'List Daytona sandboxes in the organization',
   version: '1.0.0',
+  oauth: DAYTONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

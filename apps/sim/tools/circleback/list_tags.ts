@@ -1,3 +1,4 @@
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import {
   type CirclebackListTagsParams,
   type CirclebackTagListResponse,
@@ -16,6 +17,7 @@ export const listTagsTool: ToolConfig<CirclebackListTagsParams, CirclebackTagLis
   name: 'Circleback List Tags',
   description: 'Lists every tag available to the authenticated Circleback user.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

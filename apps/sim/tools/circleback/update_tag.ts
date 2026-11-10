@@ -1,3 +1,4 @@
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import {
   type CirclebackTagResponse,
   type CirclebackUpdateTagParams,
@@ -17,6 +18,7 @@ export const updateTagTool: ToolConfig<CirclebackUpdateTagParams, CirclebackTagR
   name: 'Circleback Update Tag',
   description: 'Updates the name or description of a Circleback tag.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

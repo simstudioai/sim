@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapPagination,
   mapTimeEntryCategory,
@@ -20,6 +21,7 @@ export const rocketlaneListTimeEntryCategoriesTool: ToolConfig<
   name: 'Rocketlane List Time Entry Categories',
   description: 'List the time entry categories configured in Rocketlane',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

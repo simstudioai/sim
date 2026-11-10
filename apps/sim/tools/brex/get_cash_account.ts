@@ -1,3 +1,4 @@
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexGetCashAccountParams, BrexGetCashAccountResponse } from '@/tools/brex/types'
 import { BREX_MONEY_PROPERTIES } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson } from '@/tools/brex/utils'
@@ -11,6 +12,7 @@ export const brexGetCashAccountTool: ToolConfig<
   name: 'Brex Get Cash Account',
   description: 'Get a Brex cash account by ID, or the primary cash account when no ID is provided',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { LOOPS_CREDENTIAL_OAUTH } from '@/tools/loops/credential'
 import type {
   LoopsSendTransactionalEmailParams,
   LoopsSendTransactionalEmailResponse,
@@ -13,6 +14,7 @@ export const loopsSendTransactionalEmailTool: ToolConfig<
   description:
     'Send a transactional email to a recipient using a Loops template. Supports dynamic data variables for personalization and optionally adds the recipient to your audience.',
   version: '1.0.0',
+  oauth: LOOPS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

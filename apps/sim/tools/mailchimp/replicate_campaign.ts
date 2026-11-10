@@ -1,3 +1,4 @@
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/mailchimp/credential'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -23,6 +24,7 @@ export const mailchimpReplicateCampaignTool: ToolConfig<
   name: 'Replicate Campaign in Mailchimp',
   description: 'Create a copy of an existing Mailchimp campaign',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { ELEVENLABS_CREDENTIAL_OAUTH } from '@/tools/elevenlabs/credential'
 import {
   applyProjectedElevenLabsAudioFileNameModelInput,
   selectElevenLabsAudioFileNameModelInput,
@@ -16,6 +17,7 @@ export const elevenLabsAudioIsolationTool: InternalToolConfig<
   name: 'ElevenLabs Audio Isolation',
   description: 'Remove background noise from an audio file, isolating the speech using ElevenLabs',
   version: '1.0.0',
+  oauth: ELEVENLABS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

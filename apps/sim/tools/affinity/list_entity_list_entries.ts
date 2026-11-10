@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityCollectionResponse, AffinityCursorParams } from '@/tools/affinity/types'
 import { ENTITY_LIST_ENTRY_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import {
@@ -25,6 +26,7 @@ export const affinityListEntityListEntriesTool: ToolConfig<
   description:
     "Page through a company's or person's rows across every list, each carrying that list's field values and when the entity was added.",
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

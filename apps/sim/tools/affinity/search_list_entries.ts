@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityCollectionResponse,
   AffinitySearchListEntriesParams,
@@ -23,6 +24,7 @@ export const affinitySearchListEntriesTool: ToolConfig<
   description:
     'Search the rows of one list by filters, sorts, and a free-text term. Requires the "Export data from Lists" permission.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

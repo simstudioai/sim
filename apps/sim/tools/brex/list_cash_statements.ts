@@ -1,3 +1,4 @@
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexListCashStatementsParams, BrexListStatementsResponse } from '@/tools/brex/types'
 import { BREX_MONEY_PROPERTIES } from '@/tools/brex/types'
 import {
@@ -16,6 +17,7 @@ export const brexListCashStatementsTool: ToolConfig<
   name: 'Brex List Cash Statements',
   description: 'List finalized statements for a Brex cash account',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

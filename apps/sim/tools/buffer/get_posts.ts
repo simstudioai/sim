@@ -1,4 +1,5 @@
 import { toArray, toRecord } from '@sim/utils/object'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/buffer/credential'
 import { bufferInputDescription, bufferSelection, parseBufferInput } from '@/tools/buffer/schema'
 import {
   BUFFER_API_URL,
@@ -49,6 +50,7 @@ export const bufferGetPostsTool: ToolConfig<BufferGetPostsParams, BufferPostsRes
   description:
     'List posts in a Buffer organization, optionally filtered by channel and status (draft, needs_approval, scheduled, sending, sent, error)',
   version: '1.0.0',
+  oauth: BUFFER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

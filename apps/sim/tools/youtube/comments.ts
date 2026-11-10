@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { YOUTUBE_CREDENTIAL_OAUTH } from '@/tools/youtube/credential'
 import type { YouTubeCommentsParams, YouTubeCommentsResponse } from '@/tools/youtube/types'
 
 export const youtubeCommentsTool: ToolConfig<YouTubeCommentsParams, YouTubeCommentsResponse> = {
@@ -6,6 +7,7 @@ export const youtubeCommentsTool: ToolConfig<YouTubeCommentsParams, YouTubeComme
   name: 'YouTube Video Comments',
   description: 'Get top-level comments from a YouTube video with author details and engagement.',
   version: '1.1.0',
+  oauth: YOUTUBE_CREDENTIAL_OAUTH,
   params: {
     videoId: {
       type: 'string',

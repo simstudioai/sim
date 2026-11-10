@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityEntityResponse, AffinityGetMergeTaskParams } from '@/tools/affinity/types'
 import { MERGE_TASK_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import {
@@ -21,6 +22,7 @@ export const affinityGetMergeTaskTool: ToolConfig<
   description:
     'Read one merge task and how its merges are progressing. Poll this after starting a merge.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

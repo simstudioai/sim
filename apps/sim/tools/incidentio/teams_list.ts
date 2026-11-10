@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import {
   INCIDENTIO_TEAM_OUTPUT_PROPERTIES,
   type IncidentioTeamsListParams,
@@ -10,6 +11,7 @@ export const teamsListTool: ToolConfig<IncidentioTeamsListParams, IncidentioTeam
   name: 'List Teams',
   description: 'List all teams in the incident.io organisation, along with their members',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

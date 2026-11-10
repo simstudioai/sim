@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/clerk/credential'
 import type {
   ClerkApiError,
   ClerkListSessionsParams,
@@ -15,6 +16,7 @@ export const clerkListSessionsTool: ToolConfig<ClerkListSessionsParams, ClerkLis
     name: 'List Sessions from Clerk',
     description: 'List sessions for a user or client in your Clerk application',
     version: '1.0.0',
+    oauth: CLERK_CREDENTIAL_OAUTH,
 
     params: {
       secretKey: {

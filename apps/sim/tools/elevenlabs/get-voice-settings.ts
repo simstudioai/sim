@@ -1,3 +1,4 @@
+import { ELEVENLABS_CREDENTIAL_OAUTH } from '@/tools/elevenlabs/credential'
 import type {
   ElevenLabsGetVoiceSettingsParams,
   ElevenLabsGetVoiceSettingsResponse,
@@ -12,6 +13,7 @@ export const elevenLabsGetVoiceSettingsTool: ToolConfig<
   name: 'ElevenLabs Get Voice Settings',
   description: 'Get the configured settings for a specific ElevenLabs voice',
   version: '1.0.0',
+  oauth: ELEVENLABS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

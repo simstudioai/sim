@@ -1,3 +1,4 @@
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/rippling/credential'
 import type { RipplingCreateCustomSettingParams } from '@/tools/rippling/types'
 import { CUSTOM_SETTING_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const ripplingCreateCustomSettingTool: ToolConfig<RipplingCreateCustomSet
   name: 'Rippling Create Custom Setting',
   description: 'Create a new custom setting',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

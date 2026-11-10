@@ -1,3 +1,4 @@
+import { ELEVENLABS_CREDENTIAL_OAUTH } from '@/tools/elevenlabs/credential'
 import type {
   ElevenLabsListVoicesParams,
   ElevenLabsListVoicesResponse,
@@ -13,6 +14,7 @@ export const elevenLabsListVoicesTool: ToolConfig<
   name: 'ElevenLabs List Voices',
   description: 'List the voices available in your ElevenLabs account',
   version: '1.0.0',
+  oauth: ELEVENLABS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

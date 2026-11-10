@@ -1,3 +1,4 @@
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushDomainPlaKeywordsParams,
   SemrushDomainPlaKeywordsResponse,
@@ -22,6 +23,7 @@ export const semrushDomainPlaKeywordsTool: ToolConfig<
   description:
     'List the keywords that trigger a domain’s product listing ads, with the promoted product and price.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareGetDnsRecordParams,
   CloudflareGetDnsRecordResponse,
@@ -22,6 +23,7 @@ export const getDnsRecordTool: ToolConfig<
   name: 'Cloudflare Get Dns Record',
   description: 'Retrieves details for a specific DNS record in the zone.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     zoneId: {
       type: 'string',

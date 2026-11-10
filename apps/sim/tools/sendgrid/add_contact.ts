@@ -1,3 +1,4 @@
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/sendgrid/credential'
 import type {
   AddContactParams,
   ContactResult,
@@ -11,6 +12,7 @@ export const sendGridAddContactTool: ToolConfig<AddContactParams, ContactResult>
   name: 'SendGrid Add Contact',
   description: 'Add a new contact to SendGrid',
   version: '1.0.0',
+  oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

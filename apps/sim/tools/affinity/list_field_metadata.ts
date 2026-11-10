@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityCollectionResponse,
   AffinityListFieldMetadataParams,
@@ -23,6 +24,7 @@ export const affinityListFieldMetadataTool: ToolConfig<
   description:
     'List the non-list company or person fields, with the value type, filter operators, and sort support of each. Start here to find the Field IDs the read and write tools take.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

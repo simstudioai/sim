@@ -1,3 +1,4 @@
+import { LOOPS_CREDENTIAL_OAUTH } from '@/tools/loops/credential'
 import type { LoopsDeleteContactParams, LoopsDeleteContactResponse } from '@/tools/loops/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -10,6 +11,7 @@ export const loopsDeleteContactTool: ToolConfig<
   description:
     'Delete a contact from Loops by email address or userId. At least one identifier must be provided.',
   version: '1.0.0',
+  oauth: LOOPS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareDeleteAccessGroupParams,
   CloudflareDeleteAccessGroupResponse,
@@ -19,6 +20,7 @@ export const deleteAccessGroupTool: ToolConfig<
   name: 'Cloudflare Delete Access Group',
   description: 'Deletes an Access group.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {
       type: 'string',

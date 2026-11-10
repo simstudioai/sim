@@ -1,3 +1,4 @@
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexListExpensesParams, BrexListExpensesResponse } from '@/tools/brex/types'
 import { BREX_EXPENSE_ITEM_PROPERTIES } from '@/tools/brex/types'
 import {
@@ -25,6 +26,7 @@ export const brexListExpensesTool: ToolConfig<BrexListExpensesParams, BrexListEx
   description:
     'List expenses in the Brex account with optional filters for user, status, payment status, and purchase date range',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

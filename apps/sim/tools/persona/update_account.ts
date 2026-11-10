@@ -1,3 +1,4 @@
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/persona/credential'
 import type { PersonaAccountResponse, PersonaUpdateAccountParams } from '@/tools/persona/types'
 import {
   ACCOUNT_OUTPUT_PROPERTIES,
@@ -20,6 +21,7 @@ export const personaUpdateAccountTool: ToolConfig<
   description:
     'Update an account’s reference ID, country code, fields, or tags. Only the provided values are changed.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

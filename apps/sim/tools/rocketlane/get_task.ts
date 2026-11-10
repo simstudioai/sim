@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapTask,
   ROCKETLANE_API_BASE,
@@ -14,6 +15,7 @@ export const rocketlaneGetTaskTool: ToolConfig<RocketlaneGetTaskParams, Rocketla
   name: 'Rocketlane Get Task',
   description: 'Retrieve detailed information about a Rocketlane task by its unique identifier',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

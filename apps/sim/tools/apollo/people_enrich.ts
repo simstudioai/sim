@@ -1,3 +1,4 @@
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/apollo/credential'
 import type { ApolloPeopleEnrichParams, ApolloPeopleEnrichResponse } from '@/tools/apollo/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const apolloPeopleEnrichTool: ToolConfig<
   name: 'Apollo People Enrichment',
   description: 'Enrich data for a single person using Apollo',
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

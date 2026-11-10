@@ -2,6 +2,7 @@ import { toStringOrNull } from '@sim/utils/coerce'
 import { toArray, toRecordOrNull } from '@sim/utils/object'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
+import { YOUCOM_CREDENTIAL_OAUTH } from '@/tools/youcom/credential'
 import type {
   YouComGetResearchTaskParams,
   YouComGetResearchTaskResponse,
@@ -23,6 +24,7 @@ export const youComGetResearchTaskTool: ToolConfig<
   description:
     'Get the status of a background research task and, once completed, its cited answer and sources.',
   version: '1.0.0',
+  oauth: YOUCOM_CREDENTIAL_OAUTH,
 
   params: {
     taskId: {

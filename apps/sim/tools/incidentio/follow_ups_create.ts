@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import {
   INCIDENTIO_FOLLOW_UP_RECORD_OUTPUT_PROPERTIES,
   type IncidentioFollowUpsCreateParams,
@@ -13,6 +14,7 @@ export const followUpsCreateTool: ToolConfig<
   name: 'Create Follow-up',
   description: 'Create a new follow-up on an incident in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

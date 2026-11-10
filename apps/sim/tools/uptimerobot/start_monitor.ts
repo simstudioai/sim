@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/uptimerobot/credential'
 import {
   MONITOR_OUTPUT_PROPERTIES,
   mapMonitor,
@@ -17,6 +18,7 @@ export const uptimeRobotStartMonitorTool: ToolConfig<
   name: 'UptimeRobot Start Monitor',
   description: 'Resume a paused UptimeRobot monitor so it starts running checks again',
   version: '1.0.0',
+  oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

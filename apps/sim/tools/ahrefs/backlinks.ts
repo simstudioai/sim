@@ -1,3 +1,4 @@
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/ahrefs/credential'
 import type { AhrefsBacklinksParams, AhrefsBacklinksResponse } from '@/tools/ahrefs/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -10,6 +11,7 @@ export const backlinksTool: ToolConfig<AhrefsBacklinksParams, AhrefsBacklinksRes
   description:
     'Get a list of backlinks pointing to a target domain or URL. Returns details about each backlink including source URL, anchor text, and domain rating.',
   version: '1.0.0',
+  oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {
     target: {

@@ -1,3 +1,4 @@
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushBacklinksGeoDistributionParams,
   SemrushBacklinksGeoDistributionResponse,
@@ -21,6 +22,7 @@ export const semrushBacklinksGeoDistributionTool: ToolConfig<
   name: 'Semrush Backlink Country Distribution',
   description: 'Break a target’s backlink profile down by the country of its referring domains.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

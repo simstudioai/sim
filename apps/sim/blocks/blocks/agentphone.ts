@@ -2,6 +2,7 @@ import { toError } from '@sim/utils/errors'
 import { AgentPhoneIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 const CONVERSATION_OPS = [
   'get_conversation',
@@ -26,6 +27,8 @@ const CURSOR_MESSAGE_OPS = ['get_number_messages', 'get_conversation_messages'] 
 
 export const AgentPhoneBlock: BlockConfig = {
   type: 'agentphone',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'agentphone_v2' },
   name: 'AgentPhone',
   description: 'Provision numbers, send SMS and iMessage, and place voice calls with AgentPhone',
   longDescription:
@@ -933,3 +936,19 @@ export const AgentPhoneBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const AgentPhoneV2Block: BlockConfig = {
+  ...AgentPhoneBlock,
+  type: 'agentphone_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Provision SMS- and voice-enabled numbers, send messages and tapback reactions, place outbound calls, manage conversations and contacts, and inspect usage.',
+  ...withSavedCredential(AgentPhoneBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'agentphone',
+    title: 'AgentPhone Credential',
+  }),
+}

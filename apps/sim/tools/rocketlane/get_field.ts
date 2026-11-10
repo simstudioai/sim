@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   FIELD_OUTPUT_PROPERTIES,
   mapField,
@@ -15,6 +16,7 @@ export const rocketlaneGetFieldTool: ToolConfig<RocketlaneGetFieldParams, Rocket
     name: 'Rocketlane Get Field',
     description: 'Retrieve a single Rocketlane field by ID',
     version: '1.0.0',
+    oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

@@ -1,3 +1,4 @@
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/linq/credential'
 import type { LinqSendMessageParams, LinqSendMessageResult } from '@/tools/linq/types'
 import {
   buildMessageContent,
@@ -12,6 +13,7 @@ export const linqSendMessageTool: ToolConfig<LinqSendMessageParams, LinqSendMess
   name: 'Send Message',
   description: 'Send a message to an existing chat, with optional media, link, effect, or reply',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

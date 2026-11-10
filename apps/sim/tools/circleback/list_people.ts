@@ -1,3 +1,4 @@
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import {
   type CirclebackListPeopleParams,
   type CirclebackPersonListResponse,
@@ -22,6 +23,7 @@ export const listPeopleTool: ToolConfig<CirclebackListPeopleParams, CirclebackPe
     description:
       'Lists the people who attend the authenticated user meetings, ordered by most recent meeting, with optional company and tag filters.',
     version: '1.0.0',
+    oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

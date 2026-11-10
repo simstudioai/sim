@@ -1,3 +1,4 @@
+import { DAYTONA_CREDENTIAL_OAUTH } from '@/tools/daytona/credential'
 import type { DaytonaGitCloneParams, DaytonaGitCloneResponse } from '@/tools/daytona/types'
 import { daytonaToolboxUrl, extractDaytonaError } from '@/tools/daytona/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const daytonaGitCloneTool: ToolConfig<DaytonaGitCloneParams, DaytonaGitCl
   name: 'Daytona Git Clone',
   description: 'Clone a Git repository into a Daytona sandbox',
   version: '1.0.0',
+  oauth: DAYTONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

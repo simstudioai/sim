@@ -1,3 +1,4 @@
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/quartr/credential'
 import {
   QUARTR_DOCUMENT_OUTPUT_PROPERTIES,
   type QuartrDocumentDto,
@@ -22,6 +23,7 @@ export const quartrListTranscriptsTool: ToolConfig<
   description:
     'List event transcripts from Quartr, filterable by company, event, document type, document group, and date range.',
   version: '1.0.0',
+  oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

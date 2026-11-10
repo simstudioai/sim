@@ -1,3 +1,4 @@
+import { LOOPS_CREDENTIAL_OAUTH } from '@/tools/loops/credential'
 import type {
   LoopsListContactPropertiesParams,
   LoopsListContactPropertiesResponse,
@@ -13,6 +14,7 @@ export const loopsListContactPropertiesTool: ToolConfig<
   description:
     'Retrieve a list of contact properties from your Loops account. Returns each property with its key, label, and data type. Can filter to show all properties or only custom ones.',
   version: '1.0.0',
+  oauth: LOOPS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

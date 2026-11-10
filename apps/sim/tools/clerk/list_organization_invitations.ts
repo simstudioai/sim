@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/clerk/credential'
 import type {
   ClerkApiError,
   ClerkListOrganizationInvitationsParams,
@@ -17,6 +18,7 @@ export const clerkListOrganizationInvitationsTool: ToolConfig<
   name: 'List Organization Invitations from Clerk',
   description: 'List pending and past invitations for a Clerk organization',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

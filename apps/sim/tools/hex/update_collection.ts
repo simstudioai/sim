@@ -1,3 +1,4 @@
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/hex/credential'
 import type { HexUpdateCollectionParams, HexUpdateCollectionResponse } from '@/tools/hex/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const updateCollectionTool: ToolConfig<
   name: 'Hex Update Collection',
   description: 'Update the name or description of an existing Hex collection.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

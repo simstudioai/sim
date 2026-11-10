@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import {
   INCIDENTIO_ALERT_OUTPUT_PROPERTIES,
   type IncidentioAlertsResolveParams,
@@ -14,6 +15,7 @@ export const alertsResolveTool: ToolConfig<
   description:
     'Resolve a currently firing alert in incident.io. Resolving an already-resolved alert is a no-op and returns it unchanged.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

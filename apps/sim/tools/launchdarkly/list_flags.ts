@@ -1,3 +1,4 @@
+import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/launchdarkly/credential'
 import type {
   LaunchDarklyListFlagsParams,
   LaunchDarklyListFlagsResponse,
@@ -13,6 +14,7 @@ export const launchDarklyListFlagsTool: ToolConfig<
   name: 'LaunchDarkly List Flags',
   description: 'List feature flags in a LaunchDarkly project.',
   version: '1.0.0',
+  oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

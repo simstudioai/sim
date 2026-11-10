@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityEntityResponse, AffinityGetOpportunityParams } from '@/tools/affinity/types'
 import { OPPORTUNITY_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import {
@@ -18,6 +19,7 @@ export const affinityGetOpportunityTool: ToolConfig<
   description:
     'Read one opportunity and the list it belongs to. Its field data lives on the list entry.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

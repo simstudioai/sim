@@ -1,3 +1,4 @@
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/mailchimp/credential'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -18,6 +19,7 @@ export const mailchimpDeleteBatchOperationTool: ToolConfig<
   name: 'Delete Batch Operation from Mailchimp',
   description: 'Delete a batch operation from Mailchimp',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

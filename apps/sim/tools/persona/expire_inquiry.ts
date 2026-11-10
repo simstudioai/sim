@@ -1,3 +1,4 @@
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/persona/credential'
 import type { PersonaExpireInquiryParams, PersonaInquiryResponse } from '@/tools/persona/types'
 import {
   asResource,
@@ -18,6 +19,7 @@ export const personaExpireInquiryTool: ToolConfig<
   description:
     'Expire an in-progress inquiry, invalidating its sessions and one-time links so the individual can no longer continue it.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapPagination,
   mapResourceAllocation,
@@ -20,6 +21,7 @@ export const rocketlaneListResourceAllocationsTool: ToolConfig<
   description:
     'List resource allocations in Rocketlane within a date range, with optional member, project, and placeholder filters, sorting, and pagination',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

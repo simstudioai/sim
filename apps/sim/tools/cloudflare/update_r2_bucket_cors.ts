@@ -1,3 +1,4 @@
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareUpdateR2BucketCorsParams,
   CloudflareUpdateR2BucketCorsResponse,
@@ -20,6 +21,7 @@ export const updateR2BucketCorsTool: ToolConfig<
   description:
     'Replaces the Cross-Origin Resource Sharing (CORS) rules for an R2 bucket. Rules specify which origins, methods, and headers are allowed for browser requests to objects in the bucket. Replaces the configuration; resend all values to retain.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {
       type: 'string',

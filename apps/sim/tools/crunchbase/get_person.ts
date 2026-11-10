@@ -1,3 +1,4 @@
+import { CRUNCHBASE_CREDENTIAL_OAUTH } from '@/tools/crunchbase/credential'
 import type { CrunchbaseEntityParams, CrunchbaseEntityResponse } from '@/tools/crunchbase/types'
 import {
   buildEntityUrl,
@@ -15,6 +16,7 @@ export const crunchbaseGetPersonTool: ToolConfig<CrunchbaseEntityParams, Crunchb
     description:
       'Look up a single Crunchbase person by permalink or UUID, returning the requested fields and related cards.',
     version: '1.0.0',
+    oauth: CRUNCHBASE_CREDENTIAL_OAUTH,
     errorExtractor: ErrorExtractorId.CRUNCHBASE_ERRORS,
 
     params: {

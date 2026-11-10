@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type { CustomFieldsCreateParams, CustomFieldsCreateResponse } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const customFieldsCreateTool: ToolConfig<
   name: 'incident.io Custom Fields Create',
   description: 'Create a new custom field in incident.io.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

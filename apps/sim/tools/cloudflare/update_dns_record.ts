@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import { DNS_RECORD_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareUpdateDnsRecordParams,
@@ -23,6 +24,7 @@ export const updateDnsRecordTool: ToolConfig<
   name: 'Cloudflare Update DNS Record',
   description: 'Updates an existing DNS record for a zone.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     clearComment: {

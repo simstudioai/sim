@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinitySemanticSearchParams,
   AffinitySemanticSearchResponse,
@@ -23,6 +24,7 @@ export const affinitySemanticSearchTool: ToolConfig<
   description:
     'Find companies from a description in plain language — industry, technology, stage, or business model. Currently searches companies only.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

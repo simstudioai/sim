@@ -1,3 +1,4 @@
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/agentphone/credential'
 import type {
   AgentPhoneUpdateContactParams,
   AgentPhoneUpdateContactResult,
@@ -12,6 +13,7 @@ export const agentphoneUpdateContactTool: ToolConfig<
   name: 'Update Contact',
   description: "Update a contact's fields",
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

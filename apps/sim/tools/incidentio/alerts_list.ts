@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import {
   INCIDENTIO_ALERT_OUTPUT_PROPERTIES,
   type IncidentioAlertsListParams,
@@ -15,6 +16,7 @@ export const alertsListTool: ToolConfig<IncidentioAlertsListParams, IncidentioAl
     description:
       'List alerts in incident.io, optionally filtered by status, source, or created date',
     version: '1.0.0',
+    oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

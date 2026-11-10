@@ -1,3 +1,4 @@
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/mailchimp/credential'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -23,6 +24,7 @@ export const mailchimpArchiveMemberTool: ToolConfig<
   description:
     'Request permanent deletion of a member and their identifying data. This targets delete-permanent, despite the Archive Member label; provider acceptance of the current HTTP method is unverified.',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

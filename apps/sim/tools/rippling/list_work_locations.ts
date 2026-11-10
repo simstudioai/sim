@@ -1,3 +1,4 @@
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/rippling/credential'
 import type { RipplingListWorkLocationsParams } from '@/tools/rippling/types'
 import { WORK_LOCATION_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const ripplingListWorkLocationsTool: ToolConfig<RipplingListWorkLocations
   name: 'Rippling List Work Locations',
   description: 'List all work locations',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

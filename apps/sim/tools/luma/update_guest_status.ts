@@ -1,3 +1,4 @@
+import { LUMA_CREDENTIAL_OAUTH } from '@/tools/luma/credential'
 import type { LumaUpdateGuestStatusParams, LumaUpdateGuestStatusResponse } from '@/tools/luma/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -10,6 +11,7 @@ export const updateGuestStatusTool: ToolConfig<
   description:
     "Update a guest's approval status on a Luma event — approve, decline, waitlist, or set to pending. Identify the guest by email or guest ID.",
   version: '1.0.0',
+  oauth: LUMA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

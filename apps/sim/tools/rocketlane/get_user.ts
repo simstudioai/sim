@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapUser,
   ROCKETLANE_API_BASE,
@@ -14,6 +15,7 @@ export const rocketlaneGetUserTool: ToolConfig<RocketlaneGetUserParams, Rocketla
   name: 'Rocketlane Get User',
   description: 'Retrieve a Rocketlane user by their ID',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

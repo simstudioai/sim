@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityEntityResponse, AffinityGetMergeParams } from '@/tools/affinity/types'
 import { MERGE_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import {
@@ -20,6 +21,7 @@ export const affinityGetMergeTool: ToolConfig<
   name: 'Affinity Get Merge',
   description: 'Read the status of one company or person merge, including why it failed if it did.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

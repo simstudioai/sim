@@ -2,7 +2,7 @@
 title: AgentMail
 description: Manage email inboxes, threads, and messages with AgentMail
 integration:
-  type: "agentmail"
+  type: "agentmail_v2"
   color: "#000000"
 ---
 
@@ -15,7 +15,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 ## Use the block [#usage-instructions]
 
-Create and manage email inboxes, send and receive messages, reply to threads, manage drafts, and organize threads with labels. Requires an API key.
+Create and manage email inboxes, send and receive messages, reply to threads, manage drafts, and organize threads with labels.
 
 ## Actions
 
@@ -29,7 +29,6 @@ Create a new email draft in AgentMail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | AgentMail API key |
 | `inboxId` | string | Yes | ID of the inbox to create the draft in |
 | `to` | string | No | Recipient email addresses \(comma-separated\) |
 | `subject` | string | No | Draft subject line |
@@ -72,7 +71,6 @@ Create a new email inbox with AgentMail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | AgentMail API key |
 | `username` | string | No | Username for the inbox email address |
 | `domain` | string | No | Domain for the inbox email address |
 | `displayName` | string | No | Display name for the inbox |
@@ -99,7 +97,6 @@ Delete an email draft in AgentMail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | AgentMail API key |
 | `inboxId` | string | Yes | ID of the inbox containing the draft |
 | `draftId` | string | Yes | ID of the draft to delete |
 
@@ -121,7 +118,6 @@ Delete an email inbox in AgentMail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | AgentMail API key |
 | `inboxId` | string | Yes | ID of the inbox to delete |
 
 #### Output
@@ -142,7 +138,6 @@ Delete an email thread in AgentMail (moves to trash, or permanently deletes if a
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | AgentMail API key |
 | `inboxId` | string | Yes | ID of the inbox containing the thread |
 | `threadId` | string | Yes | ID of the thread to delete |
 | `permanent` | boolean | No | Force permanent deletion instead of moving to trash |
@@ -165,7 +160,6 @@ Forward an email message to new recipients in AgentMail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | AgentMail API key |
 | `inboxId` | string | Yes | ID of the inbox containing the message |
 | `messageId` | string | Yes | ID of the message to forward |
 | `to` | string | Yes | Recipient email addresses \(comma-separated\) |
@@ -194,7 +188,6 @@ Get details of a specific email draft in AgentMail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | AgentMail API key |
 | `inboxId` | string | Yes | ID of the inbox the draft belongs to |
 | `draftId` | string | Yes | ID of the draft to retrieve |
 
@@ -230,7 +223,6 @@ Get details of a specific email inbox in AgentMail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | AgentMail API key |
 | `inboxId` | string | Yes | ID of the inbox to retrieve |
 
 #### Output
@@ -255,7 +247,6 @@ Get details of a specific email message in AgentMail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | AgentMail API key |
 | `inboxId` | string | Yes | ID of the inbox containing the message |
 | `messageId` | string | Yes | ID of the message to retrieve |
 
@@ -288,7 +279,6 @@ Get details of a specific email thread including messages in AgentMail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | AgentMail API key |
 | `inboxId` | string | Yes | ID of the inbox containing the thread |
 | `threadId` | string | Yes | ID of the thread to retrieve |
 
@@ -330,7 +320,6 @@ List email drafts in an inbox in AgentMail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | AgentMail API key |
 | `inboxId` | string | Yes | ID of the inbox to list drafts from |
 | `limit` | number | No | Maximum number of drafts to return |
 | `pageToken` | string | No | Pagination token for next page of results |
@@ -366,7 +355,6 @@ List all email inboxes in AgentMail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | AgentMail API key |
 | `limit` | number | No | Maximum number of inboxes to return |
 | `pageToken` | string | No | Pagination token for next page of results |
 
@@ -395,7 +383,6 @@ List messages in an inbox in AgentMail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | AgentMail API key |
 | `inboxId` | string | Yes | ID of the inbox to list messages from |
 | `limit` | number | No | Maximum number of messages to return |
 | `pageToken` | string | No | Pagination token for next page of results |
@@ -427,7 +414,6 @@ List email threads in AgentMail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | AgentMail API key |
 | `inboxId` | string | Yes | ID of the inbox to list threads from |
 | `limit` | number | No | Maximum number of threads to return |
 | `pageToken` | string | No | Pagination token for next page of results |
@@ -463,7 +449,6 @@ Reply to an existing email message in AgentMail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | AgentMail API key |
 | `inboxId` | string | Yes | ID of the inbox to reply from |
 | `messageId` | string | Yes | ID of the message to reply to |
 | `text` | string | No | Plain text reply body |
@@ -492,7 +477,6 @@ Send an existing email draft in AgentMail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | AgentMail API key |
 | `inboxId` | string | Yes | ID of the inbox containing the draft |
 | `draftId` | string | Yes | ID of the draft to send |
 
@@ -515,7 +499,6 @@ Send an email message from an AgentMail inbox
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | AgentMail API key |
 | `inboxId` | string | Yes | ID of the inbox to send from |
 | `to` | string | Yes | Recipient email address \(comma-separated for multiple\) |
 | `subject` | string | Yes | Email subject line |
@@ -545,7 +528,6 @@ Update an existing email draft in AgentMail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | AgentMail API key |
 | `inboxId` | string | Yes | ID of the inbox containing the draft |
 | `draftId` | string | Yes | ID of the draft to update |
 | `to` | string | No | Recipient email addresses \(comma-separated\) |
@@ -588,7 +570,6 @@ Update the display name of an email inbox in AgentMail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | AgentMail API key |
 | `inboxId` | string | Yes | ID of the inbox to update |
 | `displayName` | string | Yes | New display name for the inbox |
 
@@ -614,7 +595,6 @@ Add or remove labels on an email message in AgentMail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | AgentMail API key |
 | `inboxId` | string | Yes | ID of the inbox containing the message |
 | `messageId` | string | Yes | ID of the message to update |
 | `addLabels` | string | No | Comma-separated labels to add to the message |
@@ -639,7 +619,6 @@ Add or remove labels on an email thread in AgentMail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | AgentMail API key |
 | `inboxId` | string | Yes | ID of the inbox containing the thread |
 | `threadId` | string | Yes | ID of the thread to update |
 | `addLabels` | string | No | Comma-separated labels to add to the thread |

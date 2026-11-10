@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityCollectionResponse,
   AffinityListListEntryFieldValueChangesParams,
@@ -21,6 +22,7 @@ export const affinityListListEntryFieldValueChangesTool: ToolConfig<
   description:
     'Page through the history of one list row — who changed which field, when, and to what.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

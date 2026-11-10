@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type {
   IncidentioEscalationsShowParams,
   IncidentioEscalationsShowResponse,
@@ -12,6 +13,7 @@ export const escalationsShowTool: ToolConfig<
   name: 'Show Escalation',
   description: 'Get details of a specific escalation policy in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

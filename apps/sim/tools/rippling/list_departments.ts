@@ -1,3 +1,4 @@
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/rippling/credential'
 import type { RipplingListDepartmentsParams } from '@/tools/rippling/types'
 import { DEPARTMENT_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const ripplingListDepartmentsTool: ToolConfig<RipplingListDepartmentsPara
   name: 'Rippling List Departments',
   description: 'List all departments',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

@@ -1,3 +1,4 @@
+import { BRIGHTDATA_CREDENTIAL_OAUTH } from '@/tools/brightdata/credential'
 import type {
   BrightDataDownloadSnapshotParams,
   BrightDataDownloadSnapshotResponse,
@@ -13,6 +14,7 @@ export const brightDataDownloadSnapshotTool: ToolConfig<
   description:
     'Download the results of a completed Bright Data scraping job using its snapshot ID. The snapshot must have ready status.',
   version: '1.0.0',
+  oauth: BRIGHTDATA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

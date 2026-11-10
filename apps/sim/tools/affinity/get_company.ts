@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityEntityResponse, AffinityGetCompanyParams } from '@/tools/affinity/types'
 import { COMPANY_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import {
@@ -19,6 +20,7 @@ export const affinityGetCompanyTool: ToolConfig<
   description:
     'Look up one company by ID. Field data is returned only for the Field IDs or Field Types asked for.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

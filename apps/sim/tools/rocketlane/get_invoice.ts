@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   INVOICE_OUTPUT_PROPERTIES,
   mapInvoice,
@@ -17,6 +18,7 @@ export const rocketlaneGetInvoiceTool: ToolConfig<
   name: 'Rocketlane Get Invoice',
   description: 'Retrieve a Rocketlane invoice by its ID',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

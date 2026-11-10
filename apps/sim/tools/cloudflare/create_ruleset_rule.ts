@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import { RULESET_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareCreateRulesetRuleParams,
@@ -24,6 +25,7 @@ export const createRulesetRuleTool: ToolConfig<
   description:
     'Adds a rule to a zone ruleset. Use "Get Phase Entry Point Ruleset" first to find the ruleset ID for the phase you want (for example http_request_firewall_custom for a WAF custom rule, or http_request_firewall_managed with action "execute" to deploy a managed ruleset). The rule is appended to the end of the ruleset unless a position is given. Requires an API token with Zone WAF Edit (or another matching ruleset Write permission).',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     exposed_credential_check: {

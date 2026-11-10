@@ -1,3 +1,4 @@
+import { RB2B_CREDENTIAL_OAUTH } from '@/tools/rb2b/credential'
 import {
   RB2B_HEM_RESULT_OUTPUT_PROPERTIES,
   type Rb2bIpToHemParams,
@@ -12,6 +13,7 @@ export const rb2bIpToHemTool: ToolConfig<Rb2bIpToHemParams, Rb2bIpToHemResponse>
   description:
     'Convert an IP address (and optional user agent) into hashed email addresses (HEM) with accuracy scores.',
   version: '1.0.0',
+  oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

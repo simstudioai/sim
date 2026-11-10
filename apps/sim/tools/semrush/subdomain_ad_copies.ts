@@ -1,3 +1,4 @@
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushSubdomainAdCopiesParams,
   SemrushSubdomainAdCopiesResponse,
@@ -21,6 +22,7 @@ export const semrushSubdomainAdCopiesTool: ToolConfig<
   name: 'Semrush Subdomain Ad Copies',
   description: 'List the unique Google Ads creatives a subdomain runs.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

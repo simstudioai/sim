@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type {
   IncidentioEscalationPathsUpdateParams,
   IncidentioEscalationPathsUpdateResponse,
@@ -12,6 +13,7 @@ export const escalationPathsUpdateTool: ToolConfig<
   name: 'Update Escalation Path',
   description: 'Update an existing escalation path in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

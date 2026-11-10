@@ -1,3 +1,4 @@
+import { APIFY_CREDENTIAL_OAUTH } from '@/tools/apify/credential'
 import type { GetDatasetItemsParams, GetDatasetItemsResult } from '@/tools/apify/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const apifyGetDatasetItemsTool: ToolConfig<GetDatasetItemsParams, GetData
   name: 'APIFY Get Dataset Items',
   description: 'Retrieve items stored in an APIFY dataset',
   version: '1.0.0',
+  oauth: APIFY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

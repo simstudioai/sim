@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/mailchimp/credential'
 import {
   buildMailchimpUrl,
   handleMailchimpError,
@@ -35,6 +36,7 @@ export const mailchimpUpdateMemberTool: ToolConfig<
   name: 'Update Member in Mailchimp Audience',
   description: 'Update an existing member in a Mailchimp audience',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

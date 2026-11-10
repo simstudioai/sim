@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityCollectionResponse, AffinityListNotesParams } from '@/tools/affinity/types'
 import { NOTE_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import {
@@ -17,6 +18,7 @@ export const affinityListNotesTool: ToolConfig<
   name: 'Affinity List Notes',
   description: 'Page through every note the caller can see. Replies are excluded.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

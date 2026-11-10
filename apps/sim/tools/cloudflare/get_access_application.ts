@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import { ACCESS_APPLICATION_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareAccessApplicationResponse,
@@ -22,6 +23,7 @@ export const getAccessApplicationTool: ToolConfig<
   description:
     'Reads a single Cloudflare Access (Zero Trust) application, including its attached policies. Requires an API token with Account Access: Apps and Policies Read.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     accountId: {

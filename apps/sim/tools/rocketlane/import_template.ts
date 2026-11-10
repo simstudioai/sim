@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapProject,
   PROJECT_OUTPUT_PROPERTIES,
@@ -17,6 +18,7 @@ export const rocketlaneImportTemplateTool: ToolConfig<
   name: 'Rocketlane Import Template',
   description: 'Import a project template into an existing Rocketlane project',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

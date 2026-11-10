@@ -1,3 +1,4 @@
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/linq/credential'
 import type { LinqEditMessageParams, LinqMessageResult } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -8,6 +9,7 @@ export const linqEditMessageTool: ToolConfig<LinqEditMessageParams, LinqMessageR
   description:
     'Edit the text of a sent message (up to 5 times, within 15 minutes of sending; iMessage only)',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

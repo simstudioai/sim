@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type {
   IncidentioEscalationPathsDeleteParams,
   IncidentioEscalationPathsDeleteResponse,
@@ -12,6 +13,7 @@ export const escalationPathsDeleteTool: ToolConfig<
   name: 'Delete Escalation Path',
   description: 'Delete an escalation path in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

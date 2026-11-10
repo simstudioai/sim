@@ -1,3 +1,4 @@
+import { PINECONE_CREDENTIAL_OAUTH } from '@/tools/pinecone/credential'
 import type { PineconeDescribeIndexStatsParams, PineconeResponse } from '@/tools/pinecone/types'
 import { parseJsonParam } from '@/tools/pinecone/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -10,6 +11,7 @@ export const describeIndexStatsTool: ToolConfig<
   name: 'Pinecone Describe Index Stats',
   description: 'Get statistics about a Pinecone index, including per-namespace vector counts',
   version: '1.0',
+  oauth: PINECONE_CREDENTIAL_OAUTH,
 
   params: {
     indexHost: {

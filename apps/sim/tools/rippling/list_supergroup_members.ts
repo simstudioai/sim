@@ -1,3 +1,4 @@
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/rippling/credential'
 import type { RipplingListSupergroupMembersParams } from '@/tools/rippling/types'
 import { GROUP_MEMBER_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const ripplingListSupergroupMembersTool: ToolConfig<RipplingListSupergrou
   name: 'Rippling List Supergroup Members',
   description: 'List members of a supergroup',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

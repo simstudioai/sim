@@ -1,5 +1,6 @@
 import { CloudflareIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 /** Advanced inputs serialize before conditions; separate aliases prevent hidden values crossing operations. */
 const SUBBLOCK_ALIASES: Record<string, Record<string, string>> = {
@@ -251,6 +252,8 @@ const ALIASED_SUBBLOCK_IDS = [
 
 export const CloudflareBlock: BlockConfig = {
   type: 'cloudflare',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'cloudflare_v2' },
   name: 'Cloudflare',
   description: 'Manage DNS, WAF, Zero Trust access, and edge infrastructure',
   authMode: AuthMode.ApiKey,
@@ -5899,3 +5902,17 @@ export const CloudflareBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const CloudflareV2Block: BlockConfig = {
+  ...CloudflareBlock,
+  type: 'cloudflare_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(CloudflareBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'cloudflare',
+    title: 'Cloudflare Credential',
+  }),
+}

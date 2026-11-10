@@ -1,3 +1,4 @@
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/ahrefs/credential'
 import type { AhrefsAnchorsParams, AhrefsAnchorsResponse } from '@/tools/ahrefs/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const anchorsTool: ToolConfig<AhrefsAnchorsParams, AhrefsAnchorsResponse>
   description:
     "Get the anchor text distribution for a target domain or URL's backlinks, showing how many links and referring domains use each anchor text.",
   version: '1.0.0',
+  oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {
     target: {

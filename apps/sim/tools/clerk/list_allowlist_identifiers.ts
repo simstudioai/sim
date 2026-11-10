@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/clerk/credential'
 import type {
   ClerkAllowlistIdentifier,
   ClerkApiError,
@@ -17,6 +18,7 @@ export const clerkListAllowlistIdentifiersTool: ToolConfig<
   name: 'List Allowlist Identifiers from Clerk',
   description: 'List email/phone/web3-wallet identifiers on your Clerk instance allowlist',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

@@ -1,3 +1,4 @@
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/linq/credential'
 import type {
   LinqGetWebhookSubscriptionParams,
   LinqWebhookSubscriptionResult,
@@ -18,6 +19,7 @@ export const linqGetWebhookSubscriptionTool: ToolConfig<
   name: 'Get Webhook Subscription',
   description: 'Retrieve a webhook subscription by ID',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

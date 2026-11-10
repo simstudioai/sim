@@ -1,3 +1,4 @@
+import { ELEVENLABS_CREDENTIAL_OAUTH } from '@/tools/elevenlabs/credential'
 import type {
   ElevenLabsAudioResponse,
   ElevenLabsSoundEffectsParams,
@@ -12,6 +13,7 @@ export const elevenLabsSoundEffectsTool: InternalToolConfig<
   name: 'ElevenLabs Sound Effects',
   description: 'Generate a sound effect from a text prompt using ElevenLabs',
   version: '1.0.0',
+  oauth: ELEVENLABS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

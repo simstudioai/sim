@@ -1,3 +1,4 @@
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/hex/credential'
 import type { HexGetCollectionParams, HexGetCollectionResponse } from '@/tools/hex/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const getCollectionTool: ToolConfig<HexGetCollectionParams, HexGetCollect
   name: 'Hex Get Collection',
   description: 'Retrieve details for a specific Hex collection by its ID.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

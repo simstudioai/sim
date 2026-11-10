@@ -1,3 +1,4 @@
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/sendgrid/credential'
 import type {
   CreateTemplateVersionParams,
   SendGridTemplateVersionRequest,
@@ -23,6 +24,7 @@ export const sendGridCreateTemplateVersionTool: ToolConfig<
   name: 'SendGrid Create Template Version',
   description: 'Create a new version of an email template in SendGrid',
   version: '1.0.0',
+  oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

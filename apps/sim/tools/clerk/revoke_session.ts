@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/clerk/credential'
 import type {
   ClerkApiError,
   ClerkRevokeSessionParams,
@@ -17,6 +18,7 @@ export const clerkRevokeSessionTool: ToolConfig<
   name: 'Revoke Session in Clerk',
   description: 'Revoke a session to immediately invalidate it',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

@@ -1,3 +1,4 @@
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/buffer/credential'
 import {
   bufferInputDescription,
   bufferOutputProperties,
@@ -24,6 +25,7 @@ export const bufferGetAggregatedPostMetricsTool: ToolConfig<
   description:
     'Aggregate published post metrics across an organization or selected channels over a date range of up to 365 days',
   version: '1.0.0',
+  oauth: BUFFER_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

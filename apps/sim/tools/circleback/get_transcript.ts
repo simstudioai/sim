@@ -1,3 +1,4 @@
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import {
   type CirclebackGetTranscriptParams,
   type CirclebackTranscriptResponse,
@@ -19,6 +20,7 @@ export const getTranscriptTool: ToolConfig<
   name: 'Circleback Get Transcript',
   description: 'Gets the full transcript for a Circleback meeting.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

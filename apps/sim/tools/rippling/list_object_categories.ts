@@ -1,3 +1,4 @@
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/rippling/credential'
 import type { RipplingListObjectCategoriesParams } from '@/tools/rippling/types'
 import { OBJECT_CATEGORY_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const ripplingListObjectCategoriesTool: ToolConfig<RipplingListObjectCate
   name: 'Rippling List Object Categories',
   description: 'List all object categories',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

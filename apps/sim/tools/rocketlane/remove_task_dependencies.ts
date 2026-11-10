@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapTask,
   ROCKETLANE_API_BASE,
@@ -17,6 +18,7 @@ export const rocketlaneRemoveTaskDependenciesTool: ToolConfig<
   name: 'Rocketlane Remove Task Dependencies',
   description: 'Remove dependencies from a Rocketlane task',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

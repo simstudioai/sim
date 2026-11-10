@@ -1,3 +1,4 @@
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexListBudgetsResponse, BrexPaginationParams } from '@/tools/brex/types'
 import { BREX_MONEY_PROPERTIES } from '@/tools/brex/types'
 import {
@@ -13,6 +14,7 @@ export const brexListBudgetsTool: ToolConfig<BrexPaginationParams, BrexListBudge
   name: 'Brex List Budgets',
   description: 'List budgets in the Brex account',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

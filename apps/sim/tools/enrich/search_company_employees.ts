@@ -1,3 +1,4 @@
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/enrich/credential'
 import type {
   EnrichSearchCompanyEmployeesParams,
   EnrichSearchCompanyEmployeesResponse,
@@ -12,6 +13,7 @@ export const searchCompanyEmployeesTool: ToolConfig<
   name: 'Enrich Search Company Employees',
   description: 'Search for employees within specific companies by location and job title.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

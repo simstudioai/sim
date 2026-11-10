@@ -1,3 +1,4 @@
+import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/instantly/credential'
 import type {
   InstantlyCampaignActionResponse,
   InstantlyDeleteCampaignParams,
@@ -21,6 +22,7 @@ export const deleteCampaignTool: ToolConfig<
   name: 'Instantly Delete Campaign',
   description: 'Permanently deletes an Instantly V2 campaign.',
   version: '1.0.0',
+  oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,
     campaignId: {

@@ -1,3 +1,4 @@
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/rippling/credential'
 import type { RipplingDeleteTitleParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const ripplingDeleteTitleTool: ToolConfig<RipplingDeleteTitleParams> = {
   name: 'Rippling Delete Title',
   description: 'Delete a title',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

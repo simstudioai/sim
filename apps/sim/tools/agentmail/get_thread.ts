@@ -1,3 +1,4 @@
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/agentmail/credential'
 import type { GetThreadParams, GetThreadResult } from '@/tools/agentmail/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const agentmailGetThreadTool: ToolConfig<GetThreadParams, GetThreadResult
   name: 'Get Thread',
   description: 'Get details of a specific email thread including messages in AgentMail',
   version: '1.0.0',
+  oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   ROCKETLANE_API_BASE,
   type RocketlaneDeleteProjectParams,
@@ -16,6 +17,7 @@ export const rocketlaneDeleteProjectTool: ToolConfig<
   description:
     'Permanently delete a Rocketlane project by ID (irreversible; only Admins, Super Users, and Project Owners can delete)',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

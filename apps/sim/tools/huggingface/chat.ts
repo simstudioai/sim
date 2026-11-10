@@ -1,3 +1,4 @@
+import { HUGGINGFACE_CREDENTIAL_OAUTH } from '@/tools/huggingface/credential'
 import type {
   HuggingFaceChatParams,
   HuggingFaceChatResponse,
@@ -11,6 +12,7 @@ export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse
   name: 'Hugging Face Chat',
   description: 'Generate completions using Hugging Face Inference API',
   version: '1.0',
+  oauth: HUGGINGFACE_CREDENTIAL_OAUTH,
 
   params: {
     systemPrompt: {

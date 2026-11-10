@@ -1,3 +1,4 @@
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/ahrefs/credential'
 import type {
   AhrefsKeywordOverviewParams,
   AhrefsKeywordOverviewResponse,
@@ -16,6 +17,7 @@ export const keywordOverviewTool: ToolConfig<
   description:
     'Get detailed metrics for a keyword including search volume, keyword difficulty, CPC, clicks, and traffic potential.',
   version: '1.0.0',
+  oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {
     keyword: {

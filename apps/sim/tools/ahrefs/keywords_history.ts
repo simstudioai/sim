@@ -1,3 +1,4 @@
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/ahrefs/credential'
 import type {
   AhrefsKeywordsHistoryParams,
   AhrefsKeywordsHistoryResponse,
@@ -15,6 +16,7 @@ export const keywordsHistoryTool: ToolConfig<
   description:
     'Get the historical organic keyword ranking distribution for a target domain or URL over a date range: how many keywords rank in each position bucket at each point in time.',
   version: '1.0.0',
+  oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {
     target: {

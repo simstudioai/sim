@@ -2,7 +2,7 @@
 title: Daytona
 description: Run code and commands in secure cloud sandboxes
 integration:
-  type: "daytona"
+  type: "daytona_v2"
   color: "#FFFFFF"
 ---
 
@@ -29,7 +29,6 @@ Create a new Daytona sandbox for running AI-generated code in isolation
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Daytona API key |
 | `snapshot` | string | No | ID or name of the snapshot to create the sandbox from \(uses default if empty\) |
 | `name` | string | No | Name for the sandbox \(defaults to the sandbox ID\) |
 | `target` | string | No | Region where the sandbox will be created \(e.g., us, eu\) |
@@ -62,7 +61,6 @@ List Daytona sandboxes in the organization
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Daytona API key |
 | `limit` | number | No | Maximum number of sandboxes to return \(1-200\) |
 | `name` | string | No | Filter sandboxes by name prefix \(case-insensitive\) |
 | `labels` | json | No | Filter sandboxes by labels as key-value pairs |
@@ -87,7 +85,6 @@ Get details of a Daytona sandbox
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Daytona API key |
 | `sandboxId` | string | Yes | ID or name of the sandbox |
 
 #### Output
@@ -108,7 +105,6 @@ Start a stopped Daytona sandbox
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Daytona API key |
 | `sandboxId` | string | Yes | ID or name of the sandbox |
 
 #### Output
@@ -129,7 +125,6 @@ Stop a running Daytona sandbox
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Daytona API key |
 | `sandboxId` | string | Yes | ID or name of the sandbox |
 
 #### Output
@@ -150,7 +145,6 @@ Delete a Daytona sandbox
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Daytona API key |
 | `sandboxId` | string | Yes | ID or name of the sandbox |
 
 #### Output
@@ -171,7 +165,6 @@ Execute a shell command inside a Daytona sandbox
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Daytona API key |
 | `sandboxId` | string | Yes | ID of the sandbox to execute the command in |
 | `command` | string | Yes | Shell command to execute |
 | `cwd` | string | No | Working directory for the command \(defaults to the sandbox working directory\) |
@@ -197,7 +190,6 @@ Run Python, JavaScript, or TypeScript code inside a Daytona sandbox
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Daytona API key |
 | `sandboxId` | string | Yes | ID of the sandbox to run the code in |
 | `code` | string | Yes | Code to run |
 | `language` | string | Yes | Language of the code: python, javascript, or typescript |
@@ -224,7 +216,6 @@ Upload a file to a Daytona sandbox
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Daytona API key |
 | `sandboxId` | string | Yes | ID of the sandbox to upload the file to |
 | `destinationPath` | string | Yes | Destination path in the sandbox \(a trailing slash uploads into that directory using the file name\) |
 | `file` | file | No | The file to upload |
@@ -250,7 +241,6 @@ Download a file from a Daytona sandbox
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Daytona API key |
 | `sandboxId` | string | Yes | ID of the sandbox to download the file from |
 | `filePath` | string | Yes | Path of the file in the sandbox |
 
@@ -275,7 +265,6 @@ List files in a directory of a Daytona sandbox
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Daytona API key |
 | `sandboxId` | string | Yes | ID of the sandbox to list files in |
 | `path` | string | No | Directory path to list \(defaults to the sandbox working directory\) |
 
@@ -305,7 +294,6 @@ Clone a Git repository into a Daytona sandbox
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Daytona API key |
 | `sandboxId` | string | Yes | ID of the sandbox to clone the repository into |
 | `url` | string | Yes | URL of the Git repository to clone |
 | `path` | string | Yes | Path in the sandbox to clone the repository into |

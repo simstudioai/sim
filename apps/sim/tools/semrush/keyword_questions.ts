@@ -1,3 +1,4 @@
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushKeywordQuestionsParams,
   SemrushKeywordQuestionsResponse,
@@ -21,6 +22,7 @@ export const semrushKeywordQuestionsTool: ToolConfig<
   name: 'Semrush Keyword Questions',
   description: 'Find question-form keywords containing a seed keyword, with volume and difficulty.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

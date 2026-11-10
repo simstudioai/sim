@@ -1,3 +1,4 @@
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushBacklinksIndexedPagesParams,
   SemrushBacklinksIndexedPagesResponse,
@@ -31,6 +32,7 @@ export const semrushBacklinksIndexedPagesTool: ToolConfig<
   description:
     'List the pages of a target that attract backlinks, with response code and link counts.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityAcknowledgementResponse,
   AffinityUpdateListEntryFieldParams,
@@ -23,6 +24,7 @@ export const affinityUpdateListEntryFieldTool: ToolConfig<
   description:
     'Write one field value on a list row. Requires the "Export data from Lists" permission.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

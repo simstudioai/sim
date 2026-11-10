@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import { DNS_RECORD_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareCreateDnsRecordParams,
@@ -23,6 +24,7 @@ export const createDnsRecordTool: ToolConfig<
   name: 'Cloudflare Create DNS Record',
   description: 'Creates a new DNS record for a zone.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     settings: {

@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/uptimerobot/credential'
 import {
   ALERT_CONTACT_OUTPUT_PROPERTIES,
   mapAlertContact,
@@ -17,6 +18,7 @@ export const uptimeRobotGetAlertContactTool: ToolConfig<
   name: 'UptimeRobot Get Alert Contact',
   description: 'Get the details of a single UptimeRobot alert contact by ID',
   version: '1.0.0',
+  oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

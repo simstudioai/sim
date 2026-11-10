@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type {
   IncidentioIncidentMembershipsCreateParams,
   IncidentioIncidentMembershipsCreateResponse,
@@ -12,6 +13,7 @@ export const incidentMembershipsCreateTool: ToolConfig<
   name: 'Grant Incident Membership',
   description: 'Make a user a member of a private incident in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

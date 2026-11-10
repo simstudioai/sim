@@ -1,3 +1,4 @@
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/agentphone/credential'
 import type {
   AgentPhoneConversationMessage,
   AgentPhoneGetConversationMessagesParams,
@@ -13,6 +14,7 @@ export const agentphoneGetConversationMessagesTool: ToolConfig<
   name: 'Get Conversation Messages',
   description: 'Get paginated messages for a conversation',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

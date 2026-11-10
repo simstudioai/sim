@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareDeleteTunnelParams,
   CloudflareDeleteTunnelResponse,
@@ -22,6 +23,7 @@ export const deleteTunnelTool: ToolConfig<
   description:
     'Permanently deletes a Cloudflare Tunnel from an account. The tunnel must have no active connections.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {
       type: 'string',

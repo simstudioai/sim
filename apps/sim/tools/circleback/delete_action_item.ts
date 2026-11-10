@@ -1,3 +1,4 @@
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import {
   ACTION_ITEM_OUTPUT_PROPERTIES,
   type CirclebackActionItemResponse,
@@ -20,6 +21,7 @@ export const deleteActionItemTool: ToolConfig<
   name: 'Circleback Delete Action Item',
   description: 'Deletes a Circleback action item. Returns the deleted action item.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/hex/credential'
 import type { HexDeleteGroupParams, HexDeleteGroupResponse } from '@/tools/hex/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const deleteGroupTool: ToolConfig<HexDeleteGroupParams, HexDeleteGroupRes
   name: 'Hex Delete Group',
   description: 'Delete a group from the Hex workspace.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

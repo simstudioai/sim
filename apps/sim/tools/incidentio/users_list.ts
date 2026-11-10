@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import {
   INCIDENTIO_PAGINATION_OUTPUT_PROPERTIES,
   type IncidentioUsersListParams,
@@ -11,6 +12,7 @@ export const usersListTool: ToolConfig<IncidentioUsersListParams, IncidentioUser
   description:
     'List all users in your Incident.io workspace. Returns user details including id, name, email, and role.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

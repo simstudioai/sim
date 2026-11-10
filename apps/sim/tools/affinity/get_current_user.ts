@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityCurrentUserResponse,
   AffinityGetCurrentUserParams,
@@ -20,6 +21,7 @@ export const affinityGetCurrentUserTool: ToolConfig<
   description:
     'Verify an Affinity API key and return the tenant, the user behind the key, and the scopes the grant carries.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

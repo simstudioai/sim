@@ -1,3 +1,4 @@
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexListUsersParams, BrexListUsersResponse } from '@/tools/brex/types'
 import { BREX_USER_PROPERTIES } from '@/tools/brex/types'
 import {
@@ -13,6 +14,7 @@ export const brexListUsersTool: ToolConfig<BrexListUsersParams, BrexListUsersRes
   name: 'Brex List Users',
   description: 'List users in the Brex account, optionally filtered by email',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { OTTER_CREDENTIAL_OAUTH } from '@/tools/otter/credential'
 import type {
   OtterListChannelMembersParams,
   OtterListChannelMembersResponse,
@@ -23,6 +24,7 @@ export const otterListChannelMembersTool: ToolConfig<
   name: 'Otter List Channel Members',
   description: 'List the members of an Otter channel, in alphabetical order.',
   version: '1.0.0',
+  oauth: OTTER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

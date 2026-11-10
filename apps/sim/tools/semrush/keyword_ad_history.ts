@@ -1,3 +1,4 @@
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushKeywordAdHistoryParams,
   SemrushKeywordAdHistoryResponse,
@@ -22,6 +23,7 @@ export const semrushKeywordAdHistoryTool: ToolConfig<
   description:
     'List which domains advertised on a keyword month by month, with the copy each one used.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

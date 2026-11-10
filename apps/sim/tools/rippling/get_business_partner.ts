@@ -1,3 +1,4 @@
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/rippling/credential'
 import type { RipplingGetBusinessPartnerParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const ripplingGetBusinessPartnerTool: ToolConfig<RipplingGetBusinessPartn
   name: 'Rippling Get Business Partner',
   description: 'Get a specific business partner by ID',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

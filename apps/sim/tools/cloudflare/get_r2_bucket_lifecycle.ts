@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareGetR2BucketLifecycleParams,
   CloudflareGetR2BucketLifecycleResponse,
@@ -21,6 +22,7 @@ export const getR2BucketLifecycleTool: ToolConfig<
   name: 'Cloudflare Get R2 Bucket Lifecycle',
   description: 'Get object lifecycle rules for a bucket.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {
       type: 'string',

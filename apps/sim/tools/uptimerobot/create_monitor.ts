@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/uptimerobot/credential'
 import {
   buildMonitorBody,
   MONITOR_OUTPUT_PROPERTIES,
@@ -18,6 +19,7 @@ export const uptimeRobotCreateMonitorTool: ToolConfig<
   name: 'UptimeRobot Create Monitor',
   description: 'Create a new monitor in UptimeRobot',
   version: '1.0.0',
+  oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

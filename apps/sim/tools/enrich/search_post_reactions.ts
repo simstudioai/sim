@@ -1,3 +1,4 @@
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/enrich/credential'
 import type {
   EnrichSearchPostReactionsParams,
   EnrichSearchPostReactionsResponse,
@@ -12,6 +13,7 @@ export const searchPostReactionsTool: ToolConfig<
   name: 'Enrich Search Post Reactions',
   description: 'Get reactions on a LinkedIn post with filtering by reaction type.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

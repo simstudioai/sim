@@ -1,3 +1,4 @@
+import { BROWSER_USE_CREDENTIAL_OAUTH } from '@/tools/browser_use/credential'
 import type { BrowserUseRunTaskParams, BrowserUseRunTaskResponse } from '@/tools/browser_use/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type { InternalToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const runTaskTool: InternalToolConfig<BrowserUseRunTaskParams, BrowserUse
   name: 'Browser Use',
   description: 'Runs a browser automation task using BrowserUse',
   version: '1.0.0',
+  oauth: BROWSER_USE_CREDENTIAL_OAUTH,
 
   params: {
     task: {

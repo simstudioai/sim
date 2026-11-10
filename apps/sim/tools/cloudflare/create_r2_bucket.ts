@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import { R2_BUCKET_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareCreateR2BucketParams,
@@ -22,6 +23,7 @@ export const createR2BucketTool: ToolConfig<
   description:
     'Creates an R2 object storage bucket in an account. The location hint and jurisdiction are fixed at creation and cannot be changed later. Requires an API token with Account Workers R2 Storage Edit.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     accountId: {

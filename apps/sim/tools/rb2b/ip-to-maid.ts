@@ -1,3 +1,4 @@
+import { RB2B_CREDENTIAL_OAUTH } from '@/tools/rb2b/credential'
 import {
   RB2B_MAID_RESULT_OUTPUT_PROPERTIES,
   type Rb2bIpToMaidParams,
@@ -12,6 +13,7 @@ export const rb2bIpToMaidTool: ToolConfig<Rb2bIpToMaidParams, Rb2bMaidResponse> 
   description:
     'Resolve an IP address (and optional user agent) into mobile advertising identifiers (MAIDs) observed over the last 60 days.',
   version: '1.0.0',
+  oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

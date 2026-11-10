@@ -1,3 +1,4 @@
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/persona/credential'
 import type { PersonaGetReportParams, PersonaReportResponse } from '@/tools/persona/types'
 import {
   asResource,
@@ -15,6 +16,7 @@ export const personaGetReportTool: ToolConfig<PersonaGetReportParams, PersonaRep
   description:
     'Retrieve a single screening report by ID, including its status, match results, and full type-specific attributes.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

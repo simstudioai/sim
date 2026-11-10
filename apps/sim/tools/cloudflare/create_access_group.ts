@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareCreateAccessGroupParams,
   CloudflareCreateAccessGroupResponse,
@@ -22,6 +23,7 @@ export const createAccessGroupTool: ToolConfig<
   name: 'Cloudflare Create Access Group',
   description: 'Creates a new Access group.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {
       type: 'string',

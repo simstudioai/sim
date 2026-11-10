@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareUpdateTunnelConfigurationParams,
   CloudflareUpdateTunnelConfigurationResponse,
@@ -23,6 +24,7 @@ export const updateTunnelConfigurationTool: ToolConfig<
   description:
     'Replaces the configuration for a remotely managed Cloudflare Tunnel, including its ingress rules and origin request settings. Replaces the configuration; resend all values to retain.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {
       type: 'string',

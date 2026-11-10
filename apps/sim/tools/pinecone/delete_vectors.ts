@@ -1,3 +1,4 @@
+import { PINECONE_CREDENTIAL_OAUTH } from '@/tools/pinecone/credential'
 import type { PineconeDeleteVectorsParams, PineconeResponse } from '@/tools/pinecone/types'
 import { parseJsonParam } from '@/tools/pinecone/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const deleteVectorsTool: ToolConfig<PineconeDeleteVectorsParams, Pinecone
   name: 'Pinecone Delete Vectors',
   description: 'Delete vectors from a Pinecone namespace by IDs, by metadata filter, or delete all',
   version: '1.0',
+  oauth: PINECONE_CREDENTIAL_OAUTH,
 
   params: {
     indexHost: {

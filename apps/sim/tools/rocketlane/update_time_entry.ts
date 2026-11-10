@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapTimeEntry,
   ROCKETLANE_API_BASE,
@@ -18,6 +19,7 @@ export const rocketlaneUpdateTimeEntryTool: ToolConfig<
   description:
     'Update a Rocketlane time entry by ID. The activityName, notes, billable, and minutes properties can be updated',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

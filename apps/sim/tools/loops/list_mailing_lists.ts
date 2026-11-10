@@ -1,3 +1,4 @@
+import { LOOPS_CREDENTIAL_OAUTH } from '@/tools/loops/credential'
 import type {
   LoopsListMailingListsParams,
   LoopsListMailingListsResponse,
@@ -13,6 +14,7 @@ export const loopsListMailingListsTool: ToolConfig<
   description:
     'Retrieve all mailing lists from your Loops account. Returns each list with its ID, name, description, and public/private status.',
   version: '1.0.0',
+  oauth: LOOPS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

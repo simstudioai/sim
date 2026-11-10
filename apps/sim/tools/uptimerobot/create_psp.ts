@@ -1,4 +1,5 @@
 import type { InternalToolConfig } from '@/tools/types'
+import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/uptimerobot/credential'
 import {
   PSP_OUTPUT_PROPERTIES,
   type UptimeRobotCreatePspParams,
@@ -13,6 +14,7 @@ export const uptimeRobotCreatePspTool: InternalToolConfig<
   name: 'UptimeRobot Create Status Page',
   description: 'Create a public status page in UptimeRobot, optionally with a logo and icon image',
   version: '1.0.0',
+  oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

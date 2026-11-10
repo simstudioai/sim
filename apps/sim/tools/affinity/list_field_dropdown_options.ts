@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityCollectionResponse,
   AffinityListFieldDropdownOptionsParams,
@@ -23,6 +24,7 @@ export const affinityListFieldDropdownOptionsTool: ToolConfig<
   description:
     'List the selectable options on a dropdown or ranked-dropdown company or person field. Writing such a field needs the option ID, not its text.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

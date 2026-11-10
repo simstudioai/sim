@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareUpdateTunnelParams,
   CloudflareUpdateTunnelResponse,
@@ -21,6 +22,7 @@ export const updateTunnelTool: ToolConfig<
   name: 'Cloudflare Update Tunnel',
   description: 'Updates the name or secret of an existing Cloudflare Tunnel.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {
       type: 'string',

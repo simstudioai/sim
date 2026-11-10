@@ -1,3 +1,4 @@
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/persona/credential'
 import type { PersonaAccountResponse, PersonaGetAccountParams } from '@/tools/persona/types'
 import {
   ACCOUNT_OUTPUT_PROPERTIES,
@@ -15,6 +16,7 @@ export const personaGetAccountTool: ToolConfig<PersonaGetAccountParams, PersonaA
   description:
     'Retrieve a single account by ID, including its reference ID, fields, tags, and status.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

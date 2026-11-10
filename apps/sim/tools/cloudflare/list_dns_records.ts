@@ -1,3 +1,4 @@
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import { DNS_RECORD_OUTPUTS, RESULT_INFO_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareListDnsRecordsParams,
@@ -20,6 +21,7 @@ export const listDnsRecordsTool: ToolConfig<
   name: 'Cloudflare List DNS Records',
   description: 'Lists DNS records for a specific zone.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     name_contains: {

@@ -1,3 +1,4 @@
+import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/instantly/credential'
 import type {
   InstantlyCampaignResponse,
   InstantlyPatchCampaignParams,
@@ -21,6 +22,7 @@ export const patchCampaignTool: ToolConfig<
   name: 'Instantly Patch Campaign',
   description: 'Updates documented Instantly V2 campaign fields.',
   version: '1.0.0',
+  oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,
     campaignId: {

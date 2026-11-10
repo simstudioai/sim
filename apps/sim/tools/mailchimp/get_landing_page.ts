@@ -1,3 +1,4 @@
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/mailchimp/credential'
 import type { MailchimpLandingPage } from '@/tools/mailchimp/types'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
@@ -23,6 +24,7 @@ export const mailchimpGetLandingPageTool: ToolConfig<
   name: 'Get Landing Page from Mailchimp',
   description: 'Retrieve details of a specific landing page from Mailchimp',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

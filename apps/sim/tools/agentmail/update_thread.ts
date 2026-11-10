@@ -1,3 +1,4 @@
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/agentmail/credential'
 import type { UpdateThreadParams, UpdateThreadResult } from '@/tools/agentmail/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const agentmailUpdateThreadTool: ToolConfig<UpdateThreadParams, UpdateThr
   name: 'Update Thread Labels',
   description: 'Add or remove labels on an email thread in AgentMail',
   version: '1.0.0',
+  oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

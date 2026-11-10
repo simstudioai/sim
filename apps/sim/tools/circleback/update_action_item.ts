@@ -1,3 +1,4 @@
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import {
   ACTION_ITEM_OUTPUT_PROPERTIES,
   type CirclebackActionItemResponse,
@@ -21,6 +22,7 @@ export const updateActionItemTool: ToolConfig<
   description:
     'Updates the title, description, status, or assignee of a Circleback action item. Returns the updated action item.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

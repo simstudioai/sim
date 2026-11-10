@@ -1,3 +1,4 @@
+import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/launchdarkly/credential'
 import type {
   LaunchDarklyToggleFlagParams,
   LaunchDarklyToggleFlagResponse,
@@ -13,6 +14,7 @@ export const launchDarklyToggleFlagTool: ToolConfig<
   name: 'LaunchDarkly Toggle Flag',
   description: 'Toggle a feature flag on or off in a specific LaunchDarkly environment.',
   version: '1.0.0',
+  oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

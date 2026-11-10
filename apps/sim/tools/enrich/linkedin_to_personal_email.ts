@@ -1,3 +1,4 @@
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/enrich/credential'
 import type {
   EnrichLinkedInToPersonalEmailParams,
   EnrichLinkedInToPersonalEmailResponse,
@@ -12,6 +13,7 @@ export const linkedInToPersonalEmailTool: ToolConfig<
   name: 'Enrich LinkedIn to Personal Email',
   description: 'Find personal email address from a LinkedIn profile URL.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

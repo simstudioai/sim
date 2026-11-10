@@ -1,53 +1,149 @@
 import type { ServiceAccountPrincipal } from '@/lib/credentials/principal'
 import {
+  AFFINITY_SERVICE_ACCOUNT_PROVIDER_ID,
+  AGENTMAIL_SERVICE_ACCOUNT_PROVIDER_ID,
+  AGENTPHONE_SERVICE_ACCOUNT_PROVIDER_ID,
+  AHREFS_SERVICE_ACCOUNT_PROVIDER_ID,
   AIRTABLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  APIFY_SERVICE_ACCOUNT_PROVIDER_ID,
+  APOLLO_SERVICE_ACCOUNT_PROVIDER_ID,
   ASANA_SERVICE_ACCOUNT_PROVIDER_ID,
   ATTIO_SERVICE_ACCOUNT_PROVIDER_ID,
+  BREX_SERVICE_ACCOUNT_PROVIDER_ID,
+  BRIGHTDATA_SERVICE_ACCOUNT_PROVIDER_ID,
+  BROWSER_USE_SERVICE_ACCOUNT_PROVIDER_ID,
+  BUFFER_SERVICE_ACCOUNT_PROVIDER_ID,
   CALCOM_SERVICE_ACCOUNT_PROVIDER_ID,
+  CIRCLEBACK_SERVICE_ACCOUNT_PROVIDER_ID,
   CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID,
+  CLERK_SERVICE_ACCOUNT_PROVIDER_ID,
   CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID,
+  CLOUDFLARE_SERVICE_ACCOUNT_PROVIDER_ID,
   CODA_SERVICE_ACCOUNT_PROVIDER_ID,
+  CRUNCHBASE_SERVICE_ACCOUNT_PROVIDER_ID,
+  DAYTONA_SERVICE_ACCOUNT_PROVIDER_ID,
+  ELEVENLABS_SERVICE_ACCOUNT_PROVIDER_ID,
+  ENRICH_SERVICE_ACCOUNT_PROVIDER_ID,
   FLOW_SERVICE_ACCOUNT_PROVIDER_ID,
+  GAMMA_SERVICE_ACCOUNT_PROVIDER_ID,
   GAUGE_SERVICE_ACCOUNT_PROVIDER_ID,
   HARMONIC_SERVICE_ACCOUNT_PROVIDER_ID,
+  HEX_SERVICE_ACCOUNT_PROVIDER_ID,
   HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID,
   HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID,
+  HUGGINGFACE_SERVICE_ACCOUNT_PROVIDER_ID,
+  INCIDENTIO_SERVICE_ACCOUNT_PROVIDER_ID,
+  INSTANTLY_SERVICE_ACCOUNT_PROVIDER_ID,
   isTokenServiceAccountProviderId,
+  LANGSMITH_SERVICE_ACCOUNT_PROVIDER_ID,
+  LAUNCHDARKLY_SERVICE_ACCOUNT_PROVIDER_ID,
   LINEAR_SERVICE_ACCOUNT_PROVIDER_ID,
+  LINQ_SERVICE_ACCOUNT_PROVIDER_ID,
+  LOOPS_SERVICE_ACCOUNT_PROVIDER_ID,
+  LUMA_SERVICE_ACCOUNT_PROVIDER_ID,
+  MAILCHIMP_SERVICE_ACCOUNT_PROVIDER_ID,
   MONDAY_SERVICE_ACCOUNT_PROVIDER_ID,
   NOTION_SERVICE_ACCOUNT_PROVIDER_ID,
+  OTTER_SERVICE_ACCOUNT_PROVIDER_ID,
+  PERSONA_SERVICE_ACCOUNT_PROVIDER_ID,
+  PINECONE_SERVICE_ACCOUNT_PROVIDER_ID,
   PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID,
+  PROFOUND_SERVICE_ACCOUNT_PROVIDER_ID,
+  QUARTR_SERVICE_ACCOUNT_PROVIDER_ID,
+  RB2B_SERVICE_ACCOUNT_PROVIDER_ID,
+  RIPPLING_SERVICE_ACCOUNT_PROVIDER_ID,
+  ROCKETLANE_SERVICE_ACCOUNT_PROVIDER_ID,
+  SEMRUSH_SERVICE_ACCOUNT_PROVIDER_ID,
+  SENDGRID_SERVICE_ACCOUNT_PROVIDER_ID,
   SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID,
+  SIMILARWEB_SERVICE_ACCOUNT_PROVIDER_ID,
+  SIXTYFOUR_SERVICE_ACCOUNT_PROVIDER_ID,
+  SMARTLEAD_SERVICE_ACCOUNT_PROVIDER_ID,
   SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
+  SPORTMONKS_SERVICE_ACCOUNT_PROVIDER_ID,
+  SQUARE_SERVICE_ACCOUNT_PROVIDER_ID,
+  TAILSCALE_SERVICE_ACCOUNT_PROVIDER_ID,
   TAVILY_SERVICE_ACCOUNT_PROVIDER_ID,
   TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
   type TokenServiceAccountProviderId,
   TRELLO_SERVICE_ACCOUNT_PROVIDER_ID,
+  TRIGGER_DEV_SERVICE_ACCOUNT_PROVIDER_ID,
+  UPTIMEROBOT_SERVICE_ACCOUNT_PROVIDER_ID,
   WEALTHBOX_SERVICE_ACCOUNT_PROVIDER_ID,
   WEBFLOW_SERVICE_ACCOUNT_PROVIDER_ID,
+  YOUCOM_SERVICE_ACCOUNT_PROVIDER_ID,
+  YOUTUBE_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/token-service-accounts/descriptors'
+import { validateAffinityServiceAccount } from '@/lib/credentials/token-service-accounts/validators/affinity'
+import { validateAgentMailServiceAccount } from '@/lib/credentials/token-service-accounts/validators/agentmail'
+import { validateAgentPhoneServiceAccount } from '@/lib/credentials/token-service-accounts/validators/agentphone'
+import { validateAhrefsServiceAccount } from '@/lib/credentials/token-service-accounts/validators/ahrefs'
 import { validateAirtableServiceAccount } from '@/lib/credentials/token-service-accounts/validators/airtable'
+import { validateApifyServiceAccount } from '@/lib/credentials/token-service-accounts/validators/apify'
+import { validateApolloServiceAccount } from '@/lib/credentials/token-service-accounts/validators/apollo'
 import { validateAsanaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/asana'
 import { validateAttioServiceAccount } from '@/lib/credentials/token-service-accounts/validators/attio'
+import { validateBrexServiceAccount } from '@/lib/credentials/token-service-accounts/validators/brex'
+import { validateBrightDataServiceAccount } from '@/lib/credentials/token-service-accounts/validators/brightdata'
+import { validateBrowserUseServiceAccount } from '@/lib/credentials/token-service-accounts/validators/browser-use'
+import { validateBufferServiceAccount } from '@/lib/credentials/token-service-accounts/validators/buffer'
 import { validateCalcomServiceAccount } from '@/lib/credentials/token-service-accounts/validators/calcom'
+import { validateCirclebackServiceAccount } from '@/lib/credentials/token-service-accounts/validators/circleback'
 import { validateClaudePlatformServiceAccount } from '@/lib/credentials/token-service-accounts/validators/claude-platform'
+import { validateClerkServiceAccount } from '@/lib/credentials/token-service-accounts/validators/clerk'
 import { validateClickupServiceAccount } from '@/lib/credentials/token-service-accounts/validators/clickup'
+import { validateCloudflareServiceAccount } from '@/lib/credentials/token-service-accounts/validators/cloudflare'
 import { validateCodaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/coda'
+import { validateCrunchbaseServiceAccount } from '@/lib/credentials/token-service-accounts/validators/crunchbase'
+import { validateDaytonaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/daytona'
+import { validateElevenLabsServiceAccount } from '@/lib/credentials/token-service-accounts/validators/elevenlabs'
+import { validateEnrichServiceAccount } from '@/lib/credentials/token-service-accounts/validators/enrich'
 import { validateFlowServiceAccount } from '@/lib/credentials/token-service-accounts/validators/flow'
+import { validateGammaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/gamma'
 import { validateGaugeServiceAccount } from '@/lib/credentials/token-service-accounts/validators/gauge'
 import { validateHarmonicServiceAccount } from '@/lib/credentials/token-service-accounts/validators/harmonic'
+import { validateHexServiceAccount } from '@/lib/credentials/token-service-accounts/validators/hex'
 import { validateHiggsfieldServiceAccount } from '@/lib/credentials/token-service-accounts/validators/higgsfield'
 import { validateHubspotServiceAccount } from '@/lib/credentials/token-service-accounts/validators/hubspot'
+import { validateHuggingfaceServiceAccount } from '@/lib/credentials/token-service-accounts/validators/huggingface'
+import { validateIncidentioServiceAccount } from '@/lib/credentials/token-service-accounts/validators/incidentio'
+import { validateInstantlyServiceAccount } from '@/lib/credentials/token-service-accounts/validators/instantly'
+import { validateLangsmithServiceAccount } from '@/lib/credentials/token-service-accounts/validators/langsmith'
+import { validateLaunchdarklyServiceAccount } from '@/lib/credentials/token-service-accounts/validators/launchdarkly'
 import { validateLinearServiceAccount } from '@/lib/credentials/token-service-accounts/validators/linear'
+import { validateLinqServiceAccount } from '@/lib/credentials/token-service-accounts/validators/linq'
+import { validateLoopsServiceAccount } from '@/lib/credentials/token-service-accounts/validators/loops'
+import { validateLumaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/luma'
+import { validateMailchimpServiceAccount } from '@/lib/credentials/token-service-accounts/validators/mailchimp'
 import { validateMondayServiceAccount } from '@/lib/credentials/token-service-accounts/validators/monday'
 import { validateNotionServiceAccount } from '@/lib/credentials/token-service-accounts/validators/notion'
+import { validateOtterServiceAccount } from '@/lib/credentials/token-service-accounts/validators/otter'
+import { validatePersonaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/persona'
+import { validatePineconeServiceAccount } from '@/lib/credentials/token-service-accounts/validators/pinecone'
 import { validatePipedriveServiceAccount } from '@/lib/credentials/token-service-accounts/validators/pipedrive'
+import { validateProfoundServiceAccount } from '@/lib/credentials/token-service-accounts/validators/profound'
+import { validateQuartrServiceAccount } from '@/lib/credentials/token-service-accounts/validators/quartr'
+import { validateRB2BServiceAccount } from '@/lib/credentials/token-service-accounts/validators/rb2b'
+import { validateRipplingServiceAccount } from '@/lib/credentials/token-service-accounts/validators/rippling'
+import { validateRocketlaneServiceAccount } from '@/lib/credentials/token-service-accounts/validators/rocketlane'
+import { validateSemrushServiceAccount } from '@/lib/credentials/token-service-accounts/validators/semrush'
+import { validateSendGridServiceAccount } from '@/lib/credentials/token-service-accounts/validators/sendgrid'
 import { validateShopifyServiceAccount } from '@/lib/credentials/token-service-accounts/validators/shopify'
+import { validateSimilarwebServiceAccount } from '@/lib/credentials/token-service-accounts/validators/similarweb'
+import { validateSixtyfourServiceAccount } from '@/lib/credentials/token-service-accounts/validators/sixtyfour'
+import { validateSmartleadServiceAccount } from '@/lib/credentials/token-service-accounts/validators/smartlead'
 import { validateSnowflakeServiceAccount } from '@/lib/credentials/token-service-accounts/validators/snowflake'
+import { validateSportmonksServiceAccount } from '@/lib/credentials/token-service-accounts/validators/sportmonks'
+import { validateSquareServiceAccount } from '@/lib/credentials/token-service-accounts/validators/square'
+import { validateTailscaleServiceAccount } from '@/lib/credentials/token-service-accounts/validators/tailscale'
 import { validateTavilyServiceAccount } from '@/lib/credentials/token-service-accounts/validators/tavily'
 import { validateTrelloServiceAccount } from '@/lib/credentials/token-service-accounts/validators/trello'
+import { validateTriggerDevServiceAccount } from '@/lib/credentials/token-service-accounts/validators/trigger-dev'
+import { validateUptimeRobotServiceAccount } from '@/lib/credentials/token-service-accounts/validators/uptimerobot'
 import { validateWealthboxServiceAccount } from '@/lib/credentials/token-service-accounts/validators/wealthbox'
 import { validateWebflowServiceAccount } from '@/lib/credentials/token-service-accounts/validators/webflow'
+import { validateYouComServiceAccount } from '@/lib/credentials/token-service-accounts/validators/youcom'
+import { validateYouTubeServiceAccount } from '@/lib/credentials/token-service-accounts/validators/youtube'
 
 /** Raw fields a token service-account validator receives (already trimmed). */
 export interface TokenServiceAccountFields {
@@ -115,6 +211,54 @@ const TOKEN_SERVICE_ACCOUNT_VALIDATORS: Record<
   [GAUGE_SERVICE_ACCOUNT_PROVIDER_ID]: validateGaugeServiceAccount,
   [HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID]: validateHiggsfieldServiceAccount,
   [FLOW_SERVICE_ACCOUNT_PROVIDER_ID]: validateFlowServiceAccount,
+  [YOUTUBE_SERVICE_ACCOUNT_PROVIDER_ID]: validateYouTubeServiceAccount,
+  [YOUCOM_SERVICE_ACCOUNT_PROVIDER_ID]: validateYouComServiceAccount,
+  [UPTIMEROBOT_SERVICE_ACCOUNT_PROVIDER_ID]: validateUptimeRobotServiceAccount,
+  [TRIGGER_DEV_SERVICE_ACCOUNT_PROVIDER_ID]: validateTriggerDevServiceAccount,
+  [TAILSCALE_SERVICE_ACCOUNT_PROVIDER_ID]: validateTailscaleServiceAccount,
+  [SQUARE_SERVICE_ACCOUNT_PROVIDER_ID]: validateSquareServiceAccount,
+  [SPORTMONKS_SERVICE_ACCOUNT_PROVIDER_ID]: validateSportmonksServiceAccount,
+  [SMARTLEAD_SERVICE_ACCOUNT_PROVIDER_ID]: validateSmartleadServiceAccount,
+  [SIXTYFOUR_SERVICE_ACCOUNT_PROVIDER_ID]: validateSixtyfourServiceAccount,
+  [SIMILARWEB_SERVICE_ACCOUNT_PROVIDER_ID]: validateSimilarwebServiceAccount,
+  [SENDGRID_SERVICE_ACCOUNT_PROVIDER_ID]: validateSendGridServiceAccount,
+  [SEMRUSH_SERVICE_ACCOUNT_PROVIDER_ID]: validateSemrushServiceAccount,
+  [ROCKETLANE_SERVICE_ACCOUNT_PROVIDER_ID]: validateRocketlaneServiceAccount,
+  [RIPPLING_SERVICE_ACCOUNT_PROVIDER_ID]: validateRipplingServiceAccount,
+  [RB2B_SERVICE_ACCOUNT_PROVIDER_ID]: validateRB2BServiceAccount,
+  [QUARTR_SERVICE_ACCOUNT_PROVIDER_ID]: validateQuartrServiceAccount,
+  [PROFOUND_SERVICE_ACCOUNT_PROVIDER_ID]: validateProfoundServiceAccount,
+  [PINECONE_SERVICE_ACCOUNT_PROVIDER_ID]: validatePineconeServiceAccount,
+  [PERSONA_SERVICE_ACCOUNT_PROVIDER_ID]: validatePersonaServiceAccount,
+  [OTTER_SERVICE_ACCOUNT_PROVIDER_ID]: validateOtterServiceAccount,
+  [MAILCHIMP_SERVICE_ACCOUNT_PROVIDER_ID]: validateMailchimpServiceAccount,
+  [LUMA_SERVICE_ACCOUNT_PROVIDER_ID]: validateLumaServiceAccount,
+  [LOOPS_SERVICE_ACCOUNT_PROVIDER_ID]: validateLoopsServiceAccount,
+  [LINQ_SERVICE_ACCOUNT_PROVIDER_ID]: validateLinqServiceAccount,
+  [LAUNCHDARKLY_SERVICE_ACCOUNT_PROVIDER_ID]: validateLaunchdarklyServiceAccount,
+  [LANGSMITH_SERVICE_ACCOUNT_PROVIDER_ID]: validateLangsmithServiceAccount,
+  [INSTANTLY_SERVICE_ACCOUNT_PROVIDER_ID]: validateInstantlyServiceAccount,
+  [INCIDENTIO_SERVICE_ACCOUNT_PROVIDER_ID]: validateIncidentioServiceAccount,
+  [HUGGINGFACE_SERVICE_ACCOUNT_PROVIDER_ID]: validateHuggingfaceServiceAccount,
+  [HEX_SERVICE_ACCOUNT_PROVIDER_ID]: validateHexServiceAccount,
+  [GAMMA_SERVICE_ACCOUNT_PROVIDER_ID]: validateGammaServiceAccount,
+  [ENRICH_SERVICE_ACCOUNT_PROVIDER_ID]: validateEnrichServiceAccount,
+  [ELEVENLABS_SERVICE_ACCOUNT_PROVIDER_ID]: validateElevenLabsServiceAccount,
+  [DAYTONA_SERVICE_ACCOUNT_PROVIDER_ID]: validateDaytonaServiceAccount,
+  [CRUNCHBASE_SERVICE_ACCOUNT_PROVIDER_ID]: validateCrunchbaseServiceAccount,
+  [CLOUDFLARE_SERVICE_ACCOUNT_PROVIDER_ID]: validateCloudflareServiceAccount,
+  [CLERK_SERVICE_ACCOUNT_PROVIDER_ID]: validateClerkServiceAccount,
+  [CIRCLEBACK_SERVICE_ACCOUNT_PROVIDER_ID]: validateCirclebackServiceAccount,
+  [BUFFER_SERVICE_ACCOUNT_PROVIDER_ID]: validateBufferServiceAccount,
+  [BROWSER_USE_SERVICE_ACCOUNT_PROVIDER_ID]: validateBrowserUseServiceAccount,
+  [BRIGHTDATA_SERVICE_ACCOUNT_PROVIDER_ID]: validateBrightDataServiceAccount,
+  [BREX_SERVICE_ACCOUNT_PROVIDER_ID]: validateBrexServiceAccount,
+  [APOLLO_SERVICE_ACCOUNT_PROVIDER_ID]: validateApolloServiceAccount,
+  [APIFY_SERVICE_ACCOUNT_PROVIDER_ID]: validateApifyServiceAccount,
+  [AHREFS_SERVICE_ACCOUNT_PROVIDER_ID]: validateAhrefsServiceAccount,
+  [AGENTPHONE_SERVICE_ACCOUNT_PROVIDER_ID]: validateAgentPhoneServiceAccount,
+  [AGENTMAIL_SERVICE_ACCOUNT_PROVIDER_ID]: validateAgentMailServiceAccount,
+  [AFFINITY_SERVICE_ACCOUNT_PROVIDER_ID]: validateAffinityServiceAccount,
   [TAVILY_SERVICE_ACCOUNT_PROVIDER_ID]: validateTavilyServiceAccount,
 }
 

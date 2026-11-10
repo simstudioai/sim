@@ -1,4 +1,5 @@
 import { toArray } from '@sim/utils/object'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/buffer/credential'
 import { bufferInputDescription, bufferSelection, parseBufferInput } from '@/tools/buffer/schema'
 import {
   BUFFER_API_URL,
@@ -25,6 +26,7 @@ export const bufferGetChannelsTool: ToolConfig<BufferGetChannelsParams, BufferCh
   description:
     'List the social media channels connected to a Buffer organization, including their channel IDs (needed to create posts)',
   version: '1.0.0',
+  oauth: BUFFER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/rippling/credential'
 import type { RipplingGetCustomObjectRecordByExternalIdParams } from '@/tools/rippling/types'
 import { CUSTOM_OBJECT_RECORD_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
@@ -8,6 +9,7 @@ export const ripplingGetCustomObjectRecordByExternalIdTool: ToolConfig<RipplingG
     name: 'Rippling Get Record By External ID',
     description: 'Get a custom object record by external ID',
     version: '1.0.0',
+    oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {
         type: 'string',

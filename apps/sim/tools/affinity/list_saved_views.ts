@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityCollectionResponse,
   AffinityListSavedViewsParams,
@@ -20,6 +21,7 @@ export const affinityListSavedViewsTool: ToolConfig<
   name: 'Affinity List Saved Views',
   description: 'List the saved views on a list that the caller can view.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

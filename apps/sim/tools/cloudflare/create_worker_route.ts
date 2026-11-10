@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareCreateWorkerRouteParams,
   CloudflareCreateWorkerRouteResponse,
@@ -21,6 +22,7 @@ export const createWorkerRouteTool: ToolConfig<
   name: 'Cloudflare Create Worker Route',
   description: 'Creates a route that maps a URL pattern to a Worker.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     zoneId: {
       type: 'string',

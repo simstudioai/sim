@@ -1,3 +1,4 @@
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/persona/credential'
 import type { PersonaInquiryResponse, PersonaUpdateInquiryParams } from '@/tools/persona/types'
 import {
   asResource,
@@ -20,6 +21,7 @@ export const personaUpdateInquiryTool: ToolConfig<
   description:
     'Update an inquiry’s note, fields, tags, or redirect URI. Only the provided values are changed.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

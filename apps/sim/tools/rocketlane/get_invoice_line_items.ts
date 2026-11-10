@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   INVOICE_LINE_ITEM_OUTPUT_PROPERTIES,
   mapInvoiceLineItem,
@@ -19,6 +20,7 @@ export const rocketlaneGetInvoiceLineItemsTool: ToolConfig<
   name: 'Rocketlane Get Invoice Line Items',
   description: 'List line items of a Rocketlane invoice',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

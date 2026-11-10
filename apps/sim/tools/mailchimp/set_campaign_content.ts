@@ -1,3 +1,4 @@
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/mailchimp/credential'
 import {
   buildMailchimpUrl,
   handleMailchimpError,
@@ -29,6 +30,7 @@ export const mailchimpSetCampaignContentTool: ToolConfig<
   name: 'Set Campaign Content in Mailchimp',
   description: 'Set the content for a Mailchimp campaign',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushKeywordOverviewParams,
   SemrushKeywordOverviewResponse,
@@ -16,6 +17,7 @@ export const semrushKeywordOverviewTool: ToolConfig<
   name: 'Semrush Keyword Overview',
   description: 'Get search volume, CPC, competition, difficulty, and intent for a single keyword.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

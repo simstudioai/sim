@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapPlaceholderMapping,
   mapProject,
@@ -19,6 +20,7 @@ export const rocketlaneAssignPlaceholdersTool: ToolConfig<
   name: 'Rocketlane Assign Placeholders',
   description: 'Assign a placeholder in a Rocketlane project to a user',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

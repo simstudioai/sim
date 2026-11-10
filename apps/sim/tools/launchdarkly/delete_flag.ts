@@ -1,3 +1,4 @@
+import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/launchdarkly/credential'
 import type {
   LaunchDarklyDeleteFlagParams,
   LaunchDarklyDeleteFlagResponse,
@@ -12,6 +13,7 @@ export const launchDarklyDeleteFlagTool: ToolConfig<
   name: 'LaunchDarkly Delete Flag',
   description: 'Delete a feature flag from a LaunchDarkly project.',
   version: '1.0.0',
+  oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

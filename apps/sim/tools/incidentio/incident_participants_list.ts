@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type {
   IncidentioIncidentParticipantsListParams,
   IncidentioIncidentParticipantsListResponse,
@@ -34,6 +35,7 @@ export const incidentParticipantsListTool: ToolConfig<
   description:
     'List the participants of an incident in incident.io, split into those actively helping and those just observing',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

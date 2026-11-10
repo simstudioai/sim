@@ -1,3 +1,4 @@
+import { DAYTONA_CREDENTIAL_OAUTH } from '@/tools/daytona/credential'
 import type { DaytonaDeleteSandboxParams, DaytonaSandboxResponse } from '@/tools/daytona/types'
 import {
   DAYTONA_API_BASE_URL,
@@ -18,6 +19,7 @@ export const daytonaDeleteSandboxTool: ToolConfig<
   name: 'Daytona Delete Sandbox',
   description: 'Delete a Daytona sandbox',
   version: '1.0.0',
+  oauth: DAYTONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

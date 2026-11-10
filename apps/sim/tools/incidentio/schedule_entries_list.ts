@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type {
   IncidentioScheduleEntriesListParams,
   IncidentioScheduleEntriesListResponse,
@@ -12,6 +13,7 @@ export const scheduleEntriesListTool: ToolConfig<
   name: 'List Schedule Entries',
   description: 'List all entries for a specific schedule in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

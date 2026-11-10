@@ -1,3 +1,4 @@
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushSubdomainOverviewHistoryParams,
   SemrushSubdomainOverviewHistoryResponse,
@@ -21,6 +22,7 @@ export const semrushSubdomainOverviewHistoryTool: ToolConfig<
   name: 'Semrush Subdomain Overview History',
   description: 'Get the historical trend of a subdomain’s organic and paid search totals.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

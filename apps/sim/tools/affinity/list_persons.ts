@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityCollectionResponse, AffinityListPersonsParams } from '@/tools/affinity/types'
 import { PERSON_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import {
@@ -19,6 +20,7 @@ export const affinityListPersonsTool: ToolConfig<
   description:
     'Page through persons. Persons come back without field data unless Field IDs or Field Types asks for it.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

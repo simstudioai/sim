@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/mailchimp/credential'
 import type { MailchimpSegment } from '@/tools/mailchimp/types'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
@@ -29,6 +30,7 @@ export const mailchimpCreateSegmentTool: ToolConfig<
   name: 'Create Segment in Mailchimp Audience',
   description: 'Create a new segment in a Mailchimp audience',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityEntityResponse, AffinityGetSavedViewParams } from '@/tools/affinity/types'
 import { SAVED_VIEW_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import {
@@ -17,6 +18,7 @@ export const affinityGetSavedViewTool: ToolConfig<
   name: 'Affinity Get Saved View',
   description: 'Read one saved view — its name, kind, and creation date.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

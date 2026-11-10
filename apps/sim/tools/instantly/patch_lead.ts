@@ -1,3 +1,4 @@
+import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/instantly/credential'
 import type { InstantlyLeadResponse, InstantlyPatchLeadParams } from '@/tools/instantly/types'
 import {
   compactBody,
@@ -15,6 +16,7 @@ export const patchLeadTool: ToolConfig<InstantlyPatchLeadParams, InstantlyLeadRe
   name: 'Instantly Patch Lead',
   description: 'Updates fields on an existing Instantly V2 lead.',
   version: '1.0.0',
+  oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,
     leadId: {

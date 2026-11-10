@@ -1,3 +1,4 @@
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareGetZoneSettingsParams,
   CloudflareGetZoneSettingsResponse,
@@ -38,6 +39,7 @@ export const getZoneSettingsTool: InternalToolConfig<
   name: 'Cloudflare Get Zone Settings',
   description: `Reads zone settings such as SSL mode, minimum TLS version, security level, and caching level. Cloudflare retired the endpoint that read every setting in one request, so each setting is read individually — name the ones you need to keep the read small. Defaults to ${DEFAULT_ZONE_SETTING_IDS.join(', ')}.`,
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     zoneId: {

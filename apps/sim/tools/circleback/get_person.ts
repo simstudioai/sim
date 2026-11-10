@@ -1,3 +1,4 @@
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import {
   type CirclebackGetPersonParams,
   type CirclebackPersonResponse,
@@ -19,6 +20,7 @@ export const getPersonTool: ToolConfig<CirclebackGetPersonParams, CirclebackPers
   description:
     'Gets a person by their profile ID from Circleback, including their profile details and external links.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

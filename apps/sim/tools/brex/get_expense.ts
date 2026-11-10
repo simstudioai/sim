@@ -1,3 +1,4 @@
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexGetExpenseParams, BrexGetExpenseResponse } from '@/tools/brex/types'
 import { BREX_MONEY_PROPERTIES } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson } from '@/tools/brex/utils'
@@ -17,6 +18,7 @@ export const brexGetExpenseTool: ToolConfig<BrexGetExpenseParams, BrexGetExpense
   name: 'Brex Get Expense',
   description: 'Get a single Brex expense by its ID, including merchant, user, and receipt details',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/hex/credential'
 import type { HexGetProjectParams, HexGetProjectResponse } from '@/tools/hex/types'
 import { HEX_PROJECT_OUTPUT_PROPERTIES } from '@/tools/hex/types'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const getProjectTool: ToolConfig<HexGetProjectParams, HexGetProjectRespon
   name: 'Hex Get Project',
   description: 'Get metadata and details for a specific Hex project by its ID.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   ROCKETLANE_API_BASE,
   type RocketlaneTimeOffDeleteParams,
@@ -15,6 +16,7 @@ export const rocketlaneDeleteTimeOffTool: ToolConfig<
   name: 'Rocketlane Delete Time-Off',
   description: 'Permanently delete a Rocketlane time-off by its ID',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

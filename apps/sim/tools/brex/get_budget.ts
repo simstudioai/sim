@@ -1,3 +1,4 @@
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexGetBudgetParams, BrexGetBudgetResponse } from '@/tools/brex/types'
 import { BREX_MONEY_PROPERTIES } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson } from '@/tools/brex/utils'
@@ -8,6 +9,7 @@ export const brexGetBudgetTool: ToolConfig<BrexGetBudgetParams, BrexGetBudgetRes
   name: 'Brex Get Budget',
   description: 'Get a Brex budget by its ID',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

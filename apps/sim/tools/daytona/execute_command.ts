@@ -1,3 +1,4 @@
+import { DAYTONA_CREDENTIAL_OAUTH } from '@/tools/daytona/credential'
 import type {
   DaytonaExecuteCommandParams,
   DaytonaExecuteCommandResponse,
@@ -14,6 +15,7 @@ export const daytonaExecuteCommandTool: ToolConfig<
   name: 'Daytona Execute Command',
   description: 'Execute a shell command inside a Daytona sandbox',
   version: '1.0.0',
+  oauth: DAYTONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

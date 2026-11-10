@@ -1,3 +1,4 @@
+import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/launchdarkly/credential'
 import type {
   LaunchDarklyListEnvironmentsParams,
   LaunchDarklyListEnvironmentsResponse,
@@ -13,6 +14,7 @@ export const launchDarklyListEnvironmentsTool: ToolConfig<
   name: 'LaunchDarkly List Environments',
   description: 'List environments in a LaunchDarkly project.',
   version: '1.0.0',
+  oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

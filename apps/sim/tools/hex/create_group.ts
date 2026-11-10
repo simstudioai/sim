@@ -1,3 +1,4 @@
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/hex/credential'
 import type { HexCreateGroupParams, HexCreateGroupResponse } from '@/tools/hex/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const createGroupTool: ToolConfig<HexCreateGroupParams, HexCreateGroupRes
   name: 'Hex Create Group',
   description: 'Create a new group in the Hex workspace, optionally with initial members.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

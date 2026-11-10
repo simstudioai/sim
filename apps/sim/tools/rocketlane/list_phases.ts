@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapPagination,
   mapPhase,
@@ -20,6 +21,7 @@ export const rocketlaneListPhasesTool: ToolConfig<
   description:
     'List phases of a Rocketlane project, with optional filters, sorting, and pagination',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

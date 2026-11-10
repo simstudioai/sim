@@ -1,4 +1,5 @@
 import { filterUndefined } from '@sim/utils/object'
+import { LANGSMITH_CREDENTIAL_OAUTH } from '@/tools/langsmith/credential'
 import type { LangsmithCreateRunParams, LangsmithCreateRunResponse } from '@/tools/langsmith/types'
 import {
   LANGSMITH_API_BASE,
@@ -15,6 +16,7 @@ export const langsmithCreateRunTool: ToolConfig<
   name: 'LangSmith Create Run',
   description: 'Forward a single run to LangSmith for ingestion.',
   version: '1.0.0',
+  oauth: LANGSMITH_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

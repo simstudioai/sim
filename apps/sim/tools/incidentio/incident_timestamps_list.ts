@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type {
   IncidentioIncidentTimestampsListParams,
   IncidentioIncidentTimestampsListResponse,
@@ -12,6 +13,7 @@ export const incidentTimestampsListTool: ToolConfig<
   name: 'List Incident Timestamps',
   description: 'List all incident timestamp definitions in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

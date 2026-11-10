@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityCollectionResponse,
   AffinityListEntityFieldValuesParams,
@@ -24,6 +25,7 @@ export const affinityListEntityFieldValuesTool: ToolConfig<
   description:
     "Page through a company's or person's non-list field values. List fields are not returned here — read those through the list entry.",
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

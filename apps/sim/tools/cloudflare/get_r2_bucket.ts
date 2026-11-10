@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import { R2_BUCKET_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareGetR2BucketParams,
@@ -20,6 +21,7 @@ export const getR2BucketTool: ToolConfig<CloudflareGetR2BucketParams, Cloudflare
     description:
       'Reads the metadata of a single R2 object storage bucket. Requires an API token with Account Workers R2 Storage Read.',
     version: '1.0.0',
+    oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
     params: {
       accountId: {

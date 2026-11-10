@@ -1,3 +1,4 @@
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import {
   type CirclebackMeetingListResponse,
   type CirclebackSearchMeetingsParams,
@@ -24,6 +25,7 @@ export const searchMeetingsTool: ToolConfig<
   description:
     'Searches Circleback meetings by name and content, with optional filters for specific meetings, tags, and people.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

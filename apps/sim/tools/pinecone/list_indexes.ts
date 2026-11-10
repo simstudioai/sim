@@ -1,3 +1,4 @@
+import { PINECONE_CREDENTIAL_OAUTH } from '@/tools/pinecone/credential'
 import type {
   PineconeIndexModel,
   PineconeListIndexesParams,
@@ -25,6 +26,7 @@ export const listIndexesTool: ToolConfig<PineconeListIndexesParams, PineconeResp
   name: 'Pinecone List Indexes',
   description: 'List all Pinecone indexes in the project',
   version: '1.0',
+  oauth: PINECONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

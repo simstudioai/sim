@@ -1,3 +1,4 @@
+import { ELEVENLABS_CREDENTIAL_OAUTH } from '@/tools/elevenlabs/credential'
 import {
   applyProjectedElevenLabsAudioFileNameModelInput,
   selectElevenLabsAudioFileNameModelInput,
@@ -16,6 +17,7 @@ export const elevenLabsSpeechToSpeechTool: InternalToolConfig<
   name: 'ElevenLabs Speech to Speech',
   description: 'Convert audio into a chosen ElevenLabs voice while preserving content and emotion',
   version: '1.0.0',
+  oauth: ELEVENLABS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

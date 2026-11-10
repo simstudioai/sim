@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import { TUNNEL_CONFIGURATION_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareGetTunnelConfigurationParams,
@@ -22,6 +23,7 @@ export const getTunnelConfigurationTool: ToolConfig<
   description:
     'Reads the configuration of a remotely-managed Cloudflare Tunnel — its ingress rules, origin request settings, and WARP routing. Only tunnels whose configuration source is "cloudflare" have a remote configuration; locally-managed tunnels keep it in their own config file. Requires an API token with Account Cloudflare Tunnel Read.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     accountId: {

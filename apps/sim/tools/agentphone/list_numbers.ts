@@ -1,3 +1,4 @@
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/agentphone/credential'
 import type {
   AgentPhoneListNumbersParams,
   AgentPhoneListNumbersResult,
@@ -12,6 +13,7 @@ export const agentphoneListNumbersTool: ToolConfig<
   name: 'List Phone Numbers',
   description: 'List all phone numbers provisioned for this AgentPhone account',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

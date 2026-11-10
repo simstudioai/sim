@@ -1,3 +1,4 @@
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/rippling/credential'
 import type { RipplingCreateDraftHiresParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const ripplingCreateDraftHiresTool: ToolConfig<RipplingCreateDraftHiresPa
   name: 'Rippling Create Draft Hires',
   description: 'Create bulk draft hires',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

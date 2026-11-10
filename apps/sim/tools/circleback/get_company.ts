@@ -1,3 +1,4 @@
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import {
   type CirclebackCompanyResponse,
   type CirclebackGetCompanyParams,
@@ -20,6 +21,7 @@ export const getCompanyTool: ToolConfig<CirclebackGetCompanyParams, CirclebackCo
   description:
     'Gets a company by its domain from Circleback, including its people and external links.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

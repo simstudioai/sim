@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/uptimerobot/credential'
 import {
   INCIDENT_DETAIL_OUTPUT_PROPERTIES,
   mapIncidentDetail,
@@ -17,6 +18,7 @@ export const uptimeRobotGetIncidentTool: ToolConfig<
   name: 'UptimeRobot Get Incident',
   description: 'Get the details of a single UptimeRobot incident by ID',
   version: '1.0.0',
+  oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

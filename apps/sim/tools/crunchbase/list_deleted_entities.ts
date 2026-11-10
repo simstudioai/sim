@@ -1,3 +1,4 @@
+import { CRUNCHBASE_CREDENTIAL_OAUTH } from '@/tools/crunchbase/credential'
 import type { CrunchbaseEntityIdentifier } from '@/tools/crunchbase/types'
 import {
   appendCsvParam,
@@ -47,6 +48,7 @@ export const crunchbaseListDeletedEntitiesTool: ToolConfig<
   description:
     'List entities Crunchbase has deleted, so a mirrored copy can be pruned in step with the source.',
   version: '1.0.0',
+  oauth: CRUNCHBASE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.CRUNCHBASE_ERRORS,
 
   params: {

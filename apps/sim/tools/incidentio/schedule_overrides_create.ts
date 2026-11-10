@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type {
   IncidentioScheduleOverridesCreateParams,
   IncidentioScheduleOverridesCreateResponse,
@@ -12,6 +13,7 @@ export const scheduleOverridesCreateTool: ToolConfig<
   name: 'Create Schedule Override',
   description: 'Create a new schedule override in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

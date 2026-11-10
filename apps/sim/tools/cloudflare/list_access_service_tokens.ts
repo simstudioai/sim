@@ -1,3 +1,4 @@
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import { RESULT_INFO_OUTPUTS, SERVICE_TOKEN_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareListAccessServiceTokensParams,
@@ -22,6 +23,7 @@ export const listAccessServiceTokensTool: ToolConfig<
   description:
     'Lists the Cloudflare Access (Zero Trust) service tokens in an account, which let machines authenticate to Access-protected applications. Client secrets are never returned by this endpoint — only on creation. Requires an API token with Account Access: Service Tokens Read.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     accountId: {

@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { YOUTUBE_CREDENTIAL_OAUTH } from '@/tools/youtube/credential'
 import type { YouTubeTrendingParams, YouTubeTrendingResponse } from '@/tools/youtube/types'
 
 export const youtubeTrendingTool: ToolConfig<YouTubeTrendingParams, YouTubeTrendingResponse> = {
@@ -7,6 +8,7 @@ export const youtubeTrendingTool: ToolConfig<YouTubeTrendingParams, YouTubeTrend
   description:
     'Get the most popular/trending videos on YouTube. Can filter by region and video category.',
   version: '1.0.0',
+  oauth: YOUTUBE_CREDENTIAL_OAUTH,
   params: {
     regionCode: {
       type: 'string',

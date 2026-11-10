@@ -1,3 +1,4 @@
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/linq/credential'
 import type { LinqChatResult, LinqGetChatParams } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const linqGetChatTool: ToolConfig<LinqGetChatParams, LinqChatResult> = {
   name: 'Get Chat',
   description: 'Retrieve a chat by ID, including participants and line health',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

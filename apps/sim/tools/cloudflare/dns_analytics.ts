@@ -1,3 +1,4 @@
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareDnsAnalyticsParams,
   CloudflareDnsAnalyticsResponse,
@@ -15,6 +16,7 @@ export const dnsAnalyticsTool: ToolConfig<
   name: 'Cloudflare DNS Analytics',
   description: 'Gets DNS analytics report for a zone including query counts and trends.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     zoneId: {

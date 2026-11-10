@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapPhase,
   PHASE_OUTPUT_PROPERTIES,
@@ -17,6 +18,7 @@ export const rocketlaneUpdatePhaseTool: ToolConfig<
   name: 'Rocketlane Update Phase',
   description: 'Update the name, dates, status, or privacy of an existing Rocketlane phase',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

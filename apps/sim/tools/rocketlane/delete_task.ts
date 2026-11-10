@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   ROCKETLANE_API_BASE,
   type RocketlaneDeleteTaskParams,
@@ -15,6 +16,7 @@ export const rocketlaneDeleteTaskTool: ToolConfig<
   name: 'Rocketlane Delete Task',
   description: 'Permanently delete a Rocketlane task by its unique identifier',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

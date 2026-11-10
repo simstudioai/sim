@@ -1,3 +1,4 @@
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import {
   type CirclebackCreateTagParams,
   type CirclebackTagResponse,
@@ -17,6 +18,7 @@ export const createTagTool: ToolConfig<CirclebackCreateTagParams, CirclebackTagR
   description:
     'Creates a new tag in Circleback. If a tag with the same name already exists, a conflict error is returned.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

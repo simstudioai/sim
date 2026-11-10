@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import { ZONE_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type { CloudflareGetZoneParams, CloudflareGetZoneResponse } from '@/tools/cloudflare/types'
 import {
@@ -14,6 +15,7 @@ export const getZoneTool: ToolConfig<CloudflareGetZoneParams, CloudflareGetZoneR
   name: 'Cloudflare Get Zone',
   description: 'Gets details for a specific zone (domain) by its ID.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     zoneId: {

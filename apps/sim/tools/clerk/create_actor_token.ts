@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/clerk/credential'
 import type {
   ClerkActorToken,
   ClerkApiError,
@@ -18,6 +19,7 @@ export const clerkCreateActorTokenTool: ToolConfig<
   description:
     'Create an actor token to impersonate a user (God Mode / act-as-user), e.g. for support tooling',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

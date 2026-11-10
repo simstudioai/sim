@@ -1,3 +1,4 @@
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import {
   type CirclebackListMeetingsParams,
   type CirclebackMeetingListResponse,
@@ -24,6 +25,7 @@ export const listMeetingsTool: ToolConfig<
   description:
     'Lists meetings from Circleback with optional ownership, status, tag, and attendee filters.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushBacklinksCompetitorsParams,
   SemrushBacklinksCompetitorsResponse,
@@ -29,6 +30,7 @@ export const semrushBacklinksCompetitorsTool: ToolConfig<
   description:
     'List domains with a backlink profile similar to the target, ranked by shared referring domains.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

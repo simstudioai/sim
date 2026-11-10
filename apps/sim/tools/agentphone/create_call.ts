@@ -1,3 +1,4 @@
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/agentphone/credential'
 import type {
   AgentPhoneCreateCallParams,
   AgentPhoneCreateCallResult,
@@ -12,6 +13,7 @@ export const agentphoneCreateCallTool: ToolConfig<
   name: 'Create Outbound Call',
   description: 'Initiate an outbound voice call from an AgentPhone agent',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

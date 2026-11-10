@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityEntityResponse,
   AffinityGetListEntryFieldParams,
@@ -21,6 +22,7 @@ export const affinityGetListEntryFieldTool: ToolConfig<
   name: 'Affinity Get List Entry Field',
   description: 'Read one field value on a list row.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

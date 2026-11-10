@@ -1,3 +1,4 @@
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import { RESULT_INFO_OUTPUTS, WORKER_SCRIPT_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareListWorkerScriptsParams,
@@ -22,6 +23,7 @@ export const listWorkerScriptsTool: ToolConfig<
   description:
     'Lists the Workers scripts deployed in an account. Requires an API token with Account Workers Scripts Read.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     accountId: {

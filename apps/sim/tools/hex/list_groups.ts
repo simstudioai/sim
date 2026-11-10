@@ -1,3 +1,4 @@
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/hex/credential'
 import type { HexListGroupsParams, HexListGroupsResponse } from '@/tools/hex/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const listGroupsTool: ToolConfig<HexListGroupsParams, HexListGroupsRespon
   name: 'Hex List Groups',
   description: 'List all groups in the Hex workspace with optional sorting.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareGetTunnelTokenParams,
   CloudflareGetTunnelTokenResponse,
@@ -19,6 +20,7 @@ export const getTunnelTokenTool: ToolConfig<
   description:
     'Gets the connector token used to run a remotely managed Cloudflare Tunnel with cloudflared.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {
       type: 'string',

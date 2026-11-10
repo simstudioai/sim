@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityCollectionResponse,
   AffinityListRemindersParams,
@@ -16,6 +17,7 @@ export const affinityListRemindersTool: ToolConfig<
   description:
     'Page through the reminders the caller can see. Filter by status to surface what is overdue.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

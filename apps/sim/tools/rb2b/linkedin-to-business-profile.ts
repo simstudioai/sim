@@ -1,3 +1,4 @@
+import { RB2B_CREDENTIAL_OAUTH } from '@/tools/rb2b/credential'
 import {
   RB2B_LINKEDIN_PROFILE_OUTPUT_PROPERTIES,
   type Rb2bLinkedinParams,
@@ -15,6 +16,7 @@ export const rb2bLinkedinToBusinessProfileTool: ToolConfig<
   description:
     'Return a full business profile (name, title, company, emails and more) for a LinkedIn profile.',
   version: '1.0.0',
+  oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

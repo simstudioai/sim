@@ -1,3 +1,4 @@
+import { OTTER_CREDENTIAL_OAUTH } from '@/tools/otter/credential'
 import type { OtterGetConversationParams, OtterGetConversationResponse } from '@/tools/otter/types'
 import {
   mapOtterConversationDetail,
@@ -22,6 +23,7 @@ export const otterGetConversationTool: ToolConfig<
   description:
     'Get an Otter conversation with its summary and details, plus any requested action items, insights, outline, and transcript.',
   version: '1.0.0',
+  oauth: OTTER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

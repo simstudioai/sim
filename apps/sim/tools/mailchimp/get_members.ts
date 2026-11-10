@@ -1,3 +1,4 @@
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/mailchimp/credential'
 import {
   buildMailchimpUrl,
   handleMailchimpError,
@@ -30,6 +31,7 @@ export const mailchimpGetMembersTool: ToolConfig<
   name: 'Get Members from Mailchimp Audience',
   description: 'Retrieve a list of members from a Mailchimp audience',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

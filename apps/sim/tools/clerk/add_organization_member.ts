@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/clerk/credential'
 import type {
   ClerkAddOrganizationMemberParams,
   ClerkAddOrganizationMemberResponse,
@@ -17,6 +18,7 @@ export const clerkAddOrganizationMemberTool: ToolConfig<
   name: 'Add Organization Member in Clerk',
   description: 'Add a user as a member of a Clerk organization with a given role',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

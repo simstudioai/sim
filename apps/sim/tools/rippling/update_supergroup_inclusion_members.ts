@@ -1,3 +1,4 @@
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/rippling/credential'
 import type { RipplingUpdateSupergroupInclusionMembersParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -7,6 +8,7 @@ export const ripplingUpdateSupergroupInclusionMembersTool: ToolConfig<RipplingUp
     name: 'Rippling Update Supergroup Inclusion Members',
     description: 'Update inclusion members of a supergroup',
     version: '1.0.0',
+    oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {
         type: 'string',

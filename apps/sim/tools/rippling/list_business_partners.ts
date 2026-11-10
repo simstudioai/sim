@@ -1,3 +1,4 @@
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/rippling/credential'
 import type { RipplingListBusinessPartnersParams } from '@/tools/rippling/types'
 import { BUSINESS_PARTNER_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const ripplingListBusinessPartnersTool: ToolConfig<RipplingListBusinessPa
   name: 'Rippling List Business Partners',
   description: 'List all business partners',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

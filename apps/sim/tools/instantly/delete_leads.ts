@@ -1,4 +1,5 @@
 import { toRecord } from '@sim/utils/object'
+import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/instantly/credential'
 import type {
   InstantlyDeleteLeadsParams,
   InstantlyDeleteLeadsResponse,
@@ -18,6 +19,7 @@ export const deleteLeadsTool: ToolConfig<InstantlyDeleteLeadsParams, InstantlyDe
     name: 'Instantly Delete Leads',
     description: 'Deletes Instantly V2 leads in bulk from a campaign or lead list.',
     version: '1.0.0',
+    oauth: INSTANTLY_CREDENTIAL_OAUTH,
     params: {
       ...instantlyBaseParamFields,
       campaign_id: {

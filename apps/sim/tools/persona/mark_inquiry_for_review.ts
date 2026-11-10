@@ -1,3 +1,4 @@
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/persona/credential'
 import type {
   PersonaInquiryResponse,
   PersonaMarkInquiryForReviewParams,
@@ -21,6 +22,7 @@ export const personaMarkInquiryForReviewTool: ToolConfig<
   description:
     'Mark an identity verification inquiry for manual review, moving it to the needs_review status.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

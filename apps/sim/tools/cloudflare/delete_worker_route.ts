@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareDeleteWorkerRouteParams,
   CloudflareDeleteWorkerRouteResponse,
@@ -20,6 +21,7 @@ export const deleteWorkerRouteTool: ToolConfig<
   name: 'Cloudflare Delete Worker Route',
   description: 'Deletes a Worker route.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     zoneId: {
       type: 'string',

@@ -1,3 +1,4 @@
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/quartr/credential'
 import {
   QUARTR_AUDIO_OUTPUT_PROPERTIES,
   type QuartrAudioDto,
@@ -14,6 +15,7 @@ export const quartrGetAudioTool: ToolConfig<QuartrGetAudioParams, QuartrGetAudio
   description:
     'Retrieve an archived event audio recording from Quartr by its audio ID. Returns download (MPEG) and streaming (M3U8) URLs.',
   version: '1.0.0',
+  oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

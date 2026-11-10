@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapTimeEntry,
   ROCKETLANE_API_BASE,
@@ -18,6 +19,7 @@ export const rocketlaneCreateTimeEntryTool: ToolConfig<
   description:
     'Create a time entry in Rocketlane against an adhoc activity, task, project phase, or project',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

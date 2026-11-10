@@ -1,3 +1,4 @@
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/linq/credential'
 import type {
   LinqHealthStatus,
   LinqListPhoneNumbersParams,
@@ -14,6 +15,7 @@ export const linqListPhoneNumbersTool: ToolConfig<
   name: 'List Phone Numbers',
   description: 'List all phone numbers assigned to your partner account, with line health',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

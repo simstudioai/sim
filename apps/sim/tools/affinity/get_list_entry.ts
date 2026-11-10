@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityEntityResponse, AffinityGetListEntryParams } from '@/tools/affinity/types'
 import { LIST_ENTRY_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import {
@@ -19,6 +20,7 @@ export const affinityGetListEntryTool: ToolConfig<
   description:
     'Read one row of a list with its entity. Field data is returned only for the Field IDs or Field Types asked for.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

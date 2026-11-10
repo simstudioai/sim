@@ -1,3 +1,4 @@
+import { LUMA_CREDENTIAL_OAUTH } from '@/tools/luma/credential'
 import type { LumaGetGuestsParams, LumaGetGuestsResponse } from '@/tools/luma/types'
 import { LUMA_GUEST_OUTPUT_PROPERTIES, resolveGuestCheckedInAt } from '@/tools/luma/types'
 import type { ToolConfig } from '@/tools/types'
@@ -8,6 +9,7 @@ export const getGuestsTool: ToolConfig<LumaGetGuestsParams, LumaGetGuestsRespons
   description:
     'Retrieve the guest list for a Luma event with optional filtering by approval status, sorting, and pagination.',
   version: '1.0.0',
+  oauth: LUMA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

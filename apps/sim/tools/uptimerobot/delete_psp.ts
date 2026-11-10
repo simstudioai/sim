@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/uptimerobot/credential'
 import {
   UPTIMEROBOT_API_BASE,
   type UptimeRobotDeletePspParams,
@@ -15,6 +16,7 @@ export const uptimeRobotDeletePspTool: ToolConfig<
   name: 'UptimeRobot Delete Status Page',
   description: 'Permanently delete an UptimeRobot public status page by ID',
   version: '1.0.0',
+  oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

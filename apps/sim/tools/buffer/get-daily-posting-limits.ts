@@ -1,4 +1,5 @@
 import { toArray } from '@sim/utils/object'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/buffer/credential'
 import {
   bufferOutputProperties,
   bufferSelection,
@@ -23,6 +24,7 @@ export const bufferGetDailyPostingLimitsTool: ToolConfig<
   name: 'Buffer Get Daily Posting Limits',
   description: 'Check sent and scheduled post counts against each channel’s daily limit for a date',
   version: '1.0.0',
+  oauth: BUFFER_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

@@ -1,3 +1,4 @@
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/apollo/credential'
 import type {
   ApolloSequenceAddContactsParams,
   ApolloSequenceAddContactsResponse,
@@ -12,6 +13,7 @@ export const apolloSequenceAddContactsTool: ToolConfig<
   name: 'Apollo Add Contacts to Sequence',
   description: 'Add contacts to an Apollo sequence',
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

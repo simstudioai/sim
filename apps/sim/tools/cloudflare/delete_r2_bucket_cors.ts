@@ -1,3 +1,4 @@
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareDeleteR2BucketCorsParams,
   CloudflareDeleteR2BucketCorsResponse,
@@ -18,6 +19,7 @@ export const deleteR2BucketCorsTool: ToolConfig<
   name: 'Cloudflare Delete R2 Bucket Cors',
   description: 'Delete the CORS policy for a bucket.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {
       type: 'string',

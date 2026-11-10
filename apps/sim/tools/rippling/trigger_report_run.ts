@@ -1,3 +1,4 @@
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/rippling/credential'
 import type { RipplingTriggerReportRunParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const ripplingTriggerReportRunTool: ToolConfig<RipplingTriggerReportRunPa
   name: 'Rippling Trigger Report Run',
   description: 'Trigger a new report run',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

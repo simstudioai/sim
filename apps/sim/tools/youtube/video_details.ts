@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { YOUTUBE_CREDENTIAL_OAUTH } from '@/tools/youtube/credential'
 import type { YouTubeVideoDetailsParams, YouTubeVideoDetailsResponse } from '@/tools/youtube/types'
 
 export const youtubeVideoDetailsTool: ToolConfig<
@@ -10,6 +11,7 @@ export const youtubeVideoDetailsTool: ToolConfig<
   description:
     'Get detailed information about a specific YouTube video including statistics, content details, live streaming info, and metadata.',
   version: '1.2.0',
+  oauth: YOUTUBE_CREDENTIAL_OAUTH,
   params: {
     videoId: {
       type: 'string',

@@ -1,3 +1,4 @@
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/agentmail/credential'
 import type { DeleteDraftParams, DeleteDraftResult } from '@/tools/agentmail/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const agentmailDeleteDraftTool: ToolConfig<DeleteDraftParams, DeleteDraft
   name: 'Delete Draft',
   description: 'Delete an email draft in AgentMail',
   version: '1.0.0',
+  oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/clerk/credential'
 import type {
   ClerkApiError,
   ClerkOrganizationMembership,
@@ -17,6 +18,7 @@ export const clerkRemoveOrganizationMemberTool: ToolConfig<
   name: 'Remove Organization Member from Clerk',
   description: 'Remove a member from a Clerk organization',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

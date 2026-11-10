@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityCollectionResponse, AffinityListMergesParams } from '@/tools/affinity/types'
 import { MERGE_TASK_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import {
@@ -20,6 +21,7 @@ export const affinityListMergeTasksTool: ToolConfig<
   description:
     'Page through merge tasks, each summarizing how many of its merges are in progress, succeeded, or failed.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

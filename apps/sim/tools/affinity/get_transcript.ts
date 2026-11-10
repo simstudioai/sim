@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityEntityResponse, AffinityGetTranscriptParams } from '@/tools/affinity/types'
 import { TRANSCRIPT_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import {
@@ -18,6 +19,7 @@ export const affinityGetTranscriptTool: ToolConfig<
   description:
     'Read one transcript with its first 100 fragments. Page the fragments endpoint for a longer meeting.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

@@ -1,3 +1,4 @@
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/persona/credential'
 import type { PersonaCaseResponse, PersonaGetCaseParams } from '@/tools/persona/types'
 import {
   asResource,
@@ -15,6 +16,7 @@ export const personaGetCaseTool: ToolConfig<PersonaGetCaseParams, PersonaCaseRes
   description:
     'Retrieve a single manual review case by ID, including its status, resolution, and assignee.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

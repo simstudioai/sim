@@ -1,3 +1,4 @@
+import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/launchdarkly/credential'
 import type {
   LaunchDarklyListMembersParams,
   LaunchDarklyListMembersResponse,
@@ -13,6 +14,7 @@ export const launchDarklyListMembersTool: ToolConfig<
   name: 'LaunchDarkly List Members',
   description: 'List account members in your LaunchDarkly organization.',
   version: '1.0.0',
+  oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

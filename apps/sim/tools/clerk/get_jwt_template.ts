@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/clerk/credential'
 import type {
   ClerkApiError,
   ClerkGetJwtTemplateParams,
@@ -17,6 +18,7 @@ export const clerkGetJwtTemplateTool: ToolConfig<
   name: 'Get JWT Template from Clerk',
   description: 'Retrieve a single custom JWT template by ID from Clerk',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

@@ -1,3 +1,4 @@
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/apollo/credential'
 import type {
   ApolloOpportunityCreateParams,
   ApolloOpportunityCreateResponse,
@@ -12,6 +13,7 @@ export const apolloOpportunityCreateTool: ToolConfig<
   name: 'Apollo Create Opportunity',
   description: 'Create a new deal for an account in your Apollo database (master key required)',
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

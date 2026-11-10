@@ -1,3 +1,4 @@
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushKeywordDifficultyParams,
   SemrushKeywordDifficultyResponse,
@@ -16,6 +17,7 @@ export const semrushKeywordDifficultyTool: ToolConfig<
   name: 'Semrush Keyword Difficulty',
   description: 'Get the Keyword Difficulty Index for up to 100 keywords at once.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapPlaceholderMapping,
   mapProject,
@@ -19,6 +20,7 @@ export const rocketlaneUnassignPlaceholdersTool: ToolConfig<
   name: 'Rocketlane Unassign Placeholders',
   description: 'Unassign a placeholder from its user in a Rocketlane project',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

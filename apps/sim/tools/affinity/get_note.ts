@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityEntityResponse, AffinityGetNoteParams } from '@/tools/affinity/types'
 import { NOTE_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import {
@@ -18,6 +19,7 @@ export const affinityGetNoteTool: ToolConfig<
   name: 'Affinity Get Note',
   description: 'Read one note with its body, author, mentions, and attached records.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

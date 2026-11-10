@@ -1,3 +1,4 @@
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/apollo/credential'
 import type {
   ApolloContactBulkUpdateParams,
   ApolloContactBulkUpdateResponse,
@@ -13,6 +14,7 @@ export const apolloContactBulkUpdateTool: ToolConfig<
   description:
     'Update up to 100 existing contacts at once in your Apollo database. Each contact must include an id field. Master key required.',
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

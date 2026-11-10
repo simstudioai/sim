@@ -1,3 +1,4 @@
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareDeleteRulesetParams,
   CloudflareDeleteRulesetResponse,
@@ -19,6 +20,7 @@ export const deleteRulesetTool: ToolConfig<
   name: 'Cloudflare Delete Ruleset',
   description: 'Deletes all versions of an existing zone ruleset.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     zoneId: {
       type: 'string',

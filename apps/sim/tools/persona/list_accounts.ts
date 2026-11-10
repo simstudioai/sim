@@ -1,3 +1,4 @@
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/persona/credential'
 import type { PersonaListAccountsParams, PersonaListAccountsResponse } from '@/tools/persona/types'
 import {
   ACCOUNT_OUTPUT_PROPERTIES,
@@ -19,6 +20,7 @@ export const personaListAccountsTool: ToolConfig<
   description:
     'List accounts in your Persona organization, optionally filtered by reference ID. Results are cursor-paginated.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapSpace,
   ROCKETLANE_API_BASE,
@@ -17,6 +18,7 @@ export const rocketlaneCreateSpaceTool: ToolConfig<
   name: 'Rocketlane Create Space',
   description: 'Create a new space in a Rocketlane project',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

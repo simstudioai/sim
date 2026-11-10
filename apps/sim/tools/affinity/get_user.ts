@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityEntityResponse, AffinityGetUserParams } from '@/tools/affinity/types'
 import { USER_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import {
@@ -18,6 +19,7 @@ export const affinityGetUserTool: ToolConfig<
   description:
     'Read one internal user. A user and their person record share the same numeric ID, so a person ID works here.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityCollectionResponse, AffinityCursorParams } from '@/tools/affinity/types'
 import { LIST_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import {
@@ -24,6 +25,7 @@ export const affinityListEntityListsTool: ToolConfig<
   name: 'Affinity List Entity Lists',
   description: 'List every list a company or person appears on that the caller can view.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

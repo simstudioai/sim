@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareUpdateZoneParams,
   CloudflareUpdateZoneResponse,
@@ -21,6 +22,7 @@ export const updateZoneTool: ToolConfig<CloudflareUpdateZoneParams, CloudflareUp
     name: 'Cloudflare Update Zone',
     description: 'Edits a zone. Only one zone property can be changed at a time.',
     version: '1.0.0',
+    oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
     params: {
       zoneId: {
         type: 'string',

@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type {
   IncidentioIncidentRolesDeleteParams,
   IncidentioIncidentRolesDeleteResponse,
@@ -12,6 +13,7 @@ export const incidentRolesDeleteTool: ToolConfig<
   name: 'Delete Incident Role',
   description: 'Delete an incident role in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

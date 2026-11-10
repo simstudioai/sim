@@ -1,3 +1,4 @@
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexMatchReceiptParams, BrexUploadReceiptResponse } from '@/tools/brex/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const brexMatchReceiptTool: InternalToolConfig<
   name: 'Brex Match Receipt',
   description: 'Upload a receipt file and let Brex automatically match it with existing expenses',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

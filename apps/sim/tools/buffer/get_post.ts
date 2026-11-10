@@ -1,3 +1,4 @@
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/buffer/credential'
 import {
   BUFFER_API_URL,
   BUFFER_POST_SELECTION,
@@ -23,6 +24,7 @@ export const bufferGetPostTool: ToolConfig<BufferGetPostParams, BufferPostRespon
   name: 'Buffer Get Post',
   description: 'Get a single Buffer post by ID, including its status, schedule, and media',
   version: '1.0.0',
+  oauth: BUFFER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

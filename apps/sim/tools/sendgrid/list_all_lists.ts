@@ -1,3 +1,4 @@
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/sendgrid/credential'
 import type { ListAllListsParams, ListsResult, SendGridList } from '@/tools/sendgrid/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const sendGridListAllListsTool: ToolConfig<ListAllListsParams, ListsResul
   name: 'SendGrid List All Lists',
   description: 'Get all contact lists from SendGrid',
   version: '1.0.0',
+  oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

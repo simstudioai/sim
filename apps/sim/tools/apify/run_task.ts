@@ -1,3 +1,4 @@
+import { APIFY_CREDENTIAL_OAUTH } from '@/tools/apify/credential'
 import type { RunTaskParams, RunTaskResult } from '@/tools/apify/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const apifyRunTaskTool: ToolConfig<RunTaskParams, RunTaskResult> = {
   name: 'APIFY Run Task',
   description: 'Run a saved APIFY actor task synchronously and get dataset items (max 5 minutes)',
   version: '1.0.0',
+  oauth: APIFY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

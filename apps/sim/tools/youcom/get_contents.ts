@@ -1,6 +1,7 @@
 import { toStringOrNull } from '@sim/utils/coerce'
 import { toRecordOrNull } from '@sim/utils/object'
 import type { ToolConfig } from '@/tools/types'
+import { YOUCOM_CREDENTIAL_OAUTH } from '@/tools/youcom/credential'
 import type { YouComGetContentsParams, YouComGetContentsResponse } from '@/tools/youcom/types'
 import {
   optionalNumber,
@@ -17,6 +18,7 @@ export const youComGetContentsTool: ToolConfig<YouComGetContentsParams, YouComGe
     description:
       'Fetch the HTML, Markdown, and page metadata of one or more web pages with You.com.',
     version: '1.0.0',
+    oauth: YOUCOM_CREDENTIAL_OAUTH,
 
     params: {
       urls: {

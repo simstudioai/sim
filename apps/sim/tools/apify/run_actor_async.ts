@@ -1,5 +1,6 @@
 import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { APIFY_CREDENTIAL_OAUTH } from '@/tools/apify/credential'
 import type { ApifyRun, RunActorParams, RunActorResult } from '@/tools/apify/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -12,6 +13,7 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
   description:
     'Start an APIFY Actor run and poll it within the same workflow step until completion or the polling deadline',
   version: '1.0.0',
+  oauth: APIFY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

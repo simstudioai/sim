@@ -1,3 +1,4 @@
+import { RB2B_CREDENTIAL_OAUTH } from '@/tools/rb2b/credential'
 import type { Rb2bBestPersonalEmailResponse, Rb2bLinkedinParams } from '@/tools/rb2b/types'
 import { RB2B_API_BASE, rb2bHeaders } from '@/tools/rb2b/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -11,6 +12,7 @@ export const rb2bLinkedinToBestPersonalEmailTool: ToolConfig<
   description:
     'Return the personal email with the most recent known network activity for a LinkedIn profile.',
   version: '1.0.0',
+  oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

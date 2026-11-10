@@ -1,4 +1,5 @@
 import { filterUndefined } from '@sim/utils/object'
+import { LANGSMITH_CREDENTIAL_OAUTH } from '@/tools/langsmith/credential'
 import type {
   LangsmithCreateRunsBatchParams,
   LangsmithCreateRunsBatchResponse,
@@ -20,6 +21,7 @@ export const langsmithCreateRunsBatchTool: ToolConfig<
   name: 'LangSmith Create Runs Batch',
   description: 'Forward multiple runs to LangSmith in a single batch.',
   version: '1.0.0',
+  oauth: LANGSMITH_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

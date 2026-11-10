@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapPagination,
   mapProject,
@@ -20,6 +21,7 @@ export const rocketlaneListProjectsTool: ToolConfig<
   description:
     'List Rocketlane projects with optional filters, sorting, and token-based pagination',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

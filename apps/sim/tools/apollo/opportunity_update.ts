@@ -1,3 +1,4 @@
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/apollo/credential'
 import type {
   ApolloOpportunityUpdateParams,
   ApolloOpportunityUpdateResponse,
@@ -12,6 +13,7 @@ export const apolloOpportunityUpdateTool: ToolConfig<
   name: 'Apollo Update Opportunity',
   description: 'Update an existing deal/opportunity in your Apollo database',
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { OTTER_CREDENTIAL_OAUTH } from '@/tools/otter/credential'
 import type { OtterGetWorkspaceParams, OtterGetWorkspaceResponse } from '@/tools/otter/types'
 import {
   mapOtterWorkspace,
@@ -17,6 +18,7 @@ export const otterGetWorkspaceTool: ToolConfig<OtterGetWorkspaceParams, OtterGet
     description:
       'Get the Otter workspace of the authenticated user, including its ID, name, owner, member count, handle, and type.',
     version: '1.0.0',
+    oauth: OTTER_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

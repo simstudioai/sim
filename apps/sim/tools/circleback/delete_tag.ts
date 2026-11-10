@@ -1,3 +1,4 @@
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import {
   type CirclebackDeleteTagParams,
   type CirclebackTagResponse,
@@ -18,6 +19,7 @@ export const deleteTagTool: ToolConfig<CirclebackDeleteTagParams, CirclebackTagR
   description:
     'Permanently deletes a Circleback tag and removes it from every meeting it was applied to.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

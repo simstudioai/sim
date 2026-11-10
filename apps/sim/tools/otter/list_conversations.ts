@@ -1,3 +1,4 @@
+import { OTTER_CREDENTIAL_OAUTH } from '@/tools/otter/credential'
 import type {
   OtterListConversationsParams,
   OtterListConversationsResponse,
@@ -23,6 +24,7 @@ export const otterListConversationsTool: ToolConfig<
   description:
     'List Otter conversations for the authenticated user, most recent first, optionally including shared conversations or filtering by channel.',
   version: '1.0.0',
+  oauth: OTTER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

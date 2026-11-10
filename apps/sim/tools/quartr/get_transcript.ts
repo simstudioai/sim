@@ -1,3 +1,4 @@
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/quartr/credential'
 import {
   QUARTR_DOCUMENT_OUTPUT_PROPERTIES,
   type QuartrDocumentDto,
@@ -17,6 +18,7 @@ export const quartrGetTranscriptTool: ToolConfig<
   description:
     'Retrieve an event transcript from Quartr by its document ID and download the transcript JSON file (paragraphs, sentences, timestamps, and speaker identification).',
   version: '1.0.0',
+  oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

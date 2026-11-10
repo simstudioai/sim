@@ -1,3 +1,4 @@
+import { DAYTONA_CREDENTIAL_OAUTH } from '@/tools/daytona/credential'
 import type { DaytonaSandboxResponse, DaytonaStopSandboxParams } from '@/tools/daytona/types'
 import {
   DAYTONA_API_BASE_URL,
@@ -16,6 +17,7 @@ export const daytonaStopSandboxTool: ToolConfig<DaytonaStopSandboxParams, Dayton
     name: 'Daytona Stop Sandbox',
     description: 'Stop a running Daytona sandbox',
     version: '1.0.0',
+    oauth: DAYTONA_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

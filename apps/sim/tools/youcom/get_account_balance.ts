@@ -1,5 +1,6 @@
 import { toRecordOrNull } from '@sim/utils/object'
 import type { ToolConfig } from '@/tools/types'
+import { YOUCOM_CREDENTIAL_OAUTH } from '@/tools/youcom/credential'
 import type {
   YouComGetAccountBalanceParams,
   YouComGetAccountBalanceResponse,
@@ -15,6 +16,7 @@ export const youComGetAccountBalanceTool: ToolConfig<
   description:
     'Get the remaining You.com API credit balance for the account or organization that owns the API key.',
   version: '1.0.0',
+  oauth: YOUCOM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: youComApiKeyParam,

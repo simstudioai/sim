@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapTimeOff,
   ROCKETLANE_API_BASE,
@@ -17,6 +18,7 @@ export const rocketlaneGetTimeOffTool: ToolConfig<
   name: 'Rocketlane Get Time-Off',
   description: 'Retrieve a Rocketlane time-off by its ID',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

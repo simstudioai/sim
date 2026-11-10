@@ -1,3 +1,4 @@
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import { RESULT_INFO_OUTPUTS, WORKER_ROUTE_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareListWorkerRoutesParams,
@@ -21,6 +22,7 @@ export const listWorkerRoutesTool: ToolConfig<
   description:
     'Lists the Workers routes on a zone, showing which URL patterns are handled by which Worker script. Unlike the Workers script endpoints, routes are zone-scoped. Requires an API token with Zone Workers Routes Read.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     zoneId: {

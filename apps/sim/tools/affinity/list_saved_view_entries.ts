@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityCollectionResponse,
   AffinityListSavedViewEntriesParams,
@@ -21,6 +22,7 @@ export const affinityListSavedViewEntriesTool: ToolConfig<
   description:
     "Page through the rows of a saved view. The view's own filters and columns decide which rows and which field data come back.",
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

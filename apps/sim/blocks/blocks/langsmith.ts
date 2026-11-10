@@ -1,9 +1,12 @@
 import { toError } from '@sim/utils/errors'
 import { LangsmithIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const LangsmithBlock: BlockConfig = {
   type: 'langsmith',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'langsmith_v2' },
   name: 'LangSmith',
   description: 'Forward workflow runs to LangSmith for observability',
   longDescription:
@@ -600,3 +603,17 @@ export const LangsmithBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const LangsmithV2Block: BlockConfig = {
+  ...LangsmithBlock,
+  type: 'langsmith_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(LangsmithBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'langsmith',
+    title: 'LangSmith Credential',
+  }),
+}

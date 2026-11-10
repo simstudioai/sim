@@ -1,3 +1,4 @@
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/linq/credential'
 import type { LinqDeleteMessageParams, LinqSuccessResult } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -8,6 +9,7 @@ export const linqDeleteMessageTool: ToolConfig<LinqDeleteMessageParams, LinqSucc
   description:
     'Delete a message from the Linq API only (does not unsend it; recipients still see it)',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

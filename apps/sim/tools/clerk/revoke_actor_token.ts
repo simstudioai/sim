@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/clerk/credential'
 import type {
   ClerkActorToken,
   ClerkApiError,
@@ -17,6 +18,7 @@ export const clerkRevokeActorTokenTool: ToolConfig<
   name: 'Revoke Actor Token in Clerk',
   description: 'Revoke an actor token before it is used or expires',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

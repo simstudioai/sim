@@ -1,3 +1,4 @@
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushDomainOverviewAllParams,
   SemrushDomainOverviewAllResponse,
@@ -22,6 +23,7 @@ export const semrushDomainOverviewAllTool: ToolConfig<
   description:
     'Get organic and paid search totals for a domain across every regional Semrush database.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import {
   INCIDENTIO_ACTION_RECORD_OUTPUT_PROPERTIES,
   type IncidentioActionsUpdateParams,
@@ -14,6 +15,7 @@ export const actionsUpdateTool: ToolConfig<
   description:
     'Update an existing action in incident.io, for example to mark it completed or reassign it',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/hex/credential'
 import type {
   HexListDataConnectionsParams,
   HexListDataConnectionsResponse,
@@ -13,6 +14,7 @@ export const listDataConnectionsTool: ToolConfig<
   description:
     'List all data connections in the Hex workspace (e.g., Snowflake, PostgreSQL, BigQuery).',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

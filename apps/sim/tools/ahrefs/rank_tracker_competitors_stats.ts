@@ -1,3 +1,4 @@
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/ahrefs/credential'
 import type {
   AhrefsRankTrackerCompetitorsStatsParams,
   AhrefsRankTrackerCompetitorsStatsResponse,
@@ -16,6 +17,7 @@ export const rankTrackerCompetitorsStatsTool: ToolConfig<
   description:
     "Get aggregate competitor stats for an Ahrefs Rank Tracker project: each competitor's traffic, traffic value, average position, and share of voice across all tracked keywords. This endpoint is free and does not consume API units.",
   version: '1.0.0',
+  oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {

@@ -1,3 +1,4 @@
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/agentphone/credential'
 import type {
   AgentPhoneDeleteContactParams,
   AgentPhoneDeleteContactResult,
@@ -12,6 +13,7 @@ export const agentphoneDeleteContactTool: ToolConfig<
   name: 'Delete Contact',
   description: 'Delete a contact by ID',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

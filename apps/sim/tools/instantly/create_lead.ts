@@ -1,3 +1,4 @@
+import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/instantly/credential'
 import type { InstantlyCreateLeadParams, InstantlyLeadResponse } from '@/tools/instantly/types'
 import {
   compactBody,
@@ -15,6 +16,7 @@ export const createLeadTool: ToolConfig<InstantlyCreateLeadParams, InstantlyLead
   name: 'Instantly Create Lead',
   description: 'Creates an Instantly V2 lead in a campaign or lead list.',
   version: '1.0.0',
+  oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,
     campaign: {

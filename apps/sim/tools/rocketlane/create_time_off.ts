@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapTimeOff,
   ROCKETLANE_API_BASE,
@@ -18,6 +19,7 @@ export const rocketlaneCreateTimeOffTool: ToolConfig<
   description:
     'Create a time-off for a team member in Rocketlane. Holidays and weekends within the date range are automatically excluded from the duration.',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

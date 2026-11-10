@@ -1,3 +1,4 @@
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexListCashAccountsResponse, BrexPaginationParams } from '@/tools/brex/types'
 import { BREX_MONEY_PROPERTIES } from '@/tools/brex/types'
 import {
@@ -16,6 +17,7 @@ export const brexListCashAccountsTool: ToolConfig<
   name: 'Brex List Cash Accounts',
   description: 'List all Brex cash accounts with balances and account details',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

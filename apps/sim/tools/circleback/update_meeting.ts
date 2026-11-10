@@ -1,3 +1,4 @@
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import type { CirclebackUpdateMeetingParams } from '@/tools/circleback/types'
 import {
   CIRCLEBACK_API_BASE,
@@ -26,6 +27,7 @@ export const updateMeetingTool: ToolConfig<
   description:
     'Updates the name, notes, or private notes of a Circleback meeting. The API returns only the fields that were updated.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

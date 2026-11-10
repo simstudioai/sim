@@ -1,3 +1,4 @@
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import {
   type CirclebackDeleteMeetingParams,
   type CirclebackMeetingResponse,
@@ -21,6 +22,7 @@ export const deleteMeetingTool: ToolConfig<
   description:
     'Deletes a Circleback meeting. Only the owner of the meeting can delete it. Returns the deleted meeting.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

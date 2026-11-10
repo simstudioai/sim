@@ -1,3 +1,4 @@
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexListCardsParams, BrexListCardsResponse } from '@/tools/brex/types'
 import {
   appendBrexPagination,
@@ -12,6 +13,7 @@ export const brexListCardsTool: ToolConfig<BrexListCardsParams, BrexListCardsRes
   name: 'Brex List Cards',
   description: 'List cards in the Brex account, optionally filtered by card owner',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

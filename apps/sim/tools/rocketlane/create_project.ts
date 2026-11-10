@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapProject,
   PROJECT_OUTPUT_PROPERTIES,
@@ -18,6 +19,7 @@ export const rocketlaneCreateProjectTool: ToolConfig<
   description:
     'Create a new Rocketlane project with a customer, owner, dates, team members, templates, financials, and custom fields',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

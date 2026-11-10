@@ -1,3 +1,4 @@
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexGetTransferParams, BrexGetTransferResponse } from '@/tools/brex/types'
 import { BREX_MONEY_PROPERTIES } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson } from '@/tools/brex/utils'
@@ -8,6 +9,7 @@ export const brexGetTransferTool: ToolConfig<BrexGetTransferParams, BrexGetTrans
   name: 'Brex Get Transfer',
   description: 'Get a Brex money transfer by its ID',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

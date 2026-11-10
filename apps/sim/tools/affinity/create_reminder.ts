@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityCreateReminderParams, AffinityEntityResponse } from '@/tools/affinity/types'
 import { REMINDER_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import {
@@ -29,6 +30,7 @@ export const affinityCreateReminderTool: ToolConfig<
   description:
     'Create a reminder on one company, person, or opportunity. A recurring reminder resets whenever the chosen signal happens instead of firing once.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

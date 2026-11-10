@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityCreateListParams, AffinityEntityResponse } from '@/tools/affinity/types'
 import { LIST_WITH_TYPE_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import {
@@ -22,6 +23,7 @@ export const affinityCreateListTool: ToolConfig<
   description:
     'Create a list. Its type fixes which entities it can hold, and the API key holder becomes its creator and owner.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

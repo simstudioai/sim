@@ -1,3 +1,4 @@
+import { DAYTONA_CREDENTIAL_OAUTH } from '@/tools/daytona/credential'
 import type { DaytonaGetSandboxParams, DaytonaSandboxResponse } from '@/tools/daytona/types'
 import {
   DAYTONA_API_BASE_URL,
@@ -13,6 +14,7 @@ export const daytonaGetSandboxTool: ToolConfig<DaytonaGetSandboxParams, DaytonaS
   name: 'Daytona Get Sandbox',
   description: 'Get details of a Daytona sandbox',
   version: '1.0.0',
+  oauth: DAYTONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

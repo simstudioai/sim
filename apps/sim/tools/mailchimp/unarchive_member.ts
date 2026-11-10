@@ -1,3 +1,4 @@
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/mailchimp/credential'
 import {
   buildMailchimpUrl,
   handleMailchimpError,
@@ -30,6 +31,7 @@ export const mailchimpUnarchiveMemberTool: ToolConfig<
   name: 'Unarchive Member in Mailchimp Audience',
   description: 'Restore an archived member to a Mailchimp audience',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

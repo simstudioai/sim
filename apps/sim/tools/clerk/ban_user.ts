@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/clerk/credential'
 import type {
   ClerkApiError,
   ClerkBanUserParams,
@@ -14,6 +15,7 @@ export const clerkBanUserTool: ToolConfig<ClerkBanUserParams, ClerkBanUserRespon
   name: 'Ban User in Clerk',
   description: 'Ban a user, preventing them from signing in',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

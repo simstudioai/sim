@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type { CustomFieldsShowParams, CustomFieldsShowResponse } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const customFieldsShowTool: ToolConfig<CustomFieldsShowParams, CustomFiel
   name: 'incident.io Custom Fields Show',
   description: 'Get detailed information about a specific custom field from incident.io.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/instantly/credential'
 import type { InstantlyGetLeadParams, InstantlyLeadResponse } from '@/tools/instantly/types'
 import {
   instantlyBaseParamFields,
@@ -14,6 +15,7 @@ export const getLeadTool: ToolConfig<InstantlyGetLeadParams, InstantlyLeadRespon
   name: 'Instantly Get Lead',
   description: 'Retrieves an Instantly V2 lead by ID.',
   version: '1.0.0',
+  oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,
     leadId: {

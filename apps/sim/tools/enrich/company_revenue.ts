@@ -1,3 +1,4 @@
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/enrich/credential'
 import type { EnrichCompanyRevenueParams, EnrichCompanyRevenueResponse } from '@/tools/enrich/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -10,6 +11,7 @@ export const companyRevenueTool: ToolConfig<
   description:
     'Retrieve company revenue data, CEO information, and competitive analysis by domain.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

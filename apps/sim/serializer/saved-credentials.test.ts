@@ -3,27 +3,75 @@ import { blocksMock } from '@sim/testing/mocks/blocks.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as blocks from '@/blocks'
+import { AffinityBlock, AffinityV2Block } from '@/blocks/blocks/affinity'
+import { AgentMailBlock, AgentMailV2Block } from '@/blocks/blocks/agentmail'
+import { AgentPhoneBlock, AgentPhoneV2Block } from '@/blocks/blocks/agentphone'
+import { AhrefsBlock, AhrefsV2Block } from '@/blocks/blocks/ahrefs'
+import { ApifyBlock, ApifyV2Block } from '@/blocks/blocks/apify'
+import { ApolloBlock, ApolloV2Block } from '@/blocks/blocks/apollo'
 import { AppConfigBlock, AppConfigV2Block } from '@/blocks/blocks/appconfig'
 import { AthenaBlock, AthenaV2Block } from '@/blocks/blocks/athena'
+import { BrexBlock, BrexV2Block } from '@/blocks/blocks/brex'
+import { BrightDataBlock, BrightDataV2Block } from '@/blocks/blocks/brightdata'
+import { BrowserUseBlock, BrowserUseV2Block } from '@/blocks/blocks/browser_use'
+import { BufferBlock, BufferV2Block } from '@/blocks/blocks/buffer'
+import { CirclebackBlock, CirclebackV2Block } from '@/blocks/blocks/circleback'
+import { ClerkBlock, ClerkV2Block } from '@/blocks/blocks/clerk'
+import { CloudflareBlock, CloudflareV2Block } from '@/blocks/blocks/cloudflare'
 import { CloudFormationBlock, CloudFormationV2Block } from '@/blocks/blocks/cloudformation'
 import { CloudTrailBlock, CloudTrailV2Block } from '@/blocks/blocks/cloudtrail'
 import { CloudWatchBlock, CloudWatchV2Block } from '@/blocks/blocks/cloudwatch'
 import { CodePipelineBlock, CodePipelineV2Block } from '@/blocks/blocks/codepipeline'
+import { CrunchbaseBlock, CrunchbaseV2Block } from '@/blocks/blocks/crunchbase'
 import { DatabricksBlock, DatabricksV2Block } from '@/blocks/blocks/databricks'
+import { DaytonaBlock, DaytonaV2Block } from '@/blocks/blocks/daytona'
 import { DynamoDBBlock, DynamoDBV2Block } from '@/blocks/blocks/dynamodb'
 import { EC2Block, EC2V2Block } from '@/blocks/blocks/ec2'
+import { ElevenLabsBlock, ElevenLabsV2Block } from '@/blocks/blocks/elevenlabs'
+import { EnrichBlock, EnrichV2Block } from '@/blocks/blocks/enrich'
+import { GammaBlock, GammaV2Block } from '@/blocks/blocks/gamma'
+import { HexBlock, HexV2Block } from '@/blocks/blocks/hex'
+import { HuggingFaceBlock, HuggingFaceV2Block } from '@/blocks/blocks/huggingface'
 import { IAMBlock, IAMV2Block } from '@/blocks/blocks/iam'
 import { IdentityCenterBlock, IdentityCenterV2Block } from '@/blocks/blocks/identity_center'
+import { IncidentioBlock, IncidentioV2Block } from '@/blocks/blocks/incidentio'
+import { InstantlyBlock, InstantlyV2Block } from '@/blocks/blocks/instantly'
 import { LambdaBlock, LambdaV2Block } from '@/blocks/blocks/lambda'
+import { LangsmithBlock, LangsmithV2Block } from '@/blocks/blocks/langsmith'
+import { LaunchDarklyBlock, LaunchDarklyV2Block } from '@/blocks/blocks/launchdarkly'
+import { LinqBlock, LinqV2Block } from '@/blocks/blocks/linq'
+import { LoopsBlock, LoopsV2Block } from '@/blocks/blocks/loops'
+import { LumaBlock, LumaV2Block } from '@/blocks/blocks/luma'
+import { MailchimpBlock, MailchimpV2Block } from '@/blocks/blocks/mailchimp'
+import { OtterBlock, OtterV2Block } from '@/blocks/blocks/otter'
+import { PersonaBlock, PersonaV2Block } from '@/blocks/blocks/persona'
+import { PineconeBlock, PineconeV2Block } from '@/blocks/blocks/pinecone'
+import { ProfoundBlock, ProfoundV2Block } from '@/blocks/blocks/profound'
+import { QuartrBlock, QuartrV2Block } from '@/blocks/blocks/quartr'
+import { RB2BBlock, RB2BV2Block } from '@/blocks/blocks/rb2b'
 import { RDSBlock, RDSV2Block } from '@/blocks/blocks/rds'
+import { RipplingBlock, RipplingV2Block } from '@/blocks/blocks/rippling'
+import { RocketlaneBlock, RocketlaneV2Block } from '@/blocks/blocks/rocketlane'
 import { S3Block, S3V2Block } from '@/blocks/blocks/s3'
 import { SecretsManagerBlock, SecretsManagerV2Block } from '@/blocks/blocks/secrets_manager'
+import { SemrushBlock, SemrushV2Block } from '@/blocks/blocks/semrush'
+import { SendGridBlock, SendGridV2Block } from '@/blocks/blocks/sendgrid'
 import { SESBlock, SESV2Block } from '@/blocks/blocks/ses'
+import { SimilarwebBlock, SimilarwebV2Block } from '@/blocks/blocks/similarweb'
+import { SixtyfourBlock, SixtyfourV2Block } from '@/blocks/blocks/sixtyfour'
+import { SmartleadBlock, SmartleadV2Block } from '@/blocks/blocks/smartlead'
+import { SportmonksBlock, SportmonksV2Block } from '@/blocks/blocks/sportmonks'
 import { SQSBlock, SQSV2Block } from '@/blocks/blocks/sqs'
+import { SquareBlock, SquareV2Block } from '@/blocks/blocks/square'
 import { SSMBlock, SSMV2Block } from '@/blocks/blocks/ssm'
 import { STSBlock, STSV2Block } from '@/blocks/blocks/sts'
+import { TailscaleBlock, TailscaleV2Block } from '@/blocks/blocks/tailscale'
 import { TavilyBlock, TavilyV2Block } from '@/blocks/blocks/tavily'
 import { TextractBlock, TextractV2Block, TextractV3Block } from '@/blocks/blocks/textract'
+import { TriggerDevBlock, TriggerDevV2Block } from '@/blocks/blocks/trigger_dev'
+import { UptimeRobotBlock, UptimeRobotV2Block } from '@/blocks/blocks/uptimerobot'
+import { YouComBlock, YouComV2Block } from '@/blocks/blocks/youcom'
+import { YouTubeBlock, YouTubeV2Block } from '@/blocks/blocks/youtube'
 import type { BlockConfig } from '@/blocks/types'
 import { Serializer } from '@/serializer'
 import type { BlockState } from '@/stores/workflows/workflow/types'
@@ -113,6 +161,54 @@ const VERSIONS: Array<{
     secretIds: ['accessKeyId', 'secretAccessKey'],
   },
   { legacy: TavilyBlock, successor: TavilyV2Block, secretIds: ['apiKey'] },
+  { legacy: AffinityBlock, successor: AffinityV2Block, secretIds: ['apiKey'] },
+  { legacy: AgentMailBlock, successor: AgentMailV2Block, secretIds: ['apiKey'] },
+  { legacy: AgentPhoneBlock, successor: AgentPhoneV2Block, secretIds: ['apiKey'] },
+  { legacy: AhrefsBlock, successor: AhrefsV2Block, secretIds: ['apiKey'] },
+  { legacy: ApifyBlock, successor: ApifyV2Block, secretIds: ['apiKey'] },
+  { legacy: ApolloBlock, successor: ApolloV2Block, secretIds: ['apiKey'] },
+  { legacy: BrexBlock, successor: BrexV2Block, secretIds: ['apiKey'] },
+  { legacy: BrightDataBlock, successor: BrightDataV2Block, secretIds: ['apiKey'] },
+  { legacy: BrowserUseBlock, successor: BrowserUseV2Block, secretIds: ['apiKey'] },
+  { legacy: BufferBlock, successor: BufferV2Block, secretIds: ['apiKey'] },
+  { legacy: CirclebackBlock, successor: CirclebackV2Block, secretIds: ['apiKey'] },
+  { legacy: ClerkBlock, successor: ClerkV2Block, secretIds: ['secretKey'] },
+  { legacy: CloudflareBlock, successor: CloudflareV2Block, secretIds: ['apiKey'] },
+  { legacy: CrunchbaseBlock, successor: CrunchbaseV2Block, secretIds: ['apiKey'] },
+  { legacy: DaytonaBlock, successor: DaytonaV2Block, secretIds: ['apiKey'] },
+  { legacy: ElevenLabsBlock, successor: ElevenLabsV2Block, secretIds: ['apiKey'] },
+  { legacy: EnrichBlock, successor: EnrichV2Block, secretIds: ['apiKey'] },
+  { legacy: GammaBlock, successor: GammaV2Block, secretIds: ['apiKey'] },
+  { legacy: HexBlock, successor: HexV2Block, secretIds: ['apiKey'] },
+  { legacy: HuggingFaceBlock, successor: HuggingFaceV2Block, secretIds: ['apiKey'] },
+  { legacy: IncidentioBlock, successor: IncidentioV2Block, secretIds: ['apiKey'] },
+  { legacy: InstantlyBlock, successor: InstantlyV2Block, secretIds: ['apiKey'] },
+  { legacy: LangsmithBlock, successor: LangsmithV2Block, secretIds: ['apiKey'] },
+  { legacy: LaunchDarklyBlock, successor: LaunchDarklyV2Block, secretIds: ['apiKey'] },
+  { legacy: LinqBlock, successor: LinqV2Block, secretIds: ['apiKey'] },
+  { legacy: LoopsBlock, successor: LoopsV2Block, secretIds: ['apiKey'] },
+  { legacy: LumaBlock, successor: LumaV2Block, secretIds: ['apiKey'] },
+  { legacy: MailchimpBlock, successor: MailchimpV2Block, secretIds: ['apiKey'] },
+  { legacy: OtterBlock, successor: OtterV2Block, secretIds: ['apiKey'] },
+  { legacy: PersonaBlock, successor: PersonaV2Block, secretIds: ['apiKey'] },
+  { legacy: PineconeBlock, successor: PineconeV2Block, secretIds: ['apiKey'] },
+  { legacy: ProfoundBlock, successor: ProfoundV2Block, secretIds: ['apiKey'] },
+  { legacy: QuartrBlock, successor: QuartrV2Block, secretIds: ['apiKey'] },
+  { legacy: RB2BBlock, successor: RB2BV2Block, secretIds: ['apiKey'] },
+  { legacy: RipplingBlock, successor: RipplingV2Block, secretIds: ['apiKey'] },
+  { legacy: RocketlaneBlock, successor: RocketlaneV2Block, secretIds: ['apiKey'] },
+  { legacy: SemrushBlock, successor: SemrushV2Block, secretIds: ['apiKey'] },
+  { legacy: SendGridBlock, successor: SendGridV2Block, secretIds: ['apiKey'] },
+  { legacy: SimilarwebBlock, successor: SimilarwebV2Block, secretIds: ['apiKey'] },
+  { legacy: SixtyfourBlock, successor: SixtyfourV2Block, secretIds: ['apiKey'] },
+  { legacy: SmartleadBlock, successor: SmartleadV2Block, secretIds: ['apiKey'] },
+  { legacy: SportmonksBlock, successor: SportmonksV2Block, secretIds: ['apiKey'] },
+  { legacy: SquareBlock, successor: SquareV2Block, secretIds: ['apiKey'] },
+  { legacy: TailscaleBlock, successor: TailscaleV2Block, secretIds: ['apiKey'] },
+  { legacy: TriggerDevBlock, successor: TriggerDevV2Block, secretIds: ['apiKey'] },
+  { legacy: UptimeRobotBlock, successor: UptimeRobotV2Block, secretIds: ['apiKey'] },
+  { legacy: YouComBlock, successor: YouComV2Block, secretIds: ['apiKey'] },
+  { legacy: YouTubeBlock, successor: YouTubeV2Block, secretIds: ['apiKey'] },
 ]
 
 function valuesFor(ids: readonly string[], prefix: string): Record<string, string> {

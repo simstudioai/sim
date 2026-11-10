@@ -1,3 +1,4 @@
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/persona/credential'
 import type { PersonaAccountResponse, PersonaCreateAccountParams } from '@/tools/persona/types'
 import {
   ACCOUNT_OUTPUT_PROPERTIES,
@@ -20,6 +21,7 @@ export const personaCreateAccountTool: ToolConfig<
   description:
     'Create an account that represents an individual in Persona. Accounts consolidate inquiries, verifications, and reports for the same person.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

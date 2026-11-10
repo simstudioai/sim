@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type {
   IncidentioIncidentRolesShowParams,
   IncidentioIncidentRolesShowResponse,
@@ -12,6 +13,7 @@ export const incidentRolesShowTool: ToolConfig<
   name: 'Show Incident Role',
   description: 'Get details of a specific incident role in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

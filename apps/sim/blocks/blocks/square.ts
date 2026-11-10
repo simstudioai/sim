@@ -2,7 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { SquareIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 
 const CUSTOMER_NAME_FIELD = ['givenName', 'companyName', 'nickname'] as const
 
@@ -12,6 +12,8 @@ const CATALOG_IMAGE_FIELD = ['uploadFile', 'fileRef'] as const
 
 export const SquareBlock: BlockConfig = {
   type: 'square',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'square_v2' },
   name: 'Square',
   description: 'Process payments and manage Square commerce data',
   authMode: AuthMode.ApiKey,
@@ -1112,3 +1114,19 @@ export const SquareBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const SquareV2Block: BlockConfig = {
+  ...SquareBlock,
+  type: 'square_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Take and refund payments, manage customers, build catalog items and images, create and search orders, and issue invoices.',
+  ...withSavedCredential(SquareBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'square',
+    title: 'Square Credential',
+  }),
+}

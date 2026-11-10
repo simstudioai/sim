@@ -1,3 +1,4 @@
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/sendgrid/credential'
 import type { GetListParams, ListResult, SendGridList } from '@/tools/sendgrid/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const sendGridGetListTool: ToolConfig<GetListParams, ListResult> = {
   name: 'SendGrid Get List',
   description: 'Get a specific list by ID from SendGrid',
   version: '1.0.0',
+  oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

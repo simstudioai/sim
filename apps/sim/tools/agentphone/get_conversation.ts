@@ -1,3 +1,4 @@
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/agentphone/credential'
 import type {
   AgentPhoneConversationMessage,
   AgentPhoneGetConversationParams,
@@ -13,6 +14,7 @@ export const agentphoneGetConversationTool: ToolConfig<
   name: 'Get Conversation',
   description: 'Get a conversation along with its recent messages',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

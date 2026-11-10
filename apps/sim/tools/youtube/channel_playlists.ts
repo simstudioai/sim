@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { YOUTUBE_CREDENTIAL_OAUTH } from '@/tools/youtube/credential'
 import type {
   YouTubeChannelPlaylistsParams,
   YouTubeChannelPlaylistsResponse,
@@ -12,6 +13,7 @@ export const youtubeChannelPlaylistsTool: ToolConfig<
   name: 'YouTube Channel Playlists',
   description: 'Get all public playlists from a specific YouTube channel.',
   version: '1.1.0',
+  oauth: YOUTUBE_CREDENTIAL_OAUTH,
   params: {
     channelId: {
       type: 'string',

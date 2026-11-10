@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { YOUTUBE_CREDENTIAL_OAUTH } from '@/tools/youtube/credential'
 import type {
   YouTubeVideoCategoriesParams,
   YouTubeVideoCategoriesResponse,
@@ -13,6 +14,7 @@ export const youtubeVideoCategoriesTool: ToolConfig<
   description:
     'Get a list of video categories available on YouTube. Use this to discover valid category IDs for filtering search and trending results.',
   version: '1.0.0',
+  oauth: YOUTUBE_CREDENTIAL_OAUTH,
   params: {
     regionCode: {
       type: 'string',

@@ -1,3 +1,4 @@
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/buffer/credential'
 import { bufferOutputProperties, bufferSelection } from '@/tools/buffer/schema'
 import {
   BUFFER_API_URL,
@@ -15,6 +16,7 @@ export const bufferGetChannelTool: ToolConfig<BufferGetChannelParams, BufferChan
   description:
     'Get one connected channel, including its posting schedule, limits and network settings',
   version: '1.0.0',
+  oauth: BUFFER_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

@@ -1,3 +1,4 @@
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/persona/credential'
 import type {
   PersonaPrintInquiryPdfParams,
   PersonaPrintInquiryPdfResponse,
@@ -18,6 +19,7 @@ export const personaPrintInquiryPdfTool: ToolConfig<
   description:
     'Download a PDF summary of an inquiry, including its collected information and verification results.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

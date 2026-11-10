@@ -1,3 +1,4 @@
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexUploadReceiptParams, BrexUploadReceiptResponse } from '@/tools/brex/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const brexUploadReceiptTool: InternalToolConfig<
   name: 'Brex Upload Receipt',
   description: 'Upload a receipt file and attach it to a specific Brex card expense',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

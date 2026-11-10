@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/uptimerobot/credential'
 import {
   MONITOR_OUTPUT_PROPERTIES,
   mapMonitor,
@@ -17,6 +18,7 @@ export const uptimeRobotListMonitorsTool: ToolConfig<
   name: 'UptimeRobot List Monitors',
   description: 'List monitors in your UptimeRobot account, with optional filters and pagination',
   version: '1.0.0',
+  oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

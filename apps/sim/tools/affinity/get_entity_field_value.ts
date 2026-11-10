@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityEntityResponse,
   AffinityGetEntityFieldValueParams,
@@ -23,6 +24,7 @@ export const affinityGetEntityFieldValueTool: ToolConfig<
   name: 'Affinity Get Entity Field Value',
   description: 'Read one non-list field value from a company or person.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

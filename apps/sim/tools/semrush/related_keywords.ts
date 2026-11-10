@@ -1,3 +1,4 @@
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushRelatedKeywordsParams,
   SemrushRelatedKeywordsResponse,
@@ -22,6 +23,7 @@ export const semrushRelatedKeywordsTool: ToolConfig<
   description:
     'Find keywords semantically related to a seed keyword, with volume, difficulty, and relevance.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

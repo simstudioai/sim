@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/uptimerobot/credential'
 import {
   mapPsp,
   PSP_OUTPUT_PROPERTIES,
@@ -14,6 +15,7 @@ export const uptimeRobotGetPspTool: ToolConfig<UptimeRobotGetPspParams, UptimeRo
   name: 'UptimeRobot Get Status Page',
   description: 'Get the details of a single UptimeRobot public status page by ID',
   version: '1.0.0',
+  oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

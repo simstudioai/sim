@@ -1,3 +1,4 @@
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import {
   ACTION_ITEM_OUTPUT_PROPERTIES,
   type CirclebackActionItemListResponse,
@@ -24,6 +25,7 @@ export const listActionItemsTool: ToolConfig<
   description:
     'Lists action items across the authenticated user meetings, filtered by assignee, status, tags, and attendees. Defaults to incomplete action items assigned to the API key owner.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/persona/credential'
 import type { PersonaDocumentResponse, PersonaGetDocumentParams } from '@/tools/persona/types'
 import {
   asResource,
@@ -16,6 +17,7 @@ export const personaGetDocumentTool: ToolConfig<PersonaGetDocumentParams, Person
     description:
       'Retrieve a single document by ID (government ID, generic document, and more), including its processing status and uploaded files.',
     version: '1.0.0',
+    oauth: PERSONA_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

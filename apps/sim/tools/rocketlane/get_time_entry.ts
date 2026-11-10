@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapTimeEntry,
   ROCKETLANE_API_BASE,
@@ -17,6 +18,7 @@ export const rocketlaneGetTimeEntryTool: ToolConfig<
   name: 'Rocketlane Get Time Entry',
   description: 'Get a single Rocketlane time entry by ID',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

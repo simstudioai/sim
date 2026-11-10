@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/trigger_dev/credential'
 import type {
   TriggerDevOverrideQueueConcurrencyParams,
   TriggerDevQueueResponse,
@@ -18,6 +19,7 @@ export const triggerDevOverrideQueueConcurrencyTool: ToolConfig<
   name: 'Trigger.dev Override Queue Concurrency',
   description: 'Override the concurrency limit of a Trigger.dev queue with a new value.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

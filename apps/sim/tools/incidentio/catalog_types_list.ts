@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import {
   INCIDENTIO_CATALOG_TYPE_OUTPUT_PROPERTIES,
   type IncidentioCatalogTypesListParams,
@@ -14,6 +15,7 @@ export const catalogTypesListTool: ToolConfig<
   description:
     'List all catalog types in incident.io, including those synced from external resources. Use this to find the catalog type ID needed to list entries.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityCollectionResponse, AffinityListMergesParams } from '@/tools/affinity/types'
 import { MERGE_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import {
@@ -20,6 +21,7 @@ export const affinityListMergesTool: ToolConfig<
   description:
     'Page through the company or person merges the organization has run, with the status and the records involved in each.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

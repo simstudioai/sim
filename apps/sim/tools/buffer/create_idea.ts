@@ -1,4 +1,5 @@
 import { toRecord } from '@sim/utils/object'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/buffer/credential'
 import { bufferInputDescription, parseBufferInput } from '@/tools/buffer/schema'
 import {
   BUFFER_API_URL,
@@ -36,6 +37,7 @@ export const bufferCreateIdeaTool: ToolConfig<BufferCreateIdeaParams, BufferIdea
   name: 'Buffer Create Idea',
   description: 'Save a content idea to a Buffer organization for later drafting and scheduling',
   version: '1.0.0',
+  oauth: BUFFER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

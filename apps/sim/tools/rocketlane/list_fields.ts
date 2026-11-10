@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   FIELD_OUTPUT_PROPERTIES,
   mapField,
@@ -20,6 +21,7 @@ export const rocketlaneListFieldsTool: ToolConfig<
   description:
     'List fields in your Rocketlane account, with optional filters, sorting, and pagination',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

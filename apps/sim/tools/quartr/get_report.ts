@@ -1,3 +1,4 @@
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/quartr/credential'
 import {
   QUARTR_DOCUMENT_OUTPUT_PROPERTIES,
   type QuartrDocumentDto,
@@ -15,6 +16,7 @@ export const quartrGetReportTool: ToolConfig<QuartrGetReportParams, QuartrGetDoc
     description:
       'Retrieve a filing or report (10-K, 10-Q, earnings release, etc.) from Quartr by its document ID and download the PDF file.',
     version: '1.0.0',
+    oauth: QUARTR_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

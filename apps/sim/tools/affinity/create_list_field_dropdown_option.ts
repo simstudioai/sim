@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityCreateListFieldDropdownOptionParams,
   AffinityEntityResponse,
@@ -23,6 +24,7 @@ export const affinityCreateListFieldDropdownOptionTool: ToolConfig<
   description:
     'Add a selectable option to a dropdown field on a list. A ranked or status option also needs a rank and a color.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

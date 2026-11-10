@@ -1,3 +1,4 @@
+import { RB2B_CREDENTIAL_OAUTH } from '@/tools/rb2b/credential'
 import {
   RB2B_MAID_RESULT_OUTPUT_PROPERTIES,
   type Rb2bIdentifierParams,
@@ -12,6 +13,7 @@ export const rb2bHemToMaidTool: ToolConfig<Rb2bIdentifierParams, Rb2bMaidRespons
   description:
     'Return up to five mobile advertising identifiers (MAIDs) associated with an email address or MD5-hashed email.',
   version: '1.0.0',
+  oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

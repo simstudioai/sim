@@ -1,3 +1,4 @@
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/circleback/credential'
 import type {
   CirclebackCompanyListResponse,
   CirclebackListCompaniesParams,
@@ -21,6 +22,7 @@ export const listCompaniesTool: ToolConfig<
   description:
     'Lists the companies whose people attend the authenticated user meetings, with optional tag filters.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type {
   IncidentioScheduleOverridesListParams,
   IncidentioScheduleOverridesListResponse,
@@ -13,6 +14,7 @@ export const scheduleOverridesListTool: ToolConfig<
   description:
     'List the one-off overrides layered on top of a schedule in incident.io, such as someone covering a colleague’s shift',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

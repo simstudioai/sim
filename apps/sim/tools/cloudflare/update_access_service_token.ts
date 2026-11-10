@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareUpdateAccessServiceTokenParams,
   CloudflareUpdateAccessServiceTokenResponse,
@@ -22,6 +23,7 @@ export const updateAccessServiceTokenTool: ToolConfig<
   description:
     'Updates a configured service token. Replaces the configuration; resend all values to retain.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {
       type: 'string',

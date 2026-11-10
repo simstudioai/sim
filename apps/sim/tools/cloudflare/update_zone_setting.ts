@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import { mapZoneSetting } from '@/tools/cloudflare/get_zone_settings'
 import type {
   CloudflareRawZoneSetting,
@@ -18,6 +19,7 @@ export const updateZoneSettingTool: ToolConfig<
   description:
     'Updates a specific zone setting such as SSL mode, security level, cache level, or other configuration.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     enabled: {

@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/trigger_dev/credential'
 import type {
   TriggerDevScheduleIdParams,
   TriggerDevScheduleResponse,
@@ -18,6 +19,7 @@ export const triggerDevGetScheduleTool: ToolConfig<
   name: 'Trigger.dev Get Schedule',
   description: 'Retrieve a Trigger.dev schedule by its ID.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapProject,
   PROJECT_OUTPUT_PROPERTIES,
@@ -17,6 +18,7 @@ export const rocketlaneGetProjectTool: ToolConfig<
   name: 'Rocketlane Get Project',
   description: 'Retrieve a Rocketlane project by its unique identifier',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

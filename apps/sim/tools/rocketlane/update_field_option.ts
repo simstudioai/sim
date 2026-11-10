@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   FIELD_OPTION_OUTPUT_PROPERTIES,
   mapFieldOption,
@@ -18,6 +19,7 @@ export const rocketlaneUpdateFieldOptionTool: ToolConfig<
   description:
     'Update the label or color of an existing option on a SINGLE_CHOICE or MULTIPLE_CHOICE Rocketlane field',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

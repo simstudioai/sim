@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityBatchOperationResponse,
   AffinityBatchUpdateEntityFieldsParams,
@@ -24,6 +25,7 @@ export const affinityBatchUpdateEntityFieldsTool: ToolConfig<
   description:
     'Write up to 100 non-list field values on one company or person in a single request.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

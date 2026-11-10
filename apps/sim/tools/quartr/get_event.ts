@@ -1,3 +1,4 @@
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/quartr/credential'
 import {
   QUARTR_EVENT_OUTPUT_PROPERTIES,
   type QuartrEventDto,
@@ -13,6 +14,7 @@ export const quartrGetEventTool: ToolConfig<QuartrGetEventParams, QuartrGetEvent
   name: 'Quartr Get Event',
   description: 'Retrieve a single corporate event from Quartr by its event ID.',
   version: '1.0.0',
+  oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/hex/credential'
 import type { HexGetDataConnectionParams, HexGetDataConnectionResponse } from '@/tools/hex/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -10,6 +11,7 @@ export const getDataConnectionTool: ToolConfig<
   description:
     'Retrieve details for a specific data connection including type, description, and configuration flags.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/quartr/credential'
 import {
   QUARTR_COMPANY_OUTPUT_PROPERTIES,
   type QuartrCompanyDto,
@@ -23,6 +24,7 @@ export const quartrListCompaniesTool: ToolConfig<
   description:
     'List companies covered by Quartr, filterable by ticker, ISIN, CIK, OpenFIGI, country, and exchange.',
   version: '1.0.0',
+  oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

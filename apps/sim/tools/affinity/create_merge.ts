@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityCreateMergeParams,
   AffinityMergeAcceptedResponse,
@@ -24,6 +25,7 @@ export const affinityCreateMergeTool: ToolConfig<
   description:
     'Fold a duplicate company or person into the record you are keeping. The merge runs asynchronously — poll the returned task to see it finish. Requires the "Manage duplicates" permission and an admin role.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

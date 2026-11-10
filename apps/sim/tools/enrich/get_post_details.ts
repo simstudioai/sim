@@ -1,3 +1,4 @@
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/enrich/credential'
 import type { EnrichGetPostDetailsParams, EnrichGetPostDetailsResponse } from '@/tools/enrich/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const getPostDetailsTool: ToolConfig<
   name: 'Enrich Get Post Details',
   description: 'Get detailed information about a LinkedIn post by URL.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

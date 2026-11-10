@@ -1,3 +1,4 @@
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/enrich/credential'
 import type {
   EnrichSearchSimilarCompaniesParams,
   EnrichSearchSimilarCompaniesResponse,
@@ -13,6 +14,7 @@ export const searchSimilarCompaniesTool: ToolConfig<
   description:
     'Find companies similar to a given company by LinkedIn URL with filters for location and size.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { LUMA_CREDENTIAL_OAUTH } from '@/tools/luma/credential'
 import type { LumaCreateEventParams, LumaCreateEventResponse } from '@/tools/luma/types'
 import {
   LUMA_EVENT_OUTPUT_PROPERTIES,
@@ -12,6 +13,7 @@ export const createEventTool: ToolConfig<LumaCreateEventParams, LumaCreateEventR
   description:
     'Create a new event on Luma with a name, start time, timezone, and optional details like description, location, and visibility.',
   version: '1.0.0',
+  oauth: LUMA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/enrich/credential'
 import type {
   EnrichReverseHashLookupParams,
   EnrichReverseHashLookupResponse,
@@ -12,6 +13,7 @@ export const reverseHashLookupTool: ToolConfig<
   name: 'Enrich Reverse Hash Lookup',
   description: 'Convert an MD5 email hash back to the original email address and display name.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

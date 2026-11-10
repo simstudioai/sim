@@ -1,4 +1,5 @@
 import { toRecord } from '@sim/utils/object'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/buffer/credential'
 import {
   BUFFER_API_URL,
   type BufferDeletePostParams,
@@ -27,6 +28,7 @@ export const bufferDeletePostTool: ToolConfig<BufferDeletePostParams, BufferDele
   name: 'Buffer Delete Post',
   description: 'Delete a Buffer post by ID',
   version: '1.0.0',
+  oauth: BUFFER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

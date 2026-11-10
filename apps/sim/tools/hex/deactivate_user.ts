@@ -1,3 +1,4 @@
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/hex/credential'
 import type { HexDeactivateUserParams, HexDeactivateUserResponse } from '@/tools/hex/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const deactivateUserTool: ToolConfig<HexDeactivateUserParams, HexDeactiva
   name: 'Hex Deactivate User',
   description: 'Deactivate a user in the Hex workspace.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/linq/credential'
 import type { LinqChatActionParams, LinqSuccessResult } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const linqStartTypingTool: ToolConfig<LinqChatActionParams, LinqSuccessRe
   name: 'Start Typing Indicator',
   description: 'Show a typing indicator in a one-on-one chat (iMessage only, not group chats)',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

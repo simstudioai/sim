@@ -1,3 +1,4 @@
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/agentphone/credential'
 import type {
   AgentPhoneGetNumberMessagesParams,
   AgentPhoneGetNumberMessagesResult,
@@ -12,6 +13,7 @@ export const agentphoneGetNumberMessagesTool: ToolConfig<
   name: 'Get Phone Number Messages',
   description: 'Fetch messages received on a specific phone number',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import { ZONE_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareCreateZoneParams,
@@ -17,6 +18,7 @@ export const createZoneTool: ToolConfig<CloudflareCreateZoneParams, CloudflareCr
     name: 'Cloudflare Create Zone',
     description: 'Adds a new zone (domain) to the Cloudflare account.',
     version: '1.0.0',
+    oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
     params: {
       name: {

@@ -1,3 +1,4 @@
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/rippling/credential'
 import type { RipplingListCustomAppsParams } from '@/tools/rippling/types'
 import { CUSTOM_APP_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const ripplingListCustomAppsTool: ToolConfig<RipplingListCustomAppsParams
   name: 'Rippling List CustomApps',
   description: 'List all custom apps',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

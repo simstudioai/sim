@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityAcknowledgementResponse,
   AffinityDeleteNoteParams,
@@ -21,6 +22,7 @@ export const affinityDeleteNoteTool: ToolConfig<
   description:
     'Delete a note you created. Deleting a root note also deletes its replies; deleting a reply removes only that reply.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

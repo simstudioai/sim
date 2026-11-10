@@ -1,3 +1,4 @@
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/quartr/credential'
 import {
   QUARTR_DOCUMENT_TYPE_OUTPUT_PROPERTIES,
   type QuartrDocumentTypeDto,
@@ -17,6 +18,7 @@ export const quartrListDocumentTypesTool: ToolConfig<
   description:
     'List the document types available in Quartr (e.g., 10-Q quarterly reports), useful for filtering documents by type ID.',
   version: '1.0.0',
+  oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

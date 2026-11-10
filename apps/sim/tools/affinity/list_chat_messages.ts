@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityCollectionResponse, AffinityFilterParams } from '@/tools/affinity/types'
 import { CHAT_MESSAGE_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import { affinityHeaders, buildAffinityUrl, transformCollection } from '@/tools/affinity/utils'
@@ -13,6 +14,7 @@ export const affinityListChatMessagesTool: ToolConfig<
   description:
     'Page through logged chat messages and their participants. Only messages the API key holder can see are returned.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

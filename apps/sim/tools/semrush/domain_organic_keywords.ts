@@ -1,3 +1,4 @@
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushDomainOrganicKeywordsParams,
   SemrushDomainOrganicKeywordsResponse,
@@ -38,6 +39,7 @@ export const semrushDomainOrganicKeywordsTool: ToolConfig<
   description:
     'List the keywords a domain ranks for in Google organic search, with position, volume, and traffic share.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

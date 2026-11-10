@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   ROCKETLANE_API_BASE,
   type RocketlaneDeleteSpaceDocumentParams,
@@ -15,6 +16,7 @@ export const rocketlaneDeleteSpaceDocumentTool: ToolConfig<
   name: 'Rocketlane Delete Space Document',
   description: 'Permanently delete a Rocketlane space document by its ID',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

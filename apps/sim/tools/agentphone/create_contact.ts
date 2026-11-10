@@ -1,3 +1,4 @@
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/agentphone/credential'
 import type {
   AgentPhoneCreateContactParams,
   AgentPhoneCreateContactResult,
@@ -12,6 +13,7 @@ export const agentphoneCreateContactTool: ToolConfig<
   name: 'Create Contact',
   description: 'Create a new contact in AgentPhone',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

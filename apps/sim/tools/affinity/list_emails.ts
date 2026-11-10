@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityCollectionResponse, AffinityFilterParams } from '@/tools/affinity/types'
 import { EMAIL_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import { affinityHeaders, buildAffinityUrl, transformCollection } from '@/tools/affinity/utils'
@@ -13,6 +14,7 @@ export const affinityListEmailsTool: ToolConfig<
   description:
     'Page through email metadata — subject, participants, and timestamps. Affinity never exposes email bodies through the API.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

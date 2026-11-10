@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapPagination,
   mapTimeOff,
@@ -20,6 +21,7 @@ export const rocketlaneListTimeOffsTool: ToolConfig<
   description:
     'List time-offs in Rocketlane with optional date, type, and user filters, sorting, and pagination',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

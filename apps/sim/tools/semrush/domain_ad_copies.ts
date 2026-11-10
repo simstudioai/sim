@@ -1,3 +1,4 @@
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushDomainAdCopiesParams,
   SemrushDomainAdCopiesResponse,
@@ -22,6 +23,7 @@ export const semrushDomainAdCopiesTool: ToolConfig<
   description:
     'List the unique Google Ads creatives a domain runs, with title, description, and keyword count.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

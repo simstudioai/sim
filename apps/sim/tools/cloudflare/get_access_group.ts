@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareGetAccessGroupParams,
   CloudflareGetAccessGroupResponse,
@@ -21,6 +22,7 @@ export const getAccessGroupTool: ToolConfig<
   name: 'Cloudflare Get Access Group',
   description: 'Fetches a single Access group.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {
       type: 'string',

@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type {
   IncidentioFollowUpsShowParams,
   IncidentioFollowUpsShowResponse,
@@ -12,6 +13,7 @@ export const followUpsShowTool: ToolConfig<
   name: 'incident.io Follow-ups Show',
   description: 'Get detailed information about a specific follow-up from incident.io.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

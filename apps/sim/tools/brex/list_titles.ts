@@ -1,3 +1,4 @@
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexListTitlesResponse, BrexNameFilterParams } from '@/tools/brex/types'
 import {
   appendBrexPagination,
@@ -12,6 +13,7 @@ export const brexListTitlesTool: ToolConfig<BrexNameFilterParams, BrexListTitles
   name: 'Brex List Titles',
   description: 'List job titles in the Brex account, optionally filtered by name',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

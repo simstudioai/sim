@@ -1,4 +1,5 @@
 import { toStringOrNull } from '@sim/utils/coerce'
+import { OTTER_CREDENTIAL_OAUTH } from '@/tools/otter/credential'
 import type {
   OtterGetConversationAudioParams,
   OtterGetConversationAudioResponse,
@@ -21,6 +22,7 @@ export const otterGetConversationAudioTool: ToolConfig<
   name: 'Otter Get Conversation Audio',
   description: 'Get the MP3 audio download link for an Otter conversation.',
   version: '1.0.0',
+  oauth: OTTER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

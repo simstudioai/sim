@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityCollectionResponse,
   AffinityListListEntryFieldsParams,
@@ -22,6 +23,7 @@ export const affinityListListEntryFieldsTool: ToolConfig<
   description:
     'Page through every field value on one list row, including the list-specific columns. All fields are returned unless narrowed.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

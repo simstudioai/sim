@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityCollectionResponse, AffinityFilterParams } from '@/tools/affinity/types'
 import { MEETING_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import { affinityHeaders, buildAffinityUrl, transformCollection } from '@/tools/affinity/utils'
@@ -12,6 +13,7 @@ export const affinityListMeetingsTool: ToolConfig<
   name: 'Affinity List Meetings',
   description: 'Page through past and upcoming meetings with their organizer and attendees.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

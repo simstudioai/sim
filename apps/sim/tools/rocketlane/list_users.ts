@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapPagination,
   mapUser,
@@ -20,6 +21,7 @@ export const rocketlaneListUsersTool: ToolConfig<
   description:
     'List users in your Rocketlane account, with optional filters, sorting, and pagination',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

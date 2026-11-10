@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type {
   IncidentioIncidentTypesListParams,
   IncidentioIncidentTypesListResponse,
@@ -13,6 +14,7 @@ export const incidentTypesListTool: ToolConfig<
   description:
     'List all incident types configured in your Incident.io workspace. Returns type details including id, name, description, and default flag.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

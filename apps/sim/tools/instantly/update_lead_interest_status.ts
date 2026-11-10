@@ -1,4 +1,5 @@
 import { toRecord } from '@sim/utils/object'
+import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/instantly/credential'
 import type {
   InstantlyUpdateLeadInterestStatusParams,
   InstantlyUpdateLeadInterestStatusResponse,
@@ -20,6 +21,7 @@ export const updateLeadInterestStatusTool: ToolConfig<
   name: 'Instantly Update Lead Interest Status',
   description: 'Submits an Instantly V2 background job to update a lead interest status.',
   version: '1.0.0',
+  oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,
     lead_email: {

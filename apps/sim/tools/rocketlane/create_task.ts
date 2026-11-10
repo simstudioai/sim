@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   buildTaskMembers,
   mapTask,
@@ -18,6 +19,7 @@ export const rocketlaneCreateTaskTool: ToolConfig<
   name: 'Rocketlane Create Task',
   description: 'Create a new task in a Rocketlane project',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

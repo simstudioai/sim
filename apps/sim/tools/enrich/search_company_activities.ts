@@ -1,3 +1,4 @@
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/enrich/credential'
 import type {
   EnrichSearchCompanyActivitiesParams,
   EnrichSearchCompanyActivitiesResponse,
@@ -12,6 +13,7 @@ export const searchCompanyActivitiesTool: ToolConfig<
   name: 'Enrich Search Company Activities',
   description: "Get a company's LinkedIn activities (posts, comments, or articles) by company ID.",
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   FIELD_OUTPUT_PROPERTIES,
   mapField,
@@ -18,6 +19,7 @@ export const rocketlaneCreateFieldTool: ToolConfig<
   description:
     'Create a custom field in your Rocketlane account, with options for SINGLE_CHOICE and MULTIPLE_CHOICE field types',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   INVOICE_OUTPUT_PROPERTIES,
   mapInvoice,
@@ -20,6 +21,7 @@ export const rocketlaneListInvoicesTool: ToolConfig<
   description:
     'Search invoices in Rocketlane with date, amount, company, invoice-number, and status filters, sorting, and pagination',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

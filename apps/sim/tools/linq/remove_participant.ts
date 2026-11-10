@@ -1,3 +1,4 @@
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/linq/credential'
 import type { LinqParticipantParams, LinqQueuedResult } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const linqRemoveParticipantTool: ToolConfig<LinqParticipantParams, LinqQu
   name: 'Remove Participant',
   description: 'Remove a participant from a group chat (minimum 3 participants must remain)',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/agentphone/credential'
 import type {
   AgentPhoneGetContactParams,
   AgentPhoneGetContactResult,
@@ -12,6 +13,7 @@ export const agentphoneGetContactTool: ToolConfig<
   name: 'Get Contact',
   description: 'Fetch a single contact by ID',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityCollectionResponse,
   AffinitySearchEntitiesParams,
@@ -22,6 +23,7 @@ export const affinitySearchCompaniesTool: ToolConfig<
   description:
     'Search companies by filters, sorts, and a free-text term. Requires the "Export All Organizations directory" permission.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

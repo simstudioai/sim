@@ -1,3 +1,4 @@
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexArchiveBudgetParams, BrexArchiveBudgetResponse } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson } from '@/tools/brex/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -9,6 +10,7 @@ export const brexArchiveBudgetTool: ToolConfig<BrexArchiveBudgetParams, BrexArch
     description:
       'Archive a Brex budget, making any spend limits beneath it unusable for future expenses and removing it from the UI',
     version: '1.0.0',
+    oauth: BREX_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

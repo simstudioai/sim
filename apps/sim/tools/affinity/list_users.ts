@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type { AffinityCollectionResponse, AffinityListUsersParams } from '@/tools/affinity/types'
 import { USER_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import { affinityHeaders, buildAffinityUrl, transformCollection } from '@/tools/affinity/utils'
@@ -13,6 +14,7 @@ export const affinityListUsersTool: ToolConfig<
   description:
     'Page through the internal users in the organization. Email addresses and roles are returned only to callers with the "Manage Users" permission.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

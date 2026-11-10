@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   mapProject,
   PROJECT_OUTPUT_PROPERTIES,
@@ -18,6 +19,7 @@ export const rocketlaneUpdateProjectTool: ToolConfig<
   description:
     'Update a Rocketlane project by ID, including name, dates, visibility, owner, status, and custom fields',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

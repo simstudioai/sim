@@ -1,3 +1,4 @@
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/cloudflare/credential'
 import type {
   CloudflareDeleteDnsRecordParams,
   CloudflareDeleteDnsRecordResponse,
@@ -13,6 +14,7 @@ export const deleteDnsRecordTool: ToolConfig<
   name: 'Cloudflare Delete DNS Record',
   description: 'Deletes a DNS record from a zone.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     zoneId: {

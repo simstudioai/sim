@@ -1,3 +1,4 @@
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/rocketlane/credential'
 import {
   buildTaskMembers,
   mapTask,
@@ -18,6 +19,7 @@ export const rocketlaneRemoveTaskAssigneesTool: ToolConfig<
   name: 'Rocketlane Remove Task Assignees',
   description: 'Remove assignees from a Rocketlane task',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type {
   IncidentioSchedulesUpdateParams,
   IncidentioSchedulesUpdateResponse,
@@ -12,6 +13,7 @@ export const schedulesUpdateTool: ToolConfig<
   name: 'Update Schedule',
   description: 'Update an existing schedule in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

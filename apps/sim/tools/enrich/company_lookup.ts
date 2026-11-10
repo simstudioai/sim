@@ -1,3 +1,4 @@
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/enrich/credential'
 import type { EnrichCompanyLookupParams, EnrichCompanyLookupResponse } from '@/tools/enrich/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -8,6 +9,7 @@ export const companyLookupTool: ToolConfig<EnrichCompanyLookupParams, EnrichComp
     description:
       'Look up company information by name or domain, including funding, location, and social profiles.',
     version: '1.0.0',
+    oauth: ENRICH_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

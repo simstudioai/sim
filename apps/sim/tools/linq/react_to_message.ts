@@ -1,3 +1,4 @@
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/linq/credential'
 import type { LinqQueuedResult, LinqReactToMessageParams } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const linqReactToMessageTool: ToolConfig<LinqReactToMessageParams, LinqQu
   name: 'React to Message',
   description: 'Add or remove a tapback reaction on a message',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

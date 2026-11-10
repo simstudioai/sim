@@ -1,3 +1,4 @@
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/affinity/credential'
 import type {
   AffinityAcknowledgementResponse,
   AffinityDeleteListFieldDropdownOptionParams,
@@ -22,6 +23,7 @@ export const affinityDeleteListFieldDropdownOptionTool: ToolConfig<
   description:
     'Permanently delete a dropdown option on a list field. Every list entry currently set to it is cleared, and those values cannot be recovered.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

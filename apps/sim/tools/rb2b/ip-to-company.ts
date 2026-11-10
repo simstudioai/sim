@@ -1,3 +1,4 @@
+import { RB2B_CREDENTIAL_OAUTH } from '@/tools/rb2b/credential'
 import {
   RB2B_COMPANY_RESULT_OUTPUT_PROPERTIES,
   type Rb2bIpToCompanyParams,
@@ -11,6 +12,7 @@ export const rb2bIpToCompanyTool: ToolConfig<Rb2bIpToCompanyParams, Rb2bIpToComp
   name: 'RB2B IP to Company',
   description: 'Identify the company domains associated with an IP address, ranked by confidence.',
   version: '1.0.0',
+  oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

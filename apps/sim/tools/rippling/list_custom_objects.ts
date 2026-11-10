@@ -1,3 +1,4 @@
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/rippling/credential'
 import type { RipplingListCustomObjectsParams } from '@/tools/rippling/types'
 import { CUSTOM_OBJECT_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const ripplingListCustomObjectsTool: ToolConfig<RipplingListCustomObjects
   name: 'Rippling List Custom Objects',
   description: 'List all custom objects',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

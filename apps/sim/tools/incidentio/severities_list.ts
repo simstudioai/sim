@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type {
   IncidentioSeveritiesListParams,
   IncidentioSeveritiesListResponse,
@@ -13,6 +14,7 @@ export const severitiesListTool: ToolConfig<
   description:
     'List all severity levels configured in your Incident.io workspace. Returns severity details including id, name, description, and rank.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

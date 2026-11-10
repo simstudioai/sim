@@ -1,3 +1,4 @@
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/enrich/credential'
 import type { EnrichSearchPeopleParams, EnrichSearchPeopleResponse } from '@/tools/enrich/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -7,6 +8,7 @@ export const searchPeopleTool: ToolConfig<EnrichSearchPeopleParams, EnrichSearch
   description:
     'Search for professionals by various criteria including name, title, skills, education, and company.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

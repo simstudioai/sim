@@ -1,3 +1,4 @@
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexApiKeyParams, BrexListCardAccountsResponse } from '@/tools/brex/types'
 import { BREX_MONEY_PROPERTIES } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson } from '@/tools/brex/utils'
@@ -9,6 +10,7 @@ export const brexListCardAccountsTool: ToolConfig<BrexApiKeyParams, BrexListCard
     name: 'Brex List Card Accounts',
     description: 'List all Brex card accounts with balances and limits',
     version: '1.0.0',
+    oauth: BREX_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

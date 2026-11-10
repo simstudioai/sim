@@ -1,3 +1,4 @@
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexApiKeyParams, BrexGetCompanyResponse } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson } from '@/tools/brex/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const brexGetCompanyTool: ToolConfig<BrexApiKeyParams, BrexGetCompanyResp
   name: 'Brex Get Company',
   description: 'Get the Brex company associated with the API token',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

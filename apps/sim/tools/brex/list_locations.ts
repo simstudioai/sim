@@ -1,3 +1,4 @@
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/brex/credential'
 import type { BrexListLocationsResponse, BrexNameFilterParams } from '@/tools/brex/types'
 import {
   appendBrexPagination,
@@ -12,6 +13,7 @@ export const brexListLocationsTool: ToolConfig<BrexNameFilterParams, BrexListLoc
   name: 'Brex List Locations',
   description: 'List locations in the Brex account, optionally filtered by name',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

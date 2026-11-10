@@ -1,3 +1,4 @@
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/sendgrid/credential'
 import type { RemoveContactsFromListParams } from '@/tools/sendgrid/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const sendGridRemoveContactsFromListTool: ToolConfig<
   name: 'SendGrid Remove Contacts from List',
   description: 'Remove contacts from a specific list in SendGrid',
   version: '1.0.0',
+  oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

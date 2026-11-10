@@ -1,3 +1,4 @@
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/rippling/credential'
 import type { RipplingListCustomPagesParams } from '@/tools/rippling/types'
 import { CUSTOM_PAGE_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const ripplingListCustomPagesTool: ToolConfig<RipplingListCustomPagesPara
   name: 'Rippling List CustomPages',
   description: 'List all custom pages',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

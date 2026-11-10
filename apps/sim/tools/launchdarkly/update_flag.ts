@@ -1,3 +1,4 @@
+import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/launchdarkly/credential'
 import type {
   LaunchDarklyUpdateFlagParams,
   LaunchDarklyUpdateFlagResponse,
@@ -14,6 +15,7 @@ export const launchDarklyUpdateFlagTool: ToolConfig<
   description:
     'Update feature flag metadata (name, description, tags, temporary, archived) using semantic patch.',
   version: '1.0.0',
+  oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

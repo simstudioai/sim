@@ -1,3 +1,4 @@
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/incidentio/credential'
 import type { WorkflowsShowParams, WorkflowsShowResponse } from '@/tools/incidentio/types'
 import { INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES } from '@/tools/incidentio/types'
 import { mapIncidentioWorkflow } from '@/tools/incidentio/utils'
@@ -8,6 +9,7 @@ export const workflowsShowTool: ToolConfig<WorkflowsShowParams, WorkflowsShowRes
   name: 'incident.io Workflows Show',
   description: 'Get details of a specific workflow in incident.io.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

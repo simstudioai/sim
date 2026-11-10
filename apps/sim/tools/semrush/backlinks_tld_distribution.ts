@@ -1,3 +1,4 @@
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushBacklinksTldDistributionParams,
   SemrushBacklinksTldDistributionResponse,
@@ -22,6 +23,7 @@ export const semrushBacklinksTldDistributionTool: ToolConfig<
   description:
     'Break a target’s backlink profile down by the top-level domain of its referring domains.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

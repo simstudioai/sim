@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/clerk/credential'
 import type {
   ClerkApiError,
   ClerkOrganization,
@@ -17,6 +18,7 @@ export const clerkUpdateOrganizationTool: ToolConfig<
   name: 'Update Organization in Clerk',
   description: 'Update an existing organization in your Clerk application',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {
