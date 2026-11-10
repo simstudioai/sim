@@ -56,12 +56,11 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {
-      const body: Record<string, any> = {
+      const body: Record<string, unknown> = {
         query: params.query,
+        limit: params.limit ? Number(params.limit) : 5,
       }
 
-      // Add optional parameters if provided (truthy check filters empty strings, null, undefined)
-      if (params.limit) body.limit = Number(params.limit)
       if (params.sources) body.sources = params.sources
       if (params.categories) body.categories = params.categories
       if (params.tbs) body.tbs = params.tbs
@@ -77,12 +76,15 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data: {
+      data?: { web?: SearchResponse['output']['data'] }
+      creditsUsed?: number
+    } = await response.json()
 
     return {
       success: true,
       output: {
-        data: data.data,
+        data: data.data?.web ?? [],
         creditsUsed: data.creditsUsed,
       },
     }
