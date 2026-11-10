@@ -26,7 +26,11 @@ describe('GitLab saved token verification', () => {
 
     await expect(
       validateGitLabServiceAccount({ apiToken: 'glpat-x', domain: 'https://gitlab.example.com/' })
-    ).resolves.toMatchObject({ normalizedDomain: 'gitlab.example.com' })
+    ).resolves.toMatchObject({
+      normalizedDomain: 'gitlab.example.com',
+      displayName: 'sim-workflows (gitlab.example.com)',
+      auditMetadata: { domain: 'gitlab.example.com' },
+    })
     expect(fetch).toHaveBeenCalledWith(
       'https://gitlab.example.com/api/v4/personal_access_tokens/self',
       expect.objectContaining({ maxRedirects: 0, profile: 'configuredEndpoint' })

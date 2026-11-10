@@ -160,6 +160,7 @@ export const BLOCK_ACCESS_SUCCESSORS: Record<string, string> = {
   telegram: 'telegram_v2',
   textract: 'textract_v3',
   textract_v2: 'textract_v3',
+  thrive: 'thrive_v2',
   tinybird: 'tinybird_v2',
   trigger_dev: 'trigger_dev_v2',
   twilio_sms: 'twilio_sms_v2',

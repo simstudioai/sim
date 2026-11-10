@@ -66,6 +66,11 @@ interface TokenCheck {
    */
   acceptsBody?: (body: unknown) => boolean
   /**
+   * Names the credential from the verified reply (a GitLab token's name), used
+   * as its default display name alongside the domain or account id.
+   */
+  describe?: (body: unknown) => string | undefined
+  /**
    * For a vendor whose error status alone doesn't say the key is bad (Fireflies
    * returns 500 with `auth_failed`; Brex returns its scope-error 403 for an
    * unknown key): returns whether the error body names a bad key. Checked
@@ -152,10 +157,14 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
       ...(domain === undefined ? {} : { domain }),
       ...(workspaceId === undefined ? {} : { providerWorkspaceId: workspaceId }),
     }
+    const where = domain ?? workspaceId
     const accepted: TokenServiceAccountValidationResult = {
-      displayName: domain ? `${check.serviceLabel} (${domain})` : check.serviceLabel,
+      displayName: where ? `${check.serviceLabel} (${where})` : check.serviceLabel,
       principal: null,
-      auditMetadata: {},
+      auditMetadata: {
+        ...(domain === undefined ? {} : { domain }),
+        ...(workspaceId === undefined ? {} : { accountId: workspaceId }),
+      },
       ...(domain === undefined ? {} : { normalizedDomain: domain }),
     }
     const request = check.request(fields)
@@ -234,7 +243,8 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
       if (!check.acceptsBody(body)) {
         throw new TokenServiceAccountValidationError('invalid_credentials', 400, { step: 'verify' })
       }
-      return accepted
+      const name = check.describe?.(body)
+      return name ? { ...accepted, displayName: where ? `${name} (${where})` : name } : accepted
     }
     await response.body?.cancel().catch(() => undefined)
     return accepted

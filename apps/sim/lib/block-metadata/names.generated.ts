@@ -289,7 +289,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   temporal: 'Temporal',
   textract_v3: 'AWS Textract',
   thinking: 'Thinking',
-  thrive: 'Thrive',
+  thrive_v2: 'Thrive',
   tiktok: 'TikTok',
   tinybird_v2: 'Tinybird',
   tinyfish: 'TinyFish',

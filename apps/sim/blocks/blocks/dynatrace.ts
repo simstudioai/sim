@@ -2343,8 +2343,6 @@ export const DynatraceV2Block: BlockConfig = {
       },
     },
   },
-  longDescription:
-    'Integrate Dynatrace into workflows. Investigate and close Davis problems, query metrics and monitored entities, search and ingest logs, push deployment events, manage SLOs and their burn rates, triage and mute Application Security vulnerabilities, review runtime attacks, tag entities, manage settings objects such as maintenance windows and alerting profiles, run synthetic monitors on demand, and read the audit log.',
   ...withSavedCredential(DynatraceBlock, {
     id: 'credential',
     type: 'oauth-input',

@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   ThriveListAudienceMembersParams,
   ThriveListAudienceMembersResponse,
@@ -22,6 +23,7 @@ export const listAudienceMembersTool: ToolConfig<
   name: 'Thrive List Audience Members',
   description: 'List the members of a Thrive audience with pagination.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

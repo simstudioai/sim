@@ -108,6 +108,7 @@ import { TailscaleBlock, TailscaleV2Block } from '@/blocks/blocks/tailscale'
 import { TavilyBlock, TavilyV2Block } from '@/blocks/blocks/tavily'
 import { TelegramBlock, TelegramV2Block } from '@/blocks/blocks/telegram'
 import { TextractBlock, TextractV2Block, TextractV3Block } from '@/blocks/blocks/textract'
+import { ThriveBlock, ThriveV2Block } from '@/blocks/blocks/thrive'
 import { TinybirdBlock, TinybirdV2Block } from '@/blocks/blocks/tinybird'
 import { TriggerDevBlock, TriggerDevV2Block } from '@/blocks/blocks/trigger_dev'
 import { TwilioSMSBlock, TwilioSMSV2Block } from '@/blocks/blocks/twilio'
@@ -354,6 +355,12 @@ const VERSIONS: Array<{
     optionalIds: ['baseUrl'],
   },
   { legacy: SupabaseBlock, successor: SupabaseV2Block, secretIds: ['apiKey', 'projectId'] },
+  {
+    legacy: ThriveBlock,
+    successor: ThriveV2Block,
+    secretIds: ['tenantId', 'apiKey', 'host'],
+    optionalIds: ['host'],
+  },
 ]
 
 function valuesFor(ids: readonly string[], prefix: string): Record<string, string> {

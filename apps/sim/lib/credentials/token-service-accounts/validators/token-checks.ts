@@ -33,6 +33,7 @@ import { getNerdGraphEndpoint, newRelicHeaders } from '@/tools/new_relic/utils'
 import { oktaHeaders } from '@/tools/okta/utils'
 import { planeApiUrl, planeHeaders } from '@/tools/plane/utils'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
+import { getThriveBaseUrl, getThriveHeaders } from '@/tools/thrive/utils'
 import { WHATSAPP_GRAPH_VERSION } from '@/tools/whatsapp/utils'
 
 /**
@@ -205,8 +206,6 @@ export const validateAzureDevOpsServiceAccount = tokenCheckValidator({
   },
 })
 
-// Shared by twilio_sms and twilio_voice.
-
 /**
  * Brex's current-user endpoint answers 200 for a valid user token. An unknown
  * token gets the same JSON 403 as a token missing the user scope, told apart
@@ -378,7 +377,7 @@ export const validateDevinServiceAccount = tokenCheckValidator({
   serviceLabel: 'Devin',
   workspaceId: ({ providerWorkspaceId }) => {
     const orgId = (providerWorkspaceId ?? '').trim()
-    if (!orgId || encodeURIComponent(orgId) !== orgId) throw new Error('invalid organization id')
+    if (!/^[A-Za-z0-9_-]+$/.test(orgId)) throw new Error('invalid organization id')
     return orgId
   },
   request: ({ apiToken, providerWorkspaceId }) => ({
@@ -418,7 +417,7 @@ export const validateDubServiceAccount = tokenCheckValidator({
 function normalizeDynatraceEnvironmentUrl(raw: string | undefined): string {
   const typed = (raw ?? '').trim()
   if (!typed) throw new Error('missing environment URL')
-  const url = new URL(/^https?:\/\//i.test(typed) ? typed : `https://${typed}`)
+  const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(typed) ? typed : `https://${typed}`)
   if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('http(s) only')
   if (url.username || url.password) throw new Error('credentials in URL')
   if (url.search || url.hash) throw new Error('query or fragment')
@@ -618,6 +617,10 @@ export const validateGitLabServiceAccount = tokenCheckValidator({
       token.scopes.some((scope) => GITLAB_API_SCOPES.has(String(scope)))
     )
   },
+  describe: (body) => {
+    const name = toRecord(body).name
+    return typeof name === 'string' && name.trim() ? name.trim() : undefined
+  },
 })
 
 /**
@@ -725,20 +728,19 @@ export const validateIncidentioServiceAccount = tokenCheckValidator({
 })
 
 /**
- * Reduces a typed Infisical instance to the origin the tools prefix every request with:
- * `us.infisical.com`, `https://eu.infisical.com/`, or a self-hosted URL become
- * `https://<host>[:port]`. HTTPS only, with no credentials, path, query, or fragment.
+ * Reduces a typed Infisical instance to the base URL the tools prefix every request with:
+ * `us.infisical.com`, `https://eu.infisical.com/`, or a self-hosted URL (http allowed, a
+ * reverse-proxy path kept) lose only a trailing slash; credentials, a query, or a fragment
+ * is refused.
  */
 function normalizeInfisicalBaseUrl(raw: string | undefined): string {
   const typed = (raw ?? '').trim()
   if (!typed) throw new Error('missing host')
   const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(typed) ? typed : `https://${typed}`)
-  if (url.protocol !== 'https:') throw new Error('https only')
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('http(s) only')
   if (url.username || url.password) throw new Error('credentials in URL')
-  if ((url.pathname !== '/' && url.pathname !== '') || url.search || url.hash) {
-    throw new Error('path not allowed')
-  }
-  return url.origin
+  if (url.search || url.hash) throw new Error('query or fragment')
+  return `${url.origin}${url.pathname}`.replace(/\/+$/, '')
 }
 
 /**
@@ -895,9 +897,12 @@ export const validateLogfireServiceAccount = tokenCheckValidator({
     const typed = (domain ?? '').trim()
     if (!typed) throw new Error('missing region or host')
     const region = typed.toLowerCase()
-    return LOGFIRE_CLOUD_REGIONS.has(region)
-      ? getLogfireBaseUrl(apiToken, region as 'auto' | 'us' | 'eu')
-      : getLogfireBaseUrl(apiToken, 'auto', typed)
+    if (LOGFIRE_CLOUD_REGIONS.has(region)) {
+      return getLogfireBaseUrl(apiToken, region as 'auto' | 'us' | 'eu')
+    }
+    // A self-hosted base URL names a domain, a port, or a scheme; a bare word is a mistyped region.
+    if (!/[.:]/.test(typed)) throw new Error('unknown region')
+    return getLogfireBaseUrl(apiToken, 'auto', typed)
   },
   egress: 'configuredEndpoint',
   request: ({ apiToken, domain }) => ({
@@ -1368,6 +1373,37 @@ export const validateTelegramServiceAccount = tokenCheckValidator({
   }),
 })
 
+/** The Thrive API hosts the block's Region dropdown offers; any other host would carry the key elsewhere. */
+const THRIVE_HOSTS = new Set([
+  'public.api.learn.link',
+  'public.api.mea.learn.tech',
+  'public.api.learnstaging.link',
+  'public.api.meastaging.learn.tech',
+])
+
+/**
+ * Listing Thrive tags is a read with the same Basic `tenantId:apiKey` auth the tools send, on the
+ * region host the key belongs to; a bad key or tenant gets 401.
+ */
+export const validateThriveServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Thrive',
+  domain: ({ domain }) => {
+    const host = (domain ?? '').trim().toLowerCase()
+    if (!THRIVE_HOSTS.has(host)) throw new Error('unknown Thrive region host')
+    return host
+  },
+  workspaceId: ({ providerWorkspaceId }) => {
+    const tenantId = (providerWorkspaceId ?? '').trim()
+    // The tenant id is the Basic-auth username, so a colon would split it.
+    if (!tenantId || /[:\s]/.test(tenantId)) throw new Error('invalid tenant id')
+    return tenantId
+  },
+  request: ({ apiToken, domain, providerWorkspaceId = '' }) => ({
+    url: `${getThriveBaseUrl(domain, 'v1')}/tags`,
+    headers: { ...getThriveHeaders(providerWorkspaceId, apiToken), Accept: 'application/json' },
+  }),
+})
+
 /**
  * Reduces a typed Tinybird API base URL to the form the tools prefix their path with
  * (`base_url.trim().replace(/\/+$/, '')`): a Cloud region, self-managed, or Tinybird
@@ -1452,15 +1488,15 @@ export const validateTypeformServiceAccount = tokenCheckValidator({
 
 /**
  * Reduces a typed Upstash REST URL to the origin the tools prefix every command path
- * with (`${restUrl}/get/key`). A bare host gets `https://`; plain http, userinfo, a path,
- * a query, or a fragment is refused, since each would retarget the request.
+ * with (`${restUrl}/get/key`). A bare host gets `https://`; a non-http scheme, userinfo, a
+ * path, a query, or a fragment is refused, since each would retarget the request.
  */
 function normalizeUpstashRestUrl(raw: string | undefined): string {
   const value = (raw ?? '').trim().replace(/\/+$/, '')
   if (!value) throw new Error('missing REST URL')
   const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(value) ? value : `https://${value}`)
   if (
-    url.protocol !== 'https:' ||
+    (url.protocol !== 'https:' && url.protocol !== 'http:') ||
     url.username ||
     url.password ||
     (url.pathname !== '/' && url.pathname !== '') ||
@@ -1473,9 +1509,10 @@ function normalizeUpstashRestUrl(raw: string | undefined): string {
 }
 
 /**
- * PING is allowed for standard and read-only Upstash Redis REST tokens and answers
- * `{"result":"PONG"}`; a bad token gets 401. Any https origin is accepted, as the
- * legacy block accepted any URL, so the check goes through the guarded egress.
+ * PING answers `{"result":"PONG"}` for a standard token; a bad token gets 401. A token whose
+ * ACL doesn't allow PING (a read-only or ACL-user token) gets a NOPERM error, which still
+ * proves it authenticated. Any http(s) origin is accepted, as the legacy block accepted any
+ * URL, so the check goes through the guarded egress.
  */
 export const validateUpstashServiceAccount = tokenCheckValidator({
   serviceLabel: 'Upstash',
@@ -1485,6 +1522,7 @@ export const validateUpstashServiceAccount = tokenCheckValidator({
     url: `${domain}/ping`,
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
+  provesKey: (errorBody) => /^NOPERM/i.test(String(toRecord(errorBody).error ?? '')),
   acceptsBody: (body) => {
     if (toRecord(body).result !== 'PONG') {
       throw new TokenServiceAccountValidationError('provider_unavailable', 502, {

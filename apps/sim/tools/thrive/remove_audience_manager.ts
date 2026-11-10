@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveDeleteResponse, ThriveRemoveAudienceManagerParams } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -10,6 +11,7 @@ export const removeAudienceManagerTool: ToolConfig<
   name: 'Thrive Remove Audience Manager',
   description: 'Remove a single manager from a Thrive audience.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

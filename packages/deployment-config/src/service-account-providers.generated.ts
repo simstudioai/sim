@@ -123,6 +123,7 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   tailscale: 'tailscale-service-account',
   tavily: 'tavily-service-account',
   telegram: 'telegram-service-account',
+  thrive: 'thrive-service-account',
   tinybird: 'tinybird-service-account',
   trello: 'trello-service-account',
   trigger_dev: 'trigger-dev-service-account',

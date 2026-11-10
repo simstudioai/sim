@@ -415,7 +415,7 @@ import {
   TextractV3Block,
 } from '@/blocks/blocks/textract'
 import { ThinkingBlock } from '@/blocks/blocks/thinking'
-import { ThriveBlock, ThriveBlockMeta } from '@/blocks/blocks/thrive'
+import { ThriveBlock, ThriveBlockMeta, ThriveV2Block } from '@/blocks/blocks/thrive'
 import { TikTokBlock, TikTokBlockMeta } from '@/blocks/blocks/tiktok'
 import { TinybirdBlock, TinybirdBlockMeta, TinybirdV2Block } from '@/blocks/blocks/tinybird'
 import { TinyFishBlock, TinyFishBlockMeta } from '@/blocks/blocks/tinyfish'
@@ -912,6 +912,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   textract_v3: TextractV3Block,
   thinking: ThinkingBlock,
   thrive: ThriveBlock,
+  thrive_v2: ThriveV2Block,
   tiktok: TikTokBlock,
   tinybird: TinybirdBlock,
   tinybird_v2: TinybirdV2Block,

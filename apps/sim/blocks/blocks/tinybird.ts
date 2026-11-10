@@ -666,8 +666,6 @@ export const TinybirdV2Block: BlockConfig = {
   authMode: AuthMode.OAuth,
   hideFromToolbar: false,
   sunset: undefined,
-  longDescription:
-    'Interact with Tinybird: stream JSON or NDJSON events with the Events API, run SQL with the Query API, call published Pipe API Endpoints by name with dynamic parameters, manage Data Sources by appending from a URL, truncating, or deleting rows by condition, and poll the status of asynchronous jobs.',
   ...withSavedCredential(TinybirdBlock, {
     id: 'credential',
     type: 'oauth-input',

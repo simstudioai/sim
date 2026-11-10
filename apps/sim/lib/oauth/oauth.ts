@@ -159,6 +159,7 @@ import {
   TailscaleIcon,
   TavilyIcon,
   TelegramIcon,
+  ThriveIcon,
   TikTokIcon,
   TinybirdIcon,
   TrelloIcon,
@@ -3301,7 +3302,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     services: {
       twilio: {
         name: 'Twilio',
-        description: 'Send SMS messages from your Twilio account.',
+        description: 'Send SMS and make calls from your Twilio account.',
         providerId: 'twilio',
         serviceAccountProviderId: 'twilio-service-account',
         icon: TwilioIcon,
@@ -3430,6 +3431,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'supabase',
+  },
+  thrive: {
+    name: 'Thrive',
+    icon: ThriveIcon,
+    services: {
+      thrive: {
+        name: 'Thrive',
+        description: 'Manage Thrive users, audiences, assignments, content, and CPD records.',
+        providerId: 'thrive',
+        serviceAccountProviderId: 'thrive-service-account',
+        icon: ThriveIcon,
+        baseProviderIcon: ThriveIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'thrive',
   },
   higgsfield: {
     name: 'Higgsfield',

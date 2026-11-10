@@ -695,6 +695,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   textract: TextractIcon,
   textract_v3: TextractIcon,
   thrive: ThriveIcon,
+  thrive_v2: ThriveIcon,
   tiktok: TikTokIcon,
   tinybird: TinybirdIcon,
   tinybird_v2: TinybirdIcon,

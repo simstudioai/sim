@@ -24,6 +24,12 @@ export interface TokenServiceAccountField {
   placeholder: string
   /** Rendered with SecretInput and never echoed back. */
   secret: boolean
+  /**
+   * The value is a URL whose scheme and path matter (a self-hosted instance or
+   * deployment URL), so the connect form sends it as typed and the provider's
+   * check normalizes it. Other domains are reduced to a bare host first.
+   */
+  url?: boolean
   /** Soft-format hint shown while the current value doesn't match `hintPattern`. */
   hintPattern?: RegExp
   hintMessage?: string
@@ -85,6 +91,7 @@ export const FLOW_SERVICE_ACCOUNT_PROVIDER_ID = 'flow-service-account' as const
 export const CODA_SERVICE_ACCOUNT_PROVIDER_ID = 'coda-service-account' as const
 export const GAUGE_SERVICE_ACCOUNT_PROVIDER_ID = 'gauge-service-account' as const
 export const HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID = 'higgsfield-service-account' as const
+export const THRIVE_SERVICE_ACCOUNT_PROVIDER_ID = 'thrive-service-account' as const
 export const SUPABASE_SERVICE_ACCOUNT_PROVIDER_ID = 'supabase-service-account' as const
 export const INFISICAL_SERVICE_ACCOUNT_PROVIDER_ID = 'infisical-service-account' as const
 export const OKTA_SERVICE_ACCOUNT_PROVIDER_ID = 'okta-service-account' as const
@@ -211,6 +218,7 @@ export type TokenServiceAccountProviderId =
   | typeof CODA_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof GAUGE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof THRIVE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SUPABASE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof INFISICAL_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof OKTA_SERVICE_ACCOUNT_PROVIDER_ID
@@ -1839,6 +1847,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'Grafana URL',
         placeholder: 'https://your-stack.grafana.net',
         secret: false,
+        url: true,
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/grafana',
@@ -1864,6 +1873,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'Server URL',
         placeholder: 'https://jupyter.example.com',
         secret: false,
+        url: true,
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/jupyter',
@@ -1889,6 +1899,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'Deployment URL',
         placeholder: 'https://your-deployment.convex.cloud',
         secret: false,
+        url: true,
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/convex',
@@ -1909,6 +1920,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'API base URL',
         placeholder: 'https://api.tinybird.co',
         secret: false,
+        url: true,
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/tinybird',
@@ -1929,6 +1941,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'Environment URL',
         placeholder: 'https://abc12345.live.dynatrace.com',
         secret: false,
+        url: true,
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/dynatrace',
@@ -1964,6 +1977,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'Region or host',
         placeholder: 'auto, us, eu, or https://logfire.example.com',
         secret: false,
+        url: true,
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/logfire',
@@ -2023,7 +2037,13 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     connectNoun: 'API token',
     fields: [
       { id: 'apiToken', label: 'API token', placeholder: 'plane_api_...', secret: true },
-      { id: 'domain', label: 'Instance URL', placeholder: 'https://api.plane.so', secret: false },
+      {
+        id: 'domain',
+        label: 'Instance URL',
+        placeholder: 'https://api.plane.so',
+        secret: false,
+        url: true,
+      },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/plane',
     helpText:
@@ -2103,7 +2123,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/algolia',
     helpText:
-      'Copy the Application ID and an API key from Settings > API Keys in the Algolia dashboard. Use the Write API key, or a key with the ACLs your workflows need; a Search-only key can only search.',
+      'Copy the Application ID and an API key from Settings > API Keys in the Algolia dashboard. Use the Write API key, or a key with the ACLs your workflows need; a Search-only key can only search, and secured (derived) keys are not supported.',
     invalidCredentialsHelp:
       'Algolia rejected this application ID and API key. Check that the key belongs to this application and has not been deleted.',
   },
@@ -2124,6 +2144,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'REST URL',
         placeholder: 'https://your-database.upstash.io',
         secret: false,
+        url: true,
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/upstash',
@@ -2149,6 +2170,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'Instance URL',
         placeholder: 'https://dedi.emailbison.com',
         secret: false,
+        url: true,
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/emailbison',
@@ -2204,7 +2226,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     helpText:
       'Create an API token in the Okta Admin Console under Security > API > Tokens. The token acts with the admin roles of the user who created it. Enter your Okta domain, such as dev-123456.okta.com; custom domains are not supported.',
     invalidCredentialsHelp:
-      'Okta rejected this token. Check that it is active, was created in this Okta org, and that the domain is your okta.com (or oktapreview.com) domain.',
+      'Okta rejected this token. Check that it is active, was created in this Okta org, and that the domain is your Okta-hosted domain (okta.com, oktapreview.com, okta-emea.com, or okta-gov.com).',
   },
   [INFISICAL_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: INFISICAL_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -2223,6 +2245,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'Instance URL',
         placeholder: 'https://us.infisical.com',
         secret: false,
+        url: true,
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/infisical',
@@ -2245,6 +2268,27 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       'Use a key from Project Settings > API Keys. A secret or service_role key bypasses row-level security; an anon or publishable key is limited by your policies.',
     invalidCredentialsHelp:
       "Supabase rejected this key. Check that it belongs to the project you entered and hasn't been revoked.",
+  },
+  [THRIVE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: THRIVE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Thrive',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Thrive API key', secret: true },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Tenant ID',
+        placeholder: 'Your Thrive tenant ID',
+        secret: false,
+      },
+      { id: 'domain', label: 'Region host', placeholder: 'public.api.learn.link', secret: false },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/thrive',
+    helpText:
+      'Use the API key and tenant ID from your Thrive admin settings. Region host is public.api.learn.link, or public.api.mea.learn.tech for the Middle East and Africa (staging hosts also work).',
+    invalidCredentialsHelp:
+      'Thrive rejected this API key. Check that the tenant ID matches the key and that the region host is the one your tenant uses.',
   },
 }
 

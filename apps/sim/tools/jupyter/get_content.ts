@@ -127,7 +127,6 @@ export const jupyterGetContentV2Tool: InternalToolConfig<
   ...jupyterGetContentTool,
   id: 'jupyter_get_content_v2',
   version: '2.0.0',
-  oauth: JUPYTER_CREDENTIAL_OAUTH,
   description:
     'Download a file as a stored file, or read structured notebook and directory content',
   operation: {

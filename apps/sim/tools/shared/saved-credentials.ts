@@ -287,6 +287,11 @@ export const TAVILY_CREDENTIAL_OAUTH = tokenCredentialOAuth('tavily', { apiKey: 
 export const TELEGRAM_CREDENTIAL_OAUTH = tokenCredentialOAuth('telegram', {
   botToken: 'accessToken',
 })
+export const THRIVE_CREDENTIAL_OAUTH = tokenCredentialOAuth('thrive', {
+  tenantId: 'providerWorkspaceId',
+  apiKey: 'accessToken',
+  host: 'domain',
+})
 export const TINYBIRD_CREDENTIAL_OAUTH = tokenCredentialOAuth('tinybird', {
   token: 'accessToken',
   base_url: 'domain',
@@ -406,6 +411,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   tailscale: TAILSCALE_CREDENTIAL_OAUTH,
   tavily: TAVILY_CREDENTIAL_OAUTH,
   telegram: TELEGRAM_CREDENTIAL_OAUTH,
+  thrive: THRIVE_CREDENTIAL_OAUTH,
   tinybird: TINYBIRD_CREDENTIAL_OAUTH,
   trigger_dev: TRIGGER_DEV_CREDENTIAL_OAUTH,
   twilio: TWILIO_CREDENTIAL_OAUTH,

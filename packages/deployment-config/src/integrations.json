@@ -28871,7 +28871,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "thrive",
+      "type": "thrive_v2",
       "slug": "thrive",
       "name": "Thrive",
       "description": "Manage users, audiences, learning and CPD on Thrive",
@@ -29072,11 +29072,12 @@
       "operationCount": 47,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "thrive",
       "category": "tools",
       "integrationType": "hr",
       "tags": ["content-management", "knowledge-base", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "tiktok",
