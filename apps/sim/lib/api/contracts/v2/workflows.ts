@@ -2096,7 +2096,7 @@ const v2WorkflowRunPausePointSchema = z
       .array(v2PauseInputFieldSchema)
       .nullable()
       .describe(
-        'Fields a human pause asks for, without default values. Null for a time pause, a pause with no declared form, fields over 64 KiB or not provably free of secrets, or one recorded before pause details were captured.'
+        'Fields a human pause asks for, without default values. Labels and descriptions are resolved, so they are withheld when organization permission groups hide execution data. Null then, for a time pause, a pause with no declared form, fields over 64 KiB or not provably free of secrets, or one recorded before pause details were captured.'
       ),
     display: z
       .unknown()

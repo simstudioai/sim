@@ -157,8 +157,9 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
        *
        * A point's `display` is what the block rendered from upstream outputs, so it
        * follows `finalOutput`'s gating: withheld unless output was asked for and the
-       * viewer's group shows execution data. `inputFields` are the block's own
-       * configuration and stay.
+       * viewer's group shows execution data. `inputFields` are resolved before the
+       * pause is captured, so a label or description can carry upstream values too:
+       * they are withheld from a viewer whose group hides execution data.
        *
        * permission-group-enforced: logs.trace_spans
        */
@@ -169,7 +170,11 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
               workflowId: context.workflowId,
               executionId: context.runId,
             })) ?? []
-          ).map((point) => (showsDisplay ? point : { ...point, display: null }))
+          ).map((point) => ({
+            ...point,
+            display: showsDisplay ? point.display : null,
+            inputFields: projection.hideTraceSpans ? null : point.inputFields,
+          }))
         : null
 
       return { ...status, files, pausePoints }

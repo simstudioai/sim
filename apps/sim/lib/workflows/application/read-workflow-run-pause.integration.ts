@@ -279,12 +279,10 @@ describe('a deployed run paused at a human-in-the-loop block', () => {
     ])
   })
 
-  it('withholds reviewer content from a viewer whose group hides execution data', async () => {
+  it('withholds reviewer content and resolved input fields from a viewer whose group hides execution data', async () => {
     const runId = await pausedRun()
 
     const run = await readRun(restricted, runId, { includeOutput: true })
-    expect(run.pausePoints).toEqual([
-      expect.objectContaining({ display: null, inputFields: INPUT_FIELDS }),
-    ])
+    expect(run.pausePoints).toEqual([expect.objectContaining({ display: null, inputFields: null })])
   })
 })
