@@ -14,7 +14,10 @@ import {
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
-import { readChatAttachment } from '@/lib/mothership/chat/application/read-attachment'
+import {
+  readChatAttachment,
+  readWorkspaceFileOrChatUpload,
+} from '@/lib/mothership/chat/application/read-attachment'
 import { readChatSandboxFile } from '@/lib/mothership/chat/application/read-sandbox-file'
 import {
   inlineChatImageUrl,
@@ -178,13 +181,27 @@ export const materializeInlineChatImage = defineAuthorizedChatUseCase({
         })
       }
       if (!workspaceId) throw new OrchestrationError('not_found', 'Workspace file not found')
-      source = (
-        await readWorkspaceFileArtifact.execute({
-          principal: filePrincipal,
-          input: { chatId: context.chatId, workspaceId, maxBytes: scope.maxBytes, reference },
-          request,
-        })
-      ).buffer
+      const readWorkspaceId = workspaceId
+      // A workspace chat's upload its workspace lacks may be one of the chat's own attachments (an
+      // organization chat moved to its owner's workspace keeps them), read for a signed-in member,
+      // the one caller that read admits here.
+      const resolved = await readWorkspaceFileOrChatUpload(
+        () =>
+          readWorkspaceFileArtifact.execute({
+            principal: filePrincipal,
+            input: {
+              chatId: context.chatId,
+              workspaceId: readWorkspaceId,
+              maxBytes: scope.maxBytes,
+              reference,
+            },
+            request,
+          }),
+        !context.organizationId && principal.kind === 'session'
+          ? { principal, input: { chatId: context.chatId, reference, signal }, request }
+          : null
+      )
+      source = resolved.attachment ? resolved.attachment.buffer : resolved.file.buffer
     }
     signal?.throwIfAborted()
     const prepared = await prepareImageForVision(source, signal)

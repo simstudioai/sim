@@ -29,10 +29,16 @@ import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
   createTrustedOrganizationCopilotPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
-import { resolveCopilotFilePrincipal } from '@/lib/mothership/auth/file-delegation'
+import {
+  createCopilotChatFilePrincipal,
+  resolveCopilotFilePrincipal,
+} from '@/lib/mothership/auth/file-delegation'
 import { messageForCopilotTableError } from '@/lib/mothership/auth/table-delegation'
 import { recordServiceCost } from '@/lib/mothership/billing/service-observer'
-import { readChatAttachment } from '@/lib/mothership/chat/application/read-attachment'
+import {
+  readChatAttachment,
+  readWorkspaceFileOrChatUpload,
+} from '@/lib/mothership/chat/application/read-attachment'
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 import { WorkbenchSecretNames } from '@/lib/mothership/generated/workbench'
 import { applySecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
@@ -203,18 +209,23 @@ async function resolveMountableWorkspaceFile(
   listed: WorkspaceFileRecord | null | undefined,
   filePath: string,
   workspaceId: string,
-  principal: Principal
-): Promise<WorkspaceFileRecord> {
-  if (listed) return listed
+  principal: Principal,
+  chatUpload: Parameters<typeof readWorkspaceFileOrChatUpload>[1]
+) {
+  if (listed) return { file: listed }
 
   if (parseChatUploadReference(filePath) !== null) {
     try {
-      return await resolveWorkspaceFileReference({
-        principal,
-        operation: fileOperations.readContent,
-        workspaceId,
-        reference: filePath,
-      })
+      return await readWorkspaceFileOrChatUpload(
+        () =>
+          resolveWorkspaceFileReference({
+            principal,
+            operation: fileOperations.readContent,
+            workspaceId,
+            reference: filePath,
+          }),
+        chatUpload
+      )
     } catch (error) {
       if (!(error instanceof OrchestrationError && error.code === 'not_found')) throw error
       throw new Error(
@@ -338,12 +349,47 @@ export async function resolveInputFiles(
     for (const fileRef of inputFiles) {
       const filePath = refField(fileRef, 'path')
       if (!filePath) continue
-      const record = await resolveMountableWorkspaceFile(
+      // A workspace chat's upload missing from its workspace may be one of the chat's own
+      // attachments: an organization chat moved to its owner's workspace keeps them.
+      const resolved = await resolveMountableWorkspaceFile(
         listedFiles.get(filePath),
         filePath,
         workspaceId,
-        filePrincipal
+        filePrincipal,
+        !organizationId && context.chatId
+          ? {
+              principal: createCopilotChatFilePrincipal({
+                userId: context.userId,
+                workspaceId,
+                chatId: context.chatId,
+              }),
+              input: {
+                chatId: context.chatId,
+                reference: filePath,
+                maxBytes: Math.min(
+                  MAX_INLINE_MOUNT_FILE_BYTES,
+                  MAX_INLINE_MOUNT_TOTAL_BYTES - mounts.budget.buffered
+                ),
+                signal: context.abortSignal,
+              },
+            }
+          : null
       )
+      if (resolved.attachment) {
+        const { attachment } = resolved
+        mounts.budget.buffered += attachment.buffer.length
+        if (mounts.budget.buffered > MAX_INLINE_MOUNT_TOTAL_BYTES)
+          throw new Error('Chat attachment mounts exceed the buffered mount limit')
+        mounts.files.push({
+          path:
+            refField(fileRef, 'sandboxPath') ??
+            `${SANDBOX_INPUT_DIR}/uploads/${attachment.id}/${encodeVfsPathSegments([attachment.name])}`,
+          content: attachment.buffer.toString('base64'),
+          encoding: 'base64',
+        })
+        continue
+      }
+      const record = resolved.file
       const mountPath = refField(fileRef, 'sandboxPath') ?? getSandboxWorkspaceFilePath(record)
       await pushWorkspaceFileMount(
         mounts,
