@@ -27,7 +27,7 @@ The [webhook setup video](https://www.youtube.com/embed/9oKcJtQ0_IM) also demons
 
 1. Add the bot to the group and grant the permissions needed by the action.
 2. Obtain the group's numeric chat ID from a bot message update, such as the trigger's `message.raw.chat.id`. Group IDs can be negative.
-3. Add a Telegram action block, select **Send Message**, and set **Bot Token**, **Chat ID**, and **Message**.
+3. Add a Telegram action block, select **Send Message**, choose a **Telegram Credential** (a saved bot token), and set **Chat ID** and **Message**.
 4. Run the workflow and verify the message in the group.
 
 The [group messaging video](https://www.youtube.com/embed/AG55LpUreGI) demonstrates the block configuration. Bot privacy settings affect which group messages Telegram delivers; receiving a command addressed to the bot can help verify the trigger before changing those settings.

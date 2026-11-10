@@ -407,9 +407,13 @@ export const validateGrainServiceAccount = tokenCheckValidator({
   }),
 })
 
-/** Listing one Granola note answers 200 for a valid personal or workspace API key and 401 otherwise. */
+/**
+ * Listing one Granola note answers 200 for a valid personal or workspace API key and 401 otherwise.
+ * An Enterprise admin can turn off note scopes for members, so a JSON 403 still proves the key.
+ */
 export const validateGranolaServiceAccount = tokenCheckValidator({
   serviceLabel: 'Granola',
+  forbiddenMeansScoped: true,
   request: ({ apiToken }) => ({
     url: `${GRANOLA_API_BASE}/notes?page_size=1`,
     headers: { ...granolaHeaders(apiToken), Accept: 'application/json' },

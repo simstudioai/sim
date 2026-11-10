@@ -106,6 +106,7 @@ describe('workload identity issuer', () => {
     'http://sim.example.com/oidc/workload',
     'https://sim.example.com:3000/oidc/workload',
     'https://sim.example.com/oidc/workload?tenant=1',
+    'https://sim.example.com/oidc/workload#keys',
   ])('stays off for an issuer no cloud can fetch (%s)', async (url) => {
     setEnv('WORKLOAD_IDENTITY_ISSUER', url)
     const issuer = await loadIssuer()

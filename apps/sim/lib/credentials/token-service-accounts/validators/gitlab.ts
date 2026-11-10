@@ -72,6 +72,12 @@ export async function validateGitLabServiceAccount(
     })
   }
   const token = toRecord(body)
+  if (typeof token.active !== 'boolean' || !Array.isArray(token.scopes)) {
+    throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+      step: 'verify',
+      reason: 'GitLab returned an unexpected token lookup',
+    })
+  }
   const scopes = toArray(token.scopes)
   if (
     token.active !== true ||

@@ -51,8 +51,11 @@ describe('GitLab saved token verification', () => {
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
   })
 
-  it('reports a malformed token lookup as GitLab misbehaving, not as a bad token', async () => {
-    fetch.mockResolvedValue(new Response('<html>', { status: 200 }))
+  it.each([
+    ['an HTML page', new Response('<html>', { status: 200 })],
+    ['JSON that is not a token lookup', jsonResponse({ ok: true })],
+  ])('reports %s as GitLab misbehaving, not as a bad token', async (_, reply) => {
+    fetch.mockResolvedValue(reply)
 
     await expect(
       validateGitLabServiceAccount({ apiToken: 'glpat-x', domain: 'gitlab.com' })

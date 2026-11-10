@@ -1587,7 +1587,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/grain',
     helpText:
-      'Create a personal access token in Grain under Settings > Integrations > API. It has the same access you have in Grain.',
+      'Create a personal or workspace access token in Grain under Settings > Integrations > API. A personal token has the same access you have in Grain.',
   },
   [GRANOLA_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: GRANOLA_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -1629,7 +1629,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/pagerduty',
     helpText:
-      'An account administrator creates REST API keys in PagerDuty under Integrations > API Access Keys. Creating, updating, snoozing, merging, and noting incidents needs a full-access key; a read-only key covers the list and get operations.',
+      'Use an account REST API key (an administrator creates it under Integrations > API Access Keys) or a personal user API token (User Settings > API Access). Creating, updating, snoozing, merging, and noting incidents needs a full-access key; a read-only key covers the list and get operations.',
   },
   [RESEND_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: RESEND_SERVICE_ACCOUNT_PROVIDER_ID,
