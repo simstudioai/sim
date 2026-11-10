@@ -914,6 +914,8 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
       ? `${progress.done}/${progress.total} · ${progress.percent}%`
       : `${progress.done}/${progress.total}`
     : 'Upload'
+  /** A failed members read keeps the member filter on screen, disabled, so an applied filter stays visible. */
+  const membersFailed = Boolean(membersQuery.error && !membersQuery.data)
   const memberOptions = (membersQuery.data ?? []).map((member) => ({
     value: member.userId,
     label: member.name,
@@ -995,7 +997,7 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
           onChange: (next) => preferences.setFilter('size', next),
         })}
       />
-      {memberOptions.length > 0 && (
+      {(memberOptions.length > 0 || membersFailed) && (
         <MultiSelect
           variant='text'
           label='Uploaded by'
@@ -1005,6 +1007,8 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
           onValueChange={(next) => preferences.setFilter('uploadedBy', next)}
           placeholder='All uploaders'
           searchLabel='Search members'
+          disabled={membersFailed}
+          disabledReason='Could not load workspace members'
         />
       )}
       <ActionMenu

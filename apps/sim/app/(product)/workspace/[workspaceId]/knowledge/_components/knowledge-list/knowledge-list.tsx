@@ -684,6 +684,8 @@ export function KnowledgeList({ workspaceId }: KnowledgeListProps) {
     }
   })
 
+  /** A failed members read keeps the member filter on screen, disabled, so an applied filter stays visible. */
+  const membersFailed = Boolean(membersQuery.error && !membersQuery.data)
   const memberOptions = (membersQuery.data ?? []).map((member) => ({
     value: member.userId,
     label: member.name,
@@ -752,7 +754,7 @@ export function KnowledgeList({ workspaceId }: KnowledgeListProps) {
         value={filters.content[0] ?? 'all'}
         onValueChange={(value) => preferences.setFilter('content', value === 'all' ? [] : [value])}
       />
-      {memberOptions.length > 0 && (
+      {(memberOptions.length > 0 || membersFailed) && (
         <MultiSelect
           variant='text'
           label='Owner'
@@ -762,6 +764,8 @@ export function KnowledgeList({ workspaceId }: KnowledgeListProps) {
           onValueChange={(next) => preferences.setFilter('owner', next)}
           placeholder='All owners'
           searchLabel='Search members'
+          disabled={membersFailed}
+          disabledReason='Could not load workspace members'
         />
       )}
       <ActionMenu
