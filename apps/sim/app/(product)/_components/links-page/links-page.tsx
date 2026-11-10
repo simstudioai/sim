@@ -16,6 +16,7 @@ import { LinkEditor } from '@/app/(product)/_components/links-page/link-editor'
 import { LinkIcon } from '@/app/(product)/_components/links-page/link-icon'
 import { LinksFrame } from '@/app/(product)/_components/links-page/links-frame'
 import styles from '@/app/(product)/_components/links-page/links-page.module.css'
+import { useMinuteClock } from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
 import { type LinkRecord, linkFaviconSrc, openLink, useLinksPage } from '@/platform/lib/data/links'
 import { formatRelativeTime } from '@/platform/shared/time'
 
@@ -123,7 +124,7 @@ function LinkSummary({ link, updated }: LinkSummaryProps) {
 interface LinksTableProps extends RowActions {
   links: readonly LinkRecord[]
   loadMore: LoadMoreState
-  /** The instant "Updated" counts back from. The rows render on the server, so it can't be the clock. */
+  /** The instant "Updated" counts back from, read with the rows; placeholder rows use the list clock. */
   asOf: number | undefined
 }
 
@@ -136,8 +137,9 @@ const LinksTable = memo(function LinksTable({
   onEdit,
   onDelete,
 }: LinksTableProps) {
+  const clock = useMinuteClock()
+  const now = asOf ?? clock
   const rows = useMemo(() => {
-    const now = asOf ?? Date.now()
     return links.map((link) => {
       const updated = formatRelativeTime(new Date(link.updatedAt).getTime(), now)
       return {
@@ -184,7 +186,7 @@ const LinksTable = memo(function LinksTable({
         ),
       }
     })
-  }, [links, asOf, onCopy, onEdit, onDelete])
+  }, [links, now, onCopy, onEdit, onDelete])
 
   return (
     <LinkRowContextMenu links={links} onCopy={onCopy} onEdit={onEdit} onDelete={onDelete}>
