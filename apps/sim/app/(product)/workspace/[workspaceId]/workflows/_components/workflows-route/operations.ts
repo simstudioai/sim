@@ -45,7 +45,7 @@ import { platformHref } from '@/platform/lib/navigation'
 
 const logger = createLogger('WorkflowListOperations')
 
-/** The editor route of one workflow in this zone. */
+/** The editor route of one workflow. */
 export function workflowEditorPath(workspaceId: string, workflowId: string) {
   return `${workspacePath(workspaceId, 'workflows')}/${encodeURIComponent(workflowId)}`
 }
@@ -130,12 +130,9 @@ function duplicateFolderName(baseName: string, siblingNames: ReadonlySet<string>
 }
 
 /**
- * The legacy sidebar's workflow commands that navigate, run as they do there but open this zone's
- * editor: creating a workflow or folder, duplicating, exporting a folder, importing JSON or ZIP
- * files, and moving rows into a folder. Each is the legacy hook's logic (`useWorkflowOperations`,
- * `useFolderOperations`, the folder row's create commands, `useDuplicateSelection`,
- * `useExportFolder`, `useImportWorkflow` and the sidebar drop), since those push the legacy
- * `/w/<id>` route through Next's router, which this zone does not serve.
+ * The Workflows list's commands, each opening the workspace's own editor: creating a workflow or
+ * folder, duplicating, exporting a folder, importing JSON or ZIP files, and moving rows into a
+ * folder.
  */
 export function useWorkflowListOperations(workspaceId: string) {
   const router = useRouter()

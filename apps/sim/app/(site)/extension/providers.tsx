@@ -47,7 +47,6 @@ export function ExtensionProviders({
     () => ({
       dashboards: false,
       'workflow-tests': false,
-      changelog: false,
       'mothership-model-selector': modelSelectorEnabled,
       'mothership-plan-mode': planModeEnabled,
       'mothership-computer-use': false,

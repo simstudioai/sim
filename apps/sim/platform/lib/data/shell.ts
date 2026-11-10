@@ -13,11 +13,7 @@ import { useCanOpenOrganizationChat, useChatListActions } from '@/platform/lib/d
 import type { ShellChat, ShellData, ShellWorkspace } from '@/platform/lib/data/models/shell'
 import { useNavWarmers } from '@/platform/lib/data/nav-warmers'
 import { useOrganization } from '@/platform/lib/data/organization'
-import {
-  canListOrganizationChats,
-  type SurfaceScope,
-  surfaceHref,
-} from '@/platform/lib/data/organization-model'
+import { type SurfaceScope, surfaceHref } from '@/platform/lib/data/organization-model'
 import { useLiveAccountActions } from '@/platform/lib/data/shell-actions'
 import type { LiveShell } from '@/platform/lib/data/shell-context'
 import { useWorkspaceActions } from '@/platform/lib/data/workspaces'
@@ -96,7 +92,7 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
   const workspaces = useOrderedWorkspacesQuery()
   const pinnedIds = usePinnedWorkspaceIds()
   const creationPolicy = useWorkspaceCreationPolicy()
-  const chatsAvailable = canListOrganizationChats(organization)
+  const chatsAvailable = organization.mothershipAvailable
   const chats = useOrganizationMothershipChats(organizationId, 'active', {
     enabled: chatsAvailable,
   })

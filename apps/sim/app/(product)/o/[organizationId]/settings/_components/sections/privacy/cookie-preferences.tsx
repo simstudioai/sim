@@ -4,11 +4,7 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { Switch } from '@sim/emcn/switch'
 import { useInterfacePreferences } from '@/app/(product)/_components/session/interface-preferences'
 import styles from '@/app/(product)/o/[organizationId]/settings/_components/sections/privacy/cookie-preferences.module.css'
-import {
-  CookieConsentProvider,
-  cookieChoices,
-  useCookieCategories,
-} from '@/platform/shared/cookie-consent'
+import { cookieChoices, useCookieCategories } from '@/platform/shared/cookie-consent'
 
 interface CookieListProps<Name extends string> {
   policyHref: string
@@ -83,9 +79,5 @@ interface CookiePreferencesProps {
 
 export default function CookiePreferences({ policyHref, fixture }: CookiePreferencesProps) {
   if (fixture) return <SessionCookieCategories policyHref={policyHref} />
-  return (
-    <CookieConsentProvider>
-      <CookieCategories policyHref={policyHref} />
-    </CookieConsentProvider>
-  )
+  return <CookieCategories policyHref={policyHref} />
 }

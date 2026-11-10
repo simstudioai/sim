@@ -1,9 +1,5 @@
 import type { MenuAction } from '@sim/emcn/menu/action-menu'
-import { createRowLinks } from '@/platform/shared/row-links'
-
-const links = createRowLinks()
-
-export const { openLinkInNewTab, openInNewTabAction } = links
+import { copyLinkAction, openInNewTabAction } from '@/platform/shared/row-links'
 
 export function pinAction(
   item: { id: string; isPinned?: boolean },
@@ -18,5 +14,5 @@ export function pinAction(
 }
 
 export function linkMenuActions(href: string): MenuAction[] {
-  return [openInNewTabAction(href), links.copyLinkAction(href)]
+  return [openInNewTabAction(href), copyLinkAction(href)]
 }

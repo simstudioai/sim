@@ -433,7 +433,7 @@ export function proxy(request: NextRequest) {
 
   if (isAppSurfacePath(url.pathname)) {
     // A fixture build's example data renders with no sign-in. The condition is inlined when the
-    // app is built (`lib/core/config/platform-fixtures.ts`), so a normal build always redirects.
+    // app is built (`platform/lib/data/mode.ts`), so a normal build always redirects.
     if (!hasActiveSession && process.env.SIM_PLATFORM_FIXTURES !== '1') {
       const login = new URL(loginHref(`${url.pathname}${url.search}`), request.url)
       return applyIndexingPolicy(request, NextResponse.redirect(login))

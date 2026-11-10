@@ -2,15 +2,13 @@
 
 import { createContext, type ReactNode, useContext } from 'react'
 
+/** The server-resolved runtime flags a client surface reads through `useFeatureFlag`. */
 export interface WorkspaceFeatureFlags {
   dashboards: boolean
   'workflow-tests': boolean
-  changelog: boolean
   'mothership-model-selector': boolean
   'mothership-plan-mode': boolean
   'mothership-computer-use'?: boolean
-  'mothership-memory-spaces'?: boolean
-  projects?: boolean
   'platform-preview'?: boolean
 }
 

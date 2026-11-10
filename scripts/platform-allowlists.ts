@@ -125,8 +125,6 @@ const serverSeamHelpers: ReasonedAllowlist = {
     "The billing summary use case behind the billing route, prefetched for Settings' Billing",
   'lib/core/application/organization-authorization':
     'OrganizationMembershipNotFoundError, which readOrganizationSurface answers as not found',
-  'lib/core/config/platform-fixtures':
-    "The fixture build's inlined switch, which `lib/data/mode.ts` reads",
   'lib/core/utils/deadline': 'withinDeadline, the budget server-read holds a first-paint read to',
   'lib/core/orchestration/types':
     "asOrchestrationError, which reads an old credential link's not found or forbidden as not found",
@@ -147,13 +145,13 @@ const serverSeamHelpers: ReasonedAllowlist = {
     "The organization chats list, prefetched for the shell's sidebar",
   'lib/navigation/legacy-redirects':
     'mapLegacyWorkspaceUrl, the table of pre-Platform workspace URLs route resolution redirects',
-  'lib/navigation/resolve-app-entry':
-    'resolveRolledOutOrganizationId, which organization a workspace entry opens in',
   'lib/navigation/shell-scope': "The proxy's shell scope and path headers and their parser",
   'lib/organization-secrets/application/use-cases':
     'The Generic Secrets source use case, read for Integrations and its prefetch',
   'lib/organizations/application/member-roster':
     "The roster use case behind People's route, prefetched",
+  'lib/organizations/surface':
+    'resolveOrganizationLanding, which organization a blocked workspace entry forwards to',
   'lib/organizations/application/surface':
     'The organization surface use case readOrganizationSurface runs',
   'lib/organizations/application/viewer-organization':
@@ -182,8 +180,14 @@ const serverSeamHelpers: ReasonedAllowlist = {
  */
 const platformHostModules: ReasonedAllowlist = {
   'lib/toast/sink': 'The one toast sink each root connects its own toaster to',
+  'components/paste-guard/paste-guard':
+    'The one paste admission guard each root mounts, raising its notice through the toast sink',
   'hooks/mothership-chat/desktop-tool-lifetimes': 'The one desktop tool lifetime both apps share',
   'lib/navigation/paths': "The app's path builders",
+  'lib/credential-groups/member-integrations-access':
+    'canReadMemberIntegrations, the one rule for who has a member integrations inventory',
+  'lib/organizations/draft-key':
+    'The one persisted key shape for unsent text on an organization surface',
   'lib/navigation/settings-aliases': 'The one table of renamed Settings sections',
   'components/file-viewer/file-viewer':
     'The one file viewer, which the public share page also renders',
@@ -215,7 +219,6 @@ const seamHelpers: ReasonedAllowlist = {
     'lib/core/config/feature-flags-context',
     'lib/core/resource-scope',
     'lib/core/utils/browser-storage',
-    'lib/core/utils/paste-admission',
     'lib/core/utils/react-node-text',
     'lib/core/utils/save-file',
     'lib/core/utils/csv',
@@ -340,7 +343,6 @@ const seamHelpers: ReasonedAllowlist = {
       'stores/connector-setup/store',
       'lib/credential-groups/managed-mcp-connectors',
       'lib/credential-groups/member-integrations',
-      'lib/credential-groups/member-integrations-access',
       'lib/sim-search/live/provider-catalog',
       'lib/sim-search/live/policy-schema',
       'lib/organization-secrets/validation',
@@ -558,7 +560,6 @@ const seamHelpers: ReasonedAllowlist = {
   ...granted('Analytics, consent and telemetry clients every root loads', [
     'lib/posthog/client',
     'lib/consent/copy',
-    'lib/consent/store-provider',
     'lib/telemetry/browser-preference',
   ]),
   ...granted("The browser auth client and session context the product's client shell reads", [
@@ -903,14 +904,14 @@ const FIXTURE_BRANCH_VIEWS: ReasonedAllowlist = {
   [`${ORGANIZATION_ROUTES}settings/_components/sections/preferences/preferences-section.tsx`]:
     'A client view below a server section, which cannot pass it the fixture theme (the URL) and read-only profile as callbacks',
   [`${ORGANIZATION_ROUTES}settings/_components/sections/privacy/cookie-preferences.tsx`]:
-    'The consent runtime loads only here, lazily; its fixture variant reads session choices without that runtime',
+    "Reads the root's consent store on live data; its fixture variant reads session choices without that runtime",
   'platform/lib/data/billing.ts':
     'The billing adapter swaps cancel and restore for the fixture settings context and hides portal and invoice links',
   'platform/lib/data/members.ts':
     'The members adapter leaves to fixture Home and keeps the billing portal unavailable under the fixture settings context',
   'platform/lib/data/settings-providers.tsx':
     'Owns the fixture settings context itself and its session-lifetime drafts',
-  'platform/shared/preferences.ts':
+  'platform/lib/data/preferences.ts':
     'The telemetry setting never touches the browser telemetry preference on a fixture preview',
 }
 

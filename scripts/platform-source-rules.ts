@@ -185,14 +185,14 @@ export function hasAsciiEllipsis(node: ts.Node): boolean {
   return Boolean(rendered && /[\p{L}\p{N}]\.\.\.(?!\.)/u.test(rendered.text))
 }
 
-/** `process.env.SIM_PLATFORM_FIXTURES`, `isPlatformFixtureBuild()` or `resolvePlatformMode()`. */
+/** `process.env.SIM_PLATFORM_FIXTURES` or `resolvePlatformMode()`. */
 function isPlatformModeRead(node: ts.Node): boolean {
   if (ts.isPropertyAccessExpression(node))
     return node.getText() === 'process.env.SIM_PLATFORM_FIXTURES'
   return (
     ts.isCallExpression(node) &&
     ts.isIdentifier(node.expression) &&
-    ['isPlatformFixtureBuild', 'resolvePlatformMode'].includes(node.expression.text)
+    node.expression.text === 'resolvePlatformMode'
   )
 }
 

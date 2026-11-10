@@ -1,10 +1,10 @@
 import { notFound, redirect } from 'next/navigation'
+import { canReadMemberIntegrations } from '@/lib/credential-groups/member-integrations-access'
 import { MemberSecretsEditor } from '@/app/(product)/o/[organizationId]/integrations/_components/member-secrets/member-secrets-editor'
 import {
   integrationsListHref,
   readGenericSecretSourceMode,
 } from '@/platform/lib/data/generic-secrets-source'
-import { hasMemberIntegrations } from '@/platform/lib/data/member-integrations'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 
@@ -19,7 +19,7 @@ export async function LiveMemberSecretsRoute({ searchParams }: LiveMemberSecrets
   if (surface.status !== 'ok') return null
   const { organization } = surface
   // Member-scoped accounts are Enterprise's; other organizations have no such page.
-  if (!hasMemberIntegrations(organization)) notFound()
+  if (!canReadMemberIntegrations(organization)) notFound()
   if ((await readGenericSecretSourceMode(organization.organization.id)) !== 'member')
     redirect(surfaceHref(organization, '/integrations'))
   return (

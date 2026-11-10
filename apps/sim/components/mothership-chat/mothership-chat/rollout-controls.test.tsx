@@ -57,7 +57,6 @@ async function render(advanced: boolean, workspaceId?: string) {
           flags={{
             dashboards: false,
             'workflow-tests': false,
-            changelog: false,
             'mothership-model-selector': advanced,
             'mothership-plan-mode': true,
             'mothership-computer-use': false,

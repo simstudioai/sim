@@ -17,7 +17,6 @@ on:
       - 'apps/sim/proxy.ts'
       - 'apps/sim/next.config.ts'
       - 'apps/sim/turbo.json'
-      - 'apps/sim/lib/core/config/platform-fixtures.ts'
       - 'apps/sim/lib/api/contracts/**'
       - 'apps/sim/app/api/**'
       - 'apps/sim/hooks/queries/**'
@@ -46,6 +45,7 @@ on:
       - 'apps/sim/components/file-viewer/**'
       - 'apps/sim/components/dashboard-panel/**'
       - 'apps/sim/components/find-bar/**'
+      - 'apps/sim/components/paste-guard/**'
       - 'apps/sim/hooks/sim-search/**'
       - 'apps/sim/ee/**'
       - 'apps/sim/hooks/mothership-chat/**'
@@ -140,7 +140,7 @@ jobs:
 
   # The main app as a fixture build, built once here for the browser and desktop jobs below.
   # SIM_PLATFORM_FIXTURES=1 at build time inlines example data with no sign-in
-  # (`lib/core/config/platform-fixtures.ts`); the live build above, like every normal build, carries
+  # (`platform/lib/data/mode.ts`); the live build above, like every normal build, carries
   # none. Its own Turbo cache, and turbo.json keys the build on the variable, so neither build can
   # restore as the other.
   fixture-build:
