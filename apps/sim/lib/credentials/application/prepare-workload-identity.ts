@@ -30,9 +30,9 @@ export type PrepareWorkloadIdentityResult =
     }
 
 /**
- * Starts a keyless cloud connection (an AWS role or a Databricks service
- * principal): the subject the customer's trust configuration will pin, signed
- * for this person and workspace so only they can attach it to the credential
+ * Starts a keyless cloud connection (an AWS role, a Databricks service
+ * principal, or a Snowflake service user): the subject the customer's trust
+ * configuration will pin, signed for this person and workspace so only they can attach it to the credential
  * they are about to create. Reports `available: false` when this deployment
  * cannot sign tokens, so the connect dialog offers only key-based modes.
  */

@@ -36,8 +36,13 @@ import {
 } from '@/lib/credentials/principal'
 import type { AtlassianProduct } from '@/lib/credentials/service-account-fields'
 import {
+  SnowflakeCredentialError,
+  verifyAndEncryptSnowflakeKeylessCredential,
+} from '@/lib/credentials/snowflake-service-account.server'
+import {
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
+  SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
   TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
 } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
@@ -411,6 +416,38 @@ async function buildTokenServiceAccountSecret(
 }
 
 /**
+ * Builds a Snowflake secret. A JSON configuration is the keyless mode (no
+ * stored secret); otherwise the pasted programmatic access token goes through
+ * the token-paste builder exactly as before. Snowflake's own refusals keep the
+ * shared validation codes so callers report them like any token check.
+ */
+async function buildSnowflakeServiceAccountSecret(
+  fields: ServiceAccountSecretFields
+): Promise<ServiceAccountSecretResult> {
+  if (!fields.serviceAccountJson) {
+    return buildTokenServiceAccountSecret(SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID, fields)
+  }
+  if (fields.apiToken) {
+    throw new ServiceAccountSecretError(
+      'Send either a programmatic access token or a keyless configuration, not both'
+    )
+  }
+  if (!fields.owner) throw new ServiceAccountSecretError('Snowflake credential owner is required')
+  try {
+    const result = await verifyAndEncryptSnowflakeKeylessCredential(
+      fields.serviceAccountJson,
+      fields.owner
+    )
+    return { providerId: SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID, ...result }
+  } catch (error) {
+    if (error instanceof SnowflakeCredentialError) {
+      throw new ServiceAccountSecretError(error.message)
+    }
+    throw error
+  }
+}
+
+/**
  * Builds a client-credential service-account secret for any provider registered
  * in `CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS`: verifies the provider-specific
  * descriptor fields by minting a real access token (also capturing the derived
@@ -507,6 +544,7 @@ const SERVICE_ACCOUNT_SECRET_BUILDERS: Record<string, ServiceAccountSecretBuilde
   [ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID]: buildOracleDatabaseServiceAccountSecret,
   [AWS_SERVICE_ACCOUNT_PROVIDER_ID]: buildAwsServiceAccountSecret,
   [DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID]: buildDatabricksServiceAccountSecret,
+  [SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID]: buildSnowflakeServiceAccountSecret,
 }
 
 /**

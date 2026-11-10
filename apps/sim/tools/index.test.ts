@@ -89,6 +89,7 @@ import { jamaDeleteRelationshipTool } from '@/tools/jama/delete_relationship'
 import { memoryAddTool } from '@/tools/memory/add'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import { slackListsItemsListTool } from '@/tools/slack_lists/items_list'
+import { listDatabasesTool as snowflakeListDatabasesTool } from '@/tools/snowflake/list_databases'
 import { stripeListSubscriptionsTool } from '@/tools/stripe/list_subscriptions'
 import { stripeSearchSubscriptionsTool } from '@/tools/stripe/search_subscriptions'
 import { getCallerIdentityTool } from '@/tools/sts/get_caller_identity'
@@ -3625,6 +3626,56 @@ describe('Internal Route Trust', () => {
     } finally {
       Reflect.deleteProperty(tools, toolId)
     }
+  })
+
+  describe('Snowflake token type', () => {
+    const CREDENTIAL_HOST = 'myorg-myaccount.snowflakecomputing.com'
+
+    beforeEach(() => {
+      ;(tools as Record<string, unknown>)[snowflakeListDatabasesTool.id] =
+        snowflakeListDatabasesTool
+    })
+    afterEach(() => {
+      Reflect.deleteProperty(tools, snowflakeListDatabasesTool.id)
+    })
+
+    async function snowflakeRequestHeaders(
+      resolved: Record<string, unknown>,
+      callerParams: Record<string, unknown>
+    ) {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        credentialType: 'service_account',
+        domain: CREDENTIAL_HOST,
+        ...resolved,
+      })
+      await executeTool(snowflakeListDatabasesTool.id, {
+        oauthCredential: 'snowflake-credential',
+        ...callerParams,
+      })
+      const [url, , init] = mockSecureFetchWithPinnedIP.mock.lastCall ?? []
+      return { url, headers: (init as { headers: Record<string, string> }).headers }
+    }
+
+    it('sends a programmatic access token as one even when the caller claims keyless and another host', async () => {
+      const { url, headers } = await snowflakeRequestHeaders(
+        { accessToken: 'pat-secret' },
+        { authStyle: 'snowflake-workload-identity', domain: 'attacker.snowflakecomputing.com' }
+      )
+
+      expect(url).toBe(`https://${CREDENTIAL_HOST}/api/v2/statements`)
+      expect(headers.authorization).toBe('Bearer pat-secret')
+      expect(headers['x-snowflake-authorization-token-type']).toBe('PROGRAMMATIC_ACCESS_TOKEN')
+    })
+
+    it('sends a keyless credential’s token through workload identity federation', async () => {
+      const { headers } = await snowflakeRequestHeaders(
+        { accessToken: 'signed-jwt', authStyle: 'snowflake-workload-identity' },
+        {}
+      )
+
+      expect(headers.authorization).toBe('Bearer WIF.OIDC.signed-jwt')
+      expect(headers['x-snowflake-authorization-token-type']).toBe('WORKLOAD_IDENTITY_FEDERATION')
+    })
   })
 
   describe('saved token credentials (credentialParams)', () => {

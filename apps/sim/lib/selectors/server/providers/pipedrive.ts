@@ -62,7 +62,7 @@ export const pipedriveSelectorAttachments = {
         const body = await fetchProviderJson<unknown>(url, {
           headers: getPipedriveAuthHeaders({
             accessToken: token.accessToken,
-            authStyle: token.authStyle,
+            authStyle: token.authStyle === 'x-api-token' ? token.authStyle : undefined,
           }),
           signal: args.signal,
           redirect: 'error',

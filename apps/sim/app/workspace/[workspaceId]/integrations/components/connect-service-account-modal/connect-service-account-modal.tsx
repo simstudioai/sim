@@ -28,6 +28,7 @@ import {
 import type { ServiceAccountSecretFields } from '@/lib/credentials/service-account-secret'
 import {
   getTokenServiceAccountDescriptor,
+  SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
   type TokenServiceAccountProviderId,
 } from '@/lib/credentials/token-service-accounts/descriptors'
 import { getServiceAccountCoverageSentence } from '@/lib/integrations/credential-display'
@@ -44,6 +45,7 @@ import { AwsAccountModal } from '@/app/workspace/[workspaceId]/integrations/comp
 import { ClientCredentialAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/client-credential-account-modal'
 import { DatabricksAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/databricks-account-modal'
 import { OracleDatabaseAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/oracle-database-account-modal'
+import { SnowflakeAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/snowflake-account-modal'
 import { TokenServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/token-service-account-modal'
 import { ConnectSlackBotModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-slack-bot-modal/connect-slack-bot-modal'
 import { withBrandIcon } from '@/blocks/brand-icon'
@@ -239,6 +241,23 @@ export function ConnectServiceAccountModal({
         workspaceId={workspaceId}
         organizationId={organizationId}
         descriptor={clientCredentialDescriptor}
+        serviceName={serviceName}
+        serviceIcon={serviceIcon}
+        credentialId={credentialId}
+        initialDisplayName={credentialDisplayName}
+        initialDescription={credentialDescription}
+        onCreated={onCreated}
+      />
+    )
+  }
+  // A caller that saves the fields itself (a connect draft) takes the token only.
+  if (serviceAccountProviderId === SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID && !onSubmitCredentials) {
+    return (
+      <SnowflakeAccountModal
+        open={open}
+        onOpenChange={onOpenChange}
+        workspaceId={workspaceId}
+        organizationId={organizationId}
         serviceName={serviceName}
         serviceIcon={serviceIcon}
         credentialId={credentialId}

@@ -21,6 +21,7 @@ import {
 import {
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
+  SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
   parseTokenServiceAccountSecretBlob,
@@ -510,10 +511,12 @@ export interface ServiceAccountTokenResult {
   apiDomain?: string
   /**
    * Set when the token must be sent in an `x-api-token` header instead of
-   * `Authorization: Bearer` (e.g. Pipedrive personal API tokens). Absent means
-   * Bearer; OAuth credentials never carry it.
+   * `Authorization: Bearer` (e.g. Pipedrive personal API tokens), or is a
+   * Sim-signed OIDC token a keyless Snowflake credential presents through
+   * workload identity federation. Absent means Bearer; OAuth credentials never
+   * carry it.
    */
-  authStyle?: 'x-api-token'
+  authStyle?: 'x-api-token' | 'snowflake-workload-identity'
 }
 
 /**
@@ -825,6 +828,12 @@ export async function resolveServiceAccountToken(
   impersonateEmail?: string,
   options?: CredentialTokenResolutionOptions
 ): Promise<ServiceAccountTokenResult> {
+  if (providerId === SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID) {
+    const { resolveSnowflakeCredentialToken } = await import(
+      '@/lib/credentials/snowflake-service-account.server'
+    )
+    return resolveSnowflakeCredentialToken(credentialId)
+  }
   if (providerId && isTokenServiceAccountProviderId(providerId)) {
     const secret = await getTokenServiceAccountSecret(credentialId, providerId)
     const descriptorAuthStyle = getTokenServiceAccountDescriptor(providerId)?.authStyle

@@ -151,7 +151,10 @@ export async function fetchProvider(
  * error pages, truncated responses) to `provider_unavailable` instead of an
  * unhandled SyntaxError that would surface as a generic 500.
  */
-export async function parseProviderJson<T>(res: Response, step: string): Promise<T> {
+export async function parseProviderJson<T>(
+  res: { json(): Promise<unknown> },
+  step: string
+): Promise<T> {
   try {
     return (await res.json()) as T
   } catch {

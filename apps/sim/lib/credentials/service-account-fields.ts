@@ -1,5 +1,8 @@
 import { CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS } from '@/lib/credentials/client-credential-accounts/descriptors'
-import { TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS } from '@/lib/credentials/token-service-accounts/descriptors'
+import {
+  SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
+  TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS,
+} from '@/lib/credentials/token-service-accounts/descriptors'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   AWS_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -74,10 +77,35 @@ export const FALLBACK_SERVICE_ACCOUNT_REQUIRED_FIELDS: readonly ServiceAccountFi
   'serviceAccountJson',
 ]
 
-export function getServiceAccountRequiredFields(
+/**
+ * Token providers that also accept a keyless JSON configuration in place of
+ * their token fields. The keyless builder validates the configuration itself.
+ */
+const KEYLESS_ALTERNATIVE_REQUIRED_FIELDS: Record<string, readonly ServiceAccountFieldId[]> = {
+  [SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID]: ['serviceAccountJson'],
+}
+
+function getServiceAccountRequiredFields(
   providerId: string | null | undefined
 ): readonly ServiceAccountFieldId[] {
   return providerId && Object.hasOwn(SERVICE_ACCOUNT_REQUIRED_FIELDS, providerId)
     ? SERVICE_ACCOUNT_REQUIRED_FIELDS[providerId]
     : FALLBACK_SERVICE_ACCOUNT_REQUIRED_FIELDS
+}
+
+/**
+ * The required create-body fields a submission is missing: none when it
+ * completes the provider's keyless alternative, otherwise the provider's own
+ * required fields that are empty.
+ */
+export function getMissingServiceAccountFields(
+  providerId: string | null | undefined,
+  provided: Partial<Record<ServiceAccountFieldId, unknown>>
+): ServiceAccountFieldId[] {
+  const keyless =
+    providerId && Object.hasOwn(KEYLESS_ALTERNATIVE_REQUIRED_FIELDS, providerId)
+      ? KEYLESS_ALTERNATIVE_REQUIRED_FIELDS[providerId]
+      : undefined
+  if (keyless?.every((field) => provided[field])) return []
+  return getServiceAccountRequiredFields(providerId).filter((field) => !provided[field])
 }

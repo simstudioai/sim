@@ -140,6 +140,12 @@ interface SavedConnectionSubmitInput {
   credentialId?: string
   onCreated?: (credentialId: string) => void
   onClose: () => void
+  /**
+   * Copy for a shared verification code (`invalid_credentials`, …) the
+   * provider reports by code rather than with its own message; undefined
+   * keeps the server's message.
+   */
+  messageForCode?: (code: string) => string | undefined
 }
 
 /**
@@ -154,6 +160,7 @@ export function useSavedConnectionSubmit({
   credentialId,
   onCreated,
   onClose,
+  messageForCode,
 }: SavedConnectionSubmitInput) {
   const [error, setError] = useState<string | null>(null)
   const createCredential = useCreateScopedCredential()
@@ -194,10 +201,15 @@ export function useSavedConnectionSubmit({
         setError('A credential with that name already exists. Choose a different display name.')
         return
       }
+      const codeMessage =
+        isApiClientError(submitError) && submitError.code
+          ? messageForCode?.(submitError.code)
+          : undefined
       setError(
-        isApiClientError(submitError) && submitError.message
-          ? submitError.message
-          : 'Could not verify the credential. Check the details and try again.'
+        codeMessage ??
+          (isApiClientError(submitError) && submitError.message
+            ? submitError.message
+            : 'Could not verify the credential. Check the details and try again.')
       )
     }
   }

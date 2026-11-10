@@ -3,7 +3,7 @@ import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/pri
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   ATLASSIAN_PRODUCTS,
-  getServiceAccountRequiredFields,
+  getMissingServiceAccountFields,
 } from '@/lib/credentials/service-account-fields'
 import { WORKLOAD_IDENTITY_PROVIDERS } from '@/lib/credentials/workload-identity/audiences'
 import type { OAuthProvider } from '@/lib/oauth/types'
@@ -237,14 +237,12 @@ export function refineCredentialCreate(
   }
 
   if (data.type === 'service_account') {
-    for (const field of getServiceAccountRequiredFields(data.providerId)) {
-      if (!data[field]) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `${field} is required for ${data.providerId ?? 'service account'} credentials`,
-          path: [field],
-        })
-      }
+    for (const field of getMissingServiceAccountFields(data.providerId, data)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${field} is required for ${data.providerId ?? 'service account'} credentials`,
+        path: [field],
+      })
     }
     return
   }

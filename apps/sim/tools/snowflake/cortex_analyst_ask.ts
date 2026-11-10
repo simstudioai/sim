@@ -157,6 +157,7 @@ export const cortexAnalystAskTool: ToolConfig<
          * to nested tools.
          */
         accessToken: params.accessToken,
+        authStyle: params.authStyle,
         domain: params.domain,
         statement: sql,
         ...cortexAnalystSqlContext(params, result.output.semanticModelSelection?.index),

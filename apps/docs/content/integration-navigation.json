@@ -75,7 +75,7 @@
     },
     "snowflake-service-account": {
       "integration": "snowflake",
-      "title": "Programmatic access tokens"
+      "title": "Snowflake connections"
     },
     "trello-service-account": {
       "integration": "trello",

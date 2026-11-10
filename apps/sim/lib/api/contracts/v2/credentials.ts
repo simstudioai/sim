@@ -20,7 +20,7 @@ import {
   v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 import {
-  getServiceAccountRequiredFields,
+  getMissingServiceAccountFields,
   SERVICE_ACCOUNT_REQUIRED_FIELDS,
 } from '@/lib/credentials/service-account-fields'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
@@ -597,14 +597,12 @@ export const v2CreateServiceAccountCredentialBodySchema = z
       })
       return
     }
-    for (const field of getServiceAccountRequiredFields(body.providerId)) {
-      if (!body.credentials[field]) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['credentials', field],
-          message: `${field} is required for ${body.providerId} credentials`,
-        })
-      }
+    for (const field of getMissingServiceAccountFields(body.providerId, body.credentials)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['credentials', field],
+        message: `${field} is required for ${body.providerId} credentials`,
+      })
     }
   })
 export type V2CreateServiceAccountCredentialBody = z.input<

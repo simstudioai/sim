@@ -46,6 +46,7 @@ import {
   ServiceAccountSecretError,
   verifyAndBuildServiceAccountSecret,
 } from '@/lib/credentials/service-account-secret'
+import { SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/credentials/token-service-accounts/descriptors'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import {
   assertReconnectedSubjectUnclaimed,
@@ -345,10 +346,13 @@ export async function updateCredentialRecord(
         providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID &&
         params.atlassianProduct === undefined
       const needsStoredUsername = params.username === undefined && isMultiGrantProvider
-      // A keyless AWS role or Databricks principal keeps its trusted subject across reconnects.
+      // A keyless AWS role, Databricks principal, or Snowflake service user keeps its trusted
+      // subject across reconnects.
       const needsStoredBoundSubject =
         providerId === AWS_SERVICE_ACCOUNT_PROVIDER_ID ||
-        providerId === DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID
+        providerId === DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID ||
+        (providerId === SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID &&
+          params.serviceAccountJson !== undefined)
 
       // Rotating to a key that belongs to a different principal makes an
       // identity-derived label (a Google `client_email`, a Slack team name)
