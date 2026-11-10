@@ -231,14 +231,10 @@
   "apps/sim/app/api/mothership/chats/read/route.test.ts": {
     "TS2554": 3
   },
-  "apps/sim/app/api/mothership/events/route.test.ts": {
-    "TS2554": 10
-  },
   "apps/sim/app/api/organizations/[id]/permission-groups/[groupId]/route.test.ts": {
     "TS2550": 2
   },
   "apps/sim/app/api/organizations/route.test.ts": {
-    "TS2554": 3,
     "TS2769": 1
   },
   "apps/sim/app/api/pinned-items/route.test.ts": {
@@ -457,9 +453,6 @@
   "apps/sim/app/api/workspaces/invitations/route.test.ts": {
     "TS2322": 1,
     "TS2554": 1
-  },
-  "apps/sim/app/api/workspaces/route.test.ts": {
-    "TS2554": 2
   },
   "apps/sim/background/async-execution-correlation.test.ts": {
     "TS2345": 2
@@ -965,9 +958,6 @@
   "apps/sim/lib/billing/enterprise-provisioning.test.ts": {
     "TS2345": 2,
     "TS2739": 16
-  },
-  "apps/sim/lib/billing/organization.test.ts": {
-    "TS2345": 1
   },
   "apps/sim/lib/billing/organizations/lock-order.test.ts": {
     "TS2345": 2,
