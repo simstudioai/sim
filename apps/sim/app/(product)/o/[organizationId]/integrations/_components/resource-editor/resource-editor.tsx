@@ -122,8 +122,8 @@ function LibraryResourceEditor({
         <ConfirmDialog
           target={deleting}
           onClose={() => setDeleting(false)}
-          title={`${deleteLabel ? 'Remove' : 'Delete'} ${noun}`}
-          description={`This removes ${resource.name} from your integrations.`}
+          title={`${deleteLabel ? 'Remove' : 'Delete'} ${resource.name}`}
+          description={`This removes the ${noun} from your integrations.`}
           confirmLabel={removeLabel}
           pendingLabel={deleteLabel ? 'Removing…' : 'Deleting…'}
           onConfirm={() => {

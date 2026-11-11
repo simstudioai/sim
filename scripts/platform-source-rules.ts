@@ -197,6 +197,17 @@ export function hasAsciiEllipsis(node: ts.Node): boolean {
   return Boolean(text && /[\p{L}\p{N}]\.\.\.(?!\.)/u.test(text))
 }
 
+/**
+ * No-results copy that echoes the query or says “found” (`No matching links for “…”`, `No tools
+ * found matching …`, `No results for …`). Platform reads No matching {noun}, as Paper does.
+ */
+export function echoesNoResultsQuery(node: ts.Node): boolean {
+  if (!ts.isStringLiteralLike(node) && !ts.isTemplateHead(node) && !ts.isJsxText(node)) return false
+  return /^\s*No (?:matching\b.*\b(?:for|found)\b|results for\b|[\p{L} ]+ found matching\b)/u.test(
+    node.text
+  )
+}
+
 /** The last segment of a JSX tag (`Menu.Item` → `Item`). */
 function tagName(element: ts.JsxOpeningLikeElement): string {
   const tag = element.tagName.getText()
@@ -264,8 +275,9 @@ const NAMED_CONTROL = /^(?:button|\w*Button|\w*Item|Chip)$/
 
 /**
  * Capitalized words that stay capitalized mid-label: Sim's products (Chat, Assistant, Search), its
- * plans, the Agent block, brands and services, key names and the calendar. Product surfaces that
- * are also tabs or pages (logs, runs, skills, integrations) are common nouns mid-label. An all-caps
+ * plans, the Agent block, brands and services, key names and the calendar. Home and Wiki are
+ * destinations Paper capitalizes mid-label (Customize Home, Create a Wiki page); other surfaces
+ * that are also tabs or pages (logs, runs, skills, integrations) are common nouns mid-label. An all-caps
  * or mixed-case word (`API`, `SSO`, `OAuth`, `GitHub`) is never read as Title Case, so it needs no
  * entry.
  */
@@ -274,6 +286,8 @@ export const PROPER_NOUNS: ReadonlySet<string> = new Set([
   'Chat',
   'Assistant',
   'Search',
+  'Home',
+  'Wiki',
   'Agent',
   'Enterprise',
   'Max',

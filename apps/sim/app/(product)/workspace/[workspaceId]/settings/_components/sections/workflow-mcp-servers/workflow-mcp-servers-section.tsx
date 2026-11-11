@@ -139,7 +139,7 @@ export default function WorkflowMcpServersSection({ workspaceId }: WorkspaceSett
             description={canManage ? 'Add a server to get started.' : undefined}
           />
         ) : filtered.length === 0 ? (
-          <EmptyState title={`No servers found matching "${search}"`} />
+          <EmptyState title='No matching servers' />
         ) : (
           <ResourceList>
             {filtered.map((server) => {

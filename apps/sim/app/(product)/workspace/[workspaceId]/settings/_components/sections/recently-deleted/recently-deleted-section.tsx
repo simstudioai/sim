@@ -238,11 +238,7 @@ export default function RecentlyDeletedSection({ workspaceId }: WorkspaceSetting
         onRetry={() => void deleted.refetch()}
       />
     ) : deleted.isLoading && items.length === 0 ? null : items.length === 0 ? (
-      <EmptyState
-        title={
-          debouncedSearch ? `No items found matching “${debouncedSearch}”` : 'No deleted items'
-        }
-      />
+      <EmptyState title={debouncedSearch ? 'No matching items' : 'No deleted items'} />
     ) : (
       <SettingsSection title='Deleted items'>
         {items.map((resource) => {

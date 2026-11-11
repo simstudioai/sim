@@ -68,7 +68,6 @@
   display: grid;
   gap: var(--ui-list-gap);
   min-inline-size: 0;
-  margin-inline: calc(-1 * var(--ui-row-inset));
   padding-block: var(--spacing-4);
 }
 

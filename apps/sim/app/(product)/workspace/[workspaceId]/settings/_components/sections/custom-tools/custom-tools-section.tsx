@@ -121,7 +121,7 @@ export default function CustomToolsSection({ workspaceId }: WorkspaceSettingsSec
           description={canEdit ? 'Add a tool to get started.' : undefined}
         />
       ) : filtered.length === 0 ? (
-        <EmptyState title={`No tools found matching "${search}"`} />
+        <EmptyState title='No matching tools' />
       ) : (
         <SettingsSection title='Tools'>
           <ResourceList>

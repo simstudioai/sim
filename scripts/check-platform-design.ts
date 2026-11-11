@@ -20,6 +20,7 @@ import { ORGANIZATION_ROUTES, PRODUCT_ROUTES } from './platform-product-routes'
 import { ruleDocumentation } from './platform-rule-docs'
 import {
   classifyPage,
+  echoesNoResultsQuery,
   type HelperCopyKind,
   handRole,
   hasAsciiEllipsis,
@@ -505,6 +506,26 @@ const positionerMeasurements = new Set([
   '--available-height',
 ])
 const sheets = new Map<string, postcss.Root>()
+/**
+ * A rule's own `margin-inline: calc(-1 * var(--ui-row-inset))`, which reaches a surface past the
+ * text edge as `PageOverflow` does. A box that pads the inset back (a scroller or a single control
+ * keeping its content on the edge) and a bleed only at one size (`@media`, `@container`) differ.
+ */
+function isHandBleed(declaration: postcss.Declaration): boolean {
+  const rule = declaration.parent
+  return (
+    declaration.prop === 'margin-inline' &&
+    /^calc\(\s*-1\s*\*\s*var\(\s*--ui-row-inset\s*(?:,[^)]*)?\)\s*\)$/.test(declaration.value) &&
+    rule?.type === 'rule' &&
+    rule.parent?.type === 'root' &&
+    !(rule as postcss.Rule).nodes.some(
+      (node) =>
+        node.type === 'decl' &&
+        node.prop === 'padding-inline' &&
+        /^var\(\s*--ui-row-inset\b/.test(node.value)
+    )
+  )
+}
 const classOwners = new Map<string, Set<string>>()
 const variantProps = new Set(Object.values(variants).flatMap((props) => Object.keys(props)))
 function checkCss(file: string, sheet: postcss.Root) {
@@ -626,6 +647,12 @@ function checkCss(file: string, sheet: postcss.Root) {
         report('unknown-token', location, token)
     }
     if (base) return
+    if (privateRoute(file) && isHandBleed(declaration) && !grants('ROW_BLEED_OWNERS', file))
+      report(
+        'page-overflow',
+        location,
+        'Wrap the surface in PageOverflow (@sim/emcn-platform/page-column) instead of a negative row inset'
+      )
     if (
       /^(?:transition|animation)(?:-|$)/.test(prop) &&
       /(?:^|[^\w-])(?:\d*\.)?\d+(?:ms|s)\b/.test(value)
@@ -1162,6 +1189,12 @@ function checkJs(file: string, content: string) {
           'native-title',
           location(node),
           'Show the full value through Tooltip or OverflowText'
+        )
+      if (authoredData && echoesNoResultsQuery(node))
+        report(
+          'copy-case',
+          location(node),
+          'Write no-results copy as No matching {noun}, without the query or “found”'
         )
       const titleCase = authoredData ? titleCaseWords(node) : []
       if (titleCase.length)

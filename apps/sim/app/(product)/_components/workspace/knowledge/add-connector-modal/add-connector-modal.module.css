@@ -1,11 +1,10 @@
-/* The source list keeps ActivityRow's own rhythm; its hover reaches past the dialog's text edge. */
+/* The source list keeps ActivityRow's own rhythm; PageOverflow reaches its hover past the text edge. */
 .sources {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--ui-list-gap);
   max-block-size: var(--spacing-320);
   margin: 0;
-  margin-inline: calc(-1 * var(--ui-row-inset));
   padding: 0;
   overflow-y: auto;
   list-style: none;

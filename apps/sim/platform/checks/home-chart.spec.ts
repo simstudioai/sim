@@ -46,7 +46,7 @@ test('Home switches the activity metric while keeping its date window and widget
   await expect(searchTip).toContainText('Oct 13, 2026')
   expect((await searchTip.innerText()).replace('Searches', 'Tasks run')).not.toBe(lastBuildPoint)
 
-  const customize = page.getByRole('button', { name: 'Customize home' })
+  const customize = page.getByRole('button', { name: 'Customize Home' })
   await customize.click()
   await page.getByRole('menuitemcheckbox', { name: 'Searches' }).click()
   await page.keyboard.press('Escape')

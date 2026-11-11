@@ -1077,7 +1077,7 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
         ? { status: 'pending' }
         : { status: 'ready' }
 
-  const copyText = noResults(search, filtered)
+  const copyText = noResults(search, filtered, 'files')
   const empty =
     searching || filtered ? (
       <WorkspaceEmpty

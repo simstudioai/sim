@@ -225,7 +225,7 @@ export function ToolPicker({
         onDismiss={() => onOpenChange(false)}
       >
         {visibleGroups.length === 0 ? (
-          <FieldPopoverNote>No tools found</FieldPopoverNote>
+          <FieldPopoverNote>No matching tools</FieldPopoverNote>
         ) : (
           visibleGroups.map((group) => (
             <div key={group.id} role='group' aria-label={group.heading} className={styles.group}>

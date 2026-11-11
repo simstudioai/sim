@@ -6,6 +6,7 @@ import { CopyButton } from '@sim/emcn/button/copy-button'
 import { Icon } from '@sim/emcn/icon'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { Tooltip } from '@sim/emcn/tooltip'
+import { PageOverflow } from '@sim/emcn-platform/page-column'
 import styles from '@/app/(product)/_components/workspace/trace-tree/trace-tree.module.css'
 import type { TraceSpan } from '@/platform/shared/workspace-records'
 
@@ -110,66 +111,72 @@ export function TraceTree({ label, rows, selectedId, onSelect, onToggle }: Trace
   }
 
   return (
-    <ol className={styles.tree} aria-label={label}>
-      {rows.map((row, index) => {
-        const name = <OverflowText text={row.name}>{row.name}</OverflowText>
-        return (
-          <li
-            key={row.id}
-            className={styles.row}
-            data-trace-id={row.id}
-            data-selected={row.id === selectedId || undefined}
-          >
-            {Array.from({ length: row.depth }, (_, level) => (
-              <span key={level} className={styles.guide} aria-hidden='true' />
-            ))}
-            {row.expanded === undefined ? (
-              <span className={styles.disclosure} aria-hidden='true' />
-            ) : (
+    <PageOverflow>
+      <ol className={styles.tree} aria-label={label}>
+        {rows.map((row, index) => {
+          const name = <OverflowText text={row.name}>{row.name}</OverflowText>
+          return (
+            <li
+              key={row.id}
+              className={styles.row}
+              data-trace-id={row.id}
+              data-selected={row.id === selectedId || undefined}
+            >
+              {Array.from({ length: row.depth }, (_, level) => (
+                <span key={level} className={styles.guide} aria-hidden='true' />
+              ))}
+              {row.expanded === undefined ? (
+                <span className={styles.disclosure} aria-hidden='true' />
+              ) : (
+                <button
+                  type='button'
+                  className={styles.disclosure}
+                  aria-label={`${row.expanded ? 'Collapse' : 'Expand'} ${row.name}`}
+                  aria-expanded={row.expanded}
+                  onClick={() => onToggle(row.id, !row.expanded)}
+                >
+                  <Icon name={row.expanded ? 'I051' : 'I090'} />
+                </button>
+              )}
               <button
                 type='button'
-                className={styles.disclosure}
-                aria-label={`${row.expanded ? 'Collapse' : 'Expand'} ${row.name}`}
-                aria-expanded={row.expanded}
-                onClick={() => onToggle(row.id, !row.expanded)}
+                className={styles.target}
+                data-trace-target=''
+                aria-pressed={row.id === selectedId}
+                onClick={() => onSelect(row.id)}
+                onKeyDown={(event) => onKeyDown(event, row, index)}
               >
-                <Icon name={row.expanded ? 'I051' : 'I090'} />
+                <span className={styles.mark} aria-hidden='true'>
+                  {row.mark}
+                </span>
+                <span
+                  className={styles.name}
+                  data-type='T060'
+                  data-failed={row.failed || undefined}
+                >
+                  {row.timing ? <Tooltip label={row.timing}>{name}</Tooltip> : name}
+                </span>
+                <span className={styles.duration} data-type='T052'>
+                  {row.duration}
+                </span>
+                <svg className={styles.timeline} role='img' aria-label={row.startLabel}>
+                  <line className={styles.track} x1='0' x2='100%' y1='50%' y2='50%' />
+                  <rect
+                    className={styles.bar}
+                    data-paint={row.bar.paint}
+                    x={`${row.bar.start}%`}
+                    y='0'
+                    width={`${row.bar.width}%`}
+                    height='100%'
+                    rx='2'
+                  />
+                </svg>
               </button>
-            )}
-            <button
-              type='button'
-              className={styles.target}
-              data-trace-target=''
-              aria-pressed={row.id === selectedId}
-              onClick={() => onSelect(row.id)}
-              onKeyDown={(event) => onKeyDown(event, row, index)}
-            >
-              <span className={styles.mark} aria-hidden='true'>
-                {row.mark}
-              </span>
-              <span className={styles.name} data-type='T060' data-failed={row.failed || undefined}>
-                {row.timing ? <Tooltip label={row.timing}>{name}</Tooltip> : name}
-              </span>
-              <span className={styles.duration} data-type='T052'>
-                {row.duration}
-              </span>
-              <svg className={styles.timeline} role='img' aria-label={row.startLabel}>
-                <line className={styles.track} x1='0' x2='100%' y1='50%' y2='50%' />
-                <rect
-                  className={styles.bar}
-                  data-paint={row.bar.paint}
-                  x={`${row.bar.start}%`}
-                  y='0'
-                  width={`${row.bar.width}%`}
-                  height='100%'
-                  rx='2'
-                />
-              </svg>
-            </button>
-          </li>
-        )
-      })}
-    </ol>
+            </li>
+          )
+        })}
+      </ol>
+    </PageOverflow>
   )
 }
 

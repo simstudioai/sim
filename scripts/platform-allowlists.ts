@@ -204,6 +204,13 @@ const FRAMES_OUTSIDE_SURFACE: ReasonedAllowlist = {
   [`${system}components/page-column/page-column.module.css`]:
     'The page column measures the composer docked beneath it',
 }
+/** Row bleeds (`page-overflow`) a `PageOverflow` wrapper cannot express yet. */
+const ROW_BLEED_OWNERS: ReasonedAllowlist = {
+  [`${ORGANIZATION_ROUTES}home/_components/activity-list/activity-list.module.css`]:
+    "The scroll viewport is bounded by its section's height; a wrapper would break that min-block-size chain",
+  [`${ORGANIZATION_ROUTES}home/_components/home-workspaces/home-workspaces.module.css`]:
+    "The scroll viewport is bounded by its section's height; a wrapper would break that min-block-size chain",
+}
 /** Pages that measure their own chrome for a table's scroller, or theme React Flow through its variables. */
 const LOCAL_TOKEN_OWNERS: ReasonedAllowlist = {
   [`${PRODUCT_ROUTES}_components/links-page/links-page.module.css`]:
@@ -1123,6 +1130,7 @@ export const PLATFORM_ALLOWLISTS = {
   ALERT_OWNERS,
   FRAMES_OUTSIDE_SURFACE,
   LOCAL_TOKEN_OWNERS,
+  ROW_BLEED_OWNERS,
   serverSeamHelpers,
   platformHostModules,
   seamHelpers,

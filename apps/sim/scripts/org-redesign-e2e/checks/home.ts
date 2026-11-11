@@ -97,7 +97,7 @@ export async function homeChecks() {
       await onHome(persona, async ({ page }) => {
         await expect(page).toHaveURL((address) => address.pathname === org.home)
         await expect(composer(page)).toBeVisible()
-        await expect(page.getByRole('button', { name: 'Customize home' })).toBeVisible()
+        await expect(page.getByRole('button', { name: 'Customize Home' })).toBeVisible()
         await expect(
           page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', {
             name: 'Home',

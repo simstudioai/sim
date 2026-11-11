@@ -23,7 +23,7 @@ interface ReviewRequestsProps {
 }
 
 function emptyTitle(query: string, status: RequestStatusFilter, statusLabel: string | null) {
-  if (query) return `No matching requests for “${query}”`
+  if (query) return 'No matching requests'
   if (status === 'pending') return 'No pending requests'
   if (status === 'all') return 'No requests yet'
   return `No ${statusLabel?.toLowerCase()} requests`

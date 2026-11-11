@@ -282,7 +282,7 @@ export default function McpSection({ workspaceId }: WorkspaceSettingsSectionProp
             description={canEdit ? 'Add a server to get started.' : undefined}
           />
         ) : filtered.length === 0 ? (
-          <EmptyState title={`No servers found matching "${search}"`} />
+          <EmptyState title='No matching servers' />
         ) : (
           <ResourceList>
             {filtered.map((server) => {

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { Button } from '@sim/emcn/button'
+import { PageOverflow } from '@sim/emcn-platform/page-column'
 import Link from 'next/link'
 import styles from '@/app/(product)/_components/settings-parts/settings-parts.module.css'
 
@@ -73,7 +74,11 @@ export function Preformatted({ children }: ChildrenProps) {
 
 /** The list element `ActivityRow` rows sit in. */
 export function ResourceList({ children }: ChildrenProps) {
-  return <ul className={styles.list}>{children}</ul>
+  return (
+    <PageOverflow>
+      <ul className={styles.list}>{children}</ul>
+    </PageOverflow>
+  )
 }
 
 interface DetailHeaderContent {

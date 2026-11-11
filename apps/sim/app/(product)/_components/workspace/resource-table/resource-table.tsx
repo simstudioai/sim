@@ -15,6 +15,7 @@ import { Input } from '@sim/emcn/field/inputs'
 import { Icon, type IconName } from '@sim/emcn/icon'
 import { ActionMenu, ContextActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { OverflowText } from '@sim/emcn/overflow-text'
+import { PageOverflow } from '@sim/emcn-platform/page-column'
 import { escapeRegExp } from '@sim/utils/string'
 import Link from 'next/link'
 import { ListEnd } from '@/app/(product)/_components/workspace/list-end/list-end'
@@ -157,49 +158,51 @@ export function ResourceTable({
       onDrop={drag?.body.onDrop}
     >
       {hasRows ? (
-        <div className={styles.table} data-narrowed={narrowed || undefined}>
-          <div className={styles.header} data-type='T050'>
-            {selection && (
-              <span className={styles.check}>
-                <Checkbox
-                  label={`Select all ${label.toLowerCase()}`}
-                  labelHidden
-                  checked={allSelected}
-                  indeterminate={selectedCount > 0 && !allSelected}
-                  onCheckedChange={selection.toggleAll}
-                />
-              </span>
-            )}
-            <span className={styles.name}>{nameLabel}</span>
-            {columns.map((column) => (
-              <ColumnCell key={column.id} column={column}>
-                {column.label}
-              </ColumnCell>
-            ))}
-            {rowActions && <span className={styles.action} />}
-          </div>
-          <ol ref={listRef} className={styles.rows} aria-label={label}>
-            {entries.map(({ key, index, row, spaceBefore }) => (
-              <Fragment key={key}>
-                <VirtualSpacer blockSize={spaceBefore} />
-                <li ref={virtualizer.measureElement} data-index={index}>
-                  <ResourceRowView
-                    row={row}
-                    columns={columns}
-                    rowActions={rowActions}
-                    selection={selection}
-                    rename={rename?.rowId === row.id ? rename : null}
-                    drag={drag}
-                    find={find}
-                    terms={terms}
+        <PageOverflow>
+          <div className={styles.table} data-narrowed={narrowed || undefined}>
+            <div className={styles.header} data-type='T050'>
+              {selection && (
+                <span className={styles.check}>
+                  <Checkbox
+                    label={`Select all ${label.toLowerCase()}`}
+                    labelHidden
+                    checked={allSelected}
+                    indeterminate={selectedCount > 0 && !allSelected}
+                    onCheckedChange={selection.toggleAll}
                   />
-                </li>
-              </Fragment>
-            ))}
-            <VirtualSpacer blockSize={spaceAfter} />
-          </ol>
-          {loadMore && <ListEnd hasMore={loadMore.hasMore} onLoadMore={loadMore.onLoadMore} />}
-        </div>
+                </span>
+              )}
+              <span className={styles.name}>{nameLabel}</span>
+              {columns.map((column) => (
+                <ColumnCell key={column.id} column={column}>
+                  {column.label}
+                </ColumnCell>
+              ))}
+              {rowActions && <span className={styles.action} />}
+            </div>
+            <ol ref={listRef} className={styles.rows} aria-label={label}>
+              {entries.map(({ key, index, row, spaceBefore }) => (
+                <Fragment key={key}>
+                  <VirtualSpacer blockSize={spaceBefore} />
+                  <li ref={virtualizer.measureElement} data-index={index}>
+                    <ResourceRowView
+                      row={row}
+                      columns={columns}
+                      rowActions={rowActions}
+                      selection={selection}
+                      rename={rename?.rowId === row.id ? rename : null}
+                      drag={drag}
+                      find={find}
+                      terms={terms}
+                    />
+                  </li>
+                </Fragment>
+              ))}
+              <VirtualSpacer blockSize={spaceAfter} />
+            </ol>
+            {loadMore && <ListEnd hasMore={loadMore.hasMore} onLoadMore={loadMore.onLoadMore} />}
+          </div>
+        </PageOverflow>
       ) : (
         empty
       )}

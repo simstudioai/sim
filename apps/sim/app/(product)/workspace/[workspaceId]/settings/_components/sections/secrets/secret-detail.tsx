@@ -234,11 +234,11 @@ export function SecretDetail({ workspaceId, credentialId, onBack }: SecretDetail
       {!isPersonal && (
         <SettingsSection title='Visibility'>
           <SettingsRow
-            label='Show value in logs and Chat'
+            label='Show value in logs and chat'
             description='The value is visible to anyone who can see this workspace’s runs — in logs, Chat, and the API, including shared log links.'
           >
             <Switch
-              label='Show value in logs and Chat'
+              label='Show value in logs and chat'
               checked={form.unredactedDraft}
               onCheckedChange={form.setUnredactedDraft}
               disabled={!isWorkspaceSecretAdmin}

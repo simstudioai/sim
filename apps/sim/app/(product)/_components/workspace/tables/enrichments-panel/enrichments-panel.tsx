@@ -5,6 +5,7 @@ import { ActivityRow } from '@sim/emcn/activity-row'
 import { Icon } from '@sim/emcn/icon'
 import { SearchField } from '@sim/emcn/search-field'
 import { InlineNotice } from '@sim/emcn/status'
+import { PageOverflow } from '@sim/emcn-platform/page-column'
 import { enrichmentMark } from '@/app/(product)/_components/workspace/tables/column-types/enrichment-marks'
 import { EnrichmentConfig } from '@/app/(product)/_components/workspace/tables/enrichments-panel/enrichment-config'
 import styles from '@/app/(product)/_components/workspace/tables/enrichments-panel/enrichments-panel.module.css'
@@ -108,18 +109,20 @@ export function EnrichmentsPanel({
       {enrichments.length === 0 ? (
         <SidePanelNote>{query.trim() ? 'No matching enrichments' : 'No enrichments'}</SidePanelNote>
       ) : (
-        <ul className={styles.catalog} aria-label='Enrichments'>
-          {enrichments.map((enrichment) => (
-            <ActivityRow
-              key={enrichment.id}
-              leading={<EnrichmentMark id={enrichment.id} />}
-              title={enrichment.name}
-              detail={enrichment.description}
-              wrapDetail
-              onOpen={() => setSelected(enrichment)}
-            />
-          ))}
-        </ul>
+        <PageOverflow>
+          <ul className={styles.catalog} aria-label='Enrichments'>
+            {enrichments.map((enrichment) => (
+              <ActivityRow
+                key={enrichment.id}
+                leading={<EnrichmentMark id={enrichment.id} />}
+                title={enrichment.name}
+                detail={enrichment.description}
+                wrapDetail
+                onOpen={() => setSelected(enrichment)}
+              />
+            ))}
+          </ul>
+        </PageOverflow>
       )}
     </SidePanel>
   )

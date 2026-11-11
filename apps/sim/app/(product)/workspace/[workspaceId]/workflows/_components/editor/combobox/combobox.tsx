@@ -637,7 +637,7 @@ export const ComboBox = memo(function ComboBox({
                         : fetched.hasMore
                           ? 'No options loaded'
                           : (inputValue && !exactMatch) || listQuery
-                            ? 'No matching options found'
+                            ? 'No matching options'
                             : 'No options available'}
                   </FieldPopoverNote>
                 )}

@@ -7,6 +7,7 @@ import { SettingsRow, SettingsSection, SettingsSurface } from '@sim/emcn/setting
 import { FailureNotice, StatusText } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
 import { Tooltip } from '@sim/emcn/tooltip'
+import { PageOverflow } from '@sim/emcn-platform/page-column'
 import {
   BooleanRow,
   SavedSettingsSection,
@@ -187,37 +188,39 @@ export function BillingView({
       )}
       {billing.invoices.length > 0 && (
         <SettingsSection title='Invoices'>
-          <ul className={styles.invoices}>
-            {billing.invoices.map((invoice) => {
-              const details = (
-                <>
-                  <span data-type='T059'>{invoice.date}</span>
-                  <StatusText label={invoice.statusLabel} intent={invoice.statusIntent} />
-                  <span data-type='T060'>{invoice.amount}</span>
-                  <span className={styles.description} data-type='T060'>
-                    {invoice.description}
-                  </span>
-                  <Icon name='I032' />
-                </>
-              )
-              return (
-                <li key={invoice.id}>
-                  {invoice.url ? (
-                    <a
-                      className={styles.invoice}
-                      href={invoice.url}
-                      target='_blank'
-                      rel='noopener noreferrer'
-                    >
-                      {details}
-                    </a>
-                  ) : (
-                    <div className={styles.invoice}>{details}</div>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
+          <PageOverflow>
+            <ul className={styles.invoices}>
+              {billing.invoices.map((invoice) => {
+                const details = (
+                  <>
+                    <span data-type='T059'>{invoice.date}</span>
+                    <StatusText label={invoice.statusLabel} intent={invoice.statusIntent} />
+                    <span data-type='T060'>{invoice.amount}</span>
+                    <span className={styles.description} data-type='T060'>
+                      {invoice.description}
+                    </span>
+                    <Icon name='I032' />
+                  </>
+                )
+                return (
+                  <li key={invoice.id}>
+                    {invoice.url ? (
+                      <a
+                        className={styles.invoice}
+                        href={invoice.url}
+                        target='_blank'
+                        rel='noopener noreferrer'
+                      >
+                        {details}
+                      </a>
+                    ) : (
+                      <div className={styles.invoice}>{details}</div>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          </PageOverflow>
           {billing.hasMoreInvoices && (
             <Button
               size='compact'

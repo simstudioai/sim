@@ -19,6 +19,7 @@ import { OverflowText } from '@sim/emcn/overflow-text'
 import { DateRangePicker } from '@sim/emcn/picker/date-picker'
 import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { PageOverflow } from '@sim/emcn-platform/page-column'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
@@ -366,46 +367,48 @@ export function RunList({
           />
         )
       ) : (
-        <div className={styles.table}>
-          <div
-            className={styles.header}
-            data-type='T050'
-            data-actions={rowActions ? '' : undefined}
-            aria-hidden='true'
-          >
-            <span>Workflow</span>
-            <span>Status</span>
-            <span data-optional=''>Trigger</span>
-            <span className={styles.numeric}>Duration</span>
-            <span className={styles.numeric} data-optional=''>
-              Compute Units
-            </span>
-            <span className={styles.numeric}>Started</span>
-            {rowActions && <span />}
+        <PageOverflow>
+          <div className={styles.table}>
+            <div
+              className={styles.header}
+              data-type='T050'
+              data-actions={rowActions ? '' : undefined}
+              aria-hidden='true'
+            >
+              <span>Workflow</span>
+              <span>Status</span>
+              <span data-optional=''>Trigger</span>
+              <span className={styles.numeric}>Duration</span>
+              <span className={styles.numeric} data-optional=''>
+                Compute Units
+              </span>
+              <span className={styles.numeric}>Started</span>
+              {rowActions && <span />}
+            </div>
+            <ol ref={listRef} className={styles.rows} aria-label='Runs'>
+              {entries.map(({ key, index, row: run, spaceBefore }) => (
+                <Fragment key={key}>
+                  <VirtualSpacer blockSize={spaceBefore} />
+                  <li ref={virtualizer.measureElement} data-index={index}>
+                    <RunRow
+                      run={run}
+                      href={runHref(run.id)}
+                      referenceTime={referenceTime}
+                      menu={rowActions ? menuFor : undefined}
+                    />
+                  </li>
+                </Fragment>
+              ))}
+              <VirtualSpacer blockSize={spaceAfter} />
+            </ol>
+            <ListEnd
+              hasMore={more.hasMore}
+              onLoadMore={more.onLoadMore}
+              loading={more.loading}
+              error={more.error}
+            />
           </div>
-          <ol ref={listRef} className={styles.rows} aria-label='Runs'>
-            {entries.map(({ key, index, row: run, spaceBefore }) => (
-              <Fragment key={key}>
-                <VirtualSpacer blockSize={spaceBefore} />
-                <li ref={virtualizer.measureElement} data-index={index}>
-                  <RunRow
-                    run={run}
-                    href={runHref(run.id)}
-                    referenceTime={referenceTime}
-                    menu={rowActions ? menuFor : undefined}
-                  />
-                </li>
-              </Fragment>
-            ))}
-            <VirtualSpacer blockSize={spaceAfter} />
-          </ol>
-          <ListEnd
-            hasMore={more.hasMore}
-            onLoadMore={more.onLoadMore}
-            loading={more.loading}
-            error={more.error}
-          />
-        </div>
+        </PageOverflow>
       )}
     </WorkspaceTabPage>
   )

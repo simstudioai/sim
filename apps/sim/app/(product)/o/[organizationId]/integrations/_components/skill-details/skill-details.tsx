@@ -307,8 +307,8 @@ export function SkillDetails({
         <ConfirmDialog
           target={deleting}
           onClose={() => setDeleting(false)}
-          title='Delete skill'
-          description={`This removes ${skill.name} from your integrations.`}
+          title={`Delete ${skill.name}`}
+          description='This removes the skill from your integrations.'
           confirmLabel='Delete'
           pendingLabel='Deleting…'
           onConfirm={async () => {

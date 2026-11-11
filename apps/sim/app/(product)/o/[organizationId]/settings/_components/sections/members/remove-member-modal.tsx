@@ -42,14 +42,14 @@ function removalCopy(target: RemovalTarget | null) {
     }
   if (target?.isExternal)
     return {
-      title: 'Remove external member',
+      title: `Remove ${target.name}`,
       confirmLabel: 'Remove',
-      body: `Are you sure you want to remove ${target.name} from all organization workspaces? Their workspace access and workspace credential access will be revoked. This action cannot be undone.`,
+      body: 'This removes them from every organization workspace and revokes their workspace and credential access. This action cannot be undone.',
     }
   return {
-    title: 'Remove team member',
+    title: `Remove ${target?.name ?? 'member'}`,
     confirmLabel: 'Remove',
-    body: `Are you sure you want to remove ${target?.name} from the team? This action cannot be undone.`,
+    body: 'This removes them from the team. This action cannot be undone.',
   }
 }
 

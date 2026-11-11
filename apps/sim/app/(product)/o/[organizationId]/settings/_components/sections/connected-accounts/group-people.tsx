@@ -140,10 +140,8 @@ export function GroupPeople({ people, nextCursor, shallow, actions }: GroupPeopl
       <ConfirmDialog
         target={revoking}
         onClose={() => setRevoking(undefined)}
-        title='Revoke account access'
-        description={({ email }) =>
-          `This removes all accounts contributed by ${email} from organization workflows and Search. Their organization membership remains active.`
-        }
+        title={({ email }) => `Revoke ${email}`}
+        description='This removes every account they contributed from organization workflows and Search. Their organization membership remains active.'
         confirmLabel='Revoke'
         pendingLabel='Revoking…'
         onConfirm={(person) => actions.revoke(person.id)}

@@ -191,7 +191,7 @@ export function TestList({ workspaceId }: TestListProps) {
 
   const empty = term ? (
     <WorkspaceEmpty
-      title={`No results for “${search.trim()}”`}
+      title='No matching tests'
       action={{ label: 'Clear search', onClick: () => setSearch('') }}
     />
   ) : (

@@ -1213,12 +1213,14 @@ it('fails the ownership and copy rules: confirm-owner, copy-case, copy-ellipsis,
           <Button onClick={back}>Connect Slack</Button>
           <iframe title='Preview' />
           <p>{STATUS.queued.label}</p>
+          <p>{\`No matching runs for “\${name}”\`}</p>
         </>
       }`
     )
     const result = run()
     expect(result.status).toBe(1)
     for (const finding of [
+      `${view}:15 [copy-case]`,
       `${view}:3 [copy-ellipsis]`,
       `${view}:6 [confirm-owner]`,
       `${view}:7 [back-owner]`,
@@ -1243,6 +1245,41 @@ it('fails the ownership and copy rules: confirm-owner, copy-case, copy-ellipsis,
     for (const rule of ['confirm-owner', 'back-owner', 'tab-owner', 'alert-owner'])
       expect(granted.output).not.toContain(`[${rule}]`)
     expect(granted.output).toContain('[native-title]')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}, 30_000)
+
+it('fails [page-overflow] for a hand-written row bleed, and passes a padded scroller or a sized bleed', () => {
+  const { root, put, run } = productFixture()
+  const sheet = 'app/(product)/o/[organizationId]/home/_components/digest/digest.module.css'
+  try {
+    put(
+      sheet,
+      `.list {
+  display: grid;
+  margin-inline: calc(-1 * var(--ui-row-inset));
+}
+.scroller {
+  margin-inline: calc(-1 * var(--ui-row-inset));
+  padding-inline: var(--ui-row-inset);
+}
+@container digest (width < 45rem) {
+  .split {
+    margin-inline: calc(-1 * var(--ui-row-inset));
+  }
+}
+`
+    )
+    const result = run()
+    expect(result.status).toBe(1)
+    expect(result.output).toContain(`${sheet}:3 [page-overflow]`)
+    expect(result.output.match(/\[page-overflow\]/g)).toHaveLength(1)
+
+    writeAllowlists(root, {
+      ROW_BLEED_OWNERS: { [sheet]: 'The fixture keeps its bleed to prove a grant' },
+    })
+    expect(run().output).not.toContain('[page-overflow]')
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

@@ -106,7 +106,7 @@ export default function DataDrainsSection({ organization }: SettingsSectionProps
               ))}
             </ResourceList>
           ) : (
-            <EmptyState title={`No matching drains for “${search}”`} />
+            <EmptyState title='No matching drains' />
           )
         ) : (
           <EmptyState title='No data drains yet' description='Create a drain to get started.' />

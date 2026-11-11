@@ -6,7 +6,6 @@
   min-inline-size: 0;
   min-block-size: var(--spacing-192);
   padding: var(--spacing-32) var(--spacing-24);
-  margin-inline: calc(-1 * var(--ui-row-inset));
   overflow: clip;
   border-radius: var(--radius-composer);
   background: var(--ui-reading);

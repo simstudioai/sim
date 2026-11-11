@@ -162,7 +162,7 @@ export default function ApiKeysSection({ workspaceId }: WorkspaceSettingsSection
   ) : keys.isLoading ? null : workspaceKeys.length === 0 && personalKeys.length === 0 ? (
     <EmptyState title='No API keys yet' description='Create an API key to get started.' />
   ) : searching && visibleWorkspaceKeys.length === 0 && visiblePersonalKeys.length === 0 ? (
-    <EmptyState title={`No API keys found matching "${search}"`} />
+    <EmptyState title='No matching API keys' />
   ) : (
     <>
       {(!searching || visibleWorkspaceKeys.length > 0) && (

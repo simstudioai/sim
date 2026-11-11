@@ -32,7 +32,7 @@
 }
 /* The narrowest the chat beside the panel may be; the resize hook clamps to the same rule. */
 .frame[data-panel-open="true"] > .conversation {
-  min-inline-size: min(var(--container-480), 50%);
+  min-inline-size: min(var(--container-app-panel-start), 50%);
 }
 /* The panel's leading edge: an 8px grab area centered on the rule, taking no layout space. */
 .divider {

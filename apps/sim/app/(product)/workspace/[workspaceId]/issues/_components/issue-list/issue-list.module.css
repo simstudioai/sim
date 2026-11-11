@@ -57,7 +57,6 @@
   grid-template-columns: minmax(var(--spacing-48), max-content) minmax(0, 1fr) var(--spacing-128);
   min-inline-size: 0;
   gap: var(--ui-list-gap) var(--ui-row-gap);
-  margin-inline: calc(-1 * var(--ui-row-inset));
 }
 .rows > li {
   display: grid;

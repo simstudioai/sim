@@ -319,12 +319,12 @@ test('the inbox filters unread items and each notification can be dismissed sepa
   await page.getByRole('link', { name: 'Review the renewal brief' }).click()
   await expect(page.getByRole('heading', { name: 'Review the renewal brief' })).toBeVisible()
   await page.getByRole('link', { name: 'Home', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Customize home' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Customize Home' })).toBeVisible()
   await open.click()
   await expect(inbox.getByRole('radio', { name: 'Unread' })).toBeChecked()
   await expect(inbox.getByRole('button', { name: /Reconnect Salesforce/ })).toHaveCount(0)
   await page.keyboard.press('Escape')
-  const customize = page.getByRole('button', { name: 'Customize home', exact: true })
+  const customize = page.getByRole('button', { name: 'Customize Home', exact: true })
   await customize.click()
   await page.getByRole('menuitemcheckbox', { name: 'Email', exact: true }).click()
   const notices = page.getByRole('region', { name: 'Notification stack' })
@@ -357,7 +357,7 @@ test('an open menu stays actionable above expanded notifications as the viewport
   page,
 }) => {
   await page.goto(fixtureUrl('/home?state=full'))
-  const customize = page.getByRole('button', { name: 'Customize home' })
+  const customize = page.getByRole('button', { name: 'Customize Home' })
   const calendar = page.getByRole('menuitemcheckbox', { name: 'Calendar', exact: true })
   const notices = page.getByRole('region', { name: 'Notification stack' })
   await customize.click()

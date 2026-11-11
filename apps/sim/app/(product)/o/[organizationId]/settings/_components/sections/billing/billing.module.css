@@ -1,7 +1,6 @@
 .invoices {
   display: grid;
   gap: var(--ui-list-gap);
-  margin-inline: calc(-1 * var(--ui-row-inset));
   list-style: none;
 }
 

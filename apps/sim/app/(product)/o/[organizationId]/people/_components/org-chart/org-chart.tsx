@@ -56,7 +56,7 @@ function FindPerson({ organizationId, onSelect }: FindPersonProps) {
       label='Find a person'
       placeholder='Find a person'
       heading='People'
-      emptyLabel='No people found'
+      emptyLabel='No matching people'
       enterHint='Enter to view in chart'
       options={options}
       search={picker.search}

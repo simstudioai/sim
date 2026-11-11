@@ -112,7 +112,7 @@ test.describe('with platform-preview off', () => {
     await expect(main.getByRole('region', { name: 'Recents', exact: true })).toBeVisible()
     await expect(main.getByRole('region', { name: 'Needs your attention' })).toHaveCount(0)
     await expect(main.getByRole('region', { name: 'Workspaces', exact: true })).toHaveCount(0)
-    await page.getByRole('button', { name: 'Customize home' }).click()
+    await page.getByRole('button', { name: 'Customize Home' }).click()
     await expect(page.getByRole('menuitemcheckbox', { name: 'Email', exact: true })).toBeVisible()
     await expect(
       page.getByRole('menuitemcheckbox', { name: 'Workspaces', exact: true })

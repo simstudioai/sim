@@ -229,7 +229,7 @@ interface StoredHandoff extends MothershipHandoff {
  * One-shot handoff that seeds Chat (mothership) when the user is routed to the
  * workspace home from elsewhere in the app. Two shapes share this slot:
  *
- * - **With a message** — auto-sent on mount, e.g. the "Troubleshoot in Chat"
+ * - **With a message** — auto-sent on mount, e.g. the "Troubleshoot in chat"
  *   action on an errored log, which tags the failed run and asks Sim to fix it.
  * - **Chips only** — the highlight-to-chat action on the standalone Files and
  *   Tables pages, which attaches reference chips and sends nothing.

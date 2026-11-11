@@ -5,6 +5,7 @@ import { TrendChart } from '@sim/emcn/chart/charts'
 import { MetricGroup } from '@sim/emcn/data-display'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { Tooltip } from '@sim/emcn/tooltip'
+import { PageOverflow } from '@sim/emcn-platform/page-column'
 import { useQueryStates } from 'nuqs'
 import { WorkspaceEmpty } from '@/app/(product)/_components/workspace/workspace-page/workspace-page'
 import { formatDuration } from '@/app/(product)/_components/workspace/workspace-session/format'
@@ -101,75 +102,77 @@ export function RunDashboard({ totals, runs, errors, latency, workflows }: RunDa
       </div>
       <section className={styles.section} aria-label='Workflows'>
         <h2 data-type='T042'>Workflows</h2>
-        <ul className={styles.workflows}>
-          {shown.map((workflow) => {
-            const selected = view.workflow.includes(workflow.id)
-            const rate = `${Math.round(workflow.successRate)}%`
-            return (
-              <li
-                key={workflow.id}
-                className={styles.workflow}
-                data-selected={selected || undefined}
-              >
-                <button
-                  type='button'
-                  className={styles.open}
-                  aria-pressed={selected}
-                  aria-label={`${workflow.name}, ${workflow.runs} runs, ${rate} succeeded`}
-                  onClick={() =>
-                    void setView({
-                      workflow: selected
-                        ? view.workflow.filter((id) => id !== workflow.id)
-                        : [...view.workflow, workflow.id],
-                    })
-                  }
+        <PageOverflow>
+          <ul className={styles.workflows}>
+            {shown.map((workflow) => {
+              const selected = view.workflow.includes(workflow.id)
+              const rate = `${Math.round(workflow.successRate)}%`
+              return (
+                <li
+                  key={workflow.id}
+                  className={styles.workflow}
+                  data-selected={selected || undefined}
                 >
-                  <span className={styles.name} data-type='T060'>
-                    <OverflowText text={workflow.name}>{workflow.name}</OverflowText>
+                  <button
+                    type='button'
+                    className={styles.open}
+                    aria-pressed={selected}
+                    aria-label={`${workflow.name}, ${workflow.runs} runs, ${rate} succeeded`}
+                    onClick={() =>
+                      void setView({
+                        workflow: selected
+                          ? view.workflow.filter((id) => id !== workflow.id)
+                          : [...view.workflow, workflow.id],
+                      })
+                    }
+                  >
+                    <span className={styles.name} data-type='T060'>
+                      <OverflowText text={workflow.name}>{workflow.name}</OverflowText>
+                    </span>
+                  </button>
+                  <div
+                    className={styles.strip}
+                    role='group'
+                    aria-label={`${workflow.name} runs by period`}
+                  >
+                    {workflow.segments.map((segment, index) => {
+                      const label = `${formatTimestamp(segment.at, timeZone)}: ${segment.runs} runs, ${segment.failed} failed`
+                      const pressed = selection.segments[workflow.id]?.includes(index) === true
+                      return (
+                        <Tooltip key={segment.at} label={label} visualOnly>
+                          <button
+                            type='button'
+                            className={styles.segment}
+                            data-state={segmentState(segment)}
+                            aria-pressed={pressed}
+                            aria-label={label}
+                            onClick={(event) =>
+                              setPick({
+                                scope: pickScope,
+                                selection: pickSegment(
+                                  selection,
+                                  workflow.id,
+                                  index,
+                                  pickMode(event)
+                                ),
+                              })
+                            }
+                          />
+                        </Tooltip>
+                      )
+                    })}
+                  </div>
+                  <span className={styles.number} data-type='T060'>
+                    {workflow.runs.toLocaleString(LOCALE)}
                   </span>
-                </button>
-                <div
-                  className={styles.strip}
-                  role='group'
-                  aria-label={`${workflow.name} runs by period`}
-                >
-                  {workflow.segments.map((segment, index) => {
-                    const label = `${formatTimestamp(segment.at, timeZone)}: ${segment.runs} runs, ${segment.failed} failed`
-                    const pressed = selection.segments[workflow.id]?.includes(index) === true
-                    return (
-                      <Tooltip key={segment.at} label={label} visualOnly>
-                        <button
-                          type='button'
-                          className={styles.segment}
-                          data-state={segmentState(segment)}
-                          aria-pressed={pressed}
-                          aria-label={label}
-                          onClick={(event) =>
-                            setPick({
-                              scope: pickScope,
-                              selection: pickSegment(
-                                selection,
-                                workflow.id,
-                                index,
-                                pickMode(event)
-                              ),
-                            })
-                          }
-                        />
-                      </Tooltip>
-                    )
-                  })}
-                </div>
-                <span className={styles.number} data-type='T060'>
-                  {workflow.runs.toLocaleString(LOCALE)}
-                </span>
-                <span className={styles.number} data-type='T060'>
-                  {rate}
-                </span>
-              </li>
-            )
-          })}
-        </ul>
+                  <span className={styles.number} data-type='T060'>
+                    {rate}
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+        </PageOverflow>
       </section>
     </div>
   )

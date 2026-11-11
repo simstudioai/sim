@@ -2,6 +2,7 @@ import ts from '@typescript/typescript6'
 import { describe, expect, it } from 'vitest'
 import {
   classifyPage,
+  echoesNoResultsQuery,
   handRole,
   hasAsciiEllipsis,
   inFixtureBranch,
@@ -180,6 +181,7 @@ describe('titleCaseWords', () => {
     [`const view = <Row label='Open in Logs' />`, ['Logs']],
     [`const view = <Capabilities deleteLabel='Remove from Skills' />`, ['Skills']],
     [`const actions = { createLabel: 'Add to Skills' }`, ['Skills']],
+    [`const view = <Menu.Item>Customize Dashboard</Menu.Item>`, ['Dashboard']],
   ])('flags %s', (source, words) => {
     expect(found(source)).toEqual(words)
   })
@@ -198,8 +200,31 @@ describe('titleCaseWords', () => {
     `const view = <Import helpLabel='Open Graph Explorer' />`,
     `const view = <Row label={\`\${name} · Admin\`} />`,
     `const view = <Button>Upgrade to Max</Button>`,
+    `const view = <Menu.Item>Customize Home</Menu.Item>`,
+    `const view = <Modal title='Create a Wiki page' />`,
   ])('passes %s', (source) => {
     expect(found(source)).toEqual([])
+  })
+})
+
+describe('echoesNoResultsQuery', () => {
+  it.each([
+    `const view = <EmptyState title={\`No matching links for “\${term}”\`} />`,
+    `const view = <Muted>No matching members for “{search}”</Muted>`,
+    `const note = 'No matching options found'`,
+    `const view = <EmptyState title={\`No tools found matching "\${search}"\`} />`,
+    `const title = \`No results for “\${term}”\``,
+  ])('flags %s', (source) => {
+    expect(anyNode(source, echoesNoResultsQuery)).toBe(true)
+  })
+
+  it.each([
+    `const view = <EmptyState title='No matching links' />`,
+    `const view = <Muted>No matching members</Muted>`,
+    `const title = \`No matching \${noun}\``,
+    `const view = <EmptyState title='No links yet' />`,
+  ])('passes %s', (source) => {
+    expect(anyNode(source, echoesNoResultsQuery)).toBe(false)
   })
 })
 

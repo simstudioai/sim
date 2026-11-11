@@ -1,5 +1,6 @@
 import { ActivityRow } from '@sim/emcn/activity-row'
 import { Icon } from '@sim/emcn/icon'
+import { PageOverflow } from '@sim/emcn-platform/page-column'
 import styles from '@/app/(product)/_components/get-started/get-started.module.css'
 import { HomeSection } from '@/app/(product)/_components/home-section/home-section'
 import type { HomeGetStartedStep } from '@/platform/shared/home'
@@ -11,18 +12,20 @@ interface GetStartedProps {
 export function GetStarted({ steps }: GetStartedProps) {
   return (
     <HomeSection title='Get started'>
-      <ul className={styles.entries}>
-        {steps.map((step) => (
-          <ActivityRow
-            key={step.id}
-            leading={<Icon name={step.complete ? 'I072' : 'I070'} />}
-            title={step.title}
-            detail={step.detail}
-            textMetadata={step.complete ? 'Done' : undefined}
-            href={step.href}
-          />
-        ))}
-      </ul>
+      <PageOverflow>
+        <ul className={styles.entries}>
+          {steps.map((step) => (
+            <ActivityRow
+              key={step.id}
+              leading={<Icon name={step.complete ? 'I072' : 'I070'} />}
+              title={step.title}
+              detail={step.detail}
+              textMetadata={step.complete ? 'Done' : undefined}
+              href={step.href}
+            />
+          ))}
+        </ul>
+      </PageOverflow>
     </HomeSection>
   )
 }

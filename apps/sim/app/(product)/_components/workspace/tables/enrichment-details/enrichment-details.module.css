@@ -23,13 +23,12 @@
 .summaryStatus[data-status="cancelled"] {
   color: var(--status-warning);
 }
-/* One attempt per row on the run's clock; rows reach past the text edge by the row inset. */
+/* One attempt per row on the run's clock; PageOverflow reaches the rows past the text edge. */
 .cascade {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   min-inline-size: 0;
   margin: 0;
-  margin-inline: calc(-1 * var(--ui-row-inset));
   padding: 0;
   gap: var(--ui-list-gap);
   list-style: none;

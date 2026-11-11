@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * "Fix in Chat" (the terminal's row menu, a block error's toast, a deprecated block's Fix) hands a
+ * "Fix in chat" (the terminal's row menu, a block error's toast, a deprecated block's Fix) hands a
  * message to a new chat. Failure modes: the message going nowhere because no chat is mounted to
  * receive it, the viewer left on the editor, and a handoff where chat is withheld from the viewer.
  */
