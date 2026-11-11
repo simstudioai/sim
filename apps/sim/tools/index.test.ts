@@ -220,6 +220,15 @@ vi.mock('@/executor/utils/credential-token', () => ({
     mockResolveExecutorCredentialToken(...args),
 }))
 
+const { mockInvalidateCoordinatedClientToken } = vi.hoisted(() => ({
+  mockInvalidateCoordinatedClientToken: vi.fn(),
+}))
+
+vi.mock('@/lib/credentials/coordinated-client-token', () => ({
+  invalidateCoordinatedClientToken: (...args: unknown[]) =>
+    mockInvalidateCoordinatedClientToken(...args),
+}))
+
 vi.mock('@/executor/handlers/workflow/tool-runner', () => ({
   runWorkflowTool: (...args: unknown[]) => mockRunWorkflowTool(...args),
 }))
@@ -3668,6 +3677,76 @@ describe('Internal Route Trust', () => {
     } finally {
       Reflect.deleteProperty(tools, toolId)
     }
+  })
+
+  describe('a service-account token the provider rejects', () => {
+    const toolId = 'test_minted_token_rejection'
+    beforeEach(() => {
+      mockInvalidateCoordinatedClientToken.mockReset()
+      mockInvalidateCoordinatedClientToken.mockResolvedValue(undefined)
+      ;(tools as Record<string, unknown>)[toolId] = {
+        id: toolId,
+        name: 'Minted Token Rejection Test',
+        description: 'Calls a provider with a resolved token',
+        version: '1.0.0',
+        oauth: { required: true, provider: 'shopify' },
+        params: { accessToken: { type: 'string', required: true, visibility: 'hidden' } },
+        request: {
+          url: 'https://acme.myshopify.com/admin/api/graphql.json',
+          method: 'POST' as const,
+          headers: (params: Record<string, unknown>) => ({
+            'X-Shopify-Access-Token': String(params.accessToken),
+          }),
+        },
+      }
+    })
+    afterEach(() => {
+      Reflect.deleteProperty(tools, toolId)
+    })
+
+    async function callWith(credentialType: string, status: number) {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'shared-token',
+        credentialType,
+      })
+      mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+        toSecureFetchResponse(
+          new Response(JSON.stringify({ error: 'rejected' }), {
+            status,
+            headers: { 'content-type': 'application/json' },
+          })
+        )
+      )
+      return executeTool(toolId, { credential: 'saved-credential' })
+    }
+
+    it('expires the shared token on a 401 so the next call mints a replacement', async () => {
+      const result = await callWith('service_account', 401)
+
+      expect(result.success).toBe(false)
+      expect(mockInvalidateCoordinatedClientToken).toHaveBeenCalledWith('shared-token')
+    })
+
+    it('keeps the token for a refusal that does not reject it', async () => {
+      await callWith('service_account', 403)
+
+      expect(mockInvalidateCoordinatedClientToken).not.toHaveBeenCalled()
+    })
+
+    it('never touches shared tokens for a signed-in account', async () => {
+      await callWith('oauth', 401)
+
+      expect(mockInvalidateCoordinatedClientToken).not.toHaveBeenCalled()
+    })
+
+    it('still reports the provider failure when the token cannot be expired', async () => {
+      mockInvalidateCoordinatedClientToken.mockRejectedValue(new Error('database unavailable'))
+
+      const result = await callWith('service_account', 401)
+
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('rejected')
+    })
   })
 
   describe('Dataverse environment authority', () => {

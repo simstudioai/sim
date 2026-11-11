@@ -2,11 +2,9 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { serviceAccountJsonSchema } from '@/lib/api/contracts/credentials'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { mintAtlassianServiceAccountToken } from '@/lib/credentials/atlassian-client-credentials'
 import {
-  ATLASSIAN_CLIENT_CREDENTIAL_PRODUCTS,
-  mintAtlassianServiceAccountToken,
-} from '@/lib/credentials/atlassian-client-credentials'
-import {
+  AtlassianValidationError,
   normalizeAtlassianDomain,
   validateAtlassianServiceAccount,
 } from '@/lib/credentials/atlassian-service-account'
@@ -27,6 +25,7 @@ import {
   type ClientCredentialAccountSecretBlob,
   getClientCredentialAccountMinter,
 } from '@/lib/credentials/client-credential-accounts/server'
+import { invalidateCoordinatedClientToken } from '@/lib/credentials/coordinated-client-token'
 import {
   DatabricksCredentialError,
   verifyAndEncryptDatabricksCredential,
@@ -52,7 +51,7 @@ import {
   SnowflakeCredentialError,
   verifyAndEncryptSnowflakeKeylessCredential,
 } from '@/lib/credentials/snowflake-service-account.server'
-import { getTokenClientCredentialGrant } from '@/lib/credentials/token-service-accounts/client-credentials'
+import { getTokenClientCredentialMinter } from '@/lib/credentials/token-service-accounts/client-credentials'
 import {
   CLIENT_CREDENTIALS_AUTH_METHOD,
   getTokenServiceAccountDescriptor,
@@ -61,6 +60,7 @@ import {
   TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
   type TokenServiceAccountDescriptor,
 } from '@/lib/credentials/token-service-accounts/descriptors'
+import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import {
   getTokenServiceAccountValidator,
   type TokenServiceAccountClientCredentialBlob,
@@ -195,10 +195,34 @@ async function buildAtlassianServiceAccountSecret(
 }
 
 /**
+ * Proves a client-credentials token with the provider's own identity check. Minted tokens are
+ * shared across every credential for one application, so the token served can have been revoked
+ * before its stated expiry (an app reinstall, a scope change). When the provider rejects it, that
+ * token is expired and one freshly minted token is proven instead, so saving or reconnecting the
+ * credential always recovers from a revoked token.
+ */
+async function proveMintedToken<T>(
+  mint: () => Promise<{ accessToken: string }>,
+  prove: (accessToken: string) => Promise<T>
+): Promise<T> {
+  const { accessToken } = await mint()
+  try {
+    return await prove(accessToken)
+  } catch (error) {
+    const rejected =
+      (error instanceof TokenServiceAccountValidationError ||
+        error instanceof AtlassianValidationError) &&
+      error.code === 'invalid_credentials'
+    if (!rejected) throw error
+    await invalidateCoordinatedClientToken(accessToken)
+    return prove((await mint()).accessToken)
+  }
+}
+
+/**
  * Builds an Atlassian service-account secret for an OAuth 2.0 credential: mints a token with the
  * client ID and secret, proves it against the product's identity endpoint exactly as a scoped
- * API token is proven, and stores the client credentials so execution re-mints. Only products
- * Atlassian documents for these credentials are accepted.
+ * API token is proven, and stores the client credentials so execution re-mints.
  */
 async function buildAtlassianClientCredentialSecret(
   fields: ServiceAccountSecretFields
@@ -212,17 +236,10 @@ async function buildAtlassianClientCredentialSecret(
     )
   }
   const product = fields.atlassianProduct ?? 'jira'
-  if (!ATLASSIAN_CLIENT_CREDENTIAL_PRODUCTS.has(product)) {
-    throw new ServiceAccountSecretError(
-      `Atlassian OAuth 2.0 credentials do not support ${product}; use a scoped API token`
-    )
-  }
   const normalizedDomain = normalizeAtlassianDomain(domain)
-  const minted = await mintAtlassianServiceAccountToken(clientId, clientSecret)
-  const validation = await validateAtlassianServiceAccount(
-    minted.accessToken,
-    normalizedDomain,
-    product
+  const validation = await proveMintedToken(
+    () => mintAtlassianServiceAccountToken(clientId, clientSecret),
+    (accessToken) => validateAtlassianServiceAccount(accessToken, normalizedDomain, product)
   )
   const principal: ServiceAccountPrincipal = {
     kind: 'user',
@@ -593,8 +610,8 @@ async function buildTokenClientCredentialSecret(
   fields: ServiceAccountSecretFields
 ): Promise<ServiceAccountSecretResult> {
   const { providerId } = descriptor
-  const grant = getTokenClientCredentialGrant(providerId)
-  if (!grant) {
+  const mint = getTokenClientCredentialMinter(providerId)
+  if (!mint) {
     throw new ServiceAccountSecretError(
       `No client-credentials grant registered for service-account provider ${providerId}`
     )
@@ -608,16 +625,15 @@ async function buildTokenClientCredentialSecret(
       `clientId, clientSecret${requiresDomain ? ', and domain are' : ' are'} required for ${descriptor.serviceLabel} client credentials`
     )
   }
-  const minted = await grant.mint({
-    clientId,
-    clientSecret,
-    ...(requiresDomain ? { domain } : {}),
-  })
-  const validation = await validator({
-    apiToken: minted.accessToken,
-    ...(requiresDomain ? { domain } : {}),
-    authMethod: CLIENT_CREDENTIALS_AUTH_METHOD,
-  })
+  const validation = await proveMintedToken(
+    () => mint({ clientId, clientSecret, ...(requiresDomain ? { domain } : {}) }),
+    (accessToken) =>
+      validator({
+        apiToken: accessToken,
+        ...(requiresDomain ? { domain } : {}),
+        authMethod: CLIENT_CREDENTIALS_AUTH_METHOD,
+      })
+  )
   const principalMetadata = serviceAccountPrincipalMetadata(validation.principal)
   const blob: TokenServiceAccountClientCredentialBlob = {
     type: TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,

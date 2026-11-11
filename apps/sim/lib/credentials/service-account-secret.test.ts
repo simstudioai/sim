@@ -23,10 +23,14 @@ vi.mock('@/lib/credentials/coordinated-client-token', () => ({
     const exchanged = await input.exchange()
     return { accessToken: exchanged.accessToken, expiresInSeconds: 86_000 }
   },
+  invalidateCoordinatedClientToken: async () => {},
 }))
 const mockEncryptSecret = encryptionMockFns.mockEncryptSecret
 vi.mock('@/lib/webhooks/providers/slack', () => ({ fetchSlackTeamId: mockFetchSlackTeamId }))
-vi.mock('@/lib/credentials/atlassian-service-account', () => ({
+vi.mock('@/lib/credentials/atlassian-service-account', async (importOriginal) => ({
+  AtlassianValidationError: (
+    await importOriginal<typeof import('@/lib/credentials/atlassian-service-account')>()
+  ).AtlassianValidationError,
   validateAtlassianServiceAccount: mockValidateAtlassian,
   normalizeAtlassianDomain: mockNormalizeDomain,
 }))
@@ -65,6 +69,7 @@ vi.mock('@/lib/credentials/client-credential-accounts/server', () => ({
       : undefined,
 }))
 
+import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
 import {
   ServiceAccountSecretError,
   verifyAndBuildServiceAccountSecret,
@@ -153,6 +158,55 @@ describe('verifyAndBuildServiceAccountSecret', () => {
     })
     expect(blob.apiToken).toBeUndefined()
     expect(result.encryptedServiceAccountKey).not.toContain('atl-minted')
+  })
+
+  it('replaces a shared Atlassian token the site rejects, once', async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+    vi.stubGlobal('fetch', fetchMock)
+    fetchMock.mockImplementation(async () =>
+      Response.json({ access_token: `atl-${fetchMock.mock.calls.length}`, expires_in: 3600 })
+    )
+    mockValidateAtlassian.mockImplementation(async (token: string) => {
+      if (token !== 'atl-2') throw new AtlassianValidationError('invalid_credentials', 401)
+      return { accountId: 'svc-1', displayName: 'Workflow bot', cloudId: 'cloud-1' }
+    })
+    const fields = {
+      authMethod: 'client_credentials',
+      clientId: 'atl-client',
+      clientSecret: 'atl-secret',
+      domain: 'acme.atlassian.net',
+    }
+
+    await expect(
+      verifyAndBuildServiceAccountSecret(ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID, fields)
+    ).resolves.toMatchObject({ displayName: 'Workflow bot' })
+
+    mockValidateAtlassian.mockRejectedValue(
+      new AtlassianValidationError('invalid_credentials', 401)
+    )
+    await expect(
+      verifyAndBuildServiceAccountSecret(ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID, fields)
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+  })
+
+  it('does not mint again when the Atlassian site is unavailable', async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+    vi.stubGlobal('fetch', fetchMock)
+    fetchMock.mockResolvedValue(Response.json({ access_token: 'atl-minted', expires_in: 3600 }))
+    mockValidateAtlassian.mockRejectedValue(
+      new AtlassianValidationError('atlassian_unavailable', 503)
+    )
+
+    await expect(
+      verifyAndBuildServiceAccountSecret(ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID, {
+        authMethod: 'client_credentials',
+        clientId: 'atl-client',
+        clientSecret: 'atl-secret',
+        domain: 'acme.atlassian.net',
+      })
+    ).rejects.toMatchObject({ code: 'atlassian_unavailable' })
+    expect(fetchMock).toHaveBeenCalledOnce()
   })
 
   it('requires the Atlassian client ID, secret, and site without minting', async () => {

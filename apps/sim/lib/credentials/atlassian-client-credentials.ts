@@ -1,7 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { resolveCoordinatedClientToken } from '@/lib/credentials/coordinated-client-token'
-import type { AtlassianProduct } from '@/lib/credentials/service-account-fields'
 import {
   fetchProvider,
   providerFailureCode,
@@ -13,16 +12,6 @@ const ATLASSIAN_TOKEN_URL = 'https://auth.atlassian.com/oauth/token'
 const MINT_STEP = 'atlassian_token_mint'
 /** Atlassian documents a 60-minute access token for service-account OAuth credentials. */
 const MAX_TOKEN_LIFETIME_SECONDS = 3600
-
-/**
- * Products whose REST APIs accept a service account's OAuth 2.0 client-credentials token.
- * Atlassian documents Jira Cloud and Confluence Cloud (and Jira Align, which Sim does not call);
- * a product outside this list is refused instead of saving a credential its tools cannot use.
- */
-export const ATLASSIAN_CLIENT_CREDENTIAL_PRODUCTS: ReadonlySet<AtlassianProduct> = new Set([
-  'jira',
-  'confluence',
-])
 
 async function exchangeAtlassianToken(
   clientId: string,
@@ -95,9 +84,10 @@ async function exchangeAtlassianToken(
 /**
  * Mints a bearer token for an Atlassian service account's OAuth 2.0 credential through the
  * client-credentials grant. The token is used exactly like a scoped API token, through
- * `api.atlassian.com/ex/{product}/{cloudId}`. Atlassian does not document whether a new token
- * retires earlier ones, so every saved credential for one OAuth client shares a single
- * coordinated token instead of minting per worker.
+ * `api.atlassian.com/ex/{product}/{cloudId}`. Atlassian documents these credentials for the Jira
+ * and Confluence REST APIs (not Jira Service Management, which shares Jira's credentials here),
+ * and does not document whether a new token retires earlier ones, so every saved credential for
+ * one OAuth client shares a single coordinated token instead of minting per worker.
  *
  * @see https://support.atlassian.com/user-management/docs/create-oauth-2-0-credential-for-service-accounts/
  */

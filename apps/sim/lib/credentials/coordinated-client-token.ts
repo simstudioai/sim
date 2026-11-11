@@ -60,6 +60,38 @@ function digest(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex')
 }
 
+/** Identifies a stored token by its value alone, so a provider rejection can expire it. */
+function accessTokenDigestOf(accessToken: string): string {
+  return digest(['coordinated_client_token', accessToken])
+}
+
+/**
+ * Deletes a bounded batch of expired failure memos (rows without a token digest). Run it outside
+ * the transaction that takes an application lock, so its row locks are released before any
+ * provider call.
+ */
+export async function deleteExpiredClientTokenFailures(): Promise<void> {
+  await db.execute(sql`
+    DELETE FROM ${clientCredentialToken} WHERE ${clientCredentialToken.id} IN (
+      SELECT ${clientCredentialToken.id} FROM ${clientCredentialToken}
+      WHERE ${clientCredentialToken.accessTokenDigest} IS NULL
+        AND ${clientCredentialToken.expiresAt} < now()
+      ORDER BY ${clientCredentialToken.expiresAt} LIMIT 100 FOR UPDATE SKIP LOCKED
+    )`)
+}
+
+/**
+ * Expires a stored token the provider rejected before its stated expiry (an app reinstall, a scope
+ * change, a revocation), so the next resolution mints a replacement. Only that exact token is
+ * expired: a replacement another worker already minted stays in service.
+ */
+export async function invalidateCoordinatedClientToken(accessToken: string): Promise<void> {
+  await db
+    .update(clientCredentialToken)
+    .set({ expiresAt: new Date(0), updatedAt: new Date() })
+    .where(eq(clientCredentialToken.accessTokenDigest, accessTokenDigestOf(accessToken)))
+}
+
 function unavailable(step: string, reason: string): TokenServiceAccountValidationError {
   return new TokenServiceAccountValidationError('provider_unavailable', 503, { step, reason })
 }
@@ -98,11 +130,14 @@ function isServable(expiresAt: Date): boolean {
 
 /**
  * Serves one client-credentials token per provider application across every saved credential,
- * worker, and connect, for providers that do not document whether minting a new token leaves the
- * previous one valid. Minting happens only under a transaction-scoped advisory lock keyed by the
- * application, so two workers never race two tokens into existence; a token minted with a
- * different secret is never served. A rejected exchange is remembered for 30 seconds so a hot
- * workflow on a revoked secret does not hammer the token endpoint. Tokens are encrypted at rest.
+ * worker, and connect, until shortly before it expires. Used for providers that do not document
+ * whether minting a new token leaves the previous one valid, and for providers that ask clients
+ * to reuse one token rather than accumulate them. Minting happens only under a
+ * transaction-scoped advisory lock keyed by the application, so two workers never race two
+ * tokens into existence; a token minted with a different secret is never served, and a token the
+ * provider rejects is expired through {@link invalidateCoordinatedClientToken}. A rejected
+ * exchange is remembered for 30 seconds so a hot workflow on a revoked secret does not hammer the
+ * token endpoint. Tokens are encrypted at rest.
  */
 export async function resolveCoordinatedClientToken(
   input: CoordinatedClientTokenInput
@@ -129,6 +164,7 @@ export async function resolveCoordinatedClientToken(
     const fresh = await serveIfFresh(current)
     if (fresh) return fresh
 
+    await deleteExpiredClientTokenFailures()
     const outcome = await db.transaction<CoordinatedClientToken | { failure: StoredFailure }>(
       async (tx) => {
         await tx.execute(sql`SET LOCAL lock_timeout = '15s'`)
@@ -156,7 +192,7 @@ export async function resolveCoordinatedClientToken(
           )
           const values = {
             encryptedValue: encrypted,
-            accessTokenDigest: digest([applicationKey, exchanged.accessToken]),
+            accessTokenDigest: accessTokenDigestOf(exchanged.accessToken),
             expiresAt: exchanged.expiresAt,
           }
           await tx

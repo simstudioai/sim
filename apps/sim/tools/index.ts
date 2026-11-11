@@ -2398,7 +2398,12 @@ async function executeToolImplementation(
           operationContext,
           effectiveSignal,
           resolvedSecretTraceRegistry
-        )
+        ).catch(async (error: unknown) => {
+          if (authorizedServiceAccountCredential) {
+            await expireRejectedServiceAccountToken(error, contextParams.accessToken, requestId)
+          }
+          throw error
+        })
 
     let finalResult = result
     if (tool.postProcess && result.success && !skipPostProcess) {
@@ -2997,6 +3002,32 @@ async function executeDeclaredInternalOperation({
       isRecordLike(responseData) && isRecordLike(responseData.output)
         ? responseData.output
         : (responseData as Record<string, any>),
+  }
+}
+
+/**
+ * A 401 means the provider no longer accepts the token a saved service-account credential
+ * resolved to. A token minted from client credentials is shared by every worker until it expires,
+ * so the rejected one is expired at once and the next call mints a replacement rather than
+ * re-sending it. A pasted token matches no shared token and is left alone.
+ */
+async function expireRejectedServiceAccountToken(
+  error: unknown,
+  accessToken: unknown,
+  requestId: string
+): Promise<void> {
+  const status = error instanceof Error && 'status' in error ? error.status : undefined
+  if (status !== 401 || typeof accessToken !== 'string' || !accessToken) return
+  try {
+    const { invalidateCoordinatedClientToken } = await import(
+      '@/lib/credentials/coordinated-client-token'
+    )
+    await invalidateCoordinatedClientToken(accessToken)
+  } catch (invalidationError) {
+    logger.warn('Could not expire a service-account token the provider rejected', {
+      requestId,
+      error: toError(invalidationError).message,
+    })
   }
 }
 
