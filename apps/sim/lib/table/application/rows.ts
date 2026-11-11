@@ -506,18 +506,18 @@ async function throwValidationResponse(
 }
 
 /**
- * A structured row query cancelled by its own `statement_timeout`. Sorting, range-filtering, or
- * counting on a stored column reads every row's full data, so on a large table the query only
- * finishes when that data happens to be cached. The fix is the caller's (narrow the query), so this
- * is a 400 with an actionable message rather than an opaque 500.
+ * A structured row query cancelled by its own `statement_timeout`. Sorting or range-filtering on a
+ * stored column reads every candidate row's full data, so on a large table the query only finishes
+ * when that data happens to be cached. The fix is the caller's (narrow the query), so this is a 400
+ * with an actionable message rather than an opaque 500.
  */
 function rethrowReadQueryError(error: unknown, tableId: string): never {
   if (getPostgresCancellationReason(error) === 'statement_timeout') {
     logger.warn('Table read hit its statement timeout', { tableId })
     throw new TableRowsValidationError(
       `The query took longer than ${READ_STATEMENT_TIMEOUT_MS / 1000} seconds and was stopped. ` +
-        'Sorting, range-filtering, or counting on a column reads every row in the table, which ' +
-        'is too slow at this table size. Sort by createdAt, add an equality filter, or keep ' +
+        'Sorting or range-filtering on a column reads every row in the table, which is too slow ' +
+        'at this table size. Sort by createdAt, add an equality filter, or keep ' +
         'fewer rows (an Expiration column deletes old rows automatically).',
       { code: 'TABLE_QUERY_TIMEOUT' }
     )
