@@ -1,5 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
+import { resolveCoordinatedClientToken } from '@/lib/credentials/coordinated-client-token'
 import type {
   TokenClientCredentialFields,
   TokenClientCredentialMint,
@@ -19,31 +20,15 @@ const STEP = 'linear_token_mint'
  * credentials for one app must never disagree. They match the scopes Linear's tools use.
  */
 const LINEAR_CLIENT_CREDENTIAL_SCOPE = 'read,write'
-/**
- * Linear tokens last 30 days and cannot be refreshed, but a token revoked early (a secret
- * rotation, or another scope request) answers 401 until it is replaced, so a minted token is
- * reused for at most an hour before a fresh one is requested.
- */
-const MAX_REUSE_SECONDS = 3600
+/** Linear documents a 30-day lifetime for client-credentials tokens, with no refresh token. */
+const MAX_TOKEN_LIFETIME_SECONDS = 30 * 24 * 60 * 60
 
-/**
- * Mints an app-actor token for a Linear OAuth app with client credentials turned on. Tokens
- * with the same scopes coexist, so each worker may hold its own.
- *
- * @see https://linear.app/developers/oauth-2-0-authentication
- */
-export async function mintLinearClientCredentialsToken(
-  fields: TokenClientCredentialFields,
-  options?: { signal?: AbortSignal }
-): Promise<TokenClientCredentialMint> {
-  options?.signal?.throwIfAborted()
-  const clientId = fields.clientId.trim()
-  if (!clientId || !fields.clientSecret) {
-    throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
-      step: STEP,
-      reason: 'client ID and client secret are required',
-    })
-  }
+async function exchangeLinearToken(
+  clientId: string,
+  clientSecret: string,
+  signal?: AbortSignal
+): Promise<{ accessToken: string; expiresAt: Date }> {
+  const startedAt = Date.now()
   const response = await fetchProvider(
     LINEAR_TOKEN_URL,
     {
@@ -55,12 +40,12 @@ export async function mintLinearClientCredentialsToken(
       body: new URLSearchParams({
         grant_type: 'client_credentials',
         client_id: clientId,
-        client_secret: fields.clientSecret,
+        client_secret: clientSecret,
         scope: LINEAR_CLIENT_CREDENTIAL_SCOPE,
       }).toString(),
       redirect: 'error',
       cache: 'no-store',
-      signal: options?.signal,
+      signal,
     },
     STEP
   )
@@ -77,10 +62,10 @@ export async function mintLinearClientCredentialsToken(
     payload = await readResponseJsonWithLimit<unknown>(response, {
       maxBytes: 64 * 1024,
       label: 'Linear token response',
-      signal: options?.signal,
+      signal,
     })
   } catch {
-    options?.signal?.throwIfAborted()
+    signal?.throwIfAborted()
     payload = undefined
   }
   if (
@@ -98,6 +83,39 @@ export async function mintLinearClientCredentialsToken(
   }
   return {
     accessToken: payload.access_token,
-    expiresInSeconds: Math.min(payload.expires_in, MAX_REUSE_SECONDS),
+    expiresAt: new Date(
+      startedAt + Math.min(payload.expires_in, MAX_TOKEN_LIFETIME_SECONDS) * 1000
+    ),
   }
+}
+
+/**
+ * Mints an app-actor token for a Linear OAuth app with client credentials turned on. Linear asks
+ * clients to reuse one token until shortly before it expires and to request a new one after a
+ * 401, and cleans up an app's surplus tokens past 1,000 per workspace, so every saved credential
+ * for one app shares a single coordinated token. A token Linear rejects early (a secret rotation,
+ * another scope request) is expired by the 401 path and replaced on the next call.
+ *
+ * @see https://linear.app/developers/oauth-2-0-authentication
+ */
+export async function mintLinearClientCredentialsToken(
+  fields: TokenClientCredentialFields,
+  options?: { signal?: AbortSignal }
+): Promise<TokenClientCredentialMint> {
+  options?.signal?.throwIfAborted()
+  const clientId = fields.clientId.trim()
+  if (!clientId || !fields.clientSecret) {
+    throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+      step: STEP,
+      reason: 'client ID and client secret are required',
+    })
+  }
+  return resolveCoordinatedClientToken({
+    namespace: 'linear',
+    application: [clientId],
+    clientSecret: fields.clientSecret,
+    step: STEP,
+    exchange: (signal) => exchangeLinearToken(clientId, fields.clientSecret, signal),
+    signal: options?.signal,
+  })
 }

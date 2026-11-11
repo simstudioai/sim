@@ -1413,7 +1413,7 @@ describe('token provider credentials saved in client-credentials mode', () => {
     ).resolves.toMatchObject({ accessToken: 'minted-2' })
   })
 
-  it('keeps a Linear app token on the instance and re-mints only when its secret changes', async () => {
+  it('leaves a Linear app token to the coordinator instead of caching it per instance', async () => {
     const linearBlob = {
       type: 'token_service_account',
       providerId: 'linear-service-account',
@@ -1432,15 +1432,6 @@ describe('token provider credentials saved in client-credentials mode', () => {
     await expect(
       resolveServiceAccountToken('linear-cc', 'linear-service-account')
     ).resolves.toEqual({ accessToken: 'lin_oauth_1', domain: undefined })
-    await expect(
-      resolveServiceAccountToken('linear-cc', 'linear-service-account')
-    ).resolves.toMatchObject({ accessToken: 'lin_oauth_1' })
-    expect(fetchMock).toHaveBeenCalledOnce()
-
-    resetDbChainMock()
-    for (let read = 0; read < 2; read++) {
-      queueTableRows(credential, [{ encryptedServiceAccountKey: 'enc-linear-cc-rotated' }])
-    }
     await expect(
       resolveServiceAccountToken('linear-cc', 'linear-service-account')
     ).resolves.toMatchObject({ accessToken: 'lin_oauth_2' })

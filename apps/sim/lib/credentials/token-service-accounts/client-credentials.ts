@@ -20,43 +20,29 @@ export interface TokenClientCredentialMint {
   expiresInSeconds: number
 }
 
-export type TokenClientCredentialMinter = (
+type TokenClientCredentialMinter = (
   fields: TokenClientCredentialFields,
   options?: { signal?: AbortSignal }
 ) => Promise<TokenClientCredentialMint>
 
-export interface TokenClientCredentialGrant {
-  mint: TokenClientCredentialMinter
-  /**
-   * The minter keeps one token per provider application across every worker itself, so the
-   * resolver must not cache its tokens per instance. Set for providers that do not document
-   * whether a new token leaves earlier ones valid.
-   */
-  sharedToken: boolean
-}
-
 /**
  * Client-credentials grants offered beside the pasted token, for token providers whose
  * descriptor declares `clientCredentials`. The pasted-token mode is unchanged; a credential uses
- * the grant only when it was saved with `authMethod: 'client_credentials'`.
+ * the grant only when it was saved with `authMethod: 'client_credentials'`. Every minter keeps
+ * one token per provider application across all workers itself (see
+ * `resolveCoordinatedClientToken`), so its tokens are never cached per instance.
  */
-const TOKEN_CLIENT_CREDENTIAL_GRANTS: Partial<
-  Record<TokenServiceAccountProviderId, TokenClientCredentialGrant>
+const TOKEN_CLIENT_CREDENTIAL_MINTERS: Partial<
+  Record<TokenServiceAccountProviderId, TokenClientCredentialMinter>
 > = {
-  [SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID]: {
-    mint: mintShopifyClientCredentialsToken,
-    sharedToken: true,
-  },
-  [LINEAR_SERVICE_ACCOUNT_PROVIDER_ID]: {
-    mint: mintLinearClientCredentialsToken,
-    sharedToken: false,
-  },
+  [SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID]: mintShopifyClientCredentialsToken,
+  [LINEAR_SERVICE_ACCOUNT_PROVIDER_ID]: mintLinearClientCredentialsToken,
 }
 
-export function getTokenClientCredentialGrant(
+export function getTokenClientCredentialMinter(
   providerId: string
-): TokenClientCredentialGrant | undefined {
+): TokenClientCredentialMinter | undefined {
   return isTokenServiceAccountProviderId(providerId)
-    ? TOKEN_CLIENT_CREDENTIAL_GRANTS[providerId]
+    ? TOKEN_CLIENT_CREDENTIAL_MINTERS[providerId]
     : undefined
 }

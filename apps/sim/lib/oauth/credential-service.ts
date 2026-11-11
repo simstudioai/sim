@@ -21,7 +21,7 @@ import {
   parseClientCredentialAccountSecretBlob,
 } from '@/lib/credentials/client-credential-accounts/server'
 import { isGoogleWorkloadIdentitySecret } from '@/lib/credentials/google-workload-identity'
-import { getTokenClientCredentialGrant } from '@/lib/credentials/token-service-accounts/client-credentials'
+import { getTokenClientCredentialMinter } from '@/lib/credentials/token-service-accounts/client-credentials'
 import {
   CLIENT_CREDENTIALS_AUTH_METHOD,
   getTokenServiceAccountDescriptor,
@@ -851,15 +851,16 @@ function resolveClientCredentialAccountToken(
  * Resolves a token provider credential saved in client-credentials mode
  * (Shopify Dev Dashboard app, Linear OAuth app): mints with the stored client
  * ID and secret instead of returning a pasted token. The stored store domain
- * travels with the token exactly as it does for a pasted one.
+ * travels with the token exactly as it does for a pasted one. Every grant
+ * shares one coordinated token per application, so none is cached per instance.
  */
 function resolveTokenClientCredentialToken(
   credentialId: string,
   providerId: string,
   options?: CredentialTokenResolutionOptions
 ): Promise<ServiceAccountTokenResult> {
-  const grant = getTokenClientCredentialGrant(providerId)
-  if (!grant) {
+  const mint = getTokenClientCredentialMinter(providerId)
+  if (!mint) {
     return Promise.reject(
       new Error(`No client-credentials grant registered for service-account provider ${providerId}`)
     )
@@ -872,7 +873,7 @@ function resolveTokenClientCredentialToken(
         throw new Error('Stored token service-account secret changed mode')
       }
       // The mint is shared by every coalesced caller, so no one caller's signal may cancel it.
-      const minted = await grant.mint({
+      const minted = await mint({
         clientId: blob.clientId,
         clientSecret: blob.clientSecret,
         domain: blob.domain,
@@ -883,7 +884,7 @@ function resolveTokenClientCredentialToken(
       }
     },
     options,
-    grant.sharedToken
+    true
   )
 }
 
