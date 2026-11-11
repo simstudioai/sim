@@ -1,4 +1,6 @@
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { escapeRegExp } from '@sim/utils/string'
+import type { RequestResponse } from '@/tools/http/types'
 import { transformTable } from '@/tools/shared/table'
 import type { TableRow } from '@/tools/types'
 
@@ -152,4 +154,45 @@ export const processUrl = (
   }
 
   return canonicalizeFirstPartyApiUrl(url)
+}
+
+/**
+ * Builds the `http_request` / `webhook_request` result from a 2xx response and its parsed
+ * body; non-2xx responses are rejected upstream in `executeTool`.
+ *
+ * A JSON body shaped like the envelope the removed `/api/proxy` route returned
+ * (`{ success, status, data, headers? }`) is unwrapped exactly as these tools always have,
+ * so existing workflows keep reading the same outputs and taking the same error branch.
+ * A body with no `success` field (JSend's `{ status, data }`, for example) was never that
+ * envelope and is reported as the HTTP response it is.
+ */
+export function toHttpToolResponse(response: Response, body: unknown): RequestResponse {
+  if (
+    isRecordLike(body) &&
+    body.success !== undefined &&
+    body.data !== undefined &&
+    body.status !== undefined
+  ) {
+    const success = Boolean(body.success)
+    const { error } = body
+    return {
+      success,
+      output: { data: body.data, status: body.status, headers: toRecord(body.headers) },
+      error:
+        success || error == null
+          ? undefined
+          : typeof error === 'string'
+            ? error
+            : JSON.stringify(error),
+    }
+  }
+
+  return {
+    success: response.ok,
+    output: {
+      data: body,
+      status: response.status,
+      headers: Object.fromEntries(response.headers.entries()),
+    },
+  }
 }
