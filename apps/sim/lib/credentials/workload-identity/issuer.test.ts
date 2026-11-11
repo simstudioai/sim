@@ -70,6 +70,22 @@ describe('workload identity issuer', () => {
     ).rejects.toThrow(/an hour/)
   })
 
+  it.each([
+    ['another workspace', 'sim:workspace:ws-2:credential:abc123def456'],
+    ['an organization', 'sim:organization:ws-1:credential:abc123def456'],
+    ['a lookalike workspace id', 'sim:workspace:ws-10:credential:abc123def456'],
+  ])('refuses to mint a subject owned by %s', async (_owner, subject) => {
+    const issuer = await loadIssuer()
+
+    await expect(
+      issuer.mintWorkloadIdentityToken({
+        subject,
+        audience: 'sts.amazonaws.com',
+        owner: { workspaceId: 'ws-1' },
+      })
+    ).rejects.toThrow(/another owner/)
+  })
+
   it('rejects a token presented to a different audience', async () => {
     const issuer = await loadIssuer()
     const token = await issuer.mintWorkloadIdentityToken({

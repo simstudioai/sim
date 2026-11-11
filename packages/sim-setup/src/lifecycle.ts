@@ -13,6 +13,7 @@ import { directoryOverride, resolveSetupContextAtRoot, SETUP_CONTEXT } from './c
 import { DB_CONTAINER, type Detection, REDIS_CONTAINER, runDetection } from './detect'
 import { archiveEnvFile, archiveFile, parseEnv, ROOT, upsertEnv, writeEnvFile } from './env-files'
 import { SetupError } from './errors'
+import { executableExists } from './executables'
 import { forwardCommands, isLocalKubeContext } from './modes/k8s'
 import { httpHealth } from './probes'
 import * as p from './prompter'
@@ -591,6 +592,14 @@ async function reset(install: Install | null): Promise<void> {
   // cluster (or compose file / dev containers) is about to be wiped keeps a reset
   // from silently hitting the wrong same-named install after a context switch.
   const target = install ? ` ${describeInstall(install)} will be removed.` : ''
+  // With the daemon down nothing managed is visible, so a reset would archive the
+  // env files while the volumes they unlock survive.
+  if (install?.kind !== 'k8s' && executableExists('docker') && !dockerReachable()) {
+    throw new SetupError(
+      "Docker isn't reachable, so the managed containers and volumes can't be removed. Your env files were left in place.",
+      [`start Docker, then re-run ${theme.command('npx sim-setup reset')}`]
+    )
+  }
   const ok = await p.confirm({
     message: theme.error(
       `Reset archives your .env files and wipes managed data (volumes).${target} Continue?`

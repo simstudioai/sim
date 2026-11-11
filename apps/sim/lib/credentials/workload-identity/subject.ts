@@ -40,12 +40,26 @@ function ownerSegment(owner: WorkloadIdentityOwner): string {
   throw new WorkloadIdentitySubjectError('A workload identity subject needs exactly one owner')
 }
 
+function subjectPrefix(owner: WorkloadIdentityOwner): string {
+  return `sim:${ownerSegment(owner)}:credential:`
+}
+
+/** Throws unless the subject was built for this owner. */
+export function assertWorkloadIdentitySubjectOwner(
+  subject: string,
+  owner: WorkloadIdentityOwner
+): void {
+  if (!subject.startsWith(subjectPrefix(owner))) {
+    throw new WorkloadIdentitySubjectError('Workload identity subject belongs to another owner')
+  }
+}
+
 /** `sim:workspace:<id>:credential:<subjectId>` (or `sim:organization:…`). */
 function buildWorkloadIdentitySubject(owner: WorkloadIdentityOwner, subjectId: string): string {
   if (!SUBJECT_ID_PATTERN.test(subjectId)) {
     throw new WorkloadIdentitySubjectError('Invalid workload identity subject')
   }
-  return `sim:${ownerSegment(owner)}:credential:${subjectId}`
+  return `${subjectPrefix(owner)}${subjectId}`
 }
 
 function proofKey(): Buffer {
@@ -114,7 +128,7 @@ export function verifyWorkloadIdentitySubject(
   const expiresAt = Number(subjectProof.slice(0, separator))
   const signature = subjectProof.slice(separator + 1)
   if (!Number.isSafeInteger(expiresAt) || expiresAt <= now) throw invalid()
-  if (!subject.startsWith(`sim:${ownerSegment(owner)}:credential:`)) throw invalid()
+  if (!subject.startsWith(subjectPrefix(owner))) throw invalid()
   if (!safeCompare(signature, sign(provider, owner, userId, subject, expiresAt))) throw invalid()
 }
 

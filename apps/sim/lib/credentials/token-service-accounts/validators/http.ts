@@ -121,6 +121,7 @@ export function normalizeHttpBaseUrl(raw: string | undefined): string {
  */
 export function refuseUnsafeTypedUrl(raw: string | undefined): string {
   const typed = (raw ?? '').trim()
+  if (/^https?:(?!\/\/)/i.test(typed)) throw new Error('malformed scheme')
   if (/^(?!https?:\/\/)[a-z][a-z\d+.-]*:\/\//i.test(typed)) throw new Error('http(s) only')
   const authority = typed.replace(/^[a-z][a-z\d+.-]*:\/\//i, '').split(/[/?#]/)[0]
   if (authority.includes('@')) throw new Error('credentials in URL')

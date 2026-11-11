@@ -9,6 +9,7 @@ vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock
 
 import {
   normalizeHttpBaseUrl,
+  refuseUnsafeTypedUrl,
   tokenCheckValidator,
 } from '@/lib/credentials/token-service-accounts/validators/http'
 
@@ -159,8 +160,11 @@ describe('tokenCheckValidator with a typed host', () => {
     )
   })
 
-  it('refuses a base URL with a mistyped scheme instead of reading the scheme as a host', () => {
+  it('refuses a mistyped scheme instead of reading the scheme as a host', () => {
     expect(() => normalizeHttpBaseUrl('https:/grafana.example.com')).toThrow(/scheme/)
+    expect(() => refuseUnsafeTypedUrl('https:/evil.com')).toThrow(/scheme/)
+    expect(() => refuseUnsafeTypedUrl('HTTP:evil.com')).toThrow(/scheme/)
+    expect(refuseUnsafeTypedUrl('https://grafana.example.com')).toBe('https://grafana.example.com')
     expect(normalizeHttpBaseUrl('grafana.example.com:3000/')).toBe(
       'https://grafana.example.com:3000'
     )

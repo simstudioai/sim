@@ -7,6 +7,7 @@ import {
   createMockRequest,
   hybridAuthMockFns,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -36,11 +37,13 @@ vi.mock('@/lib/credentials/application/resolve-managed-oauth-token', () => ({
   resolveManagedOAuthCredentialToken: { execute: mockResolveManagedOAuthCredentialToken },
 }))
 
+import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { createQuickBooksAccountId } from '@/lib/oauth/quickbooks'
 import { GET, POST } from '@/app/api/auth/oauth/token/route'
 import { getToolMetadata } from '@/tools/metadata'
 
 const mockGetToolMetadata = vi.mocked(getToolMetadata)
+const mockCheckSessionOrInternalAuth = vi.mocked(checkSessionOrInternalAuth)
 
 describe('OAuth Token API Routes', () => {
   beforeEach(() => {
@@ -287,6 +290,116 @@ describe('OAuth Token API Routes', () => {
           },
           request: expect.any(NextRequest),
         })
+      })
+    })
+
+    describe('saved service-account credentials', () => {
+      const authorized = {
+        ok: true,
+        requesterUserId: 'test-user-id',
+        credentialOwnerUserId: 'test-user-id',
+        workspaceId: 'workspace-id',
+      }
+
+      beforeEach(() => {
+        authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce({
+          accountId: '',
+          credentialId: 'saved-credential-id',
+          credentialType: 'service_account',
+          providerId: 'vanta-service-account',
+          workspaceId: 'workspace-id',
+          usedCredentialTable: true,
+        })
+        authOAuthUtilsMockFns.mockResolveServiceAccountToken.mockResolvedValue({
+          accessToken: 'saved-secret',
+        })
+        mockGetToolMetadata.mockReturnValue({
+          id: 'vanta_list_tests',
+          params: {},
+          oauth: { required: true, provider: 'vanta', credentialKind: 'service-account' },
+        })
+      })
+
+      it('refuses to release the secret to a session caller', async () => {
+        mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+          success: true,
+          authType: AuthType.SESSION,
+          userId: 'test-user-id',
+        })
+        mockAuthorizeCredentialUse.mockResolvedValueOnce(authorized)
+
+        const response = await POST(
+          createMockRequest('POST', {
+            credentialId: 'saved-credential-id',
+            toolId: 'vanta_list_tests',
+          }),
+          createRouteContext({})
+        )
+
+        expect(response.status).toBe(403)
+        const body = await response.json()
+        expect(body).toMatchObject({ code: 'SERVICE_ACCOUNT_SESSION_FORBIDDEN' })
+        expect(JSON.stringify(body)).not.toContain('saved-secret')
+        expect(authOAuthUtilsMockFns.mockResolveServiceAccountToken).not.toHaveBeenCalled()
+      })
+
+      it('resolves the secret for an internal-JWT execution caller', async () => {
+        mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+          success: true,
+          authType: AuthType.INTERNAL_JWT,
+          userId: 'test-user-id',
+        })
+        mockAuthorizeCredentialUse.mockResolvedValueOnce(authorized)
+
+        const response = await POST(
+          createMockRequest('POST', {
+            credentialId: 'saved-credential-id',
+            toolId: 'vanta_list_tests',
+            workflowId: 'workflow-id',
+          }),
+          createRouteContext({})
+        )
+
+        expect(response.status).toBe(200)
+        await expect(response.json()).resolves.toMatchObject({
+          accessToken: 'saved-secret',
+          credentialType: 'service_account',
+        })
+      })
+    })
+
+    it('still returns an OAuth token to a session caller', async () => {
+      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+        success: true,
+        authType: AuthType.SESSION,
+        userId: 'test-user-id',
+      })
+      mockAuthorizeCredentialUse.mockResolvedValueOnce({
+        ok: true,
+        requesterUserId: 'test-user-id',
+        credentialOwnerUserId: 'test-user-id',
+      })
+      authOAuthUtilsMockFns.mockGetCredential.mockResolvedValueOnce({
+        id: 'credential-id',
+        accessToken: 'test-token',
+        refreshToken: 'refresh-token',
+        accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000),
+        providerId: 'google',
+      })
+      authOAuthUtilsMockFns.mockRefreshTokenIfNeeded.mockResolvedValueOnce({
+        accessToken: 'session-oauth-token',
+        refreshed: false,
+      })
+
+      const response = await POST(
+        createMockRequest('POST', { credentialId: 'credential-id' }),
+        createRouteContext({})
+      )
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({
+        accessToken: 'session-oauth-token',
+        credentialType: 'oauth',
       })
     })
 

@@ -42,10 +42,10 @@ export function createOutboundTransport(options: OutboundTransportOptions): Outb
   ]
   /**
    * The proxy resolves the destination itself, so pinning cannot hold across it. Every request
-   * (each redirect hop included) is resolved and judged here first, so a name that points at
-   * a refused address is stopped before the proxy is asked to reach it. A name that changes
-   * its answer between this check and the proxy's own lookup is left to the proxy's egress
-   * policy, which is why the self-hosting docs make the proxy the final egress control.
+   * (each redirect hop included) is resolved and judged here first, and a name is refused when
+   * any of its records is refused, since the proxy may connect to any of them. A name that
+   * changes its answer between this check and the proxy's own lookup is left to the proxy's
+   * egress policy, which is why the self-hosting docs make the proxy the final egress control.
    */
   const selectEnvironmentProxy = async (
     target: string,
@@ -56,6 +56,7 @@ export function createOutboundTransport(options: OutboundTransportOptions): Outb
     const validation = await validateEgressUrl(target, 'url', options.profile, {
       logDetails: false,
       signal,
+      requireEveryAddress: true,
     })
     if (!validation.isValid) throw new Error(validation.error, { cause: validation.cause })
     if (closed) throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
