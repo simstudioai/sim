@@ -6,7 +6,7 @@ import { SettingsSection } from '@sim/emcn/settings-section'
 import { FieldStack } from '@/app/(product)/_components/settings-parts/settings-parts'
 
 /** One exposed output, keyed by its source block and path. */
-export interface BlockOutputField {
+interface BlockOutputField {
   key: string
   label: string
   name: string

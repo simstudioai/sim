@@ -64,7 +64,7 @@ const FULL_ACCESS: SecretRowAccess = { canEdit: true, canReveal: true }
 export type GuardBack = (leave: () => void) => void
 
 /** One titled group of secrets the rows edit and save together with the others. */
-export interface SecretScope {
+interface SecretScope {
   /** Keys the section and prefixes the salted autofill names. */
   id: SecretScopeId
   title: string

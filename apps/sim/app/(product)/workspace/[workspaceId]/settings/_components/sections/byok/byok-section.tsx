@@ -185,7 +185,7 @@ export default function ByokSection({ workspaceId }: WorkspaceSettingsSectionPro
           message='Inherited key status unavailable. Refresh to try again.'
         />
       )}
-      <SettingsRead query={activeQuery} failureMessage='Couldn’t load provider keys'>
+      <SettingsRead<unknown> query={activeQuery} failureMessage='Couldn’t load provider keys'>
         {() => (
           <ByokProviderList
             key={`${workspaceId}:${isOrganizationScope ? 'organization' : 'workspace'}`}
