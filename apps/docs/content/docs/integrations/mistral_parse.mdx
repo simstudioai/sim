@@ -10,12 +10,12 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [Mistral's OCR API](https://mistral.ai/) to extract text and page structure from a PDF uploaded to Sim or supplied by URL. The current parser returns page Markdown, image metadata, the model, and usage information. **Specific Pages** accepts zero-based indices such as `0,1,2`; leave it empty to process all pages. The block offers Markdown, plain-text, and JSON format values, but its current result uses the structured page output documented below. Turn on **Extract Images** to get the images Mistral finds in the document (figures, logos, photos) as files on the `images` output, up to 100 per parse; each page's image entry carries a `file_name` matching its file. **Max Images** and **Min Image Size** (advanced) narrow what is extracted. **Tables** keeps tables inline in the page Markdown by default, or returns them separately as Markdown or HTML in each page's `tables` list.
+Use [Mistral's OCR API](https://mistral.ai/) to extract text and page structure from a PDF uploaded to Sim or passed in as a file from a previous block. The current parser returns page Markdown, image metadata, the model, and usage information. **Specific Pages** accepts zero-based indices such as `0,1,2`; leave it empty to process all pages. The block offers Markdown, plain-text, and JSON format values, but its current result uses the structured page output documented below. Turn on **Extract Images** to get the images Mistral finds in the document (figures, logos, photos) as files on the `images` output, up to 100 per parse; each page's image entry carries a `file_name` matching its file. **Max Images** and **Min Image Size** (advanced) narrow what is extracted. **Tables** keeps tables inline in the page Markdown by default, or returns them separately as Markdown or HTML in each page's `tables` list.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
 
-Extract text, tables, and images from uploaded PDF documents, or from a URL. Images come back as files an agent can pass on.
+Extract text, tables, and images from an uploaded PDF or a file from a previous block. Images come back as files an agent can pass on.
 
 ## Actions
 

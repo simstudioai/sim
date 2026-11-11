@@ -7,7 +7,7 @@ import { decodeDataUriWithinLimit } from '@/lib/file-parsers/data-uri'
 import { isFileParserError } from '@/lib/file-parsers/errors'
 import { submitMistralOcr } from '@/lib/internal/mistral/client'
 import { MistralOperationError } from '@/lib/internal/mistral/errors'
-import { extractOcrImageFiles, MAX_OCR_EXTRACTED_IMAGES } from '@/lib/internal/mistral/images'
+import { extractOcrImageFiles } from '@/lib/internal/mistral/images'
 import type { MistralParseInput } from '@/lib/internal/mistral/input'
 import { countMistralPdfPages } from '@/lib/internal/mistral/page-count'
 import {
@@ -31,6 +31,7 @@ import {
   type ServableFile,
 } from '@/lib/uploads/utils/file.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
+import { MAX_OCR_EXTRACTED_IMAGES } from '@/tools/mistral/types'
 
 const logger = createLogger('MistralOperations')
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif'] as const

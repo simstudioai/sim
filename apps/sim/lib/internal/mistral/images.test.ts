@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { extractOcrImageFiles, MAX_OCR_EXTRACTED_IMAGES } from '@/lib/internal/mistral/images'
+import { extractOcrImageFiles } from '@/lib/internal/mistral/images'
+import { MAX_OCR_EXTRACTED_IMAGES } from '@/tools/mistral/types'
 
 const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.from('synthetic jpeg body')])
 const dataUri = (bytes: Buffer) => `data:image/jpeg;base64,${bytes.toString('base64')}`
