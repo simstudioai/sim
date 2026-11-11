@@ -73,11 +73,11 @@ const SORT_COLUMNS = [
 const TYPE_LABEL: Record<DeletedType, string> = {
   workflow: 'Workflow',
   folder: 'Folder',
-  workspace_folder: 'File Folder',
-  knowledge_folder: 'Knowledge Folder',
-  table_folder: 'Table Folder',
+  workspace_folder: 'File folder',
+  knowledge_folder: 'Knowledge folder',
+  table_folder: 'Table folder',
   table: 'Table',
-  knowledge: 'Knowledge Base',
+  knowledge: 'Knowledge base',
   file: 'File',
 }
 
@@ -161,7 +161,7 @@ export default function RecentlyDeletedSection({ workspaceId }: WorkspaceSetting
   const restoreWorkspaceFile = useRestoreWorkspaceFile()
   const restoreWorkspaceFileFolder = useRestoreWorkspaceFileFolder()
 
-  const items: DeletedResource[] = (deleted.data?.pages ?? []).flatMap((page) =>
+  const fetched: DeletedResource[] = (deleted.data?.pages ?? []).flatMap((page) =>
     page.items.filter(isWorkspaceResource).map((item) => ({
       id: item.id,
       name: item.name,
@@ -170,13 +170,25 @@ export default function RecentlyDeletedSection({ workspaceId }: WorkspaceSetting
     }))
   )
   const normalized = debouncedSearch.toLowerCase()
-  const listed = new Set(items.map((item) => item.id))
-  for (const [id, entry] of restored) {
-    if (listed.has(id)) continue
-    if (!RECENTLY_DELETED_TYPES_BY_FILTER[tab].includes(entry.resource.type)) continue
-    if (normalized && !entry.resource.name.toLowerCase().includes(normalized)) continue
-    items.splice(Math.min(entry.displayIndex, items.length), 0, entry.resource)
-  }
+  const listed = new Set(fetched.map((item) => item.id))
+  /** Restored rows hold their place until the list refetches without them. */
+  const items = [...restored.entries()]
+    .filter(
+      ([id, entry]) =>
+        !listed.has(id) &&
+        RECENTLY_DELETED_TYPES_BY_FILTER[tab].includes(entry.resource.type) &&
+        (!normalized || entry.resource.name.toLowerCase().includes(normalized))
+    )
+    .map(([, entry]) => entry)
+    .sort((left, right) => left.displayIndex - right.displayIndex)
+    .reduce<DeletedResource[]>(
+      (list, entry) => [
+        ...list.slice(0, entry.displayIndex),
+        entry.resource,
+        ...list.slice(entry.displayIndex),
+      ],
+      fetched
+    )
 
   const restore = async (resource: DeletedResource) => {
     const displayIndex = Math.max(

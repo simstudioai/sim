@@ -1141,7 +1141,6 @@ const SAVE_BAR_MIGRATIONS: ReasonedAllowlist = granted(SETTINGS_PAGE_LANE, [
   `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/source-secrets.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/sso/provider-form.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/whitelabeling/whitelabeling-section.tsx`,
-  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/sandboxes/sandbox-editor.tsx`,
   `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/secrets/secret-detail.tsx`,
 ])
 
@@ -1176,7 +1175,6 @@ const EMPTY_SURFACE_MIGRATIONS: ReasonedAllowlist = granted(SETTINGS_PAGE_LANE, 
   `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/sources-view.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/members/members-panel.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/security/security-section.tsx`,
-  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/sandboxes/sandboxes-section.tsx`,
 ])
 
 export const PLATFORM_ALLOWLISTS = {

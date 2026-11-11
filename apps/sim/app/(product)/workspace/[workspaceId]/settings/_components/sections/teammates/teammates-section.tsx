@@ -3,22 +3,22 @@
 import { useState } from 'react'
 import { Avatar } from '@sim/emcn/avatar'
 import { Button } from '@sim/emcn/button'
-import { EmptyState } from '@sim/emcn/empty-state'
 import { useClipboard } from '@sim/emcn/feedback/use-clipboard'
 import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SearchField } from '@sim/emcn/search-field'
-import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { SettingsRow } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
-import { Tooltip } from '@sim/emcn/tooltip'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
 import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   SectionStack,
   SectionToolbar,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { SettingsRead } from '@/app/(product)/_components/settings-parts/settings-read'
 import type { WorkspaceSettingsSectionProps } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
 import { InviteTeammatesModal } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/teammates/invite-teammates-modal'
 import styles from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/teammates/teammates.module.css'
@@ -94,7 +94,6 @@ export default function TeammatesSection({ workspaceId }: WorkspaceSettingsSecti
     workspaceId,
     'teammates'
   )
-  const router = useRouter()
   const hrefFor = usePlatformHref()
   const scope = useSurfaceScope()
   const { copy } = useClipboard()
@@ -150,14 +149,29 @@ export default function TeammatesSection({ workspaceId }: WorkspaceSettingsSecti
       )
     : teammates
 
-  const handleInvite = () => {
-    if (isInvitationsDisabled) {
-      if (billingEnabled)
-        router.push(hrefFor(surfaceHref(scope, '/settings/billing/plans?reason=seats')))
-      return
-    }
-    setInviting(true)
-  }
+  /**
+   * Invite says plainly when it cannot run. Where a plan limit closes it and billing exists, the
+   * row offers the plans instead, so the viewer sees where the button goes before pressing it.
+   */
+  const inviteControl =
+    isInvitationsDisabled && billingEnabled && inviteDisabledReason ? (
+      <Button
+        size='compact'
+        render={<Link href={hrefFor(surfaceHref(scope, '/settings/billing/plans?reason=seats'))} />}
+      >
+        View plans
+      </Button>
+    ) : (
+      <Button
+        size='compact'
+        icon='I074'
+        disabled={isInvitationsDisabled}
+        disabledReason={inviteDisabledReason ?? 'Invitations are turned off for this workspace'}
+        onClick={() => setInviting(true)}
+      >
+        Invite
+      </Button>
+    )
 
   const rowActions = (teammate: Teammate): MenuAction[] => {
     const { invitationId, token, userId } = teammate
@@ -209,87 +223,94 @@ export default function TeammatesSection({ workspaceId }: WorkspaceSettingsSecti
   return (
     <SectionStack>
       <SettingsPageHeader />
-      <SectionToolbar
-        grow={
-          <SearchField
-            label='Search teammates'
-            placeholder='Search teammates…'
-            value={searchTerm}
-            onValueChange={setSearchTerm}
-          />
-        }
-      >
-        {canManage && (
-          <Tooltip label={inviteDisabledReason ?? ''} enabled={Boolean(inviteDisabledReason)}>
-            <span>
-              <Button variant='primary' size='compact' icon='I074' onClick={handleInvite}>
-                Invite
-              </Button>
-            </span>
-          </Tooltip>
-        )}
-      </SectionToolbar>
       {invitations.isError && (
         <FailureNotice
-          message={getErrorMessage(invitations.error, 'Failed to load pending invites')}
+          message={getErrorMessage(invitations.error, 'Couldn’t load pending invites')}
           retrying={invitations.isFetching}
           onRetry={() => void invitations.refetch()}
         />
       )}
-      {permissions.isPending ? (
-        <SettingsSection title='Teammates' />
-      ) : permissions.isError ? (
-        <FailureNotice
-          message={getErrorMessage(permissions.error, 'Failed to load teammates')}
-          retrying={permissions.isFetching}
-          onRetry={() => void permissions.refetch()}
-        />
-      ) : visible.length === 0 ? (
-        <EmptyState title={term ? 'No matching teammates' : 'No teammates yet'} />
-      ) : (
-        <SettingsSection title={`Teammates ${teammates.length}`}>
-          {visible.map((teammate) => (
-            <SettingsRow
-              key={teammate.key}
-              label={teammate.name}
-              description={`${teammate.email} · ${teammate.status}`}
-              leading={<Avatar name={teammate.name} src={teammate.image} />}
+      <SettingsRead query={permissions} failureMessage='Couldn’t load teammates'>
+        {() => (
+          <>
+            {teammates.length > 0 && (
+              <SectionToolbar
+                grow={
+                  <SearchField
+                    label='Search teammates'
+                    placeholder='Search teammates…'
+                    value={searchTerm}
+                    onValueChange={setSearchTerm}
+                  />
+                }
+              />
+            )}
+            <SettingsList
+              title='Members and invites'
+              empty={
+                visible.length > 0
+                  ? undefined
+                  : term
+                    ? { title: 'No matching teammates' }
+                    : { title: 'No teammates yet', action: canManage ? inviteControl : undefined }
+              }
             >
-              <span className={styles.controls}>
-                <ChoiceMenu
-                  label={`Workspace access for ${teammate.name}`}
-                  options={ROLE_OPTIONS}
-                  value={teammate.role}
-                  disabled={
-                    !teammate.userId ||
-                    !canManage ||
-                    teammate.userId === viewerId ||
-                    teammate.lockReason !== null
+              {visible.map((teammate) => (
+                <SettingsRow
+                  key={teammate.key}
+                  label={teammate.name}
+                  description={`${teammate.email} · ${teammate.status}`}
+                  leading={<Avatar name={teammate.name} src={teammate.image} />}
+                >
+                  <span className={styles.controls}>
+                    <ChoiceMenu
+                      label={`Workspace access for ${teammate.name}`}
+                      options={ROLE_OPTIONS}
+                      value={teammate.role}
+                      disabled={
+                        !teammate.userId ||
+                        !canManage ||
+                        teammate.userId === viewerId ||
+                        teammate.lockReason !== null
+                      }
+                      disabledReason={teammate.lockReason ?? undefined}
+                      onValueChange={(next) => {
+                        const role = toPermission(next)
+                        if (!teammate.userId || role === teammate.role) return
+                        void reportFailure(
+                          updatePermissions.mutateAsync({
+                            workspaceId,
+                            updates: [{ userId: teammate.userId, permissions: role }],
+                          }),
+                          "Couldn't change workspace access"
+                        )
+                      }}
+                    />
+                    <ActionMenu
+                      label={`Actions for ${teammate.name}`}
+                      icon='I108'
+                      align='end'
+                      actions={rowActions(teammate)}
+                    />
+                  </span>
+                </SettingsRow>
+              ))}
+              {canManage && (
+                <SettingsRow
+                  label='Invite teammates'
+                  description={
+                    isInvitationsDisabled && inviteDisabledReason
+                      ? inviteDisabledReason
+                      : 'Add people to this workspace by email'
                   }
-                  disabledReason={teammate.lockReason ?? undefined}
-                  onValueChange={(next) => {
-                    const role = toPermission(next)
-                    if (!teammate.userId || role === teammate.role) return
-                    void reportFailure(
-                      updatePermissions.mutateAsync({
-                        workspaceId,
-                        updates: [{ userId: teammate.userId, permissions: role }],
-                      }),
-                      "Couldn't change workspace access"
-                    )
-                  }}
-                />
-                <ActionMenu
-                  label={`Actions for ${teammate.name}`}
-                  icon='I108'
-                  align='end'
-                  actions={rowActions(teammate)}
-                />
-              </span>
-            </SettingsRow>
-          ))}
-        </SettingsSection>
-      )}
+                >
+                  {inviteControl}
+                </SettingsRow>
+              )}
+            </SettingsList>
+          </>
+        )}
+      </SettingsRead>
       <ConfirmDialog
         target={removing}
         onClose={() => setRemoving(null)}
