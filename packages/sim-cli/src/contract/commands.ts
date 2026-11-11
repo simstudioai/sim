@@ -185,6 +185,7 @@ export const CLI_CONTRACT: CliContract = {
   // endpoint as an NDJSON stream so the reply prints as it generates.
   chat: { hidden: true },
   createCredentialConnection: { hidden: true },
+  createCredentialWorkloadIdentitySubject: { hidden: true },
   createServiceAccountCredential: { hidden: true },
   getBillingStatus: {
     command: 'billing status',
@@ -354,6 +355,21 @@ export const CLI_CONTRACT: CliContract = {
     command: 'workflows deployment status',
     renamedFrom: ['workflows deployment list'],
     describe: 'Show a workflow’s current deployment',
+  },
+  listWorkflowTriggers: {
+    describe: 'Show the health of every trigger the live deployment serves',
+    columns: [
+      { header: 'block', path: 'blockId' },
+      { header: 'kind' },
+      { header: 'provider' },
+      { header: 'status' },
+      { header: 'failures', path: 'failedCount' },
+      { header: 'last failed', path: 'lastFailedAt', format: 'timestamp' },
+      { header: 'next run', path: 'nextRunAt', format: 'timestamp' },
+    ],
+  },
+  updateWorkflowTrigger: {
+    describe: 'Enable or disable one trigger of the live deployment',
   },
   setSecret: { hidden: true },
 
@@ -1238,6 +1254,16 @@ export const CLI_CONTRACT: CliContract = {
     columns: [{ header: 'id' }, { header: 'name' }, { header: 'role' }],
   },
   getOrganization: { command: 'organizations get' },
+  getSearchSourcePermissions: {
+    command: 'organizations search sources permissions get',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  replaceSearchSourcePermissions: {
+    command: 'organizations search sources permissions replace',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm:
+      'This replaces the source’s permission grants. Readers omitted from the new grants lose access.',
+  },
   listSsoProviders: {
     command: 'organizations sso providers list',
     pathFlags: ORGANIZATION_FLAG,
@@ -1508,16 +1534,33 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
   listWorkspaceMembers: {
-    command: 'workspaces members',
+    command: 'workspaces members list',
+    // `workspaces members` shipped as this list before the group gained update
+    // and remove, so naming the group still lists.
+    defaultSubcommand: true,
     describe: 'List workspace members',
     profileWorkspacePath: true,
+    // `members update` and `members remove` take the user id, and the listing
+    // is where a caller finds it. Appended last so the shipped text columns keep
+    // their positions for scripts that read them by field.
     columns: [
       { header: 'email' },
       { header: 'name' },
       { header: 'role' },
       { header: 'external', path: 'isExternal', format: 'bool' },
       { header: 'joined', path: 'joinedAt', format: 'timestamp' },
+      { header: 'user', path: 'userId' },
     ],
+  },
+  updateWorkspaceMember: {
+    command: 'workspaces members update',
+    profileWorkspacePath: true,
+  },
+  removeWorkspaceMember: {
+    command: 'workspaces members remove',
+    profileWorkspacePath: true,
+    confirm:
+      'This removes the member’s workspace access. If it was their last workspace in the organization, their organization membership is removed and their sessions end.',
   },
 
   listAuditLogs: {

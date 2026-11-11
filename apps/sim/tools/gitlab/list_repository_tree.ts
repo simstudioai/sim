@@ -3,6 +3,7 @@ import type {
   GitLabListRepositoryTreeResponse,
 } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabListRepositoryTreeTool: ToolConfig<
@@ -14,6 +15,7 @@ export const gitlabListRepositoryTreeTool: ToolConfig<
   name: 'GitLab List Repository Tree',
   description: 'List files and directories in a GitLab project repository',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {

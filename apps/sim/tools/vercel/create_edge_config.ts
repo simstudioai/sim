@@ -1,3 +1,4 @@
+import { VERCEL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type {
   VercelCreateEdgeConfigParams,
@@ -12,6 +13,7 @@ export const vercelCreateEdgeConfigTool: ToolConfig<
   name: 'Vercel Create Edge Config',
   description: 'Create a new Edge Config store',
   version: '1.0.0',
+  oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

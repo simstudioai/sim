@@ -1,4 +1,5 @@
 import { REACTION_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface CreateCommentReactionParams {
@@ -30,6 +31,7 @@ export const createCommentReactionTool: ToolConfig<
   name: 'GitHub Create Comment Reaction',
   description: 'Add a reaction to an issue comment',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -119,6 +121,7 @@ export const createCommentReactionV2Tool: ToolConfig<CreateCommentReactionParams
   name: createCommentReactionTool.name,
   description: createCommentReactionTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: createCommentReactionTool.params,
   request: createCommentReactionTool.request,
 

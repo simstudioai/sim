@@ -1,4 +1,5 @@
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { WhatsAppMediaType, WhatsAppSendResponse } from '@/tools/whatsapp/types'
 
 /** WhatsApp Cloud API Graph version used by every outbound tool. */
@@ -9,12 +10,12 @@ export function buildMessagesUrl(phoneNumberId: string | undefined): string {
   if (!phoneNumberId) {
     throw new Error('WhatsApp Phone Number ID is required')
   }
-  return `https://graph.facebook.com/${WHATSAPP_GRAPH_VERSION}/${phoneNumberId.trim()}/messages`
+  return `https://graph.facebook.com/${WHATSAPP_GRAPH_VERSION}/${safeUrlPathSegment(phoneNumberId.trim(), 'phoneNumberId')}/messages`
 }
 
 /** Build the media upload endpoint for a given business phone number ID. */
 export function buildMediaUploadUrl(phoneNumberId: string): string {
-  return `https://graph.facebook.com/${WHATSAPP_GRAPH_VERSION}/${encodeURIComponent(phoneNumberId.trim())}/media`
+  return `https://graph.facebook.com/${WHATSAPP_GRAPH_VERSION}/${safeUrlPathSegment(phoneNumberId.trim(), 'phoneNumberId')}/media`
 }
 
 /** Build the media metadata endpoint for a media ID, optionally scoped to a phone number. */

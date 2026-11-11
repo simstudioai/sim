@@ -2,7 +2,7 @@
 title: Azure DevOps
 description: Interact with Azure DevOps pipelines, builds, and work items
 integration:
-  type: "azure_devops"
+  type: "azure_devops_v2"
   color: "#0078D4"
 ---
 
@@ -34,7 +34,6 @@ List all pipelines in an Azure DevOps project. Returns pipeline ID, name, folder
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `organization` | string | Yes | Azure DevOps organization name |
 | `project` | string | Yes | Azure DevOps project name |
 | `orderBy` | string | No | Field to sort results by \(e.g. "name"\) |
 | `top` | number | No | Maximum number of pipelines to return |
@@ -66,7 +65,6 @@ Get details for a specific pipeline in an Azure DevOps project, including config
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `organization` | string | Yes | Azure DevOps organization name |
 | `project` | string | Yes | Azure DevOps project name |
 | `pipelineId` | number | Yes | ID of the pipeline to retrieve |
 | `pipelineVersion` | number | No | Specific revision of the pipeline to retrieve \(defaults to latest\) |
@@ -105,7 +103,6 @@ List runs for a specific pipeline in an Azure DevOps project. Returns run ID, na
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `organization` | string | Yes | Azure DevOps organization name |
 | `project` | string | Yes | Azure DevOps project name |
 | `pipelineId` | number | Yes | ID of the pipeline whose runs to list |
 
@@ -138,7 +135,6 @@ Get details for a specific pipeline run in an Azure DevOps project. Returns run 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `organization` | string | Yes | Azure DevOps organization name |
 | `project` | string | Yes | Azure DevOps project name |
 | `pipelineId` | number | Yes | ID of the pipeline |
 | `runId` | number | Yes | ID of the run to retrieve |
@@ -177,7 +173,6 @@ List builds in an Azure DevOps project. Optionally filter by pipeline definition
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `organization` | string | Yes | Azure DevOps organization name |
 | `project` | string | Yes | Azure DevOps project name |
 | `definitionIds` | string | No | Comma-separated pipeline definition IDs to filter by \(e.g. "1,2,3"\) |
 | `top` | number | No | Maximum number of builds to return |
@@ -219,7 +214,6 @@ List all log entries for a specific build in Azure DevOps. Returns log IDs, type
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `organization` | string | Yes | Azure DevOps organization name |
 | `project` | string | Yes | Azure DevOps project name |
 | `buildId` | number | Yes | The build ID whose logs to list |
 
@@ -250,7 +244,6 @@ Fetch the text content of a specific build log in Azure DevOps. Use List Build L
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `organization` | string | Yes | Azure DevOps organization name |
 | `project` | string | Yes | Azure DevOps project name |
 | `buildId` | number | Yes | The build ID containing the log |
 | `logId` | number | Yes | The log entry ID to fetch \(from List Build Logs\) |
@@ -277,7 +270,6 @@ Get the execution timeline for an Azure DevOps build — every stage, job, and t
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `organization` | string | Yes | Azure DevOps organization name |
 | `project` | string | Yes | Azure DevOps project name |
 | `buildId` | number | Yes | ID of the build whose timeline to retrieve |
 
@@ -322,7 +314,6 @@ Get work item references associated with commits between two builds in Azure Dev
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `organization` | string | Yes | Azure DevOps organization name |
 | `project` | string | Yes | Azure DevOps project name |
 | `fromBuildId` | number | Yes | The older build ID \(start of range\) |
 | `toBuildId` | number | Yes | The newer build ID \(end of range\) |
@@ -350,7 +341,6 @@ Execute a WIQL query to search for work items in Azure DevOps and return full fi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `organization` | string | Yes | Azure DevOps organization name |
 | `project` | string | Yes | Azure DevOps project name |
 | `wiqlQuery` | string | Yes | WIQL query string \(e.g. "SELECT \[System.Id\] FROM workitems WHERE \[System.State\] = 'Doing' ORDER BY \[System.Id\] ASC"\). Use TOP N to limit results. |
 
@@ -383,7 +373,6 @@ Fetch full details of a single work item by ID from Azure DevOps, including titl
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `organization` | string | Yes | Azure DevOps organization name |
 | `project` | string | Yes | Azure DevOps project name |
 | `workItemId` | number | Yes | The work item ID to fetch |
 
@@ -414,7 +403,6 @@ Fetch full details for multiple work items by ID from Azure DevOps. Pass comma-s
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `organization` | string | Yes | Azure DevOps organization name |
 | `project` | string | Yes | Azure DevOps project name |
 | `ids` | string | Yes | Comma-separated work item IDs to fetch \(e.g. "123,456,789"\). Lists longer than 200 IDs are chunked automatically. |
 
@@ -447,7 +435,6 @@ Create a new Basic-process work item (Issue, Task, or Epic) in Azure DevOps. Ret
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `organization` | string | Yes | Azure DevOps organization name |
 | `project` | string | Yes | Azure DevOps project name |
 | `workItemType` | string | Yes | Basic-process work item type to create \("Issue", "Task", or "Epic"\). Use Issue for bug or defect tracking. |
 | `title` | string | Yes | Title of the new work item |
@@ -491,7 +478,6 @@ Update one or more fields on an existing work item in Azure DevOps. Provide only
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `organization` | string | Yes | Azure DevOps organization name |
 | `project` | string | Yes | Azure DevOps project name |
 | `workItemId` | number | Yes | ID of the work item to update |
 | `title` | string | No | New title for the work item \(optional\) |
@@ -535,7 +521,6 @@ Add a comment to a work item in Azure DevOps.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `organization` | string | Yes | Azure DevOps organization name |
 | `project` | string | Yes | Azure DevOps project name |
 | `workItemId` | number | Yes | ID of the work item to comment on |
 | `text` | string | Yes | Comment text \(HTML supported, e.g. "&lt;p&gt;My comment&lt;/p&gt;"\) |
@@ -571,7 +556,6 @@ List comments for an Azure DevOps work item.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `organization` | string | Yes | Azure DevOps organization name |
 | `project` | string | Yes | Azure DevOps project name |
 | `workItemId` | number | Yes | ID of the work item whose comments should be listed |
 | `top` | number | No | Maximum number of comments to return |

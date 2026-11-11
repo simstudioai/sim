@@ -1,5 +1,6 @@
 import type { LinqAttachmentResult, LinqGetAttachmentParams } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const linqGetAttachmentTool: ToolConfig<LinqGetAttachmentParams, LinqAttachmentResult> = {
@@ -7,6 +8,7 @@ export const linqGetAttachmentTool: ToolConfig<LinqGetAttachmentParams, LinqAtta
   name: 'Get Attachment',
   description: 'Retrieve metadata for an attachment, including its download URL and status',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

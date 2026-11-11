@@ -3,6 +3,7 @@ import type {
   CalendlyListRoutingFormSubmissionsResponse,
 } from '@/tools/calendly/types'
 import { toResourceUri } from '@/tools/calendly/utils'
+import { CALENDLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listRoutingFormSubmissionsTool: ToolConfig<
@@ -13,6 +14,7 @@ export const listRoutingFormSubmissionsTool: ToolConfig<
   name: 'Calendly List Routing Form Submissions',
   description: 'Retrieve the submissions of a routing form, including answers and routing result',
   version: '1.0.0',
+  oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

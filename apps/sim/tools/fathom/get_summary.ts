@@ -1,4 +1,5 @@
 import type { FathomGetSummaryParams, FathomGetSummaryResponse } from '@/tools/fathom/types'
+import { FATHOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getSummaryTool: ToolConfig<FathomGetSummaryParams, FathomGetSummaryResponse> = {
@@ -6,6 +7,7 @@ export const getSummaryTool: ToolConfig<FathomGetSummaryParams, FathomGetSummary
   name: 'Fathom Get Summary',
   description: 'Get the call summary for a specific meeting recording.',
   version: '1.0.0',
+  oauth: FATHOM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

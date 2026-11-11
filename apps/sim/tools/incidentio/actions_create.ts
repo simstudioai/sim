@@ -3,6 +3,7 @@ import {
   type IncidentioActionsCreateParams,
   type IncidentioActionsCreateResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const actionsCreateTool: ToolConfig<
@@ -13,6 +14,7 @@ export const actionsCreateTool: ToolConfig<
   name: 'Create Action',
   description: 'Create a new action on an incident in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -11,6 +11,7 @@ import {
   optionalDatabricksString,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieCreateSpaceTool: ToolConfig<
@@ -21,6 +22,7 @@ export const genieCreateSpaceTool: ToolConfig<
   name: 'Databricks Create Genie Space',
   description: 'Create a Genie space from its serialized configuration and a SQL warehouse.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     warehouseId: {

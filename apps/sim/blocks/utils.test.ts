@@ -58,6 +58,8 @@ vi.mock('@/stores/providers/store', () => ({
 
 vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 
+import { S3Icon } from '@/components/icons'
+import type { BlockConfig } from '@/blocks/types'
 import {
   getApiKeyCondition,
   getSerializedModelProviderId,
@@ -65,6 +67,7 @@ import {
   parseOptionalJsonInput,
   parseOptionalNumberInput,
   requiresProviderFamilyCredentials,
+  withSavedCredential,
 } from '@/blocks/utils'
 import { getProviderFromModel } from '@/providers/utils'
 
@@ -254,5 +257,200 @@ describe('getSerializedModelProviderId', () => {
   it('never throws when the resolver rejects the model', () => {
     expect(() => getSerializedModelProviderId('totally-unknown-model')).not.toThrow()
     expect(getSerializedModelProviderId('totally-unknown-model')).toBe('openai')
+  })
+})
+
+describe('withSavedCredential', () => {
+  const picker = {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  } as const
+  const legacy: BlockConfig = {
+    type: 'example',
+    name: 'Example',
+    description: '',
+    category: 'tools',
+    bgColor: '#000',
+    icon: S3Icon,
+    subBlocks: [
+      { id: 'operation', title: 'Operation', type: 'dropdown', options: [] },
+      { id: 'accessKeyId', title: 'Access Key ID', type: 'short-input', required: true },
+      { id: 'secretAccessKey', title: 'Secret', type: 'short-input', required: true },
+      { id: 'accessKeyId', title: 'Webhook key', type: 'short-input', mode: 'trigger' },
+      {
+        id: 'triggerPicker',
+        title: 'Trigger picker',
+        type: 'short-input',
+        mode: 'trigger',
+        dependsOn: ['accessKeyId'],
+      },
+    ],
+    tools: { access: [] },
+    inputs: { accessKeyId: { type: 'string' }, secretAccessKey: { type: 'string' } },
+    outputs: {},
+  }
+
+  it('places the picker right under the operation picker, ahead of the other fields', () => {
+    const { subBlocks } = withSavedCredential(
+      {
+        ...legacy,
+        subBlocks: [
+          { id: 'operation', title: 'Operation', type: 'dropdown', options: [] },
+          { id: 'bucket', title: 'Bucket', type: 'short-input' },
+          { id: 'accessKeyId', title: 'Access Key ID', type: 'short-input', required: true },
+          { id: 'secretAccessKey', title: 'Secret', type: 'short-input', required: true },
+        ],
+      },
+      picker
+    )
+
+    expect(subBlocks.map((subBlock) => subBlock.id)).toEqual([
+      'operation',
+      'credential',
+      'manualCredential',
+      'bucket',
+    ])
+  })
+
+  it('keeps the picker where the secret was when the block has no operation picker', () => {
+    const { subBlocks } = withSavedCredential(
+      {
+        ...legacy,
+        subBlocks: [
+          { id: 'region', title: 'Region', type: 'short-input' },
+          { id: 'accessKeyId', title: 'Access Key ID', type: 'short-input', required: true },
+          { id: 'secretAccessKey', title: 'Secret', type: 'short-input', required: true },
+          { id: 'bucket', title: 'Bucket', type: 'short-input' },
+        ],
+      },
+      picker
+    )
+
+    expect(subBlocks.map((subBlock) => subBlock.id)).toEqual([
+      'region',
+      'credential',
+      'manualCredential',
+      'bucket',
+    ])
+  })
+
+  it('keeps trigger fields that share a replaced secret id, untouched', () => {
+    const { subBlocks } = withSavedCredential(legacy, picker)
+    const triggerFields = legacy.subBlocks.filter((subBlock) => subBlock.mode === 'trigger')
+
+    for (const field of triggerFields) expect(subBlocks).toContain(field)
+    expect(
+      subBlocks.filter((subBlock) => subBlock.mode !== 'trigger').map((subBlock) => subBlock.id)
+    ).toEqual(['operation', 'credential', 'manualCredential'])
+  })
+
+  it('refuses a selector that authenticates with a replaced secret but has no twin', () => {
+    const withSelector: BlockConfig = {
+      ...legacy,
+      subBlocks: [
+        ...legacy.subBlocks,
+        {
+          id: 'logGroup',
+          title: 'Log group',
+          type: 'file-selector',
+          selectorKey: 'cloudwatch.logGroups',
+          dependsOn: ['accessKeyId'],
+        },
+      ],
+    }
+
+    expect(() => withSavedCredential(withSelector, picker)).toThrow(/saved-credential twin/)
+  })
+
+  it('points fields that depended on a secret at the credential, keeping their other dependencies', () => {
+    const withDependents: BlockConfig = {
+      ...legacy,
+      subBlocks: [
+        ...legacy.subBlocks,
+        { id: 'region', title: 'Region', type: 'short-input' },
+        {
+          id: 'logGroup',
+          title: 'Log group',
+          type: 'file-selector',
+          selectorKey: 'cloudwatch.logGroups',
+          dependsOn: ['accessKeyId', 'secretAccessKey', 'region'],
+        },
+        {
+          id: 'bucket',
+          title: 'Bucket',
+          type: 'short-input',
+          dependsOn: { all: ['secretAccessKey'], any: ['region'] },
+        },
+      ],
+    }
+
+    const { subBlocks } = withSavedCredential(withDependents, picker, {
+      selectorKeys: { 'cloudwatch.logGroups': 'cloudwatch.savedLogGroups' },
+    })
+    const byId = new Map(subBlocks.map((subBlock) => [subBlock.id, subBlock]))
+
+    expect(byId.get('logGroup')).toMatchObject({
+      selectorKey: 'cloudwatch.savedLogGroups',
+      dependsOn: ['credential', 'region'],
+    })
+    expect(byId.get('bucket')?.dependsOn).toEqual({ all: ['credential'], any: ['region'] })
+  })
+
+  it('shows and requires the picker exactly where the replaced secret was', () => {
+    const conditional: BlockConfig = {
+      ...legacy,
+      subBlocks: legacy.subBlocks.map((subBlock) =>
+        ['accessKeyId', 'secretAccessKey'].includes(subBlock.id) && subBlock.mode !== 'trigger'
+          ? {
+              ...subBlock,
+              condition: { field: 'operation', value: 'unsigned', not: true },
+              required: { field: 'operation', value: 'unsigned', not: true },
+            }
+          : subBlock
+      ),
+    }
+
+    const { subBlocks } = withSavedCredential(conditional, picker)
+    const credential = subBlocks.find((subBlock) => subBlock.id === 'credential')
+
+    expect(credential?.condition).toEqual({ field: 'operation', value: 'unsigned', not: true })
+    expect(credential?.required).toEqual({ field: 'operation', value: 'unsigned', not: true })
+  })
+
+  it('refuses replaced secrets that show or require differently', () => {
+    const mismatched: BlockConfig = {
+      ...legacy,
+      subBlocks: legacy.subBlocks.map((subBlock) =>
+        subBlock.id === 'secretAccessKey' ? { ...subBlock, required: false } : subBlock
+      ),
+    }
+
+    expect(() => withSavedCredential(mismatched, picker)).toThrow(/show or require differently/)
+  })
+
+  it('accepts replaced fields that differ only in what the successor states itself', () => {
+    const optionalHost: BlockConfig = {
+      ...legacy,
+      subBlocks: legacy.subBlocks.map((subBlock) =>
+        subBlock.id === 'secretAccessKey' ? { ...subBlock, required: false } : subBlock
+      ),
+    }
+
+    const { subBlocks } = withSavedCredential(optionalHost, picker, { required: true })
+
+    expect(subBlocks.find((subBlock) => subBlock.id === 'credential')?.required).toBe(true)
+  })
+
+  it('refuses options that would silently do nothing', () => {
+    expect(() =>
+      withSavedCredential(legacy, picker, {
+        selectorKeys: { 'cloudwatch.logGroups': 'cloudwatch.savedLogGroups' },
+      })
+    ).toThrow(/unused selector twins/)
+    expect(() => withSavedCredential(legacy, picker, { params: () => ({}) })).toThrow(
+      /no tool params builder/
+    )
   })
 })

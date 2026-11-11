@@ -3,6 +3,7 @@ import type {
   IncidentioOnCallNowResponse,
   IncidentioOnCallShift,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 /** The largest page size for which incident.io still populates `next_shifts`. */
@@ -100,6 +101,7 @@ export const onCallNowTool: ToolConfig<IncidentioOnCallNowParams, IncidentioOnCa
   description:
     'Get who is currently on call in incident.io, as one row per ongoing shift across every schedule (or a single schedule). Also returns the shifts that take over at the next changeover.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

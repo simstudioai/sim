@@ -3,6 +3,7 @@ import type {
   DatabricksListClustersResponse,
 } from '@/tools/databricks/types'
 import { databricksUrl } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listClustersTool: ToolConfig<
@@ -14,6 +15,7 @@ export const listClustersTool: ToolConfig<
   description:
     'List a page of clusters in a Databricks workspace including their state, configuration, and resource details.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     pageSize: {

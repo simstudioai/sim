@@ -4,6 +4,7 @@ import type {
   JupyterGetContentResponse,
   JupyterGetContentV2Response,
 } from '@/tools/jupyter/types'
+import { JUPYTER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const jupyterGetContentTool = {
@@ -11,6 +12,7 @@ export const jupyterGetContentTool = {
   name: 'Jupyter Get Content',
   description: 'Read a file or notebook from a Jupyter server',
   version: '1.0.0',
+  oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {
     serverUrl: {

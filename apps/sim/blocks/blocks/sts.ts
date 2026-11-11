@@ -1,9 +1,12 @@
 import { STSIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const STSBlock: BlockConfig = {
   type: 'sts',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'sts_v2' },
   name: 'AWS STS',
   description: 'Connect to AWS Security Token Service',
   longDescription:
@@ -618,3 +621,17 @@ export const STSBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const STSV2Block: BlockConfig = {
+  ...STSBlock,
+  type: 'sts_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(STSBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

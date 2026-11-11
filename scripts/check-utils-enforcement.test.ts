@@ -15,7 +15,7 @@ describe('helper-source exemptions', () => {
   })
 
   it('still applies browser-runtime rules to allowlisted files', () => {
-    expect(descriptions('packages/cli/src/index.ts', ES2023)).toHaveLength(1)
+    expect(descriptions('apps/sim/lib/execution/isolated-vm-worker.cjs', ES2023)).toHaveLength(1)
   })
 
   it('lets @sim/utils use the primitive its helper replaces', () => {

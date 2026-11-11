@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import { docker } from './db'
-import { type Detection, REDIS_CONTAINER } from './detect'
+import { type Detection, LOOPBACK_HOST, REDIS_CONTAINER } from './detect'
 import { ensureDocker } from './docker'
 import { SetupError } from './errors'
 import { redisPing, waitFor } from './probes'
@@ -18,7 +18,7 @@ function managedRedisUrl(): string | null {
   const result = spawnSync('docker', ['port', REDIS_CONTAINER, '6379/tcp'], { encoding: 'utf8' })
   if (result.status !== 0) return null
   const port = result.stdout.trim().split('\n')[0]?.split(':').pop()
-  return port ? `redis://localhost:${port}` : null
+  return port ? `redis://${LOOPBACK_HOST}:${port}` : null
 }
 
 async function pingWithSpinner(url: string, label: string): Promise<boolean> {
@@ -31,7 +31,7 @@ async function pingWithSpinner(url: string, label: string): Promise<boolean> {
 
 async function startManagedRedis(detection: Detection): Promise<string> {
   const hostPort = detection.redisPortOpen ? 6380 : 6379
-  const url = `redis://localhost:${hostPort}`
+  const url = `redis://${LOOPBACK_HOST}:${hostPort}`
   // A prior sim-redis (unhealthy, or bound to a stale port) would collide on the
   // name. Unlike Postgres this container has no data volume, so removing it
   // loses nothing — no prompt needed. `rm -f` is a no-op when none exists.
@@ -44,7 +44,7 @@ async function startManagedRedis(detection: Detection): Promise<string> {
     '--label',
     'managed-by=sim-setup',
     '-p',
-    `${hostPort}:6379`,
+    `${LOOPBACK_HOST}:${hostPort}:6379`,
     'redis:7-alpine',
   ])
   const spin = p.spinner()

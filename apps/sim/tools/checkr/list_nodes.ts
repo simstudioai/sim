@@ -14,6 +14,7 @@ import {
   mapListMeta,
   mapNode,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrListNodesTool: ToolConfig<CheckrListNodesParams, CheckrListNodesResponse> = {
@@ -22,6 +23,7 @@ export const checkrListNodesTool: ToolConfig<CheckrListNodesParams, CheckrListNo
   description:
     'List the nodes in the account hierarchy. Hierarchy-enabled accounts need a node custom ID to order reports and invitations.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

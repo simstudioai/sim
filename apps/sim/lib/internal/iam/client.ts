@@ -38,15 +38,12 @@ import {
   SimulatePrincipalPolicyCommand,
   UpdateAccessKeyCommand,
 } from '@aws-sdk/client-iam'
+import { awsClientConfig } from '@/lib/internal/aws/credentials'
 import type { IAMConnectionConfig, IAMSimulateContextEntry } from '@/tools/iam/types'
 
 export function createIAMClient(config: IAMConnectionConfig): IAMClient {
   return new IAMClient({
-    region: config.region,
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
+    ...awsClientConfig(config.region, config.accessKeyId, config.secretAccessKey),
   })
 }
 

@@ -2,6 +2,7 @@ import type {
   RootlyDeleteActionItemParams,
   RootlyDeleteActionItemResponse,
 } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyDeleteActionItemTool: ToolConfig<
@@ -12,6 +13,7 @@ export const rootlyDeleteActionItemTool: ToolConfig<
   name: 'Rootly Delete Action Item',
   description: 'Delete a Rootly incident action item.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

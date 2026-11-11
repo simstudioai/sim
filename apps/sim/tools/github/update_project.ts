@@ -1,4 +1,5 @@
 import type { ProjectResponse, UpdateProjectParams } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateProjectTool: ToolConfig<UpdateProjectParams, ProjectResponse> = {
@@ -7,6 +8,7 @@ export const updateProjectTool: ToolConfig<UpdateProjectParams, ProjectResponse>
   description:
     'Update an existing GitHub Project V2. Can update title, description, visibility (public), or status (closed). Requires the project Node ID.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     project_id: {

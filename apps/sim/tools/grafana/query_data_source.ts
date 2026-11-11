@@ -3,6 +3,7 @@ import type {
   GrafanaQueryDataSourceResponse,
   GrafanaQuerySeries,
 } from '@/tools/grafana/types'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface QueryFrameField {
@@ -65,6 +66,7 @@ export const queryDataSourceTool: ToolConfig<
   description:
     'Run one or more queries against a Grafana data source that has a backend implementation, and read the values back. This is how you get actual metric numbers out of Grafana rather than dashboard or alert configuration.',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

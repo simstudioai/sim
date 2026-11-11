@@ -10,6 +10,7 @@ import {
   parseDatabricksJson,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const submitRunTool: ToolConfig<DatabricksSubmitRunParams, DatabricksSubmitRunResponse> = {
@@ -17,6 +18,7 @@ export const submitRunTool: ToolConfig<DatabricksSubmitRunParams, DatabricksSubm
   name: 'Databricks Submit Run',
   description: 'Submit a one-time task run without creating a saved job.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     accessControlList: {

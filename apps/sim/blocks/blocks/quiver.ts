@@ -2,7 +2,11 @@ import { omit } from '@sim/utils/object'
 import { QuiverIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
+import {
+  createVersionedToolSelector,
+  normalizeFileInput,
+  withSavedCredential,
+} from '@/blocks/utils'
 
 const REFERENCE_IMAGES_FIELD = ['referenceFiles', 'referenceInput'] as const
 const IMAGE_FIELD = ['imageFile', 'imageInput'] as const
@@ -11,7 +15,7 @@ export const QuiverBlock = {
   type: 'quiver',
   name: 'Quiver (Legacy)',
   hideFromToolbar: true,
-  sunset: { status: 'legacy', replacedBy: 'quiver_v2' },
+  sunset: { status: 'legacy', replacedBy: 'quiver_v3' },
   description: 'Generate and vectorize SVGs',
   longDescription:
     'Generate SVG images from text prompts or vectorize raster images into SVGs using QuiverAI. Supports reference images, style instructions, and multiple output generation.',
@@ -270,8 +274,8 @@ export const QuiverV2Block: BlockConfig = {
   ...QuiverBlock,
   type: 'quiver_v2',
   name: 'Quiver',
-  hideFromToolbar: false,
-  sunset: undefined,
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'quiver_v3' },
   tools: {
     ...QuiverBlock.tools,
     access: ['quiver_text_to_svg_v2', 'quiver_image_to_svg_v2', 'quiver_list_models'],
@@ -340,3 +344,17 @@ export const QuiverBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const QuiverV3Block: BlockConfig = {
+  ...QuiverV2Block,
+  type: 'quiver_v3',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(QuiverV2Block, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'quiver',
+    title: 'Quiver Credential',
+  }),
+}

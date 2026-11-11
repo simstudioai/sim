@@ -2,6 +2,7 @@ import type {
   CloudTrailGetQueryResultsParams,
   CloudTrailGetQueryResultsResponse,
 } from '@/tools/cloudtrail/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getQueryResultsTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const getQueryResultsTool: InternalToolConfig<
   name: 'CloudTrail Get Query Results',
   description: 'Fetch a page of result rows from a finished CloudTrail Lake query',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

@@ -1,4 +1,5 @@
 import type { DeleteReleaseParams, DeleteReleaseResponse } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteReleaseTool: ToolConfig<DeleteReleaseParams, DeleteReleaseResponse> = {
@@ -7,6 +8,7 @@ export const deleteReleaseTool: ToolConfig<DeleteReleaseParams, DeleteReleaseRes
   description:
     'Delete a GitHub release by ID. This permanently removes the release but does not delete the associated Git tag.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -102,6 +104,7 @@ export const deleteReleaseV2Tool: ToolConfig<DeleteReleaseParams, any> = {
   name: deleteReleaseTool.name,
   description: deleteReleaseTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: deleteReleaseTool.params,
   request: deleteReleaseTool.request,
 

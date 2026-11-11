@@ -2,6 +2,7 @@ import type {
   GrafanaCreateAnnotationParams,
   GrafanaCreateAnnotationResponse,
 } from '@/tools/grafana/types'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createAnnotationTool: ToolConfig<
@@ -12,6 +13,7 @@ export const createAnnotationTool: ToolConfig<
   name: 'Grafana Create Annotation',
   description: 'Create an annotation on a dashboard or as a global annotation',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

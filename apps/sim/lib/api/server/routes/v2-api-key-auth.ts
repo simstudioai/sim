@@ -1,5 +1,6 @@
 import {
   ANONYMOUS_USER_ID,
+  type ApiKeyAccess,
   type OAuthAccessTokenPrincipal,
   type PersonalApiKeyPrincipal,
   type WorkspaceApiKeyPrincipal,
@@ -10,6 +11,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { V2CredentialHeaders } from '@/lib/api/server/routes/v2-credential-headers'
 import { hashApiKey } from '@/lib/api-key/crypto'
+import { API_KEY_EXPIRED } from '@/lib/api-key/policy-messages'
 import { updateApiKeyLastUsed } from '@/lib/api-key/service'
 import {
   InvalidOAuthAccessTokenError,
@@ -73,18 +75,20 @@ interface ApiKeyRow {
   userId: string
   workspaceId: string | null
   type: string
+  access: ApiKeyAccess
   expiresAt: Date | null
+  /** The joined owner's id: `null` only when the owner row is gone (`user.banned` is itself nullable). */
+  ownerUserId: string | null
   userBanned: boolean | null
   userSuspendedAt: Date | null
 }
 
 function requireValidRow(row: ApiKeyRow | undefined): ApiKeyRow {
-  if (!row || (row.expiresAt && row.expiresAt < new Date())) {
-    throw new V2ApiKeyUnauthenticatedError()
-  }
+  if (!row) throw new V2ApiKeyUnauthenticatedError()
   if (row.type === 'personal' && row.workspaceId === null) {
-    if (row.userBanned === null) {
-      throw new Error(`Personal API key ${row.id} is missing its credential owner`)
+    if (row.ownerUserId === null) {
+      logger.error('Personal API key is missing its credential owner', { keyId: row.id })
+      throw new V2ApiKeyUnauthenticatedError()
     }
     if (row.userBanned) throw new V2ApiKeyUnauthenticatedError()
     /**
@@ -92,10 +96,14 @@ function requireValidRow(row: ApiKeyRow | undefined): ApiKeyRow {
      * intact, so refusing the key here is what ends its machine access.
      */
     if (row.userSuspendedAt) throw new V2ApiKeyUnauthenticatedError()
-    return row
+  } else if (row.type !== 'workspace' || !row.workspaceId) {
+    throw new Error(`API key ${row.id} has an invalid persisted type/workspace combination`)
   }
-  if (row.type === 'workspace' && row.workspaceId) return row
-  throw new Error(`API key ${row.id} has an invalid persisted type/workspace combination`)
+  /** Last, so a key that fails any other gate reports invalid rather than expired. */
+  if (row.expiresAt && row.expiresAt < new Date()) {
+    throw new V2ApiKeyUnauthenticatedError(API_KEY_EXPIRED)
+  }
+  return row
 }
 
 async function personalSubscription(userId: string): Promise<RateLimitSubscription | null> {
@@ -110,7 +118,9 @@ async function authenticateApiKey(apiKeyHeader: string): Promise<V2ApiKeyAuthCon
       userId: apiKey.userId,
       workspaceId: apiKey.workspaceId,
       type: apiKey.type,
+      access: apiKey.access,
       expiresAt: apiKey.expiresAt,
+      ownerUserId: user.id,
       userBanned: user.banned,
       userSuspendedAt: user.suspendedAt,
     })
@@ -125,7 +135,12 @@ async function authenticateApiKey(apiKeyHeader: string): Promise<V2ApiKeyAuthCon
 
   if (row.type === 'personal') {
     return {
-      principal: { kind: 'personal_api_key', userId: row.userId, keyId: row.id },
+      principal: {
+        kind: 'personal_api_key',
+        userId: row.userId,
+        keyId: row.id,
+        access: row.access,
+      },
       rateLimitSubjectIds: [`api-key:${row.id}`, `user:${row.userId}`],
       rateLimitSubscription: await personalSubscription(row.userId),
       keyType: 'personal',
@@ -142,7 +157,7 @@ async function authenticateApiKey(apiKeyHeader: string): Promise<V2ApiKeyAuthCon
     throw new Error(`Workspace ${workspaceId} is missing its billing owner`)
   }
   return {
-    principal: { kind: 'workspace_api_key', workspaceId, keyId: row.id },
+    principal: { kind: 'workspace_api_key', workspaceId, keyId: row.id, access: row.access },
     rateLimitSubjectIds: [`api-key:${row.id}`, `workspace:${workspaceId}`],
     rateLimitSubscription: payer.payerSubscription
       ? {
@@ -203,6 +218,7 @@ export async function authenticateV2ApiKey(
         kind: 'personal_api_key',
         userId: ANONYMOUS_USER_ID,
         keyId: 'auth-disabled',
+        access: 'write',
       },
       rateLimitSubjectIds: [`user:${ANONYMOUS_USER_ID}`],
       rateLimitSubscription: null,

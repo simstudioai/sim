@@ -1,5 +1,6 @@
 import type { HexRunProjectParams, HexRunProjectResponse } from '@/tools/hex/types'
 import { HEX_RUN_OUTPUT_PROPERTIES } from '@/tools/hex/types'
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const runProjectTool: ToolConfig<HexRunProjectParams, HexRunProjectResponse> = {
@@ -8,6 +9,7 @@ export const runProjectTool: ToolConfig<HexRunProjectParams, HexRunProjectRespon
   description:
     'Execute a published Hex project. Optionally pass input parameters and control caching behavior.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

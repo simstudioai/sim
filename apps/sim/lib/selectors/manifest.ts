@@ -501,6 +501,18 @@ export const selectorManifest = {
       detail: true,
     }
   ),
+  'cloudwatch.savedLogGroups': providerSelector(['awsRegion'], {
+    readiness: { all: ['oauthCredential', 'awsRegion'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+  }),
+  'cloudwatch.savedLogStreams': providerSelector(['awsRegion', 'logGroupName'], {
+    readiness: { all: ['oauthCredential', 'awsRegion', 'logGroupName'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+  }),
   'imap.mailboxes': rawProviderSelector(['host', 'port', 'secure', 'username', 'password'], {
     readiness: { all: ['host', 'username', 'password'] },
     sensitive: ['username', 'password'],

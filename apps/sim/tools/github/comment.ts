@@ -1,6 +1,7 @@
 import type { CreateCommentParams, CreateCommentResponse } from '@/tools/github/types'
 import { COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const commentTool: InternalToolConfig<CreateCommentParams, CreateCommentResponse> = {
@@ -8,6 +9,7 @@ export const commentTool: InternalToolConfig<CreateCommentParams, CreateCommentR
   name: 'GitHub PR Commenter',
   description: 'Create comments on GitHub PRs',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -91,6 +93,7 @@ export const commentV2Tool: InternalToolConfig<CreateCommentParams> = {
   name: commentTool.name,
   description: commentTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: commentTool.params,
   operation: {
     input: createInternalToolOperationInput,

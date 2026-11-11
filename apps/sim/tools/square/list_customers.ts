@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CustomerListResponse, ListCustomersParams } from '@/tools/square/types'
 import {
   CUSTOMER_OUTPUT,
@@ -13,6 +14,7 @@ export const squareListCustomersTool: ToolConfig<ListCustomersParams, CustomerLi
   name: 'Square List Customers',
   description: 'List customer profiles in the Square customer directory',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {

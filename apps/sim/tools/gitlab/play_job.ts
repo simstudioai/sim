@@ -1,5 +1,6 @@
 import type { GitLabPlayJobParams, GitLabPlayJobResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabPlayJobTool: ToolConfig<GitLabPlayJobParams, GitLabPlayJobResponse> = {
@@ -8,6 +9,7 @@ export const gitlabPlayJobTool: ToolConfig<GitLabPlayJobParams, GitLabPlayJobRes
   name: 'GitLab Play Job',
   description: 'Trigger (play) a manual GitLab job',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {

@@ -1,4 +1,5 @@
 import type { RipplingDeleteCustomPageParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingDeleteCustomPageTool: ToolConfig<RipplingDeleteCustomPageParams> = {
@@ -6,6 +7,7 @@ export const ripplingDeleteCustomPageTool: ToolConfig<RipplingDeleteCustomPagePa
   name: 'Rippling Delete CustomPage',
   description: 'Delete a custom page',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

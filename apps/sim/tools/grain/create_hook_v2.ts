@@ -1,4 +1,5 @@
 import type { GrainCreateHookV2Params, GrainCreateHookV2Response } from '@/tools/grain/types'
+import { GRAIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const grainCreateHookV2Tool: ToolConfig<GrainCreateHookV2Params, GrainCreateHookV2Response> =
@@ -7,6 +8,7 @@ export const grainCreateHookV2Tool: ToolConfig<GrainCreateHookV2Params, GrainCre
     name: 'Grain Create Webhook',
     description: 'Create a webhook for a specific Grain event type (v2 API)',
     version: '2.0.0',
+    oauth: GRAIN_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

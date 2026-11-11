@@ -53,6 +53,29 @@ describe('resolveConnectorAccessToken', () => {
     mockResolveTokenBundle.mockResolvedValue({ accessToken: 'access-token' })
   })
 
+  it("seeds a minted credential's bound account into the sync context, and nothing for OAuth", async () => {
+    const bound =
+      'https://na3.docusign.net/restapi/v2.1/accounts/99999999-0000-0000-0000-000000000002'
+    const resolveDocuSign = () =>
+      resolveConnectorAccessToken({
+        auth: { mode: 'oauth', provider: 'docusign', requiredScopes: ['signature'] },
+        connector: credentialConnector('docusign-credential'),
+        userId: 'user-1',
+        requestId: 'req-1',
+        sourceConfig: {},
+      })
+
+    mockResolveTokenBundle.mockResolvedValueOnce({ accessToken: 'jwt-token', instanceUrl: bound })
+    const jwtToken = await resolveDocuSign()
+    if (!jwtToken) throw new Error('Expected a JWT Grant connector token')
+    expect(syncContextForToken(jwtToken)).toEqual({ credentialInstanceUrl: bound })
+
+    mockResolveTokenBundle.mockResolvedValueOnce({ accessToken: 'oauth-token' })
+    const oauthToken = await resolveDocuSign()
+    if (!oauthToken) throw new Error('Expected an OAuth connector token')
+    expect(syncContextForToken(oauthToken)).toEqual({})
+  })
+
   it('does not accept an undeclared key alternative on other OAuth connectors', async () => {
     await expect(
       resolveConnectorAccessToken({
@@ -164,7 +187,8 @@ describe('delegated connector access', () => {
       'actor',
       'request',
       delegationAuth.adminServiceAccountScopes,
-      'admin@example.com'
+      'admin@example.com',
+      { service: 'google-drive' }
     )
     await expect(token?.getDelegatedAccessToken?.(' Employee@Example.com ')).resolves.toBe(
       'user-drive-token'
@@ -273,7 +297,8 @@ describe.each([
       'actor',
       'request',
       [directoryScope],
-      'directory.admin@example.com'
+      'directory.admin@example.com',
+      { service: auth.mode === 'oauth' ? auth.provider : undefined }
     )
     expect(token?.getDelegatedAccessToken).toBeTypeOf('function')
     await expect(token?.getDelegatedAccessToken?.(' Employee@Example.com ')).resolves.toBe(
@@ -332,7 +357,8 @@ describe('impersonation on the connector path', () => {
       'credential-owner',
       'req-1',
       OAUTH_AUTH.requiredScopes,
-      'admin@corp.com'
+      'admin@corp.com',
+      { service: 'google-drive' }
     )
   })
 })

@@ -5,6 +5,7 @@ import {
 } from '@/tools/brex/idempotency'
 import type { BrexUpdateVendorParams, BrexUpdateVendorResponse } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 /**
@@ -27,6 +28,7 @@ export const brexUpdateVendorTool: ToolConfig<
   name: 'Brex Update Vendor',
   description: 'Update an existing vendor in the Brex account',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

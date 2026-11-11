@@ -2,6 +2,7 @@ import type {
   CloudTrailDescribeTrailsParams,
   CloudTrailDescribeTrailsResponse,
 } from '@/tools/cloudtrail/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeTrailsTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const describeTrailsTool: InternalToolConfig<
   description:
     'Retrieve the full configuration of one or more CloudTrail trails in the current Region',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

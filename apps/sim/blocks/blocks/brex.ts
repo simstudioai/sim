@@ -1,7 +1,7 @@
 import { BrexIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 
 /** Coerces a required money-amount field to a finite number, throwing on blank/non-numeric input rather than silently sending 0 or NaN to Brex. */
 function toRequiredAmount(value: unknown, fieldLabel: string): number {
@@ -59,6 +59,8 @@ const RECEIPT_FILE_FIELD = ['uploadReceiptFile', 'receiptFileReference'] as cons
 
 export const BrexBlock: BlockConfig = {
   type: 'brex',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'brex_v2' },
   name: 'Brex',
   description: 'Manage expenses, receipts, transactions, and team data in Brex',
   authMode: AuthMode.ApiKey,
@@ -1361,3 +1363,17 @@ export const BrexBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const BrexV2Block: BlockConfig = {
+  ...BrexBlock,
+  type: 'brex_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(BrexBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'brex',
+    title: 'Brex Credential',
+  }),
+}

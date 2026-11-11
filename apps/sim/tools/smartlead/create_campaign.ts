@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SmartleadBaseParams, SmartleadCreateCampaignResponse } from '@/tools/smartlead/types'
 import {
   createCampaignOutputs,
@@ -23,6 +24,7 @@ export const createCampaignTool: ToolConfig<CreateCampaignParams, SmartleadCreat
     description:
       'Creates a Smartlead campaign. The campaign starts in DRAFTED status; add sequences, email accounts, and a schedule before starting it.',
     version: '1.0.0',
+    oauth: SMARTLEAD_CREDENTIAL_OAUTH,
     errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
     params: {
       ...smartleadBaseParamFields,

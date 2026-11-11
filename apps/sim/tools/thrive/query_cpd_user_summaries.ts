@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   ThriveCpdPaginatedResponse,
   ThriveQueryCpdUserSummariesParams,
@@ -22,6 +23,7 @@ export const queryCpdUserSummariesTool: ToolConfig<
   name: 'Thrive Query CPD User Summaries',
   description: 'Query CPD user log summaries in Thrive and return results with pagination.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

@@ -7,6 +7,7 @@ import {
   rocketlaneError,
   rocketlaneHeaders,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneUpdateFieldTool: ToolConfig<
@@ -18,6 +19,7 @@ export const rocketlaneUpdateFieldTool: ToolConfig<
   description:
     'Update the label, description, enabled state, or privacy of an existing Rocketlane field',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -2,6 +2,7 @@ import { Bug, ClipboardList, Clock, Database, File, Search, Server } from '@sim/
 import { LogfireIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 const toBoolean = (value: unknown): boolean | undefined => {
   if (value === true || value === 'true') return true
@@ -75,6 +76,8 @@ const SEARCH_FILTER_FIELD = ['query', 'service', 'spanName'] as const
 
 export const LogfireBlock: BlockConfig = {
   type: 'logfire',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'logfire_v2' },
   name: 'Logfire',
   description: 'Query traces, logs, and metrics in Pydantic Logfire',
   longDescription:
@@ -543,3 +546,18 @@ export const LogfireBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const LogfireV2Block: BlockConfig = {
+  ...LogfireBlock,
+  type: 'logfire_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Run SQL over your observability data, search spans and logs with structured filters, pull an entire trace by ID, and confirm which project a read token targets.',
+  ...withSavedCredential(
+    LogfireBlock,
+    { id: 'credential', type: 'oauth-input', serviceId: 'logfire', title: 'Logfire Credential' },
+    { required: true }
+  ),
+}

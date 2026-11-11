@@ -2,7 +2,7 @@
 title: Athena
 description: Run SQL queries on data in Amazon S3 using AWS Athena
 integration:
-  type: "athena"
+  type: "athena_v2"
   color: "linear-gradient(45deg, #4D27A8 0%, #A166FF 100%)"
 ---
 
@@ -10,12 +10,12 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-[Amazon Athena](https://aws.amazon.com/athena/) queries data in Amazon S3 with SQL. Start a query, check its execution status, then retrieve the results; cancel a query when needed. Run parameterized queries with execution parameters and prepared statements, reuse recent results, and read runtime statistics after a query completes. The integration also manages named queries, browses data catalogs, databases, and table schemas, and inspects workgroup configuration. Connect with an AWS access key and secret access key.
+[Amazon Athena](https://aws.amazon.com/athena/) queries data in Amazon S3 with SQL. Start a query, check its execution status, then retrieve the results; cancel a query when needed. Run parameterized queries with execution parameters and prepared statements, reuse recent results, and read runtime statistics after a query completes. The integration also manages named queries, browses data catalogs, databases, and table schemas, and inspects workgroup configuration. Connect with a saved [AWS credential](/integrations/aws-credentials).
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
 
-Execute SQL queries against data in S3, check query status and runtime statistics, retrieve results, manage named queries and prepared statements, and inspect data catalogs, databases, tables, and workgroups. Requires AWS access key and secret access key.
+Execute SQL queries against data in S3, check query status and runtime statistics, retrieve results, manage named queries and prepared statements, and inspect data catalogs, databases, tables, and workgroups.
 
 ## Actions
 
@@ -30,8 +30,6 @@ Start an SQL query execution in AWS Athena
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `queryString` | string | Yes | SQL query string to execute |
 | `database` | string | No | Database name within the catalog |
 | `catalog` | string | No | Data catalog name \(default: AwsDataCatalog\) |
@@ -60,8 +58,6 @@ Get the status and details of an Athena query execution
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `queryExecutionId` | string | Yes | Query execution ID to check |
 
 #### Output
@@ -98,8 +94,6 @@ Retrieve the results of a completed Athena query execution
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `queryExecutionId` | string | Yes | Query execution ID to get results for |
 | `maxResults` | number | No | Maximum number of rows to return \(1-999\) |
 | `nextToken` | string | No | Pagination token from a previous request |
@@ -126,8 +120,6 @@ Stop a running Athena query execution
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `queryExecutionId` | string | Yes | Query execution ID to stop |
 
 #### Output
@@ -149,8 +141,6 @@ List recent Athena query execution IDs
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `workGroup` | string | No | Workgroup to list executions for \(default: primary\) |
 | `maxResults` | number | No | Maximum number of results \(0-50\) |
 | `nextToken` | string | No | Pagination token from a previous request |
@@ -175,8 +165,6 @@ Get the status and details of up to 50 Athena query executions in one call
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `queryExecutionIds` | string | Yes | Comma-separated query execution IDs to check \(up to 50\) |
 
 #### Output
@@ -218,8 +206,6 @@ Create a saved/named query in AWS Athena
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `name` | string | Yes | Name for the saved query |
 | `database` | string | Yes | Database the query runs against |
 | `queryString` | string | Yes | SQL query string to save |
@@ -245,8 +231,6 @@ Get details of a saved/named query in AWS Athena
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `namedQueryId` | string | Yes | Named query ID to retrieve |
 
 #### Output
@@ -273,8 +257,6 @@ List saved/named query IDs in AWS Athena
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `workGroup` | string | No | Workgroup to list named queries for |
 | `maxResults` | number | No | Maximum number of results \(0-50\) |
 | `nextToken` | string | No | Pagination token from a previous request |
@@ -299,8 +281,6 @@ Delete a saved/named query in AWS Athena
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `namedQueryId` | string | Yes | Named query ID to delete |
 
 #### Output
@@ -322,8 +302,6 @@ List the databases available in an Athena data catalog
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `catalogName` | string | Yes | Data catalog name to list databases from \(e.g., AwsDataCatalog\) |
 | `workGroup` | string | No | Workgroup for which the metadata is being fetched \(required for IAM Identity Center enabled catalogs\) |
 | `maxResults` | number | No | Maximum number of results \(1-50\) |
@@ -352,8 +330,6 @@ List tables and their column/partition metadata for an Athena database
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `catalogName` | string | Yes | Data catalog name \(e.g., AwsDataCatalog\) |
 | `databaseName` | string | Yes | Database name to list tables from |
 | `expression` | string | No | Regex filter that pattern-matches table names |
@@ -394,8 +370,6 @@ Get runtime statistics (timeline, row counts, and output stage) for a completed 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `queryExecutionId` | string | Yes | Query execution ID to get runtime statistics for |
 
 #### Output
@@ -438,8 +412,6 @@ Get the details of up to 50 Athena named queries by ID in a single call
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `namedQueryIds` | string | Yes | Comma-separated named query IDs \(up to 50\) |
 
 #### Output
@@ -471,8 +443,6 @@ Update the name, description, or SQL of an existing Athena named query (database
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `namedQueryId` | string | Yes | Named query ID to update |
 | `name` | string | Yes | New name for the query \(1-128 characters\) |
 | `queryString` | string | Yes | New SQL query text |
@@ -497,8 +467,6 @@ Create a parameterized prepared statement in an Athena workgroup for use with EX
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `statementName` | string | Yes | Prepared statement name \(letters, digits, _ @ : ; must start with a letter or underscore\) |
 | `workGroup` | string | Yes | Workgroup the prepared statement belongs to |
 | `queryStatement` | string | Yes | SQL statement with ? placeholders for parameters |
@@ -523,8 +491,6 @@ Get the SQL and metadata of a prepared statement in an Athena workgroup
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `statementName` | string | Yes | Prepared statement name \(letters, digits, _ @ : ; must start with a letter or underscore\) |
 | `workGroup` | string | Yes | Workgroup the prepared statement belongs to |
 
@@ -551,8 +517,6 @@ Get the details of up to 256 prepared statements in an Athena workgroup by name 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `preparedStatementNames` | string | Yes | Comma-separated prepared statement names \(up to 256\) |
 | `workGroup` | string | Yes | Workgroup the prepared statement belongs to |
 
@@ -584,8 +548,6 @@ Replace the SQL and description of an existing prepared statement in an Athena w
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `statementName` | string | Yes | Prepared statement name \(letters, digits, _ @ : ; must start with a letter or underscore\) |
 | `workGroup` | string | Yes | Workgroup the prepared statement belongs to |
 | `queryStatement` | string | Yes | New SQL statement with ? placeholders for parameters |
@@ -610,8 +572,6 @@ List the prepared statements saved in an Athena workgroup
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `workGroup` | string | Yes | Workgroup to list prepared statements for |
 | `maxResults` | number | No | Maximum number of results \(1-50\) |
 | `nextToken` | string | No | Pagination token from a previous request |
@@ -638,8 +598,6 @@ Delete a prepared statement from an Athena workgroup
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `statementName` | string | Yes | Prepared statement name \(letters, digits, _ @ : ; must start with a letter or underscore\) |
 | `workGroup` | string | Yes | Workgroup the prepared statement belongs to |
 
@@ -662,8 +620,6 @@ List the data catalogs (data sources) registered in the AWS account
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `workGroup` | string | No | Workgroup name \(required for IAM Identity Center requests\) |
 | `maxResults` | number | No | Maximum number of results \(2-50\) |
 | `nextToken` | string | No | Pagination token from a previous request |
@@ -693,8 +649,6 @@ Get the type, status, and connection parameters of an Athena data catalog
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `name` | string | Yes | Data catalog name \(e.g., AwsDataCatalog\) |
 | `workGroup` | string | No | Workgroup name \(required for IAM Identity Center requests\) |
 
@@ -723,8 +677,6 @@ Get a single database (name, description, and parameters) from an Athena data ca
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `catalogName` | string | Yes | Data catalog name \(e.g., AwsDataCatalog\) |
 | `databaseName` | string | Yes | Database name |
 | `workGroup` | string | No | Workgroup name \(required for IAM Identity Center enabled catalogs\) |
@@ -750,8 +702,6 @@ Get the columns, partition keys, and properties of a single table in an Athena d
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `catalogName` | string | Yes | Data catalog name \(e.g., AwsDataCatalog\) |
 | `databaseName` | string | Yes | Database name |
 | `tableName` | string | Yes | Table name |
@@ -788,8 +738,6 @@ List the Athena workgroups available in the AWS account
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `maxResults` | number | No | Maximum number of results \(1-50\) |
 | `nextToken` | string | No | Pagination token from a previous request |
 
@@ -821,8 +769,6 @@ Get the configuration of an Athena workgroup, including its result location, enc
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `workGroup` | string | Yes | Workgroup name |
 
 #### Output

@@ -1,9 +1,12 @@
 import { AgentMailIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const AgentMailBlock: BlockConfig = {
   type: 'agentmail',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'agentmail_v2' },
   name: 'AgentMail',
   description: 'Manage email inboxes, threads, and messages with AgentMail',
   longDescription:
@@ -807,3 +810,19 @@ export const AgentMailBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const AgentMailV2Block: BlockConfig = {
+  ...AgentMailBlock,
+  type: 'agentmail_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Create and manage email inboxes, send and receive messages, reply to threads, manage drafts, and organize threads with labels.',
+  ...withSavedCredential(AgentMailBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'agentmail',
+    title: 'AgentMail Credential',
+  }),
+}

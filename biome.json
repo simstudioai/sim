@@ -167,12 +167,10 @@
         "**/*.spec.ts",
         "apps/desktop/e2e/**",
         "apps/sim/vitest.setup.ts",
-        "packages/cli/**",
         "packages/sim-cli/**",
         "packages/sim-setup/**",
         "packages/db/script-migrations/**",
-        "packages/logger/src/**",
-        "packages/ts-sdk/examples/**"
+        "packages/logger/src/**"
       ],
       "linter": { "rules": { "suspicious": { "noConsole": "off" } } }
     }

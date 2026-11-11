@@ -134,6 +134,7 @@ export const env = createEnv({
     ALLOW_PRIVATE_DATABASE_HOSTS:          z.boolean().optional(),                 // Deprecated alias for the egress allowlist, kept so existing self-hosted deployments keep working. Equivalent to allowing every private, reserved, and loopback destination. Prefer EGRESS_ALLOWED_HOSTS / EGRESS_ALLOWED_IP_RANGES, which name specific destinations.
     EGRESS_ALLOWED_HOSTS:                  z.string().optional(),                  // Comma-separated hostnames outbound requests may reach on a private network, leading wildcard allowed (e.g. "host.docker.internal,*.svc.cluster.local"). Self-hosted only; ignored on the hosted platform. Replaces ALLOW_PRIVATE_DATABASE_HOSTS.
     EGRESS_ALLOWED_IP_RANGES:              z.string().optional(),                  // Comma-separated CIDRs or IPs outbound requests may reach on a private network (e.g. "10.0.0.0/8,192.168.65.254/32"). Self-hosted only; never lifts the cloud-metadata block.
+    DOMAIN_VERIFICATION_NAMESERVERS:       z.string().optional(),                  // Comma-separated nameserver IPs for the domain-verification TXT lookup (e.g. "10.0.0.2"). Defaults to 1.1.1.1 and 8.8.8.8; set it where outbound DNS is restricted to an internal resolver.
     ALLOWED_LOGIN_EMAILS:                  z.string().optional(),                  // Comma-separated list of allowed email addresses for login
     ALLOWED_LOGIN_DOMAINS:                 z.string().optional(),                  // Comma-separated list of allowed email domains for login
     BLOCKED_SIGNUP_DOMAINS:                z.string().optional(),                  // Comma-separated list of email domains blocked from signing up (e.g., "gmail.com,yahoo.com")
@@ -148,6 +149,9 @@ export const env = createEnv({
     ENCRYPT_ACCOUNT_TOKENS:                z.boolean().optional(),                 // Opt-out: OAuth access/refresh tokens are sealed on write (read by @sim/db) and backfilled by migrate whenever ENCRYPTION_KEY is 64 hex characters; false or 0 writes plaintext. Sealed tokens need v0.9.33+ on every process that reads them
     INTERNAL_API_SECRET:                   z.string().min(32),                     // Secret for internal API authentication
     INTERNAL_JWT_SECRET:                   z.string().min(32).optional(),          // Dedicated signing key for internal JWTs (falls back to INTERNAL_API_SECRET); separating limits blast radius if one leaks
+    WORKLOAD_IDENTITY_SIGNING_KEY:         z.string().min(1).optional(),           // PKCS#8 PEM RSA private key that signs Sim workload-identity (OIDC) tokens for keyless AWS/cloud credentials; unset disables the OIDC credential mode
+    WORKLOAD_IDENTITY_PREVIOUS_KEY:        z.string().min(1).optional(),           // Retiring workload-identity key (private or public PEM), still published in the JWKS during rotation so tokens it signed keep verifying
+    WORKLOAD_IDENTITY_ISSUER:              z.string().url().optional(),            // Workload-identity issuer URL (default <NEXT_PUBLIC_APP_URL>/oidc/workload). Customer trust policies pin it, so it must never change once in use
 
     // Copilot
     COPILOT_API_KEY:                       z.string().min(1).optional(),           // Secret for internal sim agent API authentication
@@ -617,6 +621,7 @@ export const env = createEnv({
     CHANGELOG:                             z.boolean().optional(),                 // Fallback for the `changelog` feature flag off AppConfig
     SIM_LINKS:                             z.boolean().optional(),                 // Fallback for the `sim-links` feature flag off AppConfig
     PEOPLE:                                z.boolean().optional(),                 // Fallback for the `people` feature flag off AppConfig
+    API_KEY_READ_ONLY:                     z.boolean().optional(),                 // Fallback for the `api-key-read-only` feature flag off AppConfig
     MSHIP_MODEL_SELECTOR: z.boolean().optional(),
     INBOX_ENABLED:                         z.boolean().optional(),                 // Enable inbox (Sim Mailer) on self-hosted (bypasses hosted requirements)
     SANDBOXES_ENABLED:                     z.boolean().optional(),                 // Enable custom sandboxes on self-hosted (bypasses hosted requirements)

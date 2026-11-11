@@ -1,4 +1,5 @@
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface IntercomTagContactParams {
@@ -62,6 +63,7 @@ export const intercomTagContactV2Tool: ToolConfig<
   name: 'Tag Contact in Intercom',
   description: 'Add a tag to a specific contact',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

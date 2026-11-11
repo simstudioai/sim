@@ -1,4 +1,5 @@
 import { REPO_FULL_OUTPUT_PROPERTIES, USER_FULL_OUTPUT_PROPERTIES } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface ListForksParams {
@@ -36,6 +37,7 @@ export const listForksTool: ToolConfig<ListForksParams, ListForksResponse> = {
   name: 'GitHub List Forks',
   description: 'List forks of a repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -167,6 +169,7 @@ export const listForksV2Tool: ToolConfig<ListForksParams, any> = {
   name: listForksTool.name,
   description: listForksTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listForksTool.params,
   request: listForksTool.request,
 

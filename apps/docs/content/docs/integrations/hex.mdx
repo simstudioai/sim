@@ -2,7 +2,7 @@
 title: Hex
 description: Run and manage Hex projects
 integration:
-  type: "hex"
+  type: "hex_v2"
   color: "#14151A"
 ---
 
@@ -15,7 +15,7 @@ Use [Hex](https://hex.tech/) to run analytics projects, inspect results and run 
 
 ## Use the block [#usage-instructions]
 
-Run projects, check run status, manage collections and groups (including membership and deactivating users), list users, and view data connections. Requires a Hex API token.
+Run projects, check run status, manage collections and groups (including membership and deactivating users), list users, and view data connections.
 
 ## Actions
 
@@ -29,7 +29,6 @@ Cancel an active Hex project run.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
 | `projectId` | string | Yes | The UUID of the Hex project |
 | `runId` | string | Yes | The UUID of the run to cancel |
 
@@ -53,7 +52,6 @@ Create a new collection in the Hex workspace to organize projects.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
 | `name` | string | Yes | Name for the new collection |
 | `description` | string | No | Optional description for the collection |
 
@@ -80,7 +78,6 @@ Create a new group in the Hex workspace, optionally with initial members.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
 | `name` | string | Yes | Name for the new group |
 | `memberUserIds` | json | No | JSON array of user UUIDs to add as initial group members \(e.g., \["uuid1", "uuid2"\]\) |
 
@@ -104,7 +101,6 @@ Deactivate a user in the Hex workspace.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
 | `userId` | string | Yes | The UUID of the user to deactivate |
 
 #### Output
@@ -126,7 +122,6 @@ Delete a group from the Hex workspace.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
 | `groupId` | string | Yes | The UUID of the group to delete |
 
 #### Output
@@ -148,7 +143,6 @@ Retrieve details for a specific Hex collection by its ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
 | `collectionId` | string | Yes | The UUID of the collection |
 
 #### Output
@@ -174,7 +168,6 @@ Retrieve details for a specific data connection including type, description, and
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
 | `dataConnectionId` | string | Yes | The UUID of the data connection |
 
 #### Output
@@ -201,7 +194,6 @@ Retrieve details for a specific Hex group.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
 | `groupId` | string | Yes | The UUID of the group |
 
 #### Output
@@ -224,7 +216,6 @@ Get metadata and details for a specific Hex project by its ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
 | `projectId` | string | Yes | The UUID of the Hex project |
 
 #### Output
@@ -262,7 +253,6 @@ Retrieve API-triggered runs for a Hex project with optional filtering by status 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
 | `projectId` | string | Yes | The UUID of the Hex project |
 | `limit` | number | No | Maximum number of runs to return \(1-100, default: 25\) |
 | `offset` | number | No | Offset for paginated results \(default: 0\) |
@@ -300,7 +290,6 @@ Return the warehouse tables queried by a Hex project, including data connection 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
 | `projectId` | string | Yes | The UUID of the Hex project |
 | `limit` | number | No | Maximum number of tables to return \(1-100\) |
 
@@ -326,7 +315,6 @@ Check the status of a Hex project run by its run ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
 | `projectId` | string | Yes | The UUID of the Hex project |
 | `runId` | string | Yes | The UUID of the run to check |
 
@@ -356,7 +344,6 @@ List all collections in the Hex workspace.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
 | `limit` | number | No | Maximum number of collections to return \(1-500, default: 25\) |
 | `sortBy` | string | No | Sort by field: NAME |
 | `after` | string | No | Cursor to fetch the page of results after this value |
@@ -389,7 +376,6 @@ List all data connections in the Hex workspace (e.g., Snowflake, PostgreSQL, Big
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
 | `limit` | number | No | Maximum number of connections to return \(1-500, default: 25\) |
 | `sortBy` | string | No | Sort by field: CREATED_AT or NAME |
 | `sortDirection` | string | No | Sort direction: ASC or DESC |
@@ -424,7 +410,6 @@ List all groups in the Hex workspace with optional sorting.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
 | `limit` | number | No | Maximum number of groups to return \(1-500, default: 25\) |
 | `sortBy` | string | No | Sort by field: CREATED_AT or NAME |
 | `sortDirection` | string | No | Sort direction: ASC or DESC |
@@ -455,7 +440,6 @@ List all projects in your Hex workspace with optional filtering by status.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
 | `limit` | number | No | Maximum number of projects to return \(1-100\) |
 | `includeArchived` | boolean | No | Include archived projects in results |
 | `statusFilter` | string | No | Filter by status: PUBLISHED, DRAFT, or ALL |
@@ -505,7 +489,6 @@ List all users in the Hex workspace with optional filtering and sorting.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
 | `limit` | number | No | Maximum number of users to return \(1-100, default: 25\) |
 | `sortBy` | string | No | Sort by field: NAME or EMAIL |
 | `sortDirection` | string | No | Sort direction: ASC or DESC |
@@ -540,7 +523,6 @@ Execute a published Hex project. Optionally pass input parameters and control ca
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
 | `projectId` | string | Yes | The UUID of the Hex project to run |
 | `inputParams` | json | No | JSON object of input parameters for the project \(e.g., \{"date": "2024-01-01"\}\) |
 | `dryRun` | boolean | No | If true, perform a dry run without executing the project |
@@ -573,7 +555,6 @@ Update the name or description of an existing Hex collection.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
 | `collectionId` | string | Yes | The UUID of the collection to update |
 | `name` | string | No | New name for the collection |
 | `description` | string | No | New description for the collection |
@@ -601,7 +582,6 @@ Rename a Hex group or add/remove members from it.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
 | `groupId` | string | Yes | The UUID of the group to update |
 | `name` | string | No | New name for the group |
 | `addUserIds` | json | No | JSON array of user UUIDs to add to the group \(e.g., \["uuid1", "uuid2"\]\) |
@@ -627,7 +607,6 @@ Update a Hex project status label (e.g., endorsement or custom workspace statuse
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Hex API token \(Personal or Workspace\) |
 | `projectId` | string | Yes | The UUID of the Hex project to update |
 | `status` | string | Yes | New project status name \(custom workspace status label\) |
 

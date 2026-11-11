@@ -36,7 +36,12 @@ import {
 
 const WORKSPACE_ID = 'workspace-1'
 const OTHER_WORKSPACE_ID = 'workspace-2'
-const PRINCIPAL = { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' } as const
+const PRINCIPAL = {
+  kind: 'personal_api_key',
+  userId: 'user-1',
+  keyId: 'key-1',
+  access: 'write',
+} as const
 const context = { params: Promise.resolve({ knowledgeBaseId: 'kb-1', documentId: 'doc-1' }) }
 const siblingContext = { params: Promise.resolve({ knowledgeBaseId: 'kb-1', documentId: 'doc-2' }) }
 

@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TailscaleDeviceParams,
   TailscaleGetDeviceAttributesResponse,
@@ -14,6 +15,7 @@ export const tailscaleGetDeviceAttributesTool: ToolConfig<
   name: 'Tailscale Get Device Attributes',
   description: 'Get device posture attributes and their expiry times',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

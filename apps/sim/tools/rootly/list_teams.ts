@@ -1,4 +1,5 @@
 import type { RootlyListTeamsParams, RootlyListTeamsResponse } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyListTeamsTool: ToolConfig<RootlyListTeamsParams, RootlyListTeamsResponse> = {
@@ -6,6 +7,7 @@ export const rootlyListTeamsTool: ToolConfig<RootlyListTeamsParams, RootlyListTe
   name: 'Rootly List Teams',
   description: 'List teams (groups) configured in Rootly.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

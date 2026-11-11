@@ -1,6 +1,7 @@
 import { RipplingIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 /** Operations that support the filter query parameter */
 const FILTER_OPS = ['list_workers', 'list_business_partners', 'list_supergroups'] as const
@@ -191,6 +192,8 @@ const DATA_PASSTHROUGH_OPS = [
 
 export const RipplingBlock: BlockConfig = {
   type: 'rippling',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'rippling_v2' },
   name: 'Rippling',
   description: 'Manage workers, departments, custom objects, and company data in Rippling',
   longDescription:
@@ -1722,3 +1725,17 @@ export const RipplingBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const RipplingV2Block: BlockConfig = {
+  ...RipplingBlock,
+  type: 'rippling_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(RipplingBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'rippling',
+    title: 'Rippling Credential',
+  }),
+}

@@ -1,4 +1,5 @@
 import type { HexCancelRunParams, HexCancelRunResponse } from '@/tools/hex/types'
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const cancelRunTool: ToolConfig<HexCancelRunParams, HexCancelRunResponse> = {
@@ -6,6 +7,7 @@ export const cancelRunTool: ToolConfig<HexCancelRunParams, HexCancelRunResponse>
   name: 'Hex Cancel Run',
   description: 'Cancel an active Hex project run.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

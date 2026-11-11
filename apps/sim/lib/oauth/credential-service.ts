@@ -18,9 +18,11 @@ import {
   getClientCredentialAccountMinter,
   parseClientCredentialAccountSecretBlob,
 } from '@/lib/credentials/client-credential-accounts/server'
+import { isGoogleWorkloadIdentitySecret } from '@/lib/credentials/google-workload-identity'
 import {
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
+  SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
   parseTokenServiceAccountSecretBlob,
@@ -68,7 +70,10 @@ import { getRecentTerminalError, markCredentialDead } from '@/lib/oauth/terminal
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
+  AWS_SERVICE_ACCOUNT_PROVIDER_ID,
+  DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
@@ -91,6 +96,13 @@ export interface CredentialTokenResolutionOptions {
   privacyMode?: 'selector'
   /** GitHub installation content tokens may only address one connector repository. */
   githubRepositoryScope?: GitHubInstallationRepositoryScope
+  /**
+   * The OAuth service the token is for, set only from server-side policy (a tool's validated
+   * policy, a selector's or connector's own definition), never from the caller. A Microsoft app
+   * credential mints for that service's resource and refuses any other; a keyless Google
+   * credential refuses any service that is not a Google Cloud API.
+   */
+  service?: string
   /**
    * Cancels supported service-account token exchanges and retry waits, and stops this caller
    * waiting on an OAuth refresh without cancelling the refresh other callers share.
@@ -230,10 +242,19 @@ const SA_DIAGNOSTIC_ERROR_CODES = new Set([
  * delegated subject) share one query and decrypt; a later read queries again, so it sees a
  * revocation recorded since. Sharing also bounds a hung read by the coalescing settle timeout.
  */
-function readGoogleServiceAccountKey(credentialId: string): Promise<string> {
+interface GoogleServiceAccountSecret {
+  decrypted: string
+  /** Changes whenever the stored secret is re-encrypted. */
+  secretVersion: string
+  owner: { workspaceId?: string; organizationId?: string }
+}
+
+function readGoogleServiceAccountKey(credentialId: string): Promise<GoogleServiceAccountSecret> {
   return coalesceLocally(`sa-key:${credentialId}`, async () => {
     const [credentialRow] = await db
       .select({
+        workspaceId: credential.workspaceId,
+        organizationId: credential.organizationId,
         type: credential.type,
         providerId: credential.providerId,
         revokedAt: credential.revokedAt,
@@ -253,7 +274,13 @@ function readGoogleServiceAccountKey(credentialId: string): Promise<string> {
     }
 
     const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
-    return decrypted
+    return {
+      decrypted,
+      secretVersion: credentialRow.encryptedServiceAccountKey.slice(0, 32),
+      owner: credentialRow.workspaceId
+        ? { workspaceId: credentialRow.workspaceId }
+        : { organizationId: credentialRow.organizationId ?? undefined },
+    }
   })
 }
 
@@ -273,14 +300,35 @@ export async function getServiceAccountToken(
   options?: CredentialTokenResolutionOptions
 ): Promise<string> {
   options?.signal?.throwIfAborted()
-  const decrypted = await waitWithAbort(readGoogleServiceAccountKey(credentialId), options?.signal)
+  const { decrypted, secretVersion, owner } = await waitWithAbort(
+    readGoogleServiceAccountKey(credentialId),
+    options?.signal
+  )
+  const filteredScopes = scopes.filter((s) => !SA_EXCLUDED_SCOPES.has(s))
+
+  if (isGoogleWorkloadIdentitySecret(decrypted)) {
+    const { resolveGoogleWorkloadIdentityToken } = await import(
+      '@/lib/credentials/google-workload-identity.server'
+    )
+    return waitWithAbort(
+      resolveGoogleWorkloadIdentityToken({
+        credentialId,
+        decrypted,
+        secretVersion,
+        owner,
+        scopes: filteredScopes,
+        impersonateEmail,
+        service: options?.service,
+      }),
+      options?.signal
+    )
+  }
+
   const keyData = JSON.parse(decrypted) as {
     client_email: string
     private_key: string
     token_uri?: string
   }
-
-  const filteredScopes = scopes.filter((s) => !SA_EXCLUDED_SCOPES.has(s))
 
   const now = Math.floor(Date.now() / 1000)
   const ALLOWED_TOKEN_URIS = new Set(['https://oauth2.googleapis.com/token'])
@@ -508,10 +556,12 @@ export interface ServiceAccountTokenResult {
   apiDomain?: string
   /**
    * Set when the token must be sent in an `x-api-token` header instead of
-   * `Authorization: Bearer` (e.g. Pipedrive personal API tokens). Absent means
-   * Bearer; OAuth credentials never carry it.
+   * `Authorization: Bearer` (e.g. Pipedrive personal API tokens), or is a
+   * Sim-signed OIDC token a keyless Snowflake credential presents through
+   * workload identity federation. Absent means Bearer; OAuth credentials never
+   * carry it.
    */
-  authStyle?: 'x-api-token'
+  authStyle?: 'x-api-token' | 'snowflake-workload-identity'
 }
 
 /**
@@ -733,6 +783,21 @@ type ServiceAccountTokenResolver = (
  * generically: the stored token IS the access token.
  */
 const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolver> = {
+  [AWS_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => ({
+    accessToken: credentialId,
+  }),
+  [MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId, options) => {
+    const { resolveMicrosoftAppCredentialToken } = await import(
+      '@/lib/credentials/microsoft-app-service-account.server'
+    )
+    return resolveMicrosoftAppCredentialToken(credentialId, options.service, options.signal)
+  },
+  [DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId, options) => {
+    const { resolveDatabricksCredentialToken } = await import(
+      '@/lib/credentials/databricks-service-account.server'
+    )
+    return resolveDatabricksCredentialToken(credentialId, options.signal)
+  },
   [ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => ({
     accessToken: credentialId,
   }),
@@ -786,7 +851,7 @@ const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolve
   },
   [GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID]: async (
     credentialId,
-    { scopes, impersonateEmail, privacyMode, signal }
+    { scopes, impersonateEmail, privacyMode, service, signal }
   ) => {
     if (!scopes?.length) {
       throw new Error('Scopes are required for service account credentials')
@@ -794,6 +859,7 @@ const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolve
     return {
       accessToken: await getServiceAccountToken(credentialId, scopes, impersonateEmail, {
         privacyMode,
+        service,
         signal,
       }),
     }
@@ -814,6 +880,12 @@ export async function resolveServiceAccountToken(
   impersonateEmail?: string,
   options?: CredentialTokenResolutionOptions
 ): Promise<ServiceAccountTokenResult> {
+  if (providerId === SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID) {
+    const { resolveSnowflakeCredentialToken } = await import(
+      '@/lib/credentials/snowflake-service-account.server'
+    )
+    return resolveSnowflakeCredentialToken(credentialId)
+  }
   if (providerId && isTokenServiceAccountProviderId(providerId)) {
     const secret = await getTokenServiceAccountSecret(credentialId, providerId)
     const descriptorAuthStyle = getTokenServiceAccountDescriptor(providerId)?.authStyle

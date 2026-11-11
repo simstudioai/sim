@@ -3,12 +3,15 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { ApolloIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 /** Identifies a person by email when available, otherwise by given name. */
 const PERSON_IDENTITY_FIELD = ['email', 'first_name'] as const
 
 export const ApolloBlock: BlockConfig = {
   type: 'apollo',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'apollo_v2' },
   name: 'Apollo',
   description: 'Search, enrich, and manage contacts with Apollo.io',
   authMode: AuthMode.ApiKey,
@@ -1585,3 +1588,17 @@ export const ApolloBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const ApolloV2Block: BlockConfig = {
+  ...ApolloBlock,
+  type: 'apollo_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(ApolloBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'apollo',
+    title: 'Apollo Credential',
+  }),
+}

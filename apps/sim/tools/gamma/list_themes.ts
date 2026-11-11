@@ -1,4 +1,5 @@
 import type { GammaListThemesParams, GammaListThemesResponse } from '@/tools/gamma/types'
+import { GAMMA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listThemesTool: ToolConfig<GammaListThemesParams, GammaListThemesResponse> = {
@@ -7,6 +8,7 @@ export const listThemesTool: ToolConfig<GammaListThemesParams, GammaListThemesRe
   description:
     'List available themes in your Gamma workspace. Returns theme IDs, names, and keywords for styling.',
   version: '1.0.0',
+  oauth: GAMMA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

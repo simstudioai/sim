@@ -6,11 +6,13 @@ import {
   selectModelBoundFileInputPaths,
   selectPreferredModelBoundFileInputPaths,
 } from '@/lib/uploads/utils/model-input'
-import type {
-  MistralParserInput,
-  MistralParserOutput,
-  MistralParserV2Input,
-  MistralParserV2Output,
+import {
+  MISTRAL_OCR_PAGE_OUTPUT_PROPERTIES,
+  type MistralParserInput,
+  type MistralParserOutput,
+  type MistralParserV2Input,
+  type MistralParserV2Output,
+  type MistralParserV3Output,
 } from '@/tools/mistral/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -399,6 +401,34 @@ export const mistralParserTool: InternalToolConfig<MistralParserInput, MistralPa
   },
 }
 
+/** The Mistral OCR payload, unwrapped from the internal operation's `output` envelope. */
+async function readMistralOcrData(response: Response) {
+  let ocrResult
+  try {
+    ocrResult = await response.json()
+  } catch (jsonError) {
+    throw new Error(`Failed to parse Mistral OCR response: ${toError(jsonError).message}`)
+  }
+
+  if (!ocrResult || typeof ocrResult !== 'object') {
+    throw new Error('Invalid response format from Mistral OCR API')
+  }
+
+  return ocrResult.output && typeof ocrResult.output === 'object' && !ocrResult.pages
+    ? ocrResult.output
+    : ocrResult
+}
+
+/** The raw Mistral API structure, untransformed. */
+function toOcrOutput(mistralData: Awaited<ReturnType<typeof readMistralOcrData>>) {
+  return {
+    pages: mistralData.pages ?? [],
+    model: mistralData.model ?? 'mistral-ocr-latest',
+    usage_info: mistralData.usage_info ?? { pages_processed: 0, doc_size_bytes: null },
+    document_annotation: mistralData.document_annotation ?? null,
+  }
+}
+
 export const mistralParserV2Tool: InternalToolConfig<MistralParserInput, MistralParserV2Output> = {
   id: 'mistral_parser_v2',
   name: 'Mistral PDF Parser',
@@ -409,108 +439,16 @@ export const mistralParserV2Tool: InternalToolConfig<MistralParserInput, Mistral
   params: mistralParserTool.params,
   operation: mistralParserTool.operation,
 
-  transformResponse: async (response: Response) => {
-    let ocrResult
-    try {
-      ocrResult = await response.json()
-    } catch (jsonError) {
-      throw new Error(`Failed to parse Mistral OCR response: ${toError(jsonError).message}`)
-    }
-
-    if (!ocrResult || typeof ocrResult !== 'object') {
-      throw new Error('Invalid response format from Mistral OCR API')
-    }
-
-    // Extract the actual Mistral data (may be nested in output from our API route)
-    const mistralData =
-      ocrResult.output && typeof ocrResult.output === 'object' && !ocrResult.pages
-        ? ocrResult.output
-        : ocrResult
-
-    // Return raw Mistral API structure - no transformation
-    return {
-      success: true,
-      output: {
-        pages: mistralData.pages ?? [],
-        model: mistralData.model ?? 'mistral-ocr-latest',
-        usage_info: mistralData.usage_info ?? { pages_processed: 0, doc_size_bytes: null },
-        document_annotation: mistralData.document_annotation ?? null,
-      },
-    }
-  },
+  transformResponse: async (response: Response) => ({
+    success: true,
+    output: toOcrOutput(await readMistralOcrData(response)),
+  }),
 
   outputs: {
     pages: {
       type: 'array',
       description: 'Array of page objects from Mistral OCR',
-      items: {
-        type: 'object',
-        properties: {
-          index: { type: 'number', description: 'Page index (zero-based)' },
-          markdown: { type: 'string', description: 'Extracted markdown content' },
-          images: {
-            type: 'array',
-            description: 'Images extracted from this page with bounding boxes',
-            items: {
-              type: 'object',
-              properties: {
-                id: { type: 'string', description: 'Image identifier (e.g., img-0.jpeg)' },
-                top_left_x: { type: 'number', description: 'Top-left X coordinate in pixels' },
-                top_left_y: { type: 'number', description: 'Top-left Y coordinate in pixels' },
-                bottom_right_x: {
-                  type: 'number',
-                  description: 'Bottom-right X coordinate in pixels',
-                },
-                bottom_right_y: {
-                  type: 'number',
-                  description: 'Bottom-right Y coordinate in pixels',
-                },
-                image_base64: {
-                  type: 'string',
-                  description:
-                    'Base64-encoded image data; returned only when the hidden includeImageBase64 input is enabled',
-                  optional: true,
-                },
-              },
-            },
-          },
-          dimensions: {
-            type: 'object',
-            description: 'Page dimensions',
-            properties: {
-              dpi: { type: 'number', description: 'Dots per inch' },
-              height: { type: 'number', description: 'Page height in pixels' },
-              width: { type: 'number', description: 'Page width in pixels' },
-            },
-          },
-          tables: {
-            type: 'array',
-            description:
-              'Separate table objects, referenced from the markdown via placeholders like [tbl-0.html]. Mistral populates these only when table_format is "markdown" or "html"; Sim never sets it, so tables stay inline in the markdown and this list is empty',
-          },
-          hyperlinks: {
-            type: 'array',
-            description:
-              'Array of URL strings detected in the page (e.g., ["https://...", "mailto:..."])',
-            items: {
-              type: 'string',
-              description: 'URL or mailto link',
-            },
-          },
-          header: {
-            type: 'string',
-            description:
-              'Page header content. Mistral returns it only when extract_header is true (it defaults to false); Sim never sets it, so this is not returned',
-            optional: true,
-          },
-          footer: {
-            type: 'string',
-            description:
-              'Page footer content. Mistral returns it only when extract_footer is true (it defaults to false); Sim never sets it, so this is not returned',
-            optional: true,
-          },
-        },
-      },
+      items: { type: 'object', properties: MISTRAL_OCR_PAGE_OUTPUT_PROPERTIES },
     },
     model: {
       type: 'string',
@@ -540,12 +478,55 @@ export const mistralParserV2Tool: InternalToolConfig<MistralParserInput, Mistral
  * V3 tool - Updated for new file handling pattern with UserFile normalization
  * Used by MistralParseV3Block which uses fileUpload (basic) and fileReference (advanced) subblocks
  */
-export const mistralParserV3Tool: InternalToolConfig<MistralParserV2Input, MistralParserV2Output> =
+export const mistralParserV3Tool: InternalToolConfig<MistralParserV2Input, MistralParserV3Output> =
   {
     ...mistralParserV2Tool,
     id: 'mistral_parser_v3',
     version: '3.0.0',
     hosting: MISTRAL_OCR_HOSTING,
+    transformResponse: async (response: Response) => {
+      const mistralData = await readMistralOcrData(response)
+      return {
+        success: true,
+        output: {
+          ...toOcrOutput(mistralData),
+          images: Array.isArray(mistralData.images) ? mistralData.images : [],
+        },
+      }
+    },
+    outputs: {
+      pages: {
+        type: 'array',
+        description: 'Array of page objects from Mistral OCR',
+        items: { type: 'object', properties: MISTRAL_OCR_PAGE_OUTPUT_PROPERTIES },
+      },
+      model: {
+        type: 'string',
+        description: 'Mistral OCR model identifier (e.g., mistral-ocr-latest)',
+      },
+      usage_info: {
+        type: 'object',
+        description: 'Usage and processing statistics',
+        properties: {
+          pages_processed: { type: 'number', description: 'Total number of pages processed' },
+          doc_size_bytes: {
+            type: 'number',
+            description: 'Document file size in bytes',
+            optional: true,
+          },
+        },
+      },
+      document_annotation: {
+        type: 'string',
+        description: 'Structured annotation data as JSON string (when applicable)',
+        optional: true,
+      },
+      images: {
+        type: 'file[]',
+        description:
+          'Images extracted from the document, named page-<index>-<image id> with the extension of the detected image type; empty unless image extraction is on',
+      },
+    },
     params: {
       file: {
         type: 'file',
@@ -554,10 +535,29 @@ export const mistralParserV3Tool: InternalToolConfig<MistralParserV2Input, Mistr
         description: 'Normalized UserFile from file upload or file reference',
       },
       resultType: mistralParserTool.params.resultType,
-      includeImageBase64: mistralParserTool.params.includeImageBase64,
+      includeImageBase64: {
+        ...mistralParserTool.params.includeImageBase64,
+        visibility: 'user-only',
+        description:
+          'Extract the images in the document (figures, logos, photos) as files on the images output',
+      },
       pages: mistralParserTool.params.pages,
-      imageLimit: mistralParserTool.params.imageLimit,
-      imageMinSize: mistralParserTool.params.imageMinSize,
+      imageLimit: {
+        ...mistralParserTool.params.imageLimit,
+        visibility: 'user-only',
+        description: 'Maximum number of images to extract (at most 100)',
+      },
+      imageMinSize: {
+        ...mistralParserTool.params.imageMinSize,
+        visibility: 'user-only',
+      },
+      tableFormat: {
+        type: 'string',
+        required: false,
+        visibility: 'user-only',
+        description:
+          'Return tables separately on each page as markdown or html instead of inline in the page markdown',
+      },
       apiKey: mistralParserTool.params.apiKey,
     },
     operation: {
@@ -599,6 +599,9 @@ export const mistralParserV3Tool: InternalToolConfig<MistralParserV2Input, Mistr
         }
         if (params.imageMinSize !== undefined) {
           requestBody.imageMinSize = params.imageMinSize
+        }
+        if (params.tableFormat === 'markdown' || params.tableFormat === 'html') {
+          requestBody.tableFormat = params.tableFormat
         }
 
         return requestBody

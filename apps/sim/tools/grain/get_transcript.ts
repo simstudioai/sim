@@ -1,4 +1,5 @@
 import type { GrainGetTranscriptParams, GrainGetTranscriptResponse } from '@/tools/grain/types'
+import { GRAIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const grainGetTranscriptTool: ToolConfig<
@@ -9,6 +10,7 @@ export const grainGetTranscriptTool: ToolConfig<
   name: 'Grain Get Transcript',
   description: 'Get the full transcript of a recording',
   version: '1.0.0',
+  oauth: GRAIN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -9,21 +9,38 @@ import {
   v2CreateOrganizationInvitationContract,
   v2GetOrganizationContract,
   v2GetOrganizationInvitationContract,
+  v2GetSearchSourcePermissionsContract,
   v2ListOrganizationInvitationsContract,
   v2ListOrganizationInvitationWorkspacesContract,
   v2ListOrganizationMembersContract,
   v2ListOrganizationsContract,
   v2ListOrganizationWorkspacesContract,
   v2RemoveOrganizationMemberContract,
+  v2ReplaceSearchSourcePermissionsContract,
   v2ResendOrganizationInvitationContract,
   v2RevokeOrganizationInvitationContract,
   v2UpdateOrganizationMemberContract,
 } from '@/lib/api/contracts/v2/organizations'
 import { defineOpenApiRoute } from '@/lib/api/openapi/types'
 import { invitationOperations } from '@/lib/invitations/application/operations'
+import { searchSourcePermissionOperations } from '@/lib/knowledge/application/operations'
 import { organizationOperations } from '@/lib/organizations/application/operations'
 
 const TIMESTAMP = '2026-06-01T09:00:00.000Z'
+
+const searchSourcePermissionParams = documentedSchema(
+  v2GetSearchSourcePermissionsContract.params,
+  'SearchSourcePermissionParams',
+  'Search source permission parameters',
+  'Organization and Search source identifiers.'
+)
+const searchSourcePermissionResponse = documentedSchema(
+  v2GetSearchSourcePermissionsContract.response.schema,
+  'SearchSourcePermissionResponse',
+  'Search source permission response',
+  'Current revision of the source permission grants.',
+  [{ data: { revision: 3 } }]
+)
 
 export const organizationOpenApiRoutes = [
   defineOpenApiRoute(
@@ -550,6 +567,62 @@ export const organizationOpenApiRoutes = [
         'Acknowledgement that the pending invitation was cancelled.',
         [{ data: { id: 'invitation-123', status: 'cancelled' } }]
       ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2GetSearchSourcePermissionsContract,
+    {
+      applicationOperation: searchSourcePermissionOperations.read,
+      operationId: 'getSearchSourcePermissions',
+      summary: 'Get Search source permission revision',
+      description: `Read the permission revision for a Search source that accepts externally managed grants. Requires organization Admin access. ${WORKSPACE_API_KEY_DENIED}`,
+      tags: ['Organizations'],
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The current permission revision.', headers: RATE_LIMIT_HEADERS },
+    },
+    {
+      params: searchSourcePermissionParams,
+      query: v2GetSearchSourcePermissionsContract.query,
+      response: searchSourcePermissionResponse,
+    }
+  ),
+  defineOpenApiRoute(
+    v2ReplaceSearchSourcePermissionsContract,
+    {
+      applicationOperation: searchSourcePermissionOperations.replace,
+      operationId: 'replaceSearchSourcePermissions',
+      summary: 'Replace Search source permissions',
+      description: `Replace the complete permission grants for one Search source. Requires organization Admin access. Supply the current revision and the grants for the configured provider. A stale revision returns 409. GitLab CSV mode accepts both files together, up to 4 MiB and 100,000 data rows each. ${WORKSPACE_API_KEY_DENIED}`,
+      tags: ['Organizations'],
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'The new permission revision.', headers: RATE_LIMIT_HEADERS },
+    },
+    {
+      params: searchSourcePermissionParams,
+      query: v2ReplaceSearchSourcePermissionsContract.query,
+      body: documentedSchema(
+        v2ReplaceSearchSourcePermissionsContract.body,
+        'ReplaceSearchSourcePermissionsBody',
+        'Search source permission grants',
+        'The expected revision and complete replacement grants for the provider.',
+        [
+          {
+            expectedRevision: 2,
+            permissions: {
+              provider: 'gitlab',
+              userMapping: {
+                filename: 'users.csv',
+                content: 'user_id,email\n42,reader@example.com\n',
+              },
+              projectPermissions: {
+                filename: 'projects.csv',
+                content: 'project_path,user_id\nteam/project,42\n',
+              },
+            },
+          },
+        ]
+      ),
+      response: searchSourcePermissionResponse,
     }
   ),
 ] as const

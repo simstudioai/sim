@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import { KEY_OUTPUT_PROPERTIES } from '@/tools/tailscale/outputs'
 import type {
   TailscaleCreateAuthKeyParams,
@@ -20,6 +21,7 @@ export const tailscaleCreateAuthKeyTool: ToolConfig<
   name: 'Tailscale Create Auth Key',
   description: 'Create a device enrollment auth key',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

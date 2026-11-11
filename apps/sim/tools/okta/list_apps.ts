@@ -7,6 +7,7 @@ import {
   parseOktaPagination,
   throwOktaError,
 } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaListApps')
@@ -17,6 +18,7 @@ export const oktaListAppsTool: ToolConfig<OktaListAppsParams, OktaListAppsRespon
   description:
     'List the applications configured in your Okta organization, with optional name search, filtering, and cursor pagination.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

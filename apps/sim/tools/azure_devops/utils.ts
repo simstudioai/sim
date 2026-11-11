@@ -1,4 +1,24 @@
 import type { AzureDevOpsComment, AzureDevOpsWorkItem } from '@/tools/azure_devops/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
+
+/**
+ * The `https://dev.azure.com/<organization>/<project>` prefix every project-scoped
+ * request is built on. Each segment is traversal-safe, so a project or id can never
+ * climb into another organization's endpoints with the caller's token.
+ */
+export function azureDevOpsProjectUrl(params: { organization: string; project: string }): string {
+  return `https://dev.azure.com/${pathSegment(params.organization, 'organization')}/${pathSegment(params.project, 'project')}`
+}
+
+/** A name copied from the browser's address bar arrives encoded; decode it once so it isn't encoded twice. */
+function pathSegment(value: string, paramName: string): string {
+  const typed = value.trim()
+  let decoded = typed
+  try {
+    decoded = decodeURIComponent(typed)
+  } catch {}
+  return safeUrlPathSegment(decoded, paramName)
+}
 
 /** States for Azure DevOps Basic process work items (Issue, Task, Epic). */
 export const AZURE_DEVOPS_BASIC_WORK_ITEM_STATES = ['To Do', 'Doing', 'Done'] as const

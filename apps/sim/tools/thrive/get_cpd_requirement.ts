@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   ThriveCpdRequirementResponse,
   ThriveGetCpdRequirementParams,
@@ -14,6 +15,7 @@ export const getCpdRequirementTool: ToolConfig<
   name: 'Thrive Get CPD Requirement',
   description: 'Get a single CPD requirement summary in Thrive by its ID.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

@@ -13,6 +13,7 @@ import {
   parseJsonObjectParam,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -25,6 +26,7 @@ export const updateAccessApplicationTool: ToolConfig<
   description:
     'Updates a Cloudflare Access (Zero Trust) application. Cloudflare does not document merge behavior for this PUT, so treat it as a replace: send every field the application should keep, because an omitted field may revert to its default and widen or break access. Read the current configuration with "Get Access Application" first. Requires an API token with Account Access: Apps and Policies Edit.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     destinations: {

@@ -2,6 +2,7 @@ import type {
   IncidentioIncidentRolesUpdateParams,
   IncidentioIncidentRolesUpdateResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const incidentRolesUpdateTool: ToolConfig<
@@ -12,6 +13,7 @@ export const incidentRolesUpdateTool: ToolConfig<
   name: 'Update Incident Role',
   description: 'Update an existing incident role in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

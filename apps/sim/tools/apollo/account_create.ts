@@ -1,4 +1,5 @@
 import type { ApolloAccountCreateParams, ApolloAccountCreateResponse } from '@/tools/apollo/types'
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apolloAccountCreateTool: ToolConfig<
@@ -9,6 +10,7 @@ export const apolloAccountCreateTool: ToolConfig<
   name: 'Apollo Create Account',
   description: 'Create a new account (company) in your Apollo database',
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

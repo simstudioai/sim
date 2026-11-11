@@ -10,6 +10,7 @@ import {
   emailBisonUrl,
   mapCampaign,
 } from '@/tools/emailbison/utils'
+import { EMAILBISON_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const CAMPAIGN_STATUS_ACTIONS = new Set(['pause', 'resume', 'archive'])
@@ -22,6 +23,7 @@ export const updateCampaignStatusTool: ToolConfig<
   name: 'Email Bison Update Campaign Status',
   description: 'Pauses, resumes, or archives an Email Bison campaign.',
   version: '1.0.0',
+  oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,
     campaignId: {

@@ -2,7 +2,7 @@
 title: CloudWatch
 description: Query and monitor AWS CloudWatch logs, metrics, and alarms
 integration:
-  type: "cloudwatch"
+  type: "cloudwatch_v2"
   color: "linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
 ---
 
@@ -10,14 +10,14 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [AWS CloudWatch](https://aws.amazon.com/cloudwatch/) to query logs, retrieve log events, inspect log groups and streams, read metrics and alarms, and publish custom metric data. Connect with an AWS access key ID and secret access key.
+Use [AWS CloudWatch](https://aws.amazon.com/cloudwatch/) to query logs, retrieve log events, inspect log groups and streams, read metrics and alarms, and publish custom metric data. Connect with a saved [AWS credential](/integrations/aws-credentials).
 
 Choose **Query Logs (Insights)** for a query across log groups, or **Get Log Events** for one stream. Metric statistics use a time range and period; alarm actions report the current state. Pass results to later steps for incident investigation or threshold-based notifications.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
 
-Run Log Insights queries, list log groups, retrieve log events, list and get metrics, and monitor alarms. Requires AWS access key and secret access key.
+Run Log Insights queries, list log groups, retrieve log events, list and get metrics, and monitor alarms.
 
 ## Actions
 
@@ -32,8 +32,6 @@ Run a CloudWatch Log Insights query against one or more log groups
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `logGroupNames` | array | Yes | Log group names to query |
 | `queryString` | string | Yes | CloudWatch Log Insights query string |
 | `startTime` | number | Yes | Start time as Unix epoch seconds |
@@ -64,8 +62,6 @@ Search log events across all streams in a log group by filter pattern and time r
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `logGroupName` | string | Yes | CloudWatch log group name to search |
 | `filterPattern` | string | No | CloudWatch Logs filter pattern \(e.g., "ERROR", "?ERROR ?Exception"\). Matches all events if omitted. |
 | `logStreamNamePrefix` | string | No | Only search log streams whose name starts with this prefix |
@@ -97,8 +93,6 @@ List available CloudWatch log groups
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `prefix` | string | No | Filter log groups by name prefix |
 | `limit` | number | No | Maximum number of log groups to return |
 
@@ -126,8 +120,6 @@ Retrieve log events from a specific CloudWatch log stream
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `logGroupName` | string | Yes | CloudWatch log group name |
 | `logStreamName` | string | Yes | CloudWatch log stream name |
 | `startTime` | number | No | Start time as Unix epoch seconds |
@@ -156,8 +148,6 @@ List log streams within a CloudWatch log group
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `logGroupName` | string | Yes | CloudWatch log group name |
 | `prefix` | string | No | Filter log streams by name prefix |
 | `limit` | number | No | Maximum number of log streams to return |
@@ -186,8 +176,6 @@ Set (or clear, for never-expire) the retention period for a CloudWatch log group
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `logGroupName` | string | Yes | CloudWatch log group name |
 | `retentionInDays` | number | No | Days to retain log events \(one of 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653\). Omit to make events never expire. |
 
@@ -212,8 +200,6 @@ List available CloudWatch metrics
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `namespace` | string | No | Filter by namespace \(e.g., AWS/EC2, AWS/Lambda\) |
 | `metricName` | string | No | Filter by metric name |
 | `recentlyActive` | boolean | No | Only show metrics active in the last 3 hours |
@@ -241,8 +227,6 @@ Get statistics for a CloudWatch metric over a time range
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `namespace` | string | Yes | Metric namespace \(e.g., AWS/EC2, AWS/Lambda\) |
 | `metricName` | string | Yes | Metric name \(e.g., CPUUtilization, Invocations\) |
 | `startTime` | number | Yes | Start time as Unix epoch seconds |
@@ -278,8 +262,6 @@ Publish a custom metric data point to CloudWatch
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `namespace` | string | Yes | Metric namespace \(e.g., Custom/MyApp\) |
 | `metricName` | string | Yes | Name of the metric |
 | `value` | number | Yes | Metric value to publish |
@@ -310,8 +292,6 @@ List and filter CloudWatch alarms
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `alarmNamePrefix` | string | No | Filter alarms by name prefix |
 | `stateValue` | string | No | Filter by alarm state \(OK, ALARM, INSUFFICIENT_DATA\) |
 | `alarmType` | string | No | Filter by alarm type \(MetricAlarm, CompositeAlarm\) |
@@ -344,8 +324,6 @@ Retrieve state-change and configuration history for CloudWatch alarms
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `alarmName` | string | No | Name of a specific alarm to retrieve history for. Omit for all alarms. |
 | `historyItemType` | string | No | Filter by history item type \(ConfigurationUpdate, StateUpdate, Action, AlarmContributorStateUpdate, AlarmContributorAction\) |
 | `startDate` | number | No | Start of the history window as Unix epoch seconds |
@@ -377,8 +355,6 @@ Create a CloudWatch alarm mute rule that suppresses alarms for a fixed duration
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `muteRuleName` | string | Yes | Unique name for the mute rule \(used later to unmute\) |
 | `alarmNames` | array | Yes | Names of the CloudWatch alarms this mute rule targets |
 | `durationValue` | number | Yes | How long the mute lasts \(paired with durationUnit\) |
@@ -409,8 +385,6 @@ Delete a CloudWatch alarm mute rule, restoring alarm notifications
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `awsAccessKeyId` | string | Yes | AWS access key ID |
-| `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `muteRuleName` | string | Yes | Name of the mute rule to delete |
 
 #### Output

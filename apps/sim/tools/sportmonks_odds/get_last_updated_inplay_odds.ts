@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   appendSportmonksQuery,
   buildSportmonksHeaders,
@@ -27,6 +28,7 @@ export const sportmonksOddsGetLastUpdatedInplayOddsTool: ToolConfig<
   name: 'Get Last Updated In-play Odds',
   description: 'Retrieve in-play odds updated in the last 10 seconds from the Sportmonks Odds API',
   version: '1.0.0',
+  oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

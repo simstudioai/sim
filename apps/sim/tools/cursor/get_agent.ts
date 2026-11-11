@@ -1,4 +1,5 @@
 import type { GetAgentParams, GetAgentResponse } from '@/tools/cursor/types'
+import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const getAgentBase = {
@@ -30,6 +31,7 @@ export const getAgentTool: ToolConfig<GetAgentParams, GetAgentResponse> = {
   name: 'Cursor Get Agent',
   description: 'Retrieve the current status and results of a cloud agent.',
   version: '1.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
 
   ...getAgentBase,
 
@@ -83,6 +85,7 @@ export const getAgentV2Tool: ToolConfig<GetAgentParams, GetAgentV2Response> = {
   description:
     'Retrieve the current status and results of a cloud agent. Returns API-aligned fields only.',
   version: '2.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
   transformResponse: async (response) => {
     const data = await response.json()
 

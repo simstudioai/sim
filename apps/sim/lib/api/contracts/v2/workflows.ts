@@ -1298,6 +1298,127 @@ export const v2UpdateWorkflowPublicApiContract = defineRouteContract({
   },
 })
 
+const v2TriggerTimestampSchema = (description: string) =>
+  z.string().nullable().describe(description).meta({ format: 'date-time' })
+
+/**
+ * One trigger the live deployment serves. Schedule-only fields are `null` on
+ * every other kind, and `failedCount` only moves for schedules and polling
+ * triggers: a push webhook's failures happen at the sender, which Sim cannot
+ * count.
+ */
+const v2WorkflowTriggerSchema = z
+  .object({
+    blockId: z.string().describe('Trigger block in the deployed workflow.'),
+    kind: z
+      .enum(['schedule', 'polling', 'event', 'webhook'])
+      .describe(
+        'How the trigger fires: `schedule` on a cron, `polling` when Sim polls the source, `event` on an event raised inside Sim, `webhook` when an external sender delivers to its URL.'
+      ),
+    provider: z
+      .string()
+      .nullable()
+      .describe('Trigger provider, e.g. `gmail` or `github`; null for schedules.'),
+    enabled: z.boolean().describe('Whether the trigger currently fires.'),
+    status: z
+      .enum(['active', 'disabled', 'completed'])
+      .describe(
+        '`disabled` after a manual disable or an automatic one following repeated failures. `completed` applies only to schedules that have no runs left.'
+      ),
+    failedCount: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe(
+        'Consecutive failures since the last success; the trigger disables itself at 100. Always 0 for `webhook` and `event` triggers.'
+      ),
+    lastFailedAt: v2TriggerTimestampSchema(
+      'ISO 8601 timestamp of the most recent counted failure, or null.'
+    ),
+    nextRunAt: v2TriggerTimestampSchema(
+      'ISO 8601 timestamp of the next scheduled run; null when disabled and for non-schedules.'
+    ),
+    lastRanAt: v2TriggerTimestampSchema(
+      'ISO 8601 timestamp of the last scheduled run; null for non-schedules.'
+    ),
+    cronExpression: z
+      .string()
+      .nullable()
+      .describe('Cron expression of a schedule; null for non-schedules.'),
+    timezone: z
+      .string()
+      .nullable()
+      .describe('IANA timezone the cron expression runs in; null for non-schedules.'),
+    url: z
+      .string()
+      .url()
+      .nullable()
+      .describe(
+        'Delivery URL of a `webhook` trigger; null for other kinds and for providers on a shared endpoint.'
+      ),
+  })
+  .strict()
+  .meta({
+    id: 'WorkflowTrigger',
+    title: 'Workflow trigger',
+    description: 'Health and enablement of one trigger the live deployment serves.',
+  })
+export type V2WorkflowTrigger = z.output<typeof v2WorkflowTriggerSchema>
+
+const v2WorkflowTriggerParamsSchema = z
+  .object({
+    workflowId: v2WorkflowIdParamsSchema.shape.workflowId,
+    blockId: z
+      .string({ error: missingFieldError('Block ID is required') })
+      .min(1, 'Block ID is required')
+      .max(MAX_ID_LENGTH, 'Block ID is too long')
+      .describe('Trigger block in the deployed workflow.'),
+  })
+  .meta({
+    id: 'WorkflowTriggerParams',
+    title: 'Workflow trigger path parameters',
+    description: 'Workflow and trigger block selected by the request path.',
+  })
+
+export const v2ListWorkflowTriggersContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflows/[workflowId]/triggers',
+  query: noInputSchema,
+  params: v2WorkflowIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: v2CursorListResponse(v2WorkflowTriggerSchema, { paged: false }),
+  },
+})
+
+const v2UpdateWorkflowTriggerBodySchema = z
+  .object({
+    enabled: z
+      .boolean({ error: 'enabled must be a boolean' })
+      .describe(
+        'Whether the trigger should fire. A disable lasts until the next deploy or version activation, which re-enables every trigger.'
+      ),
+  })
+  .strict()
+  .meta({
+    id: 'UpdateWorkflowTriggerRequest',
+    title: 'Update workflow trigger request',
+    description: 'Enable or disable one trigger of the live deployment.',
+    examples: [{ enabled: true }],
+  })
+
+export const v2UpdateWorkflowTriggerContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/workflows/[workflowId]/triggers/[blockId]',
+  query: noInputSchema,
+  params: v2WorkflowTriggerParamsSchema,
+  body: v2UpdateWorkflowTriggerBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2WorkflowTriggerSchema),
+  },
+})
+
 /**
  * Structured execution error — mirrors `WorkflowExecutionErrorCode` in
  * `@/executor/utils/errors` (duplicated literally: contracts are
@@ -1383,7 +1504,12 @@ export const EXECUTE_OPTION_CONSTRAINTS =
 export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
   z
     .object({
-      source: z.literal('deployment').describe('Execute the active deployed workflow state.'),
+      source: z.literal('deployment').describe('Execute a deployed workflow version.'),
+      version: versionNumberSchema
+        .optional()
+        .describe(
+          'Deployment version to execute instead of the active one. Requires a full-access API key or an OAuth access token with `api:write`, plus workspace write access, and the workflow must be deployed. An unknown version returns `404`.'
+        ),
     })
     .strict(),
   z
@@ -1448,9 +1574,10 @@ export type V2WorkflowRunSelection = z.input<typeof v2WorkflowRunSelectionSchema
 /**
  * Strict public execute body. Async is body-selected (`async: true`) — v2 has
  * no `X-Execution-Mode`/`X-Stream-Response` headers. `run` selects the public
- * deployment/manual behavior, while internal executor facts (`triggerType`,
- * `useDraftState`, deployment pinning, and source snapshots) remain trusted
- * server-side options and are NEVER wire fields.
+ * deployment/manual behavior (a deployment run may name a version number),
+ * while internal executor facts (`triggerType`, `useDraftState`, deployment
+ * version row ids, and source snapshots) remain trusted server-side options and
+ * are NEVER wire fields.
  *
  * The rejected option combinations are enforced by the route after parsing and
  * described on the fields they constrain; {@link EXECUTE_OPTION_CONSTRAINTS}
@@ -1465,14 +1592,14 @@ export const v2ExecuteWorkflowBodySchema = z
     run: v2WorkflowRunSelectionSchema
       .optional()
       .describe(
-        'Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.'
+        'Workflow state and entry point to execute. Omit for the active deployment; `source: "deployment"` with `version` runs that deployment version. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.'
       ),
     async: z
       .boolean()
       .optional()
       .default(false)
       .describe(
-        'Queue the run and return a 202 receipt. Requires an API key or OAuth access token and a deployed run source. Cannot stream, select outputs, enable thinking/tool events, or include file-inlining options (`includeFileBase64` or `base64MaxBytes`).'
+        'Queue the run and return a 202 receipt. Requires a full-access API key or an OAuth access token with `api:write`, and a deployed run source. Cannot stream, select outputs, enable thinking/tool events, or include file-inlining options (`includeFileBase64` or `base64MaxBytes`).'
       ),
     /**
      * An upper bound on the request, not the effective timeout: the server
@@ -1501,7 +1628,7 @@ export const v2ExecuteWorkflowBodySchema = z
       .max(MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS)
       .optional()
       .describe(
-        'Wait at most this many seconds for a synchronous run; `0` waits until it settles. A run still going then continues in the background and the response carries its run receipt instead of its result: `202` on a JSON response, or a closing `detached` frame on an `application/x-ndjson` result stream, which keeps its `200`. The receipt is sent only once the run can be read on the runs resource, where it can also be cancelled. The run is admitted under asynchronous limits, and a dropped connection no longer cancels it. Requires an API key or OAuth access token. Cannot be combined with `async` or `stream`.'
+        'Wait at most this many seconds for a synchronous run; `0` waits until it settles. A run still going then continues in the background and the response carries its run receipt instead of its result: `202` on a JSON response, or a closing `detached` frame on an `application/x-ndjson` result stream, which keeps its `200`. The receipt is sent only once the run can be read on the runs resource, where it can also be cancelled. The run is admitted under asynchronous limits, and a dropped connection no longer cancels it. Requires a full-access API key or an OAuth access token with `api:write`. Cannot be combined with `async` or `stream`.'
       ),
     stream: z
       .boolean()
@@ -1895,6 +2022,101 @@ export const v2RunFileSchema = z
   })
 export type V2RunFile = z.output<typeof v2RunFileSchema>
 
+const v2PauseInputFieldSchema = z
+  .object({
+    name: z.string().describe('Key to supply this field under in the resume `input`.'),
+    label: z.string().describe('Display label for the field.'),
+    type: z.string().describe('Declared value type, such as `string`, `number`, or `boolean`.'),
+    description: z.string().optional().describe('Field help text, when configured.'),
+    placeholder: z.string().optional().describe('Placeholder text, when configured.'),
+    required: z.boolean().describe('Whether the field is marked required.'),
+    options: z
+      .array(z.unknown().describe('One selectable option.'))
+      .optional()
+      .describe('Selectable options, when the field offers a fixed set.'),
+  })
+  .meta({
+    id: 'WorkflowRunPauseInputField',
+    title: 'Pause input field',
+    description: 'One field a human pause asks the resumer to fill.',
+  })
+
+const v2WorkflowRunPausePointSchema = z
+  .object({
+    contextId: z
+      .string()
+      .describe('Pause context to name in `contextId` when resuming this point.'),
+    blockId: z.string().describe('Workflow block that paused.'),
+    blockName: z
+      .string()
+      .nullable()
+      .describe(
+        'Name of the block in the deployment version the run executed, or null for a manual run or when the version no longer exists.'
+      ),
+    kind: z
+      .enum(['human', 'time'])
+      .describe('`human` waits for a resume request; `time` resumes automatically at `resumeAt`.'),
+    status: z
+      .enum(['paused', 'queued', 'resuming', 'resumed', 'failed'])
+      .describe(
+        'Resume state of this point: waiting, queued behind another resume, resuming, resumed, or a failed resume attempt.'
+      ),
+    registeredAt: z
+      .string()
+      .nullable()
+      .describe(
+        'ISO 8601 timestamp when the run paused at this point, or null for a point recorded without one.'
+      )
+      .meta({ format: 'date-time' }),
+    resumeAt: z
+      .string()
+      .nullable()
+      .describe('ISO 8601 automatic-resume timestamp for a time pause, otherwise null.')
+      .meta({ format: 'date-time' }),
+    parallel: z
+      .object({
+        parallelId: z.string().describe('Parallel block containing the pause.'),
+        branchIndex: z.number().int().describe('Zero-based branch that paused.'),
+        branchTotal: z
+          .number()
+          .int()
+          .nullable()
+          .describe('Number of branches, or null when unrecorded.'),
+      })
+      .nullable()
+      .describe('Parallel branch of the pause, or null outside a parallel.'),
+    loop: z
+      .object({
+        loopId: z.string().describe('Loop block containing the pause.'),
+        iteration: z.number().int().describe('Zero-based iteration that paused.'),
+      })
+      .nullable()
+      .describe('Loop iteration of the pause, or null outside a loop.'),
+    inputFields: z
+      .array(v2PauseInputFieldSchema)
+      .nullable()
+      .describe(
+        'Fields a human pause asks for, without default values. Labels and descriptions are resolved, so they are withheld when organization permission groups hide execution data. Null then, for a time pause, a pause with no declared form, fields over 64 KiB or not provably free of secrets, or one recorded before pause details were captured.'
+      ),
+    display: z
+      .unknown()
+      .describe('Reviewer content value.')
+      .nullable()
+      .describe(
+        "Content the pause presents to its reviewer, with the run's resolved secrets redacted. Null unless `includeOutput=true`, when hidden by organization permission groups, for a time pause, for content over 64 KiB or not provably free of secrets, or for a pause recorded before pause details were captured."
+      ),
+    queuePosition: z
+      .number()
+      .int()
+      .nullable()
+      .describe('Position among pending resume requests for this run, or null when none waits.'),
+  })
+  .meta({
+    id: 'WorkflowRunPausePoint',
+    title: 'Workflow run pause point',
+    description: 'One point at which a paused run waits.',
+  })
+
 /**
  * The polled run resource. `queued` is backfilled from the async job
  * queue before the worker writes the durable log row — v1's jobs endpoint 404
@@ -1938,8 +2160,22 @@ export const v2WorkflowRunStatusSchema = z
       .number()
       .nullable()
       .describe('Run duration in milliseconds, or null while active.'),
+    version: z
+      .number()
+      .int()
+      .nullable()
+      .describe(
+        'Deployment version the run executed. Null for a manual run, a queued run not yet started, or a run whose version no longer exists.'
+      ),
     paused: workflowExecutionPausedDetailSchema
       .omit({ pausedExecutionId: true })
+      .extend({
+        points: z
+          .array(v2WorkflowRunPausePointSchema)
+          .describe(
+            'Every point the run is paused at, earliest first, at most 100. Resume one with Resume workflow run, naming its `contextId` and supplying `input`.'
+          ),
+      })
       .nullable()
       .describe('Current pause details, or null when the run is not paused.'),
     cost: z

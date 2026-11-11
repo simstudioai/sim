@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { TELEGRAM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TelegramBooleanResponse, TelegramSendChatActionParams } from '@/tools/telegram/types'
 import { telegramApiUrl } from '@/tools/telegram/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -12,6 +13,7 @@ export const telegramSendChatActionTool: ToolConfig<
   description:
     'Show a status action such as a typing indicator in a Telegram chat through the Telegram Bot API.',
   version: '1.0.0',
+  oauth: TELEGRAM_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 
   params: {

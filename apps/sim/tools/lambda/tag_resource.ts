@@ -1,4 +1,5 @@
 import type { LambdaTagResourceParams, LambdaTagResourceResponse } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const tagResourceTool: InternalToolConfig<
@@ -9,6 +10,7 @@ export const tagResourceTool: InternalToolConfig<
   name: 'Lambda Tag Resource',
   description: 'Add tags to a Lambda function',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

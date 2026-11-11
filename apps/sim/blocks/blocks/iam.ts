@@ -1,6 +1,7 @@
 import { IAMIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 /**
  * Raised when `contextEntries` is not a JSON array of context entries.
@@ -14,6 +15,8 @@ const CONTEXT_ENTRIES_SHAPE_ERROR =
 
 export const IAMBlock: BlockConfig = {
   type: 'iam',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'iam_v2' },
   name: 'AWS IAM',
   description: 'Manage AWS IAM users, roles, policies, and groups',
   longDescription: 'Create and manage users, roles, policies, groups, and access keys.',
@@ -1005,3 +1008,17 @@ export const IAMBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const IAMV2Block: BlockConfig = {
+  ...IAMBlock,
+  type: 'iam_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(IAMBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

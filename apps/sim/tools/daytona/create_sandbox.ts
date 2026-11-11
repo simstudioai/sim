@@ -7,6 +7,7 @@ import {
   toOptionalBoolean,
   toOptionalNumber,
 } from '@/tools/daytona/utils'
+import { DAYTONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import { transformTable } from '@/tools/shared/table'
 import type { ToolConfig } from '@/tools/types'
 
@@ -18,6 +19,7 @@ export const daytonaCreateSandboxTool: ToolConfig<
   name: 'Daytona Create Sandbox',
   description: 'Create a new Daytona sandbox for running AI-generated code in isolation',
   version: '1.0.0',
+  oauth: DAYTONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

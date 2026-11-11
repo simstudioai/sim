@@ -1,4 +1,5 @@
 import type { RipplingCreateCustomAppParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingCreateCustomAppTool: ToolConfig<RipplingCreateCustomAppParams> = {
@@ -6,6 +7,7 @@ export const ripplingCreateCustomAppTool: ToolConfig<RipplingCreateCustomAppPara
   name: 'Rippling Create Custom App',
   description: 'Create a new custom app',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

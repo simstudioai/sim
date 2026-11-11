@@ -1,4 +1,5 @@
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface IntercomUntagContactParams {
@@ -60,6 +61,7 @@ export const intercomUntagContactV2Tool: ToolConfig<
   name: 'Untag Contact in Intercom',
   description: 'Remove a tag from a specific contact',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

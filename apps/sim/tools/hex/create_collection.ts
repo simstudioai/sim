@@ -1,4 +1,5 @@
 import type { HexCreateCollectionParams, HexCreateCollectionResponse } from '@/tools/hex/types'
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createCollectionTool: ToolConfig<
@@ -9,6 +10,7 @@ export const createCollectionTool: ToolConfig<
   name: 'Hex Create Collection',
   description: 'Create a new collection in the Hex workspace to organize projects.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

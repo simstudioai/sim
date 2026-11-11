@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveCreateUserParams, ThriveUserResponse } from '@/tools/thrive/types'
 import { THRIVE_USER_LIFECYCLE_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import {
@@ -13,6 +14,7 @@ export const createUserTool: ToolConfig<ThriveCreateUserParams, ThriveUserRespon
   name: 'Thrive Create User',
   description: 'Create a new user in Thrive.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

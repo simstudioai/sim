@@ -1,9 +1,12 @@
 import { IdentityCenterIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const IdentityCenterBlock: BlockConfig = {
   type: 'identity_center',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'identity_center_v2' },
   name: 'AWS Identity Center',
   description: 'Manage account access in AWS IAM Identity Center',
   longDescription:
@@ -697,3 +700,17 @@ export const IdentityCenterBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const IdentityCenterV2Block: BlockConfig = {
+  ...IdentityCenterBlock,
+  type: 'identity_center_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(IdentityCenterBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

@@ -3,10 +3,15 @@ import {
   AuthMode,
   type BlockConfig,
   type BlockMeta,
+  type BlockToolParams,
   IntegrationType,
   type SubBlockType,
 } from '@/blocks/types'
-import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
+import {
+  createVersionedToolSelector,
+  normalizeFileInput,
+  withSavedCredential,
+} from '@/blocks/utils'
 
 const EXTEND_DOCUMENT_FIELD = ['fileUpload', 'filePath'] as const
 const EXTEND_V2_FILE_FIELD = ['fileUpload', 'fileReference'] as const
@@ -16,7 +21,7 @@ export const ExtendBlock: BlockConfig = {
   name: 'Extend',
   description: 'Parse and extract content from documents',
   hideFromToolbar: true,
-  sunset: { status: 'legacy', replacedBy: 'extend_v2' },
+  sunset: { status: 'legacy', replacedBy: 'extend_v3' },
   authMode: AuthMode.ApiKey,
   longDescription:
     'Parse and extract structured content from documents including PDFs, images, and Office files.',
@@ -175,12 +180,40 @@ const extendV2SubBlocks = (ExtendBlock.subBlocks || []).flatMap((subBlock) => {
   return [subBlock]
 })
 
+/**
+ * Tool params for the v2+ parser. `credentials` is empty when a saved credential
+ * supplies the key server-side.
+ */
+function extendV2ToolParams(params: BlockToolParams, credentials: { apiKey?: string }) {
+  const parameters: Record<string, unknown> = { ...credentials }
+
+  const documentInput = normalizeFileInput(params.file, { single: true })
+  if (!documentInput) {
+    throw new Error('Document file is required')
+  }
+  parameters.file = documentInput
+
+  if (params.outputFormat) {
+    parameters.outputFormat = params.outputFormat
+  }
+
+  if (params.chunking) {
+    parameters.chunking = params.chunking
+  }
+
+  if (params.engine) {
+    parameters.engine = params.engine
+  }
+
+  return parameters
+}
+
 export const ExtendV2Block: BlockConfig = {
   ...ExtendBlock,
-  sunset: undefined,
+  sunset: { status: 'legacy', replacedBy: 'extend_v3' },
   type: 'extend_v2',
   name: 'Extend',
-  hideFromToolbar: false,
+  hideFromToolbar: true,
   longDescription: 'Parse and extract structured content from documents or file references.',
   canvasPresentation: {
     defaultTitle: 'Extend',
@@ -200,31 +233,7 @@ export const ExtendV2Block: BlockConfig = {
         suffix: '_v2',
         fallbackToolId: 'extend_parser_v2',
       }),
-      params: (params) => {
-        const parameters: Record<string, unknown> = {
-          apiKey: params.apiKey.trim(),
-        }
-
-        const documentInput = normalizeFileInput(params.file, { single: true })
-        if (!documentInput) {
-          throw new Error('Document file is required')
-        }
-        parameters.file = documentInput
-
-        if (params.outputFormat) {
-          parameters.outputFormat = params.outputFormat
-        }
-
-        if (params.chunking) {
-          parameters.chunking = params.chunking
-        }
-
-        if (params.engine) {
-          parameters.engine = params.engine
-        }
-
-        return parameters
-      },
+      params: (params) => extendV2ToolParams(params, { apiKey: params.apiKey.trim() }),
     },
   },
   inputs: extendV2Inputs,
@@ -326,3 +335,16 @@ export const ExtendBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const ExtendV3Block: BlockConfig = {
+  ...ExtendV2Block,
+  type: 'extend_v3',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    ExtendV2Block,
+    { id: 'credential', type: 'oauth-input', serviceId: 'extend', title: 'Extend Credential' },
+    { params: (params) => extendV2ToolParams(params, {}) }
+  ),
+}

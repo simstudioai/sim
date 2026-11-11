@@ -106,6 +106,16 @@ jobs:
             echo "tag=$TAG"
           } >> "$GITHUB_OUTPUT"
 
+      # `./embed` and the `#sim-cli/*` imports point at TypeScript source, which
+      # only the monorepo's own Next.js app consumes (it transpiles the package).
+      # The tarball ships `dist` alone, so published they would be dead entry
+      # points; the smoke test below fails on any export that does not exist.
+      - name: Drop source-only entry points
+        working-directory: packages/sim-cli
+        run: |
+          jq 'del(.imports, .exports["./embed"])' package.json > "$RUNNER_TEMP/package.json"
+          mv "$RUNNER_TEMP/package.json" package.json
+
       # Bun packs because it rewrites `workspace:` ranges to real versions,
       # which `npm pack` would publish verbatim. The smoke test below and the
       # publish job both use this one tarball, so what was tested is what ships.
@@ -126,6 +136,20 @@ jobs:
           SMOKE_DIR="$(mktemp -d "$RUNNER_TEMP/sim-cli-smoke.XXXXXX")"
           tar -xzf "$RUNNER_TEMP/package.tgz" -C "$SMOKE_DIR"
           test "$("$SMOKE_DIR/package/dist/index.js" --version)" = "$VERSION"
+          node -e '
+            const fs = require("node:fs")
+            const path = require("node:path")
+            const root = path.join(process.argv[1], "package")
+            const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"))
+            const targets = Object.values(pkg.exports ?? {}).flatMap((entry) =>
+              typeof entry === "string" ? [entry] : Object.values(entry)
+            )
+            const missing = targets.filter((target) => !fs.existsSync(path.join(root, target)))
+            if (missing.length > 0) {
+              console.error("Exports point at files the tarball does not contain: " + missing.join(", "))
+              process.exit(1)
+            }
+          ' "$SMOKE_DIR"
 
       - name: Verify version is unpublished
         env:

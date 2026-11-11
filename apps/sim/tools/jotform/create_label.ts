@@ -8,6 +8,7 @@ import {
   toFormBody,
   trimOrUndefined,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createLabelTool: ToolConfig<JotformCreateLabelParams, JotformLabelResponse> = {
@@ -16,6 +17,7 @@ export const createLabelTool: ToolConfig<JotformCreateLabelParams, JotformLabelR
   description:
     'Create a Jotform label for grouping forms and other assets, optionally nested under a parent label.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

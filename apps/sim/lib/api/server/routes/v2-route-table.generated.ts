@@ -71,6 +71,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/credentials/providers/route'),
   },
   {
+    pattern: '/api/v2/credentials/workload-identity/subjects',
+    load: () => import('@/app/api/v2/credentials/workload-identity/subjects/route'),
+  },
+  {
     pattern: '/api/v2/custom-tools',
     load: () => import('@/app/api/v2/custom-tools/route'),
   },
@@ -444,6 +448,13 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () =>
       import(
         '@/app/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/bulk/route'
+      ),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/search/sources/{sourceId}/permissions',
+    load: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/route'
       ),
   },
   {
@@ -833,6 +844,14 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/workflows/[workflowId]/state/route'),
   },
   {
+    pattern: '/api/v2/workflows/{workflowId}/triggers',
+    load: () => import('@/app/api/v2/workflows/[workflowId]/triggers/route'),
+  },
+  {
+    pattern: '/api/v2/workflows/{workflowId}/triggers/{blockId}',
+    load: () => import('@/app/api/v2/workflows/[workflowId]/triggers/[blockId]/route'),
+  },
+  {
     pattern: '/api/v2/workflows/{workflowId}/variables',
     load: () => import('@/app/api/v2/workflows/[workflowId]/variables/route'),
   },
@@ -956,6 +975,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
   {
     pattern: '/api/v2/workspaces/{workspaceId}/members',
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/members/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/members/{userId}',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/members/[userId]/route'),
   },
   {
     pattern: '/api/v2/workspaces/{workspaceId}/operations',

@@ -2,7 +2,7 @@
 title: Square
 description: Process payments and manage Square commerce data
 integration:
-  type: "square"
+  type: "square_v2"
   color: "#000000"
 ---
 
@@ -12,12 +12,12 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 {/* MANUAL-CONTENT-START:intro */}
 Use [Square](https://squareup.com/) to take, retrieve, list, cancel, complete, or refund payments; manage customer profiles; create, retrieve, search, or pay for orders; and create, publish, cancel, or delete invoices.
 
-The actions also manage catalog objects and images, read inventory counts, and look up locations. Configure a Square access token and the target environment. Payment and refund actions change live commerce records; use the correct environment and the action's idempotency fields before running them.
+The actions also manage catalog objects and images, read inventory counts, and look up locations. Connect with a saved Square credential holding a production access token. Payment and refund actions change live commerce records; use the action's idempotency fields before running them.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
 
-Take and refund payments, manage customers, build catalog items and images, create and search orders, and issue invoices. Authenticate with a Square access token (personal access token).
+Take and refund payments, manage customers, build catalog items and images, create and search orders, and issue invoices.
 
 ## Actions
 
@@ -31,7 +31,6 @@ Take a payment using a payment source such as a card nonce or a card on file
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `sourceId` | string | Yes | ID of the payment source \(card nonce, card-on-file ID, or wallet token\) |
 | `amount` | number | Yes | Amount in the smallest currency denomination \(e.g. 1000 = $10.00\) |
 | `currency` | string | Yes | Three-letter ISO 4217 currency code \(e.g. USD\) |
@@ -99,7 +98,6 @@ Retrieve details for a single payment by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `paymentId` | string | Yes | ID of the payment to retrieve |
 
 #### Output
@@ -158,7 +156,6 @@ List payments taken by the account, optionally filtered by location and time ran
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `locationId` | string | No | Filter payments by location ID |
 | `beginTime` | string | No | RFC 3339 timestamp for the beginning of the reporting period |
 | `endTime` | string | No | RFC 3339 timestamp for the end of the reporting period |
@@ -220,7 +217,6 @@ Cancel (void) an authorized payment that has not been captured
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `paymentId` | string | Yes | ID of the payment to cancel |
 
 #### Output
@@ -279,7 +275,6 @@ Capture (complete) a payment that was authorized with delayed capture
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `paymentId` | string | Yes | ID of the payment to complete |
 | `versionToken` | string | No | Optional version token for optimistic concurrency control |
 
@@ -339,7 +334,6 @@ Refund all or part of a completed payment
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `paymentId` | string | Yes | ID of the payment to refund |
 | `amount` | number | Yes | Amount to refund in the smallest currency denomination \(e.g. 100 = $1.00\) |
 | `currency` | string | Yes | Three-letter ISO 4217 currency code \(e.g. USD\) |
@@ -380,7 +374,6 @@ Retrieve a single payment refund by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `refundId` | string | Yes | ID of the refund to retrieve |
 
 #### Output
@@ -417,7 +410,6 @@ List payment refunds, optionally filtered by location, status, and time range
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `locationId` | string | No | Filter refunds by location ID |
 | `status` | string | No | Filter by refund status \(PENDING, COMPLETED, REJECTED, or FAILED\) |
 | `beginTime` | string | No | RFC 3339 timestamp for the beginning of the reporting period |
@@ -458,7 +450,6 @@ Create a new customer profile in the Square customer directory
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `givenName` | string | No | First name of the customer |
 | `familyName` | string | No | Last name of the customer |
 | `companyName` | string | No | Business name of the customer |
@@ -522,7 +513,6 @@ Retrieve a single customer profile by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `customerId` | string | Yes | ID of the customer to retrieve |
 
 #### Output
@@ -576,7 +566,6 @@ List customer profiles in the Square customer directory
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `limit` | number | No | Maximum number of results to return per page \(max 100\) |
 | `cursor` | string | No | Pagination cursor from a previous response |
 | `sortField` | string | No | Field to sort by \(DEFAULT or CREATED_AT\) |
@@ -631,7 +620,6 @@ Search customer profiles using filters such as email, phone, or creation date
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `query` | json | No | Square customer query object with optional filter and sort \(e.g. \{"filter":\{"email_address":\{"exact":"a@b.com"\}\}\}\) |
 | `limit` | number | No | Maximum number of results to return per page |
 | `cursor` | string | No | Pagination cursor from a previous response |
@@ -685,7 +673,6 @@ Update fields on an existing customer profile
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `customerId` | string | Yes | ID of the customer to update |
 | `givenName` | string | No | First name of the customer |
 | `familyName` | string | No | Last name of the customer |
@@ -749,7 +736,6 @@ Delete a customer profile from the Square customer directory
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `customerId` | string | Yes | ID of the customer to delete |
 
 #### Output
@@ -771,7 +757,6 @@ List all locations associated with the Square account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 
 #### Output
 
@@ -819,7 +804,6 @@ Retrieve a single location by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `locationId` | string | Yes | ID of the location to retrieve \(use "main" for the main location\) |
 
 #### Output
@@ -869,7 +853,6 @@ Create an order with line items, taxes, discounts, and fulfillments
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `order` | json | Yes | Square order object including location_id and line_items \(e.g. \{"location_id":"L1","line_items":\[\{"name":"Coffee","quantity":"1","base_price_money":\{"amount":250,"currency":"USD"\}\}\]\}\) |
 | `idempotencyKey` | string | No | Unique key to make the request idempotent \(auto-generated if omitted\) |
 
@@ -924,7 +907,6 @@ Retrieve a single order by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `orderId` | string | Yes | ID of the order to retrieve |
 
 #### Output
@@ -978,7 +960,6 @@ Search orders across one or more locations using filters and sorting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `locationIds` | array | Yes | Array of location IDs to search within |
 | `query` | json | No | Square order query object with optional filter and sort \(e.g. \{"filter":\{"state_filter":\{"states":\["OPEN"\]\}\}\}\) |
 | `limit` | number | No | Maximum number of results to return per page |
@@ -1034,7 +1015,6 @@ Pay for an order using one or more already-approved payments
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `orderId` | string | Yes | ID of the order to pay for |
 | `paymentIds` | array | No | IDs of approved payments to apply to the order |
 | `orderVersion` | number | No | Version of the order being paid \(for optimistic concurrency\) |
@@ -1091,7 +1071,6 @@ Create a draft invoice for an existing order and customer
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `invoice` | json | Yes | Square invoice object including location_id, order_id, primary_recipient, and payment_requests \(e.g. \{"location_id":"L1","order_id":"O1","primary_recipient":\{"customer_id":"C1"\},"payment_requests":\[\{"request_type":"BALANCE","due_date":"2026-07-01"\}\]\}\) |
 | `idempotencyKey` | string | No | Unique key to make the request idempotent \(auto-generated if omitted\) |
 
@@ -1136,7 +1115,6 @@ Retrieve a single invoice by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `invoiceId` | string | Yes | ID of the invoice to retrieve |
 
 #### Output
@@ -1180,7 +1158,6 @@ List invoices for a specific location
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `locationId` | string | Yes | ID of the location to list invoices for |
 | `limit` | number | No | Maximum number of results to return per page |
 | `cursor` | string | No | Pagination cursor from a previous response |
@@ -1225,7 +1202,6 @@ Search invoices across one or more locations
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `locationId` | string | Yes | ID of the location to search within \(Square allows one location per search\) |
 | `limit` | number | No | Maximum number of results to return per page |
 | `cursor` | string | No | Pagination cursor from a previous response |
@@ -1270,7 +1246,6 @@ Publish a draft invoice so it is sent to the customer and becomes payable
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `invoiceId` | string | Yes | ID of the invoice to publish |
 | `version` | number | Yes | Current version of the invoice \(use the version returned by Create Invoice\) |
 | `idempotencyKey` | string | No | Unique key to make the request idempotent \(auto-generated if omitted\) |
@@ -1316,7 +1291,6 @@ Cancel a published invoice that is unpaid or partially paid
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `invoiceId` | string | Yes | ID of the invoice to cancel |
 | `version` | number | Yes | Current version of the invoice |
 
@@ -1361,7 +1335,6 @@ Delete a draft invoice
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `invoiceId` | string | Yes | ID of the draft invoice to delete |
 | `version` | number | No | Current version of the invoice \(required if the invoice has been updated\) |
 
@@ -1384,7 +1357,6 @@ Create or update a catalog object such as an item, variation, or category
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `object` | json | Yes | Square catalog object to create or update. Use ID "#name" for new objects \(e.g. \{"type":"ITEM","id":"#Coffee","item_data":\{"name":"Coffee"\}\}\) |
 | `idempotencyKey` | string | No | Unique key to make the request idempotent \(auto-generated if omitted\) |
 
@@ -1420,7 +1392,6 @@ Retrieve a single catalog object by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `objectId` | string | Yes | ID of the catalog object to retrieve |
 | `includeRelatedObjects` | boolean | No | Whether to include related objects such as an item variations |
 
@@ -1456,7 +1427,6 @@ List catalog objects, optionally filtered by type
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `types` | string | No | Comma-separated catalog object types to return \(e.g. ITEM,CATEGORY\). Defaults to all top-level types |
 | `cursor` | string | No | Pagination cursor from a previous response |
 
@@ -1491,7 +1461,6 @@ Search catalog objects by type and query filters
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `objectTypes` | array | No | Array of catalog object types to search \(e.g. \["ITEM","CATEGORY"\]\) |
 | `query` | json | No | Square catalog query object \(e.g. \{"text_query":\{"keywords":\["coffee"\]\}\} or \{"prefix_query":\{...\}\}\) |
 | `limit` | number | No | Maximum number of results to return per page |
@@ -1528,7 +1497,6 @@ Upload an image and attach it to the catalog, optionally to a specific item
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `file` | file | Yes | The image file to upload \(UserFile object\) |
 | `fileName` | string | No | Optional filename override for the image |
 | `objectId` | string | No | ID of the catalog object \(e.g. an item\) to attach the image to |
@@ -1567,7 +1535,6 @@ Delete a catalog object and its children (e.g. an item and its variations)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `objectId` | string | Yes | ID of the catalog object to delete |
 
 #### Output
@@ -1590,7 +1557,6 @@ Retrieve current inventory counts for catalog items across locations
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `catalogObjectIds` | array | No | IDs of the catalog item variations to retrieve counts for |
 | `locationIds` | array | No | IDs of the locations to retrieve counts for \(defaults to all locations\) |
 | `states` | array | No | Inventory states to filter by \(e.g. IN_STOCK, SOLD, IN_TRANSIT\) |

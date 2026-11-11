@@ -3,6 +3,7 @@ import {
   type IncidentioUsersListParams,
   type IncidentioUsersListResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const usersListTool: ToolConfig<IncidentioUsersListParams, IncidentioUsersListResponse> = {
@@ -11,6 +12,7 @@ export const usersListTool: ToolConfig<IncidentioUsersListParams, IncidentioUser
   description:
     'List all users in your Incident.io workspace. Returns user details including id, name, email, and role.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

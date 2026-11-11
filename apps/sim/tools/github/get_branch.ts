@@ -1,5 +1,6 @@
 import type { BranchResponse, GetBranchParams } from '@/tools/github/types'
 import { BRANCH_OUTPUT_PROPERTIES } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getBranchTool: ToolConfig<GetBranchParams, BranchResponse> = {
@@ -8,6 +9,7 @@ export const getBranchTool: ToolConfig<GetBranchParams, BranchResponse> = {
   description:
     'Get detailed information about a specific branch in a GitHub repository, including commit details and protection status.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -97,6 +99,7 @@ export const getBranchV2Tool: ToolConfig<GetBranchParams, any> = {
   name: getBranchTool.name,
   description: getBranchTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getBranchTool.params,
   request: getBranchTool.request,
 

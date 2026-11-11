@@ -10,6 +10,7 @@ import {
   parsePersonaResponse,
   VERIFICATION_OUTPUT_PROPERTIES,
 } from '@/tools/persona/utils'
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const personaGetVerificationTool: ToolConfig<
@@ -21,6 +22,7 @@ export const personaGetVerificationTool: ToolConfig<
   description:
     'Retrieve a single verification by ID (government ID, selfie, document, database, and more), including its status and the checks that ran.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

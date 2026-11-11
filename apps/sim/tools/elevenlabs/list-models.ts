@@ -3,6 +3,7 @@ import type {
   ElevenLabsListModelsResponse,
   ElevenLabsModelSummary,
 } from '@/tools/elevenlabs/types'
+import { ELEVENLABS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const elevenLabsListModelsTool: ToolConfig<
@@ -13,6 +14,7 @@ export const elevenLabsListModelsTool: ToolConfig<
   name: 'ElevenLabs List Models',
   description: 'List the models available in ElevenLabs',
   version: '1.0.0',
+  oauth: ELEVENLABS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

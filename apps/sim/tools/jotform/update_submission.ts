@@ -13,6 +13,7 @@ import {
   toJsonObject,
   toStringOrNull,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateSubmissionTool: ToolConfig<
@@ -24,6 +25,7 @@ export const updateSubmissionTool: ToolConfig<
   description:
     'Edit an existing Jotform submission. Only the question IDs supplied are changed; the rest keep their stored answers.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

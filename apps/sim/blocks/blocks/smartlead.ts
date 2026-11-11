@@ -2,6 +2,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { SmartleadIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 const CAMPAIGN_ID_OPERATIONS = [
   'get_campaign',
@@ -74,6 +75,8 @@ const EMAIL_ACCOUNT_ID_OPERATIONS = [
 
 export const SmartleadBlock: BlockConfig = {
   type: 'smartlead',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'smartlead_v2' },
   name: 'Smartlead',
   description: 'Manage Smartlead cold email campaigns, sequences, and leads',
   longDescription:
@@ -1352,3 +1355,17 @@ export const SmartleadBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const SmartleadV2Block: BlockConfig = {
+  ...SmartleadBlock,
+  type: 'smartlead_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(SmartleadBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'smartlead',
+    title: 'Smartlead Credential',
+  }),
+}

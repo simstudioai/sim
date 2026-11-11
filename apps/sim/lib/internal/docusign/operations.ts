@@ -37,8 +37,11 @@ function jsonBody(data: Record<string, unknown>): RequestInit {
   return { method: 'POST', body: JSON.stringify(data) }
 }
 
-async function client(accessToken: string, signal?: AbortSignal): Promise<DocuSignClient> {
-  return DocuSignClient.create(accessToken, signal)
+async function client(
+  input: { accessToken: string; instanceUrl?: string },
+  signal?: AbortSignal
+): Promise<DocuSignClient> {
+  return DocuSignClient.create(input.accessToken, signal, input.instanceUrl)
 }
 
 export async function executeDocuSignCreateFromTemplate(
@@ -61,7 +64,7 @@ export async function executeDocuSignCreateFromTemplate(
   }
   if (input.emailSubject) body.emailSubject = input.emailSubject
   if (input.emailBody) body.emailBlurb = input.emailBody
-  const provider = await client(input.accessToken, context.signal)
+  const provider = await client(input, context.signal)
   return provider.json(
     '/envelopes',
     jsonBody(body),
@@ -174,7 +177,7 @@ export async function executeDocuSignSendEnvelope(
       },
     ]
   }
-  const provider = await client(input.accessToken, context.signal)
+  const provider = await client(input, context.signal)
   return provider.json(
     '/envelopes',
     jsonBody(envelope),
@@ -188,7 +191,7 @@ export async function executeDocuSignGetEnvelope(
   input: DocuSignGetEnvelopeParams,
   context: DocuSignOperationContext
 ) {
-  const provider = await client(input.accessToken, context.signal)
+  const provider = await client(input, context.signal)
   return provider.json(
     `/envelopes/${input.envelopeId.trim()}?include=recipients,documents`,
     {},
@@ -213,7 +216,7 @@ export async function executeDocuSignListEnvelopes(
   if (input.envelopeStatus) query.append('status', input.envelopeStatus)
   if (input.searchText) query.append('search_text', input.searchText)
   if (input.count) query.append('count', input.count)
-  const provider = await client(input.accessToken, context.signal)
+  const provider = await client(input, context.signal)
   return provider.json(
     `/envelopes?${query}`,
     {},
@@ -227,7 +230,7 @@ export async function executeDocuSignVoidEnvelope(
   input: DocuSignVoidEnvelopeParams,
   context: DocuSignOperationContext
 ) {
-  const provider = await client(input.accessToken, context.signal)
+  const provider = await client(input, context.signal)
   await provider.json(
     `/envelopes/${input.envelopeId.trim()}`,
     { method: 'PUT', body: JSON.stringify({ status: 'voided', voidedReason: input.voidedReason }) },
@@ -243,7 +246,7 @@ export async function executeDocuSignDownloadDocument(
   context: DocuSignOperationContext
 ) {
   const documentId = input.documentId || 'combined'
-  const provider = await client(input.accessToken, context.signal)
+  const provider = await client(input, context.signal)
   const { buffer, contentType, fileName } = await provider.document(
     input.envelopeId.trim(),
     documentId,
@@ -279,7 +282,7 @@ export async function executeDocuSignListTemplates(
   if (input.searchText) query.append('search_text', input.searchText)
   if (input.count) query.append('count', input.count)
   const suffix = query.size ? `?${query}` : ''
-  const provider = await client(input.accessToken, context.signal)
+  const provider = await client(input, context.signal)
   return provider.json(
     `/templates${suffix}`,
     {},
@@ -293,7 +296,7 @@ export async function executeDocuSignListRecipients(
   input: DocuSignListRecipientsParams,
   context: DocuSignOperationContext
 ) {
-  const provider = await client(input.accessToken, context.signal)
+  const provider = await client(input, context.signal)
   return provider.json(
     `/envelopes/${input.envelopeId.trim()}/recipients`,
     {},

@@ -1,4 +1,5 @@
 import type { IAMCreateRoleParams, IAMCreateRoleResponse } from '@/tools/iam/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const createRoleTool: InternalToolConfig<IAMCreateRoleParams, IAMCreateRoleResponse> = {
@@ -6,6 +7,7 @@ export const createRoleTool: InternalToolConfig<IAMCreateRoleParams, IAMCreateRo
   name: 'IAM Create Role',
   description: 'Create a new IAM role with a trust policy',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

@@ -1,3 +1,4 @@
+import { ZEP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ZepResponse } from '@/tools/zep/types'
 import { USER_OUTPUT_PROPERTIES } from '@/tools/zep/types'
@@ -7,6 +8,7 @@ export const zepAddUserTool: ToolConfig<any, ZepResponse> = {
   name: 'Add User',
   description: 'Create a new user in Zep',
   version: '1.0.0',
+  oauth: ZEP_CREDENTIAL_OAUTH,
 
   params: {
     userId: {

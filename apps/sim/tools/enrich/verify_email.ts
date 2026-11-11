@@ -1,4 +1,5 @@
 import type { EnrichVerifyEmailParams, EnrichVerifyEmailResponse } from '@/tools/enrich/types'
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const verifyEmailTool: ToolConfig<EnrichVerifyEmailParams, EnrichVerifyEmailResponse> = {
@@ -7,6 +8,7 @@ export const verifyEmailTool: ToolConfig<EnrichVerifyEmailParams, EnrichVerifyEm
   description:
     'Verify an email address for deliverability, including catch-all detection and provider identification.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

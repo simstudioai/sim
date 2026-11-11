@@ -2,6 +2,7 @@ import { Building, ListChecks, Search, Sprout, Trash, Users } from '@sim/emcn/ic
 import { CrunchbaseIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import {
   CRUNCHBASE_CARD_COLLECTIONS,
   CRUNCHBASE_COLLECTIONS,
@@ -79,6 +80,8 @@ Return ONLY the JSON array.`
 
 export const CrunchbaseBlock: BlockConfig = {
   type: 'crunchbase',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'crunchbase_v2' },
   name: 'Crunchbase',
   description: 'Search and look up companies, people, funding rounds, and acquisitions',
   longDescription:
@@ -642,3 +645,17 @@ export const CrunchbaseBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const CrunchbaseV2Block: BlockConfig = {
+  ...CrunchbaseBlock,
+  type: 'crunchbase_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(CrunchbaseBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'crunchbase',
+    title: 'Crunchbase Credential',
+  }),
+}

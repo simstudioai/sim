@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveListEnrolmentsParams, ThriveListEnrolmentsResponse } from '@/tools/thrive/types'
 import { THRIVE_ENROLMENT_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import {
@@ -16,6 +17,7 @@ export const listEnrolmentsTool: ToolConfig<
   name: 'Thrive List Enrolments',
   description: 'List enrolments for a compliance assignment in Thrive.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

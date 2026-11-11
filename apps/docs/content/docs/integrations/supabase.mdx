@@ -2,7 +2,7 @@
 title: Supabase
 description: Use Supabase database
 integration:
-  type: "supabase"
+  type: "supabase_v2"
   color: "#1C1C1C"
 ---
 
@@ -10,7 +10,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-[Supabase](https://www.supabase.com/) provides Postgres databases and related project services. Use this integration to query, insert, update, and delete table rows, or select the storage, function, and other operations listed below. Configure your Project ID and Service Role Secret; table operations also require a table name. Use [PostgREST filter syntax](https://postgrest.org/en/stable/api.html#operators) when filtering, ordering, or limiting row queries.
+[Supabase](https://www.supabase.com/) provides Postgres databases and related project services. Use this integration to query, insert, update, and delete table rows, or select the storage, function, and other operations listed below. Connect a saved Supabase credential (project ID and key); table operations also require a table name. Use [PostgREST filter syntax](https://postgrest.org/en/stable/api.html#operators) when filtering, ordering, or limiting row queries.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
@@ -29,7 +29,6 @@ Query data from a Supabase table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to query |
 | `schema` | string | No | Database schema to query from \(default: public\). Use this to access tables in other schemas. |
 | `select` | string | No | Columns to return \(comma-separated\). Defaults to * \(all columns\) |
@@ -37,7 +36,6 @@ Query data from a Supabase table
 | `orderBy` | string | No | Column to order by \(add DESC for descending\) |
 | `limit` | number | No | Maximum number of rows to return |
 | `offset` | number | No | Number of rows to skip \(for pagination\) |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -58,11 +56,9 @@ Insert data into a Supabase table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to insert data into |
 | `schema` | string | No | Database schema to insert into \(default: public\). Use this to access tables in other schemas. |
 | `data` | array | Yes | The data to insert \(array of objects or a single object\) |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -83,12 +79,10 @@ Get a single row from a Supabase table based on filter criteria
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to query |
 | `schema` | string | No | Database schema to query from \(default: public\). Use this to access tables in other schemas. |
 | `select` | string | No | Columns to return \(comma-separated\). Defaults to * \(all columns\) |
 | `filter` | string | Yes | PostgREST filter to find the specific row \(e.g., "id=eq.123"\) |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -109,12 +103,10 @@ Update rows in a Supabase table based on filter criteria
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to update |
 | `schema` | string | No | Database schema to update in \(default: public\). Use this to access tables in other schemas. |
 | `filter` | string | Yes | PostgREST filter to identify rows to update \(e.g., "id=eq.123"\) |
 | `data` | object | Yes | Data to update in the matching rows |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -135,11 +127,9 @@ Delete rows from a Supabase table based on filter criteria
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to delete from |
 | `schema` | string | No | Database schema to delete from \(default: public\). Use this to access tables in other schemas. |
 | `filter` | string | Yes | PostgREST filter to identify rows to delete \(e.g., "id=eq.123"\) |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -160,12 +150,10 @@ Insert or update data in a Supabase table (upsert operation)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to upsert data into |
 | `schema` | string | No | Database schema to upsert into \(default: public\). Use this to access tables in other schemas. |
 | `data` | array | Yes | The data to upsert \(insert or update\) - array of objects or a single object |
 | `onConflict` | string | No | Comma-separated column\(s\) with a unique or primary key constraint to resolve conflicts on \(e.g., "email"\). Defaults to the primary key. |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -186,12 +174,10 @@ Count rows in a Supabase table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to count rows from |
 | `schema` | string | No | Database schema to count from \(default: public\). Use this to access tables in other schemas. |
 | `filter` | string | No | PostgREST filter \(e.g., "status=eq.active"\) |
 | `countType` | string | No | Count type: exact, planned, or estimated \(default: exact\) |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -212,7 +198,6 @@ Perform full-text search on a Supabase table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to search |
 | `schema` | string | No | Database schema to search in \(default: public\). Use this to access tables in other schemas. |
 | `column` | string | Yes | The column to search in |
@@ -221,7 +206,6 @@ Perform full-text search on a Supabase table
 | `language` | string | No | Language for text search configuration \(default: english\) |
 | `limit` | number | No | Maximum number of rows to return |
 | `offset` | number | No | Number of rows to skip \(for pagination\) |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -242,12 +226,10 @@ Perform similarity search using pgvector in a Supabase table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `functionName` | string | Yes | The name of the PostgreSQL function that performs vector search \(e.g., match_documents\) |
 | `queryEmbedding` | array | Yes | The query vector/embedding to search for similar items |
 | `matchThreshold` | number | No | Minimum similarity threshold \(0-1\), typically 0.7-0.9 |
 | `matchCount` | number | No | Maximum number of results to return \(default: 10\) |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -268,10 +250,8 @@ Call a PostgreSQL function in Supabase
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `functionName` | string | Yes | The name of the PostgreSQL function to call |
 | `params` | object | No | Parameters to pass to the function as a JSON object |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -292,12 +272,10 @@ Invoke a Supabase Edge Function over HTTP
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `functionName` | string | Yes | The name of the Edge Function to invoke \(e.g., "hello-world"\) |
 | `method` | string | No | HTTP method to use: GET, POST, PUT, PATCH, or DELETE \(default: POST\) |
 | `body` | json | No | Request payload to send to the function as a JSON object \(ignored for GET\) |
 | `headers` | json | No | Additional request headers as a JSON object of header name to value |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -318,9 +296,7 @@ Introspect Supabase database schema from its OpenAPI spec to get table and colum
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `schema` | string | No | Database schema to introspect \(defaults to all user schemas, commonly "public"\) |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -363,7 +339,6 @@ Upload a file to a Supabase storage bucket
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `bucket` | string | Yes | The name of the storage bucket |
 | `fileName` | string | Yes | The name of the file \(e.g., "document.pdf", "image.jpg"\) |
 | `path` | string | No | Optional folder path \(e.g., "folder/subfolder/"\) |
@@ -371,7 +346,6 @@ Upload a file to a Supabase storage bucket
 | `contentType` | string | No | MIME type of the file \(e.g., "image/jpeg", "text/plain"\) |
 | `cacheControl` | string | No | Cache-Control header value in seconds for the stored object \(e.g., "3600"; default: "3600"\) |
 | `upsert` | boolean | No | If true, overwrites existing file \(default: false\) |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -397,11 +371,9 @@ Download a file from a Supabase storage bucket
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `bucket` | string | Yes | The name of the storage bucket |
 | `path` | string | Yes | The path to the file to download \(e.g., "folder/file.jpg"\) |
 | `fileName` | string | No | Optional filename override |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -421,7 +393,6 @@ List files in a Supabase storage bucket
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `bucket` | string | Yes | The name of the storage bucket |
 | `path` | string | No | The folder path to list files from \(default: root\) |
 | `limit` | number | No | Maximum number of files to return \(default: 100\) |
@@ -429,7 +400,6 @@ List files in a Supabase storage bucket
 | `sortBy` | string | No | Column to sort by: name, created_at, updated_at, last_accessed_at \(default: name\) |
 | `sortOrder` | string | No | Sort order: asc or desc \(default: asc\) |
 | `search` | string | No | Search term to filter files by name |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -463,10 +433,8 @@ Delete files from a Supabase storage bucket
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `bucket` | string | Yes | The name of the storage bucket |
 | `paths` | array | Yes | Array of file paths to delete \(e.g., \["folder/file1.jpg", "folder/file2.jpg"\]\) |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -494,11 +462,9 @@ Move a file within a Supabase storage bucket
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `bucket` | string | Yes | The name of the storage bucket |
 | `fromPath` | string | Yes | The current path of the file \(e.g., "folder/old.jpg"\) |
 | `toPath` | string | Yes | The new path for the file \(e.g., "newfolder/new.jpg"\) |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -522,11 +488,9 @@ Copy a file within a Supabase storage bucket
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `bucket` | string | Yes | The name of the storage bucket |
 | `fromPath` | string | Yes | The path of the source file \(e.g., "folder/source.jpg"\) |
 | `toPath` | string | Yes | The path for the copied file \(e.g., "folder/copy.jpg"\) |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -549,12 +513,10 @@ Create a new storage bucket in Supabase
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `bucket` | string | Yes | The name of the bucket to create |
 | `isPublic` | boolean | No | Whether the bucket should be publicly accessible \(default: false\) |
 | `fileSizeLimit` | number | No | Maximum file size in bytes \(optional\) |
 | `allowedMimeTypes` | array | No | Array of allowed MIME types \(e.g., \["image/png", "image/jpeg"\]\) |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -576,12 +538,10 @@ Update the configuration of an existing Supabase storage bucket
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `bucket` | string | Yes | The name of the bucket to update |
 | `isPublic` | boolean | No | Whether the bucket should be publicly accessible \(leave unset to keep the current value\) |
 | `fileSizeLimit` | number | No | Maximum file size in bytes \(leave unset to keep the current value\) |
 | `allowedMimeTypes` | array | No | Array of allowed MIME types \(e.g., \["image/png", "image/jpeg"\]\) — leave unset to keep the current value |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -603,9 +563,7 @@ Delete all objects inside a Supabase storage bucket without deleting the bucket 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `bucket` | string | Yes | The name of the bucket to empty |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -627,8 +585,6 @@ List all storage buckets in Supabase
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -657,9 +613,7 @@ Delete a storage bucket in Supabase
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `bucket` | string | Yes | The name of the bucket to delete |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -681,7 +635,6 @@ Get the public URL for a file in a Supabase storage bucket
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `bucket` | string | Yes | The name of the storage bucket |
 | `path` | string | Yes | The path to the file \(e.g., "folder/file.jpg"\) |
 | `download` | boolean | No | If true, forces download instead of inline display \(default: false\) |
@@ -705,12 +658,10 @@ Create a temporary signed URL for a file in a Supabase storage bucket
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `bucket` | string | Yes | The name of the storage bucket |
 | `path` | string | Yes | The path to the file \(e.g., "folder/file.jpg"\) |
 | `expiresIn` | number | Yes | Number of seconds until the URL expires \(e.g., 3600 for 1 hour\) |
 | `download` | boolean | No | If true, forces download instead of inline display \(default: false\) |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
@@ -731,11 +682,9 @@ Create a temporary signed URL a client can use to upload directly to a Supabase 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `bucket` | string | Yes | The name of the storage bucket |
 | `path` | string | Yes | The destination path for the uploaded file \(e.g., "folder/file.jpg"\) |
 | `upsert` | boolean | No | If true, allows overwriting an existing file at this path \(default: false\) |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 

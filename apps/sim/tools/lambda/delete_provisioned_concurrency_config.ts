@@ -2,6 +2,7 @@ import type {
   LambdaDeleteProvisionedConcurrencyConfigParams,
   LambdaDeleteProvisionedConcurrencyConfigResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const deleteProvisionedConcurrencyConfigTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const deleteProvisionedConcurrencyConfigTool: InternalToolConfig<
   name: 'Lambda Delete Provisioned Concurrency',
   description: 'Remove the provisioned concurrency configuration from a function version or alias',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

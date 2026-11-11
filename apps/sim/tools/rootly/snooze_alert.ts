@@ -1,4 +1,5 @@
 import type { RootlyAlertActionResponse, RootlySnoozeAlertParams } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlySnoozeAlertTool: ToolConfig<RootlySnoozeAlertParams, RootlyAlertActionResponse> =
@@ -7,6 +8,7 @@ export const rootlySnoozeAlertTool: ToolConfig<RootlySnoozeAlertParams, RootlyAl
     name: 'Rootly Snooze Alert',
     description: 'Snooze a Rootly alert for a set number of minutes.',
     version: '1.0.0',
+    oauth: ROOTLY_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

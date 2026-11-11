@@ -10,6 +10,7 @@ import {
   readOtterDataObject,
   readOtterRetrievedAt,
 } from '@/tools/otter/utils'
+import { OTTER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -21,6 +22,7 @@ export const otterGetConversationAudioTool: ToolConfig<
   name: 'Otter Get Conversation Audio',
   description: 'Get the MP3 audio download link for an Otter conversation.',
   version: '1.0.0',
+  oauth: OTTER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

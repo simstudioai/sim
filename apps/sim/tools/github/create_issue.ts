@@ -5,6 +5,7 @@ import {
   MILESTONE_OUTPUT,
   USER_OUTPUT,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createIssueTool: ToolConfig<CreateIssueParams, IssueResponse> = {
@@ -12,6 +13,7 @@ export const createIssueTool: ToolConfig<CreateIssueParams, IssueResponse> = {
   name: 'GitHub Create Issue',
   description: 'Create a new issue in a GitHub repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -153,6 +155,7 @@ export const createIssueV2Tool: ToolConfig<CreateIssueParams, any> = {
   name: createIssueTool.name,
   description: createIssueTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: createIssueTool.params,
   request: createIssueTool.request,
 

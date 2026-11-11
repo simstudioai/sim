@@ -40,7 +40,10 @@ import {
   executeManualWorkflowFromBlockOperation,
   executeManualWorkflowOperation,
 } from '@/lib/workflows/application/execute-manual-workflow'
-import { executeWorkflowOperation } from '@/lib/workflows/application/execute-workflow'
+import {
+  executeWorkflowOperation,
+  executeWorkflowVersionOperation,
+} from '@/lib/workflows/application/execute-workflow'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import {
   type ExecuteWorkflowServiceFailure,
@@ -316,6 +319,8 @@ type V2ExecuteWorkflowRouteContext = {
  *
  * - Auth: `X-API-Key` (personal/workspace) or the anonymous public-API path for
  *   workflows deployed with `isPublicApi` (actor = owner; sync/stream only).
+ * - `run: { source: 'deployment', version }` runs that deployment version under
+ *   the write-role `workflows.execute_version` operation; keyed callers only.
  * - `async: true` (body flag — v2 has no mode headers) → 202
  *   `{ data: { runId, statusUrl } }`; poll the v2 runs resource.
  * - `stream: true` → SSE passthrough (no `{data}` envelope on event frames).
@@ -422,6 +427,7 @@ export const POST = withRouteHandler(
       if (!parsed.success) return parsed.response
       const body = parsed.data.body
       const manualRun = body.run?.source === 'manual' ? body.run : undefined
+      const pinnedVersion = body.run?.source === 'deployment' ? body.run.version : undefined
 
       if (manualRun && !apiKeyPrincipal) {
         return v2Error(
@@ -438,6 +444,9 @@ export const POST = withRouteHandler(
         body.input !== undefined
       ) {
         return v2Error('BAD_REQUEST', 'input and run.entry.useMockPayload cannot be combined')
+      }
+      if (pinnedVersion !== undefined && isPublicApiAccess) {
+        return v2Error('BAD_REQUEST', 'run.version requires an OAuth access token or API key')
       }
 
       const detachable = body.waitTimeoutSeconds !== undefined
@@ -541,6 +550,17 @@ export const POST = withRouteHandler(
               triggerBlockId: manualRun.entry?.blockId,
               useMockPayload: manualRun.entry?.useMockPayload === true,
               stopAfterBlockId: manualRun.stopAfterBlockId,
+            },
+            request: req,
+          })
+        } else if (pinnedVersion !== undefined) {
+          result = await executeWorkflowVersionOperation.execute({
+            principal: apiKeyPrincipal,
+            input: {
+              ...commonInput,
+              input: body.input ?? {},
+              mode: body.async ? 'async' : body.stream ? 'stream' : syncMode,
+              version: pinnedVersion,
             },
             request: req,
           })

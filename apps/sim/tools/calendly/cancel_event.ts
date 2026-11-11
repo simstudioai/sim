@@ -1,5 +1,6 @@
 import type { CalendlyCancelEventParams, CalendlyCancelEventResponse } from '@/tools/calendly/types'
 import { toUuid } from '@/tools/calendly/utils'
+import { CALENDLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const cancelEventTool: ToolConfig<CalendlyCancelEventParams, CalendlyCancelEventResponse> = {
@@ -7,6 +8,7 @@ export const cancelEventTool: ToolConfig<CalendlyCancelEventParams, CalendlyCanc
   name: 'Calendly Cancel Event',
   description: 'Cancel a scheduled event',
   version: '1.0.0',
+  oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

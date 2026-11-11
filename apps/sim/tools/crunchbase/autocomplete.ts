@@ -16,6 +16,7 @@ import {
   readJson,
 } from '@/tools/crunchbase/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { CRUNCHBASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const crunchbaseAutocompleteTool: ToolConfig<
@@ -27,6 +28,7 @@ export const crunchbaseAutocompleteTool: ToolConfig<
   description:
     'Suggest Crunchbase entities matching a typed query, returning the permalinks and UUIDs the lookup and search operations take.',
   version: '1.0.0',
+  oauth: CRUNCHBASE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.CRUNCHBASE_ERRORS,
 
   params: {

@@ -2,6 +2,7 @@ import type {
   CloudWatchGetLogEventsParams,
   CloudWatchGetLogEventsResponse,
 } from '@/tools/cloudwatch/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getLogEventsTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const getLogEventsTool: InternalToolConfig<
   name: 'CloudWatch Get Log Events',
   description: 'Retrieve log events from a specific CloudWatch log stream',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

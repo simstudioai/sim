@@ -1,4 +1,5 @@
 import type { SentryListProjectsParams, SentryListProjectsResponse } from '@/tools/sentry/types'
+import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listProjectsTool: ToolConfig<SentryListProjectsParams, SentryListProjectsResponse> = {
@@ -7,6 +8,7 @@ export const listProjectsTool: ToolConfig<SentryListProjectsParams, SentryListPr
   description:
     'List all projects in a Sentry organization. Returns project details including name, platform, teams, and configuration.',
   version: '1.0.0',
+  oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,7 +1,7 @@
 import { BufferIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta, SubBlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 import { getToolMetadata } from '@/tools/metadata'
 
 const POST_EDIT_OPS = ['create_post', 'edit_post']
@@ -39,6 +39,8 @@ function timestampWand(purpose: string): NonNullable<SubBlockConfig['wandConfig'
 
 export const BufferBlock: BlockConfig = {
   type: 'buffer',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'buffer_v2' },
   name: 'Buffer',
   description: 'Schedule and publish social media posts across connected channels',
   longDescription:
@@ -926,3 +928,17 @@ export const BufferBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const BufferV2Block: BlockConfig = {
+  ...BufferBlock,
+  type: 'buffer_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(BufferBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'buffer',
+    title: 'Buffer Credential',
+  }),
+}

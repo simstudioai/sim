@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TriggerDevListTimezonesParams,
   TriggerDevListTimezonesResponse,
@@ -14,6 +15,7 @@ export const triggerDevListTimezonesTool: ToolConfig<
   description:
     'List the IANA timezones supported by Trigger.dev schedules, for use as the timezone of a cron schedule.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

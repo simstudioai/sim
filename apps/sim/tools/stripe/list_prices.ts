@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ListPricesParams, PriceListResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const stripeListPricesTool: ToolConfig<ListPricesParams, PriceListRespons
   name: 'Stripe List Prices',
   description: 'List all prices',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

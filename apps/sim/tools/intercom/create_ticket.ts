@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('IntercomCreateTicket')
@@ -136,6 +137,7 @@ export const intercomCreateTicketTool: ToolConfig<
   name: 'Create Ticket in Intercom',
   description: 'Create a new ticket in Intercom',
   version: '1.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...createTicketBase,
 
@@ -209,6 +211,7 @@ export const intercomCreateTicketV2Tool: ToolConfig<
   name: 'Create Ticket in Intercom',
   description: 'Create a new ticket in Intercom. Returns API-aligned fields only.',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

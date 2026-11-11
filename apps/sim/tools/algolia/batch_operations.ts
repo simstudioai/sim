@@ -2,6 +2,7 @@ import type {
   AlgoliaBatchOperationsParams,
   AlgoliaBatchOperationsResponse,
 } from '@/tools/algolia/types'
+import { ALGOLIA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const batchOperationsTool: ToolConfig<
@@ -13,6 +14,7 @@ export const batchOperationsTool: ToolConfig<
   description:
     'Perform batch add, update, partial update, or delete operations on records in an Algolia index',
   version: '1.0',
+  oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {
     applicationId: {

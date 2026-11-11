@@ -5,7 +5,7 @@ import {
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { DocuSignOperationError } from '@/lib/internal/docusign/errors'
-import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
+import { getDocusignOAuthUrl, parseDocuSignAccountApiBase } from '@/lib/oauth/docusign'
 
 const MAX_DOCUSIGN_JSON_BYTES = 2 * 1024 * 1024
 export const MAX_DOCUSIGN_DOCUMENT_BYTES = 25 * 1024 * 1024
@@ -60,7 +60,23 @@ export class DocuSignClient {
     private readonly apiBase: string
   ) {}
 
-  static async create(accessToken: string, signal?: AbortSignal): Promise<DocuSignClient> {
+  /**
+   * Binds a client to one account. A JWT Grant credential arrives with
+   * `accountApiBase` already resolved from its own environment at mint time; an
+   * OAuth token resolves the user's default account through `/oauth/userinfo`
+   * on the deployment's DocuSign host.
+   */
+  static async create(
+    accessToken: string,
+    signal?: AbortSignal,
+    accountApiBase?: string
+  ): Promise<DocuSignClient> {
+    if (accountApiBase) {
+      if (!parseDocuSignAccountApiBase(accountApiBase)) {
+        throw new DocuSignOperationError('DocuSign credential account URL is invalid', 400)
+      }
+      return new DocuSignClient(accessToken, accountApiBase)
+    }
     const response = await fetchDocusign(
       getDocusignOAuthUrl('/oauth/userinfo'),
       { headers: { Authorization: `Bearer ${accessToken}` } },

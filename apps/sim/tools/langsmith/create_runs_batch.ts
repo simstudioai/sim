@@ -10,6 +10,7 @@ import {
   prepareLangsmithPatchPayload,
   truncateLangsmithErrorText,
 } from '@/tools/langsmith/utils'
+import { LANGSMITH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const langsmithCreateRunsBatchTool: ToolConfig<
@@ -20,6 +21,7 @@ export const langsmithCreateRunsBatchTool: ToolConfig<
   name: 'LangSmith Create Runs Batch',
   description: 'Forward multiple runs to LangSmith in a single batch.',
   version: '1.0.0',
+  oauth: LANGSMITH_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

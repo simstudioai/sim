@@ -1,4 +1,5 @@
 import type { HexGetGroupParams, HexGetGroupResponse } from '@/tools/hex/types'
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getGroupTool: ToolConfig<HexGetGroupParams, HexGetGroupResponse> = {
@@ -6,6 +7,7 @@ export const getGroupTool: ToolConfig<HexGetGroupParams, HexGetGroupResponse> = 
   name: 'Hex Get Group',
   description: 'Retrieve details for a specific Hex group.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -20,7 +20,12 @@ import { POST } from '@/app/api/v2/workflows/move/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const auth = {
-  principal: { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_ID, keyId: 'ws-key-1' },
+  principal: {
+    kind: 'workspace_api_key' as const,
+    workspaceId: WORKSPACE_ID,
+    keyId: 'ws-key-1',
+    access: 'write' as const,
+  },
   rateLimitSubjectIds: ['api-key:ws-key-1'] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,

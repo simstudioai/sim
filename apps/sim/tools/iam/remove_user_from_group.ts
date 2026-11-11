@@ -1,4 +1,5 @@
 import type { IAMGroupMembershipResponse, IAMRemoveUserFromGroupParams } from '@/tools/iam/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const removeUserFromGroupTool: InternalToolConfig<
@@ -9,6 +10,7 @@ export const removeUserFromGroupTool: InternalToolConfig<
   name: 'IAM Remove User from Group',
   description: 'Remove an IAM user from a group',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

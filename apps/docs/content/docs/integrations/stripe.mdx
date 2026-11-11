@@ -2,7 +2,7 @@
 title: Stripe
 description: Process payments and manage Stripe data
 integration:
-  type: "stripe"
+  type: "stripe_v2"
   color: "#635BFF"
 ---
 
@@ -29,7 +29,6 @@ Create a new Payment Intent to process a payment
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `amount` | number | Yes | Amount in the currency’s smallest unit \(e.g., 2000 for 20.00 USD\) |
 | `currency` | string | Yes | Three-letter ISO currency code \(e.g., usd, eur\) |
 | `customer` | string | No | Customer ID to associate with this payment |
@@ -108,7 +107,6 @@ Retrieve an existing Payment Intent by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Payment Intent ID \(e.g., pi_1234567890\) |
 
 #### Output
@@ -180,7 +178,6 @@ Update an existing Payment Intent
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Payment Intent ID \(e.g., pi_1234567890\) |
 | `amount` | number | No | Updated amount in the currency’s smallest unit |
 | `currency` | string | No | Three-letter ISO currency code |
@@ -257,7 +254,6 @@ Confirm a Payment Intent and inspect its resulting status. Confirmation can requ
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Payment Intent ID \(e.g., pi_1234567890\) |
 | `payment_method` | string | No | Payment method ID to confirm with |
 
@@ -330,7 +326,6 @@ Capture an authorized Payment Intent
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Payment Intent ID \(e.g., pi_1234567890\) |
 | `amount_to_capture` | number | No | Amount to capture in the currency’s smallest unit \(defaults to the full amount\) |
 
@@ -403,7 +398,6 @@ Cancel a Payment Intent
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Payment Intent ID \(e.g., pi_1234567890\) |
 | `cancellation_reason` | string | No | Reason for cancellation \(duplicate, fraudulent, requested_by_customer, abandoned\) |
 
@@ -476,7 +470,6 @@ List all Payment Intents
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 | `customer` | string | No | Filter by customer ID |
 | `created` | json | No | Filter by creation date \(e.g., \{"gt": 1633024800\}\) |
@@ -548,7 +541,6 @@ Search for Payment Intents using query syntax
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `query` | string | Yes | Search query \(e.g., "status:'succeeded' AND currency:'usd'"\) |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 
@@ -619,7 +611,6 @@ Create a new customer object
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `email` | string | No | Customer email address |
 | `name` | string | No | Customer full name |
 | `phone` | string | No | Customer phone number |
@@ -687,7 +678,6 @@ Retrieve an existing customer by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Customer ID \(e.g., cus_1234567890\) |
 
 #### Output
@@ -749,7 +739,6 @@ Update an existing customer
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Customer ID \(e.g., cus_1234567890\) |
 | `email` | string | No | Updated email address |
 | `name` | string | No | Updated name |
@@ -817,7 +806,6 @@ Permanently delete a customer
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Customer ID \(e.g., cus_1234567890\) |
 
 #### Output
@@ -839,7 +827,6 @@ List all customers
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 | `email` | string | No | Filter by email address |
 | `created` | json | No | Filter by creation date |
@@ -902,7 +889,6 @@ Search for customers using query syntax
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `query` | string | Yes | Search query \(e.g., "email:'customer@example.com'"\) |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 
@@ -964,7 +950,6 @@ Create a new subscription for a customer
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `customer` | string | Yes | Customer ID to subscribe |
 | `items` | json | Yes | Array of items with price IDs \(e.g., \[\{"price": "price_xxx", "quantity": 1\}\]\) |
 | `trial_period_days` | number | No | Number of trial days |
@@ -1050,7 +1035,6 @@ Retrieve an existing subscription by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Subscription ID \(e.g., sub_1234567890\) |
 
 #### Output
@@ -1131,7 +1115,6 @@ Update an existing subscription
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Subscription ID \(e.g., sub_1234567890\) |
 | `items` | json | No | Updated array of items with price IDs |
 | `cancel_at_period_end` | boolean | No | Cancel subscription at period end |
@@ -1215,7 +1198,6 @@ Cancel a subscription
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Subscription ID \(e.g., sub_1234567890\) |
 | `prorate` | boolean | No | Whether to prorate the cancellation |
 | `invoice_now` | boolean | No | Whether to invoice immediately |
@@ -1298,7 +1280,6 @@ Resume a paused subscription
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Subscription ID \(e.g., sub_1234567890\) |
 
 #### Output
@@ -1379,7 +1360,6 @@ List one page of subscriptions. Follow starting_after while metadata.has_more is
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 | `customer` | string | No | Filter by customer ID |
 | `status` | string | No | Filter by status \(active, past_due, unpaid, canceled, incomplete, incomplete_expired, trialing, all\) |
@@ -1464,7 +1444,6 @@ Search one page of subscriptions using query syntax. Pass metadata.next_page as 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `query` | string | Yes | Search query \(e.g., "status:'active' AND metadata\['order_id'\]:'6735'"\) |
 | `page` | string | No | Pagination token from metadata.next_page. Omit for the first page and keep the same query. |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
@@ -1547,7 +1526,6 @@ Create a new invoice
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `customer` | string | Yes | Customer ID \(e.g., cus_1234567890\) |
 | `description` | string | No | Description of the invoice |
 | `metadata` | json | No | Set of key-value pairs |
@@ -1711,7 +1689,6 @@ Retrieve an existing invoice by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Invoice ID \(e.g., in_1234567890\) |
 
 #### Output
@@ -1871,7 +1848,6 @@ Update an existing invoice
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Invoice ID \(e.g., in_1234567890\) |
 | `description` | string | No | Description of the invoice |
 | `metadata` | json | No | Set of key-value pairs |
@@ -2034,7 +2010,6 @@ Permanently delete a draft invoice
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Invoice ID \(e.g., in_1234567890\) |
 
 #### Output
@@ -2056,7 +2031,6 @@ Finalize a draft invoice
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Invoice ID \(e.g., in_1234567890\) |
 | `auto_advance` | boolean | No | Auto-advance the invoice |
 
@@ -2217,7 +2191,6 @@ Pay an invoice
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Invoice ID \(e.g., in_1234567890\) |
 | `paid_out_of_band` | boolean | No | Mark invoice as paid out of band |
 
@@ -2378,7 +2351,6 @@ Void an invoice
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Invoice ID \(e.g., in_1234567890\) |
 
 #### Output
@@ -2538,7 +2510,6 @@ Send an invoice to the customer
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Invoice ID \(e.g., in_1234567890\) |
 
 #### Output
@@ -2564,7 +2535,6 @@ List all invoices
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 | `customer` | string | No | Filter by customer ID |
 | `status` | string | No | Filter by invoice status |
@@ -2590,7 +2560,6 @@ Search for invoices using query syntax
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `query` | string | Yes | Search query \(e.g., "customer:'cus_1234567890'"\) |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 
@@ -2615,7 +2584,6 @@ Create a new charge to process a payment
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `amount` | number | Yes | Amount in the currency’s smallest unit \(e.g., 2000 for 20.00 USD\) |
 | `currency` | string | Yes | Three-letter ISO currency code \(e.g., usd, eur\) |
 | `customer` | string | No | Customer ID to associate with this charge |
@@ -2648,7 +2616,6 @@ Retrieve an existing charge by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Charge ID \(e.g., ch_1234567890\) |
 
 #### Output
@@ -2675,7 +2642,6 @@ Update an existing charge
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Charge ID \(e.g., ch_1234567890\) |
 | `description` | string | No | Updated description |
 | `metadata` | json | No | Updated metadata |
@@ -2704,7 +2670,6 @@ Capture an uncaptured charge
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Charge ID \(e.g., ch_1234567890\) |
 | `amount` | number | No | Amount to capture in the currency’s smallest unit \(defaults to the full amount\) |
 
@@ -2732,7 +2697,6 @@ List all charges
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 | `customer` | string | No | Filter by customer ID |
 | `created` | json | No | Filter by creation date \(e.g., \{"gt": 1633024800\}\) |
@@ -2758,7 +2722,6 @@ Search for charges using query syntax
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `query` | string | Yes | Search query \(e.g., "status:'succeeded' AND currency:'usd'"\) |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 
@@ -2783,7 +2746,6 @@ Create a new product object
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `name` | string | Yes | Product name |
 | `description` | string | No | Product description |
 | `active` | boolean | No | Whether the product is active |
@@ -2812,7 +2774,6 @@ Retrieve an existing product by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Product ID \(e.g., prod_1234567890\) |
 
 #### Output
@@ -2837,7 +2798,6 @@ Update an existing product
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Product ID \(e.g., prod_1234567890\) |
 | `name` | string | No | Updated product name |
 | `description` | string | No | Updated product description |
@@ -2867,7 +2827,6 @@ Permanently delete a product
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Product ID \(e.g., prod_1234567890\) |
 
 #### Output
@@ -2889,7 +2848,6 @@ List all products
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 | `active` | boolean | No | Filter by active status |
 
@@ -2914,7 +2872,6 @@ Search for products using query syntax
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `query` | string | Yes | Search query \(e.g., "name:'shirt'"\) |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 
@@ -2939,7 +2896,6 @@ Create a new price for a product
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `product` | string | Yes | Product ID \(e.g., prod_1234567890\) |
 | `currency` | string | Yes | Three-letter ISO currency code \(e.g., usd, eur\) |
 | `unit_amount` | number | No | Amount in the currency’s smallest unit \(e.g., 1000 for 10.00 USD\) |
@@ -2970,7 +2926,6 @@ Retrieve an existing price by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Price ID \(e.g., price_1234567890\) |
 
 #### Output
@@ -2996,7 +2951,6 @@ Update an existing price
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Price ID \(e.g., price_1234567890\) |
 | `active` | boolean | No | Whether the price is active |
 | `metadata` | json | No | Updated metadata |
@@ -3024,7 +2978,6 @@ List all prices
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 | `product` | string | No | Filter by product ID |
 | `active` | boolean | No | Filter by active status |
@@ -3050,7 +3003,6 @@ Search for prices using query syntax
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `query` | string | Yes | Search query \(e.g., "active:'true' AND currency:'usd'"\) |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 
@@ -3075,7 +3027,6 @@ Retrieve an existing Event by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Event ID \(e.g., evt_1234567890\) |
 
 #### Output
@@ -3100,7 +3051,6 @@ List all Events
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 | `type` | string | No | Filter by event type \(e.g., payment_intent.created\) |
 | `created` | json | No | Filter by creation date \(e.g., \{"gt": 1633024800\}\) |

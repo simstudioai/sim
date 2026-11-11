@@ -8,6 +8,7 @@ import {
   PERSONA_API_BASE,
   parsePersonaResponse,
 } from '@/tools/persona/utils'
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const personaListCasesTool: ToolConfig<PersonaListCasesParams, PersonaListCasesResponse> = {
@@ -16,6 +17,7 @@ export const personaListCasesTool: ToolConfig<PersonaListCasesParams, PersonaLis
   description:
     'List manual review cases, optionally filtered by status, account ID, or reference ID. Results are cursor-paginated.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

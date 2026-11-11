@@ -6,6 +6,7 @@ import type {
   OktaListAppUsersResponse,
 } from '@/tools/okta/types'
 import { oktaHeaders, parseOktaPagination, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaListAppUsers')
@@ -16,6 +17,7 @@ export const oktaListAppUsersTool: ToolConfig<OktaListAppUsersParams, OktaListAp
   description:
     'List the users assigned to an Okta application, including how each assignment was made and its provisioning sync state. Use this to audit who has access to an app.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,4 +1,5 @@
 import type { ApolloContactSearchParams, ApolloContactSearchResponse } from '@/tools/apollo/types'
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apolloContactSearchTool: ToolConfig<
@@ -9,6 +10,7 @@ export const apolloContactSearchTool: ToolConfig<
   name: 'Apollo Search Contacts',
   description: "Search your team's contacts in Apollo",
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

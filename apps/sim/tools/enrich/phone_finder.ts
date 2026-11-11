@@ -1,4 +1,5 @@
 import type { EnrichPhoneFinderParams, EnrichPhoneFinderResponse } from '@/tools/enrich/types'
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const phoneFinderTool: ToolConfig<EnrichPhoneFinderParams, EnrichPhoneFinderResponse> = {
@@ -6,6 +7,7 @@ export const phoneFinderTool: ToolConfig<EnrichPhoneFinderParams, EnrichPhoneFin
   name: 'Enrich Phone Finder',
   description: 'Find a phone number from a LinkedIn profile URL.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

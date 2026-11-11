@@ -1,6 +1,7 @@
 import { DevinIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 const SESSION_OBJECT_OPERATIONS = [
   'create_session',
@@ -12,6 +13,8 @@ const SESSION_OBJECT_OPERATIONS = [
 
 export const DevinBlock: BlockConfig = {
   type: 'devin',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'devin_v2' },
   name: 'Devin',
   description: 'Autonomous AI software engineer',
   longDescription:
@@ -451,3 +454,17 @@ export const DevinBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const DevinV2Block: BlockConfig = {
+  ...DevinBlock,
+  type: 'devin_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(DevinBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'devin',
+    title: 'Devin Credential',
+  }),
+}

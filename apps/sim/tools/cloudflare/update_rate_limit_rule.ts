@@ -13,6 +13,7 @@ import {
   parseJsonObjectParam,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -25,6 +26,7 @@ export const updateRateLimitRuleTool: ToolConfig<
   description:
     'Updates a rate limiting rule in the http_ratelimit phase entry point ruleset of a zone, using the current Rulesets-based rate limiting API. Cloudflare replaces the rule definition rather than merging it, so send the complete rule — every field you omit is reset. Run "List Rate Limiting Rules" first to read the current definition and get the ruleset ID. Requires an API token with Zone WAF Edit.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     exposed_credential_check: {

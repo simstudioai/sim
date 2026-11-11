@@ -9,6 +9,7 @@ import {
   databricksUrl,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const cancelAllRunsTool: ToolConfig<
@@ -19,6 +20,7 @@ export const cancelAllRunsTool: ToolConfig<
   name: 'Databricks Cancel All Runs',
   description: 'Request cancellation of active runs of a job or queued runs in the workspace.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     jobId: {

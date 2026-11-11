@@ -2,6 +2,7 @@ import type {
   CloudTrailDescribeQueryParams,
   CloudTrailDescribeQueryResponse,
 } from '@/tools/cloudtrail/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeQueryTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const describeQueryTool: InternalToolConfig<
   name: 'CloudTrail Describe Query',
   description: 'Check the status, run time, and scan statistics of a CloudTrail Lake query',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

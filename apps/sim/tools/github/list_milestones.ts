@@ -1,4 +1,5 @@
 import { MILESTONE_CREATOR_OUTPUT, MILESTONE_V2_OUTPUT_PROPERTIES } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface ListMilestonesParams {
@@ -37,6 +38,7 @@ export const listMilestonesTool: ToolConfig<ListMilestonesParams, ListMilestones
   name: 'GitHub List Milestones',
   description: 'List milestones in a repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -188,6 +190,7 @@ export const listMilestonesV2Tool: ToolConfig<ListMilestonesParams, any> = {
   name: listMilestonesTool.name,
   description: listMilestonesTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listMilestonesTool.params,
   request: listMilestonesTool.request,
 

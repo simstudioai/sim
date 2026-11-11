@@ -2,6 +2,7 @@ import type {
   BrightDataDownloadSnapshotParams,
   BrightDataDownloadSnapshotResponse,
 } from '@/tools/brightdata/types'
+import { BRIGHTDATA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brightDataDownloadSnapshotTool: ToolConfig<
@@ -13,6 +14,7 @@ export const brightDataDownloadSnapshotTool: ToolConfig<
   description:
     'Download the results of a completed Bright Data scraping job using its snapshot ID. The snapshot must have ready status.',
   version: '1.0.0',
+  oauth: BRIGHTDATA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,7 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { decryptApiKey, encryptApiKey } from '@/lib/api-key/crypto'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { GitLabCsvValidationError } from '@/connectors/gitlab/permission-config/parser'
 import {
   loadGitLabPermissionSnapshot,
   type PreparedGitLabPermissions,
@@ -76,21 +75,10 @@ export async function prepareGitLabPermissionChange(input: {
             getErrorMessage(error, 'Unable to validate the GitLab token and project.')
           )
         })
-  try {
-    return {
-      permissions: prepareGitLabPermissions(
-        permissions,
-        project,
-        existing,
-        Boolean(input.existing)
-      ),
-      ...(input.existing && input.apiKey
-        ? { encryptedApiKey: (await encryptApiKey(input.apiKey)).encrypted }
-        : {}),
-    }
-  } catch (error) {
-    if (error instanceof GitLabCsvValidationError)
-      throw new OrchestrationError('validation', error.message)
-    throw error
+  return {
+    permissions: prepareGitLabPermissions(permissions, project, existing, Boolean(input.existing)),
+    ...(input.existing && input.apiKey
+      ? { encryptedApiKey: (await encryptApiKey(input.apiKey)).encrypted }
+      : {}),
   }
 }

@@ -2,6 +2,7 @@ import type {
   AgentPhoneDeleteContactParams,
   AgentPhoneDeleteContactResult,
 } from '@/tools/agentphone/types'
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentphoneDeleteContactTool: ToolConfig<
@@ -12,6 +13,7 @@ export const agentphoneDeleteContactTool: ToolConfig<
   name: 'Delete Contact',
   description: 'Delete a contact by ID',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -20,12 +20,14 @@ import {
 import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   createOutboundTransport,
+  EgressRefusedError,
   requestWithOutboundDispatcher,
 } from '@/lib/core/network/transport.server'
 import { describeEgressDenial, type EgressProfile } from '@/lib/core/security/egress/profiles'
 import {
   checkEgressUrl,
   checkResolvedEgress,
+  type EgressRefusal,
   type EgressValidationOptions,
   validateEgressUrl,
 } from '@/lib/core/security/egress/validate'
@@ -48,6 +50,8 @@ export type AsyncValidationResult =
       isValid: false
       error: string
       cause?: unknown
+      /** Set by {@link validateUrlWithDNS}: a failed lookup, or a destination the policy refused. */
+      refusal?: EgressRefusal
       resolvedIP?: undefined
       originalHostname?: undefined
     }
@@ -74,7 +78,7 @@ export async function validateUrlWithDNS(
   const result = await validateEgressUrl(url, paramName, profile, options)
   return result.isValid
     ? { isValid: true, resolvedIP: result.resolvedIP, originalHostname: result.originalHostname }
-    : { isValid: false, error: result.error, cause: result.cause }
+    : { isValid: false, error: result.error, cause: result.cause, refusal: result.refusal }
 }
 
 /**
@@ -893,8 +897,7 @@ async function undiciRequestAsResponse(
     return response
   }
 
-  // Decode Content-Encoding like `fetch` does (`request()` returns raw bytes). `maxResponseSize`
-  // still caps the compressed wire bytes on `body`.
+  // Decode Content-Encoding like `fetch` does (`request()` returns raw bytes).
   const contentEncoding = String(headers['content-encoding'] ?? '')
     .toLowerCase()
     .trim()
@@ -909,13 +912,16 @@ async function undiciRequestAsResponse(
   // AFTER it means a synchronous zlib error (e.g. a server mislabeling a non-gzip body as gzip)
   // is caught and rejects the reader instead of taking down the process.
   let webBody = nodeReadableToWebStream(decoder ?? body)
-  if (decoder && maxResponseSize !== undefined && maxResponseSize >= 0) {
-    let decodedBytes = 0
+  // Counted here rather than left to the dispatcher: undici's ProxyAgent forwards plain-http
+  // requests through a client that drops `maxResponseSize`, and a decoder's output is larger
+  // than the wire bytes the dispatcher counts.
+  if (maxResponseSize !== undefined && maxResponseSize >= 0) {
+    let bodyBytes = 0
     webBody = webBody.pipeThrough(
       new TransformStream<Uint8Array, Uint8Array>({
         transform(chunk, controller) {
-          decodedBytes += chunk.byteLength
-          if (decodedBytes > maxResponseSize) throw new errors.ResponseExceededMaxSizeError()
+          bodyBytes += chunk.byteLength
+          if (bodyBytes > maxResponseSize) throw new errors.ResponseExceededMaxSizeError()
           controller.enqueue(chunk)
         },
       })
@@ -1005,7 +1011,7 @@ function createValidatedFetch(
 ): { fetch: typeof fetch; dispatcher: OutboundFetchDispatcher } {
   const dispatcher = createOutboundTransport({ ...options, direct })
   const rawFetch = async (url: string, init: UndiciRequestInit): Promise<Response> => {
-    const selected = await dispatcher.selectDispatcher()
+    const selected = await dispatcher.selectDispatcher(url, init.signal ?? undefined)
     if (!selected) throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
     return undiciRequestAsResponse(url, init, selected, options.maxResponseSize)
   }
@@ -1155,7 +1161,7 @@ export async function secureFetchWithPinnedIP(
     resolvedIP,
     proxyUrl: options.proxyUrl,
   })
-  const outboundDispatcher = await transport.selectDispatcher()
+  const outboundDispatcher = await transport.selectDispatcher(url, options.signal)
 
   return new Promise((resolve, reject) => {
     const parsed = new URL(url)
@@ -1580,7 +1586,7 @@ export async function secureFetchWithPinnedIP(
  * @param options - Fetch options, including the required egress `profile`
  * @param paramName - Name of the parameter for error messages (default: 'url')
  * @returns SecureFetchResponse
- * @throws Error if URL validation fails
+ * @throws EgressRefusedError if the egress policy refuses the URL, Error if its host cannot be resolved
  */
 export async function secureFetchWithValidation(
   url: string,
@@ -1592,6 +1598,7 @@ export async function secureFetchWithValidation(
     signal: options.signal,
   })
   if (!validation.isValid) {
+    if (validation.refusal === 'policy') throw new EgressRefusedError(validation.error)
     throw new Error(validation.error, { cause: validation.cause })
   }
   return secureFetchWithPinnedIP(url, validation.resolvedIP, options)

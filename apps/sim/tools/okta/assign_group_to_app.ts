@@ -6,6 +6,7 @@ import type {
   OktaAssignGroupToAppResponse,
 } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaAssignGroupToApp')
@@ -19,6 +20,7 @@ export const oktaAssignGroupToAppTool: ToolConfig<
   description:
     'Assign a group to an Okta application so every member of the group inherits access to it.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

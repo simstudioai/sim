@@ -10,6 +10,7 @@ import {
   parseDatabricksJson,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createClusterTool: ToolConfig<
@@ -21,6 +22,7 @@ export const createClusterTool: ToolConfig<
   description:
     'Create a compute cluster with runtime, sizing, policy, and cloud-specific settings.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     applyPolicyDefaultValues: {

@@ -11,6 +11,7 @@ import {
   transformEntity,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityGetListEntryFieldTool: ToolConfig<
@@ -21,6 +22,7 @@ export const affinityGetListEntryFieldTool: ToolConfig<
   name: 'Affinity Get List Entry Field',
   description: 'Read one field value on a list row.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

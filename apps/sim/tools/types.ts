@@ -127,6 +127,9 @@ export interface ToolResponse {
   }
 }
 
+/** A field of a resolved saved credential that can fill a tool param. */
+export type CredentialParamSource = 'accessToken' | 'domain' | 'providerWorkspaceId'
+
 export interface OAuthConfig {
   required: boolean // Whether this tool requires OAuth authentication
   provider: OAuthService // The service that needs to be authorized
@@ -137,6 +140,20 @@ export interface OAuthConfig {
   credentialKind?: 'oauth' | 'service-account'
   /** Retry one rejected internal operation after re-authorizing its saved credential. */
   retryOnUnauthorized?: boolean
+  /**
+   * Inline params a saved credential supplies instead, on a tool that accepts
+   * either (`required: false`). A block that offers only the credential has no
+   * field for them, so required-field validation does not ask for them.
+   */
+  credentialSuppliedParams?: readonly string[]
+  /**
+   * Where each credential-supplied param comes from in the resolved saved
+   * credential. The executor fills these after authorization, overriding any
+   * caller-supplied value, and fails closed when the credential lacks a field.
+   * Built by `tokenCredentialOAuth`; providers that resolve inside their own
+   * operation instead (AWS session keys) leave it unset.
+   */
+  credentialParams?: Readonly<Record<string, CredentialParamSource>>
   /** Token-response fields that must replace any caller-supplied tool parameter of the same name. */
   authoritativeParams?: readonly (
     | 'apiDomain'
@@ -314,7 +331,9 @@ export interface ToolConfig<P = any, R = any> {
   postProcess?: (
     result: R extends ToolResponse ? R : ToolResponse,
     params: P,
-    executeTool: (toolId: string, params: Record<string, any>) => Promise<ToolResponse>
+    executeTool: (toolId: string, params: Record<string, any>) => Promise<ToolResponse>,
+    /** The run's abort signal, the same one the tool's own request used. */
+    context?: { signal?: AbortSignal }
   ) => Promise<R extends ToolResponse ? R : ToolResponse>
 
   // Response handling

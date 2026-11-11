@@ -1,3 +1,4 @@
+import { PROFOUND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ProfoundCategoryTopicsParams, ProfoundCategoryTopicsResponse } from './types'
 
@@ -9,6 +10,7 @@ export const profoundCategoryTopicsTool: ToolConfig<
   name: 'Profound Category Topics',
   description: 'List topics for a specific category in Profound',
   version: '1.0.0',
+  oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

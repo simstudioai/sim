@@ -1,4 +1,5 @@
 import type { LemlistGetLeadParams, LemlistGetLeadResponse } from '@/tools/lemlist/types'
+import { LEMLIST_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getLeadTool: ToolConfig<LemlistGetLeadParams, LemlistGetLeadResponse> = {
@@ -6,6 +7,7 @@ export const getLeadTool: ToolConfig<LemlistGetLeadParams, LemlistGetLeadRespons
   name: 'Lemlist Get Lead',
   description: 'Retrieves lead information by email address or lead ID.',
   version: '1.0.0',
+  oauth: LEMLIST_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

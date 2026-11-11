@@ -2,7 +2,7 @@
 title: Telegram
 description: Interact with Telegram
 integration:
-  type: "telegram"
+  type: "telegram_v2"
   color: "#FFFFFF"
 ---
 
@@ -27,7 +27,7 @@ The [webhook setup video](https://www.youtube.com/embed/9oKcJtQ0_IM) also demons
 
 1. Add the bot to the group and grant the permissions needed by the action.
 2. Obtain the group's numeric chat ID from a bot message update, such as the trigger's `message.raw.chat.id`. Group IDs can be negative.
-3. Add a Telegram action block, select **Send Message**, and set **Bot Token**, **Chat ID**, and **Message**.
+3. Add a Telegram action block, select **Send Message**, choose a **Telegram Credential** (a saved bot token), and set **Chat ID** and **Message**.
 4. Run the workflow and verify the message in the group.
 
 The [group messaging video](https://www.youtube.com/embed/AG55LpUreGI) demonstrates the block configuration. Bot privacy settings affect which group messages Telegram delivers; receiving a command addressed to the bot can help verify the trigger before changing those settings.
@@ -49,7 +49,6 @@ Send a text message through the Telegram Bot API. Markdown is converted to Teleg
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `botToken` | string | Yes | Your Telegram Bot API Token |
 | `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
 | `text` | string | Yes | Message text to send |
 
@@ -85,7 +84,6 @@ Delete messages in Telegram channels or chats through the Telegram Bot API. Requ
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `botToken` | string | Yes | Your Telegram Bot API Token |
 | `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
 | `messageId` | string | Yes | Telegram message ID \(numeric identifier of the message to delete\) |
 
@@ -110,7 +108,6 @@ Send photos to Telegram channels or users through the Telegram Bot API.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `botToken` | string | Yes | Your Telegram Bot API Token |
 | `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
 | `photo` | string | Yes | Photo to send. Pass a file_id or HTTP URL |
 | `caption` | string | No | Photo caption \(optional\) |
@@ -153,7 +150,6 @@ Send videos to Telegram channels or users through the Telegram Bot API.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `botToken` | string | Yes | Your Telegram Bot API Token |
 | `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
 | `video` | string | Yes | Video to send. Pass a file_id or HTTP URL |
 | `caption` | string | No | Video caption \(optional\) |
@@ -229,7 +225,6 @@ Send audio files to Telegram channels or users through the Telegram Bot API.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `botToken` | string | Yes | Your Telegram Bot API Token |
 | `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
 | `audio` | string | Yes | Audio file to send. Pass a file_id or HTTP URL |
 | `caption` | string | No | Audio caption \(optional\) |
@@ -275,7 +270,6 @@ Send animations (GIFs) to Telegram channels or users through the Telegram Bot AP
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `botToken` | string | Yes | Your Telegram Bot API Token |
 | `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
 | `animation` | string | Yes | Animation to send. Pass a file_id or HTTP URL |
 | `caption` | string | No | Animation caption \(optional\) |
@@ -351,7 +345,6 @@ Send documents (PDF, ZIP, DOC, etc.) to Telegram channels or users through the T
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `botToken` | string | Yes | Your Telegram Bot API Token |
 | `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
 | `files` | file[] | No | Document file to send \(PDF, ZIP, DOC, etc.\). Max size: 50MB |
 | `caption` | string | No | Document caption \(optional\) |
@@ -394,7 +387,6 @@ Edit the text of an existing message in a Telegram chat or channel through the T
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `botToken` | string | Yes | Your Telegram Bot API Token |
 | `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
 | `messageId` | number | Yes | Identifier of the message to edit |
 | `text` | string | Yes | New text of the message |
@@ -421,7 +413,6 @@ Forward a message from one Telegram chat to another through the Telegram Bot API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `botToken` | string | Yes | Your Telegram Bot API Token |
 | `chatId` | string | Yes | Destination chat ID \(numeric, can be negative for groups\) |
 | `fromChatId` | string | Yes | Source chat ID the original message belongs to |
 | `messageId` | number | Yes | Identifier of the message to forward in the source chat |
@@ -448,7 +439,6 @@ Copy a message to another Telegram chat without a forward header through the Tel
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `botToken` | string | Yes | Your Telegram Bot API Token |
 | `chatId` | string | Yes | Destination chat ID \(numeric, can be negative for groups\) |
 | `fromChatId` | string | Yes | Source chat ID the original message belongs to |
 | `messageId` | number | Yes | Identifier of the message to copy in the source chat |
@@ -474,7 +464,6 @@ Send a point on the map to a Telegram chat through the Telegram Bot API.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `botToken` | string | Yes | Your Telegram Bot API Token |
 | `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
 | `latitude` | number | Yes | Latitude of the location |
 | `longitude` | number | Yes | Longitude of the location |
@@ -500,7 +489,6 @@ Send a phone contact to a Telegram chat through the Telegram Bot API.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `botToken` | string | Yes | Your Telegram Bot API Token |
 | `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
 | `phoneNumber` | string | Yes | Contact's phone number |
 | `firstName` | string | Yes | Contact's first name |
@@ -528,7 +516,6 @@ Send a native poll to a Telegram chat through the Telegram Bot API.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `botToken` | string | Yes | Your Telegram Bot API Token |
 | `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
 | `question` | string | Yes | Poll question \(1-300 characters\) |
 | `options` | json | Yes | List of 2-10 answer options as text strings |
@@ -556,7 +543,6 @@ Pin a message in a Telegram chat through the Telegram Bot API.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `botToken` | string | Yes | Your Telegram Bot API Token |
 | `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
 | `messageId` | number | Yes | Identifier of the message to pin |
 | `disableNotification` | boolean | No | Pass true to pin silently without notifying chat members |
@@ -582,7 +568,6 @@ Unpin a pinned message in a Telegram chat through the Telegram Bot API. Unpins t
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `botToken` | string | Yes | Your Telegram Bot API Token |
 | `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
 | `messageId` | number | No | Identifier of the message to unpin \(omit to unpin the most recent one\) |
 
@@ -607,7 +592,6 @@ Set or remove an emoji reaction on a message in a Telegram chat through the Tele
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `botToken` | string | Yes | Your Telegram Bot API Token |
 | `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
 | `messageId` | number | Yes | Identifier of the target message |
 | `reaction` | string | No | Emoji to react with \(leave empty to remove the reaction\) |
@@ -634,7 +618,6 @@ Show a status action such as a typing indicator in a Telegram chat through the T
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `botToken` | string | Yes | Your Telegram Bot API Token |
 | `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
 | `action` | string | Yes | Type of action to broadcast \(e.g. typing, upload_photo, record_video, upload_document, find_location\) |
 
@@ -659,7 +642,6 @@ Get up-to-date information about a Telegram chat through the Telegram Bot API.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `botToken` | string | Yes | Your Telegram Bot API Token |
 | `chatId` | string | Yes | Telegram chat ID or @username \(numeric, can be negative for groups\) |
 
 #### Output
@@ -691,7 +673,6 @@ Get information about a member of a Telegram chat through the Telegram Bot API.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `botToken` | string | Yes | Your Telegram Bot API Token |
 | `chatId` | string | Yes | Telegram chat ID or @username \(numeric, can be negative for groups\) |
 | `userId` | number | Yes | Unique identifier of the target user |
 

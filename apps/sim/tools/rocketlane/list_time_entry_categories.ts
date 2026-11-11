@@ -10,6 +10,7 @@ import {
   rocketlaneHeaders,
   TIME_ENTRY_CATEGORY_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneListTimeEntryCategoriesTool: ToolConfig<
@@ -20,6 +21,7 @@ export const rocketlaneListTimeEntryCategoriesTool: ToolConfig<
   name: 'Rocketlane List Time Entry Categories',
   description: 'List the time entry categories configured in Rocketlane',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

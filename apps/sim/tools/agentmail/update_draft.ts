@@ -1,4 +1,5 @@
 import type { UpdateDraftParams, UpdateDraftResult } from '@/tools/agentmail/types'
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentmailUpdateDraftTool: ToolConfig<UpdateDraftParams, UpdateDraftResult> = {
@@ -6,6 +7,7 @@ export const agentmailUpdateDraftTool: ToolConfig<UpdateDraftParams, UpdateDraft
   name: 'Update Draft',
   description: 'Update an existing email draft in AgentMail',
   version: '1.0.0',
+  oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

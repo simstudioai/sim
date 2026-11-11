@@ -11,6 +11,7 @@ import {
   parseJsonArrayParam,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -22,6 +23,7 @@ export const createAccessGroupTool: ToolConfig<
   name: 'Cloudflare Create Access Group',
   description: 'Creates a new Access group.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {
       type: 'string',

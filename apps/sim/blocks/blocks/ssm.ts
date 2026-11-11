@@ -1,6 +1,7 @@
 import { SSMIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 /** Operations whose SSM API caps `MaxResults` at 50. */
 const STANDARD_PAGE_OPERATIONS = [
@@ -44,6 +45,8 @@ function toParsedJson(value: unknown): unknown {
 
 export const SSMBlock: BlockConfig = {
   type: 'ssm',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'ssm_v2' },
   name: 'AWS Systems Manager',
   description: 'Run commands, manage parameters, and audit managed nodes',
   longDescription:
@@ -1351,3 +1354,17 @@ export const SSMBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const SSMV2Block: BlockConfig = {
+  ...SSMBlock,
+  type: 'ssm_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(SSMBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

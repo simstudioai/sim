@@ -1,3 +1,4 @@
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface DeleteGistParams {
@@ -21,6 +22,7 @@ export const deleteGistTool: ToolConfig<DeleteGistParams, DeleteGistResponse> = 
   name: 'GitHub Delete Gist',
   description: 'Delete a gist by ID',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     gist_id: {
@@ -82,6 +84,7 @@ export const deleteGistV2Tool: ToolConfig<DeleteGistParams, any> = {
   name: deleteGistTool.name,
   description: deleteGistTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: deleteGistTool.params,
   request: deleteGistTool.request,
 

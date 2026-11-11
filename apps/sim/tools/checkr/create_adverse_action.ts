@@ -14,6 +14,7 @@ import {
   parseCheckrStringList,
   trimmed,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrCreateAdverseActionTool: ToolConfig<
@@ -25,6 +26,7 @@ export const checkrCreateAdverseActionTool: ToolConfig<
   description:
     'Start the adverse action process on a report by sending the pre-adverse action notice. The report must have a consider result and no active adverse action.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

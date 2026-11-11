@@ -11,6 +11,7 @@ import {
   genieMessagePath,
   mapGenieMessage,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieGetMessageTool: ToolConfig<
@@ -22,6 +23,7 @@ export const genieGetMessageTool: ToolConfig<
   description:
     "Get a Genie message's status and answer, including the generated SQL, visualizations, and suggested follow-up questions.",
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: GENIE_MESSAGE_PARAMS,
 

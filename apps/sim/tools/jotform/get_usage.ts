@@ -6,6 +6,7 @@ import {
   parseJotformResponse,
   toStringOrNull,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getUsageTool: ToolConfig<JotformGetUsageParams, JotformGetUsageResponse> = {
@@ -14,6 +15,7 @@ export const getUsageTool: ToolConfig<JotformGetUsageParams, JotformGetUsageResp
   description:
     'Get this month usage for the account: submissions received, payments, form views, upload space, and API calls made today.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

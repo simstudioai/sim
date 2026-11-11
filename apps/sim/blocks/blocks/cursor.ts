@@ -1,7 +1,7 @@
 import { CursorIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector } from '@/blocks/utils'
+import { createVersionedToolSelector, withSavedCredential } from '@/blocks/utils'
 
 export const CursorBlock: BlockConfig = {
   type: 'cursor',
@@ -52,7 +52,7 @@ export const CursorBlock: BlockConfig = {
   },
   authMode: AuthMode.ApiKey,
   hideFromToolbar: true,
-  sunset: { status: 'legacy', replacedBy: 'cursor_v2' },
+  sunset: { status: 'legacy', replacedBy: 'cursor_v3' },
   subBlocks: [
     {
       id: 'operation',
@@ -259,13 +259,13 @@ export const CursorBlock: BlockConfig = {
 
 export const CursorV2Block: BlockConfig = {
   ...CursorBlock,
-  sunset: undefined,
+  sunset: { status: 'legacy', replacedBy: 'cursor_v3' },
   type: 'cursor_v2',
   name: 'Cursor',
   description: 'Launch and manage Cursor cloud agents to work on GitHub repositories',
   longDescription:
     'Interact with Cursor Cloud Agents API to launch AI agents that can work on your GitHub repositories. Supports launching agents, adding follow-up instructions, checking status, viewing conversations, and managing agent lifecycle.',
-  hideFromToolbar: false,
+  hideFromToolbar: true,
   tools: {
     ...CursorBlock.tools,
     access: [
@@ -413,3 +413,17 @@ export const CursorBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const CursorV3Block: BlockConfig = {
+  ...CursorV2Block,
+  type: 'cursor_v3',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(CursorV2Block, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'cursor',
+    title: 'Cursor Credential',
+  }),
+}

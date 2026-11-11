@@ -7,8 +7,13 @@ import { decodeDataUriWithinLimit } from '@/lib/file-parsers/data-uri'
 import { isFileParserError } from '@/lib/file-parsers/errors'
 import { submitMistralOcr } from '@/lib/internal/mistral/client'
 import { MistralOperationError } from '@/lib/internal/mistral/errors'
+import { extractOcrImageFiles } from '@/lib/internal/mistral/images'
 import type { MistralParseInput } from '@/lib/internal/mistral/input'
 import { countMistralPdfPages } from '@/lib/internal/mistral/page-count'
+import {
+  createInternalToolFilesResult,
+  type InternalToolFileResult,
+} from '@/lib/internal/tool-operations/file-result'
 import { MISTRAL_OCR_REQUEST_POLICY } from '@/lib/knowledge/documents/ocr-request-policy'
 import {
   isModelSafeWorkspaceFileKey,
@@ -26,6 +31,7 @@ import {
   type ServableFile,
 } from '@/lib/uploads/utils/file.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
+import { MAX_OCR_EXTRACTED_IMAGES } from '@/tools/mistral/types'
 
 const logger = createLogger('MistralOperations')
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif'] as const
@@ -258,6 +264,33 @@ export async function executeMistralParse(
   }
 }
 
+/**
+ * The workflow tool's parse. Only `mistral_parser_v3` extracts images, and it
+ * returns them as stored files rather than base64 in the output; older tool
+ * versions declare no image output, so they never ask Mistral for images.
+ */
+export async function executeMistralToolParse(
+  toolId: string,
+  input: MistralParseInput,
+  context: MistralOperationContext
+): Promise<{ success: true; output: unknown } | InternalToolFileResult> {
+  if (toolId !== 'mistral_parser_v3' || !input.includeImageBase64) {
+    return executeMistralParse({ ...input, includeImageBase64: undefined }, context)
+  }
+  const result = await executeMistralParse(
+    {
+      ...input,
+      imageLimit: Math.min(input.imageLimit || MAX_OCR_EXTRACTED_IMAGES, MAX_OCR_EXTRACTED_IMAGES),
+    },
+    context
+  )
+  const { output, files } = extractOcrImageFiles(result.output)
+  return createInternalToolFilesResult(files, (images) => ({
+    success: true,
+    output: { ...output, images },
+  }))
+}
+
 async function executeMistralParseWithinDeadline(
   input: MistralParseInput,
   context: MistralOperationContext
@@ -302,6 +335,7 @@ async function executeMistralParseWithinDeadline(
   }
   if (input.imageLimit) body.image_limit = input.imageLimit
   if (input.imageMinSize) body.image_min_size = input.imageMinSize
+  if (input.tableFormat) body.table_format = input.tableFormat
 
   const output = await submitMistralOcr(
     input.apiKey,

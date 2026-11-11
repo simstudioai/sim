@@ -1,9 +1,12 @@
 import { LaunchDarklyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const LaunchDarklyBlock: BlockConfig = {
   type: 'launchdarkly',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'launchdarkly_v2' },
   name: 'LaunchDarkly',
   description: 'Manage feature flags with LaunchDarkly',
   longDescription:
@@ -517,3 +520,19 @@ export const LaunchDarklyBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const LaunchDarklyV2Block: BlockConfig = {
+  ...LaunchDarklyBlock,
+  type: 'launchdarkly_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'List, create, update, toggle, and delete feature flags. Read projects, environments, segments, members, and audit logs.',
+  ...withSavedCredential(LaunchDarklyBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'launchdarkly',
+    title: 'LaunchDarkly Credential',
+  }),
+}

@@ -1,5 +1,8 @@
 import type { ListBuildLogsParams, ListBuildLogsResponse } from '@/tools/azure_devops/types'
+import { azureDevOpsProjectUrl } from '@/tools/azure_devops/utils'
+import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listBuildLogsTool: ToolConfig<ListBuildLogsParams, ListBuildLogsResponse> = {
   id: 'azure_devops_list_build_logs',
@@ -7,6 +10,7 @@ export const listBuildLogsTool: ToolConfig<ListBuildLogsParams, ListBuildLogsRes
   description:
     'List all log entries for a specific build in Azure DevOps. Returns log IDs, types, and line counts — use the log ID with the Get Build Log tool to fetch actual log text.',
   version: '1.0.0',
+  oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {
     organization: {
@@ -37,7 +41,7 @@ export const listBuildLogsTool: ToolConfig<ListBuildLogsParams, ListBuildLogsRes
 
   request: {
     url: (params) =>
-      `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/build/builds/${params.buildId}/logs?api-version=7.2-preview.2`,
+      `${azureDevOpsProjectUrl(params)}/_apis/build/builds/${safeUrlPathSegment(params.buildId, 'buildId')}/logs?api-version=7.2-preview.2`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

@@ -6,7 +6,7 @@ import { truncate } from '@sim/utils/string'
  * Jotform serves the same REST surface from three regional hosts, and an API key
  * is only valid on the host that issued it. See https://api.jotform.com/docs/
  */
-const JOTFORM_REGION_HOSTS: Record<string, string> = {
+export const JOTFORM_REGION_HOSTS: Record<string, string> = {
   us: 'https://api.jotform.com',
   eu: 'https://eu-api.jotform.com',
   hipaa: 'https://hipaa-api.jotform.com',

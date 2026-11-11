@@ -1,4 +1,5 @@
 import type { FirefliesGetUserParams, FirefliesGetUserResponse } from '@/tools/fireflies/types'
+import { FIREFLIES_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const firefliesGetUserTool: ToolConfig<FirefliesGetUserParams, FirefliesGetUserResponse> = {
@@ -6,6 +7,7 @@ export const firefliesGetUserTool: ToolConfig<FirefliesGetUserParams, FirefliesG
   name: 'Fireflies Get User',
   description: 'Get user information from Fireflies.ai. Returns current user if no ID specified.',
   version: '1.0.0',
+  oauth: FIREFLIES_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

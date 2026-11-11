@@ -1,4 +1,5 @@
 import type { GrafanaUpdateDashboardParams } from '@/tools/grafana/types'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 export const updateDashboardTool: InternalToolConfig<GrafanaUpdateDashboardParams, ToolResponse> = {
@@ -7,6 +8,7 @@ export const updateDashboardTool: InternalToolConfig<GrafanaUpdateDashboardParam
   description:
     'Update an existing dashboard. Fetches the current dashboard and merges your changes.',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

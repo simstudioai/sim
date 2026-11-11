@@ -10,6 +10,7 @@ import {
   instantlyUrl,
   parseInstantlyResponse,
 } from '@/tools/instantly/utils'
+import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateLeadInterestStatusTool: ToolConfig<
@@ -20,6 +21,7 @@ export const updateLeadInterestStatusTool: ToolConfig<
   name: 'Instantly Update Lead Interest Status',
   description: 'Submits an Instantly V2 background job to update a lead interest status.',
   version: '1.0.0',
+  oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,
     lead_email: {

@@ -1,6 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import type { ConvexListTablesParams, ConvexListTablesResponse } from '@/tools/convex/types'
 import { convexApiUrl, convexAuthHeaders, parseConvexResponse } from '@/tools/convex/utils'
+import { CONVEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listTablesTool: ToolConfig<ConvexListTablesParams, ConvexListTablesResponse> = {
@@ -9,6 +10,7 @@ export const listTablesTool: ToolConfig<ConvexListTablesParams, ConvexListTables
   description:
     'List all tables in a Convex deployment along with their JSON schemas. Requires streaming export, available on Convex paid plans.',
   version: '1.0.0',
+  oauth: CONVEX_CREDENTIAL_OAUTH,
 
   params: {
     deploymentUrl: {

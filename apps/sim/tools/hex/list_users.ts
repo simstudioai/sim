@@ -1,4 +1,5 @@
 import type { HexListUsersParams, HexListUsersResponse } from '@/tools/hex/types'
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listUsersTool: ToolConfig<HexListUsersParams, HexListUsersResponse> = {
@@ -6,6 +7,7 @@ export const listUsersTool: ToolConfig<HexListUsersParams, HexListUsersResponse>
   name: 'Hex List Users',
   description: 'List all users in the Hex workspace with optional filtering and sorting.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

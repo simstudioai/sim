@@ -1,3 +1,4 @@
+import { toPrincipalActor } from '@sim/auth/principal'
 import {
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
@@ -235,7 +236,7 @@ describe('knowledge base application use cases', () => {
         actorName: 'Workspace API key',
         metadata: expect.objectContaining({
           operation: 'knowledge.create',
-          actor: createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key-1' }),
+          actor: toPrincipalActor(createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key-1' })),
         }),
       })
     )

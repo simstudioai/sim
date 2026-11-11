@@ -2,6 +2,7 @@ import {
   BOX_SERVICE_ACCOUNT_PROVIDER_ID,
   CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE,
   type ClientCredentialAccountProviderId,
+  DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID,
   FIVETRAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID,
   getClientCredentialAccountDescriptor,
@@ -19,6 +20,7 @@ import {
   ZOOM_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { mintBoxServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/box'
+import { mintDocuSignServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/docusign'
 import { mintFivetranServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/fivetran'
 import { mintGreenhouseServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/greenhouse'
 import { mintHelpScoutServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/helpscout'
@@ -69,7 +71,7 @@ export interface ClientCredentialAccountFields {
    * {@link clientSecret} in practice.
    */
   privateKey?: string
-  /** Username a key-based grant authenticates as (Salesforce JWT `sub`). */
+  /** User a key-based grant authenticates as (Salesforce JWT username, DocuSign user ID). */
   username?: string
 }
 
@@ -102,7 +104,8 @@ export interface ClientCredentialAccountMintResult {
   expiresInSeconds: number
   /**
    * Provider API destination the minted token must be used against (Salesforce,
-   * NetSuite, or Oracle EPM), forwarded to tools alongside the token.
+   * NetSuite, Oracle EPM, or the DocuSign account's eSignature REST base),
+   * forwarded to tools alongside the token.
    */
   instanceUrl?: string
   /**
@@ -157,6 +160,7 @@ const CLIENT_CREDENTIAL_ACCOUNT_MINTERS: Record<
   [ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID]: mintOracleEpmServiceAccountToken,
   [GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID]: mintGreenhouseServiceAccountToken,
   [HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID]: mintHelpScoutServiceAccountToken,
+  [DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID]: mintDocuSignServiceAccountToken,
 }
 
 export function getClientCredentialAccountMinter(

@@ -1,5 +1,6 @@
 import type { RipplingCreateCustomObjectRecordParams } from '@/tools/rippling/types'
 import { CUSTOM_OBJECT_RECORD_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingCreateCustomObjectRecordTool: ToolConfig<RipplingCreateCustomObjectRecordParams> =
@@ -8,6 +9,7 @@ export const ripplingCreateCustomObjectRecordTool: ToolConfig<RipplingCreateCust
     name: 'Rippling Create Custom Object Record',
     description: 'Create a custom object record',
     version: '1.0.0',
+    oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {
         type: 'string',

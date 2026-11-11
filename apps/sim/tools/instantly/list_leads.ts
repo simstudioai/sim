@@ -10,6 +10,7 @@ import {
   mapLead,
   parseInstantlyResponse,
 } from '@/tools/instantly/utils'
+import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listLeadsTool: ToolConfig<InstantlyListLeadsParams, InstantlyListLeadsResponse> = {
@@ -17,6 +18,7 @@ export const listLeadsTool: ToolConfig<InstantlyListLeadsParams, InstantlyListLe
   name: 'Instantly List Leads',
   description: 'Retrieves Instantly V2 leads with search, campaign, list, and pagination filters.',
   version: '1.0.0',
+  oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,
     search: {

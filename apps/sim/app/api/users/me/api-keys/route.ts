@@ -14,7 +14,7 @@ import {
   listPersonalApiKeys,
   personalApiKeyOperations,
 } from '@/lib/api-key/application/personal-api-keys'
-import { performCreatePersonalApiKey } from '@/lib/api-key/orchestration'
+import { apiKeyCreationErrorStatus, performCreatePersonalApiKey } from '@/lib/api-key/orchestration'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
@@ -79,23 +79,29 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const parsed = await parseRequest(createPersonalApiKeyContract, request, {})
     if (!parsed.success) return parsed.response
 
-    const { name } = parsed.data.body
+    const { name, access, expiresAt } = parsed.data.body
 
     const result = await performCreatePersonalApiKey({
       userId,
       name,
+      access,
+      expiresAt,
       actorName: session.user.name,
       actorEmail: session.user.email,
       request,
     })
     if (!result.success || !result.key) {
-      const status = result.errorCode === 'conflict' ? 409 : 500
-      return NextResponse.json({ error: result.error }, { status })
+      return NextResponse.json(
+        { error: result.error },
+        { status: apiKeyCreationErrorStatus(result.errorCode) }
+      )
     }
 
     captureServerEvent(userId, 'api_key_created', {
       key_name: name,
       scope: 'personal',
+      access,
+      expires: expiresAt != null,
     })
 
     return NextResponse.json({ key: result.key })

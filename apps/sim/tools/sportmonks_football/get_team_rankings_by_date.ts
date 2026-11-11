@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   appendSportmonksQuery,
   buildSportmonksHeaders,
@@ -35,6 +36,7 @@ export const sportmonksGetTeamRankingsByDateTool: ToolConfig<
   name: 'Get Team Rankings by Date',
   description: 'Retrieve team rankings for a given date (YYYY-MM-DD) from Sportmonks (beta)',
   version: '1.0.0',
+  oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

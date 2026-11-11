@@ -1,3 +1,4 @@
+import { PROFOUND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ProfoundListAssetsParams, ProfoundListAssetsResponse } from './types'
 
@@ -9,6 +10,7 @@ export const profoundListAssetsTool: ToolConfig<
   name: 'Profound List Assets',
   description: 'List all organization assets (companies/brands) across all categories in Profound',
   version: '1.0.0',
+  oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

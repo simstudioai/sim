@@ -1,8 +1,12 @@
 import { CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS } from '@/lib/credentials/token-service-accounts/descriptors'
+import { isWorkloadIdentityServiceAccountProviderId } from '@/lib/credentials/workload-identity/audiences'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+  AWS_SERVICE_ACCOUNT_PROVIDER_ID,
+  DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
@@ -47,6 +51,9 @@ export type ServiceAccountFieldId =
  */
 export const SERVICE_ACCOUNT_REQUIRED_FIELDS: Record<string, readonly ServiceAccountFieldId[]> = {
   [ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID]: ['serviceAccountJson'],
+  [AWS_SERVICE_ACCOUNT_PROVIDER_ID]: ['serviceAccountJson'],
+  [DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID]: ['serviceAccountJson'],
+  [MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID]: ['serviceAccountJson'],
   [GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID]: ['serviceAccountJson'],
   [ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID]: ['apiToken', 'domain'],
   [SLACK_CUSTOM_BOT_PROVIDER_ID]: ['signingSecret', 'botToken'],
@@ -70,10 +77,42 @@ export const FALLBACK_SERVICE_ACCOUNT_REQUIRED_FIELDS: readonly ServiceAccountFi
   'serviceAccountJson',
 ]
 
-export function getServiceAccountRequiredFields(
+/** Every keyless credential is one JSON configuration carrying its subject and proof. */
+const KEYLESS_REQUIRED_FIELDS: readonly ServiceAccountFieldId[] = ['serviceAccountJson']
+
+/**
+ * The create-body fields a keyless (workload identity) credential sends in
+ * place of the provider's required fields, or `undefined` for a provider with
+ * no keyless mode. For most keyless providers this is their only field; for
+ * Snowflake it replaces the token fields. The keyless builder validates the
+ * configuration itself.
+ */
+function getKeylessServiceAccountFields(
+  providerId: string | null | undefined
+): readonly ServiceAccountFieldId[] | undefined {
+  return isWorkloadIdentityServiceAccountProviderId(providerId)
+    ? KEYLESS_REQUIRED_FIELDS
+    : undefined
+}
+
+function getServiceAccountRequiredFields(
   providerId: string | null | undefined
 ): readonly ServiceAccountFieldId[] {
   return providerId && Object.hasOwn(SERVICE_ACCOUNT_REQUIRED_FIELDS, providerId)
     ? SERVICE_ACCOUNT_REQUIRED_FIELDS[providerId]
     : FALLBACK_SERVICE_ACCOUNT_REQUIRED_FIELDS
+}
+
+/**
+ * The required create-body fields a submission is missing: none when it
+ * completes the provider's keyless alternative, otherwise the provider's own
+ * required fields that are empty.
+ */
+export function getMissingServiceAccountFields(
+  providerId: string | null | undefined,
+  provided: Partial<Record<ServiceAccountFieldId, unknown>>
+): ServiceAccountFieldId[] {
+  const keyless = getKeylessServiceAccountFields(providerId)
+  if (keyless?.every((field) => provided[field])) return []
+  return getServiceAccountRequiredFields(providerId).filter((field) => !provided[field])
 }

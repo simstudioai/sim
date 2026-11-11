@@ -1,4 +1,5 @@
 import { MILESTONE_CREATOR_OUTPUT, MILESTONE_V2_OUTPUT_PROPERTIES } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface CreateMilestoneParams {
@@ -35,6 +36,7 @@ export const createMilestoneTool: ToolConfig<CreateMilestoneParams, CreateMilest
   name: 'GitHub Create Milestone',
   description: 'Create a milestone in a repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -154,6 +156,7 @@ export const createMilestoneV2Tool: ToolConfig<CreateMilestoneParams, any> = {
   name: createMilestoneTool.name,
   description: createMilestoneTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: createMilestoneTool.params,
   request: createMilestoneTool.request,
 

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { TINYBIRD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TinybirdDeleteDatasourceRowsParams,
   TinybirdDeleteDatasourceRowsResponse,
@@ -22,6 +23,7 @@ export const deleteDatasourceRowsTool: ToolConfig<
   name: 'Tinybird Delete Data Source Rows',
   description: 'Delete rows from a Tinybird Data Source matching a SQL condition.',
   version: '1.0.0',
+  oauth: TINYBIRD_CREDENTIAL_OAUTH,
   errorExtractor: 'nested-error-object',
 
   params: {

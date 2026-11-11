@@ -11,7 +11,7 @@ describe('GitHub Assistant connected-account adapter', () => {
     const adapted = projectAssistantConnectedAccountTool(getIssueV2Tool)
     expect(adapted).not.toBe(getIssueV2Tool)
     expect(getIssueV2Tool.params.apiKey.required).toBe(true)
-    expect(getIssueV2Tool.oauth).toBeUndefined()
+    expect(getIssueV2Tool.oauth).toMatchObject({ provider: 'github-token', required: false })
     expect(adapted.oauth).toMatchObject({
       required: true,
       provider: 'github-repositories',

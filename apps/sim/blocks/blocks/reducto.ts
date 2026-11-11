@@ -4,10 +4,15 @@ import {
   AuthMode,
   type BlockConfig,
   type BlockMeta,
+  type BlockToolParams,
   IntegrationType,
   type SubBlockType,
 } from '@/blocks/types'
-import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
+import {
+  createVersionedToolSelector,
+  normalizeFileInput,
+  withSavedCredential,
+} from '@/blocks/utils'
 
 const DOCUMENT_FIELD = ['fileUpload', 'filePath'] as const
 /* v2 swaps the advanced URL input for a file reference, so the pair differs. */
@@ -18,7 +23,7 @@ export const ReductoBlock: BlockConfig = {
   name: 'Reducto',
   description: 'Extract text from PDF documents',
   hideFromToolbar: true,
-  sunset: { status: 'legacy', replacedBy: 'reducto_v2' },
+  sunset: { status: 'legacy', replacedBy: 'reducto_v3' },
   authMode: AuthMode.ApiKey,
   longDescription: `Extract text from uploaded PDF documents, or from a URL.`,
   docsLink: 'https://docs.sim.ai/integrations/reducto',
@@ -180,12 +185,60 @@ const reductoV2SubBlocks = (ReductoBlock.subBlocks || []).flatMap((subBlock) => 
   return [subBlock]
 })
 
+/**
+ * Tool params for the v2+ parser. `credentials` is empty when a saved credential
+ * supplies the key server-side.
+ */
+function reductoV2ToolParams(params: BlockToolParams, credentials: { apiKey?: string }) {
+  const parameters: Record<string, unknown> = { ...credentials }
+
+  const fileInput = normalizeFileInput(params.file, { single: true })
+  if (!fileInput) {
+    throw new Error('PDF document file is required')
+  }
+  parameters.file = fileInput
+
+  let pagesArray: number[] | undefined
+  if (params.pages && params.pages.trim() !== '') {
+    try {
+      pagesArray = params.pages
+        .split(',')
+        .map((p: string) => p.trim())
+        .filter((p: string) => p.length > 0)
+        .map((p: string) => {
+          const num = Number.parseInt(p, 10)
+          if (Number.isNaN(num) || num < 0) {
+            throw new Error(`Invalid page number: ${p}`)
+          }
+          return num
+        })
+
+      if (pagesArray && pagesArray.length === 0) {
+        pagesArray = undefined
+      }
+    } catch (error: unknown) {
+      const errorMessage = toError(error).message
+      throw new Error(`Page number format error: ${errorMessage}`)
+    }
+  }
+
+  if (pagesArray && pagesArray.length > 0) {
+    parameters.pages = pagesArray
+  }
+
+  if (params.tableOutputFormat) {
+    parameters.tableOutputFormat = params.tableOutputFormat
+  }
+
+  return parameters
+}
+
 export const ReductoV2Block: BlockConfig = {
   ...ReductoBlock,
-  sunset: undefined,
+  sunset: { status: 'legacy', replacedBy: 'reducto_v3' },
   type: 'reducto_v2',
   name: 'Reducto',
-  hideFromToolbar: false,
+  hideFromToolbar: true,
   longDescription: `Extract text from uploaded PDF documents or file references.`,
   canvasPresentation: {
     defaultTitle: 'Reducto',
@@ -206,51 +259,7 @@ export const ReductoV2Block: BlockConfig = {
         suffix: '_v2',
         fallbackToolId: 'reducto_parser_v2',
       }),
-      params: (params) => {
-        const parameters: Record<string, unknown> = {
-          apiKey: params.apiKey.trim(),
-        }
-
-        const fileInput = normalizeFileInput(params.file, { single: true })
-        if (!fileInput) {
-          throw new Error('PDF document file is required')
-        }
-        parameters.file = fileInput
-
-        let pagesArray: number[] | undefined
-        if (params.pages && params.pages.trim() !== '') {
-          try {
-            pagesArray = params.pages
-              .split(',')
-              .map((p: string) => p.trim())
-              .filter((p: string) => p.length > 0)
-              .map((p: string) => {
-                const num = Number.parseInt(p, 10)
-                if (Number.isNaN(num) || num < 0) {
-                  throw new Error(`Invalid page number: ${p}`)
-                }
-                return num
-              })
-
-            if (pagesArray && pagesArray.length === 0) {
-              pagesArray = undefined
-            }
-          } catch (error: unknown) {
-            const errorMessage = toError(error).message
-            throw new Error(`Page number format error: ${errorMessage}`)
-          }
-        }
-
-        if (pagesArray && pagesArray.length > 0) {
-          parameters.pages = pagesArray
-        }
-
-        if (params.tableOutputFormat) {
-          parameters.tableOutputFormat = params.tableOutputFormat
-        }
-
-        return parameters
-      },
+      params: (params) => reductoV2ToolParams(params, { apiKey: params.apiKey.trim() }),
     },
   },
   inputs: reductoV2Inputs,
@@ -349,3 +358,16 @@ export const ReductoBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const ReductoV3Block: BlockConfig = {
+  ...ReductoV2Block,
+  type: 'reducto_v3',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    ReductoV2Block,
+    { id: 'credential', type: 'oauth-input', serviceId: 'reducto', title: 'Reducto Credential' },
+    { params: (params) => reductoV2ToolParams(params, {}) }
+  ),
+}

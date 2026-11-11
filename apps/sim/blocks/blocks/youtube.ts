@@ -1,9 +1,12 @@
 import { ElevenLabsIcon, YouTubeIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const YouTubeBlock: BlockConfig = {
   type: 'youtube',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'youtube_v2' },
   name: 'YouTube',
   description: 'Interact with YouTube videos, channels, and playlists',
   authMode: AuthMode.ApiKey,
@@ -690,3 +693,17 @@ export const YouTubeBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const YouTubeV2Block: BlockConfig = {
+  ...YouTubeBlock,
+  type: 'youtube_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(YouTubeBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'youtube',
+    title: 'YouTube Credential',
+  }),
+}

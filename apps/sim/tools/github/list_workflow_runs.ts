@@ -6,6 +6,7 @@ import {
   USER_OUTPUT,
   WORKFLOW_RUN_OUTPUT_PROPERTIES,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listWorkflowRunsTool: ToolConfig<ListWorkflowRunsParams, ListWorkflowRunsResponse> = {
@@ -14,6 +15,7 @@ export const listWorkflowRunsTool: ToolConfig<ListWorkflowRunsParams, ListWorkfl
   description:
     'List workflow runs for a repository, or for a single workflow when a workflow ID or filename is given. Supports filtering by actor, branch, event, and status. Returns run details including status, conclusion, and links.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -216,6 +218,7 @@ export const listWorkflowRunsV2Tool: ToolConfig<ListWorkflowRunsParams, any> = {
   name: listWorkflowRunsTool.name,
   description: listWorkflowRunsTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listWorkflowRunsTool.params,
   request: listWorkflowRunsTool.request,
 

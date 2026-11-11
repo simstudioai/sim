@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CustomerResponse, GetCustomerParams } from '@/tools/square/types'
 import {
   CUSTOMER_METADATA_OUTPUT_PROPERTIES,
@@ -13,6 +14,7 @@ export const squareGetCustomerTool: ToolConfig<GetCustomerParams, CustomerRespon
   name: 'Square Get Customer',
   description: 'Retrieve a single customer profile by its ID',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {

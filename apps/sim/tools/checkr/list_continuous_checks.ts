@@ -11,6 +11,7 @@ import {
   checkrUrl,
   mapContinuousCheck,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrListContinuousChecksTool: ToolConfig<
@@ -21,6 +22,7 @@ export const checkrListContinuousChecksTool: ToolConfig<
   name: 'Checkr List Continuous Checks',
   description: 'List the continuous checks a candidate is enrolled in.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

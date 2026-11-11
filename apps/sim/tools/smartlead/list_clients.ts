@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SmartleadBaseParams, SmartleadOpaqueListResponse } from '@/tools/smartlead/types'
 import {
   opaqueListOutputs,
@@ -15,6 +16,7 @@ export const listClientsTool: ToolConfig<SmartleadBaseParams, SmartleadOpaqueLis
   description:
     'Retrieves the clients on a Smartlead agency account, including the client IDs used to scope campaigns and email accounts.',
   version: '1.0.0',
+  oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,

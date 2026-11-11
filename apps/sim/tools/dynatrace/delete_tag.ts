@@ -1,6 +1,7 @@
 import type { DynatraceDeleteTagParams, DynatraceDeleteTagResponse } from '@/tools/dynatrace/types'
 import { buildDynatraceUrl, dynatraceHeaders, readJsonBody } from '@/tools/dynatrace/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { DYNATRACE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteTagTool: ToolConfig<DynatraceDeleteTagParams, DynatraceDeleteTagResponse> = {
@@ -9,6 +10,7 @@ export const deleteTagTool: ToolConfig<DynatraceDeleteTagParams, DynatraceDelete
   description:
     'Remove a custom tag from every monitored entity an entity selector matches. Deletes one key-value pair, or every tag with the key.',
   version: '1.0.0',
+  oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {

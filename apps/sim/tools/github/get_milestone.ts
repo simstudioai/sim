@@ -1,4 +1,5 @@
 import { MILESTONE_CREATOR_OUTPUT, MILESTONE_V2_OUTPUT_PROPERTIES } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface GetMilestoneParams {
@@ -34,6 +35,7 @@ export const getMilestoneTool: ToolConfig<GetMilestoneParams, GetMilestoneRespon
   name: 'GitHub Get Milestone',
   description: 'Get a specific milestone by number',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -137,6 +139,7 @@ export const getMilestoneV2Tool: ToolConfig<GetMilestoneParams, any> = {
   name: getMilestoneTool.name,
   description: getMilestoneTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getMilestoneTool.params,
   request: getMilestoneTool.request,
 

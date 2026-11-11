@@ -5,6 +5,7 @@ import {
   normalizeLangsmithRunPayload,
   truncateLangsmithErrorText,
 } from '@/tools/langsmith/utils'
+import { LANGSMITH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const langsmithCreateRunTool: ToolConfig<
@@ -15,6 +16,7 @@ export const langsmithCreateRunTool: ToolConfig<
   name: 'LangSmith Create Run',
   description: 'Forward a single run to LangSmith for ingestion.',
   version: '1.0.0',
+  oauth: LANGSMITH_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

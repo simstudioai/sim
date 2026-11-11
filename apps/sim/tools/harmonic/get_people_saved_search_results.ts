@@ -25,7 +25,7 @@ export const harmonicGetPeopleSavedSearchResultsTool: ToolConfig<
   description:
     'Get one page of a Harmonic people saved search. Full records become contacts; URN-only rows are exposed for Batch Get People.',
   version: '1.0.0',
-  oauth: { required: true, provider: 'harmonic' },
+  oauth: { required: true, provider: 'harmonic', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.HARMONIC_ERRORS,
 
   params: {

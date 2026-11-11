@@ -3,6 +3,7 @@ import {
   type IncidentioAlertsResolveParams,
   type IncidentioAlertsResolveResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const alertsResolveTool: ToolConfig<
@@ -14,6 +15,7 @@ export const alertsResolveTool: ToolConfig<
   description:
     'Resolve a currently firing alert in incident.io. Resolving an already-resolved alert is a no-op and returns it unchanged.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

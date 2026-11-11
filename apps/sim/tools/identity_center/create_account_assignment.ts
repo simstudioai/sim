@@ -2,6 +2,7 @@ import type {
   IdentityCenterAssignmentStatusResponse,
   IdentityCenterCreateAccountAssignmentParams,
 } from '@/tools/identity_center/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const createAccountAssignmentTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const createAccountAssignmentTool: InternalToolConfig<
   description:
     'Grant a user or group access to an AWS account via a permission set (temporary elevated access)',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

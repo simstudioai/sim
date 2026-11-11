@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaUpdateUserParams, OktaUpdateUserResponse, OktaUser } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaUpdateUser')
@@ -11,6 +12,7 @@ export const oktaUpdateUserTool: ToolConfig<OktaUpdateUserParams, OktaUpdateUser
   name: 'Update User in Okta',
   description: 'Update a user profile in your Okta organization',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

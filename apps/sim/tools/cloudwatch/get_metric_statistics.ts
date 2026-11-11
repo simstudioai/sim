@@ -2,6 +2,7 @@ import type {
   CloudWatchGetMetricStatisticsParams,
   CloudWatchGetMetricStatisticsResponse,
 } from '@/tools/cloudwatch/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getMetricStatisticsTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const getMetricStatisticsTool: InternalToolConfig<
   name: 'CloudWatch Get Metric Statistics',
   description: 'Get statistics for a CloudWatch metric over a time range',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

@@ -1,6 +1,7 @@
 import { EnrichSoIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 /**
  * City and country are independent filters rather than a canonical pair, so the
@@ -10,6 +11,8 @@ const PEOPLE_LOCATION_FIELD = ['locationCity', 'locationCountry'] as const
 
 export const EnrichBlock: BlockConfig = {
   type: 'enrich',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'enrich_v2' },
   name: 'Enrich',
   description: 'B2B data enrichment and LinkedIn intelligence with Enrich.so',
   authMode: AuthMode.ApiKey,
@@ -958,3 +961,17 @@ export const EnrichBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const EnrichV2Block: BlockConfig = {
+  ...EnrichBlock,
+  type: 'enrich_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(EnrichBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'enrich',
+    title: 'Enrich Credential',
+  }),
+}

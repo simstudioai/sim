@@ -1,6 +1,7 @@
 import type { DatabricksListJobsParams, DatabricksListJobsResponse } from '@/tools/databricks/types'
 import { JOB_CLUSTERS_OUTPUT, JOB_TASK_OUTPUT } from '@/tools/databricks/types'
 import { databricksUrl } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listJobsTool: ToolConfig<DatabricksListJobsParams, DatabricksListJobsResponse> = {
@@ -8,6 +9,7 @@ export const listJobsTool: ToolConfig<DatabricksListJobsParams, DatabricksListJo
   name: 'Databricks List Jobs',
   description: 'List all jobs in a Databricks workspace with optional filtering by name.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     host: {

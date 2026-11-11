@@ -1,5 +1,6 @@
 import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { toArray, toRecordOrNull } from '@sim/utils/object'
+import { YOUCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { YouComSearchParams, YouComSearchResponse } from '@/tools/youcom/types'
 import {
@@ -18,6 +19,7 @@ export const youComSearchTool: ToolConfig<YouComSearchParams, YouComSearchRespon
   description:
     'Search the web and news with You.com, returning LLM-ready results with optional query-relevant highlights or full page content.',
   version: '1.0.0',
+  oauth: YOUCOM_CREDENTIAL_OAUTH,
 
   params: {
     query: {

@@ -6,6 +6,7 @@ import {
   type QuartrSingleDto,
 } from '@/tools/quartr/types'
 import { buildQuartrUrl, mapQuartrDocument, parseQuartrResponse } from '@/tools/quartr/utils'
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const quartrGetSlideDeckTool: ToolConfig<
@@ -17,6 +18,7 @@ export const quartrGetSlideDeckTool: ToolConfig<
   description:
     'Retrieve a slide presentation from Quartr by its document ID and download the PDF file.',
   version: '1.0.0',
+  oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

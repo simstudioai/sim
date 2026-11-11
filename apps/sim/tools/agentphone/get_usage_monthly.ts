@@ -3,6 +3,7 @@ import type {
   AgentPhoneGetUsageMonthlyResult,
   AgentPhoneUsageMonthlyEntry,
 } from '@/tools/agentphone/types'
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentphoneGetUsageMonthlyTool: ToolConfig<
@@ -13,6 +14,7 @@ export const agentphoneGetUsageMonthlyTool: ToolConfig<
   name: 'Get Monthly Usage',
   description: 'Get monthly usage aggregation (messages, calls, webhooks) for the last N months',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

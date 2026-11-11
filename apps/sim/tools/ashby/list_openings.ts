@@ -7,6 +7,7 @@ import {
   mapOpenings,
   OPENINGS_OUTPUT,
 } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListOpeningsParams {
@@ -31,6 +32,7 @@ export const listOpeningsTool: ToolConfig<AshbyListOpeningsParams, AshbyListOpen
   name: 'Ashby List Openings',
   description: 'Lists all openings in Ashby with pagination.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

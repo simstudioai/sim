@@ -1,3 +1,4 @@
+import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import {
   MONITOR_OUTPUT_PROPERTIES,
@@ -17,6 +18,7 @@ export const uptimeRobotGetMonitorTool: ToolConfig<
   name: 'UptimeRobot Get Monitor',
   description: 'Get the details of a single UptimeRobot monitor by ID',
   version: '1.0.0',
+  oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

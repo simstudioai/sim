@@ -6,6 +6,7 @@ import {
   checkrId,
   checkrUrl,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrDeleteGeoTool: ToolConfig<CheckrGeoIdParams, CheckrDeleteGeoResponse> = {
@@ -13,6 +14,7 @@ export const checkrDeleteGeoTool: ToolConfig<CheckrGeoIdParams, CheckrDeleteGeoR
   name: 'Checkr Delete Geo',
   description: 'Delete a geo.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

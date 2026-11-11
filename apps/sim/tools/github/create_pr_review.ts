@@ -18,6 +18,7 @@ import type {
   PRReviewResponse,
 } from '@/tools/github/types'
 import { USER_OUTPUT } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 const COMMIT_SHA_PATTERN = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/i
@@ -103,6 +104,7 @@ export const createPRReviewTool: ToolConfig<CreatePRReviewParams, PRReviewRespon
   description:
     'Submit a review for a pull request. Use APPROVE, REQUEST_CHANGES, or COMMENT. A body is required for REQUEST_CHANGES and COMMENT reviews.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -251,6 +253,7 @@ export const createPRReviewV2Tool: ToolConfig<CreatePRReviewParams, CreatePRRevi
   name: createPRReviewTool.name,
   description: createPRReviewTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: createPRReviewTool.params,
   request: createPRReviewTool.request,
 

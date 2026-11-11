@@ -3,7 +3,10 @@ import type {
   DataverseExecuteFunctionParams,
   DataverseExecuteFunctionResponse,
 } from '@/tools/microsoft_dataverse/types'
-import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
+import {
+  DATAVERSE_OAUTH_CONFIG,
+  getDataverseRequestBaseUrl,
+} from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseExecuteFunction')
@@ -18,7 +21,7 @@ export const dataverseExecuteFunctionTool: ToolConfig<
     'Execute a bound or unbound Dataverse function. Functions are read-only operations (e.g., RetrievePrincipalAccess, RetrieveTotalRecordCount, InitializeFrom). For bound functions, provide the entity set name and record ID.',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'microsoft-dataverse' },
+  oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',
 
   params: {
@@ -65,7 +68,7 @@ export const dataverseExecuteFunctionTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      const baseUrl = getDataverseRequestBaseUrl(params)
       const functionName = params.functionName.trim()
       const rawParams = params.parameters?.trim() ?? ''
       const separatorIndex = rawParams.indexOf('?')

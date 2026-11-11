@@ -9,6 +9,7 @@ import {
   rocketlaneHeaders,
   TIME_ENTRY_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneSearchTimeEntriesTool: ToolConfig<
@@ -20,6 +21,7 @@ export const rocketlaneSearchTimeEntriesTool: ToolConfig<
   description:
     'Search Rocketlane time entries with filters, sorting, and pagination (deprecated by Rocketlane in favor of listing time entries with filters)',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

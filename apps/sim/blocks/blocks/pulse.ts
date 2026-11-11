@@ -3,10 +3,15 @@ import {
   AuthMode,
   type BlockConfig,
   type BlockMeta,
+  type BlockToolParams,
   IntegrationType,
   type SubBlockType,
 } from '@/blocks/types'
-import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
+import {
+  createVersionedToolSelector,
+  normalizeFileInput,
+  withSavedCredential,
+} from '@/blocks/utils'
 
 const DOCUMENT_FIELD = ['fileUpload', 'filePath'] as const
 /* v2 swaps the advanced URL input for a file reference, so the pair differs. */
@@ -17,7 +22,7 @@ export const PulseBlock: BlockConfig = {
   name: 'Pulse',
   description: 'Extract text from documents using Pulse OCR',
   hideFromToolbar: true,
-  sunset: { status: 'legacy', replacedBy: 'pulse_v2' },
+  sunset: { status: 'legacy', replacedBy: 'pulse_v3' },
   authMode: AuthMode.ApiKey,
   longDescription: 'Extract text from PDF documents, images, and Office files via URL or upload.',
   docsLink: 'https://docs.sim.ai/integrations/pulse',
@@ -177,12 +182,43 @@ const pulseV2SubBlocks = (PulseBlock.subBlocks || []).flatMap((subBlock) => {
   return [subBlock]
 })
 
+/**
+ * Tool params for the v2+ parser. `credentials` is empty when a saved credential
+ * supplies the key server-side.
+ */
+function pulseV2ToolParams(params: BlockToolParams, credentials: { apiKey?: string }) {
+  const parameters: Record<string, unknown> = { ...credentials }
+
+  const normalizedFile = normalizeFileInput(params.file, { single: true })
+  if (!normalizedFile) {
+    throw new Error('Document file is required')
+  }
+  parameters.file = normalizedFile
+
+  if (params.pages && params.pages.trim() !== '') {
+    parameters.pages = params.pages.trim()
+  }
+
+  if (params.chunking && params.chunking.trim() !== '') {
+    parameters.chunking = params.chunking.trim()
+  }
+
+  if (params.chunkSize && params.chunkSize.trim() !== '') {
+    const size = Number.parseInt(params.chunkSize.trim(), 10)
+    if (!Number.isNaN(size) && size > 0) {
+      parameters.chunkSize = size
+    }
+  }
+
+  return parameters
+}
+
 export const PulseV2Block: BlockConfig = {
   ...PulseBlock,
-  sunset: undefined,
+  sunset: { status: 'legacy', replacedBy: 'pulse_v3' },
   type: 'pulse_v2',
   name: 'Pulse',
-  hideFromToolbar: false,
+  hideFromToolbar: true,
   longDescription:
     'Extract text from PDF documents, images, and Office files via upload or file references.',
   canvasPresentation: {
@@ -204,34 +240,7 @@ export const PulseV2Block: BlockConfig = {
         suffix: '_v2',
         fallbackToolId: 'pulse_parser_v2',
       }),
-      params: (params) => {
-        const parameters: Record<string, unknown> = {
-          apiKey: params.apiKey.trim(),
-        }
-
-        const normalizedFile = normalizeFileInput(params.file, { single: true })
-        if (!normalizedFile) {
-          throw new Error('Document file is required')
-        }
-        parameters.file = normalizedFile
-
-        if (params.pages && params.pages.trim() !== '') {
-          parameters.pages = params.pages.trim()
-        }
-
-        if (params.chunking && params.chunking.trim() !== '') {
-          parameters.chunking = params.chunking.trim()
-        }
-
-        if (params.chunkSize && params.chunkSize.trim() !== '') {
-          const size = Number.parseInt(params.chunkSize.trim(), 10)
-          if (!Number.isNaN(size) && size > 0) {
-            parameters.chunkSize = size
-          }
-        }
-
-        return parameters
-      },
+      params: (params) => pulseV2ToolParams(params, { apiKey: params.apiKey.trim() }),
     },
   },
   inputs: pulseV2Inputs,
@@ -311,7 +320,7 @@ export const PulseBlockMeta = {
       name: 'extract-document-text',
       description: 'Run a PDF, image, or Office file through Pulse OCR and return clean markdown.',
       content:
-        '# Extract Document Text\n\nTurn a document into structured markdown text.\n\n## Steps\n1. Upload the Document (PDF, image, DOCX, PPTX, or XLSX) or provide a file reference.\n2. Optionally set Specific Pages (for example 1-3,5) to limit extraction to part of the document.\n3. Provide the Pulse API Key.\n4. Use the returned markdown as the source for downstream summarization or parsing.\n\n## Output\nThe extracted markdown text and the page count, plus any bounding-box or figure data when available.',
+        '# Extract Document Text\n\nTurn a document into structured markdown text.\n\n## Steps\n1. Upload the Document (PDF, image, DOCX, PPTX, or XLSX) or provide a file reference.\n2. Optionally set Specific Pages (for example 1-3,5) to limit extraction to part of the document.\n3. Use the returned markdown as the source for downstream summarization or parsing.\n\n## Output\nThe extracted markdown text and the page count, plus any bounding-box or figure data when available.',
     },
     {
       name: 'extract-structured-fields',
@@ -325,7 +334,20 @@ export const PulseBlockMeta = {
       description:
         'Extract and chunk a document with Pulse OCR so it can be indexed for retrieval.',
       content:
-        '# Chunk For Knowledge Base\n\nPrepare a document for vector indexing.\n\n## Steps\n1. Upload the Document and provide the Pulse API Key.\n2. Set a Chunking Strategy (semantic, header, page, or recursive) and a Chunk Size in characters.\n3. Use the returned chunks as the units to embed and index into a knowledge base.\n\n## Output\nThe chunked content ready for embedding, with each chunk sized per the strategy, plus the total page count for reference.',
+        '# Chunk For Knowledge Base\n\nPrepare a document for vector indexing.\n\n## Steps\n1. Upload the Document.\n2. Set a Chunking Strategy (semantic, header, page, or recursive) and a Chunk Size in characters.\n3. Use the returned chunks as the units to embed and index into a knowledge base.\n\n## Output\nThe chunked content ready for embedding, with each chunk sized per the strategy, plus the total page count for reference.',
     },
   ],
 } as const satisfies BlockMeta
+
+export const PulseV3Block: BlockConfig = {
+  ...PulseV2Block,
+  type: 'pulse_v3',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    PulseV2Block,
+    { id: 'credential', type: 'oauth-input', serviceId: 'pulse', title: 'Pulse Credential' },
+    { params: (params) => pulseV2ToolParams(params, {}) }
+  ),
+}

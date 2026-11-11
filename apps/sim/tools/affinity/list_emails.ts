@@ -2,6 +2,7 @@ import type { AffinityCollectionResponse, AffinityFilterParams } from '@/tools/a
 import { EMAIL_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import { affinityHeaders, buildAffinityUrl, transformCollection } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityListEmailsTool: ToolConfig<
@@ -13,6 +14,7 @@ export const affinityListEmailsTool: ToolConfig<
   description:
     'Page through email metadata — subject, participants, and timestamps. Affinity never exposes email bodies through the API.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

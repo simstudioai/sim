@@ -1,3 +1,4 @@
+import { DEVIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { DevinSendMessageParams, DevinSendMessageResponse } from './types'
 import { DEVIN_SESSION_OUTPUT_PROPERTIES } from './types'
@@ -8,6 +9,7 @@ export const devinSendMessageTool: ToolConfig<DevinSendMessageParams, DevinSendM
   description:
     'Send a message to a Devin session. If the session is suspended, it will be automatically resumed. Returns the updated session state.',
   version: '1.0.0',
+  oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

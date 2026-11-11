@@ -1,3 +1,4 @@
+import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import {
   ACCOUNT_OUTPUT_PROPERTIES,
@@ -17,6 +18,7 @@ export const uptimeRobotGetAccountTool: ToolConfig<
   name: 'UptimeRobot Get Account',
   description: 'Get details about the authenticated UptimeRobot account, including plan and limits',
   version: '1.0.0',
+  oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

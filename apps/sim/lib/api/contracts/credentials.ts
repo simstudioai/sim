@@ -3,8 +3,12 @@ import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/pri
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   ATLASSIAN_PRODUCTS,
-  getServiceAccountRequiredFields,
+  getMissingServiceAccountFields,
 } from '@/lib/credentials/service-account-fields'
+import {
+  WORKLOAD_IDENTITY_AUTH_TYPE_LIST,
+  WORKLOAD_IDENTITY_PROVIDERS,
+} from '@/lib/credentials/workload-identity/audiences'
 import type { OAuthProvider } from '@/lib/oauth/types'
 
 export const atlassianProductSchema = z.enum(ATLASSIAN_PRODUCTS)
@@ -236,14 +240,12 @@ export function refineCredentialCreate(
   }
 
   if (data.type === 'service_account') {
-    for (const field of getServiceAccountRequiredFields(data.providerId)) {
-      if (!data[field]) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `${field} is required for ${data.providerId ?? 'service account'} credentials`,
-          path: [field],
-        })
-      }
+    for (const field of getMissingServiceAccountFields(data.providerId, data)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${field} is required for ${data.providerId ?? 'service account'} credentials`,
+        path: [field],
+      })
     }
     return
   }
@@ -553,6 +555,62 @@ export const createWorkspaceCredentialContract = defineRouteContract({
     schema: z.object({
       credential: workspaceCredentialSchema,
     }),
+  },
+})
+
+/**
+ * The trust setup a keyless credential is created from, shared by the connect
+ * dialog's contract and the public `createCredentialWorkloadIdentitySubject`
+ * operation so the two cannot describe the same grant differently.
+ */
+/** The reconnected credential's stored auth mode, so the dialog reopens on it. */
+const reconnectAuthTypeSchema = z.enum(WORKLOAD_IDENTITY_AUTH_TYPE_LIST).optional()
+
+export const workloadIdentitySubjectGrantShape = {
+  issuer: z
+    .string()
+    .describe('OpenID Connect issuer URL to register as the identity provider the cloud trusts.'),
+  audience: z
+    .string()
+    .optional()
+    .describe(
+      "The `aud` claim the cloud must accept. Absent for Google Cloud, whose audience is each credential's own workload identity pool provider."
+    ),
+  subject: z
+    .string()
+    .describe(
+      'The exact `sub` claim the trust configuration must allow; unique to one credential.'
+    ),
+  subjectProof: z
+    .string()
+    .describe(
+      'Opaque proof submitted with `subject` when the credential is created. Bound to the requesting user, workspace, and provider.'
+    ),
+  expiresAt: z
+    .string()
+    .describe('ISO 8601 timestamp after which `subjectProof` can no longer create a credential.'),
+} as const
+
+export const prepareWorkloadIdentityContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/credentials/workload-identity',
+  body: z.object({
+    workspaceId: workspaceIdSchema,
+    provider: z.enum(WORKLOAD_IDENTITY_PROVIDERS),
+    /** The credential being reconnected, so the dialog opens on its current mode. */
+    credentialId: z.string().min(1).max(255).optional(),
+  }),
+  response: {
+    mode: 'json',
+    schema: z.discriminatedUnion('available', [
+      /** This deployment has no workload-identity signing key; offer key-based modes only. */
+      z.object({ available: z.literal(false), reconnectAuthType: reconnectAuthTypeSchema }),
+      z.object({
+        available: z.literal(true),
+        ...workloadIdentitySubjectGrantShape,
+        reconnectAuthType: reconnectAuthTypeSchema,
+      }),
+    ]),
   },
 })
 

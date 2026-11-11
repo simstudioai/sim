@@ -7,6 +7,7 @@ import {
   transformEntityResponse,
 } from '@/tools/crunchbase/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { CRUNCHBASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface CrunchbaseGetEntityParams extends CrunchbaseEntityParams {
@@ -22,6 +23,7 @@ export const crunchbaseGetEntityTool: ToolConfig<
   description:
     'Look up a single entity in any Crunchbase collection — events, jobs, ipos, funds, investments, press references, insights, predictions, and more — by permalink or UUID.',
   version: '1.0.0',
+  oauth: CRUNCHBASE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.CRUNCHBASE_ERRORS,
 
   params: {

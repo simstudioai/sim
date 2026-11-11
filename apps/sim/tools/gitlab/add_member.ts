@@ -1,5 +1,6 @@
 import type { GitLabAddMemberParams, GitLabAddMemberResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase, getGitLabResourcePath } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabAddMemberTool: ToolConfig<GitLabAddMemberParams, GitLabAddMemberResponse> = {
@@ -8,6 +9,7 @@ export const gitlabAddMemberTool: ToolConfig<GitLabAddMemberParams, GitLabAddMem
   name: 'GitLab Add Member',
   description: 'Add an existing GitLab user to a project or group at a given access level',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {

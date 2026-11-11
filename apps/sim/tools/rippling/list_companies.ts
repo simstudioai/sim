@@ -1,5 +1,6 @@
 import type { RipplingListCompaniesParams } from '@/tools/rippling/types'
 import { COMPANY_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingListCompaniesTool: ToolConfig<RipplingListCompaniesParams> = {
@@ -7,6 +8,7 @@ export const ripplingListCompaniesTool: ToolConfig<RipplingListCompaniesParams> 
   name: 'Rippling List Companies',
   description: 'List all companies',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

@@ -43,10 +43,12 @@ export interface SnowflakeBinding {
 }
 
 export interface SnowflakeBaseParams {
-  /** Id of the selected Snowflake programmatic-access-token credential. */
+  /** Id of the selected Snowflake credential. */
   oauthCredential: string
-  /** Programmatic access token, injected by the executor from the credential. */
+  /** Access token, injected by the executor from the credential. */
   accessToken?: string
+  /** Token type, injected by the executor from the credential; absent for a programmatic access token. */
+  authStyle?: string
   /** Account host, injected by the executor from the credential. */
   domain?: string
 }

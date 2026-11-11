@@ -11,6 +11,7 @@ import {
   mapGeo,
   trimmed,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrCreateGeoTool: ToolConfig<CheckrCreateGeoParams, CheckrGeoResponse> = {
@@ -19,6 +20,7 @@ export const checkrCreateGeoTool: ToolConfig<CheckrCreateGeoParams, CheckrGeoRes
   description:
     'Create a geo to group candidates by work location. A geo with the same name and state already existing returns an error.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

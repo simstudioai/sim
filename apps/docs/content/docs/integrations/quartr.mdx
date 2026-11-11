@@ -2,7 +2,7 @@
 title: Quartr
 description: Access earnings calls, transcripts, filings, and slides
 integration:
-  type: "quartr"
+  type: "quartr_v2"
   color: "#000000"
 ---
 
@@ -14,12 +14,12 @@ Use [Quartr](https://quartr.com/) to look up companies, corporate events, and ev
 
 Downloaded reports, slide decks, and transcripts are stored as execution files, so they can be passed straight into agents, knowledge bases, or other blocks in your workflow.
 
-To use the integration, generate an API key from the Quartr API portal and paste it into the block. Your key inherits the datasets enabled on your Quartr subscription.
+To use the integration, generate an API key from the Quartr API portal and add it as a Quartr credential. Your key inherits the datasets enabled on your Quartr subscription.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
 
-Look up companies, corporate events, and event types, retrieve AI-generated event summaries, list and download reports, slide decks, and transcripts, and access archived audio or live event streams. Supply a Quartr API key.
+Look up companies, corporate events, and event types, retrieve AI-generated event summaries, list and download reports, slide decks, and transcripts, and access archived audio or live event streams.
 
 ## Actions
 
@@ -33,7 +33,6 @@ List companies covered by Quartr, filterable by ticker, ISIN, CIK, OpenFIGI, cou
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Quartr API key |
 | `tickers` | string | No | Comma-separated list of company tickers \(e.g., "AAPL,MSFT"\) |
 | `isins` | string | No | Comma-separated list of ISINs \(e.g., "US0378331005"\) |
 | `ciks` | string | No | Comma-separated list of SEC CIKs \(e.g., "0000320193"\) |
@@ -79,7 +78,6 @@ Retrieve a single company from Quartr by its company ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Quartr API key |
 | `companyId` | number | Yes | Quartr company ID \(e.g., 4742\) |
 
 #### Output
@@ -113,7 +111,6 @@ List corporate events (earnings calls, capital markets days, etc.) from Quartr, 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Quartr API key |
 | `companyIds` | string | No | Comma-separated list of Quartr company IDs \(e.g., "4742,128"\) |
 | `tickers` | string | No | Comma-separated list of company tickers \(e.g., "AAPL,MSFT"\) |
 | `isins` | string | No | Comma-separated list of ISINs \(e.g., "US0378331005"\) |
@@ -160,7 +157,6 @@ Retrieve a single corporate event from Quartr by its event ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Quartr API key |
 | `eventId` | number | Yes | Quartr event ID \(e.g., 128301\) |
 
 #### Output
@@ -192,7 +188,6 @@ Retrieve the AI-generated summary of a corporate event from Quartr, with selecta
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Quartr API key |
 | `eventId` | number | Yes | Quartr event ID \(e.g., 128301\) |
 | `summaryLength` | string | No | Length preset for the summary: "line", "short", or "long" \(default: short\) |
 | `plainSummary` | boolean | No | Return a plain-text summary without embedded document source tags |
@@ -224,7 +219,6 @@ List the event types available in Quartr (e.g., earnings calls), useful for filt
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Quartr API key |
 | `limit` | number | No | Maximum number of items to return in a single request \(default: 10, max: 500\) |
 | `cursor` | number | No | Pagination cursor from the previous response \(nextCursor\) for the next page |
 | `direction` | string | No | Sort direction by id: "asc" or "desc" \(default: asc\) |
@@ -253,7 +247,6 @@ List documents of all kinds (reports, slide decks, and transcripts) from Quartr,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Quartr API key |
 | `companyIds` | string | No | Comma-separated list of Quartr company IDs \(e.g., "4742,128"\) |
 | `eventIds` | string | No | Comma-separated list of Quartr event IDs \(e.g., "128301"\) |
 | `tickers` | string | No | Comma-separated list of company tickers \(e.g., "AAPL,MSFT"\) |
@@ -305,7 +298,6 @@ List the document types available in Quartr (e.g., 10-Q quarterly reports), usef
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Quartr API key |
 | `limit` | number | No | Maximum number of items to return in a single request \(default: 10, max: 500\) |
 | `cursor` | number | No | Pagination cursor from the previous response \(nextCursor\) for the next page |
 | `direction` | string | No | Sort direction by id: "asc" or "desc" \(default: asc\) |
@@ -337,7 +329,6 @@ List filings and reports (10-K, 10-Q, earnings releases, etc.) from Quartr, filt
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Quartr API key |
 | `companyIds` | string | No | Comma-separated list of Quartr company IDs \(e.g., "4742,128"\) |
 | `eventIds` | string | No | Comma-separated list of Quartr event IDs \(e.g., "128301"\) |
 | `tickers` | string | No | Comma-separated list of company tickers \(e.g., "AAPL,MSFT"\) |
@@ -389,7 +380,6 @@ Retrieve a filing or report (10-K, 10-Q, earnings release, etc.) from Quartr by 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Quartr API key |
 | `reportId` | number | Yes | Quartr document ID of the report \(e.g., 432907\) |
 
 #### Output
@@ -426,7 +416,6 @@ List slide presentations from Quartr, filterable by company, event, document typ
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Quartr API key |
 | `companyIds` | string | No | Comma-separated list of Quartr company IDs \(e.g., "4742,128"\) |
 | `eventIds` | string | No | Comma-separated list of Quartr event IDs \(e.g., "128301"\) |
 | `tickers` | string | No | Comma-separated list of company tickers \(e.g., "AAPL,MSFT"\) |
@@ -478,7 +467,6 @@ Retrieve a slide presentation from Quartr by its document ID and download the PD
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Quartr API key |
 | `slideDeckId` | number | Yes | Quartr document ID of the slide deck \(e.g., 432907\) |
 
 #### Output
@@ -515,7 +503,6 @@ List event transcripts from Quartr, filterable by company, event, document type,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Quartr API key |
 | `companyIds` | string | No | Comma-separated list of Quartr company IDs \(e.g., "4742,128"\) |
 | `eventIds` | string | No | Comma-separated list of Quartr event IDs \(e.g., "128301"\) |
 | `tickers` | string | No | Comma-separated list of company tickers \(e.g., "AAPL,MSFT"\) |
@@ -567,7 +554,6 @@ Retrieve an event transcript from Quartr by its document ID and download the tra
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Quartr API key |
 | `transcriptId` | number | Yes | Quartr document ID of the transcript \(e.g., 432907\) |
 
 #### Output
@@ -604,7 +590,6 @@ List archived event audio recordings from Quartr, filterable by company, event, 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Quartr API key |
 | `companyIds` | string | No | Comma-separated list of Quartr company IDs \(e.g., "4742,128"\) |
 | `eventIds` | string | No | Comma-separated list of Quartr event IDs \(e.g., "128301"\) |
 | `tickers` | string | No | Comma-separated list of company tickers \(e.g., "AAPL,MSFT"\) |
@@ -660,7 +645,6 @@ Retrieve an archived event audio recording from Quartr by its audio ID. Returns 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Quartr API key |
 | `audioId` | number | Yes | Quartr audio ID \(e.g., 123964\) |
 
 #### Output
@@ -701,7 +685,6 @@ List live and upcoming events from Quartr with live audio and transcript stream 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Quartr API key |
 | `companyIds` | string | No | Comma-separated list of Quartr company IDs \(e.g., "4742,128"\) |
 | `eventIds` | string | No | Comma-separated list of Quartr event IDs \(e.g., "128301"\) |
 | `tickers` | string | No | Comma-separated list of company tickers \(e.g., "AAPL,MSFT"\) |

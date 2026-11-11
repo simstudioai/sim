@@ -2,6 +2,7 @@ import type {
   IdentityCenterGetUserParams,
   IdentityCenterGetUserResponse,
 } from '@/tools/identity_center/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getUserTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const getUserTool: InternalToolConfig<
   name: 'Identity Center Get User',
   description: 'Look up a user in the Identity Store by email address',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

@@ -285,11 +285,13 @@ export interface FirecrawlCrawlParams {
   apiKey: string
   url: string
   limit?: number
-  maxDepth?: number
+  /** Saved tool params can carry the raw field text, so a cleared field arrives as `''`. */
+  maxDepth?: number | string
   formats?: FirecrawlFormat[]
   onlyMainContent?: boolean
   prompt?: string
-  maxDiscoveryDepth?: number
+  /** Raw field text like {@link maxDepth}: a cleared field arrives as `''`. */
+  maxDiscoveryDepth?: number | string
   sitemap?: 'skip' | 'include'
   crawlEntireDomain?: boolean
   allowExternalLinks?: boolean

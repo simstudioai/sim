@@ -2067,6 +2067,38 @@ export type CreateCredentialConnectionResponse = {
   data: CreateCredentialConnectionResponseRef0
 }
 
+/** `POST /api/v2/credentials/workload-identity/subjects` */
+export type CreateCredentialWorkloadIdentitySubjectQuery = Record<string, unknown>
+
+export type CreateCredentialWorkloadIdentitySubjectBody = {
+  workspaceId: string
+  providerId:
+    | 'aws-service-account'
+    | 'databricks-service-account'
+    | 'snowflake-service-account'
+    | 'microsoft-app-service-account'
+    | 'google-service-account'
+}
+
+type CreateCredentialWorkloadIdentitySubjectResponseRef0 = {
+  issuer: string
+  audience?: string
+  subject: string
+  subjectProof: string
+  expiresAt: string
+  keylessConfig: {
+    authType: string
+    subject: string
+    subjectProof: string
+  }
+  requiredConfigFields: Array<string>
+  optionalConfigFields: Array<string>
+}
+
+export type CreateCredentialWorkloadIdentitySubjectResponse = {
+  data: CreateCredentialWorkloadIdentitySubjectResponseRef0
+}
+
 /** `POST /api/v2/custom-tools` */
 export type CreateCustomToolQuery = Record<string, unknown>
 
@@ -5545,6 +5577,7 @@ export type ExecuteWorkflowBody = {
   run?:
     | {
         source: 'deployment'
+        version?: number
       }
     | {
         source: 'manual'
@@ -6629,6 +6662,7 @@ type GetMetaResponseRef0 = {
   v2Enabled: boolean
   keyType: 'personal' | 'workspace' | 'oauth_access_token'
   expiresAt: string | null
+  scopes: Array<'api:read' | 'api:write' | 'search:read'>
 }
 
 export type GetMetaResponse = {
@@ -7160,6 +7194,22 @@ export type GetSandboxResponse = {
   data: GetSandboxResponseRef0
 }
 
+/** `GET /api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions` */
+export type GetSearchSourcePermissionsParams = {
+  organizationId: string
+  sourceId: string
+}
+
+export type GetSearchSourcePermissionsQuery = Record<string, unknown>
+
+type GetSearchSourcePermissionsResponseRef0 = {
+  revision: number
+}
+
+export type GetSearchSourcePermissionsResponse = {
+  data: GetSearchSourcePermissionsResponseRef0
+}
+
 /** `POST /api/v2/selectors/get` */
 export type GetSelectorQuery = Record<string, unknown>
 
@@ -7275,6 +7325,8 @@ export type GetSelectorBody = {
     | 'planetscale.deployRequests'
     | 'cloudwatch.logGroups'
     | 'cloudwatch.logStreams'
+    | 'cloudwatch.savedLogGroups'
+    | 'cloudwatch.savedLogStreams'
     | 'imap.mailboxes'
     | 'mcp.tools'
     | 'managedAgent.agents'
@@ -7848,6 +7900,38 @@ export type GetWorkflowRunQuery = {
 }
 
 type GetWorkflowRunResponseRef0 = {
+  contextId: string
+  blockId: string
+  blockName: string | null
+  kind: 'human' | 'time'
+  status: 'paused' | 'queued' | 'resuming' | 'resumed' | 'failed'
+  registeredAt: string | null
+  resumeAt: string | null
+  parallel: {
+    parallelId: string
+    branchIndex: number
+    branchTotal: number | null
+  } | null
+  loop: {
+    loopId: string
+    iteration: number
+  } | null
+  inputFields: Array<GetWorkflowRunResponseRef1> | null
+  display: unknown | null
+  queuePosition: number | null
+}
+
+type GetWorkflowRunResponseRef1 = {
+  name: string
+  label: string
+  type: string
+  description?: string
+  placeholder?: string
+  required: boolean
+  options?: Array<unknown>
+}
+
+type GetWorkflowRunResponseRef2 = {
   message: string
   code:
     | 'TIMEOUT'
@@ -7862,7 +7946,7 @@ type GetWorkflowRunResponseRef0 = {
   blockType?: string
 }
 
-type GetWorkflowRunResponseRef1 = {
+type GetWorkflowRunResponseRef3 = {
   id: string
   name: string
   size: number
@@ -7871,7 +7955,7 @@ type GetWorkflowRunResponseRef1 = {
   base64: string | null
 }
 
-type GetWorkflowRunResponseRef2 = {
+type GetWorkflowRunResponseRef4 = {
   runId: string
   workflowId: string
   status:
@@ -7887,6 +7971,7 @@ type GetWorkflowRunResponseRef2 = {
   startedAt: string | null
   endedAt: string | null
   durationMs: number | null
+  version: number | null
   paused: {
     contextId: string | null
     pausedAt: string
@@ -7896,18 +7981,19 @@ type GetWorkflowRunResponseRef2 = {
     automaticResumeWaitingReason: string | null
     pausePointCount: number
     resumedCount: number
+    points: Array<GetWorkflowRunResponseRef0>
   } | null
   cost: {
     total: number
   } | null
-  error: GetWorkflowRunResponseRef0 | null
+  error: GetWorkflowRunResponseRef2 | null
   output: unknown | null
   blockOutputs: Record<string, unknown> | null
-  files: Array<GetWorkflowRunResponseRef1> | null
+  files: Array<GetWorkflowRunResponseRef3> | null
 }
 
 export type GetWorkflowRunResponse = {
-  data: GetWorkflowRunResponseRef2
+  data: GetWorkflowRunResponseRef4
 }
 
 /** `GET /api/v2/workflows/[workflowId]/state` */
@@ -8724,6 +8810,11 @@ type ListCredentialProvidersResponseRef0 =
         }>
         hint?: string
       }>
+      keyless?: {
+        authType: string
+        requiredConfigFields: Array<string>
+        optionalConfigFields: Array<string>
+      }
     }
 
 export type ListCredentialProvidersResponse = {
@@ -10314,6 +10405,8 @@ export type ListSelectorBody = {
     | 'planetscale.deployRequests'
     | 'cloudwatch.logGroups'
     | 'cloudwatch.logStreams'
+    | 'cloudwatch.savedLogGroups'
+    | 'cloudwatch.savedLogStreams'
     | 'imap.mailboxes'
     | 'mcp.tools'
     | 'managedAgent.agents'
@@ -10832,6 +10925,33 @@ type ListWorkflowsResponseRef0 = {
 
 export type ListWorkflowsResponse = {
   data: Array<ListWorkflowsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/workflows/[workflowId]/triggers` */
+export type ListWorkflowTriggersParams = {
+  workflowId: string
+}
+
+export type ListWorkflowTriggersQuery = Record<string, unknown>
+
+type ListWorkflowTriggersResponseRef0 = {
+  blockId: string
+  kind: 'schedule' | 'polling' | 'event' | 'webhook'
+  provider: string | null
+  enabled: boolean
+  status: 'active' | 'disabled' | 'completed'
+  failedCount: number
+  lastFailedAt: string | null
+  nextRunAt: string | null
+  lastRanAt: string | null
+  cronExpression: string | null
+  timezone: string | null
+  url: string | null
+}
+
+export type ListWorkflowTriggersResponse = {
+  data: Array<ListWorkflowTriggersResponseRef0>
   nextCursor: string | null
 }
 
@@ -12657,6 +12777,24 @@ export type RemovePermissionGroupMemberResponse = {
   data: RemovePermissionGroupMemberResponseRef0
 }
 
+/** `DELETE /api/v2/workspaces/[workspaceId]/members/[userId]` */
+export type RemoveWorkspaceMemberParams = {
+  workspaceId: string
+  userId: string
+}
+
+export type RemoveWorkspaceMemberQuery = Record<string, unknown>
+
+type RemoveWorkspaceMemberResponseRef0 = {
+  userId: string
+  deleted: true
+  organizationMembershipRemoved: boolean
+}
+
+export type RemoveWorkspaceMemberResponse = {
+  data: RemoveWorkspaceMemberResponseRef0
+}
+
 /** `PATCH /api/v2/files/[fileId]` */
 export type RenameFileParams = {
   fileId: string
@@ -12719,6 +12857,37 @@ type RenameProjectFileResponseRef0 = {
 
 export type RenameProjectFileResponse = {
   data: RenameProjectFileResponseRef0
+}
+
+/** `PUT /api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions` */
+export type ReplaceSearchSourcePermissionsParams = {
+  organizationId: string
+  sourceId: string
+}
+
+export type ReplaceSearchSourcePermissionsQuery = Record<string, unknown>
+
+export type ReplaceSearchSourcePermissionsBody = {
+  expectedRevision: number
+  permissions: {
+    provider: 'gitlab'
+    userMapping: {
+      filename: string
+      content: string
+    }
+    projectPermissions: {
+      filename: string
+      content: string
+    }
+  }
+}
+
+type ReplaceSearchSourcePermissionsResponseRef0 = {
+  revision: number
+}
+
+export type ReplaceSearchSourcePermissionsResponse = {
+  data: ReplaceSearchSourcePermissionsResponseRef0
 }
 
 /** `PUT /api/v2/workflows/[workflowId]/deployments/chat` */
@@ -15723,6 +15892,37 @@ export type UpdateWorkflowPublicApiResponse = {
   data: UpdateWorkflowPublicApiResponseRef0
 }
 
+/** `PATCH /api/v2/workflows/[workflowId]/triggers/[blockId]` */
+export type UpdateWorkflowTriggerParams = {
+  workflowId: string
+  blockId: string
+}
+
+export type UpdateWorkflowTriggerQuery = Record<string, unknown>
+
+export type UpdateWorkflowTriggerBody = {
+  enabled: boolean
+}
+
+type UpdateWorkflowTriggerResponseRef0 = {
+  blockId: string
+  kind: 'schedule' | 'polling' | 'event' | 'webhook'
+  provider: string | null
+  enabled: boolean
+  status: 'active' | 'disabled' | 'completed'
+  failedCount: number
+  lastFailedAt: string | null
+  nextRunAt: string | null
+  lastRanAt: string | null
+  cronExpression: string | null
+  timezone: string | null
+  url: string | null
+}
+
+export type UpdateWorkflowTriggerResponse = {
+  data: UpdateWorkflowTriggerResponseRef0
+}
+
 /** `PATCH /api/v2/workflows/[workflowId]/versions/[version]` */
 export type UpdateWorkflowVersionParams = {
   version: number
@@ -15801,6 +16001,32 @@ type UpdateWorkspaceForkMappingsResponseRef0 = {
 
 export type UpdateWorkspaceForkMappingsResponse = {
   data: UpdateWorkspaceForkMappingsResponseRef0
+}
+
+/** `PATCH /api/v2/workspaces/[workspaceId]/members/[userId]` */
+export type UpdateWorkspaceMemberParams = {
+  workspaceId: string
+  userId: string
+}
+
+export type UpdateWorkspaceMemberQuery = Record<string, unknown>
+
+export type UpdateWorkspaceMemberBody = {
+  role: 'admin' | 'write' | 'read'
+}
+
+type UpdateWorkspaceMemberResponseRef0 = {
+  userId: string
+  email: string
+  name: string
+  image: string | null
+  role: 'admin' | 'write' | 'read'
+  isExternal: boolean
+  joinedAt: string
+}
+
+export type UpdateWorkspaceMemberResponse = {
+  data: UpdateWorkspaceMemberResponseRef0
 }
 
 /** `POST /api/v2/knowledge/[knowledgeBaseId]/documents` */
@@ -16699,6 +16925,34 @@ export const V2_OPERATIONS = {
     summary: 'Create credential connection',
     workspaceKeyUnsupported: true,
     opaqueBody: true,
+  },
+  createCredentialWorkloadIdentitySubject: {
+    method: 'POST',
+    path: '/api/v2/credentials/workload-identity/subjects',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create workload identity subject',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that will own the keyless credential.',
+      },
+      providerId: {
+        kind: 'enum',
+        required: true,
+        values: [
+          'aws-service-account',
+          'databricks-service-account',
+          'snowflake-service-account',
+          'microsoft-app-service-account',
+          'google-service-account',
+        ] as const,
+        describe:
+          'Service-account provider the keyless credential will be created under; pass the same value to Create service-account credential. The response and List credential providers name the fields its keyless configuration needs.',
+      },
+    },
   },
   createCustomTool: {
     method: 'POST',
@@ -18507,13 +18761,13 @@ export const V2_OPERATIONS = {
       run: {
         kind: 'unknown',
         describe:
-          'Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.',
+          'Workflow state and entry point to execute. Omit for the active deployment; `source: "deployment"` with `version` runs that deployment version. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.',
       },
       async: {
         kind: 'boolean',
         default: false,
         describe:
-          'Queue the run and return a 202 receipt. Requires an API key or OAuth access token and a deployed run source. Cannot stream, select outputs, enable thinking/tool events, or include file-inlining options (`includeFileBase64` or `base64MaxBytes`).',
+          'Queue the run and return a 202 receipt. Requires a full-access API key or an OAuth access token with `api:write`, and a deployed run source. Cannot stream, select outputs, enable thinking/tool events, or include file-inlining options (`includeFileBase64` or `base64MaxBytes`).',
       },
       executionTimeoutSeconds: {
         kind: 'integer',
@@ -18523,7 +18777,7 @@ export const V2_OPERATIONS = {
       waitTimeoutSeconds: {
         kind: 'integer',
         describe:
-          'Wait at most this many seconds for a synchronous run; `0` waits until it settles. A run still going then continues in the background and the response carries its run receipt instead of its result: `202` on a JSON response, or a closing `detached` frame on an `application/x-ndjson` result stream, which keeps its `200`. The receipt is sent only once the run can be read on the runs resource, where it can also be cancelled. The run is admitted under asynchronous limits, and a dropped connection no longer cancels it. Requires an API key or OAuth access token. Cannot be combined with `async` or `stream`.',
+          'Wait at most this many seconds for a synchronous run; `0` waits until it settles. A run still going then continues in the background and the response carries its run receipt instead of its result: `202` on a JSON response, or a closing `detached` frame on an `application/x-ndjson` result stream, which keeps its `200`. The receipt is sent only once the run can be read on the runs resource, where it can also be cancelled. The run is admitted under asynchronous limits, and a dropped connection no longer cancels it. Requires a full-access API key or an OAuth access token with `api:write`. Cannot be combined with `async` or `stream`.',
       },
       stream: {
         kind: 'boolean',
@@ -19259,6 +19513,18 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
     },
   },
+  getSearchSourcePermissions: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions',
+    pathParams: ['organizationId', 'sourceId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Identifier of the configured Search source.',
+    },
+    responseMode: 'json',
+    summary: 'Get Search source permission revision',
+    workspaceKeyUnsupported: true,
+  },
   getSelector: {
     method: 'POST',
     path: '/api/v2/selectors/get',
@@ -19385,6 +19651,8 @@ export const V2_OPERATIONS = {
           'planetscale.deployRequests',
           'cloudwatch.logGroups',
           'cloudwatch.logStreams',
+          'cloudwatch.savedLogGroups',
+          'cloudwatch.savedLogStreams',
           'imap.mailboxes',
           'mcp.tools',
           'managedAgent.agents',
@@ -21722,6 +21990,8 @@ export const V2_OPERATIONS = {
           'planetscale.deployRequests',
           'cloudwatch.logGroups',
           'cloudwatch.logStreams',
+          'cloudwatch.savedLogGroups',
+          'cloudwatch.savedLogStreams',
           'imap.mailboxes',
           'mcp.tools',
           'managedAgent.agents',
@@ -22258,6 +22528,14 @@ export const V2_OPERATIONS = {
         describe: 'Sort direction.',
       },
     },
+  },
+  listWorkflowTriggers: {
+    method: 'GET',
+    path: '/api/v2/workflows/[workflowId]/triggers',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'List workflow triggers',
   },
   listWorkflowVersions: {
     method: 'GET',
@@ -23035,6 +23313,18 @@ export const V2_OPERATIONS = {
     summary: 'Remove permission group member',
     workspaceKeyUnsupported: true,
   },
+  removeWorkspaceMember: {
+    method: 'DELETE',
+    path: '/api/v2/workspaces/[workspaceId]/members/[userId]',
+    pathParams: ['workspaceId', 'userId'] as const,
+    pathParamDocs: {
+      workspaceId: 'Workspace the member belongs to.',
+      userId: 'User identifier of the workspace member, as returned by List workspace members.',
+    },
+    responseMode: 'json',
+    summary: 'Remove workspace member',
+    workspaceKeyUnsupported: true,
+  },
   renameFile: {
     method: 'PATCH',
     path: '/api/v2/files/[fileId]',
@@ -23063,6 +23353,30 @@ export const V2_OPERATIONS = {
     workspaceKeyUnsupported: true,
     body: {
       name: { kind: 'string', required: true, describe: 'New file name, including its extension.' },
+    },
+  },
+  replaceSearchSourcePermissions: {
+    method: 'PUT',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions',
+    pathParams: ['organizationId', 'sourceId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Identifier of the configured Search source.',
+    },
+    responseMode: 'json',
+    summary: 'Replace Search source permissions',
+    workspaceKeyUnsupported: true,
+    body: {
+      expectedRevision: {
+        kind: 'integer',
+        required: true,
+        describe: 'Permission revision read before exporting the grants.',
+      },
+      permissions: {
+        kind: 'object',
+        required: true,
+        describe: 'Complete permission grants in the source provider’s format.',
+      },
     },
   },
   replaceWorkflowChatDeployment: {
@@ -24894,6 +25208,25 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  updateWorkflowTrigger: {
+    method: 'PATCH',
+    path: '/api/v2/workflows/[workflowId]/triggers/[blockId]',
+    pathParams: ['workflowId', 'blockId'] as const,
+    pathParamDocs: {
+      workflowId: 'Unique workflow identifier.',
+      blockId: 'Trigger block in the deployed workflow.',
+    },
+    responseMode: 'json',
+    summary: 'Update workflow trigger',
+    body: {
+      enabled: {
+        kind: 'boolean',
+        required: true,
+        describe:
+          'Whether the trigger should fire. A disable lasts until the next deploy or version activation, which re-enables every trigger.',
+      },
+    },
+  },
   updateWorkflowVersion: {
     method: 'PATCH',
     path: '/api/v2/workflows/[workflowId]/versions/[version]',
@@ -24959,6 +25292,27 @@ export const V2_OPERATIONS = {
         required: true,
         describe:
           'Mapping entries addressed by resource type and `sourceId`. `targetId: null` clears a mapping.',
+      },
+    },
+  },
+  updateWorkspaceMember: {
+    method: 'PATCH',
+    path: '/api/v2/workspaces/[workspaceId]/members/[userId]',
+    pathParams: ['workspaceId', 'userId'] as const,
+    pathParamDocs: {
+      workspaceId: 'Workspace the member belongs to.',
+      userId: 'User identifier of the workspace member, as returned by List workspace members.',
+    },
+    responseMode: 'json',
+    summary: 'Update workspace member',
+    workspaceKeyUnsupported: true,
+    body: {
+      role: {
+        kind: 'enum',
+        required: true,
+        values: ['admin', 'write', 'read'] as const,
+        describe:
+          'New workspace role. Inherited organization Admin access, the workspace owner, and the workspace billing account keep Admin and cannot be changed here.',
       },
     },
   },

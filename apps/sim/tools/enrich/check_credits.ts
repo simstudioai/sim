@@ -1,4 +1,5 @@
 import type { EnrichCheckCreditsParams, EnrichCheckCreditsResponse } from '@/tools/enrich/types'
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkCreditsTool: ToolConfig<EnrichCheckCreditsParams, EnrichCheckCreditsResponse> = {
@@ -6,6 +7,7 @@ export const checkCreditsTool: ToolConfig<EnrichCheckCreditsParams, EnrichCheckC
   name: 'Enrich Check Credits',
   description: 'Check your Enrich API credit usage and remaining balance.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

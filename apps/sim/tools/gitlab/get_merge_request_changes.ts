@@ -3,6 +3,7 @@ import type {
   GitLabGetMergeRequestChangesResponse,
 } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabGetMergeRequestChangesTool: ToolConfig<
@@ -15,6 +16,7 @@ export const gitlabGetMergeRequestChangesTool: ToolConfig<
   name: 'GitLab Get Merge Request Changes',
   description: 'Get the file changes (diffs) of a GitLab merge request',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {

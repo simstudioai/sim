@@ -3,6 +3,7 @@ import {
   handleMailchimpError,
   type MailchimpMember,
 } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface MailchimpGetMembersParams {
@@ -30,6 +31,7 @@ export const mailchimpGetMembersTool: ToolConfig<
   name: 'Get Members from Mailchimp Audience',
   description: 'Retrieve a list of members from a Mailchimp audience',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

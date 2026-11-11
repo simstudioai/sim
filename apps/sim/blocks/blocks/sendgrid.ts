@@ -1,11 +1,13 @@
 import { SendgridIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 import { toActiveFlag } from '@/tools/sendgrid/create_template_version'
 
 export const SendGridBlock: BlockConfig = {
   type: 'sendgrid',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'sendgrid_v2' },
   name: 'SendGrid',
   description: 'Send emails and manage contacts, lists, and templates with SendGrid',
   longDescription:
@@ -859,3 +861,17 @@ export const SendGridBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const SendGridV2Block: BlockConfig = {
+  ...SendGridBlock,
+  type: 'sendgrid_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(SendGridBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'sendgrid',
+    title: 'SendGrid Credential',
+  }),
+}

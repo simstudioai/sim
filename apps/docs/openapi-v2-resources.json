@@ -421,6 +421,239 @@
         }
       }
     },
+    "/api/v2/workspaces/{workspaceId}/members/{userId}": {
+      "patch": {
+        "operationId": "updateWorkspaceMember",
+        "summary": "Update workspace member",
+        "description": "Change one existing member’s workspace role. Requires workspace Admin access. Only existing members can be changed; anyone else is Not found, and people are added with Create workspace invitations. You cannot lower your own role, and organization Admins, the workspace owner, and the workspace billing account always keep Admin. Members whose organization membership an identity provider manages cannot be changed here. Requesting the role a member already holds changes nothing and records no audit entry, except that an organization Admin is refused whatever role is requested. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "workspaces.permissions.update",
+        "x-oauth-scope": "api:write",
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "description": "Workspace the member belongs to.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace the member belongs to."
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User identifier of the workspace member, as returned by List workspace members.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "User identifier of the workspace member, as returned by List workspace members."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The new workspace role for this member.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkspaceMemberBody"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "role": "write"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The member with their updated workspace role.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateWorkspaceMemberResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "userId": "user-123",
+                        "email": "jane@example.com",
+                        "name": "Jane Smith",
+                        "image": null,
+                        "role": "write",
+                        "isExternal": false,
+                        "joinedAt": "2026-01-15T10:30:00.000Z"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "removeWorkspaceMember",
+        "summary": "Remove workspace member",
+        "description": "Remove a member’s workspace access, or leave the workspace by naming yourself. Removing someone else requires workspace Admin access; any member may leave. The last Admin cannot leave, organization Admins hold access through their organization role and cannot be removed here, and the workspace billing account cannot be removed until billing is reassigned. Removing the workspace owner transfers ownership to the billing account. When this was the member’s last workspace in its organization, their organization membership and seat are removed too and all of their sessions end, since this endpoint is called with an API key or OAuth token rather than from a signed-in browser session. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "workspaces.members.remove",
+        "x-oauth-scope": "api:write",
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "description": "Workspace the member belongs to.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace the member belongs to."
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User identifier of the workspace member, as returned by List workspace members.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "User identifier of the workspace member, as returned by List workspace members."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Acknowledgement that workspace access was removed.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoveWorkspaceMemberResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "userId": "user-123",
+                        "deleted": true,
+                        "organizationMembershipRemoved": false
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/mcp-servers": {
       "get": {
         "operationId": "listMcpServers",
@@ -3591,7 +3824,7 @@
       "post": {
         "operationId": "createServiceAccountCredential",
         "summary": "Create service-account credential",
-        "description": "Verify and store a service-account credential. Use the fields from List credential providers, encoded as a JSON object string in `credentials`. Requires workspace write access. A matching source returns the existing credential with `200`; creation returns `201`. Stored secrets are omitted from the response. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Verify and store a service-account credential. Use the fields from List credential providers, encoded as a JSON object string in `credentials`. For a keyless AWS, Databricks, Snowflake, Microsoft app, or Google Cloud credential, call Create workload identity subject first, configure the cloud to trust it, then send its `keylessConfig` as `serviceAccountJson`. A refused keyless credential names its cause in `details.code`: `409` for `WORKLOAD_IDENTITY_SUBJECT_IN_USE` or `WORKLOAD_IDENTITY_SUBJECT_UNVERIFIABLE`, otherwise `400`, such as `WORKLOAD_IDENTITY_PROOF_EXPIRED` (request a new subject). Requires workspace write access. A matching source returns the existing credential with `200`; creation returns `201`. Stored secrets are omitted from the response. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "credentials.service_accounts.create",
         "x-oauth-scope": "api:write",
         "tags": ["Credentials"],
@@ -3620,6 +3853,16 @@
                     "providerId": "zoom-service-account",
                     "displayName": "Zoom automation",
                     "credentials": "{\"clientId\":\"YOUR_CLIENT_ID\",\"clientSecret\":\"YOUR_CLIENT_SECRET\",\"orgId\":\"YOUR_ACCOUNT_ID\"}"
+                  }
+                },
+                "example2": {
+                  "summary": "Request example 2",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "type": "service_account",
+                    "providerId": "aws-service-account",
+                    "displayName": "AWS production (keyless)",
+                    "credentials": "{\"serviceAccountJson\":\"{\\\"authType\\\":\\\"oidc_role\\\",\\\"roleArn\\\":\\\"arn:aws:iam::123456789012:role/SimWorkflows\\\",\\\"subject\\\":\\\"sim:workspace:<workspaceId>:credential:<subjectId>\\\",\\\"subjectProof\\\":\\\"<subjectProof from Create workload identity subject>\\\"}\"}"
                   }
                 }
               }
@@ -4000,6 +4243,115 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/credentials/workload-identity/subjects": {
+      "post": {
+        "operationId": "createCredentialWorkloadIdentitySubject",
+        "summary": "Create workload identity subject",
+        "description": "Start a keyless credential. Returns the issuer, audience, and a fresh subject to configure in the cloud's trust policy, plus `keylessConfig`: a prefilled `serviceAccountJson` whose `subjectProof` is valid for 24 hours and only for the requesting user. Add the `requiredConfigFields`, then call Create service-account credential with the same `providerId`; Sim verifies the trust while saving. Google Cloud has no fixed audience: it is the credential's own pool provider. Without keyless support the deployment returns `400` with `details.code` `WORKLOAD_IDENTITY_NOT_CONFIGURED`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "credentials.workload_identity.prepare",
+        "x-oauth-scope": "api:write",
+        "tags": ["Credentials"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace that will own the keyless credential and the service-account provider it will be created under.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCredentialWorkloadIdentitySubjectRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "providerId": "aws-service-account"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A subject and proof for one new keyless credential.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateCredentialWorkloadIdentitySubjectResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "issuer": "https://www.sim.ai/oidc/workload",
+                        "audience": "sts.amazonaws.com",
+                        "subject": "sim:workspace:<workspaceId>:credential:<subjectId>",
+                        "subjectProof": "<subjectProof from Create workload identity subject>",
+                        "expiresAt": "2026-06-21T14:17:11.000Z",
+                        "keylessConfig": {
+                          "authType": "oidc_role",
+                          "subject": "sim:workspace:<workspaceId>:credential:<subjectId>",
+                          "subjectProof": "<subjectProof from Create workload identity subject>"
+                        },
+                        "requiredConfigFields": ["roleArn"],
+                        "optionalConfigFields": ["stsRegion", "sessionDurationSeconds"]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
@@ -4714,7 +5066,7 @@
       "get": {
         "operationId": "getApiMeta",
         "summary": "Get API status",
-        "description": "Get the calling credential’s type and expiry. Requires a valid API key or OAuth access token. `v2Enabled` is true whenever this endpoint is served; the response does not enumerate resource permissions.\n\nOAuth scope: `api:read`.",
+        "description": "Get the calling credential’s type, expiry, and API scopes. Requires a valid API key or OAuth access token. `v2Enabled` is true whenever this endpoint is served; the response does not enumerate resource permissions.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "meta.capabilities.read",
         "x-oauth-scope": "api:read",
         "tags": ["Meta"],
@@ -4752,7 +5104,8 @@
                       "data": {
                         "v2Enabled": true,
                         "keyType": "personal",
-                        "expiresAt": null
+                        "expiresAt": null,
+                        "scopes": ["api:read", "api:write", "search:read"]
                       }
                     }
                   }
@@ -9643,6 +9996,237 @@
         }
       }
     },
+    "/api/v2/organizations/{organizationId}/search/sources/{sourceId}/permissions": {
+      "get": {
+        "operationId": "getSearchSourcePermissions",
+        "summary": "Get Search source permission revision",
+        "description": "Read the permission revision for a Search source that accepts externally managed grants. Requires organization Admin access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "knowledge.search.source_permissions.read",
+        "x-oauth-scope": "api:read",
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization identifier."
+            }
+          },
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "description": "Identifier of the configured Search source.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Identifier of the configured Search source."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The current permission revision.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchSourcePermissionResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "revision": 3
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "put": {
+        "operationId": "replaceSearchSourcePermissions",
+        "summary": "Replace Search source permissions",
+        "description": "Replace the complete permission grants for one Search source. Requires organization Admin access. Supply the current revision and the grants for the configured provider. A stale revision returns 409. GitLab CSV mode accepts both files together, up to 4 MiB and 100,000 data rows each. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "knowledge.search.source_permissions.replace",
+        "x-oauth-scope": "api:write",
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization identifier."
+            }
+          },
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "description": "Identifier of the configured Search source.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Identifier of the configured Search source."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The expected revision and complete replacement grants for the provider.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceSearchSourcePermissionsBody"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "expectedRevision": 2,
+                    "permissions": {
+                      "provider": "gitlab",
+                      "userMapping": {
+                        "filename": "users.csv",
+                        "content": "user_id,email\n42,reader@example.com\n"
+                      },
+                      "projectPermissions": {
+                        "filename": "projects.csv",
+                        "content": "project_path,user_id\nteam/project,42\n"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The new permission revision.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchSourcePermissionResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "revision": 3
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/organizations/{organizationId}/sso/providers": {
       "get": {
         "operationId": "listSsoProviders",
@@ -14343,6 +14927,7 @@
           "PERMISSION_GROUP_CAPABILITY_BLOCKED",
           "INTEGRATION_NOT_ALLOWED",
           "INSUFFICIENT_SCOPE",
+          "READ_ONLY_API_KEY",
           "SCIM_MANAGED_MEMBERSHIP"
         ],
         "title": "Forbidden detail code",
@@ -14602,6 +15187,95 @@
               }
             ],
             "nextCursor": null
+          }
+        ]
+      },
+      "UpdateWorkspaceMemberResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2WorkspaceMember"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update workspace member response",
+        "description": "The member with their updated workspace role.",
+        "examples": [
+          {
+            "data": {
+              "userId": "user-123",
+              "email": "jane@example.com",
+              "name": "Jane Smith",
+              "image": null,
+              "role": "write",
+              "isExternal": false,
+              "joinedAt": "2026-01-15T10:30:00.000Z"
+            }
+          }
+        ]
+      },
+      "UpdateWorkspaceMemberBody": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["admin", "write", "read"],
+            "description": "New workspace role. Inherited organization Admin access, the workspace owner, and the workspace billing account keep Admin and cannot be changed here."
+          }
+        },
+        "required": ["role"],
+        "additionalProperties": false,
+        "title": "Update workspace member body",
+        "description": "The new workspace role for this member.",
+        "examples": [
+          {
+            "role": "write"
+          }
+        ]
+      },
+      "V2WorkspaceMemberDeletion": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "User removed from the workspace."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Whether workspace access was removed."
+          },
+          "organizationMembershipRemoved": {
+            "type": "boolean",
+            "description": "Whether this was the member’s last workspace in the organization, so their organization membership and seat were removed too."
+          }
+        },
+        "required": ["userId", "deleted", "organizationMembershipRemoved"],
+        "additionalProperties": false,
+        "title": "Workspace member removal",
+        "description": "Acknowledges removal of a workspace member."
+      },
+      "RemoveWorkspaceMemberResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2WorkspaceMemberDeletion"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Remove workspace member response",
+        "description": "Acknowledgement that workspace access was removed.",
+        "examples": [
+          {
+            "data": {
+              "userId": "user-123",
+              "deleted": true,
+              "organizationMembershipRemoved": false
+            }
           }
         ]
       },
@@ -17257,6 +17931,32 @@
                   "additionalProperties": false
                 },
                 "description": "Create-body fields accepted by this provider. Secret fields are write-only."
+              },
+              "keyless": {
+                "description": "Present when this deployment can create a keyless credential for the provider. Start one with Create workload identity subject.",
+                "type": "object",
+                "properties": {
+                  "authType": {
+                    "type": "string",
+                    "description": "The `authType` of the keyless `serviceAccountJson`."
+                  },
+                  "requiredConfigFields": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Fields you add to `keylessConfig`."
+                  },
+                  "optionalConfigFields": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Fields `keylessConfig` may also carry."
+                  }
+                },
+                "required": ["authType", "requiredConfigFields", "optionalConfigFields"],
+                "additionalProperties": false
               }
             },
             "required": [
@@ -17717,6 +18417,142 @@
           }
         ]
       },
+      "V2CredentialWorkloadIdentitySubject": {
+        "type": "object",
+        "properties": {
+          "issuer": {
+            "type": "string",
+            "description": "OpenID Connect issuer URL to register as the identity provider the cloud trusts."
+          },
+          "audience": {
+            "description": "The `aud` claim the cloud must accept. Absent for Google Cloud, whose audience is each credential's own workload identity pool provider.",
+            "type": "string"
+          },
+          "subject": {
+            "type": "string",
+            "description": "The exact `sub` claim the trust configuration must allow; unique to one credential."
+          },
+          "subjectProof": {
+            "type": "string",
+            "description": "Opaque proof submitted with `subject` when the credential is created. Bound to the requesting user, workspace, and provider."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp after which `subjectProof` can no longer create a credential."
+          },
+          "keylessConfig": {
+            "type": "object",
+            "properties": {
+              "authType": {
+                "type": "string",
+                "description": "The provider's keyless authentication type."
+              },
+              "subject": {
+                "type": "string",
+                "description": "The exact `sub` claim the trust configuration must allow; unique to one credential."
+              },
+              "subjectProof": {
+                "type": "string",
+                "description": "Opaque proof submitted with `subject` when the credential is created. Bound to the requesting user, workspace, and provider."
+              }
+            },
+            "required": ["authType", "subject", "subjectProof"],
+            "additionalProperties": false,
+            "description": "Prefilled keyless `serviceAccountJson`: add `requiredConfigFields`, then send it to Create service-account credential."
+          },
+          "requiredConfigFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Fields from your cloud setup that `keylessConfig` still needs, such as roleArn or host."
+          },
+          "optionalConfigFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Fields `keylessConfig` may also carry."
+          }
+        },
+        "required": [
+          "issuer",
+          "subject",
+          "subjectProof",
+          "expiresAt",
+          "keylessConfig",
+          "requiredConfigFields",
+          "optionalConfigFields"
+        ],
+        "additionalProperties": false,
+        "title": "Credential workload identity subject",
+        "description": "The issuer, audience, and subject a cloud trust configuration pins, and the proof that attaches the subject to a new keyless credential."
+      },
+      "CreateCredentialWorkloadIdentitySubjectResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2CredentialWorkloadIdentitySubject"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Create workload identity subject response",
+        "description": "Trust values to configure in the cloud, and the proof to submit when creating the credential.",
+        "examples": [
+          {
+            "data": {
+              "issuer": "https://www.sim.ai/oidc/workload",
+              "audience": "sts.amazonaws.com",
+              "subject": "sim:workspace:<workspaceId>:credential:<subjectId>",
+              "subjectProof": "<subjectProof from Create workload identity subject>",
+              "expiresAt": "2026-06-21T14:17:11.000Z",
+              "keylessConfig": {
+                "authType": "oidc_role",
+                "subject": "sim:workspace:<workspaceId>:credential:<subjectId>",
+                "subjectProof": "<subjectProof from Create workload identity subject>"
+              },
+              "requiredConfigFields": ["roleArn"],
+              "optionalConfigFields": ["stsRegion", "sessionDurationSeconds"]
+            }
+          }
+        ]
+      },
+      "CreateCredentialWorkloadIdentitySubjectRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that will own the keyless credential."
+          },
+          "providerId": {
+            "type": "string",
+            "enum": [
+              "aws-service-account",
+              "databricks-service-account",
+              "snowflake-service-account",
+              "microsoft-app-service-account",
+              "google-service-account"
+            ],
+            "description": "Service-account provider the keyless credential will be created under; pass the same value to Create service-account credential. The response and List credential providers name the fields its keyless configuration needs."
+          }
+        },
+        "required": ["workspaceId", "providerId"],
+        "additionalProperties": false,
+        "title": "Create workload identity subject request",
+        "description": "Workspace that will own the keyless credential and the service-account provider it will be created under.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "providerId": "aws-service-account"
+          }
+        ]
+      },
       "V2CredentialDeleteData": {
         "type": "object",
         "properties": {
@@ -18089,9 +18925,17 @@
               }
             ],
             "description": "ISO 8601 timestamp when the calling credential expires, or null when it does not."
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["api:read", "api:write", "search:read"]
+            },
+            "description": "API scopes the calling credential can use. api:write implies api:read, and either implies search:read. A read-only API key holds api:read and search:read: it is refused every operation that changes state and every operation that declares no API scope, so api:read alone does not authorize those. A full-access key holds all three; an OAuth access token holds what it was granted and what that implies."
           }
         },
-        "required": ["v2Enabled", "keyType", "expiresAt"],
+        "required": ["v2Enabled", "keyType", "expiresAt", "scopes"],
         "additionalProperties": false,
         "title": "API status",
         "description": "API availability and lifecycle facts about the calling credential."
@@ -18107,13 +18951,14 @@
         "required": ["data"],
         "additionalProperties": false,
         "title": "API status response",
-        "description": "API availability, credential type, and expiry for the caller.",
+        "description": "API availability, credential type, expiry, and scopes for the caller.",
         "examples": [
           {
             "data": {
               "v2Enabled": true,
               "keyType": "personal",
-              "expiresAt": null
+              "expiresAt": null,
+              "scopes": ["api:read", "api:write", "search:read"]
             }
           }
         ]
@@ -23294,6 +24139,129 @@
             "data": {
               "id": "invitation-123",
               "status": "cancelled"
+            }
+          }
+        ]
+      },
+      "SearchSourcePermissionRevision": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Current permission revision."
+          }
+        },
+        "required": ["revision"],
+        "additionalProperties": false,
+        "title": "Search source permission revision",
+        "description": "Revision of this source’s permission grants."
+      },
+      "SearchSourcePermissionResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/SearchSourcePermissionRevision"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Search source permission response",
+        "description": "Current revision of the source permission grants.",
+        "examples": [
+          {
+            "data": {
+              "revision": 3
+            }
+          }
+        ]
+      },
+      "ReplaceSearchSourcePermissionsBody": {
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Permission revision read before exporting the grants."
+          },
+          "permissions": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "const": "gitlab",
+                    "description": "Provider of the configured Search source."
+                  },
+                  "userMapping": {
+                    "type": "object",
+                    "properties": {
+                      "filename": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255,
+                        "description": "CSV filename without path separators."
+                      },
+                      "content": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4194304,
+                        "description": "UTF-8 CSV contents, up to 4 MiB. Both files travel in one request body limited to 10 MiB after JSON encoding."
+                      }
+                    },
+                    "required": ["filename", "content"],
+                    "additionalProperties": false,
+                    "description": "GitLab user IDs and their verified Sim email addresses."
+                  },
+                  "projectPermissions": {
+                    "type": "object",
+                    "properties": {
+                      "filename": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255,
+                        "description": "CSV filename without path separators."
+                      },
+                      "content": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4194304,
+                        "description": "UTF-8 CSV contents, up to 4 MiB. Both files travel in one request body limited to 10 MiB after JSON encoding."
+                      }
+                    },
+                    "required": ["filename", "content"],
+                    "additionalProperties": false,
+                    "description": "GitLab project paths and the IDs of users granted access."
+                  }
+                },
+                "required": ["provider", "userMapping", "projectPermissions"],
+                "additionalProperties": false
+              }
+            ],
+            "description": "Complete permission grants in the source provider’s format."
+          }
+        },
+        "required": ["expectedRevision", "permissions"],
+        "additionalProperties": false,
+        "title": "Search source permission grants",
+        "description": "The expected revision and complete replacement grants for the provider.",
+        "examples": [
+          {
+            "expectedRevision": 2,
+            "permissions": {
+              "provider": "gitlab",
+              "userMapping": {
+                "filename": "users.csv",
+                "content": "user_id,email\n42,reader@example.com\n"
+              },
+              "projectPermissions": {
+                "filename": "projects.csv",
+                "content": "project_path,user_id\nteam/project,42\n"
+              }
             }
           }
         ]

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { MailchimpSegment } from '@/tools/mailchimp/types'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('MailchimpUpdateSegment')
@@ -30,6 +31,7 @@ export const mailchimpUpdateSegmentTool: ToolConfig<
   name: 'Update Segment in Mailchimp Audience',
   description: 'Update an existing segment in a Mailchimp audience',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

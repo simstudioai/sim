@@ -3,6 +3,7 @@ import type {
   GitLabSamlGroupLinkResponse,
 } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabAddSamlGroupLinkTool: ToolConfig<
@@ -15,6 +16,7 @@ export const gitlabAddSamlGroupLinkTool: ToolConfig<
   description:
     'Add a SAML group link that maps an identity-provider group to a GitLab group at a given access level (GitLab Premium/Ultimate)',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {

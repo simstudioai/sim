@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveAddUserTagsParams, ThriveMessageResponse } from '@/tools/thrive/types'
 import {
   getThriveBaseUrl,
@@ -12,6 +13,7 @@ export const addUserTagsTool: ToolConfig<ThriveAddUserTagsParams, ThriveMessageR
   name: 'Thrive Add User Tags',
   description: 'Add one or more tags to a learner in Thrive.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

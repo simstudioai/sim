@@ -1,4 +1,5 @@
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface IntercomOpenConversationParams {
@@ -64,6 +65,7 @@ export const intercomOpenConversationV2Tool: ToolConfig<
   name: 'Open Conversation in Intercom',
   description: 'Open a closed or snoozed conversation in Intercom',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

@@ -2,6 +2,7 @@ import type {
   CloudFormationDescribeChangeSetParams,
   CloudFormationDescribeChangeSetResponse,
 } from '@/tools/cloudformation/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeChangeSetTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const describeChangeSetTool: InternalToolConfig<
   name: 'CloudFormation Describe Change Set',
   description: 'View the resource changes a change set would make and its execution status',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

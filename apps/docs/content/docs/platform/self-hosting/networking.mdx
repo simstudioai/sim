@@ -265,7 +265,7 @@ Most `/api` requests also pass through Next.js Proxy. The current app configurat
 
 The app makes outbound calls to model providers, integration APIs, your email provider, object storage, and your telemetry backend. Whether `HTTP_PROXY` / `HTTPS_PROXY` apply depends on which of those paths a call takes — there is no single answer, and no global setting that covers all of them.
 
-The server runs on Bun, and Bun's native `fetch` honors `$HTTP_PROXY`, `$HTTPS_PROXY`, and `$NO_PROXY`. Sim installs no global dispatcher. Default `fetch` uses the configured proxy unless `NO_PROXY` excludes the destination. The rest either build their own HTTP agent or speak a non-HTTP protocol.
+The server runs on Bun, and Bun's native `fetch` honors `$HTTP_PROXY`, `$HTTPS_PROXY`, and `$NO_PROXY`. Sim installs no global dispatcher. Default `fetch` uses the configured proxy unless `NO_PROXY` excludes the destination. The SSRF guard reads the same three variables for every request it sends, matching `NO_PROXY` with the rules in [Internal destinations and `NO_PROXY`](#internal-destinations-and-no_proxy). The rest either build their own HTTP agent or speak a non-HTTP protocol.
 
 This depends on the runtime. The published images run Bun. If you build the standalone output and run it under Node instead, Node ignores these variables unless started with `NODE_USE_ENV_PROXY=1` (Node 22.21+ / 24.5+), and the `fetch`-based "Yes" rows stop being proxied — model providers, Resend, Gmail sending, the desktop update feed, and the telemetry relay. The Azure Blob, GCS and Azure Communication Services rows still hold: those SDKs read the proxy variables through their own agents rather than through `fetch`. See [Bun fetch](https://bun.sh/docs/runtime/networking/fetch) and [Node proxy configuration](https://nodejs.org/learn/http/enterprise-network-configuration).
 
@@ -275,20 +275,33 @@ This depends on the runtime. The published images run Bun. If you build the stan
 | Email via Resend, Azure Communication Services, and Gmail sending | Yes |
 | The desktop update feed's calls to GitHub | Yes |
 | Object storage — Azure Blob and GCS | Yes — their SDK pipelines read the proxy variables |
-| Everything through the SSRF guard — the HTTP block, tools, connectors, outbound webhooks, content fetches, MCP servers | No |
-| Azure OpenAI, Azure Anthropic, vLLM | Only when the endpoint comes from `AZURE_OPENAI_ENDPOINT`, `AZURE_ANTHROPIC_ENDPOINT`, or `VLLM_BASE_URL`. An endpoint typed into the block is validated and pinned to its resolved IP, which bypasses the proxy |
-| Amazon Bedrock, and object storage on S3 | No — the AWS SDK uses its own request handler |
-| Email via SMTP | No — Nodemailer opens a raw TCP connection |
-| Email via Amazon SES | No — the AWS SDK transport, over HTTPS |
-| OTLP export from the server SDK | No |
+| Everything through the SSRF guard — SSO OIDC discovery, the HTTP block, tools, connectors, outbound webhooks, content fetches, MCP servers, and model endpoints typed into a block | Yes — see [Proxying guarded requests](#proxying-guarded-requests) |
+| SSO sign-in — the token, JWKS, and userinfo calls made while a user signs in | Yes — they use the default `fetch` |
+| SSO domain verification (TXT lookup) | No — DNS, sent to `1.1.1.1` and `8.8.8.8` unless `DOMAIN_VERIFICATION_NAMESERVERS` names your resolvers |
+| Amazon Bedrock, object storage on S3, and every AWS integration (DynamoDB, SQS, Lambda, Textract, and the rest) | Yes — each AWS service client gets a proxy-aware agent while a proxy is set, and STS calls made for its credentials inherit it. Bedrock then uses HTTP/1.1 instead of HTTP/2. IAM Identity Center (SSO) credential lookups do not use the proxy |
+| Email via SMTP, and the SMTP block | No — SMTP is not HTTP. Use a mail relay the app can reach directly, or Resend or SES |
+| Email via Amazon SES | Yes — the AWS SDK client above |
+| OTLP export from the server SDK | Yes — the exporters get the same proxy-aware agent |
 | The `/api/telemetry` relay that forwards browser events | Yes — it uses the default `fetch` |
 | Postgres and Redis | No — raw TCP |
 
-The practical consequence: a mandatory-egress-proxy environment can route most LLM traffic, Resend mail, and Azure/GCS storage through the proxy, but guarded integration calls, S3, Bedrock, SMTP, telemetry, and datastore traffic still need a transparent proxy or NAT-based egress.
+The practical consequence: a mandatory-egress-proxy environment can route LLM traffic, SSO, integration and workflow HTTP calls, Resend mail, Azure/GCS storage, AWS services, SES, and OTLP export through the proxy. SMTP and datastore traffic (Postgres, Redis, and the database blocks) still need a transparent proxy or NAT-based egress.
+
+### Proxying guarded requests
+
+A request through the SSRF guard keeps its checks when it is proxied. Before each request, and again for each redirect hop, the app resolves the destination's hostname with its own DNS and refuses it if any policy in [Security](/platform/self-hosting/security#the-ssrf-boundary) blocks any of the addresses it resolves to, since the proxy may connect to any of them. It then hands the hostname, not the address, to the proxy, so a proxy that allowlists by domain sees the name it expects.
+
+- **DNS must still resolve inside the container.** A destination that the app cannot resolve is refused before the proxy is asked.
+- **The proxy resolves the name again.** The app cannot pin the address across a proxy, so the proxy's own egress policy is the last check.
+- **`https` destinations are tunneled** with `CONNECT host:443`. **`http` destinations are forwarded** to the proxy as an absolute URL, as curl and Bun do.
+- **Proxy credentials** go in the URL, e.g. `http://user:pass@proxy.internal:3128`. They are sent only to the proxy. An `https://` proxy URL also works; SOCKS proxies are not supported.
+- **The HTTP block's `proxyUrl`** still takes precedence for that one request.
 
 ### Internal destinations and `NO_PROXY`
 
-Set `NO_PROXY` for every destination that is not on the public internet, not just model endpoints. The app reaches the realtime server (`SOCKET_SERVER_URL`), the Presidio PII service (`PII_URL`), and itself (`INTERNAL_API_BASE_URL`) over the same default `fetch`, alongside self-hosted Ollama, LiteLLM, and vLLM — so a proxy that cannot reach your internal network breaks live updates and PII redaction, not only inference.
+Set `NO_PROXY` for every destination that is not on the public internet, not just model endpoints. The app reaches the realtime server (`SOCKET_SERVER_URL`), the Presidio PII service (`PII_URL`), and itself (`INTERNAL_API_BASE_URL`) over the same default `fetch`, alongside self-hosted Ollama, LiteLLM, and vLLM — so a proxy that cannot reach your internal network breaks live updates and PII redaction, not only inference. AWS clients and OTLP export follow the same rule, so also add an internal S3-compatible store such as MinIO, AWS VPC endpoints, and an in-cluster OpenTelemetry collector.
+
+For the SSRF guard, AWS clients (including the boot-time Secrets Manager fetch), and OTLP export, Sim matches `NO_PROXY` entries with these rules: `example.com`, `.example.com`, and `*.example.com` each cover the domain and all its subdomains; `host:port` and `[::1]:port` cover one port; IPv6 entries work bare (`::1`) or bracketed; and CIDR ranges such as `10.0.0.0/8` cover IP-literal destinations only, not hostnames that resolve into the range. Bun's default `fetch`, which carries internal service URLs such as the realtime server and PII service, applies Bun's own `NO_PROXY` rules, which may not honor CIDR or bare IPv6 entries, so list those destinations by hostname.
 
 Set it in the application environment, not your shell — under `app.env` on Helm, or the service's `environment:` on Compose. On Helm the suffixes alone are not enough: the chart wires `SOCKET_SERVER_URL`, `PII_URL`, and `OLLAMA_URL` to bare Service names, which no domain suffix matches. Add those names too — `helm template` prints the rendered ones, and the prefix is the release name unless it already contains `sim`, in which case it is the release name alone:
 

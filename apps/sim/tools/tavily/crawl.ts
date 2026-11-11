@@ -1,3 +1,4 @@
+import { TAVILY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CrawlResponse, TavilyCrawlParams } from '@/tools/tavily/types'
 import { TAVILY_CRAWL_RESULT_OUTPUT_PROPERTIES } from '@/tools/tavily/types'
 import type { ToolConfig } from '@/tools/types'
@@ -8,6 +9,7 @@ export const crawlTool: ToolConfig<TavilyCrawlParams, CrawlResponse> = {
   description:
     "Systematically crawl and extract content from websites using Tavily's crawl API. Supports depth control, path filtering, domain restrictions, and natural language instructions for targeted crawling.",
   version: '1.0.0',
+  oauth: TAVILY_CREDENTIAL_OAUTH,
 
   params: {
     url: {

@@ -1,4 +1,5 @@
 import type { GetApiKeyInfoParams, GetApiKeyInfoResponse } from '@/tools/cursor/types'
+import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const getApiKeyInfoBase = {
@@ -24,6 +25,7 @@ export const getApiKeyInfoTool: ToolConfig<GetApiKeyInfoParams, GetApiKeyInfoRes
   name: 'Cursor Get API Key Info',
   description: 'Retrieve details about the API key currently in use.',
   version: '1.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
 
   ...getApiKeyInfoBase,
 
@@ -73,6 +75,7 @@ export const getApiKeyInfoV2Tool: ToolConfig<GetApiKeyInfoParams, GetApiKeyInfoV
   description:
     'Retrieve details about the API key currently in use. Returns API-aligned fields only.',
   version: '2.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
   transformResponse: async (response) => {
     const data = await response.json()
 

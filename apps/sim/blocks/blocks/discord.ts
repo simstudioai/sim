@@ -1,7 +1,7 @@
 import { DiscordIcon } from '@/components/icons'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, BlockToolParams } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 
 /**
  * Canonical basic/advanced pair, shared by the card sentences below. Listing
@@ -10,8 +10,216 @@ import { normalizeFileInput } from '@/blocks/utils'
  */
 const ATTACHMENTS_FIELD = ['attachmentFiles', 'files'] as const
 
+function discordToolParams(params: BlockToolParams, requireBotToken: boolean) {
+  const commonParams: Record<string, any> = {
+    botToken: params.botToken,
+    serverId: params.serverId,
+  }
+
+  if (requireBotToken && !params.botToken) throw new Error('Bot token is required')
+  if (!params.serverId) throw new Error('Server ID is required')
+
+  switch (params.operation) {
+    case 'discord_send_message': {
+      return {
+        ...commonParams,
+        channelId: params.channelId,
+        content: params.content,
+        files: normalizeFileInput(params.files),
+      }
+    }
+    case 'discord_get_messages':
+      return {
+        ...commonParams,
+        channelId: params.channelId,
+        limit: params.limit ? Math.min(Math.max(1, Number(params.limit)), 100) : 10,
+      }
+    case 'discord_get_server':
+      return commonParams
+    case 'discord_get_user':
+      return { ...commonParams, userId: params.userId }
+    case 'discord_edit_message':
+      return {
+        ...commonParams,
+        channelId: params.channelId,
+        messageId: params.messageId,
+        content: params.content,
+      }
+    case 'discord_delete_message':
+      return {
+        ...commonParams,
+        channelId: params.channelId,
+        messageId: params.messageId,
+      }
+    case 'discord_bulk_delete_messages':
+      return {
+        ...commonParams,
+        channelId: params.channelId,
+        messageIds: String(params.messageIds || '')
+          .split(',')
+          .map((id: string) => id.trim())
+          .filter(Boolean),
+      }
+    case 'discord_get_pinned_messages':
+      return {
+        ...commonParams,
+        channelId: params.channelId,
+        ...(params.limit && { limit: Math.min(Math.max(1, Number(params.limit)), 50) }),
+        ...(params.before?.trim() && { before: params.before.trim() }),
+      }
+    case 'discord_add_reaction':
+    case 'discord_remove_reaction':
+      return {
+        ...commonParams,
+        channelId: params.channelId,
+        messageId: params.messageId,
+        emoji: params.emoji,
+        ...(params.userId?.trim() && { userId: params.userId.trim() }),
+      }
+    case 'discord_pin_message':
+    case 'discord_unpin_message':
+      return {
+        ...commonParams,
+        channelId: params.channelId,
+        messageId: params.messageId,
+      }
+    case 'discord_create_thread':
+      return {
+        ...commonParams,
+        channelId: params.channelId,
+        name: params.name,
+        ...(params.messageId?.trim() && { messageId: params.messageId.trim() }),
+        ...(params.autoArchiveDuration && {
+          autoArchiveDuration: Number(params.autoArchiveDuration),
+        }),
+        ...(params.threadVisibility !== undefined && {
+          isPublic: params.threadVisibility !== 'private',
+        }),
+      }
+    case 'discord_join_thread':
+    case 'discord_leave_thread':
+      return { ...commonParams, threadId: params.threadId }
+    case 'discord_archive_thread':
+      return {
+        ...commonParams,
+        threadId: params.threadId,
+        archived: params.archived === 'true',
+      }
+    case 'discord_create_channel':
+      return {
+        ...commonParams,
+        name: params.name,
+        ...(params.topic && { topic: params.topic }),
+        ...(params.channelType && { type: Number(params.channelType) }),
+        ...(params.parentId && { parentId: params.parentId }),
+      }
+    case 'discord_update_channel':
+      return {
+        ...commonParams,
+        channelId: params.channelId,
+        ...(params.name && { name: params.name }),
+        ...(params.topic !== undefined && { topic: params.topic }),
+      }
+    case 'discord_delete_channel':
+    case 'discord_get_channel':
+      return { ...commonParams, channelId: params.channelId }
+    case 'discord_list_channels':
+      return commonParams
+    case 'discord_create_role':
+      return {
+        ...commonParams,
+        name: params.name,
+        ...(params.color && { color: Number(params.color) }),
+        ...(params.hoist !== undefined && { hoist: params.hoist === 'true' }),
+        ...(params.mentionable !== undefined && {
+          mentionable: params.mentionable === 'true',
+        }),
+      }
+    case 'discord_update_role':
+      return {
+        ...commonParams,
+        roleId: params.roleId,
+        ...(params.name && { name: params.name }),
+        ...(params.color && { color: Number(params.color) }),
+        ...(params.hoist !== undefined && { hoist: params.hoist === 'true' }),
+        ...(params.mentionable !== undefined && {
+          mentionable: params.mentionable === 'true',
+        }),
+      }
+    case 'discord_delete_role':
+      return { ...commonParams, roleId: params.roleId }
+    case 'discord_assign_role':
+    case 'discord_remove_role':
+      return {
+        ...commonParams,
+        userId: params.userId,
+        roleId: params.roleId,
+      }
+    case 'discord_list_roles':
+      return commonParams
+    case 'discord_kick_member':
+    case 'discord_unban_member':
+      return {
+        ...commonParams,
+        userId: params.userId,
+        ...(params.reason && { reason: params.reason }),
+      }
+    case 'discord_ban_member':
+      return {
+        ...commonParams,
+        userId: params.userId,
+        ...(params.reason && { reason: params.reason }),
+        ...(params.deleteMessageDays && {
+          deleteMessageSeconds: Number(params.deleteMessageDays) * 86400,
+        }),
+      }
+    case 'discord_get_member':
+      return { ...commonParams, userId: params.userId }
+    case 'discord_update_member':
+      return {
+        ...commonParams,
+        userId: params.userId,
+        ...(params.nick !== undefined && { nick: params.nick }),
+        ...(params.mute !== undefined && { mute: params.mute === 'true' }),
+        ...(params.deaf !== undefined && { deaf: params.deaf === 'true' }),
+      }
+    case 'discord_create_invite':
+      return {
+        ...commonParams,
+        channelId: params.channelId,
+        ...(params.maxAge !== undefined && { maxAge: Number(params.maxAge) }),
+        ...(params.maxUses !== undefined && { maxUses: Number(params.maxUses) }),
+        ...(params.temporary !== undefined && { temporary: params.temporary === 'true' }),
+      }
+    case 'discord_get_invite':
+    case 'discord_delete_invite':
+      return { ...commonParams, inviteCode: params.inviteCode }
+    case 'discord_create_webhook':
+      return {
+        ...commonParams,
+        channelId: params.channelId,
+        name: params.name,
+      }
+    case 'discord_execute_webhook':
+      return {
+        ...commonParams,
+        webhookId: params.webhookId,
+        webhookToken: params.webhookToken,
+        content: params.content,
+        ...(params.username && { username: params.username }),
+      }
+    case 'discord_get_webhook':
+    case 'discord_delete_webhook':
+      return { ...commonParams, webhookId: params.webhookId }
+    default:
+      return commonParams
+  }
+}
+
 export const DiscordBlock: BlockConfig = {
   type: 'discord',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'discord_v2' },
   name: 'Discord',
   description: 'Interact with Discord',
   authMode: AuthMode.BotToken,
@@ -814,211 +1022,7 @@ export const DiscordBlock: BlockConfig = {
       tool: (params) => {
         return params.operation || 'discord_send_message'
       },
-      params: (params) => {
-        const commonParams: Record<string, any> = {
-          botToken: params.botToken,
-          serverId: params.serverId,
-        }
-
-        if (!params.botToken) throw new Error('Bot token is required')
-        if (!params.serverId) throw new Error('Server ID is required')
-
-        switch (params.operation) {
-          case 'discord_send_message': {
-            return {
-              ...commonParams,
-              channelId: params.channelId,
-              content: params.content,
-              files: normalizeFileInput(params.files),
-            }
-          }
-          case 'discord_get_messages':
-            return {
-              ...commonParams,
-              channelId: params.channelId,
-              limit: params.limit ? Math.min(Math.max(1, Number(params.limit)), 100) : 10,
-            }
-          case 'discord_get_server':
-            return commonParams
-          case 'discord_get_user':
-            return { ...commonParams, userId: params.userId }
-          case 'discord_edit_message':
-            return {
-              ...commonParams,
-              channelId: params.channelId,
-              messageId: params.messageId,
-              content: params.content,
-            }
-          case 'discord_delete_message':
-            return {
-              ...commonParams,
-              channelId: params.channelId,
-              messageId: params.messageId,
-            }
-          case 'discord_bulk_delete_messages':
-            return {
-              ...commonParams,
-              channelId: params.channelId,
-              messageIds: String(params.messageIds || '')
-                .split(',')
-                .map((id: string) => id.trim())
-                .filter(Boolean),
-            }
-          case 'discord_get_pinned_messages':
-            return {
-              ...commonParams,
-              channelId: params.channelId,
-              ...(params.limit && { limit: Math.min(Math.max(1, Number(params.limit)), 50) }),
-              ...(params.before?.trim() && { before: params.before.trim() }),
-            }
-          case 'discord_add_reaction':
-          case 'discord_remove_reaction':
-            return {
-              ...commonParams,
-              channelId: params.channelId,
-              messageId: params.messageId,
-              emoji: params.emoji,
-              ...(params.userId?.trim() && { userId: params.userId.trim() }),
-            }
-          case 'discord_pin_message':
-          case 'discord_unpin_message':
-            return {
-              ...commonParams,
-              channelId: params.channelId,
-              messageId: params.messageId,
-            }
-          case 'discord_create_thread':
-            return {
-              ...commonParams,
-              channelId: params.channelId,
-              name: params.name,
-              ...(params.messageId?.trim() && { messageId: params.messageId.trim() }),
-              ...(params.autoArchiveDuration && {
-                autoArchiveDuration: Number(params.autoArchiveDuration),
-              }),
-              ...(params.threadVisibility !== undefined && {
-                isPublic: params.threadVisibility !== 'private',
-              }),
-            }
-          case 'discord_join_thread':
-          case 'discord_leave_thread':
-            return { ...commonParams, threadId: params.threadId }
-          case 'discord_archive_thread':
-            return {
-              ...commonParams,
-              threadId: params.threadId,
-              archived: params.archived === 'true',
-            }
-          case 'discord_create_channel':
-            return {
-              ...commonParams,
-              name: params.name,
-              ...(params.topic && { topic: params.topic }),
-              ...(params.channelType && { type: Number(params.channelType) }),
-              ...(params.parentId && { parentId: params.parentId }),
-            }
-          case 'discord_update_channel':
-            return {
-              ...commonParams,
-              channelId: params.channelId,
-              ...(params.name && { name: params.name }),
-              ...(params.topic !== undefined && { topic: params.topic }),
-            }
-          case 'discord_delete_channel':
-          case 'discord_get_channel':
-            return { ...commonParams, channelId: params.channelId }
-          case 'discord_list_channels':
-            return commonParams
-          case 'discord_create_role':
-            return {
-              ...commonParams,
-              name: params.name,
-              ...(params.color && { color: Number(params.color) }),
-              ...(params.hoist !== undefined && { hoist: params.hoist === 'true' }),
-              ...(params.mentionable !== undefined && {
-                mentionable: params.mentionable === 'true',
-              }),
-            }
-          case 'discord_update_role':
-            return {
-              ...commonParams,
-              roleId: params.roleId,
-              ...(params.name && { name: params.name }),
-              ...(params.color && { color: Number(params.color) }),
-              ...(params.hoist !== undefined && { hoist: params.hoist === 'true' }),
-              ...(params.mentionable !== undefined && {
-                mentionable: params.mentionable === 'true',
-              }),
-            }
-          case 'discord_delete_role':
-            return { ...commonParams, roleId: params.roleId }
-          case 'discord_assign_role':
-          case 'discord_remove_role':
-            return {
-              ...commonParams,
-              userId: params.userId,
-              roleId: params.roleId,
-            }
-          case 'discord_list_roles':
-            return commonParams
-          case 'discord_kick_member':
-          case 'discord_unban_member':
-            return {
-              ...commonParams,
-              userId: params.userId,
-              ...(params.reason && { reason: params.reason }),
-            }
-          case 'discord_ban_member':
-            return {
-              ...commonParams,
-              userId: params.userId,
-              ...(params.reason && { reason: params.reason }),
-              ...(params.deleteMessageDays && {
-                deleteMessageSeconds: Number(params.deleteMessageDays) * 86400,
-              }),
-            }
-          case 'discord_get_member':
-            return { ...commonParams, userId: params.userId }
-          case 'discord_update_member':
-            return {
-              ...commonParams,
-              userId: params.userId,
-              ...(params.nick !== undefined && { nick: params.nick }),
-              ...(params.mute !== undefined && { mute: params.mute === 'true' }),
-              ...(params.deaf !== undefined && { deaf: params.deaf === 'true' }),
-            }
-          case 'discord_create_invite':
-            return {
-              ...commonParams,
-              channelId: params.channelId,
-              ...(params.maxAge !== undefined && { maxAge: Number(params.maxAge) }),
-              ...(params.maxUses !== undefined && { maxUses: Number(params.maxUses) }),
-              ...(params.temporary !== undefined && { temporary: params.temporary === 'true' }),
-            }
-          case 'discord_get_invite':
-          case 'discord_delete_invite':
-            return { ...commonParams, inviteCode: params.inviteCode }
-          case 'discord_create_webhook':
-            return {
-              ...commonParams,
-              channelId: params.channelId,
-              name: params.name,
-            }
-          case 'discord_execute_webhook':
-            return {
-              ...commonParams,
-              webhookId: params.webhookId,
-              webhookToken: params.webhookToken,
-              content: params.content,
-              ...(params.username && { username: params.username }),
-            }
-          case 'discord_get_webhook':
-          case 'discord_delete_webhook':
-            return { ...commonParams, webhookId: params.webhookId }
-          default:
-            return commonParams
-        }
-      },
+      params: (params) => discordToolParams(params, true),
     },
   },
   inputs: {
@@ -1175,3 +1179,19 @@ export const DiscordBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const DiscordV2Block: BlockConfig = {
+  ...DiscordBlock,
+  type: 'discord_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    DiscordBlock,
+    { id: 'credential', type: 'oauth-input', serviceId: 'discord', title: 'Discord Credential' },
+    {
+      params: (params) => discordToolParams(params, false),
+      condition: { field: 'operation', value: 'discord_execute_webhook', not: true },
+    }
+  ),
+}

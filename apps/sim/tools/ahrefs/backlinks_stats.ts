@@ -1,4 +1,5 @@
 import type { AhrefsBacklinksStatsParams, AhrefsBacklinksStatsResponse } from '@/tools/ahrefs/types'
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const backlinksStatsTool: ToolConfig<
@@ -10,6 +11,7 @@ export const backlinksStatsTool: ToolConfig<
   description:
     'Get backlink and referring domain totals for a target domain or URL, both currently live and across all time.',
   version: '1.0.0',
+  oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {
     target: {

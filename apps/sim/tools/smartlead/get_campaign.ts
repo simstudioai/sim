@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SmartleadCampaignIdParams, SmartleadCampaignResponse } from '@/tools/smartlead/types'
 import {
   campaignOutputs,
@@ -17,6 +18,7 @@ export const getCampaignTool: ToolConfig<SmartleadCampaignIdParams, SmartleadCam
   name: 'Smartlead Get Campaign',
   description: 'Retrieves a single Smartlead campaign by ID.',
   version: '1.0.0',
+  oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,

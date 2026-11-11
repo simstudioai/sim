@@ -3,6 +3,7 @@ import type {
   LaunchDarklyGetFlagStatusResponse,
 } from '@/tools/launchdarkly/types'
 import { FLAG_STATUS_OUTPUT_PROPERTIES } from '@/tools/launchdarkly/types'
+import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const launchDarklyGetFlagStatusTool: ToolConfig<
@@ -14,6 +15,7 @@ export const launchDarklyGetFlagStatusTool: ToolConfig<
   description:
     'Get the status of a feature flag across environments (active, inactive, launched, etc.).',
   version: '1.0.0',
+  oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

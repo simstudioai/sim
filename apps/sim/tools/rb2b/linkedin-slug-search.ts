@@ -3,6 +3,7 @@ import type {
   Rb2bLinkedinSlugSearchResponse,
 } from '@/tools/rb2b/types'
 import { RB2B_API_BASE, rb2bHeaders } from '@/tools/rb2b/utils'
+import { RB2B_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rb2bLinkedinSlugSearchTool: ToolConfig<
@@ -13,6 +14,7 @@ export const rb2bLinkedinSlugSearchTool: ToolConfig<
   name: 'RB2B LinkedIn Slug Search',
   description: 'Find a LinkedIn profile URL from a first name, last name, and company domain.',
   version: '1.0.0',
+  oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

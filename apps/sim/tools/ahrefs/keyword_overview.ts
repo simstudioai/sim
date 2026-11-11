@@ -2,6 +2,7 @@ import type {
   AhrefsKeywordOverviewParams,
   AhrefsKeywordOverviewResponse,
 } from '@/tools/ahrefs/types'
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const SELECT_FIELDS =
@@ -16,6 +17,7 @@ export const keywordOverviewTool: ToolConfig<
   description:
     'Get detailed metrics for a keyword including search volume, keyword difficulty, CPC, clicks, and traffic potential.',
   version: '1.0.0',
+  oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {
     keyword: {

@@ -8,6 +8,7 @@ import {
   mapWebhookEndpoint,
   throwGranolaError,
 } from '@/tools/granola/utils'
+import { GRANOLA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listWebhookEndpointsTool: ToolConfig<
@@ -19,6 +20,7 @@ export const listWebhookEndpointsTool: ToolConfig<
   description:
     'Lists the Granola webhook endpoints the API key can manage. A personal key sees the endpoints it created; a workspace admin sees every endpoint in the workspace. Signing secrets are never included.',
   version: '1.0.0',
+  oauth: GRANOLA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

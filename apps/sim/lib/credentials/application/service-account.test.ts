@@ -46,6 +46,7 @@ import {
   createServiceAccountCredentialUseCase,
   deleteCredentialUseCase,
 } from '@/lib/credentials/application/service-account'
+import { KeylessCredentialRefusedError } from '@/lib/credentials/workload-identity/subject'
 import { executeCopilotCredentialUseCase } from '@/lib/mothership/application/execute-credential-use-case'
 
 const mocks = {
@@ -124,6 +125,30 @@ describe('credential service-account application operations', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.loadWorkspace).not.toHaveBeenCalled()
     expect(mocks.create).not.toHaveBeenCalled()
+  })
+
+  it('rethrows the keyless refusal the create result carries, with its code intact', async () => {
+    const refusal = new KeylessCredentialRefusedError(
+      'Another credential already uses this trust setup.',
+      'WORKLOAD_IDENTITY_SUBJECT_IN_USE'
+    )
+    mocks.create.mockResolvedValue({
+      success: false,
+      error: refusal.message,
+      errorCode: 'conflict',
+      keylessRefusal: refusal,
+    })
+
+    await expect(
+      createServiceAccountCredentialUseCase.execute({
+        principal,
+        input: {
+          workspaceId: WORKSPACE_ID,
+          providerId: 'aws-service-account',
+          serviceAccountJson: '{}',
+        },
+      })
+    ).rejects.toBe(refusal)
   })
 
   const storedInput = {

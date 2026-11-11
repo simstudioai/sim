@@ -1,5 +1,6 @@
 import type { GetWorkflowParams, WorkflowResponse } from '@/tools/github/types'
 import { WORKFLOW_OUTPUT_PROPERTIES } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getWorkflowTool: ToolConfig<GetWorkflowParams, WorkflowResponse> = {
@@ -8,6 +9,7 @@ export const getWorkflowTool: ToolConfig<GetWorkflowParams, WorkflowResponse> = 
   description:
     'Get details of a specific GitHub Actions workflow by ID or filename. Returns workflow information including name, path, state, and badge URL.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -94,6 +96,7 @@ export const getWorkflowV2Tool: ToolConfig<GetWorkflowParams, any> = {
   name: getWorkflowTool.name,
   description: getWorkflowTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getWorkflowTool.params,
   request: getWorkflowTool.request,
 

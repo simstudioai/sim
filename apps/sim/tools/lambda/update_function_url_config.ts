@@ -3,6 +3,7 @@ import type {
   LambdaUpdateFunctionUrlConfigParams,
   LambdaUpdateFunctionUrlConfigResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const updateFunctionUrlConfigTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const updateFunctionUrlConfigTool: InternalToolConfig<
   name: 'Lambda Update Function URL',
   description: 'Update the auth type, invoke mode, or CORS settings of a function URL',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

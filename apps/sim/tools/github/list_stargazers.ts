@@ -1,4 +1,5 @@
 import { USER_FULL_OUTPUT_PROPERTIES } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface ListStargazersParams {
@@ -31,6 +32,7 @@ export const listStargazersTool: ToolConfig<ListStargazersParams, ListStargazers
   name: 'GitHub List Stargazers',
   description: 'List users who have starred a repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -139,6 +141,7 @@ export const listStargazersV2Tool: ToolConfig<ListStargazersParams, any> = {
   name: listStargazersTool.name,
   description: listStargazersTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listStargazersTool.params,
   request: listStargazersTool.request,
 

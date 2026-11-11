@@ -1,4 +1,5 @@
 import type { DeleteThreadParams, DeleteThreadResult } from '@/tools/agentmail/types'
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentmailDeleteThreadTool: ToolConfig<DeleteThreadParams, DeleteThreadResult> = {
@@ -7,6 +8,7 @@ export const agentmailDeleteThreadTool: ToolConfig<DeleteThreadParams, DeleteThr
   description:
     'Delete an email thread in AgentMail (moves to trash, or permanently deletes if already in trash)',
   version: '1.0.0',
+  oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

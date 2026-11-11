@@ -2,6 +2,7 @@ import type {
   RootlyIncidentActionResponse,
   RootlyUnassignIncidentRoleParams,
 } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyUnassignIncidentRoleTool: ToolConfig<
@@ -12,6 +13,7 @@ export const rootlyUnassignIncidentRoleTool: ToolConfig<
   name: 'Rootly Unassign Incident Role',
   description: 'Remove an incident role assignment from a user on a Rootly incident.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

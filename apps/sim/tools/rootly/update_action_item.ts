@@ -2,6 +2,7 @@ import type {
   RootlyUpdateActionItemParams,
   RootlyUpdateActionItemResponse,
 } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyUpdateActionItemTool: ToolConfig<
@@ -12,6 +13,7 @@ export const rootlyUpdateActionItemTool: ToolConfig<
   name: 'Rootly Update Action Item',
   description: 'Update a Rootly incident action item (status, priority, assignee, etc.).',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

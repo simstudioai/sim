@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Chip, ChipDropdown, ChipLink, cn } from '@sim/emcn'
 import { ArrowLeft, Plus } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
@@ -174,9 +174,9 @@ function IntegrationBlockDetailContent({ integration, workspaceId }: Integration
   const oauthAvailable = Boolean(oauthService) && (availability?.oauthAvailable ?? true)
   const [oauthOpen, setOAuthOpen] = useState(false)
   const [personalTokenOpen, setPersonalTokenOpen] = useState(false)
-  const personalTokenAvailable =
-    integration.type === 'gitlab' &&
-    (availability?.state === 'ready' || availability?.state === 'limited')
+  const isGitLab = integration.slug === 'gitlab'
+  const deploymentAvailable = availability?.state === 'ready' || availability?.state === 'limited'
+  const personalTokenAvailable = isGitLab && deploymentAvailable
 
   const { data: credentials = [], isPending: credentialsLoading } = useWorkspaceCredentials({
     workspaceId,
@@ -190,29 +190,29 @@ function IntegrationBlockDetailContent({ integration, workspaceId }: Integration
    * credential lists on every product it powers. Comparing resolved
    * `providerId`s instead hides it from all of them.
    */
-  const connectedCredentials = useMemo(() => {
-    if (integration.type === 'gitlab')
-      return credentials.filter((c) => c.type === 'personal_token' && c.providerId === 'gitlab')
-    if (!oauthService) return []
-    return credentials.filter(
-      (c) =>
-        (c.type === 'oauth' || c.type === 'service_account') &&
-        c.providerId &&
-        credentialProviderMatchesService(c.providerId, oauthService)
-    )
-  }, [credentials, oauthService, integration.type])
+  const serviceCredentials = oauthService
+    ? credentials.filter(
+        (c) =>
+          (c.type === 'oauth' || c.type === 'service_account') &&
+          c.providerId &&
+          credentialProviderMatchesService(c.providerId, oauthService)
+      )
+    : []
+  // GitLab also has personal tokens, which Copilot acts with on the person's behalf.
+  const connectedCredentials = isGitLab
+    ? [
+        ...credentials.filter((c) => c.type === 'personal_token' && c.providerId === 'gitlab'),
+        ...serviceCredentials,
+      ]
+    : serviceCredentials
   const [serviceAccountOpen, setServiceAccountOpen] = useState(false)
   const serviceAccountTarget = useServiceAccountConnectTarget({
     serviceAccountProviderId: oauthService?.serviceAccountProviderId,
     serviceName: oauthService?.serviceName,
     serviceIcon: oauthService?.serviceIcon,
   })
-  const serviceAccountDeploymentAvailable =
-    availability?.state === 'ready' || availability?.state === 'limited'
   const hasServiceAccount =
-    serviceAccountDeploymentAvailable &&
-    Boolean(serviceAccountTarget) &&
-    !serviceAccountTarget?.hidden
+    deploymentAvailable && Boolean(serviceAccountTarget) && !serviceAccountTarget?.hidden
   const serviceAccountConnectLabel = serviceAccountTarget?.label ?? 'Add service account'
   const hasHandledConnectQueryRef = useRef(false)
 
@@ -246,32 +246,42 @@ function IntegrationBlockDetailContent({ integration, workspaceId }: Integration
     setConnectMode,
   ])
 
-  const connectOptions = oauthService
-    ? [
-        ...(oauthAvailable
-          ? [
-              {
-                value: CONNECT_MODE.oauth,
-                label: 'Connect with OAuth',
-                icon: oauthService.serviceIcon,
-              },
-            ]
-          : []),
-        ...(hasServiceAccount
-          ? [
-              {
-                value: CONNECT_MODE.serviceAccount,
-                label: serviceAccountConnectLabel,
-                icon: serviceAccountTarget?.serviceIcon ?? oauthService.serviceIcon,
-              },
-            ]
-          : []),
-      ]
-    : []
+  const connectOptions = [
+    ...(personalTokenAvailable
+      ? [
+          {
+            value: CONNECT_MODE.personalToken,
+            label: 'Add personal token',
+            icon: oauthService?.serviceIcon ?? Icon,
+          },
+        ]
+      : []),
+    ...(oauthService && oauthAvailable
+      ? [
+          {
+            value: CONNECT_MODE.oauth,
+            label: 'Connect with OAuth',
+            icon: oauthService.serviceIcon,
+          },
+        ]
+      : []),
+    ...(oauthService && hasServiceAccount
+      ? [
+          {
+            value: CONNECT_MODE.serviceAccount,
+            label: serviceAccountConnectLabel,
+            icon: serviceAccountTarget?.serviceIcon ?? oauthService.serviceIcon,
+          },
+        ]
+      : []),
+  ]
+
+  const singleConnectOption = connectOptions.length === 1 ? connectOptions[0] : undefined
 
   const handleSelectConnectOption = (value: string) => {
     if (value === CONNECT_MODE.oauth) setOAuthOpen(true)
     else if (value === CONNECT_MODE.serviceAccount) setServiceAccountOpen(true)
+    else if (value === CONNECT_MODE.personalToken) setPersonalTokenOpen(true)
   }
 
   const handleAddInChat = () => {
@@ -286,32 +296,28 @@ function IntegrationBlockDetailContent({ integration, workspaceId }: Integration
           Integrations
         </ChipLink>
         <div className={cn('ml-auto', HEADER_ACTION_CLUSTER)}>
-          {personalTokenAvailable ? (
-            <Chip variant='primary' leftIcon={Plus} onClick={() => setPersonalTokenOpen(true)}>
-              Add personal token
+          {connectOptions.length > 1 ? (
+            <ChipDropdown
+              variant='primary'
+              leftIcon={Plus}
+              placeholder='Add to Sim'
+              showSelectedCheck={false}
+              options={connectOptions}
+              onChange={handleSelectConnectOption}
+              matchTriggerWidth={false}
+            />
+          ) : singleConnectOption ? (
+            <Chip
+              variant='primary'
+              leftIcon={Plus}
+              onClick={() => handleSelectConnectOption(singleConnectOption.value)}
+            >
+              {singleConnectOption.value === CONNECT_MODE.oauth
+                ? 'Add to Sim'
+                : singleConnectOption.label}
             </Chip>
           ) : oauthService ? (
-            connectOptions.length > 1 ? (
-              <ChipDropdown
-                variant='primary'
-                leftIcon={Plus}
-                placeholder='Add to Sim'
-                showSelectedCheck={false}
-                options={connectOptions}
-                onChange={handleSelectConnectOption}
-                matchTriggerWidth={false}
-              />
-            ) : oauthAvailable ? (
-              <Chip variant='primary' leftIcon={Plus} onClick={() => setOAuthOpen(true)}>
-                Add to Sim
-              </Chip>
-            ) : hasServiceAccount ? (
-              <Chip variant='primary' leftIcon={Plus} onClick={() => setServiceAccountOpen(true)}>
-                {serviceAccountConnectLabel}
-              </Chip>
-            ) : (
-              <Chip disabled>Unavailable</Chip>
-            )
+            <Chip disabled>Unavailable</Chip>
           ) : chatEnabled ? (
             <Chip variant='primary' leftIcon={Plus} onClick={handleAddInChat}>
               Add to Sim
@@ -349,6 +355,7 @@ function IntegrationBlockDetailContent({ integration, workspaceId }: Integration
           atlassianProduct={oauthService?.providerId === 'confluence' ? 'confluence' : 'jira'}
           serviceName={serviceAccountTarget.serviceName}
           serviceIcon={serviceAccountTarget.serviceIcon}
+          oauthServiceId={oauthService?.providerId}
         />
       )}
       <div

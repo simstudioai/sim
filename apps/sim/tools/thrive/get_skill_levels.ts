@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveGetSkillLevelsParams, ThriveSkillLevelsResponse } from '@/tools/thrive/types'
 import { THRIVE_SKILL_LEVEL_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
@@ -9,6 +10,7 @@ export const getSkillLevelsTool: ToolConfig<ThriveGetSkillLevelsParams, ThriveSk
     name: 'Thrive Get Skill Levels',
     description: 'Get the available skill levels configured in Thrive.',
     version: '1.0.0',
+    oauth: THRIVE_CREDENTIAL_OAUTH,
 
     params: {
       tenantId: {

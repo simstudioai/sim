@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { GetEmailParams, GetEmailResult } from '@/tools/resend/types'
+import { RESEND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ResendGetEmailTool')
@@ -9,6 +10,7 @@ export const resendGetEmailTool: ToolConfig<GetEmailParams, GetEmailResult> = {
   name: 'Get Email',
   description: 'Retrieve details of a previously sent email by its ID',
   version: '1.0.0',
+  oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {
     emailId: {

@@ -2,7 +2,7 @@
 title: Okta
 description: Manage users, groups, apps, and MFA in Okta
 integration:
-  type: "okta"
+  type: "okta_v2"
   color: "#191919"
 ---
 
@@ -31,8 +31,6 @@ List users in your Okta organization with optional search and filtering. Users w
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `search` | string | No | Okta search expression \(e.g., profile.firstName eq "John" or profile.email co "example.com"\) |
 | `filter` | string | No | Okta filter expression \(e.g., status eq "ACTIVE"\) |
 | `after` | string | No | Opaque pagination cursor returned as nextCursor by a previous call |
@@ -74,8 +72,6 @@ Get a specific user by ID or login from your Okta organization
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `userId` | string | Yes | User ID or login \(email\) to look up |
 
 #### Output
@@ -119,8 +115,6 @@ Create a new user in your Okta organization
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `firstName` | string | Yes | First name of the user |
 | `lastName` | string | Yes | Last name of the user |
 | `email` | string | Yes | Email address of the user |
@@ -157,8 +151,6 @@ Update a user profile in your Okta organization
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `userId` | string | Yes | User ID or login to update |
 | `firstName` | string | No | Updated first name |
 | `lastName` | string | No | Updated last name |
@@ -194,8 +186,6 @@ Activate a user in your Okta organization. Can only be performed on users with S
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `userId` | string | Yes | User ID or login to activate |
 | `sendEmail` | boolean | No | Send activation email to the user \(default: true\) |
 
@@ -221,8 +211,6 @@ Deactivate a user in your Okta organization. This transitions the user to DEPROV
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `userId` | string | Yes | User ID or login to deactivate |
 | `sendEmail` | boolean | No | Send deactivation email to admin \(default: false\) |
 
@@ -246,8 +234,6 @@ Suspend a user in your Okta organization. Only users with ACTIVE status can be s
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `userId` | string | Yes | User ID or login to suspend |
 
 #### Output
@@ -270,8 +256,6 @@ Unsuspend a previously suspended user in your Okta organization. Returns the use
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `userId` | string | Yes | User ID or login to unsuspend |
 
 #### Output
@@ -294,8 +278,6 @@ Generate a one-time token to reset a user password. Can email the reset link to 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `userId` | string | Yes | User ID or login to reset password for |
 | `sendEmail` | boolean | No | Send password reset email to the user. Okta requires this parameter and declares no default of its own; leaving it blank sends the email |
 
@@ -319,8 +301,6 @@ Permanently delete a user from your Okta organization. Can only be performed on 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `userId` | string | Yes | User ID or login \(email\) to delete |
 | `sendEmail` | boolean | No | Send deactivation email to admin \(default: false\) |
 
@@ -344,8 +324,6 @@ List all groups in your Okta organization with optional search and filtering
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `search` | string | No | Okta search expression for groups \(e.g., profile.name sw "Engineering" or type eq "OKTA_GROUP"\) |
 | `filter` | string | No | Okta filter expression \(e.g., type eq "OKTA_GROUP"\) |
 | `after` | string | No | Opaque pagination cursor returned as nextCursor by a previous call |
@@ -380,8 +358,6 @@ Get a specific group by ID from your Okta organization
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `groupId` | string | Yes | Group ID to look up |
 
 #### Output
@@ -409,8 +385,6 @@ Create a new group in your Okta organization
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `name` | string | Yes | Name of the group |
 | `description` | string | No | Description of the group |
 
@@ -439,8 +413,6 @@ Update a group profile in your Okta organization. Only groups of OKTA_GROUP type
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `groupId` | string | Yes | Group ID to update |
 | `name` | string | No | Updated group name. Leave blank to keep the stored name |
 | `description` | string | No | Updated group description |
@@ -470,8 +442,6 @@ Delete a group from your Okta organization. Groups of OKTA_GROUP or APP_GROUP ty
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `groupId` | string | Yes | Group ID to delete |
 
 #### Output
@@ -494,8 +464,6 @@ Add a user to a group in your Okta organization
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `groupId` | string | Yes | Group ID to add the user to |
 | `userId` | string | Yes | User ID to add to the group |
 
@@ -520,8 +488,6 @@ Remove a user from a group in your Okta organization
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `groupId` | string | Yes | Group ID to remove the user from |
 | `userId` | string | Yes | User ID to remove from the group |
 
@@ -546,8 +512,6 @@ List all members of a specific group in your Okta organization
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `groupId` | string | Yes | Group ID to list members for |
 | `after` | string | No | Opaque pagination cursor returned as nextCursor by a previous call |
 | `limit` | number | No | Maximum number of members to return per page \(default: 1000, but Okta recommends 200\) |
@@ -588,8 +552,6 @@ List the group rules in your Okta organization. Each rule assigns users to group
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `search` | string | No | Keyword to search group rules for |
 | `after` | string | No | Opaque pagination cursor returned as nextCursor by a previous call |
 | `limit` | number | No | Maximum number of rules to return \(default: 50, max: 200\) |
@@ -627,8 +589,6 @@ Retrieve a single Okta group rule by ID, including the expression that decides w
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `groupRuleId` | string | Yes | Group rule ID to look up |
 
 #### Output
@@ -660,8 +620,6 @@ Create a group rule that automatically assigns users matching an Okta expression
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `ruleName` | string | Yes | Name for the group rule \(maximum 50 characters\) |
 | `expression` | string | Yes | Okta expression that must evaluate to a boolean \(e.g., user.department=="Engineering"\) |
 | `assignUserToGroupIds` | string | Yes | Comma-separated group IDs that matching users are assigned to |
@@ -696,8 +654,6 @@ Activate a group rule so Okta starts applying it, assigning every matching user 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `groupRuleId` | string | Yes | Group rule ID to activate |
 
 #### Output
@@ -720,8 +676,6 @@ Deactivate a group rule so Okta stops applying it. Existing memberships the rule
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `groupRuleId` | string | Yes | Group rule ID to deactivate |
 
 #### Output
@@ -744,8 +698,6 @@ Permanently delete a group rule. Destructive and irreversible. Optionally also r
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `groupRuleId` | string | Yes | Group rule ID to delete |
 | `removeUsers` | boolean | No | Also remove the users this rule assigned from the groups it targeted \(default: false\) |
 
@@ -769,8 +721,6 @@ List the MFA factors a user has enrolled, with each factor type, provider, and e
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `userId` | string | Yes | Okta user ID \(not a login or email\) to list enrolled factors for |
 
 #### Output
@@ -801,8 +751,6 @@ Retrieve a single enrolled MFA factor for a user, including its type, provider, 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `userId` | string | Yes | Okta user ID \(not a login or email\) the factor belongs to |
 | `factorId` | string | Yes | Factor ID to look up |
 
@@ -832,8 +780,6 @@ Enroll an MFA factor for a user. The profile fields required depend on the facto
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `userId` | string | Yes | Okta user ID \(not a login or email\) to enroll the factor for |
 | `factorType` | string | Yes | Factor type to enroll \(sms, call, email, question, push, token:software:totp, u2f, webauthn\) |
 | `provider` | string | Yes | Factor provider \(OKTA, GOOGLE, FIDO, DUO, RSA, SYMANTEC, YUBICO, CUSTOM\). Each provider supports a subset of factor types |
@@ -870,8 +816,6 @@ Unenroll one specific MFA factor for a user so they can re-enroll it. Destructiv
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `userId` | string | Yes | Okta user ID \(not a login or email\) the factor belongs to |
 | `factorId` | string | Yes | Factor ID to unenroll |
 | `removeRecoveryEnrollment` | boolean | No | Also remove the phone number as a recovery method, not only as a factor. Applies to sms and call factors only \(default: false\) |
@@ -897,8 +841,6 @@ Reset every MFA factor for a user, returning all enrollments to the unenrolled s
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `userId` | string | Yes | User ID or login whose MFA factors will all be reset |
 
 #### Output
@@ -921,8 +863,6 @@ Revoke every active Okta session for a user, signing them out of all devices imm
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `userId` | string | Yes | Okta user ID \(not a login or email\) whose sessions will be revoked |
 | `oauthTokens` | boolean | No | Also revoke the user OpenID Connect and OAuth refresh and access tokens \(default: false\) |
 | `forgetDevices` | boolean | No | Clear the user remembered factors for all devices \(default: true\) |
@@ -947,8 +887,6 @@ Retrieve an Okta session by ID, including who it belongs to, when it expires, an
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `sessionId` | string | Yes | Session ID to look up |
 
 #### Output
@@ -980,8 +918,6 @@ Revoke a single Okta session by ID, ending that sign-in immediately. Destructive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `sessionId` | string | Yes | Session ID to revoke |
 
 #### Output
@@ -1004,8 +940,6 @@ List the applications configured in your Okta organization, with optional name s
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `q` | string | No | Search for applications whose name or label starts with this value |
 | `filter` | string | No | Okta filter expression \(e.g., status eq "ACTIVE"\) |
 | `includeNonDeleted` | boolean | No | Also return inactive applications. Deleted applications stay excluded either way \(default: false\) |
@@ -1042,8 +976,6 @@ Retrieve a single Okta application by ID, including its sign-on mode, status, en
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `appId` | string | Yes | Application ID to look up |
 
 #### Output
@@ -1085,8 +1017,6 @@ List the users assigned to an Okta application, including how each assignment wa
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `appId` | string | Yes | Application ID to list assigned users for |
 | `q` | string | No | Search assigned users whose userName, firstName, lastName, or email starts with this value |
 | `after` | string | No | Opaque pagination cursor returned as nextCursor by a previous call |
@@ -1126,8 +1056,6 @@ Assign a user to an Okta application, granting them access to it. Applications t
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `appId` | string | Yes | Application ID to assign the user to |
 | `userId` | string | Yes | Okta user ID to assign |
 | `scope` | string | No | Assignment scope: USER for a direct assignment, or GROUP |
@@ -1164,8 +1092,6 @@ Unassign a user from an Okta application, revoking their access. Destructive and
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `appId` | string | Yes | Application ID to remove the user from |
 | `userId` | string | Yes | Okta user ID to unassign |
 | `sendEmail` | boolean | No | Send a deactivation email to the administrator \(default: false\) |
@@ -1191,8 +1117,6 @@ List the groups assigned to an Okta application. Every member of an assigned gro
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `appId` | string | Yes | Application ID to list assigned groups for |
 | `q` | string | No | Search assigned groups whose name starts with this value |
 | `after` | string | No | Opaque pagination cursor returned as nextCursor by a previous call |
@@ -1224,8 +1148,6 @@ Assign a group to an Okta application so every member of the group inherits acce
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `appId` | string | Yes | Application ID to assign the group to |
 | `groupId` | string | Yes | Group ID to assign |
 | `priority` | number | No | Assignment priority, which resolves conflicting profile mappings when a user belongs to several assigned groups |
@@ -1253,8 +1175,6 @@ Unassign a group from an Okta application. Destructive: every member who had acc
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `appId` | string | Yes | Application ID to remove the group from |
 | `groupId` | string | Yes | Group ID to unassign |
 
@@ -1279,8 +1199,6 @@ List the administrator roles assigned to a user. Returns both standard roles and
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `userId` | string | Yes | Okta user ID \(not a login or email\) to list admin roles for |
 
 #### Output
@@ -1312,8 +1230,6 @@ Grant a user an administrator role. Use a standard role type such as USER_ADMIN 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `userId` | string | Yes | Okta user ID \(not a login or email\) to assign the admin role to |
 | `roleType` | string | Yes | Role type to assign: SUPER_ADMIN, ORG_ADMIN, APP_ADMIN, USER_ADMIN, HELP_DESK_ADMIN, READ_ONLY_ADMIN, API_ACCESS_MANAGEMENT_ADMIN, GROUP_MEMBERSHIP_ADMIN, REPORT_ADMIN, WORKFLOWS_ADMIN, ACCESS_CERTIFICATIONS_ADMIN, ACCESS_REQUESTS_ADMIN, or CUSTOM |
 | `customRoleId` | string | No | Custom role ID. Required when the role type is CUSTOM |
@@ -1348,8 +1264,6 @@ Revoke an administrator role from a user. Destructive: the user immediately lose
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `userId` | string | Yes | Okta user ID \(not a login or email\) to revoke the admin role from |
 | `roleAssignmentId` | string | Yes | Role assignment ID to revoke, as returned by List User Roles. For a custom role this is the resource set binding ID |
 
@@ -1374,8 +1288,6 @@ Query the Okta System Log for sign-ins, admin changes, and security events. Supp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Okta API token for authentication |
-| `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `since` | string | No | Start of the query time window as an ISO 8601 timestamp \(default: 7 days before "until"\). Ignored when a cursor is supplied in "after", which already encodes the resume position |
 | `until` | string | No | End of the query time window as an ISO 8601 timestamp \(default: now\) |
 | `filter` | string | No | SCIM filter expression \(e.g., eventType eq "user.session.start" or outcome.result eq "FAILURE"\) |

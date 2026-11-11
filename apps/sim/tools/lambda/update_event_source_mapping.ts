@@ -3,6 +3,7 @@ import type {
   LambdaUpdateEventSourceMappingParams,
   LambdaUpdateEventSourceMappingResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const updateEventSourceMappingTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const updateEventSourceMappingTool: InternalToolConfig<
   name: 'Lambda Update Event Source Mapping',
   description: 'Update the batching, retry, filtering, or enabled state of an event source mapping',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

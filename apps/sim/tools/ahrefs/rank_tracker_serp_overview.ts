@@ -2,6 +2,7 @@ import type {
   AhrefsRankTrackerSerpOverviewParams,
   AhrefsRankTrackerSerpOverviewResponse,
 } from '@/tools/ahrefs/types'
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rankTrackerSerpOverviewTool: ToolConfig<
@@ -13,6 +14,7 @@ export const rankTrackerSerpOverviewTool: ToolConfig<
   description:
     'Get the full SERP (search engine results page) for a keyword tracked in an Ahrefs Rank Tracker project, including every ranking URL with its position, title, and authority metrics. This endpoint is free and does not consume API units.',
   version: '1.0.0',
+  oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {

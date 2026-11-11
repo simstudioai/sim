@@ -2,6 +2,7 @@ import type {
   CodePipelineStopExecutionParams,
   CodePipelineStopExecutionResponse,
 } from '@/tools/codepipeline/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const stopExecutionTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const stopExecutionTool: InternalToolConfig<
   description:
     'Stop a CodePipeline pipeline execution, either finishing in-progress actions or abandoning them',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

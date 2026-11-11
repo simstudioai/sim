@@ -4,6 +4,7 @@ import {
   handleMailchimpError,
   type MailchimpMember,
 } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('MailchimpUpdateMember')
@@ -35,6 +36,7 @@ export const mailchimpUpdateMemberTool: ToolConfig<
   name: 'Update Member in Mailchimp Audience',
   description: 'Update an existing member in a Mailchimp audience',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

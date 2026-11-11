@@ -1,4 +1,5 @@
 import type { RipplingUpdateWorkLocationParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingUpdateWorkLocationTool: ToolConfig<RipplingUpdateWorkLocationParams> = {
@@ -6,6 +7,7 @@ export const ripplingUpdateWorkLocationTool: ToolConfig<RipplingUpdateWorkLocati
   name: 'Rippling Update Work Location',
   description: 'Update a work location',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

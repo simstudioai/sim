@@ -5,6 +5,7 @@ import type {
   ClerkUnlockUserResponse,
   ClerkUser,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkUnlockUser')
@@ -14,6 +15,7 @@ export const clerkUnlockUserTool: ToolConfig<ClerkUnlockUserParams, ClerkUnlockU
   name: 'Unlock User in Clerk',
   description: 'Unlock a previously locked user account',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

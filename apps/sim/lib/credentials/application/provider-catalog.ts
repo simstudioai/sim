@@ -9,6 +9,12 @@ import {
   TOKEN_SERVICE_ACCOUNT_DESCRIPTORS,
   type TokenServiceAccountField,
 } from '@/lib/credentials/token-service-accounts/descriptors'
+import {
+  isWorkloadIdentityServiceAccountProviderId,
+  WORKLOAD_IDENTITY_KEYLESS_CONFIGS,
+  workloadIdentityProviderFor,
+} from '@/lib/credentials/workload-identity/audiences'
+import { isWorkloadIdentityConfigured } from '@/lib/credentials/workload-identity/issuer'
 import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
 import {
   allowedIntegrationTypes,
@@ -18,7 +24,10 @@ import {
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+  AWS_SERVICE_ACCOUNT_PROVIDER_ID,
+  DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
   type OAuthServiceMetadata,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -72,6 +81,14 @@ export interface ServiceAccountCredentialProviderCatalogEntry
   helpText?: string
   requiresClientGeneratedCredentialId: boolean
   fields: CredentialProviderField[]
+  /** The provider's keyless mode; absent without one, or when this deployment cannot sign. */
+  keyless?: CredentialProviderKeylessMode
+}
+
+interface CredentialProviderKeylessMode {
+  authType: string
+  requiredConfigFields: string[]
+  optionalConfigFields: string[]
 }
 
 export type CredentialProviderCatalogEntry =
@@ -117,6 +134,72 @@ function providerField(
   }
 }
 
+interface KeylessCatalogMode {
+  keyless: CredentialProviderKeylessMode
+  /** Where keyless works, when narrower than the provider. */
+  scope?: string
+}
+
+function keylessModeFor(providerId: string): KeylessCatalogMode | undefined {
+  if (!isWorkloadIdentityServiceAccountProviderId(providerId)) return undefined
+  const { authType, requiredFields, optionalFields, scope } =
+    WORKLOAD_IDENTITY_KEYLESS_CONFIGS[workloadIdentityProviderFor(providerId)]
+  return {
+    keyless: {
+      authType,
+      requiredConfigFields: [...requiredFields],
+      optionalConfigFields: [...optionalFields],
+    },
+    ...(scope ? { scope } : {}),
+  }
+}
+
+/**
+ * Adds a provider's keyless mode to its key-based descriptor, the same way for
+ * every keyless provider: one description suffix, and a hint on the
+ * `serviceAccountJson` field — which a token provider such as Snowflake gains
+ * as an optional alternative to its token fields.
+ */
+function withKeylessMode(
+  descriptor: ServiceAccountDescriptor,
+  mode: KeylessCatalogMode | undefined
+): ServiceAccountDescriptor & { keyless?: CredentialProviderKeylessMode } {
+  if (!mode) return descriptor
+  const { keyless, scope } = mode
+  const scopeNote = scope ? ` ${scope}` : ''
+  const hint = `Keyless: send the keylessConfig from Create workload identity subject with ${keyless.requiredConfigFields.join(', ')} added.${scopeNote}`
+  const configurationField = descriptor.fields.find((field) => field.id === 'serviceAccountJson')
+  const fields = configurationField
+    ? descriptor.fields.map((field) =>
+        field === configurationField
+          ? { ...field, hint: field.hint ? `${field.hint} ${hint}` : hint }
+          : field
+      )
+    : [
+        ...descriptor.fields,
+        {
+          id: 'serviceAccountJson',
+          label: 'Keyless configuration',
+          placeholder: JSON.stringify({
+            authType: keyless.authType,
+            ...Object.fromEntries(keyless.requiredConfigFields.map((field) => [field, '...'])),
+            subject: '...',
+            subjectProof: '...',
+          }),
+          required: false,
+          secret: true,
+          multiline: true,
+          hint: `Send instead of the other fields. ${hint}`,
+        },
+      ]
+  return {
+    ...descriptor,
+    description: `${descriptor.description} Also supports a keyless credential that trusts Sim through workload identity federation.${scopeNote}`,
+    fields,
+    keyless,
+  }
+}
+
 function getServiceAccountDescriptor(providerId: string): ServiceAccountDescriptor {
   if (providerId === GITHUB_INSTALLATION_PROVIDER_ID) {
     return {
@@ -126,6 +209,64 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
       helpText:
         'Connect an installation through your organization’s Search integrations. Each person connects their own GitHub account to establish access.',
       fields: [],
+    }
+  }
+  if (providerId === DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID) {
+    return {
+      name: 'Databricks connection',
+      description:
+        'Use the Databricks block with a personal access token or a service principal OAuth secret.',
+      docsUrl: 'https://docs.sim.ai/integrations/databricks-credentials',
+      fields: [
+        {
+          id: 'serviceAccountJson',
+          label: 'Connection configuration',
+          placeholder:
+            '{"authType":"personal_access_token","host":"dbc-abc123.cloud.databricks.com","token":"dapi..."}',
+          required: true,
+          secret: true,
+          multiline: true,
+          hint: `JSON object with host and authType: "personal_access_token" (token) or "service_principal" (clientId, clientSecret).`,
+        },
+      ],
+    }
+  }
+  if (providerId === MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID) {
+    return {
+      name: 'Microsoft app credential',
+      description:
+        'Use Microsoft Entra ID, SharePoint, Dataverse, and Dynamics 365 as an app registration (app-only), with a client secret or a certificate.',
+      docsUrl: 'https://docs.sim.ai/integrations/microsoft-app-credentials',
+      fields: [
+        {
+          id: 'serviceAccountJson',
+          label: 'Credential configuration',
+          placeholder:
+            '{"authType":"client_secret","tenantId":"...","clientId":"...","clientSecret":"..."}',
+          required: true,
+          secret: true,
+          multiline: true,
+          hint: `JSON object with tenantId, clientId, optional environmentUrl (Dataverse and Dynamics 365), and authType: "client_secret" (clientSecret) or "certificate" (privateKey, certificate as PEM).`,
+        },
+      ],
+    }
+  }
+  if (providerId === AWS_SERVICE_ACCOUNT_PROVIDER_ID) {
+    return {
+      name: 'AWS credential',
+      description: 'Use AWS blocks with saved access keys, or access keys that assume an IAM role.',
+      docsUrl: 'https://docs.sim.ai/integrations/aws-credentials',
+      fields: [
+        {
+          id: 'serviceAccountJson',
+          label: 'Credential configuration',
+          placeholder: '{"authType":"access_keys","accessKeyId":"AKIA...","secretAccessKey":"..."}',
+          required: true,
+          secret: true,
+          multiline: true,
+          hint: `JSON object with authType: "access_keys" (accessKeyId, secretAccessKey, optional stsRegion) or "assume_role" (accessKeyId, secretAccessKey, roleArn, optional externalId and stsRegion).`,
+        },
+      ],
     }
   }
   if (providerId === ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID) {
@@ -334,7 +475,7 @@ export async function listCredentialProviderCatalog(
   const userId = principalUserId(principal)
   const organizationId =
     'organizationId' in context ? context.organizationId : context.workspaceOrganizationId
-  const [allowedIntegrations, blockVisibility] = await Promise.all([
+  const [allowedIntegrations, blockVisibility, keylessAvailable] = await Promise.all([
     'organizationId' in context
       ? allowedOrganizationIntegrationTypes(context.organizationId)
       : allowedIntegrationTypes(principal, context.workspaceId),
@@ -342,6 +483,8 @@ export async function listCredentialProviderCatalog(
       ...(userId ? { userId } : {}),
       ...(organizationId ? { orgId: organizationId } : {}),
     }),
+    // Keyless subjects are issued for workspaces only, and only where Sim can sign.
+    'organizationId' in context ? false : isWorkloadIdentityConfigured(),
   ])
   const services = getAllOAuthServices()
   const oauthServices = services.filter((service) => service.authType === 'oauth')
@@ -406,7 +549,10 @@ export async function listCredentialProviderCatalog(
   const serviceAccountEntries: ServiceAccountCredentialProviderCatalogEntry[] = [
     ...serviceAccountOwners,
   ].map(([providerId, owner]) => {
-    const descriptor = getServiceAccountDescriptor(providerId)
+    const descriptor = withKeylessMode(
+      getServiceAccountDescriptor(providerId),
+      keylessAvailable ? keylessModeFor(providerId) : undefined
+    )
     return {
       type: 'service_account',
       serviceId: providerId,
@@ -419,6 +565,7 @@ export async function listCredentialProviderCatalog(
       ...(descriptor.helpText ? { helpText: descriptor.helpText } : {}),
       requiresClientGeneratedCredentialId: descriptor.requiresClientGeneratedCredentialId === true,
       fields: descriptor.fields,
+      ...(descriptor.keyless ? { keyless: descriptor.keyless } : {}),
     }
   })
 

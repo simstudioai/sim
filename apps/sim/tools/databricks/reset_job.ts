@@ -6,6 +6,7 @@ import {
   parseDatabricksJson,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const resetJobTool: ToolConfig<DatabricksResetJobParams, DatabricksSuccessResponse> = {
@@ -13,6 +14,7 @@ export const resetJobTool: ToolConfig<DatabricksResetJobParams, DatabricksSucces
   name: 'Databricks Reset Job',
   description: 'Replace all settings of a Databricks job.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     jobId: {

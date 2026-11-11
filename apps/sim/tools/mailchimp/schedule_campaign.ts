@@ -1,4 +1,5 @@
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface MailchimpScheduleCampaignParams {
@@ -19,6 +20,7 @@ export const mailchimpScheduleCampaignTool: ToolConfig<
   name: 'Schedule Campaign in Mailchimp',
   description: 'Schedule a Mailchimp campaign to be sent at a specific time',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

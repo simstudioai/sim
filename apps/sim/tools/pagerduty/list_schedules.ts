@@ -2,6 +2,7 @@ import type {
   PagerDutyListSchedulesParams,
   PagerDutyListSchedulesResponse,
 } from '@/tools/pagerduty/types'
+import { PAGERDUTY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listSchedulesTool: ToolConfig<
@@ -12,6 +13,7 @@ export const listSchedulesTool: ToolConfig<
   name: 'PagerDuty List Schedules',
   description: 'List on-call schedules from PagerDuty with an optional name filter.',
   version: '1.0.0',
+  oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

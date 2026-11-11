@@ -1,3 +1,4 @@
+import { SIXTYFOUR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SixtyfourEnrichLeadParams,
   SixtyfourEnrichLeadResponse,
@@ -13,6 +14,7 @@ export const sixtyfourEnrichLeadTool: ToolConfig<
   description:
     'Enrich lead information with contact details, social profiles, and company data using Sixtyfour AI.',
   version: '1.0.0',
+  oauth: SIXTYFOUR_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

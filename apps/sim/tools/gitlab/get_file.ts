@@ -1,5 +1,6 @@
 import type { GitLabGetFileParams, GitLabGetFileResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabGetFileTool: ToolConfig<GitLabGetFileParams, GitLabGetFileResponse> = {
@@ -8,6 +9,7 @@ export const gitlabGetFileTool: ToolConfig<GitLabGetFileParams, GitLabGetFileRes
   name: 'GitLab Get File',
   description: 'Get the contents of a file from a GitLab project repository',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {

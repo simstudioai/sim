@@ -1,3 +1,4 @@
+import { PROFOUND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ProfoundBotLogsParams, ProfoundBotLogsResponse } from './types'
 
@@ -6,6 +7,7 @@ export const profoundBotLogsTool: ToolConfig<ProfoundBotLogsParams, ProfoundBotL
   name: 'Profound Bot Logs',
   description: 'Get identified bot visit logs with filters for a domain in Profound',
   version: '1.0.0',
+  oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -7,6 +7,7 @@ import {
   rocketlaneHeaders,
   SPACE_DOCUMENT_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneCreateSpaceDocumentTool: ToolConfig<
@@ -17,6 +18,7 @@ export const rocketlaneCreateSpaceDocumentTool: ToolConfig<
   name: 'Rocketlane Create Space Document',
   description: 'Create a new space document in a Rocketlane space',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -2,6 +2,7 @@ import type {
   AhrefsBrokenBacklinksParams,
   AhrefsBrokenBacklinksResponse,
 } from '@/tools/ahrefs/types'
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const SELECT_FIELDS = 'url_from,url_to,http_code_target,anchor,domain_rating_source'
@@ -15,6 +16,7 @@ export const brokenBacklinksTool: ToolConfig<
   description:
     'Get a list of broken backlinks pointing to a target domain or URL. Useful for identifying link reclamation opportunities.',
   version: '1.0.0',
+  oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {
     target: {

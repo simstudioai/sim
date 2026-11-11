@@ -2,6 +2,7 @@ import type {
   RootlyListRetrospectivesParams,
   RootlyListRetrospectivesResponse,
 } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyListRetrospectivesTool: ToolConfig<
@@ -12,6 +13,7 @@ export const rootlyListRetrospectivesTool: ToolConfig<
   name: 'Rootly List Retrospectives',
   description: 'List incident retrospectives (post-mortems) from Rootly.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

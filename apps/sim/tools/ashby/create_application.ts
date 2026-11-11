@@ -6,6 +6,7 @@ import {
   ashbyErrorMessage,
   mapApplication,
 } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyCreateApplicationParams {
@@ -34,6 +35,7 @@ export const createApplicationTool: ToolConfig<
   description:
     'Creates a new application for a candidate on a job. Optionally specify interview plan, stage, source, and credited user.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

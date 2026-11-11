@@ -2,7 +2,7 @@
 title: Buffer
 description: Schedule and publish social media posts across connected channels
 integration:
-  type: "buffer"
+  type: "buffer_v2"
   color: "#FFFFFF"
 ---
 
@@ -14,7 +14,7 @@ Use [Buffer](https://buffer.com/) to draft, queue, schedule, publish, edit, and 
 
 ## Authentication
 
-Create an API key under Buffer **Settings → API** and enter it in **API Key**. Sim sends it as a Bearer token to Buffer's GraphQL API. The key can reach the organizations and channels available to its account, subject to its permissions.
+Create an API key under Buffer **Settings → API** and add it as a Buffer credential. Sim sends it as a Bearer token to Buffer's GraphQL API. The key can reach the organizations and channels available to its account, subject to its permissions.
 
 Enable the permissions your workflow needs: `account:read`, `posts:read`, `posts:write`, `ideas:read`, `ideas:write`, and `insights:read`. The block includes 13 operations; preview operations are excluded.
 
@@ -47,7 +47,6 @@ Create a post in Buffer for a channel — add it to the queue, share it immediat
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Buffer API key |
 | `channelId` | string | Yes | Channel to create the post for \(find it with the Get Channels operation\) |
 | `text` | string | No | Text content of the post \(required unless media is attached\) |
 | `mode` | string | Yes | How to share the post: addToQueue, shareNext, shareNow, or customScheduled \(requires dueAt\) |
@@ -379,7 +378,6 @@ Edit an existing Buffer post — update its text, schedule, or media. Attaching 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Buffer API key |
 | `postId` | string | Yes | ID of the post to edit |
 | `text` | string | No | New text content of the post |
 | `mode` | string | No | Change the share mode to addToQueue, shareNext, shareNow, or customScheduled \(requires dueAt\). Omit to keep the current schedule |
@@ -711,7 +709,6 @@ List posts in a Buffer organization, optionally filtered by channel and status (
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Buffer API key |
 | `organizationId` | string | Yes | Buffer organization ID \(find it with the Get Account operation\) |
 | `channelIds` | string | No | Comma-separated channel IDs to filter by |
 | `status` | string | No | Comma-separated statuses to filter by: draft, needs_approval, scheduled, sending, sent, error |
@@ -1338,7 +1335,6 @@ Get a single Buffer post by ID, including its status, schedule, and media
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Buffer API key |
 | `postId` | string | Yes | ID of the post to fetch |
 
 #### Output
@@ -1654,7 +1650,6 @@ Delete a Buffer post by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Buffer API key |
 | `postId` | string | Yes | ID of the post to delete |
 
 #### Output
@@ -1676,7 +1671,6 @@ List the social media channels connected to a Buffer organization, including the
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Buffer API key |
 | `organizationId` | string | Yes | Buffer organization ID \(find it with the Get Account operation\) |
 | `filter` | json | No | Filter channels by locked status or product. <a href="#channelsfiltersinput">Schema</a> |
 
@@ -1762,7 +1756,6 @@ Get one connected channel, including its posting schedule, limits and network se
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Buffer API key with account:read permission |
 | `channelId` | string | Yes | Buffer channel ID |
 
 #### Output
@@ -1847,7 +1840,6 @@ Aggregate published post metrics across an organization or selected channels ove
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Buffer API key with insights:read permission |
 | `organizationId` | string | Yes | Buffer organization ID |
 | `startDateTime` | string | Yes | Start of aggregation window as an ISO 8601 timestamp |
 | `endDateTime` | string | Yes | End of aggregation window as an ISO 8601 timestamp |
@@ -1879,7 +1871,6 @@ Check sent and scheduled post counts against each channel’s daily limit for a 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Buffer API key with posts:read permission |
 | `channelIds` | json | Yes | Channel ID array or comma-separated IDs; all channels must belong to the same organization |
 | `date` | string | No | ISO 8601 timestamp for the date to check; omit for today |
 
@@ -1906,7 +1897,6 @@ Save a content idea to a Buffer organization for later drafting and scheduling
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Buffer API key |
 | `organizationId` | string | Yes | Buffer organization ID \(find it with the Get Account operation\) |
 | `text` | string | No | Text content of the idea |
 | `title` | string | No | Optional title for the idea |
@@ -1965,7 +1955,6 @@ List content ideas saved in a Buffer organization
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Buffer API key |
 | `organizationId` | string | Yes | Buffer organization ID \(find it with the Get Account operation\) |
 | `limit` | number | No | Maximum number of ideas to return \(default 20\) |
 | `after` | string | No | Pagination cursor from a previous page \(pageInfo.endCursor\) |
@@ -2060,7 +2049,6 @@ List idea groups (board columns) in a Buffer organization, including the group I
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Buffer API key |
 | `organizationId` | string | Yes | Buffer organization ID \(find it with the Get Account operation\) |
 
 #### Output
@@ -2084,7 +2072,6 @@ Get the authenticated Buffer account, including its organizations and their IDs 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Buffer API key |
 | `organizationFilter` | json | No | Filter account organizations by organization ID. <a href="#organizationfilterinput">Schema</a> |
 
 #### Output

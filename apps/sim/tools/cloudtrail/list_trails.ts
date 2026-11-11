@@ -2,6 +2,7 @@ import type {
   CloudTrailListTrailsParams,
   CloudTrailListTrailsResponse,
 } from '@/tools/cloudtrail/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listTrailsTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const listTrailsTool: InternalToolConfig<
   description:
     'List the ARN, name, and home Region of every CloudTrail trail visible to the account',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

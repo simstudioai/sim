@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveAudienceResponse, ThriveGetAudienceParams } from '@/tools/thrive/types'
 import { THRIVE_AUDIENCE_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
@@ -8,6 +9,7 @@ export const getAudienceTool: ToolConfig<ThriveGetAudienceParams, ThriveAudience
   name: 'Thrive Get Audience',
   description: 'Get a single audience or structure in Thrive by id or reference.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

@@ -1,9 +1,12 @@
 import { SimilarwebIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const SimilarwebBlock: BlockConfig = {
   type: 'similarweb',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'similarweb_v2' },
   name: 'Similarweb',
   description: 'Website traffic and analytics data',
   longDescription:
@@ -331,3 +334,17 @@ export const SimilarwebBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const SimilarwebV2Block: BlockConfig = {
+  ...SimilarwebBlock,
+  type: 'similarweb_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(SimilarwebBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'similarweb',
+    title: 'Similarweb Credential',
+  }),
+}

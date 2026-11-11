@@ -1,3 +1,4 @@
+import { WHATSAPP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { WhatsAppMarkReadParams, WhatsAppMarkReadResponse } from '@/tools/whatsapp/types'
 import {
@@ -13,6 +14,7 @@ export const markReadTool: ToolConfig<WhatsAppMarkReadParams, WhatsAppMarkReadRe
   description:
     'Mark a received WhatsApp message as read so the sender sees blue checkmarks, optionally showing a typing indicator.',
   version: '1.0.0',
+  oauth: WHATSAPP_CREDENTIAL_OAUTH,
 
   params: {
     messageId: {

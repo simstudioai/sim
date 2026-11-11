@@ -1,4 +1,5 @@
 import type { GammaGenerateParams, GammaGenerateResponse } from '@/tools/gamma/types'
+import { GAMMA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const generateTool: ToolConfig<GammaGenerateParams, GammaGenerateResponse> = {
@@ -7,6 +8,7 @@ export const generateTool: ToolConfig<GammaGenerateParams, GammaGenerateResponse
   description:
     'Generate a new Gamma presentation, document, webpage, or social post from text input.',
   version: '1.0.0',
+  oauth: GAMMA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

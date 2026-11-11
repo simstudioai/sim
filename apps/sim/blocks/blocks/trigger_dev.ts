@@ -1,6 +1,7 @@
 import { TriggerDevIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 const TASK_IDENTIFIER_OPERATIONS = ['trigger_dev_trigger_task', 'trigger_dev_batch_trigger_task']
 const RUN_ID_OPERATIONS = [
@@ -73,6 +74,8 @@ const NUMBERED_PAGE_OPERATIONS = ['trigger_dev_list_schedules', 'trigger_dev_lis
 
 export const TriggerDevBlock: BlockConfig = {
   type: 'trigger_dev',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'trigger_dev_v2' },
   name: 'Trigger.dev',
   description: 'Trigger tasks and manage runs and schedules',
   authMode: AuthMode.ApiKey,
@@ -1361,3 +1364,17 @@ export const TriggerDevBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const TriggerDevV2Block: BlockConfig = {
+  ...TriggerDevBlock,
+  type: 'trigger_dev_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(TriggerDevBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'trigger_dev',
+    title: 'Trigger.dev Credential',
+  }),
+}

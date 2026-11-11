@@ -1,5 +1,6 @@
 import type { Rb2bCreditCheckParams, Rb2bCreditCheckResponse } from '@/tools/rb2b/types'
 import { RB2B_API_BASE, rb2bHeaders } from '@/tools/rb2b/utils'
+import { RB2B_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rb2bCreditCheckTool: ToolConfig<Rb2bCreditCheckParams, Rb2bCreditCheckResponse> = {
@@ -7,6 +8,7 @@ export const rb2bCreditCheckTool: ToolConfig<Rb2bCreditCheckParams, Rb2bCreditCh
   name: 'RB2B Credit Check',
   description: 'Check the number of API credits remaining on your RB2B account.',
   version: '1.0.0',
+  oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

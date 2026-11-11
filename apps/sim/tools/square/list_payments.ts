@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ListPaymentsParams, PaymentListResponse } from '@/tools/square/types'
 import {
   LIST_METADATA_OUTPUT_PROPERTIES,
@@ -13,6 +14,7 @@ export const squareListPaymentsTool: ToolConfig<ListPaymentsParams, PaymentListR
   name: 'Square List Payments',
   description: 'List payments taken by the account, optionally filtered by location and time range',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {

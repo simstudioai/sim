@@ -218,6 +218,24 @@ For **each tool** in `tools.access`:
   - True/false → `switch` (a Yes/No `dropdown` only when the tool needs a third "unset" state)
   - Credentials → `oauth-input` with correct `serviceId`
   - Every tool with a `credential`/`oauthCredential` param declares `oauth: { required: true, provider }` matching that `serviceId`, plus `credentialKind: 'service-account'` when only service accounts are supported
+- [ ] In a new block or credential-only successor, a pasted key, token, or token + host comes from a
+      saved token credential (add-integration → Token credentials), not an inline `password` field
+      (legacy blocks keep theirs); a successor changes its legacy block only by `hideFromToolbar`
+      and `sunset`, and its picker sits under the operation
+- [ ] For a token-credential integration, every tool in `tools.access` declares the service's
+      `tokenCredentialOAuth` policy, every
+      param that decides the request host is mapped, and the stored domain is in the form the tools
+      build URLs from (`check-block-registry.ts origin/staging` passes)
+- [ ] A non-successor token block's tools declare `oauth: { required: true, provider,
+      credentialKind: 'service-account' }` and pin every host or account param in
+      `authoritativeParams` (`check-block-registry` enforces this for every block with a
+      saved-credential picker)
+- [ ] A keyless provider appears in every table in `lib/credentials/workload-identity/audiences.ts`
+      and in `MIXED_MODE_PROVIDERS` (`prepare-workload-identity.ts`), and the provider catalog
+      shows `keyless` only when the deployment can sign tokens
+- [ ] The `tokenCheckValidator` request uses the tools' host and auth, its normalizers refuse
+      anything that could steer the host or path, and a fake key is rejected without a valid
+      scoped key being refused
 - [ ] Dropdown `value: () => 'default'` is set for dropdowns with a sensible default
 - [ ] Every `short-input`, `long-input`, `code`, and selector subBlock has a `placeholder` — including
       password fields (`Enter your API key`). Formatted values show the shape

@@ -1,4 +1,5 @@
 import type { SentryListReleasesParams, SentryListReleasesResponse } from '@/tools/sentry/types'
+import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListReleasesResponse> = {
@@ -7,6 +8,7 @@ export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListRe
   description:
     'List releases for a Sentry organization or project. Returns release details including version, commits, deploy information, and associated projects.',
   version: '1.0.0',
+  oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

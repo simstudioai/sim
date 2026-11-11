@@ -28,8 +28,8 @@ const POLL_TICK_TOLERANCE_MS = 10_000
 /** Ceiling on a source's own `Retry-After`, so a hostile feed cannot park a trigger for days. */
 const POLL_RETRY_AFTER_MAX_MS = 24 * 60 * 60_000
 
-const POLL_BACKOFF_UNTIL_KEY = 'pollBackoffUntil'
-const POLL_SOURCE_FAILURES_KEY = 'pollSourceFailures'
+export const POLL_BACKOFF_UNTIL_KEY = 'pollBackoffUntil'
+export const POLL_SOURCE_FAILURES_KEY = 'pollSourceFailures'
 
 /**
  * Whether a webhook is inside the backoff window {@link recordPollSourceFailure}
@@ -64,7 +64,9 @@ export function throwIfAdmissionRefused(result: PolledWebhookEventResult): void 
 
 /** Logs a poll stopped by {@link PollAdmissionRefusedError} and reports it as skipped. */
 export function skipAdmissionRefusedPoll(logger: Logger, webhookId: string): 'skipped' {
-  logger.info(`Execution admission refused webhook ${webhookId}; left its items for a later poll`)
+  logger.info('Execution admission refused the webhook; left its items for a later poll', {
+    webhookId,
+  })
   return 'skipped'
 }
 
@@ -145,35 +147,43 @@ export async function recordPollSourceFailure(
   await markWebhookFailed(webhookData.id, logger)
 }
 
-/** Increment the webhook's failure count. Auto-disables after MAX_CONSECUTIVE_FAILURES. */
+/**
+ * Increment the webhook's failure count, auto-disabling it once the count
+ * reaches MAX_CONSECUTIVE_FAILURES. One statement, so an enable that resets the
+ * count concurrently is never followed by a disable decided on the old count.
+ * The locked `prior` read reports whether this update is the one that disabled
+ * the webhook, so a failure on an already-disabled webhook logs nothing.
+ */
 export async function markWebhookFailed(webhookId: string, logger: Logger): Promise<void> {
   try {
-    const result = await db
+    const now = new Date()
+    const reachesLimit = sql`COALESCE(${webhook.failedCount}, 0) + 1 >= ${MAX_CONSECUTIVE_FAILURES}`
+    const prior = db
+      .select({ wasActive: webhook.isActive })
+      .from(webhook)
+      .where(eq(webhook.id, webhookId))
+      .for('update')
+      .as('prior')
+    const [result] = await db
       .update(webhook)
       .set({
         failedCount: sql`COALESCE(${webhook.failedCount}, 0) + 1`,
-        lastFailedAt: new Date(),
-        updatedAt: new Date(),
+        lastFailedAt: now,
+        isActive: sql`CASE WHEN ${reachesLimit} THEN false ELSE ${webhook.isActive} END`,
+        updatedAt: now,
       })
+      .from(prior)
       .where(eq(webhook.id, webhookId))
-      .returning({ failedCount: webhook.failedCount })
+      .returning({ isActive: webhook.isActive, wasActive: prior.wasActive })
 
-    const newFailedCount = result[0]?.failedCount || 0
-    if (newFailedCount >= MAX_CONSECUTIVE_FAILURES) {
-      await db
-        .update(webhook)
-        .set({
-          isActive: false,
-          updatedAt: new Date(),
-        })
-        .where(eq(webhook.id, webhookId))
-
-      logger.warn(
-        `Webhook ${webhookId} auto-disabled after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`
-      )
+    if (result?.wasActive && !result.isActive) {
+      logger.warn('Webhook auto-disabled after consecutive failures', {
+        webhookId,
+        consecutiveFailures: MAX_CONSECUTIVE_FAILURES,
+      })
     }
   } catch (err) {
-    logger.error(`Failed to mark webhook ${webhookId} as failed:`, err)
+    logger.error('Failed to mark webhook as failed', { webhookId, error: err })
   }
 }
 
@@ -190,7 +200,7 @@ export async function markWebhookSuccess(webhookId: string, logger: Logger): Pro
         and(eq(webhook.id, webhookId), or(isNull(webhook.failedCount), ne(webhook.failedCount, 0)))
       )
   } catch (err) {
-    logger.error(`Failed to mark webhook ${webhookId} as successful:`, err)
+    logger.error('Failed to mark webhook as successful', { webhookId, error: err })
   }
 }
 
@@ -315,7 +325,7 @@ export async function updateWebhookProviderConfig(
       })
       .where(eq(webhook.id, webhookId))
   } catch (err) {
-    logger.error(`Failed to update webhook ${webhookId} config:`, err)
+    logger.error('Failed to update webhook config', { webhookId, error: err })
   }
 }
 

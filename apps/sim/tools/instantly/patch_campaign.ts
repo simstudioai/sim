@@ -11,6 +11,7 @@ import {
   mapCampaign,
   parseInstantlyResponse,
 } from '@/tools/instantly/utils'
+import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const patchCampaignTool: ToolConfig<
@@ -21,6 +22,7 @@ export const patchCampaignTool: ToolConfig<
   name: 'Instantly Patch Campaign',
   description: 'Updates documented Instantly V2 campaign fields.',
   version: '1.0.0',
+  oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,
     campaignId: {

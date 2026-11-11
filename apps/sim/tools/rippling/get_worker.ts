@@ -1,4 +1,5 @@
 import type { RipplingGetWorkerParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingGetWorkerTool: ToolConfig<RipplingGetWorkerParams> = {
@@ -6,6 +7,7 @@ export const ripplingGetWorkerTool: ToolConfig<RipplingGetWorkerParams> = {
   name: 'Rippling Get Worker',
   description: 'Get a specific worker by ID',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

@@ -7,6 +7,7 @@ import {
   mapLead,
   parseInstantlyResponse,
 } from '@/tools/instantly/utils'
+import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getLeadTool: ToolConfig<InstantlyGetLeadParams, InstantlyLeadResponse> = {
@@ -14,6 +15,7 @@ export const getLeadTool: ToolConfig<InstantlyGetLeadParams, InstantlyLeadRespon
   name: 'Instantly Get Lead',
   description: 'Retrieves an Instantly V2 lead by ID.',
   version: '1.0.0',
+  oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,
     leadId: {

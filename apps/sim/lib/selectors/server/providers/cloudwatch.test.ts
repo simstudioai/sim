@@ -1,9 +1,28 @@
 import { CloudWatchLogsServiceException } from '@aws-sdk/client-cloudwatch-logs'
+import {
+  selectorCredentialBundleMock,
+  selectorCredentialBundleMockFns,
+} from '@sim/testing/mocks/selector-credential-bundle.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockListCloudWatchLogGroups, mockListCloudWatchLogStreams } = vi.hoisted(() => ({
+const {
+  mockListCloudWatchLogGroups,
+  mockListCloudWatchLogStreams,
+  mockGetAwsCredentialConfig,
+  mockResolveAwsSessionCredentials,
+} = vi.hoisted(() => ({
   mockListCloudWatchLogGroups: vi.fn(),
   mockListCloudWatchLogStreams: vi.fn(),
+  mockGetAwsCredentialConfig: vi.fn(),
+  mockResolveAwsSessionCredentials: vi.fn(),
+}))
+
+vi.mock('@/lib/selectors/server/providers/credential-bundle', () => selectorCredentialBundleMock)
+
+vi.mock('@/lib/credentials/aws-service-account.server', () => ({
+  buildAwsRoleSessionName: () => 'sim-session',
+  getAwsCredentialConfig: mockGetAwsCredentialConfig,
+  resolveAwsSessionCredentials: mockResolveAwsSessionCredentials,
 }))
 
 vi.mock('@/tools/cloudwatch/listing', () => ({
@@ -11,6 +30,7 @@ vi.mock('@/tools/cloudwatch/listing', () => ({
   listCloudWatchLogStreams: mockListCloudWatchLogStreams,
 }))
 
+import { awsClientCredentials } from '@/lib/internal/aws/credentials'
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { cloudWatchSelectorAttachments } from '@/lib/selectors/server/providers/cloudwatch'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
@@ -137,5 +157,69 @@ describe('CloudWatch server selector adapter', () => {
     ).rejects.toMatchObject({ name: 'SelectorContextUnavailableError' })
     expect(mockListCloudWatchLogGroups).not.toHaveBeenCalled()
     expect(mockListCloudWatchLogStreams).not.toHaveBeenCalled()
+  })
+})
+
+describe('CloudWatch saved-credential selectors', () => {
+  const { mockResolveSelectorCredentialBundle } = selectorCredentialBundleMockFns
+
+  const session = {
+    accessKeyId: 'ASIA-session',
+    secretAccessKey: 'session-secret',
+    sessionToken: 'session-token',
+  }
+
+  function savedArgs(): ExecuteServerSelectorArgs {
+    return {
+      ...logGroupArgs(),
+      selectorKey: 'cloudwatch.savedLogGroups',
+      context: { oauthCredential: 'cred-1', awsRegion: 'us-east-1' },
+      credential: { suppliedId: 'cred-1' },
+    }
+  }
+
+  it('signs the listing with the credential’s session token', async () => {
+    mockResolveSelectorCredentialBundle.mockResolvedValueOnce({ accessToken: 'cred-1' })
+    mockGetAwsCredentialConfig.mockResolvedValueOnce({ config: {}, owner: {} })
+    mockResolveAwsSessionCredentials.mockResolvedValueOnce(session)
+    let signedWith: ReturnType<typeof awsClientCredentials> | undefined
+    mockListCloudWatchLogGroups.mockImplementationOnce(
+      async (input: { credentials: { accessKeyId: string; secretAccessKey: string } }) => {
+        signedWith = awsClientCredentials(
+          input.credentials.accessKeyId,
+          input.credentials.secretAccessKey
+        )
+        return { items: [{ logGroupName: '/aws/a' }], pages: 1, truncated: false }
+      }
+    )
+
+    await expect(
+      cloudWatchSelectorAttachments['cloudwatch.savedLogGroups'].execute(savedArgs())
+    ).resolves.toEqual({ kind: 'list', items: [{ id: '/aws/a', label: '/aws/a' }] })
+    expect(signedWith).toEqual(session)
+    expect(mockGetAwsCredentialConfig).toHaveBeenCalledWith('cred-1', {
+      workspaceId: 'workspace-1',
+      organizationId: undefined,
+    })
+  })
+
+  it('reports an unusable credential as a connection problem without its error', async () => {
+    mockResolveSelectorCredentialBundle.mockResolvedValueOnce({ accessToken: 'cred-1' })
+    mockGetAwsCredentialConfig.mockRejectedValueOnce(new Error('role arn:aws:iam::1:role/x denied'))
+
+    await expect(
+      cloudWatchSelectorAttachments['cloudwatch.savedLogGroups'].execute(savedArgs())
+    ).rejects.toMatchObject({ name: 'SelectorConnectionUnavailableError' })
+    expect(mockListCloudWatchLogGroups).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid region before resolving the credential', async () => {
+    const args = savedArgs()
+    args.context.awsRegion = 'not-a-region'
+
+    await expect(
+      cloudWatchSelectorAttachments['cloudwatch.savedLogGroups'].execute(args)
+    ).rejects.toMatchObject({ name: 'SelectorContextUnavailableError' })
+    expect(mockResolveSelectorCredentialBundle).not.toHaveBeenCalled()
   })
 })

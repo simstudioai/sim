@@ -1,4 +1,5 @@
 import type { RootlyResolveAlertParams, RootlyResolveAlertResponse } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyResolveAlertTool: ToolConfig<
@@ -9,6 +10,7 @@ export const rootlyResolveAlertTool: ToolConfig<
   name: 'Rootly Resolve Alert',
   description: 'Resolve an alert in Rootly.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

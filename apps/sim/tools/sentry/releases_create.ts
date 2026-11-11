@@ -1,4 +1,5 @@
 import type { SentryCreateReleaseParams, SentryCreateReleaseResponse } from '@/tools/sentry/types'
+import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createReleaseTool: ToolConfig<SentryCreateReleaseParams, SentryCreateReleaseResponse> =
@@ -8,6 +9,7 @@ export const createReleaseTool: ToolConfig<SentryCreateReleaseParams, SentryCrea
     description:
       'Create a new release in Sentry. A release is a version of your code deployed to an environment. Can include commit information and associated projects. Returns the created release details.',
     version: '1.0.0',
+    oauth: SENTRY_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

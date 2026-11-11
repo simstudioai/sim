@@ -3,6 +3,7 @@ import type {
   LaunchDarklyListSegmentsResponse,
 } from '@/tools/launchdarkly/types'
 import { SEGMENT_OUTPUT_PROPERTIES } from '@/tools/launchdarkly/types'
+import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const launchDarklyListSegmentsTool: ToolConfig<
@@ -13,6 +14,7 @@ export const launchDarklyListSegmentsTool: ToolConfig<
   name: 'LaunchDarkly List Segments',
   description: 'List user segments in a LaunchDarkly project and environment.',
   version: '1.0.0',
+  oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

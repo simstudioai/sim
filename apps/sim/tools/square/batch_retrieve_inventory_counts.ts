@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   BatchRetrieveInventoryCountsParams,
   InventoryCountListResponse,
@@ -19,6 +20,7 @@ export const squareBatchRetrieveInventoryCountsTool: ToolConfig<
   name: 'Square Batch Retrieve Inventory Counts',
   description: 'Retrieve current inventory counts for catalog items across locations',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {

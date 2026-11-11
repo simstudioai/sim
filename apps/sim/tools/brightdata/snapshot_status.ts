@@ -2,6 +2,7 @@ import type {
   BrightDataSnapshotStatusParams,
   BrightDataSnapshotStatusResponse,
 } from '@/tools/brightdata/types'
+import { BRIGHTDATA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brightDataSnapshotStatusTool: ToolConfig<
@@ -13,6 +14,7 @@ export const brightDataSnapshotStatusTool: ToolConfig<
   description:
     'Check the progress of an async Bright Data scraping job. Returns status: starting, running, ready, or failed.',
   version: '1.0.0',
+  oauth: BRIGHTDATA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -3,6 +3,7 @@ import type {
   LaunchDarklyListMembersResponse,
 } from '@/tools/launchdarkly/types'
 import { MEMBER_OUTPUT_PROPERTIES } from '@/tools/launchdarkly/types'
+import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const launchDarklyListMembersTool: ToolConfig<
@@ -13,6 +14,7 @@ export const launchDarklyListMembersTool: ToolConfig<
   name: 'LaunchDarkly List Members',
   description: 'List account members in your LaunchDarkly organization.',
   version: '1.0.0',
+  oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

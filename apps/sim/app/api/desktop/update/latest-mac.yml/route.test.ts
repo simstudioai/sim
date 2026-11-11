@@ -173,7 +173,7 @@ describe('desktop update manifest route', () => {
 
   it('walks past a page of unrelated releases to reach the newest desktop build', async () => {
     const filler = Array.from({ length: DESKTOP_RELEASES_PAGE_SIZE }, (_, index) => ({
-      tag_name: `python-sdk-v0.${index}.0`,
+      tag_name: `helm-chart-1.${index}.0`,
       draft: false,
       prerelease: false,
       assets: [],
@@ -200,7 +200,7 @@ describe('desktop update manifest route', () => {
 
   it('fails the feed instead of serving an older release when a page cannot be read', async () => {
     const filler = Array.from({ length: DESKTOP_RELEASES_PAGE_SIZE }, (_, index) => ({
-      tag_name: `python-sdk-v0.${index}.0`,
+      tag_name: `helm-chart-1.${index}.0`,
       draft: false,
       prerelease: false,
       assets: [],

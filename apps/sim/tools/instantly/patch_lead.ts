@@ -8,6 +8,7 @@ import {
   mapLead,
   parseInstantlyResponse,
 } from '@/tools/instantly/utils'
+import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const patchLeadTool: ToolConfig<InstantlyPatchLeadParams, InstantlyLeadResponse> = {
@@ -15,6 +16,7 @@ export const patchLeadTool: ToolConfig<InstantlyPatchLeadParams, InstantlyLeadRe
   name: 'Instantly Patch Lead',
   description: 'Updates fields on an existing Instantly V2 lead.',
   version: '1.0.0',
+  oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,
     leadId: {

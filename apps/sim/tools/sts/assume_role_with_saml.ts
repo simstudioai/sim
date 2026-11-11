@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { STSAssumeRoleWithSAMLParams, STSAssumeRoleWithSAMLResponse } from '@/tools/sts/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -10,6 +11,7 @@ export const assumeRoleWithSAMLTool: InternalToolConfig<
   description:
     'Assume an IAM role using a SAML 2.0 authentication response from an enterprise identity provider and receive temporary security credentials',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

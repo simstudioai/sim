@@ -2,6 +2,7 @@ import type {
   ApolloOrganizationEnrichParams,
   ApolloOrganizationEnrichResponse,
 } from '@/tools/apollo/types'
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apolloOrganizationEnrichTool: ToolConfig<
@@ -12,6 +13,7 @@ export const apolloOrganizationEnrichTool: ToolConfig<
   name: 'Apollo Organization Enrichment',
   description: 'Enrich data for a single organization using Apollo',
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -29,6 +29,10 @@ import {
 } from '@/lib/credentials/service-account-secret'
 import { isTokenServiceAccountProviderId } from '@/lib/credentials/token-service-accounts/descriptors'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
+import {
+  assertWorkloadIdentitySubjectUnclaimed,
+  KeylessCredentialRefusedError,
+} from '@/lib/credentials/workload-identity/subject'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -117,6 +121,8 @@ export interface PerformCreateCredentialResult {
   created?: boolean
   /** Verified provider identity metadata for the application audit projection. */
   auditMetadata?: Record<string, unknown>
+  /** A refused keyless credential, carried unchanged so callers rethrow it with its detail code. */
+  keylessRefusal?: KeylessCredentialRefusedError
 }
 
 interface ExistingCredentialSourceParams extends ResourceOwner {
@@ -224,6 +230,16 @@ function failure(
   return { success: false, error, errorCode, ...extra }
 }
 
+/** The failure result for a refused keyless credential: its class and code travel with it. */
+export function keylessFailure(refusal: KeylessCredentialRefusedError) {
+  return {
+    success: false as const,
+    error: refusal.message,
+    errorCode: refusal.code === 'conflict' ? ('conflict' as const) : ('validation' as const),
+    keylessRefusal: refusal,
+  }
+}
+
 export type CreateCredentialRecordParams = Omit<PerformCreateCredentialParams, 'workspaceId'> &
   ResourceOwner
 
@@ -269,6 +285,7 @@ export async function createCredentialRecord(
       : null
     let resolvedEnvOwnerUserId: string | null = null
     let resolvedEncryptedServiceAccountKey: string | null = null
+    let resolvedWorkloadIdentitySubject: string | undefined
     const extraAuditMetadata: Record<string, unknown> = {}
 
     if (type === 'oauth') {
@@ -323,14 +340,22 @@ export async function createCredentialRecord(
           fingerprint: params.fingerprint,
           privateKeyPassphrase: params.privateKeyPassphrase,
           region: params.region,
+          owner: {
+            ...(scope.kind === 'workspace'
+              ? { workspaceId: scope.workspaceId }
+              : { organizationId: scope.organizationId }),
+            actorUserId: userId,
+          },
         })
         resolvedProviderId = secret.providerId
         resolvedAccountId = null
         resolvedEnvOwnerUserId = null
         if (!resolvedDisplayName) resolvedDisplayName = secret.displayName
         resolvedEncryptedServiceAccountKey = secret.encryptedServiceAccountKey
+        resolvedWorkloadIdentitySubject = secret.newWorkloadIdentitySubject
         Object.assign(extraAuditMetadata, secret.auditMetadata)
       } catch (error) {
+        if (error instanceof KeylessCredentialRefusedError) return keylessFailure(error)
         if (error instanceof ServiceAccountSecretError) {
           return failure(error.message, 'validation')
         }
@@ -509,6 +534,18 @@ export async function createCredentialRecord(
           providerId: resolvedProviderId,
         })
         if (innerExisting) throw new DuplicateCredentialError()
+      }
+
+      if (resolvedWorkloadIdentitySubject) {
+        try {
+          await assertWorkloadIdentitySubjectUnclaimed(tx, {
+            subject: resolvedWorkloadIdentitySubject,
+            scope,
+          })
+        } catch (error) {
+          if (error instanceof KeylessCredentialRefusedError) return keylessFailure(error)
+          throw error
+        }
       }
 
       await tx.insert(credential).values({

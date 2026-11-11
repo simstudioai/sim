@@ -2565,6 +2565,246 @@
         }
       }
     },
+    "/api/v2/workflows/{workflowId}/triggers": {
+      "get": {
+        "operationId": "listWorkflowTriggers",
+        "summary": "List workflow triggers",
+        "description": "List the schedules, polling triggers, internal-event triggers, and webhooks the live deployment serves, including disabled ones, with their failure counts. Requires workspace read access. Schedules and polling triggers disable themselves after 100 consecutive failures; a `webhook` trigger's failures happen at the sender, so its `failedCount` stays 0. Empty while the workflow is not deployed. Returns one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "workflows.triggers.read",
+        "x-oauth-scope": "api:read",
+        "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The live deployment's triggers.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowTriggerListResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": [
+                        {
+                          "blockId": "blk_01J8ZK3QW4M6X2R9T7B5C0V4",
+                          "kind": "schedule",
+                          "provider": null,
+                          "enabled": false,
+                          "status": "disabled",
+                          "failedCount": 100,
+                          "lastFailedAt": "2026-08-09T18:04:11.000Z",
+                          "nextRunAt": null,
+                          "lastRanAt": "2026-08-09T18:04:00.000Z",
+                          "cronExpression": "0 * * * *",
+                          "timezone": "UTC",
+                          "url": null
+                        }
+                      ],
+                      "nextCursor": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{workflowId}/triggers/{blockId}": {
+      "patch": {
+        "operationId": "updateWorkflowTrigger",
+        "summary": "Update workflow trigger",
+        "description": "Enable or disable one trigger of the live deployment without redeploying. Requires workspace write access. Enabling resets `failedCount`, schedules the next run, and clears any polling backoff; a schedule whose cron expression is invalid or has no future runs returns `400`. A permission group that blocks webhook triggers returns `403` when a member it governs enables a polling, internal-event, or webhook trigger; a workspace API key is not governed by permission groups, as with every other capability. Disabling a completed schedule marks it disabled. A block with several live rows switches them together. Requesting the current state changes nothing.\n\nDisabling only stops Sim from accepting the trigger; nothing is removed at the provider. A disable lasts until the next deploy or version activation, which re-enables every trigger, the same way it clears a trigger that disabled itself after repeated failures. Deliveries to a disabled webhook receive `404`, and some providers disable their subscription after repeated failures, which requires a redeploy to restore.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "workflows.triggers.set_enabled",
+        "x-oauth-scope": "api:write",
+        "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          },
+          {
+            "name": "blockId",
+            "in": "path",
+            "required": true,
+            "description": "Trigger block in the deployed workflow.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Trigger block in the deployed workflow."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Enable or disable one trigger of the live deployment.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkflowTriggerRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "enabled": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The trigger after the update.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateWorkflowTriggerResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "blockId": "blk_01J8ZK3QW4M6X2R9T7B5C0V4",
+                        "kind": "schedule",
+                        "provider": null,
+                        "enabled": true,
+                        "status": "active",
+                        "failedCount": 0,
+                        "lastFailedAt": "2026-08-09T18:04:11.000Z",
+                        "nextRunAt": "2026-08-10T09:00:00.000Z",
+                        "lastRanAt": "2026-08-09T18:04:00.000Z",
+                        "cronExpression": "0 * * * *",
+                        "timezone": "UTC",
+                        "url": null
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/workflows/{workflowId}/deploy": {
       "post": {
         "operationId": "deployWorkflow",
@@ -3718,7 +3958,7 @@
       "post": {
         "operationId": "executeWorkflowV2",
         "summary": "Execute workflow",
-        "description": "Run the active deployment, or set `run.source: \"manual\"` to run the saved draft. Deployed execution requires workspace read access and OAuth `api:write` scope or an API key; public deployments also allow anonymous synchronous or streamed runs. Manual runs require personal-key or OAuth write access and cannot be async.\n\nUse `async: true` for a queue receipt, or `stream: true` for SSE. For a synchronous run with both flags false, send `Accept: application/x-ndjson` for heartbeat frames and a final frame containing `data`. With `waitTimeoutSeconds`, a synchronous run still going when the wait elapses continues in the background and answers with its run receipt instead: `202` on a JSON response, or a closing `detached` frame on an NDJSON stream, which keeps its `200`. Timeouts return `200` with `status: \"failed\"` and `error.code: \"TIMEOUT\"`; inspect run status. See [Streaming](/workflows/deployment/api#streaming) for event formats. Input descriptions specify compatible modes; invalid combinations return `400`.\n\nSupply `X-Run-Id` to prevent duplicate execution. Reuse returns `409`, without replaying results. A `503` with `error.details.code: \"ASYNC_ENQUEUE_AMBIGUOUS\"` omits `Retry-After` because the run may already have started. Reconcile using the returned run ID; do not start another run with a new or omitted ID.\n\nOAuth scope: `api:write`.",
+        "description": "Run the active deployment, set `run: { source: \"deployment\", version }` to run an earlier deployment version, or set `run.source: \"manual\"` to run the saved draft. Deployed execution requires workspace read access and OAuth `api:write` scope or a full-access API key; public deployments also allow anonymous synchronous or streamed runs. Running a chosen version requires workspace write access and a full-access API key or OAuth `api:write` scope; an unknown version returns `404`. Manual runs require a full-access personal API key or OAuth `api:write` scope, and workspace write access; workspace API keys are refused, and manual runs cannot be async.\n\nUse `async: true` for a queue receipt, or `stream: true` for SSE. For a synchronous run with both flags false, send `Accept: application/x-ndjson` for heartbeat frames and a final frame containing `data`. With `waitTimeoutSeconds`, a synchronous run still going when the wait elapses continues in the background and answers with its run receipt instead: `202` on a JSON response, or a closing `detached` frame on an NDJSON stream, which keeps its `200`. Timeouts return `200` with `status: \"failed\"` and `error.code: \"TIMEOUT\"`; inspect run status. See [Streaming](/workflows/deployment/api#streaming) for event formats. Input descriptions specify compatible modes; invalid combinations return `400`.\n\nSupply `X-Run-Id` to prevent duplicate execution. Reuse returns `409`, without replaying results. A `503` with `error.details.code: \"ASYNC_ENQUEUE_AMBIGUOUS\"` omits `Retry-After` because the run may already have started. Reconcile using the returned run ID; do not start another run with a new or omitted ID.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.execute",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -4165,7 +4405,7 @@
       "get": {
         "operationId": "getWorkflowRunV2",
         "summary": "Get workflow run",
-        "description": "Read current run state with workspace read access. Request final output and files with `includeOutput`, or block outputs with `selectedOutputs`. Organization permission groups can hide output, files, or cost.\n\n`includeFileBase64` inlines file bytes. A file or the total above 16 MiB returns `413` naming a download path; download large files individually. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success.\n\nOAuth scope: `api:read`.",
+        "description": "Read current run state with workspace read access. Request final output and files with `includeOutput`, or block outputs with `selectedOutputs`. Organization permission groups can hide output, files, or cost. A paused run lists every pause point in `paused.points`, with the fields a human pause asks for and its content with resolved secrets redacted; resume one with Resume workflow run.\n\n`includeFileBase64` inlines file bytes. A file or the total above 16 MiB returns `413` naming a download path; download large files individually. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.runs.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflow Runs"],
@@ -4277,6 +4517,7 @@
                         "startedAt": "2026-08-09T18:04:10.000Z",
                         "endedAt": "2026-08-09T18:04:11.000Z",
                         "durationMs": 1000,
+                        "version": 3,
                         "paused": null,
                         "cost": {
                           "total": 12
@@ -4451,7 +4692,7 @@
       "post": {
         "operationId": "resumeWorkflowRunV2",
         "summary": "Resume workflow run",
-        "description": "Resume one human-in-the-loop pause with workspace write access. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.\n\nOAuth scope: `api:write`.",
+        "description": "Resume one human-in-the-loop pause with workspace write access, naming a `contextId` from the run's `paused.points`. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.runs.resume",
         "x-oauth-scope": "api:write",
         "tags": ["Workflow Runs"],
@@ -7544,6 +7785,7 @@
           "PERMISSION_GROUP_CAPABILITY_BLOCKED",
           "INTEGRATION_NOT_ALLOWED",
           "INSUFFICIENT_SCOPE",
+          "READ_ONLY_API_KEY",
           "SCIM_MANAGED_MEMBERSHIP"
         ],
         "title": "Forbidden detail code",
@@ -12581,6 +12823,230 @@
           }
         ]
       },
+      "WorkflowTrigger": {
+        "type": "object",
+        "properties": {
+          "blockId": {
+            "type": "string",
+            "description": "Trigger block in the deployed workflow."
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["schedule", "polling", "event", "webhook"],
+            "description": "How the trigger fires: `schedule` on a cron, `polling` when Sim polls the source, `event` on an event raised inside Sim, `webhook` when an external sender delivers to its URL."
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Trigger provider, e.g. `gmail` or `github`; null for schedules."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the trigger currently fires."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "disabled", "completed"],
+            "description": "`disabled` after a manual disable or an automatic one following repeated failures. `completed` applies only to schedules that have no runs left."
+          },
+          "failedCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Consecutive failures since the last success; the trigger disables itself at 100. Always 0 for `webhook` and `event` triggers."
+          },
+          "lastFailedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp of the most recent counted failure, or null.",
+            "format": "date-time"
+          },
+          "nextRunAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp of the next scheduled run; null when disabled and for non-schedules.",
+            "format": "date-time"
+          },
+          "lastRanAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp of the last scheduled run; null for non-schedules.",
+            "format": "date-time"
+          },
+          "cronExpression": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cron expression of a schedule; null for non-schedules."
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "IANA timezone the cron expression runs in; null for non-schedules."
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Delivery URL of a `webhook` trigger; null for other kinds and for providers on a shared endpoint."
+          }
+        },
+        "required": [
+          "blockId",
+          "kind",
+          "provider",
+          "enabled",
+          "status",
+          "failedCount",
+          "lastFailedAt",
+          "nextRunAt",
+          "lastRanAt",
+          "cronExpression",
+          "timezone",
+          "url"
+        ],
+        "additionalProperties": false,
+        "title": "Workflow trigger",
+        "description": "Health and enablement of one trigger the live deployment serves."
+      },
+      "WorkflowTriggerListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowTrigger"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Always `null`. This list has no `cursor` or `limit` parameters; see the operation for inventory limits."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Workflow trigger list response",
+        "description": "Every trigger the live deployment serves.",
+        "examples": [
+          {
+            "data": [
+              {
+                "blockId": "blk_01J8ZK3QW4M6X2R9T7B5C0V4",
+                "kind": "schedule",
+                "provider": null,
+                "enabled": false,
+                "status": "disabled",
+                "failedCount": 100,
+                "lastFailedAt": "2026-08-09T18:04:11.000Z",
+                "nextRunAt": null,
+                "lastRanAt": "2026-08-09T18:04:00.000Z",
+                "cronExpression": "0 * * * *",
+                "timezone": "UTC",
+                "url": null
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "UpdateWorkflowTriggerResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowTrigger"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update workflow trigger response",
+        "description": "The trigger after the update.",
+        "examples": [
+          {
+            "data": {
+              "blockId": "blk_01J8ZK3QW4M6X2R9T7B5C0V4",
+              "kind": "schedule",
+              "provider": null,
+              "enabled": true,
+              "status": "active",
+              "failedCount": 0,
+              "lastFailedAt": "2026-08-09T18:04:11.000Z",
+              "nextRunAt": "2026-08-10T09:00:00.000Z",
+              "lastRanAt": "2026-08-09T18:04:00.000Z",
+              "cronExpression": "0 * * * *",
+              "timezone": "UTC",
+              "url": null
+            }
+          }
+        ]
+      },
+      "UpdateWorkflowTriggerRequest": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the trigger should fire. A disable lasts until the next deploy or version activation, which re-enables every trigger."
+          }
+        },
+        "required": ["enabled"],
+        "additionalProperties": false,
+        "title": "Update workflow trigger request",
+        "description": "Enable or disable one trigger of the live deployment.",
+        "examples": [
+          {
+            "enabled": true
+          }
+        ]
+      },
       "DeployResult": {
         "type": "object",
         "properties": {
@@ -14451,7 +14917,7 @@
             }
           },
           "run": {
-            "description": "Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.",
+            "description": "Workflow state and entry point to execute. Omit for the active deployment; `source: \"deployment\"` with `version` runs that deployment version. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.",
             "oneOf": [
               {
                 "type": "object",
@@ -14459,7 +14925,13 @@
                   "source": {
                     "type": "string",
                     "const": "deployment",
-                    "description": "Execute the active deployed workflow state."
+                    "description": "Execute a deployed workflow version."
+                  },
+                  "version": {
+                    "description": "Deployment version to execute instead of the active one. Requires a full-access API key or an OAuth access token with `api:write`, plus workspace write access, and the workflow must be deployed. An unknown version returns `404`.",
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2147483647
                   }
                 },
                 "required": ["source"],
@@ -14534,7 +15006,7 @@
           },
           "async": {
             "default": false,
-            "description": "Queue the run and return a 202 receipt. Requires an API key or OAuth access token and a deployed run source. Cannot stream, select outputs, enable thinking/tool events, or include file-inlining options (`includeFileBase64` or `base64MaxBytes`).",
+            "description": "Queue the run and return a 202 receipt. Requires a full-access API key or an OAuth access token with `api:write`, and a deployed run source. Cannot stream, select outputs, enable thinking/tool events, or include file-inlining options (`includeFileBase64` or `base64MaxBytes`).",
             "type": "boolean"
           },
           "executionTimeoutSeconds": {
@@ -14544,7 +15016,7 @@
             "maximum": 604800
           },
           "waitTimeoutSeconds": {
-            "description": "Wait at most this many seconds for a synchronous run; `0` waits until it settles. A run still going then continues in the background and the response carries its run receipt instead of its result: `202` on a JSON response, or a closing `detached` frame on an `application/x-ndjson` result stream, which keeps its `200`. The receipt is sent only once the run can be read on the runs resource, where it can also be cancelled. The run is admitted under asynchronous limits, and a dropped connection no longer cancels it. Requires an API key or OAuth access token. Cannot be combined with `async` or `stream`.",
+            "description": "Wait at most this many seconds for a synchronous run; `0` waits until it settles. A run still going then continues in the background and the response carries its run receipt instead of its result: `202` on a JSON response, or a closing `detached` frame on an `application/x-ndjson` result stream, which keeps its `200`. The receipt is sent only once the run can be read on the runs resource, where it can also be cancelled. The run is admitted under asynchronous limits, and a dropped connection no longer cancels it. Requires a full-access API key or an OAuth access token with `api:write`. Cannot be combined with `async` or `stream`.",
             "type": "integer",
             "minimum": 0,
             "maximum": 604800
@@ -14779,6 +15251,222 @@
           }
         ]
       },
+      "WorkflowRunPausePoint": {
+        "type": "object",
+        "properties": {
+          "contextId": {
+            "type": "string",
+            "description": "Pause context to name in `contextId` when resuming this point."
+          },
+          "blockId": {
+            "type": "string",
+            "description": "Workflow block that paused."
+          },
+          "blockName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Name of the block in the deployment version the run executed, or null for a manual run or when the version no longer exists."
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["human", "time"],
+            "description": "`human` waits for a resume request; `time` resumes automatically at `resumeAt`."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["paused", "queued", "resuming", "resumed", "failed"],
+            "description": "Resume state of this point: waiting, queued behind another resume, resuming, resumed, or a failed resume attempt."
+          },
+          "registeredAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when the run paused at this point, or null for a point recorded without one.",
+            "format": "date-time"
+          },
+          "resumeAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 automatic-resume timestamp for a time pause, otherwise null.",
+            "format": "date-time"
+          },
+          "parallel": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "parallelId": {
+                    "type": "string",
+                    "description": "Parallel block containing the pause."
+                  },
+                  "branchIndex": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Zero-based branch that paused."
+                  },
+                  "branchTotal": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Number of branches, or null when unrecorded."
+                  }
+                },
+                "required": ["parallelId", "branchIndex", "branchTotal"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Parallel branch of the pause, or null outside a parallel."
+          },
+          "loop": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "loopId": {
+                    "type": "string",
+                    "description": "Loop block containing the pause."
+                  },
+                  "iteration": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Zero-based iteration that paused."
+                  }
+                },
+                "required": ["loopId", "iteration"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Loop iteration of the pause, or null outside a loop."
+          },
+          "inputFields": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/WorkflowRunPauseInputField"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Fields a human pause asks for, without default values. Labels and descriptions are resolved, so they are withheld when organization permission groups hide execution data. Null then, for a time pause, a pause with no declared form, fields over 64 KiB or not provably free of secrets, or one recorded before pause details were captured."
+          },
+          "display": {
+            "anyOf": [
+              {
+                "description": "Reviewer content value."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Content the pause presents to its reviewer, with the run's resolved secrets redacted. Null unless `includeOutput=true`, when hidden by organization permission groups, for a time pause, for content over 64 KiB or not provably free of secrets, or for a pause recorded before pause details were captured."
+          },
+          "queuePosition": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Position among pending resume requests for this run, or null when none waits."
+          }
+        },
+        "required": [
+          "contextId",
+          "blockId",
+          "blockName",
+          "kind",
+          "status",
+          "registeredAt",
+          "resumeAt",
+          "parallel",
+          "loop",
+          "inputFields",
+          "display",
+          "queuePosition"
+        ],
+        "additionalProperties": false,
+        "title": "Workflow run pause point",
+        "description": "One point at which a paused run waits."
+      },
+      "WorkflowRunPauseInputField": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Key to supply this field under in the resume `input`."
+          },
+          "label": {
+            "type": "string",
+            "description": "Display label for the field."
+          },
+          "type": {
+            "type": "string",
+            "description": "Declared value type, such as `string`, `number`, or `boolean`."
+          },
+          "description": {
+            "description": "Field help text, when configured.",
+            "type": "string"
+          },
+          "placeholder": {
+            "description": "Placeholder text, when configured.",
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Whether the field is marked required."
+          },
+          "options": {
+            "description": "Selectable options, when the field offers a fixed set.",
+            "type": "array",
+            "items": {
+              "description": "One selectable option."
+            }
+          }
+        },
+        "required": ["name", "label", "type", "required"],
+        "additionalProperties": false,
+        "title": "Pause input field",
+        "description": "One field a human pause asks the resumer to fill."
+      },
       "V2RunFile": {
         "type": "object",
         "properties": {
@@ -14896,6 +15584,19 @@
             ],
             "description": "Run duration in milliseconds, or null while active."
           },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Deployment version the run executed. Null for a manual run, a queued run not yet started, or a run whose version no longer exists."
+          },
           "paused": {
             "anyOf": [
               {
@@ -14972,6 +15673,13 @@
                   "resumedCount": {
                     "type": "number",
                     "description": "Number of pause points that have resumed."
+                  },
+                  "points": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/WorkflowRunPausePoint"
+                    },
+                    "description": "Every point the run is paused at, earliest first, at most 100. Resume one with Resume workflow run, naming its `contextId` and supplying `input`."
                   }
                 },
                 "required": [
@@ -14982,7 +15690,8 @@
                   "blockedOnBlockId",
                   "automaticResumeWaitingReason",
                   "pausePointCount",
-                  "resumedCount"
+                  "resumedCount",
+                  "points"
                 ],
                 "additionalProperties": false
               },
@@ -15073,6 +15782,7 @@
           "startedAt",
           "endedAt",
           "durationMs",
+          "version",
           "paused",
           "cost",
           "error",
@@ -15106,6 +15816,7 @@
               "startedAt": "2026-08-09T18:04:10.000Z",
               "endedAt": "2026-08-09T18:04:11.000Z",
               "durationMs": 1000,
+              "version": 3,
               "paused": null,
               "cost": {
                 "total": 12
@@ -19030,6 +19741,8 @@
               "planetscale.deployRequests",
               "cloudwatch.logGroups",
               "cloudwatch.logStreams",
+              "cloudwatch.savedLogGroups",
+              "cloudwatch.savedLogStreams",
               "imap.mailboxes",
               "mcp.tools",
               "managedAgent.agents",
@@ -19227,6 +19940,8 @@
               "planetscale.deployRequests",
               "cloudwatch.logGroups",
               "cloudwatch.logStreams",
+              "cloudwatch.savedLogGroups",
+              "cloudwatch.savedLogStreams",
               "imap.mailboxes",
               "mcp.tools",
               "managedAgent.agents",

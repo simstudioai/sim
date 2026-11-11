@@ -1,4 +1,5 @@
 import type { RipplingBulkUpdateCustomObjectRecordsParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingBulkUpdateCustomObjectRecordsTool: ToolConfig<RipplingBulkUpdateCustomObjectRecordsParams> =
@@ -7,6 +8,7 @@ export const ripplingBulkUpdateCustomObjectRecordsTool: ToolConfig<RipplingBulkU
     name: 'Rippling Bulk Update Custom Object Records',
     description: 'Bulk update custom object records',
     version: '1.0.0',
+    oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {
         type: 'string',

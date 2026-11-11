@@ -1,4 +1,5 @@
 import type { ListRepositoriesParams, ListRepositoriesResponse } from '@/tools/cursor/types'
+import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const listRepositoriesBase = {
@@ -24,6 +25,7 @@ export const listRepositoriesTool: ToolConfig<ListRepositoriesParams, ListReposi
   name: 'Cursor List Repositories',
   description: 'List the GitHub repositories accessible to the authenticated user.',
   version: '1.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
 
   ...listRepositoriesBase,
 
@@ -82,6 +84,7 @@ export const listRepositoriesV2Tool: ToolConfig<
   description:
     'List the GitHub repositories accessible to the authenticated user. Returns API-aligned fields only.',
   version: '2.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
   transformResponse: async (response) => {
     const data = await response.json()
 

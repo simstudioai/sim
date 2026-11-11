@@ -3,6 +3,7 @@ import type {
   ElevenLabsListVoicesResponse,
   ElevenLabsVoiceSummary,
 } from '@/tools/elevenlabs/types'
+import { ELEVENLABS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const elevenLabsListVoicesTool: ToolConfig<
@@ -13,6 +14,7 @@ export const elevenLabsListVoicesTool: ToolConfig<
   name: 'ElevenLabs List Voices',
   description: 'List the voices available in your ElevenLabs account',
   version: '1.0.0',
+  oauth: ELEVENLABS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

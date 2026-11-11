@@ -1,7 +1,7 @@
 import { DaytonaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 
 const SANDBOX_SCOPED_OPERATIONS = [
   'execute_command',
@@ -21,6 +21,8 @@ const DAYTONA_UPLOAD_FIELD = ['uploadFile', 'fileRef'] as const
 
 export const DaytonaBlock: BlockConfig = {
   type: 'daytona',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'daytona_v2' },
   name: 'Daytona',
   description: 'Run code and commands in secure cloud sandboxes',
   longDescription:
@@ -729,3 +731,17 @@ export const DaytonaBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const DaytonaV2Block: BlockConfig = {
+  ...DaytonaBlock,
+  type: 'daytona_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(DaytonaBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'daytona',
+    title: 'Daytona Credential',
+  }),
+}

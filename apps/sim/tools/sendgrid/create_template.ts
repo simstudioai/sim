@@ -1,4 +1,5 @@
 import type { CreateTemplateParams, SendGridTemplate, TemplateResult } from '@/tools/sendgrid/types'
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendGridCreateTemplateTool: ToolConfig<CreateTemplateParams, TemplateResult> = {
@@ -6,6 +7,7 @@ export const sendGridCreateTemplateTool: ToolConfig<CreateTemplateParams, Templa
   name: 'SendGrid Create Template',
   description: 'Create a new email template in SendGrid',
   version: '1.0.0',
+  oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

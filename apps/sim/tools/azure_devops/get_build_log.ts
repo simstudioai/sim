@@ -1,5 +1,8 @@
 import type { GetBuildLogParams, GetBuildLogResponse } from '@/tools/azure_devops/types'
+import { azureDevOpsProjectUrl } from '@/tools/azure_devops/utils'
+import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getBuildLogTool: ToolConfig<GetBuildLogParams, GetBuildLogResponse> = {
   id: 'azure_devops_get_build_log',
@@ -7,6 +10,7 @@ export const getBuildLogTool: ToolConfig<GetBuildLogParams, GetBuildLogResponse>
   description:
     'Fetch the text content of a specific build log in Azure DevOps. Use List Build Logs first to get the log ID. Optionally retrieve only a line range with startLine/endLine.',
   version: '1.0.0',
+  oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {
     organization: {
@@ -56,7 +60,7 @@ export const getBuildLogTool: ToolConfig<GetBuildLogParams, GetBuildLogResponse>
   request: {
     url: (params) => {
       const url = new URL(
-        `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/build/builds/${params.buildId}/logs/${params.logId}`
+        `${azureDevOpsProjectUrl(params)}/_apis/build/builds/${safeUrlPathSegment(params.buildId, 'buildId')}/logs/${safeUrlPathSegment(params.logId, 'logId')}`
       )
       url.searchParams.set('api-version', '7.2-preview.2')
       if (params.startLine !== undefined)

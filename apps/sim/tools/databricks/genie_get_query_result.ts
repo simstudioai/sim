@@ -11,6 +11,7 @@ import {
   genieAttachmentPath,
   mapStatementResult,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieGetQueryResultTool: ToolConfig<
@@ -22,6 +23,7 @@ export const genieGetQueryResultTool: ToolConfig<
   description:
     'Get the rows returned by the SQL query Genie generated for a message. Available once the message is EXECUTING_QUERY or COMPLETED.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: GENIE_QUERY_ATTACHMENT_PARAMS,
 

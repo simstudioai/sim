@@ -15,6 +15,7 @@ import {
   parseLogfireResponse,
   sqlLiteral,
 } from '@/tools/logfire/utils'
+import { LOGFIRE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const buildTraceSql = (traceId: string): string =>
@@ -26,6 +27,7 @@ export const logfireGetTraceTool: ToolConfig<LogfireGetTraceParams, LogfireRecor
   description:
     'Fetch every span and log belonging to a Logfire trace, ordered from earliest to latest, so a single request can be reconstructed end to end.',
   version: '1.0.0',
+  oauth: LOGFIRE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

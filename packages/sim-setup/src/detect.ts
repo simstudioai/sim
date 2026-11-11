@@ -8,6 +8,51 @@ export const MANAGED_LABEL = 'managed-by=sim-setup'
 export const DB_CONTAINER = 'sim-postgres'
 export const REDIS_CONTAINER = 'sim-redis'
 
+/**
+ * The only host address the managed containers publish on. Docker's default
+ * (`-p port:port`) listens on every interface and its rules bypass the host
+ * firewall, which would expose a password-less Redis to the network. Clients
+ * use this literal rather than `localhost`, which can resolve to `::1`.
+ */
+export const LOOPBACK_HOST = '127.0.0.1'
+
+/**
+ * Whether a container publishes `containerPort` beyond `LOOPBACK_HOST`, read from
+ * its static config so a stopped container answers too. Containers created
+ * before managed ports were bound to loopback report an empty `HostIp`.
+ */
+function publishedBeyondLoopback(container: string, containerPort: string): boolean {
+  const out = commandOutput('docker', [
+    'inspect',
+    container,
+    '--format',
+    `{{json (index .HostConfig.PortBindings "${containerPort}")}}`,
+  ])
+  if (!out) return false
+  try {
+    const bindings = JSON.parse(out) as { HostIp?: string }[] | null
+    return (bindings ?? []).some((binding) => binding.HostIp !== LOOPBACK_HOST)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Managed containers that an earlier sim-setup published on every interface.
+ * They are reported, not recreated: Redis holds live realtime sessions and the
+ * Postgres URL may name its own database, so replacing either is the user's call.
+ */
+export function exposedManagedContainers(detection: Detection): string[] {
+  const exposed: string[] = []
+  if (detection.dbContainer?.managed && publishedBeyondLoopback(DB_CONTAINER, '5432/tcp')) {
+    exposed.push(DB_CONTAINER)
+  }
+  if (detection.redisContainer?.managed && publishedBeyondLoopback(REDIS_CONTAINER, '6379/tcp')) {
+    exposed.push(REDIS_CONTAINER)
+  }
+  return exposed
+}
+
 const SHELL_LLM_KEYS = [
   'OPENAI_API_KEY',
   'ANTHROPIC_API_KEY',
@@ -34,7 +79,7 @@ export interface Detection {
 
 export function portOpen(port: number, timeoutMs = 500): Promise<boolean> {
   return new Promise((resolve) => {
-    const socket = net.connect({ port, host: '127.0.0.1' })
+    const socket = net.connect({ port, host: LOOPBACK_HOST })
     const done = (result: boolean) => {
       socket.destroy()
       resolve(result)

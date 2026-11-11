@@ -2,6 +2,7 @@ import type {
   ApolloOpportunitySearchParams,
   ApolloOpportunitySearchResponse,
 } from '@/tools/apollo/types'
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apolloOpportunitySearchTool: ToolConfig<
@@ -12,6 +13,7 @@ export const apolloOpportunitySearchTool: ToolConfig<
   name: 'Apollo Search Opportunities',
   description: "Search and list all deals/opportunities in your team's Apollo account",
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

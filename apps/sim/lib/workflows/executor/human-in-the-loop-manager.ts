@@ -266,6 +266,21 @@ function getSnapshotWorkspaceId(snapshotValue: unknown): string | undefined {
   return typeof metadata.workspaceId === 'string' ? metadata.workspaceId : undefined
 }
 
+/**
+ * The pause display fields of a point captured with scrubbing. A point persisted before
+ * scrubbing existed stored its response unscrubbed, so it carries none of them.
+ */
+function scrubbedPauseDisplay(
+  point: Pick<PausePoint, 'displayScrubbed' | 'display' | 'inputFields'>
+): Pick<PausePoint, 'displayScrubbed' | 'display' | 'inputFields'> {
+  if (point.displayScrubbed !== true) return {}
+  return {
+    displayScrubbed: true,
+    display: point.display ?? null,
+    inputFields: point.inputFields ?? null,
+  }
+}
+
 function isResumablePausedStatus(status: string): boolean {
   return RESUMABLE_PAUSED_STATUSES.includes(status as (typeof RESUMABLE_PAUSED_STATUSES)[number])
 }
@@ -605,6 +620,7 @@ export class PauseResumeManager {
         resumeLinks: point.resumeLinks,
         pauseKind: point.pauseKind,
         resumeAt: point.resumeAt,
+        ...scrubbedPauseDisplay(point),
       }
       return acc
     }, {})
@@ -3608,12 +3624,13 @@ export class PauseResumeManager {
         entry.contextId === contextId && (entry.status === 'claimed' || entry.status === 'pending')
     )
 
-    // The selected pause point's full `response.data` is already returned via
-    // `pausePoint` below; strip it from `execution.pausePoints` so a large
-    // HITL display payload isn't duplicated in full within the same response.
+    // The selected pause point's full `response.data`, `display`, and `inputFields`
+    // are already returned via `pausePoint` below; strip them from
+    // `execution.pausePoints` so a large HITL payload isn't duplicated in full
+    // within the same response.
     const execution: PausedExecutionDetail = {
       ...detail,
-      pausePoints: detail.pausePoints.map((point) =>
+      pausePoints: detail.pausePoints.map(({ display, inputFields, ...point }) =>
         point.response ? { ...point, response: { ...point.response, data: undefined } } : point
       ),
     }
@@ -3791,7 +3808,7 @@ export class PauseResumeManager {
     }
   }
 
-  private static mapPausePoints(
+  static mapPausePoints(
     pausePoints: unknown,
     queuePositions?: Map<string, number | null>,
     latestEntries?: Map<string, ResumeQueueEntrySummary>
@@ -3833,14 +3850,15 @@ export class PauseResumeManager {
         resumeLinks,
         pauseKind: point.pauseKind ?? 'human',
         resumeAt: point.resumeAt,
+        ...scrubbedPauseDisplay(point),
         queuePosition,
         latestResumeEntry: latestEntry ?? null,
       }
     })
   }
 
-  private static computeQueuePositions(
-    queueEntries: ResumeQueueEntrySummary[]
+  static computeQueuePositions(
+    queueEntries: Pick<ResumeQueueEntrySummary, 'contextId' | 'status' | 'queuedAt'>[]
   ): Map<string, number | null> {
     const pendingEntries = queueEntries
       .filter((entry) => entry.status === 'pending')

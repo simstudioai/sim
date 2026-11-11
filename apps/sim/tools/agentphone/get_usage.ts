@@ -1,4 +1,5 @@
 import type { AgentPhoneGetUsageParams, AgentPhoneGetUsageResult } from '@/tools/agentphone/types'
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentphoneGetUsageTool: ToolConfig<
@@ -9,6 +10,7 @@ export const agentphoneGetUsageTool: ToolConfig<
   name: 'Get Usage',
   description: 'Retrieve current usage statistics for the AgentPhone account',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -8,6 +8,7 @@ import {
   type LayersListItem,
   type LayerVersionsListItem,
 } from '@aws-sdk/client-lambda'
+import { awsClientConfig } from '@/lib/internal/aws/credentials'
 
 export interface LambdaConnectionConfig {
   region: string
@@ -17,11 +18,7 @@ export interface LambdaConnectionConfig {
 
 export function createLambdaClient(config: LambdaConnectionConfig): LambdaClient {
   return new LambdaClient({
-    region: config.region,
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
+    ...awsClientConfig(config.region, config.accessKeyId, config.secretAccessKey),
   })
 }
 

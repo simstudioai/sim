@@ -320,7 +320,7 @@ describe('single-file operations addressed by VFS path', () => {
       .where(eq(workspace.id, workspaceId))
     try {
       const outcomes = await refusalsFor(
-        { kind: 'personal_api_key', userId: carol, keyId: generateId() },
+        { kind: 'personal_api_key', userId: carol, keyId: generateId(), access: 'write' },
         [await ambiguousPath(), 'files/missing.csv', 'files/report.csv']
       )
       expect(outcomes[0]).not.toBeNull()

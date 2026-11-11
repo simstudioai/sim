@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CatalogDeleteResponse, DeleteCatalogObjectParams } from '@/tools/square/types'
 import { SQUARE_BASE_URL, squareHeaders } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -11,6 +12,7 @@ export const squareDeleteCatalogObjectTool: ToolConfig<
   name: 'Square Delete Catalog Object',
   description: 'Delete a catalog object and its children (e.g. an item and its variations)',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { CreateBroadcastParams, CreateBroadcastResult } from '@/tools/resend/types'
+import { RESEND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ResendCreateBroadcastTool')
@@ -9,6 +10,7 @@ export const resendCreateBroadcastTool: ToolConfig<CreateBroadcastParams, Create
   name: 'Create Broadcast',
   description: 'Create a broadcast email for an audience in Resend',
   version: '1.0.0',
+  oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {
     audienceId: {

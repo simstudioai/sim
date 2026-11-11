@@ -382,7 +382,12 @@ describe('access request member-to-admin flow on PostgreSQL', () => {
     const transactionsBefore = transaction.mock.calls.length
     await expect(
       createAccessRequest.execute({
-        principal: { kind: 'workspace_api_key', workspaceId: 'primary', keyId: 'fixture-key' },
+        principal: {
+          kind: 'workspace_api_key',
+          workspaceId: 'primary',
+          keyId: 'fixture-key',
+          access: 'write',
+        },
         input: { scope, target },
       })
     ).rejects.toMatchObject({ detailCode: 'WORKSPACE_KEY_OPERATION_NOT_PERMITTED' })

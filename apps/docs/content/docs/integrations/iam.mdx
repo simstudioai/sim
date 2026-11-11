@@ -2,7 +2,7 @@
 title: AWS IAM
 description: Manage AWS IAM users, roles, policies, and groups
 integration:
-  type: "iam"
+  type: "iam_v2"
   color: "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)"
 ---
 
@@ -10,7 +10,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-[AWS Identity and Access Management (IAM)](https://aws.amazon.com/iam/) controls access to AWS resources. Use this integration to manage users, roles, policies, groups, and access keys, or simulate a principal’s permissions before changing them.
+[AWS Identity and Access Management (IAM)](https://aws.amazon.com/iam/) controls access to AWS resources. Use this integration to manage users, roles, policies, groups, and access keys, or simulate a principal’s permissions before changing them. Connect with a saved [AWS credential](/integrations/aws-credentials).
 
 `Simulate Principal Policy` returns one result per action regardless of how many resource ARNs you pass. The top-level decision is the **aggregate** across every resource — most restrictive wins — and the top-level resource name is an ARN *template* for the resource type, not one of your ARNs. Per-resource answers live in `resourceSpecificResults`, and when you supply concrete ARNs, missing context keys are reported there too rather than at the top level. Read `resourceSpecificResults` whenever you simulate against more than one resource: the aggregate alone will tell you a principal is denied when it is in fact allowed on some of them.
 
@@ -34,8 +34,6 @@ List IAM users in your AWS account
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `pathPrefix` | string | No | Path prefix to filter users \(e.g., /division_abc/\) |
 | `maxItems` | number | No | Maximum number of users to return \(1-1000, default 100\) |
 | `marker` | string | No | Pagination marker from a previous request |
@@ -62,8 +60,6 @@ Get detailed information about an IAM user
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `userName` | string | No | The name of the IAM user to retrieve \(defaults to the caller if omitted\) |
 
 #### Output
@@ -92,8 +88,6 @@ Create a new IAM user
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `userName` | string | Yes | Name for the new IAM user \(1-64 characters\) |
 | `path` | string | No | Path for the user \(e.g., /division_abc/\), defaults to / |
 
@@ -121,8 +115,6 @@ Delete an IAM user
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `userName` | string | Yes | The name of the IAM user to delete |
 
 #### Output
@@ -144,8 +136,6 @@ List IAM roles in your AWS account
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `pathPrefix` | string | No | Path prefix to filter roles \(e.g., /application/\) |
 | `maxItems` | number | No | Maximum number of roles to return \(1-1000, default 100\) |
 | `marker` | string | No | Pagination marker from a previous request |
@@ -172,8 +162,6 @@ Get detailed information about an IAM role
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `roleName` | string | Yes | The name of the IAM role to retrieve |
 
 #### Output
@@ -204,8 +192,6 @@ Create a new IAM role with a trust policy
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `roleName` | string | Yes | Name for the new IAM role \(1-64 characters\) |
 | `assumeRolePolicyDocument` | string | Yes | Trust policy JSON specifying who can assume this role |
 | `description` | string | No | Description of the role |
@@ -236,8 +222,6 @@ Delete an IAM role
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `roleName` | string | Yes | The name of the IAM role to delete |
 
 #### Output
@@ -259,8 +243,6 @@ Attach a managed policy to an IAM user
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `userName` | string | Yes | The name of the IAM user |
 | `policyArn` | string | Yes | The ARN of the managed policy to attach |
 
@@ -283,8 +265,6 @@ Remove a managed policy from an IAM user
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `userName` | string | Yes | The name of the IAM user |
 | `policyArn` | string | Yes | The ARN of the managed policy to detach |
 
@@ -307,8 +287,6 @@ Attach a managed policy to an IAM role
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `roleName` | string | Yes | The name of the IAM role |
 | `policyArn` | string | Yes | The ARN of the managed policy to attach |
 
@@ -331,8 +309,6 @@ Remove a managed policy from an IAM role
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `roleName` | string | Yes | The name of the IAM role |
 | `policyArn` | string | Yes | The ARN of the managed policy to detach |
 
@@ -355,8 +331,6 @@ List managed IAM policies
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `scope` | string | No | Filter by scope. Must be exactly one of: All, AWS \(AWS-managed\), Local \(customer-managed\) |
 | `onlyAttached` | boolean | No | If true, only return policies attached to an entity |
 | `pathPrefix` | string | No | Path prefix to filter policies |
@@ -385,8 +359,6 @@ Get details about a managed IAM policy, including its description — the field 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `policyArn` | string | Yes | ARN of the managed policy to retrieve \(e.g., arn:aws:iam::aws:policy/ReadOnlyAccess\) |
 
 #### Output
@@ -419,8 +391,6 @@ Create a new access key pair for an IAM user
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `userName` | string | No | The IAM user to create the key for \(defaults to current user\) |
 
 #### Output
@@ -447,8 +417,6 @@ Delete an access key pair for an IAM user
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `accessKeyIdToDelete` | string | Yes | The access key ID to delete |
 | `userName` | string | No | The IAM user whose key to delete \(defaults to current user\) |
 
@@ -471,8 +439,6 @@ List an IAM user's access key IDs with their status and age — use to find stal
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `userName` | string | No | The IAM user whose keys to list \(defaults to the calling user if omitted\) |
 | `maxItems` | number | No | Maximum number of access keys to return \(1-1000\) |
 | `marker` | string | No | Pagination marker from a previous request |
@@ -499,8 +465,6 @@ Activate or deactivate an IAM access key — deactivate an old key and verify no
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `accessKeyIdToUpdate` | string | Yes | The access key ID whose status to change |
 | `status` | string | Yes | The status to set. Must be exactly one of: Active, Inactive. An Inactive key is rejected by AWS but can be reactivated. |
 | `userName` | string | No | The IAM user that owns the key \(defaults to the calling user if omitted\) |
@@ -524,8 +488,6 @@ List IAM groups in your AWS account
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `pathPrefix` | string | No | Path prefix to filter groups |
 | `maxItems` | number | No | Maximum number of groups to return \(1-1000, default 100\) |
 | `marker` | string | No | Pagination marker from a previous request |
@@ -552,8 +514,6 @@ Add an IAM user to a group
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `userName` | string | Yes | The name of the IAM user |
 | `groupName` | string | Yes | The name of the IAM group |
 
@@ -576,8 +536,6 @@ Remove an IAM user from a group
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `userName` | string | Yes | The name of the IAM user |
 | `groupName` | string | Yes | The name of the IAM group |
 
@@ -600,8 +558,6 @@ List all managed policies attached to an IAM role
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `roleName` | string | Yes | Name of the IAM role |
 | `pathPrefix` | string | No | Path prefix to filter policies \(e.g., /application/\) |
 | `maxItems` | number | No | Maximum number of policies to return \(1-1000\) |
@@ -629,8 +585,6 @@ List all managed policies attached to an IAM user
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `userName` | string | Yes | Name of the IAM user |
 | `pathPrefix` | string | No | Path prefix to filter policies \(e.g., /application/\) |
 | `maxItems` | number | No | Maximum number of policies to return \(1-1000\) |
@@ -658,8 +612,6 @@ Simulate whether a user, role, or group is allowed to perform specific AWS actio
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Yes | AWS access key ID |
-| `secretAccessKey` | string | Yes | AWS secret access key |
 | `policySourceArn` | string | Yes | ARN of the user, group, or role to simulate \(e.g., arn:aws:iam::123456789012:user/alice\) |
 | `actionNames` | string | Yes | Comma-separated list of AWS actions to simulate \(e.g., s3:GetObject,ec2:DescribeInstances\) |
 | `resourceArns` | string | No | Comma-separated list of resource ARNs to simulate against \(defaults to * if not provided\). Read the per-ARN verdict from resourceSpecificResults, not from evalDecision. |

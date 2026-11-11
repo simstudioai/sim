@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { TWILIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TwilioSendSMSParams, TwilioSMSBlockOutput } from '@/tools/twilio/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
   name: 'Twilio Send SMS',
   description: 'Send text messages to single or multiple recipients using the Twilio API.',
   version: '1.0.0',
+  oauth: TWILIO_CREDENTIAL_OAUTH,
 
   params: {
     phoneNumbers: {

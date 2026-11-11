@@ -3,6 +3,7 @@ import type {
   AgentPhoneGetConversationMessagesParams,
   AgentPhoneGetConversationMessagesResult,
 } from '@/tools/agentphone/types'
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentphoneGetConversationMessagesTool: ToolConfig<
@@ -13,6 +14,7 @@ export const agentphoneGetConversationMessagesTool: ToolConfig<
   name: 'Get Conversation Messages',
   description: 'Get paginated messages for a conversation',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -29,6 +29,15 @@ describe('isSensitiveKey', () => {
     'hasSecret',
     'searchApiKey',
     'exa_api_key',
+    'secretAccessKey',
+    'awsSecretAccessKey',
+    'secretKey',
+    'bedrockSecretKey',
+    'apiSecretKey',
+    'clerkSecretKey',
+    'stripe_secret_key',
+    'deployKey',
+    'convexDeployKey',
     `${'a'.repeat(10000)}password`,
   ])('treats %s as sensitive', (key) => {
     expect(isSensitiveKey(key)).toBe(true)
@@ -37,7 +46,7 @@ describe('isSensitiveKey', () => {
   it.concurrent.each([
     'tokenCount',
     'tokenizer',
-    'secretKey',
+    'deployKeyName',
     'passwordStrength',
     'authMethod',
     'name',

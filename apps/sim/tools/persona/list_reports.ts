@@ -8,6 +8,7 @@ import {
   parsePersonaResponse,
   REPORT_OUTPUT_PROPERTIES,
 } from '@/tools/persona/utils'
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const personaListReportsTool: ToolConfig<
@@ -19,6 +20,7 @@ export const personaListReportsTool: ToolConfig<
   description:
     'List screening reports, optionally filtered by account ID or reference ID. Results are cursor-paginated.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

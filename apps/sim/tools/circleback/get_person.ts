@@ -10,6 +10,7 @@ import {
   mapPerson,
   throwCirclebackError,
 } from '@/tools/circleback/utils'
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -19,6 +20,7 @@ export const getPersonTool: ToolConfig<CirclebackGetPersonParams, CirclebackPers
   description:
     'Gets a person by their profile ID from Circleback, including their profile details and external links.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

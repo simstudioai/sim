@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TriggerDevQueueParams, TriggerDevQueueResponse } from '@/tools/trigger_dev/types'
 import {
   buildTriggerDevHeaders,
@@ -13,6 +14,7 @@ export const triggerDevResumeQueueTool: ToolConfig<TriggerDevQueueParams, Trigge
     name: 'Trigger.dev Resume Queue',
     description: 'Resume a paused Trigger.dev queue so new runs can start again.',
     version: '1.0.0',
+    oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

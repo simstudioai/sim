@@ -6,6 +6,7 @@ import {
   type QuartrSingleDto,
 } from '@/tools/quartr/types'
 import { buildQuartrUrl, mapQuartrEvent, parseQuartrResponse } from '@/tools/quartr/utils'
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const quartrGetEventTool: ToolConfig<QuartrGetEventParams, QuartrGetEventResponse> = {
@@ -13,6 +14,7 @@ export const quartrGetEventTool: ToolConfig<QuartrGetEventParams, QuartrGetEvent
   name: 'Quartr Get Event',
   description: 'Retrieve a single corporate event from Quartr by its event ID.',
   version: '1.0.0',
+  oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

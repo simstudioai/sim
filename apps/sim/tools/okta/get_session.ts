@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaGetSessionParams, OktaGetSessionResponse, OktaSession } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaGetSession')
@@ -12,6 +13,7 @@ export const oktaGetSessionTool: ToolConfig<OktaGetSessionParams, OktaGetSession
   description:
     'Retrieve an Okta session by ID, including who it belongs to, when it expires, and which authentication methods were used to establish it.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

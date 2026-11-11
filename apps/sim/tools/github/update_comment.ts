@@ -1,6 +1,7 @@
 import { truncate } from '@sim/utils/string'
 import type { IssueCommentResponse, UpdateCommentParams } from '@/tools/github/types'
 import { COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateCommentTool: ToolConfig<UpdateCommentParams, IssueCommentResponse> = {
@@ -8,6 +9,7 @@ export const updateCommentTool: ToolConfig<UpdateCommentParams, IssueCommentResp
   name: 'GitHub Comment Updater',
   description: 'Update an existing comment on a GitHub issue or pull request',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {

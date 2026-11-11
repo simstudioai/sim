@@ -12,6 +12,7 @@ import {
   UntagResourceCommand,
   UpdateSecretCommand,
 } from '@aws-sdk/client-secrets-manager'
+import { awsClientConfig } from '@/lib/internal/aws/credentials'
 
 interface SecretsManagerConnectionConfig {
   region: string
@@ -32,11 +33,7 @@ export function createSecretsManagerClient(
   config: SecretsManagerConnectionConfig
 ): SecretsManagerClient {
   return new SecretsManagerClient({
-    region: config.region,
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
+    ...awsClientConfig(config.region, config.accessKeyId, config.secretAccessKey),
   })
 }
 

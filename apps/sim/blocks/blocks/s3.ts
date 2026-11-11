@@ -1,7 +1,7 @@
 import { S3Icon } from '@/components/icons'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, BlockToolParams } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 
 /**
  * Normalize the batch-delete keys input into a string array. Accepts an array,
@@ -32,8 +32,229 @@ function parseObjectKeys(value: unknown): string[] {
 /** Upload payload: an uploaded file, a referenced file, or inline text. */
 const UPLOAD_SOURCE_FIELD = ['uploadFile', 'fileReference', 'content'] as const
 
+/** Tool params for an S3 operation; credentials are validated by the caller. */
+function s3ToolParams(params: BlockToolParams) {
+  // Default to get_object for backward compatibility with existing workflows
+  const operation = params.operation || 'get_object'
+
+  // Operation-specific parameters
+  switch (operation) {
+    case 'put_object': {
+      if (!params.region) {
+        throw new Error('AWS Region is required')
+      }
+      if (!params.bucketName) {
+        throw new Error('Bucket Name is required')
+      }
+      if (!params.objectKey) {
+        throw new Error('Object Key is required for upload')
+      }
+      // file is the canonical param from uploadFile (basic) or fileReference (advanced)
+      // normalizeFileInput handles JSON stringified values from advanced mode
+      const fileParam = normalizeFileInput(params.file, { single: true })
+
+      return {
+        accessKeyId: params.accessKeyId,
+        secretAccessKey: params.secretAccessKey,
+        region: params.region,
+        bucketName: params.bucketName,
+        objectKey: params.objectKey,
+        file: fileParam,
+        content: params.content,
+        contentType: params.contentType,
+        acl: params.acl,
+      }
+    }
+
+    case 'get_object': {
+      if (!params.s3Uri) {
+        throw new Error('S3 Object URL is required')
+      }
+      return {
+        accessKeyId: params.accessKeyId,
+        secretAccessKey: params.secretAccessKey,
+        region: params.getObjectRegion || params.region,
+        s3Uri: params.s3Uri,
+      }
+    }
+
+    case 'list_objects':
+      if (!params.region) {
+        throw new Error('AWS Region is required')
+      }
+      if (!params.bucketName) {
+        throw new Error('Bucket Name is required')
+      }
+      return {
+        accessKeyId: params.accessKeyId,
+        secretAccessKey: params.secretAccessKey,
+        region: params.region,
+        bucketName: params.bucketName,
+        prefix: params.prefix,
+        maxKeys: params.maxKeys ? Number.parseInt(params.maxKeys as string, 10) : undefined,
+        continuationToken: params.continuationToken,
+      }
+
+    case 'delete_object':
+      if (!params.region) {
+        throw new Error('AWS Region is required')
+      }
+      if (!params.bucketName) {
+        throw new Error('Bucket Name is required')
+      }
+      if (!params.objectKey) {
+        throw new Error('Object Key is required for deletion')
+      }
+      return {
+        accessKeyId: params.accessKeyId,
+        secretAccessKey: params.secretAccessKey,
+        region: params.region,
+        bucketName: params.bucketName,
+        objectKey: params.objectKey,
+      }
+
+    case 'copy_object': {
+      if (!params.region) {
+        throw new Error('AWS Region is required')
+      }
+      if (!params.sourceBucket || !params.sourceKey) {
+        throw new Error('Source bucket and key are required')
+      }
+      if (!params.destinationBucket || !params.destinationKey) {
+        throw new Error('Destination bucket and key are required')
+      }
+      // Use copyAcl if provided, map to acl parameter
+      const acl = params.copyAcl || params.acl
+      return {
+        accessKeyId: params.accessKeyId,
+        secretAccessKey: params.secretAccessKey,
+        region: params.region,
+        sourceBucket: params.sourceBucket,
+        sourceKey: params.sourceKey,
+        destinationBucket: params.destinationBucket,
+        destinationKey: params.destinationKey,
+        acl: acl,
+      }
+    }
+
+    case 'list_buckets':
+      if (!params.region) {
+        throw new Error('AWS Region is required')
+      }
+      return {
+        accessKeyId: params.accessKeyId,
+        secretAccessKey: params.secretAccessKey,
+        region: params.region,
+        prefix: params.bucketPrefix,
+        maxBuckets: params.maxBuckets
+          ? Number.parseInt(params.maxBuckets as string, 10)
+          : undefined,
+        continuationToken: params.bucketsContinuationToken,
+      }
+
+    case 'head_object':
+      if (!params.region) {
+        throw new Error('AWS Region is required')
+      }
+      if (!params.bucketName) {
+        throw new Error('Bucket Name is required')
+      }
+      if (!params.objectKey) {
+        throw new Error('Object Key is required')
+      }
+      return {
+        accessKeyId: params.accessKeyId,
+        secretAccessKey: params.secretAccessKey,
+        region: params.region,
+        bucketName: params.bucketName,
+        objectKey: params.objectKey,
+        versionId: params.headVersionId,
+      }
+
+    case 'create_bucket':
+      if (!params.region) {
+        throw new Error('AWS Region is required')
+      }
+      if (!params.bucketName) {
+        throw new Error('Bucket Name is required')
+      }
+      return {
+        accessKeyId: params.accessKeyId,
+        secretAccessKey: params.secretAccessKey,
+        region: params.region,
+        bucketName: params.bucketName,
+        acl: params.createBucketAcl,
+      }
+
+    case 'delete_bucket':
+      if (!params.region) {
+        throw new Error('AWS Region is required')
+      }
+      if (!params.bucketName) {
+        throw new Error('Bucket Name is required')
+      }
+      return {
+        accessKeyId: params.accessKeyId,
+        secretAccessKey: params.secretAccessKey,
+        region: params.region,
+        bucketName: params.bucketName,
+      }
+
+    case 'presigned_url': {
+      if (!params.region) {
+        throw new Error('AWS Region is required')
+      }
+      if (!params.bucketName) {
+        throw new Error('Bucket Name is required')
+      }
+      if (!params.objectKey) {
+        throw new Error('Object Key is required')
+      }
+      if (!params.presignedMethod) {
+        throw new Error('URL Type (get or put) is required')
+      }
+      return {
+        accessKeyId: params.accessKeyId,
+        secretAccessKey: params.secretAccessKey,
+        region: params.region,
+        bucketName: params.bucketName,
+        objectKey: params.objectKey,
+        method: params.presignedMethod,
+        expiresIn: params.expiresIn ? Number.parseInt(params.expiresIn as string, 10) : undefined,
+        contentType: params.presignedContentType,
+      }
+    }
+
+    case 'delete_objects': {
+      if (!params.region) {
+        throw new Error('AWS Region is required')
+      }
+      if (!params.bucketName) {
+        throw new Error('Bucket Name is required')
+      }
+      const keys = parseObjectKeys(params.objectKeys)
+      if (keys.length === 0) {
+        throw new Error('At least one object key is required')
+      }
+      return {
+        accessKeyId: params.accessKeyId,
+        secretAccessKey: params.secretAccessKey,
+        region: params.region,
+        bucketName: params.bucketName,
+        keys,
+        quiet: typeof params.quiet === 'string' ? params.quiet === 'true' : params.quiet,
+      }
+    }
+
+    default:
+      throw new Error(`Unknown operation: ${operation}`)
+  }
+}
+
 export const S3Block: BlockConfig = {
   type: 's3',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 's3_v2' },
   name: 'S3',
   description: 'Upload, download, list, and manage S3 files and buckets',
   authMode: AuthMode.ApiKey,
@@ -482,223 +703,7 @@ export const S3Block: BlockConfig = {
           throw new Error('Secret Access Key is required')
         }
 
-        // Default to get_object for backward compatibility with existing workflows
-        const operation = params.operation || 'get_object'
-
-        // Operation-specific parameters
-        switch (operation) {
-          case 'put_object': {
-            if (!params.region) {
-              throw new Error('AWS Region is required')
-            }
-            if (!params.bucketName) {
-              throw new Error('Bucket Name is required')
-            }
-            if (!params.objectKey) {
-              throw new Error('Object Key is required for upload')
-            }
-            // file is the canonical param from uploadFile (basic) or fileReference (advanced)
-            // normalizeFileInput handles JSON stringified values from advanced mode
-            const fileParam = normalizeFileInput(params.file, { single: true })
-
-            return {
-              accessKeyId: params.accessKeyId,
-              secretAccessKey: params.secretAccessKey,
-              region: params.region,
-              bucketName: params.bucketName,
-              objectKey: params.objectKey,
-              file: fileParam,
-              content: params.content,
-              contentType: params.contentType,
-              acl: params.acl,
-            }
-          }
-
-          case 'get_object': {
-            if (!params.s3Uri) {
-              throw new Error('S3 Object URL is required')
-            }
-            return {
-              accessKeyId: params.accessKeyId,
-              secretAccessKey: params.secretAccessKey,
-              region: params.getObjectRegion || params.region,
-              s3Uri: params.s3Uri,
-            }
-          }
-
-          case 'list_objects':
-            if (!params.region) {
-              throw new Error('AWS Region is required')
-            }
-            if (!params.bucketName) {
-              throw new Error('Bucket Name is required')
-            }
-            return {
-              accessKeyId: params.accessKeyId,
-              secretAccessKey: params.secretAccessKey,
-              region: params.region,
-              bucketName: params.bucketName,
-              prefix: params.prefix,
-              maxKeys: params.maxKeys ? Number.parseInt(params.maxKeys as string, 10) : undefined,
-              continuationToken: params.continuationToken,
-            }
-
-          case 'delete_object':
-            if (!params.region) {
-              throw new Error('AWS Region is required')
-            }
-            if (!params.bucketName) {
-              throw new Error('Bucket Name is required')
-            }
-            if (!params.objectKey) {
-              throw new Error('Object Key is required for deletion')
-            }
-            return {
-              accessKeyId: params.accessKeyId,
-              secretAccessKey: params.secretAccessKey,
-              region: params.region,
-              bucketName: params.bucketName,
-              objectKey: params.objectKey,
-            }
-
-          case 'copy_object': {
-            if (!params.region) {
-              throw new Error('AWS Region is required')
-            }
-            if (!params.sourceBucket || !params.sourceKey) {
-              throw new Error('Source bucket and key are required')
-            }
-            if (!params.destinationBucket || !params.destinationKey) {
-              throw new Error('Destination bucket and key are required')
-            }
-            // Use copyAcl if provided, map to acl parameter
-            const acl = params.copyAcl || params.acl
-            return {
-              accessKeyId: params.accessKeyId,
-              secretAccessKey: params.secretAccessKey,
-              region: params.region,
-              sourceBucket: params.sourceBucket,
-              sourceKey: params.sourceKey,
-              destinationBucket: params.destinationBucket,
-              destinationKey: params.destinationKey,
-              acl: acl,
-            }
-          }
-
-          case 'list_buckets':
-            if (!params.region) {
-              throw new Error('AWS Region is required')
-            }
-            return {
-              accessKeyId: params.accessKeyId,
-              secretAccessKey: params.secretAccessKey,
-              region: params.region,
-              prefix: params.bucketPrefix,
-              maxBuckets: params.maxBuckets
-                ? Number.parseInt(params.maxBuckets as string, 10)
-                : undefined,
-              continuationToken: params.bucketsContinuationToken,
-            }
-
-          case 'head_object':
-            if (!params.region) {
-              throw new Error('AWS Region is required')
-            }
-            if (!params.bucketName) {
-              throw new Error('Bucket Name is required')
-            }
-            if (!params.objectKey) {
-              throw new Error('Object Key is required')
-            }
-            return {
-              accessKeyId: params.accessKeyId,
-              secretAccessKey: params.secretAccessKey,
-              region: params.region,
-              bucketName: params.bucketName,
-              objectKey: params.objectKey,
-              versionId: params.headVersionId,
-            }
-
-          case 'create_bucket':
-            if (!params.region) {
-              throw new Error('AWS Region is required')
-            }
-            if (!params.bucketName) {
-              throw new Error('Bucket Name is required')
-            }
-            return {
-              accessKeyId: params.accessKeyId,
-              secretAccessKey: params.secretAccessKey,
-              region: params.region,
-              bucketName: params.bucketName,
-              acl: params.createBucketAcl,
-            }
-
-          case 'delete_bucket':
-            if (!params.region) {
-              throw new Error('AWS Region is required')
-            }
-            if (!params.bucketName) {
-              throw new Error('Bucket Name is required')
-            }
-            return {
-              accessKeyId: params.accessKeyId,
-              secretAccessKey: params.secretAccessKey,
-              region: params.region,
-              bucketName: params.bucketName,
-            }
-
-          case 'presigned_url': {
-            if (!params.region) {
-              throw new Error('AWS Region is required')
-            }
-            if (!params.bucketName) {
-              throw new Error('Bucket Name is required')
-            }
-            if (!params.objectKey) {
-              throw new Error('Object Key is required')
-            }
-            if (!params.presignedMethod) {
-              throw new Error('URL Type (get or put) is required')
-            }
-            return {
-              accessKeyId: params.accessKeyId,
-              secretAccessKey: params.secretAccessKey,
-              region: params.region,
-              bucketName: params.bucketName,
-              objectKey: params.objectKey,
-              method: params.presignedMethod,
-              expiresIn: params.expiresIn
-                ? Number.parseInt(params.expiresIn as string, 10)
-                : undefined,
-              contentType: params.presignedContentType,
-            }
-          }
-
-          case 'delete_objects': {
-            if (!params.region) {
-              throw new Error('AWS Region is required')
-            }
-            if (!params.bucketName) {
-              throw new Error('Bucket Name is required')
-            }
-            const keys = parseObjectKeys(params.objectKeys)
-            if (keys.length === 0) {
-              throw new Error('At least one object key is required')
-            }
-            return {
-              accessKeyId: params.accessKeyId,
-              secretAccessKey: params.secretAccessKey,
-              region: params.region,
-              bucketName: params.bucketName,
-              keys,
-              quiet: typeof params.quiet === 'string' ? params.quiet === 'true' : params.quiet,
-            }
-          }
-
-          default:
-            throw new Error(`Unknown operation: ${operation}`)
-        }
+        return s3ToolParams(params)
       },
     },
   },
@@ -857,3 +862,18 @@ export const S3BlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const S3V2Block: BlockConfig = {
+  ...S3Block,
+  type: 's3_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Upload, download, copy, and delete objects (individually or in batches), inspect object metadata, generate time-limited presigned URLs, list bucket contents, and create, list, or delete buckets.',
+  ...withSavedCredential(
+    S3Block,
+    { id: 'credential', type: 'oauth-input', serviceId: 'aws', title: 'AWS Credential' },
+    { params: s3ToolParams }
+  ),
+}

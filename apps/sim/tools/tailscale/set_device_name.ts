@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TailscaleSetDeviceNameParams,
   TailscaleSetDeviceNameResponse,
@@ -14,6 +15,7 @@ export const tailscaleSetDeviceNameTool: ToolConfig<
   name: 'Tailscale Set Device Name',
   description: 'Rename a device or reset its name to the OS hostname',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

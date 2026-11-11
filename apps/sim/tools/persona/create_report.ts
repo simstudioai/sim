@@ -7,6 +7,7 @@ import {
   parsePersonaResponse,
   REPORT_OUTPUT_PROPERTIES,
 } from '@/tools/persona/utils'
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const SUPPORTED_REPORT_TYPES = ['watchlist', 'adverse-media', 'politically-exposed-person'] as const
@@ -18,6 +19,7 @@ export const personaCreateReportTool: ToolConfig<PersonaCreateReportParams, Pers
     description:
       'Run a screening report (watchlist, adverse media, or politically exposed person) against an individual by name or search term.',
     version: '1.0.0',
+    oauth: PERSONA_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

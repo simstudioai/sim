@@ -1,6 +1,7 @@
 import { filterUndefined } from '@sim/utils/object'
 import type { LangsmithUpdateRunParams, LangsmithUpdateRunResponse } from '@/tools/langsmith/types'
 import { LANGSMITH_API_BASE, truncateLangsmithErrorText } from '@/tools/langsmith/utils'
+import { LANGSMITH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const langsmithUpdateRunTool: ToolConfig<
@@ -11,6 +12,7 @@ export const langsmithUpdateRunTool: ToolConfig<
   name: 'LangSmith Update Run',
   description: 'Patch an existing LangSmith run with outputs, status, or timing once it completes.',
   version: '1.0.0',
+  oauth: LANGSMITH_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

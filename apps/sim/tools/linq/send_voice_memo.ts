@@ -1,5 +1,6 @@
 import type { LinqSendVoiceMemoParams, LinqSendVoiceMemoResult } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const linqSendVoiceMemoTool: ToolConfig<LinqSendVoiceMemoParams, LinqSendVoiceMemoResult> = {
@@ -7,6 +8,7 @@ export const linqSendVoiceMemoTool: ToolConfig<LinqSendVoiceMemoParams, LinqSend
   name: 'Send Voice Memo',
   description: 'Send a voice memo to a chat from a URL or a pre-uploaded attachment',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

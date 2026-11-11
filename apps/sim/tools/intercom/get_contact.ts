@@ -3,6 +3,7 @@ import {
   handleIntercomError,
   INTERCOM_CONTACT_OUTPUT_PROPERTIES,
 } from '@/tools/intercom/types'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface IntercomGetContactParams {
@@ -57,6 +58,7 @@ export const intercomGetContactTool: ToolConfig<
   name: 'Get Single Contact from Intercom',
   description: 'Get a single contact by ID from Intercom',
   version: '1.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...intercomGetContactBase,
 
@@ -113,6 +115,7 @@ export const intercomGetContactV2Tool: ToolConfig<
   name: 'Get Single Contact from Intercom',
   description: 'Get a single contact by ID from Intercom. Returns API-aligned fields only.',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

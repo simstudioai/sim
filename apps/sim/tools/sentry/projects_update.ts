@@ -1,4 +1,5 @@
 import type { SentryUpdateProjectParams, SentryUpdateProjectResponse } from '@/tools/sentry/types'
+import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateProjectTool: ToolConfig<SentryUpdateProjectParams, SentryUpdateProjectResponse> =
@@ -8,6 +9,7 @@ export const updateProjectTool: ToolConfig<SentryUpdateProjectParams, SentryUpda
     description:
       'Update a Sentry project by changing its name, slug, platform, or other settings. Returns the updated project details.',
     version: '1.0.0',
+    oauth: SENTRY_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

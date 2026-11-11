@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TriggerDevTriggerTaskParams,
   TriggerDevTriggerTaskResponse,
@@ -19,6 +20,7 @@ export const triggerDevTriggerTaskTool: ToolConfig<
   description:
     'Trigger a Trigger.dev task by its identifier with an optional JSON payload. Returns the ID of the created run.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

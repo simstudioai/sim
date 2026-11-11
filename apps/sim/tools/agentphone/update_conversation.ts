@@ -3,6 +3,7 @@ import type {
   AgentPhoneUpdateConversationParams,
   AgentPhoneUpdateConversationResult,
 } from '@/tools/agentphone/types'
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentphoneUpdateConversationTool: ToolConfig<
@@ -13,6 +14,7 @@ export const agentphoneUpdateConversationTool: ToolConfig<
   name: 'Update Conversation',
   description: 'Update conversation metadata (stored state). Pass null to clear existing metadata.',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

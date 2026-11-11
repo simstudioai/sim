@@ -2,9 +2,12 @@ import { toError } from '@sim/utils/errors'
 import { DynamoDBIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const DynamoDBBlock: BlockConfig = {
   type: 'dynamodb',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'dynamodb_v2' },
   name: 'Amazon DynamoDB',
   description: 'Get, put, query, scan, update, and delete items in Amazon DynamoDB tables',
   authMode: AuthMode.ApiKey,
@@ -967,3 +970,17 @@ export const DynamoDBBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const DynamoDBV2Block: BlockConfig = {
+  ...DynamoDBBlock,
+  type: 'dynamodb_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(DynamoDBBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

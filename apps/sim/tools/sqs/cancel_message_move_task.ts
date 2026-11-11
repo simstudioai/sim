@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SqsCancelMessageMoveTaskParams,
   SqsCancelMessageMoveTaskResponse,
@@ -12,6 +13,7 @@ export const cancelMessageMoveTaskTool: InternalToolConfig<
   name: 'SQS Cancel Message Move Task',
   description: 'Cancel an in-progress Amazon SQS message move task',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

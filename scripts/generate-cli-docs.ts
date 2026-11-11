@@ -308,6 +308,7 @@ const GROUP_SECTIONS: Record<string, readonly CommandSection[]> = {
   organizations: [
     { title: 'Organizations and workspaces', prefixes: ['list', 'get', 'workspaces'] },
     { title: 'Members and credit limits', prefixes: ['members'] },
+    { title: 'Search source permissions', prefixes: ['search sources permissions'] },
     { title: 'Invitations', prefixes: ['invitations'] },
     { title: 'Usage', prefixes: ['usage summary', 'usage breakdown', 'usage events'] },
     {
@@ -391,7 +392,16 @@ const GROUP_SECTIONS: Record<string, readonly CommandSection[]> = {
     { title: 'Draft state and edits', prefixes: ['state', 'operations', 'variables'] },
     {
       title: 'Deployments and versions',
-      prefixes: ['deploy', 'deployment', 'versions', 'activate', 'revert', 'rollback', 'undeploy'],
+      prefixes: [
+        'deploy',
+        'deployment',
+        'triggers',
+        'versions',
+        'activate',
+        'revert',
+        'rollback',
+        'undeploy',
+      ],
     },
     {
       title: 'Run and inspect',
@@ -463,6 +473,15 @@ const LEGACY_COMMAND_ANCHORS: Record<string, string> = {
   'workflows chat publish': 'publish-or-replace-a-workflows-chat-deployment',
   'workspaces operations wait':
     'wait-for-copy-and-deployment-readiness-exit-3-for-configuration-1-for-failure-or-4-for-timeout',
+}
+
+/**
+ * Reference-page anchors a renamed command keeps, so links to the spelling it
+ * shipped under still land on it. `workspaces members` became a group whose
+ * default subcommand is `list`.
+ */
+const LEGACY_REFERENCE_ANCHORS: Record<string, string> = {
+  'workspaces members list': 'sim-workspaces-members',
 }
 
 const VERB_ORDER = [
@@ -912,7 +931,9 @@ function renderCommand(entry: DocumentedCommand, options: RenderOptions = {}): s
   const description = entry.command.description()
   const operation = operationOf(entry.command)
   const spec = operation ? CLI_CONTRACT[operation] : undefined
-  const anchor = commandHeadings ? undefined : LEGACY_COMMAND_ANCHORS[entry.path.join(' ')]
+  const anchor = (commandHeadings ? LEGACY_REFERENCE_ANCHORS : LEGACY_COMMAND_ANCHORS)[
+    entry.path.join(' ')
+  ]
   const lines = [`${'#'.repeat(level)} ${escapeProse(heading)}${anchor ? ` [#${anchor}]` : ''}`, '']
   if (commandHeadings && description) lines.push(escapeProse(sentenceCase(description)), '')
   if (!commandHeadings) {

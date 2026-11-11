@@ -1,12 +1,14 @@
-import { type Command, Option } from 'commander'
+import { Argument, type Command, Option } from 'commander'
 import type { CommandSpec } from '../contract/types'
 import {
   type CreateCredentialConnectionResponse,
+  type CreateCredentialWorkloadIdentitySubjectBody,
+  type CreateCredentialWorkloadIdentitySubjectResponse,
   type CreateServiceAccountCredentialResponse,
   type ListCredentialProvidersResponse,
   V2_OPERATIONS,
 } from '../generated/v2-api'
-import { SimApiError } from '../http/client'
+import { refusalCode, SimApiError } from '../http/client'
 import { describeOperation } from '../runtime/build'
 import { apiCommand, type Connection } from '../runtime/called-operations'
 import { coerce } from '../runtime/request'
@@ -28,6 +30,52 @@ const SERVICE_ACCOUNT_RESULT: CommandSpec = {
     { header: 'created', path: 'createdAt', format: 'timestamp' },
   ],
 }
+
+const KEYLESS_SUBJECT_RESULT: CommandSpec = {
+  fields: [
+    { header: 'issuer' },
+    { header: 'audience' },
+    { header: 'subject' },
+    { header: 'subject proof', path: 'subjectProof' },
+    { header: 'expires', path: 'expiresAt', format: 'timestamp' },
+    { header: 'auth type', path: 'keylessConfig.authType' },
+    { header: 'required fields', path: 'requiredConfigFields' },
+    { header: 'optional fields', path: 'optionalConfigFields' },
+  ],
+}
+
+type KeylessProviderId = CreateCredentialWorkloadIdentitySubjectBody['providerId']
+
+/** The generated enum of providers that can hold a keyless credential. */
+const KEYLESS_PROVIDER_IDS =
+  V2_OPERATIONS.createCredentialWorkloadIdentitySubject.body.providerId.values
+
+/** Refusals a fresh subject fixes: the proof expired, belongs to someone else, or is already used. */
+const KEYLESS_RETRY_CODES: ReadonlySet<string> = new Set([
+  'WORKLOAD_IDENTITY_PROOF_EXPIRED',
+  'WORKLOAD_IDENTITY_PROOF_INVALID',
+  'WORKLOAD_IDENTITY_SUBJECT_REQUIRED',
+  'WORKLOAD_IDENTITY_SUBJECT_IN_USE',
+])
+
+/**
+ * Paragraphs separated by blank lines, then one `Examples:` block: the shape
+ * the CLI docs generator renders as separate paragraphs and a code block.
+ */
+const KEYLESS_FLOW_HELP = [
+  'Keyless (workload identity) credentials take two steps.',
+  '',
+  "Step 1: run `sim credentials keyless-subject <providerId> --output json` and configure your cloud to trust the printed issuer, audience, and subject. Its requiredConfigFields lists the values your provider's keylessConfig still needs.",
+  '',
+  'Step 2: add those values to keylessConfig and pass it to `sim credentials create <providerId> --credentials @file`.',
+  '',
+  `The proof expires after 24 hours and works only for the user who requested it, with the same providerId. If creation reports ${[...KEYLESS_RETRY_CODES].join(', ')}, run step 1 again, trust the new subject, and retry.`,
+  '',
+  'Examples:',
+  '  $ sim credentials keyless-subject aws-service-account --output json > subject.json',
+  `  $ jq '.keylessConfig + {"roleArn":"arn:aws:iam::123456789012:role/SimWorkflows"}' subject.json > keyless.json`,
+  '  $ sim credentials create aws-service-account --name "Keyless" --credentials @keyless.json',
+].join('\n')
 
 type ConnectionBody = { providerId: string; displayName: string } | { credentialId: string }
 type CredentialProvider = ListCredentialProvidersResponse['data'][number]
@@ -66,8 +114,8 @@ async function credentialValues(
     throw new SimApiError('--credentials must be a JSON object', 0)
   }
 
-  const values = parsed as Record<string, unknown>
   const fields = new Map(provider.fields.map((field) => [field.id, field]))
+  const values = asServiceAccountJson(parsed as Record<string, unknown>, provider)
   for (const [id, value] of Object.entries(values)) {
     const field = fields.get(id)
     if (!field) {
@@ -85,6 +133,11 @@ async function credentialValues(
         0
       )
     }
+  }
+
+  // A keyless configuration stands in for the provider's required fields.
+  if (provider.keyless && values.serviceAccountJson !== undefined) {
+    return values as Record<string, string>
   }
 
   const authMethod = typeof values.authMethod === 'string' ? values.authMethod : undefined
@@ -106,6 +159,53 @@ async function credentialValues(
   return values as Record<string, string>
 }
 
+/**
+ * Accepts the keylessConfig from `sim credentials keyless-subject` as it is:
+ * an object that carries a subject and its proof, or the provider's keyless
+ * `authType`, is sent as `serviceAccountJson`.
+ * Anything else is read as the provider's fields, so a misspelled field is
+ * still reported as unsupported.
+ */
+function asServiceAccountJson(
+  values: Record<string, unknown>,
+  provider: ServiceAccountProvider
+): Record<string, unknown> {
+  const keylessConfig =
+    (values.subject !== undefined && values.subjectProof !== undefined) ||
+    (provider.keyless !== undefined && values.authType === provider.keyless.authType)
+  return keylessConfig ? { serviceAccountJson: JSON.stringify(values) } : values
+}
+
+/** Names the command that fixes a refused keyless subject, keeping the API's code and details. */
+function withKeylessRetryHint(error: unknown, providerId: string): unknown {
+  if (!(error instanceof SimApiError)) return error
+  const code = refusalCode(error)
+  if (code === null || !KEYLESS_RETRY_CODES.has(code)) return error
+  return new SimApiError(
+    `${error.message} Run \`sim credentials keyless-subject ${providerId}\` for a new subject, trust it in your cloud, and retry.`,
+    error.status,
+    error.code,
+    error.details,
+    error.exitCode
+  )
+}
+
+async function createKeylessSubject(
+  { client, profile }: Connection<'createCredentialWorkloadIdentitySubject'>,
+  providerId: KeylessProviderId
+): Promise<void> {
+  const response = await client.request<CreateCredentialWorkloadIdentitySubjectResponse>(
+    'createCredentialWorkloadIdentitySubject',
+    { body: { workspaceId: client.requireWorkspace(), providerId } }
+  )
+  renderResult(
+    'createCredentialWorkloadIdentitySubject',
+    profile.output,
+    response.data,
+    KEYLESS_SUBJECT_RESULT
+  )
+}
+
 async function createServiceAccount(
   { client, profile }: Connection<'listCredentialProviders' | 'createServiceAccountCredential'>,
   providerId: string,
@@ -121,9 +221,8 @@ async function createServiceAccount(
   }
 
   const credentialFields = await credentialValues(provider, options.credentials)
-  const response = await client.request<CreateServiceAccountCredentialResponse>(
-    'createServiceAccountCredential',
-    {
+  const response = await client
+    .request<CreateServiceAccountCredentialResponse>('createServiceAccountCredential', {
       body: {
         workspaceId,
         type: 'service_account',
@@ -133,8 +232,10 @@ async function createServiceAccount(
         ...(options.id ? { id: options.id } : {}),
         credentials: JSON.stringify(credentialFields),
       },
-    }
-  )
+    })
+    .catch((error: unknown) => {
+      throw withKeylessRetryHint(error, providerId)
+    })
 
   renderResult(
     'createServiceAccountCredential',
@@ -222,8 +323,37 @@ export function attachCredentialCommands(program: Command): void {
       '--id <credentialId>',
       'Client-generated credential ID when provider discovery requires it'
     )
+    .addHelpText(
+      'after',
+      [
+        '',
+        "--credentials takes the provider's fields, or the keylessConfig from `sim credentials keyless-subject` (with the required fields filled in). Pass @path or @- to keep secrets out of shell history.",
+        '',
+        KEYLESS_FLOW_HELP,
+      ].join('\n')
+    )
     .action((providerId: string, options: CreateServiceAccountOptions) =>
       createServiceAccount(connectCreate(), providerId, options)
+    )
+
+  const [keylessSubject, connectKeylessSubject] = apiCommand(credentials, 'keyless-subject', [
+    'createCredentialWorkloadIdentitySubject',
+  ])
+  keylessSubject
+    .addArgument(
+      new Argument('<providerId>', 'Service-account provider for the keyless credential').choices([
+        ...KEYLESS_PROVIDER_IDS,
+      ])
+    )
+    .description(
+      describeOperation(
+        V2_OPERATIONS.createCredentialWorkloadIdentitySubject,
+        'Issue the subject and proof for a new keyless (workload identity) credential'
+      )
+    )
+    .addHelpText('after', `\n${KEYLESS_FLOW_HELP}`)
+    .action((providerId: KeylessProviderId) =>
+      createKeylessSubject(connectKeylessSubject(), providerId)
     )
 
   const [connect, connectLink] = apiCommand(credentials, 'connect', ['createCredentialConnection'])

@@ -1,5 +1,9 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
+import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  readResponseTextWithLimit,
+} from '@/lib/core/utils/stream-limits'
 
 /**
  * Discrete validation failure codes returned to the client for token
@@ -10,7 +14,18 @@ export type TokenServiceAccountValidationCode =
   | 'invalid_credentials'
   | 'permission_conflict'
   | 'site_not_found'
+  /** The egress policy refused the typed host (a private address, or plain http). */
+  | 'host_not_allowed'
   | 'provider_unavailable'
+  /** The provider requires a one-time user consent before it issues tokens (DocuSign JWT Grant). */
+  | 'consent_required'
+  /** The credential authenticated, but the account it pins is not one its user belongs to. */
+  | 'account_not_found'
+  /**
+   * The credential works, but not for this service or option: a keyless Google Cloud credential
+   * asked for a Google Workspace service or to impersonate a Google Workspace user (domain-wide delegation).
+   */
+  | 'unsupported_use'
 
 export class TokenServiceAccountValidationError extends Error {
   constructor(
@@ -70,6 +85,19 @@ export function isTransientProviderStatus(status: number): boolean {
   return status === 408 || status === 429
 }
 
+/**
+ * The shared split for a failed provider call: a non-transient 4xx is the
+ * caller's input being wrong; anything else (5xx, 408/429, or a reply that
+ * wasn't an error status but still failed) is the provider.
+ */
+export function providerFailureCode(
+  status: number
+): Extract<TokenServiceAccountValidationCode, 'invalid_credentials' | 'provider_unavailable'> {
+  return status >= 400 && status < 500 && !isTransientProviderStatus(status)
+    ? 'invalid_credentials'
+    : 'provider_unavailable'
+}
+
 export interface FetchProviderOptions {
   /**
    * Validation code thrown when the host does not resolve (`ENOTFOUND` only —
@@ -92,6 +120,16 @@ export interface FetchProviderOptions {
  */
 const PROVIDER_FETCH_TIMEOUT_MS = 10_000
 
+/**
+ * Whether a failed request proves the host doesn't exist (`ENOTFOUND`). Node's fetch
+ * puts the resolver code on `cause`, Bun's on the error itself; the transient
+ * `EAI_AGAIN` is not a missing host.
+ */
+export function isHostNotFound(error: unknown): boolean {
+  const failure = error as { code?: unknown; cause?: { code?: unknown } } | undefined
+  return failure?.code === 'ENOTFOUND' || failure?.cause?.code === 'ENOTFOUND'
+}
+
 export async function fetchProvider(
   url: string,
   init: RequestInit,
@@ -104,10 +142,9 @@ export async function fetchProvider(
     return await fetch(url, { ...init, signal })
   } catch (error) {
     init.signal?.throwIfAborted()
-    const causeCode = (error as { cause?: { code?: unknown } })?.cause?.code
     // Only ENOTFOUND proves the host doesn't exist; EAI_AGAIN is a transient
     // resolver failure and stays provider_unavailable.
-    if (options?.dnsFailureCode && causeCode === 'ENOTFOUND') {
+    if (options?.dnsFailureCode && isHostNotFound(error)) {
       throw new TokenServiceAccountValidationError(options.dnsFailureCode, 400, {
         step,
         reason: options.dnsFailureReason ?? 'host does not resolve',
@@ -125,7 +162,10 @@ export async function fetchProvider(
  * error pages, truncated responses) to `provider_unavailable` instead of an
  * unhandled SyntaxError that would surface as a generic 500.
  */
-export async function parseProviderJson<T>(res: Response, step: string): Promise<T> {
+export async function parseProviderJson<T>(
+  res: { json(): Promise<unknown> },
+  step: string
+): Promise<T> {
   try {
     return (await res.json()) as T
   } catch {
@@ -136,13 +176,26 @@ export async function parseProviderJson<T>(res: Response, step: string): Promise
   }
 }
 
+/** The parts of a provider response the checks read; both `fetch` and the guarded egress fetch return them. */
+export interface ProviderResponse {
+  ok: boolean
+  status: number
+  headers: { get(name: string): string | null }
+  body: ReadableStream<Uint8Array> | null
+}
+
 /**
  * Reads a bounded snippet of a provider error body for server logs. Never
  * throws — an unreadable body logs as an empty string.
  */
-export async function readProviderErrorSnippet(res: Response): Promise<string> {
+export async function readProviderErrorSnippet(res: ProviderResponse): Promise<string> {
   try {
-    return truncate(await res.text(), ERROR_SNIPPET_MAX_LENGTH)
+    // Bounded: a provider or proxy can answer with an arbitrarily large error body.
+    const text = await readResponseTextWithLimit(res, {
+      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+      label: 'provider error response',
+    })
+    return truncate(text, ERROR_SNIPPET_MAX_LENGTH)
   } catch {
     return ''
   }
@@ -167,17 +220,15 @@ export async function readProviderErrorSnippet(res: Response): Promise<string> {
  * Snowflake, Atlassian) already raise `site_not_found` before reaching here.
  */
 export async function throwForProviderResponse(
-  res: Response,
+  res: ProviderResponse,
   step: string,
   context: Record<string, unknown> = {}
 ): Promise<void> {
   if (res.ok) return
   const body = await readProviderErrorSnippet(res)
-  const callerError =
-    res.status >= 400 && res.status < 500 && !isTransientProviderStatus(res.status)
-  throw new TokenServiceAccountValidationError(
-    callerError ? 'invalid_credentials' : 'provider_unavailable',
-    res.status,
-    { step, body, ...context }
-  )
+  throw new TokenServiceAccountValidationError(providerFailureCode(res.status), res.status, {
+    step,
+    body,
+    ...context,
+  })
 }

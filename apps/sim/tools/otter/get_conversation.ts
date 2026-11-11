@@ -10,6 +10,7 @@ import {
   readOtterDataObject,
   readOtterRetrievedAt,
 } from '@/tools/otter/utils'
+import { OTTER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -22,6 +23,7 @@ export const otterGetConversationTool: ToolConfig<
   description:
     'Get an Otter conversation with its summary and details, plus any requested action items, insights, outline, and transcript.',
   version: '1.0.0',
+  oauth: OTTER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

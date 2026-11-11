@@ -1,4 +1,5 @@
 import type { ListArtifactsParams, ListArtifactsResponse } from '@/tools/cursor/types'
+import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const listArtifactsBase = {
@@ -31,6 +32,7 @@ export const listArtifactsTool: ToolConfig<ListArtifactsParams, ListArtifactsRes
   name: 'Cursor List Artifacts',
   description: 'List generated artifact files for a cloud agent.',
   version: '1.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
 
   ...listArtifactsBase,
 
@@ -84,6 +86,7 @@ export const listArtifactsV2Tool: ToolConfig<ListArtifactsParams, ListArtifactsV
   name: 'Cursor List Artifacts',
   description: 'List generated artifact files for a cloud agent. Returns API-aligned fields only.',
   version: '2.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
 
   transformResponse: async (response) => {
     const data = await response.json()

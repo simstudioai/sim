@@ -1,4 +1,5 @@
 import type { RipplingUpdateSupergroupExclusionMembersParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingUpdateSupergroupExclusionMembersTool: ToolConfig<RipplingUpdateSupergroupExclusionMembersParams> =
@@ -7,6 +8,7 @@ export const ripplingUpdateSupergroupExclusionMembersTool: ToolConfig<RipplingUp
     name: 'Rippling Update Supergroup Exclusion Members',
     description: 'Update exclusion members of a supergroup',
     version: '1.0.0',
+    oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {
         type: 'string',

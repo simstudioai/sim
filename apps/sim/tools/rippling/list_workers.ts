@@ -1,5 +1,6 @@
 import type { RipplingListWorkersParams } from '@/tools/rippling/types'
 import { WORKER_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingListWorkersTool: ToolConfig<RipplingListWorkersParams> = {
@@ -7,6 +8,7 @@ export const ripplingListWorkersTool: ToolConfig<RipplingListWorkersParams> = {
   name: 'Rippling List Workers',
   description: 'List all workers with optional filtering and pagination',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

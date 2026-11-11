@@ -235,6 +235,21 @@ describe('integration credential visibility', () => {
     expect(disabled.isCredentialVisible(credential)).toBe(false)
   })
 
+  it('keeps GitLab personal tokens visible after the GitLab block moves to a new version', () => {
+    getIntegrationAvailabilityMock.mockReturnValue([
+      availability('gitlab_v2', 'ready', { oauthAvailable: false, serviceAccountAvailable: true }),
+    ])
+    const visibility = createIntegrationCredentialVisibility({
+      allowedIntegrationTypes: new Set(['gitlab_v2']),
+      blockVisibility: null,
+      oauthServices: SERVICES,
+    })
+
+    expect(visibility.isCredentialVisible({ providerId: 'gitlab', type: 'personal_token' })).toBe(
+      true
+    )
+  })
+
   it('leaves non-integration credentials visible', () => {
     const visibility = createIntegrationCredentialVisibility({
       allowedIntegrationTypes: new Set(),

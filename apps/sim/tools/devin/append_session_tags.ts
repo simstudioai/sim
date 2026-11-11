@@ -1,3 +1,4 @@
+import { DEVIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { DevinAppendSessionTagsParams, DevinSessionTagsResponse } from './types'
 import { normalizeTags } from './utils'
@@ -10,6 +11,7 @@ export const devinAppendSessionTagsTool: ToolConfig<
   name: 'Devin Append Session Tags',
   description: 'Add tags to a Devin session without removing existing tags (max 50 tags total).',
   version: '1.0.0',
+  oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

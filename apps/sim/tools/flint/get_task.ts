@@ -1,5 +1,6 @@
 import type { FlintGetTaskParams, FlintGetTaskResponse, FlintTaskPage } from '@/tools/flint/types'
 import { FLINT_API_BASE_URL, flintBaseParamFields, flintHeaders } from '@/tools/flint/utils'
+import { FLINT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const PAGE_OUTPUT_PROPERTIES = {
@@ -34,6 +35,7 @@ export const flintGetTaskTool: ToolConfig<FlintGetTaskParams, FlintGetTaskRespon
   name: 'Flint Get Task',
   description: 'Get the status and results of a background Flint agent task.',
   version: '1.0.0',
+  oauth: FLINT_CREDENTIAL_OAUTH,
 
   params: {
     ...flintBaseParamFields,

@@ -1,5 +1,6 @@
 import { isSupplied } from '@/tools/lambda/supplied'
 import type { LambdaGetPolicyParams, LambdaGetPolicyResponse } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getPolicyTool: InternalToolConfig<LambdaGetPolicyParams, LambdaGetPolicyResponse> = {
@@ -7,6 +8,7 @@ export const getPolicyTool: InternalToolConfig<LambdaGetPolicyParams, LambdaGetP
   name: 'Lambda Get Policy',
   description: 'Get the resource-based IAM policy attached to a function, version, or alias',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

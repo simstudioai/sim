@@ -7,6 +7,7 @@ import {
   rocketlaneHeaders,
   TIME_ENTRY_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneUpdateTimeEntryTool: ToolConfig<
@@ -18,6 +19,7 @@ export const rocketlaneUpdateTimeEntryTool: ToolConfig<
   description:
     'Update a Rocketlane time entry by ID. The activityName, notes, billable, and minutes properties can be updated',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

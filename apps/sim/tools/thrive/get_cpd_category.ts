@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveCpdCategoryResponse, ThriveGetCpdCategoryParams } from '@/tools/thrive/types'
 import { THRIVE_CPD_CATEGORY_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
@@ -9,6 +10,7 @@ export const getCpdCategoryTool: ToolConfig<ThriveGetCpdCategoryParams, ThriveCp
     name: 'Thrive Get CPD Category',
     description: 'Get a single CPD category in Thrive by its ID.',
     version: '1.0.0',
+    oauth: THRIVE_CREDENTIAL_OAUTH,
 
     params: {
       tenantId: {

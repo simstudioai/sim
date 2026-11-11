@@ -1,6 +1,6 @@
 import { PersonaIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 
 /** Canonical basic/advanced pair for the account importer's CSV. */
 const IMPORT_FILE_FIELD = ['importFile', 'importFileRef'] as const
@@ -10,6 +10,8 @@ const REPORT_SUBJECT_FIELD = ['term', 'nameFirst'] as const
 
 export const PersonaBlock: BlockConfig = {
   type: 'persona',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'persona_v2' },
   name: 'Persona',
   description: 'Verify identities with Persona',
   longDescription:
@@ -771,3 +773,17 @@ export const PersonaBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const PersonaV2Block: BlockConfig = {
+  ...PersonaBlock,
+  type: 'persona_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(PersonaBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'persona',
+    title: 'Persona Credential',
+  }),
+}

@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CatalogListResponse, SearchCatalogObjectsParams } from '@/tools/square/types'
 import {
   CATALOG_OBJECT_OUTPUT,
@@ -16,6 +17,7 @@ export const squareSearchCatalogObjectsTool: ToolConfig<
   name: 'Square Search Catalog Objects',
   description: 'Search catalog objects by type and query filters',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {

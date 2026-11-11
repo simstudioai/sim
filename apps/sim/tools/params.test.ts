@@ -1123,3 +1123,90 @@ describe('getSubBlocksForToolInput synthesis', () => {
     expect(getSubBlocksForToolInput('non_existent_tool', 'test_block')).toBeNull()
   })
 })
+
+describe('hybrid saved-credential tools', () => {
+  const hybridTool = {
+    id: 'dynamodb_get',
+    name: 'DynamoDB Get',
+    description: 'Get an item',
+    version: '1.0.0',
+    oauth: { required: false, provider: 'aws', credentialKind: 'service-account' },
+    params: {
+      accessKeyId: { type: 'string', required: true, visibility: 'user-only' },
+      secretAccessKey: { type: 'string', required: true, visibility: 'user-only' },
+      tableName: { type: 'string', required: true, visibility: 'user-or-llm' },
+    },
+    operation: { input: (params: Record<string, unknown>) => params },
+  } as never
+
+  it('never lets a model pick the saved credential or the values derived from it', async () => {
+    const { modelBlockedParams } = await createLLMToolSchema(hybridTool, {})
+
+    expect(modelBlockedParams).toEqual(
+      expect.arrayContaining([
+        'credential',
+        'credentialId',
+        'oauthCredential',
+        'manualCredential',
+        'accessToken',
+        'sessionToken',
+      ])
+    )
+    expect(modelBlockedParams).not.toContain('domain')
+  })
+
+  it('also blocks the values a hybrid tool declares authoritative', async () => {
+    const databricksLike = {
+      ...(hybridTool as object),
+      id: 'databricks_list_jobs',
+      oauth: {
+        required: false,
+        provider: 'databricks',
+        credentialKind: 'service-account',
+        authoritativeParams: ['domain'],
+      },
+    } as never
+
+    const { modelBlockedParams } = await createLLMToolSchema(databricksLike, {})
+
+    expect(modelBlockedParams).toContain('domain')
+  })
+
+  it('neither asks the model for nor accepts what a selected saved credential supplies', async () => {
+    const azureLike = {
+      ...(hybridTool as object),
+      id: 'azure_devops_list_pipelines',
+      oauth: {
+        required: false,
+        provider: 'azure_devops',
+        credentialKind: 'service-account',
+        credentialParams: { accessToken: 'accessToken', organization: 'providerWorkspaceId' },
+        credentialSuppliedParams: ['accessToken', 'organization'],
+      },
+      params: {
+        accessToken: { type: 'string', required: true, visibility: 'user-only' },
+        organization: { type: 'string', required: true, visibility: 'user-or-llm' },
+        project: { type: 'string', required: true, visibility: 'user-or-llm' },
+      },
+    } as never
+
+    const withCredential = await createLLMToolSchema(azureLike, { credential: 'cred-1' })
+    const inline = await createLLMToolSchema(azureLike, {})
+
+    expect(withCredential.schema.required).toEqual(['project'])
+    expect(withCredential.modelBlockedParams).toContain('organization')
+    expect(inline.schema.required).toEqual(['organization', 'project'])
+  })
+
+  it('leaves a required-OAuth tool’s model-blocked params exactly as declared', async () => {
+    const oauthTool = {
+      ...(hybridTool as object),
+      id: 'fixture_oauth',
+      oauth: { required: true, provider: 'slack' },
+    } as never
+
+    const { modelBlockedParams } = await createLLMToolSchema(oauthTool, {})
+
+    expect(modelBlockedParams).toEqual(['accessKeyId', 'secretAccessKey'])
+  })
+})

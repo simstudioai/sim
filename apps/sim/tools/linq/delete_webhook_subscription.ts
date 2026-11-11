@@ -1,5 +1,6 @@
 import type { LinqDeleteWebhookSubscriptionParams, LinqSuccessResult } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const linqDeleteWebhookSubscriptionTool: ToolConfig<
@@ -10,6 +11,7 @@ export const linqDeleteWebhookSubscriptionTool: ToolConfig<
   name: 'Delete Webhook Subscription',
   description: 'Delete a webhook subscription from your account',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

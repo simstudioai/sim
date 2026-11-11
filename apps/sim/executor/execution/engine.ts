@@ -11,6 +11,7 @@ import {
   serializePauseSnapshot,
 } from '@/executor/execution/snapshot-serializer'
 import type { SerializableExecutionState } from '@/executor/execution/types'
+import { capturePauseDisplay } from '@/executor/human-in-the-loop/utils'
 import type { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
 import type {
   ExecutionContext,
@@ -651,7 +652,9 @@ export class ExecutionEngine {
     this.context.metadata.status = 'paused'
 
     const snapshotSeed = serializePauseSnapshot(this.context, [], this.dag, this.edgeManager)
+    const registry = this.context.resolvedSecretTraceRegistry
     const pausePoints: PausePoint[] = Array.from(this.pausedBlocks.values()).map((pause) => ({
+      ...capturePauseDisplay(pause, registry),
       contextId: pause.contextId,
       blockId: pause.blockId,
       response: pause.response,

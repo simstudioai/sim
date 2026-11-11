@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveGetTagParams, ThriveTagResponse } from '@/tools/thrive/types'
 import { THRIVE_TAG_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
@@ -8,6 +9,7 @@ export const getTagTool: ToolConfig<ThriveGetTagParams, ThriveTagResponse> = {
   name: 'Thrive Get Tag',
   description: 'Get a single tag in Thrive by its ID.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

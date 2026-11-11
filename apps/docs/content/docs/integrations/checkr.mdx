@@ -2,7 +2,7 @@
 title: Checkr
 description: Run and manage background checks with Checkr
 integration:
-  type: "checkr"
+  type: "checkr_v2"
   color: "#009BB5"
 ---
 
@@ -33,7 +33,6 @@ Add a tag to a report, keeping its existing tags.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `reportId` | string | Yes | ID of the report |
 | `tag` | string | Yes | Tag to add, e.g. To Review |
 
@@ -56,7 +55,6 @@ Continue or skip the remaining screenings on a report that is paused awaiting a 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `reportId` | string | Yes | ID of the paused report |
 | `decision` | string | Yes | continue to run the remaining screenings, or skip_remaining to skip them and complete the report |
 
@@ -78,7 +76,6 @@ Cancel an adverse action so the post-adverse action notice is not sent.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `adverseActionId` | string | Yes | ID of the adverse action to cancel |
 
 #### Output
@@ -123,7 +120,6 @@ Cancel a continuous check to stop monitoring the candidate.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `continuousCheckId` | string | Yes | ID of the continuous check to cancel |
 
 #### Output
@@ -153,7 +149,6 @@ Cancel a pending invitation so the candidate can no longer complete it.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `invitationId` | string | Yes | ID of the invitation to cancel |
 
 #### Output
@@ -187,7 +182,6 @@ Cancel a subscription so no further recurring checks run.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `subscriptionId` | string | Yes | ID of the subscription to cancel |
 
 #### Output
@@ -224,7 +218,6 @@ Complete a report now, canceling any pending or suspended screenings. Canceled s
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `reportId` | string | Yes | ID of the report to complete |
 
 #### Output
@@ -300,7 +293,6 @@ Start the adverse action process on a report by sending the pre-adverse action n
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `reportId` | string | Yes | ID of the report the adverse action is based on |
 | `adverseItemIds` | array | Yes | IDs of the adverse items to cite, from List Adverse Items |
 | `postNoticeScheduledAt` | string | No | ISO 8601 time to send the post-adverse action notice; defaults to 7 days after creation |
@@ -349,7 +341,6 @@ Create a candidate to screen. Only email is required when the candidate will be 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `email` | string | Yes | Candidate's email address |
 | `firstName` | string | No | Candidate's first name |
 | `middleName` | string | No | Candidate's middle name \(required to order a report unless noMiddleName is true\) |
@@ -413,7 +404,6 @@ Enroll a candidate in continuous criminal or motor vehicle monitoring so new rec
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `candidateId` | string | Yes | ID of the candidate to enroll |
 | `continuousCheckType` | string | Yes | Type of monitoring: criminal or mvr |
 | `mvrEnrollmentType` | string | No | For mvr checks, the enrollment type: commercial for commercial drivers or standard |
@@ -447,7 +437,6 @@ Create a geo to group candidates by work location. A geo with the same name and 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `name` | string | Yes | Name of the geo, e.g. San Francisco |
 | `state` | string | Yes | Two-letter US state for the geo, e.g. CA |
 | `city` | string | No | A major city within the state |
@@ -477,7 +466,6 @@ Invite a candidate to complete a background check through the Checkr-hosted appl
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `candidateId` | string | Yes | ID of the candidate to invite |
 | `package` | string | Yes | Slug of the package to run, e.g. driver_pro |
 | `node` | string | No | custom_id of the account hierarchy node \(required for hierarchy-enabled accounts\) |
@@ -515,7 +503,6 @@ Order a background check report for a candidate using a package. Use only when y
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `candidateId` | string | Yes | ID of the candidate to screen |
 | `package` | string | Yes | Slug of the package to run, e.g. driver_pro |
 | `node` | string | No | custom_id of the account hierarchy node \(required for hierarchy-enabled accounts\) |
@@ -596,7 +583,6 @@ Schedule a recurring background check for a candidate, running a package every i
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `candidateId` | string | Yes | ID of the candidate to screen |
 | `package` | string | Yes | Slug of the package to run on each occurrence |
 | `startDate` | string | Yes | Date of the first check in YYYY-MM-DD format |
@@ -639,7 +625,6 @@ Request removal of a candidate's personally identifiable information. Fails if P
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `candidateId` | string | Yes | ID of the candidate whose PII should be removed |
 | `deletionContactEmail` | string | Yes | Email address of the person requesting the PII removal |
 | `deletionContactFirstName` | string | No | First name of the person requesting the PII removal |
@@ -687,7 +672,6 @@ Delete a geo.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `geoId` | string | Yes | ID of the geo to delete |
 
 #### Output
@@ -709,7 +693,6 @@ Retrieve the authenticated Checkr account, including whether it is authorized to
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 
 #### Output
 
@@ -749,7 +732,6 @@ Retrieve an adverse action by ID, including its status and notice delivery state
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `adverseActionId` | string | Yes | ID of the adverse action |
 
 #### Output
@@ -794,7 +776,6 @@ Retrieve a candidate by ID, including their report and geo IDs.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `candidateId` | string | Yes | ID of the candidate to retrieve |
 
 #### Output
@@ -839,7 +820,6 @@ Retrieve a continuous check by ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `continuousCheckId` | string | Yes | ID of the continuous check |
 
 #### Output
@@ -869,7 +849,6 @@ Retrieve a report or candidate document by ID, including a download link valid f
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `documentId` | string | Yes | ID of the document |
 
 #### Output
@@ -898,7 +877,6 @@ Retrieve a geo by ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `geoId` | string | Yes | ID of the geo |
 
 #### Output
@@ -926,7 +904,6 @@ Retrieve an invitation by ID, including its status and invitation URL.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `invitationId` | string | Yes | ID of the invitation to retrieve |
 | `includeDeleted` | boolean | No | Whether to return the invitation even if it was canceled |
 
@@ -961,7 +938,6 @@ Retrieve an account hierarchy node by its custom ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `nodeCustomId` | string | Yes | Custom ID of the node |
 | `includePackages` | boolean | No | Include the package slugs available to the node |
 
@@ -988,7 +964,6 @@ Retrieve a package by ID, including its slug, price, and screenings.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `packageId` | string | Yes | ID of the package |
 
 #### Output
@@ -1020,7 +995,6 @@ Retrieve a program by ID, including its package and geo IDs.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `programId` | string | Yes | ID of the program |
 
 #### Output
@@ -1047,7 +1021,6 @@ Retrieve a report by ID, including its status, result, adjudication, and the IDs
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `reportId` | string | Yes | ID of the report to retrieve |
 
 #### Output
@@ -1123,7 +1096,6 @@ Retrieve the estimated completion date for a report.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `reportId` | string | Yes | ID of the report |
 
 #### Output
@@ -1145,7 +1117,6 @@ Retrieve checkpoint progress for an Enterprise Progressive report, including whi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `reportId` | string | Yes | ID of the progressive report |
 
 #### Output
@@ -1181,7 +1152,6 @@ List the tags on a report.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `reportId` | string | Yes | ID of the report |
 
 #### Output
@@ -1203,7 +1173,6 @@ Retrieve the results of one screening in a report, such as an SSN trace, county 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `screeningType` | string | Yes | Screening type, one of: ssn_trace, sex_offender_search, global_watchlist_search, national_criminal_search, county_criminal_search, state_criminal_search, federal_criminal_search, federal_district_criminal_search, federal_civil_search, federal_district_civil_search, motor_vehicle_report, drug_alcohol_clearinghouse_search, fmcsa_pre_employment_screening_program_search, education_verification, employment_verification, personal_reference_verification, professional_reference_verification, professional_license_verification, social_media_screening, facis_search, identity_data_evaluation, international_adverse_media_search, international_criminal_search, international_education_verification, international_employment_verification, international_global_watchlist_search, international_identity_document_validation, international_motor_vehicle_report |
 | `screeningId` | string | Yes | ID of the screening, taken from the matching report field |
 
@@ -1239,7 +1208,6 @@ Retrieve a subscription by ID, including its schedule and next occurrence.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `subscriptionId` | string | Yes | ID of the subscription |
 
 #### Output
@@ -1276,7 +1244,6 @@ Retrieve a verification by ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `verificationId` | string | Yes | ID of the verification |
 
 #### Output
@@ -1305,7 +1272,6 @@ List the adverse actions for a report, optionally filtered by context.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `reportId` | string | Yes | ID of the report |
 | `context` | string | No | Only return adverse actions with this context |
 
@@ -1354,7 +1320,6 @@ List the adverse items on a report that can be cited in an adverse action. The r
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `reportId` | string | Yes | ID of the report |
 
 #### Output
@@ -1379,7 +1344,6 @@ List the Assess results for a report, including the ruleset applied and which ru
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `reportId` | string | Yes | ID of the report |
 
 #### Output
@@ -1405,7 +1369,6 @@ List documents a candidate provided, such as driver licenses and consent forms. 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `candidateId` | string | Yes | ID of the candidate |
 | `documentTypes` | array | No | Only return these document types, e.g. driver_license, consent |
 
@@ -1436,7 +1399,6 @@ List candidates, optionally filtered by email, name, custom ID, adjudication, da
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `email` | string | No | Only return candidates with this email address |
 | `fullName` | string | No | Only return candidates with this full name |
 | `customId` | string | No | Only return candidates with this custom ID |
@@ -1499,7 +1461,6 @@ List the continuous checks a candidate is enrolled in.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `candidateId` | string | Yes | ID of the candidate |
 
 #### Output
@@ -1530,7 +1491,6 @@ List US counties for one or more states, with their FIPS codes. Use the county n
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `states` | string | No | Comma-separated state FIPS codes, e.g. 08,06 for Colorado and California. Leave empty for every US county |
 
 #### Output
@@ -1554,7 +1514,6 @@ List geos (work locations used for compliance), optionally filtered by name or s
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `name` | string | No | Only return geos with this name |
 | `state` | string | No | Only return geos in this two-letter state |
 | `page` | number | No | Page number to retrieve \(starts at 1\) |
@@ -1588,7 +1547,6 @@ List invitations, optionally filtered by candidate or status.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `candidateId` | string | No | Only return invitations for this candidate ID |
 | `status` | string | No | Only return invitations with this status \(pending, completed, expired\) |
 | `page` | number | No | Page number to retrieve \(starts at 1\) |
@@ -1628,7 +1586,6 @@ List the nodes in the account hierarchy. Hierarchy-enabled accounts need a node 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `includePackages` | boolean | No | Include the package slugs available to each node |
 | `orderBy` | string | No | Sort field: custom_id or created_at \(default created_at\) |
 | `order` | string | No | Sort direction: asc or desc \(default asc\) |
@@ -1661,7 +1618,6 @@ List the background check packages on the account, with their slugs, prices, and
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `page` | number | No | Page number to retrieve \(starts at 1\) |
 | `perPage` | number | No | Number of records per page, from 0 to 100 \(default 25\) |
 
@@ -1697,7 +1653,6 @@ List programs, which group packages and geos, optionally filtered by name.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `name` | string | No | Only return programs with this name |
 | `page` | number | No | Page number to retrieve \(starts at 1\) |
 | `perPage` | number | No | Number of records per page, from 0 to 100 \(default 25\) |
@@ -1729,7 +1684,6 @@ List the address history found for a report.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `reportId` | string | Yes | ID of the report |
 | `page` | number | No | Page number to retrieve \(starts at 1\) |
 | `perPage` | number | No | Number of records per page, from 0 to 100 \(default 25\) |
@@ -1758,7 +1712,6 @@ List recurring check subscriptions, optionally filtered by candidate, status, or
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `candidateId` | string | No | Only return subscriptions for this candidate ID |
 | `status` | string | No | Only return subscriptions with this status \(active, inactive\) |
 | `createdAfter` | string | No | Only return subscriptions created after this date |
@@ -1803,7 +1756,6 @@ List the users on the Checkr account and their roles.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `page` | number | No | Page number to retrieve \(starts at 1\) |
 | `perPage` | number | No | Number of records per page, from 0 to 100 \(default 25\) |
 
@@ -1833,7 +1785,6 @@ List the verifications on a report, such as requests for the candidate to confir
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `reportId` | string | Yes | ID of the report |
 
 #### Output
@@ -1863,7 +1814,6 @@ Remove a tag from a report.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `reportId` | string | Yes | ID of the report |
 | `tag` | string | Yes | Tag to remove |
 
@@ -1886,7 +1836,6 @@ Replace all tags on a report with the given list. Pass [] to remove every tag.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `reportId` | string | Yes | ID of the report |
 | `tags` | array | Yes | Complete list of tags; an empty list removes every tag |
 
@@ -1909,7 +1858,6 @@ Update a candidate. Once a report is ordered only empty fields can change, excep
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `candidateId` | string | Yes | ID of the candidate to update |
 | `email` | string | No | Candidate's email address |
 | `firstName` | string | No | Candidate's first name |
@@ -1973,7 +1921,6 @@ Change the node or work locations of a continuous check.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `continuousCheckId` | string | Yes | ID of the continuous check to update |
 | `node` | string | No | custom_id of the account hierarchy node \(required for hierarchy-enabled accounts\) |
 | `workLocations` | array | No | Work locations \(required for hierarchy-enabled accounts\), e.g. \[\{"country":"US","state":"CA","city":"San Francisco"\}\] |
@@ -2005,7 +1952,6 @@ Add a city to a geo. A geo’s city can only be set once.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `geoId` | string | Yes | ID of the geo |
 | `city` | string | Yes | City to set on the geo |
 
@@ -2034,7 +1980,6 @@ Upgrade a report to a different package or mark it as engaged. Provide a package
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `reportId` | string | Yes | ID of the report to update |
 | `package` | string | No | Slug of the package to upgrade the report to |
 | `adjudication` | string | No | Adjudication to set; Checkr accepts only "engaged" |
@@ -2112,7 +2057,6 @@ Change the package, schedule, node, or work locations of a subscription.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Checkr production secret API key |
 | `subscriptionId` | string | Yes | ID of the subscription to update |
 | `package` | string | No | Slug of the package to run on each occurrence |
 | `startDate` | string | No | Date of the first check in YYYY-MM-DD format |

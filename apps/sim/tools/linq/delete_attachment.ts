@@ -1,5 +1,6 @@
 import type { LinqDeleteAttachmentParams, LinqSuccessResult } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const linqDeleteAttachmentTool: ToolConfig<LinqDeleteAttachmentParams, LinqSuccessResult> = {
@@ -7,6 +8,7 @@ export const linqDeleteAttachmentTool: ToolConfig<LinqDeleteAttachmentParams, Li
   name: 'Delete Attachment',
   description: 'Permanently delete an attachment owned by your account',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

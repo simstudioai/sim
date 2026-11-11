@@ -1,4 +1,5 @@
 import type { CustomFieldsListParams, CustomFieldsListResponse } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const customFieldsListTool: ToolConfig<CustomFieldsListParams, CustomFieldsListResponse> = {
@@ -6,6 +7,7 @@ export const customFieldsListTool: ToolConfig<CustomFieldsListParams, CustomFiel
   name: 'incident.io Custom Fields List',
   description: 'List all custom fields from incident.io.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

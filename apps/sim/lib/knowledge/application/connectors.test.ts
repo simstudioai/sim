@@ -388,7 +388,8 @@ describe('knowledge connector application use cases', () => {
               'https://www.googleapis.com/auth/admin.directory.domain.readonly',
             ]
           : ['https://www.googleapis.com/auth/drive.readonly'],
-        'admin@corp.com'
+        'admin@corp.com',
+        { service: 'google-drive' }
       )
     }
   )
@@ -993,7 +994,8 @@ describe('organization connector credential authorization', () => {
       googleDriveConnectorMeta.auth.mode === 'oauth'
         ? googleDriveConnectorMeta.auth.adminServiceAccountScopes
         : undefined,
-      'admin@corp.com'
+      'admin@corp.com',
+      { service: 'google-drive' }
     )
   })
 

@@ -2,7 +2,7 @@
 title: Rippling
 description: Manage workers, departments, custom objects, and company data in Rippling
 integration:
-  type: "rippling"
+  type: "rippling_v2"
   color: "#502D3C"
 ---
 
@@ -10,7 +10,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [Rippling](https://www.rippling.com/) to read workforce data, manage organizational resources and custom objects, and configure custom apps and pages. Connect with an API key. Reporting actions start a report run and retrieve its result; Create Draft Hires submits employees to the onboarding flow.
+Use [Rippling](https://www.rippling.com/) to read workforce data, manage organizational resources and custom objects, and configure custom apps and pages. Connect with a saved Rippling API token. Reporting actions start a report run and retrieve its result; Create Draft Hires submits employees to the onboarding flow.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
@@ -29,7 +29,6 @@ List all workers with optional filtering and pagination
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `filter` | string | No | Filter expression |
 | `expand` | string | No | Comma-separated fields to expand |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
@@ -88,7 +87,6 @@ Get a specific worker by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | Resource ID |
 | `expand` | string | No | Comma-separated fields to expand |
 
@@ -142,7 +140,6 @@ List all users with optional pagination
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
 | `cursor` | string | No | Pagination cursor from previous response |
 
@@ -182,7 +179,6 @@ Get a specific user by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | Resource ID |
 
 #### Output
@@ -218,7 +214,6 @@ List all companies
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `expand` | string | No | Comma-separated fields to expand |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
 | `cursor` | string | No | Pagination cursor from previous response |
@@ -255,7 +250,6 @@ Get SSO information for the current user
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `expand` | string | No | Comma-separated fields to expand |
 
 #### Output
@@ -281,7 +275,6 @@ List all entitlements
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 
 #### Output
 
@@ -307,7 +300,6 @@ List all departments
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `expand` | string | No | Comma-separated fields to expand |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
 | `cursor` | string | No | Pagination cursor from previous response |
@@ -342,7 +334,6 @@ Get a specific department by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | Resource ID |
 | `expand` | string | No | Comma-separated fields to expand |
 
@@ -373,7 +364,6 @@ Create a new department
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `name` | string | Yes | Department name |
 | `parentId` | string | No | Parent department ID |
 | `referenceCode` | string | No | Reference code |
@@ -404,7 +394,6 @@ Update an existing department
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | Department ID |
 | `name` | string | No | Department name |
 | `parentId` | string | No | Parent department ID |
@@ -436,7 +425,6 @@ List all teams
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `expand` | string | No | Comma-separated fields to expand |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
 | `cursor` | string | No | Pagination cursor from previous response |
@@ -468,7 +456,6 @@ Get a specific team by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | Resource ID |
 | `expand` | string | No | Comma-separated fields to expand |
 
@@ -496,7 +483,6 @@ List all employment types
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
 | `cursor` | string | No | Pagination cursor from previous response |
 
@@ -529,7 +515,6 @@ Get a specific employment type by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | Resource ID |
 
 #### Output
@@ -558,7 +543,6 @@ List all titles
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
 | `cursor` | string | No | Pagination cursor from previous response |
 
@@ -587,7 +571,6 @@ Get a specific title by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | Resource ID |
 
 #### Output
@@ -612,7 +595,6 @@ Create a new title
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `name` | string | Yes | Title name |
 
 #### Output
@@ -636,7 +618,6 @@ Update an existing title
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | Title ID |
 | `name` | string | No | Title name |
 
@@ -661,7 +642,6 @@ Delete a title
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | ID of the resource to delete |
 
 #### Output
@@ -682,7 +662,6 @@ List all custom fields
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
 | `cursor` | string | No | Pagination cursor from previous response |
 
@@ -714,7 +693,6 @@ List all job functions
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
 | `cursor` | string | No | Pagination cursor from previous response |
 
@@ -743,7 +721,6 @@ Get a specific job function by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | Resource ID |
 
 #### Output
@@ -768,7 +745,6 @@ List all work locations
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
 | `cursor` | string | No | Pagination cursor from previous response |
 
@@ -798,7 +774,6 @@ Get a specific work location by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | Resource ID |
 
 #### Output
@@ -824,7 +799,6 @@ Create a new work location
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `name` | string | Yes | Location name |
 | `streetAddress` | string | Yes | Street address |
 | `locality` | string | No | City |
@@ -855,7 +829,6 @@ Update a work location
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | Location ID |
 | `name` | string | No | Location name |
 | `streetAddress` | string | No | Street address |
@@ -887,7 +860,6 @@ Delete a work location
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | ID of the resource to delete |
 
 #### Output
@@ -908,7 +880,6 @@ List all business partners
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `filter` | string | No | Filter expression |
 | `expand` | string | No | Comma-separated fields to expand |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
@@ -942,7 +913,6 @@ Get a specific business partner by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | Resource ID |
 | `expand` | string | No | Comma-separated fields to expand |
 
@@ -971,7 +941,6 @@ Create a new business partner
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `businessPartnerGroupId` | string | Yes | Business partner group ID |
 | `workerId` | string | Yes | Worker ID |
 
@@ -999,7 +968,6 @@ Delete a business partner
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | ID of the resource to delete |
 
 #### Output
@@ -1020,7 +988,6 @@ List all business partner groups
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `expand` | string | No | Comma-separated fields to expand |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
 | `cursor` | string | No | Pagination cursor from previous response |
@@ -1052,7 +1019,6 @@ Get a specific business partner group by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | Resource ID |
 | `expand` | string | No | Comma-separated fields to expand |
 
@@ -1080,7 +1046,6 @@ Create a new business partner group
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `name` | string | Yes | Group name |
 | `domain` | string | No | Domain \(HR, IT, FINANCE, RECRUITING, OTHER\) |
 | `defaultBusinessPartnerId` | string | No | Default business partner ID |
@@ -1108,7 +1073,6 @@ Delete a business partner group
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | ID of the resource to delete |
 
 #### Output
@@ -1129,7 +1093,6 @@ List all supergroups
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `filter` | string | No | Filter expression \(filterable fields: app_owner_id, group_type\) |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
 
@@ -1173,7 +1136,6 @@ Get a specific supergroup by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | Resource ID |
 
 #### Output
@@ -1213,7 +1175,6 @@ List members of a supergroup
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `groupId` | string | Yes | Supergroup ID |
 | `expand` | string | No | Fields to expand \(e.g., worker\) |
 | `orderBy` | string | No | Sort field |
@@ -1246,7 +1207,6 @@ List inclusion members of a supergroup
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `groupId` | string | Yes | Supergroup ID |
 | `expand` | string | No | Fields to expand \(e.g., worker\) |
 | `orderBy` | string | No | Sort field |
@@ -1279,7 +1239,6 @@ List exclusion members of a supergroup
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `groupId` | string | Yes | Supergroup ID |
 | `expand` | string | No | Fields to expand \(e.g., worker\) |
 | `orderBy` | string | No | Sort field |
@@ -1312,7 +1271,6 @@ Update inclusion members of a supergroup
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `groupId` | string | Yes | Supergroup ID |
 | `operations` | json | Yes | Operations array \[\{op: "add"\|"remove", value: \[\{id: "member_id"\}\]\}\] |
 
@@ -1334,7 +1292,6 @@ Update exclusion members of a supergroup
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `groupId` | string | Yes | Supergroup ID |
 | `operations` | json | Yes | Operations array \[\{op: "add"\|"remove", value: \[\{id: "member_id"\}\]\}\] |
 
@@ -1356,7 +1313,6 @@ List all custom objects
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 
 #### Output
 
@@ -1390,7 +1346,6 @@ Get a custom object by API name
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | custom object api name |
 
 #### Output
@@ -1422,7 +1377,6 @@ Create a new custom object
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `name` | string | Yes | Object name |
 | `description` | string | No | Description |
 | `category` | string | No | Category |
@@ -1456,7 +1410,6 @@ Update a custom object
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `name` | string | No | Name |
 | `description` | string | No | Description |
@@ -1493,7 +1446,6 @@ Delete a custom object
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | ID of the resource to delete |
 
 #### Output
@@ -1514,7 +1466,6 @@ List all fields for a custom object
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 
 #### Output
@@ -1550,7 +1501,6 @@ Get a specific field of a custom object
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `fieldApiName` | string | Yes | Field API name |
 
@@ -1584,7 +1534,6 @@ Create a field on a custom object
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `name` | string | Yes | Field name |
 | `description` | string | No | Description |
@@ -1628,7 +1577,6 @@ Update a field on a custom object
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `fieldApiName` | string | Yes | Field API name |
 | `name` | string | No | Field name |
@@ -1673,7 +1621,6 @@ Delete a field from a custom object
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `fieldApiName` | string | Yes | Field API name |
 
@@ -1695,7 +1642,6 @@ List all records for a custom object
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 
 #### Output
@@ -1728,7 +1674,6 @@ Get a specific custom object record
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `codrId` | string | Yes | Record ID |
 
@@ -1759,7 +1704,6 @@ Get a custom object record by external ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `externalId` | string | Yes | External ID |
 
@@ -1790,7 +1734,6 @@ Query custom object records with filters
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `query` | string | No | Query expression |
 | `limit` | number | No | Maximum number of records to return |
@@ -1826,7 +1769,6 @@ Create a custom object record
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `externalId` | string | No | External ID for the record |
 | `data` | json | Yes | Record data |
@@ -1858,7 +1800,6 @@ Update a custom object record
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `codrId` | string | Yes | Record ID |
 | `externalId` | string | No | External ID for the record |
@@ -1891,7 +1832,6 @@ Delete a custom object record
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `codrId` | string | Yes | Record ID |
 
@@ -1913,7 +1853,6 @@ Bulk create custom object records
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `rowsToWrite` | json | Yes | Array of records to create \[\{external_id?, data\}\] |
 | `allOrNothing` | boolean | No | If true, fail entire batch on any error |
@@ -1937,7 +1876,6 @@ Bulk update custom object records
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `rowsToUpdate` | json | Yes | Array of records to update |
 | `allOrNothing` | boolean | No | If true, fail entire batch on any error |
@@ -1961,7 +1899,6 @@ Bulk delete custom object records
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `rowsToDelete` | json | Yes | Array of records to delete |
 | `allOrNothing` | boolean | No | If true, fail entire batch on any error |
@@ -1984,7 +1921,6 @@ List all custom apps
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 
 #### Output
 
@@ -2015,7 +1951,6 @@ Get a specific custom app
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | Resource ID |
 
 #### Output
@@ -2044,7 +1979,6 @@ Create a new custom app
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `name` | string | Yes | App name |
 | `apiName` | string | Yes | API name |
 | `description` | string | No | Description |
@@ -2074,7 +2008,6 @@ Update a custom app
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | App ID |
 | `name` | string | No | App name |
 | `apiName` | string | No | API name |
@@ -2105,7 +2038,6 @@ Delete a custom app
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | ID of the resource to delete |
 
 #### Output
@@ -2126,7 +2058,6 @@ List all custom pages
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 
 #### Output
 
@@ -2158,7 +2089,6 @@ Get a specific custom page
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | Resource ID |
 
 #### Output
@@ -2188,7 +2118,6 @@ Create a new custom page
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `name` | string | Yes | Page name |
 
 #### Output
@@ -2217,7 +2146,6 @@ Update a custom page
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | Page ID |
 | `name` | string | No | Page name |
 
@@ -2247,7 +2175,6 @@ Delete a custom page
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | ID of the resource to delete |
 
 #### Output
@@ -2268,7 +2195,6 @@ List all custom settings
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
 | `cursor` | string | No | Pagination cursor from previous response |
 
@@ -2303,7 +2229,6 @@ Get a specific custom setting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | Resource ID |
 
 #### Output
@@ -2334,7 +2259,6 @@ Create a new custom setting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `displayName` | string | No | Display name |
 | `apiName` | string | No | Unique API name |
 | `dataType` | string | No | Data type of the setting |
@@ -2370,7 +2294,6 @@ Update a custom setting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | Setting ID |
 | `displayName` | string | No | Display name |
 | `apiName` | string | No | Unique API name |
@@ -2407,7 +2330,6 @@ Delete a custom setting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | ID of the resource to delete |
 
 #### Output
@@ -2428,7 +2350,6 @@ List all object categories
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 
 #### Output
 
@@ -2455,7 +2376,6 @@ Get a specific object category
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | Resource ID |
 
 #### Output
@@ -2480,7 +2400,6 @@ Create a new object category
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `name` | string | Yes | Category name |
 | `description` | string | No | Description |
 
@@ -2506,7 +2425,6 @@ Update an object category
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | Category ID |
 | `name` | string | No | Category name |
 | `description` | string | No | Description |
@@ -2533,7 +2451,6 @@ Delete an object category
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | ID of the resource to delete |
 
 #### Output
@@ -2554,7 +2471,6 @@ Get a report run by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `runId` | string | Yes | run id |
 
 #### Output
@@ -2581,7 +2497,6 @@ Trigger a new report run
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `reportId` | string | Yes | Report ID to run |
 | `includeObjectIds` | boolean | No | Include object IDs in the report |
 | `includeTotalRows` | boolean | No | Include total row count |
@@ -2612,7 +2527,6 @@ Create bulk draft hires
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `draftHires` | json | Yes | Array of draft hire objects |
 
 #### Output

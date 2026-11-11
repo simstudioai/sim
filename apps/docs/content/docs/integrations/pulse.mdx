@@ -2,7 +2,7 @@
 title: Pulse
 description: Extract text from documents using Pulse OCR
 integration:
-  type: "pulse_v2"
+  type: "pulse_v3"
   color: "#FFFFFF"
 ---
 
@@ -10,7 +10,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [Pulse](https://www.runpulse.com) to extract text and structured content from PDFs, images, and Office files with optical character recognition (OCR). Supply a file URL or upload, select pages when needed, and choose the supported Markdown, text, or JSON output options.
+Use [Pulse](https://www.runpulse.com) to extract text and structured content from PDFs, images, and Office files with optical character recognition (OCR). Supply an uploaded file or a file reference, select pages when needed, and choose the supported Markdown, text, or JSON output options.
 
 Optional figure and table extraction returns captions and descriptions. The result also includes processing metadata such as file type, page count, and processing time. Pass the extracted content to later steps for review or summarization.
 {/* MANUAL-CONTENT-END */}
@@ -35,7 +35,6 @@ Parse documents (PDF, images, Office docs) using Pulse OCR API
 | `pages` | string | No | Page range to process \(1-indexed, e.g., "1-2,5"\) |
 | `chunking` | string | No | Chunking strategies \(comma-separated: semantic, header, page, recursive\) |
 | `chunkSize` | number | No | Maximum characters per chunk when chunking is enabled |
-| `apiKey` | string | Yes | Pulse API key |
 
 #### Output
 

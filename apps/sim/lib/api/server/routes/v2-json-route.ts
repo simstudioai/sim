@@ -40,6 +40,7 @@ import {
   InsufficientScopeError,
   OAuthAccessTokenExpiredError,
   type OperationUseCase,
+  ReadOnlyApiKeyError,
   requireOAuthOperationScope,
 } from '@/lib/core/application'
 import { getRateLimit, RateLimiter, type SubscriptionPlan } from '@/lib/core/rate-limiter'
@@ -357,7 +358,11 @@ async function admitAuthenticatedV2Request(
   try {
     requireOAuthOperationScope(auth.principal, operation)
   } catch (error) {
-    if (error instanceof InsufficientScopeError || error instanceof OAuthAccessTokenExpiredError) {
+    if (
+      error instanceof InsufficientScopeError ||
+      error instanceof ReadOnlyApiKeyError ||
+      error instanceof OAuthAccessTokenExpiredError
+    ) {
       const response = v2CaughtOrchestrationError(error)
       if (response) return { success: false, response }
     }

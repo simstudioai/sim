@@ -1,5 +1,6 @@
 import { SixtyfourIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 const PHONE_LOOKUP_FIELD = ['name', 'linkedinUrl', 'emailInput'] as const
 const EMAIL_LOOKUP_FIELD = ['name', 'linkedinUrl', 'phoneInput'] as const
@@ -7,6 +8,8 @@ const EMPLOYER_FIELD = ['company', 'domain'] as const
 
 export const SixtyfourBlock: BlockConfig = {
   type: 'sixtyfour',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'sixtyfour_v2' },
   name: 'Sixtyfour AI',
   description: 'Enrich leads and companies with AI-powered research',
   longDescription:
@@ -421,3 +424,17 @@ export const SixtyfourBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const SixtyfourV2Block: BlockConfig = {
+  ...SixtyfourBlock,
+  type: 'sixtyfour_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(SixtyfourBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'sixtyfour',
+    title: 'Sixtyfour Credential',
+  }),
+}

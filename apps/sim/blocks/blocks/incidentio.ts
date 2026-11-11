@@ -1,6 +1,7 @@
 import { IncidentioIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /** Identifiers a user can be looked up by, whichever one is filled. */
@@ -27,6 +28,8 @@ function toTriState(value: unknown): boolean | undefined {
 
 export const IncidentioBlock: BlockConfig = {
   type: 'incidentio',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'incidentio_v2' },
   name: 'incident.io',
   description: 'Manage incidents with incident.io',
   authMode: AuthMode.ApiKey,
@@ -2055,3 +2058,22 @@ export const IncidentioBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const IncidentioV2Block: BlockConfig = {
+  ...IncidentioBlock,
+  type: 'incidentio_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    IncidentioBlock,
+    {
+      id: 'credential',
+      type: 'oauth-input',
+      serviceId: 'incidentio',
+      title: 'incident.io Credential',
+    },
+    // Alert events authenticate with their own alert source token.
+    { condition: { field: 'operation', value: 'incidentio_alert_events_create', not: true } }
+  ),
+}

@@ -1,4 +1,5 @@
 import type { LoopsCreateContactParams, LoopsCreateContactResponse } from '@/tools/loops/types'
+import { LOOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const loopsCreateContactTool: ToolConfig<
@@ -10,6 +11,7 @@ export const loopsCreateContactTool: ToolConfig<
   description:
     'Create a new contact in your Loops audience with an email address and optional properties like name, user group, and mailing list subscriptions.',
   version: '1.0.0',
+  oauth: LOOPS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

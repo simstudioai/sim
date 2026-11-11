@@ -3,7 +3,10 @@ import type {
   DataverseCreateMultipleParams,
   DataverseCreateMultipleResponse,
 } from '@/tools/microsoft_dataverse/types'
-import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
+import {
+  DATAVERSE_OAUTH_CONFIG,
+  getDataverseRequestBaseUrl,
+} from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseCreateMultiple')
@@ -18,7 +21,7 @@ export const dataverseCreateMultipleTool: ToolConfig<
     'Create multiple records of the same table type in a single request. Each record in the Targets array must include an @odata.type annotation. Recommended batch size: 100-1000 records for standard tables.',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'microsoft-dataverse' },
+  oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',
 
   params: {
@@ -58,7 +61,7 @@ export const dataverseCreateMultipleTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      const baseUrl = getDataverseRequestBaseUrl(params)
       return `${baseUrl}/api/data/v9.2/${params.entitySetName.trim()}/Microsoft.Dynamics.CRM.CreateMultiple`
     },
     method: 'POST',

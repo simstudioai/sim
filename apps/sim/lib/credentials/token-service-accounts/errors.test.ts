@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   fetchProvider,
+  isHostNotFound,
   parseProviderJson,
   readProviderErrorSnippet,
   TokenServiceAccountValidationError,
@@ -64,6 +65,25 @@ describe('token service-account error helpers', () => {
     })
   })
 
+  describe('isHostNotFound', () => {
+    it('reads ENOTFOUND on the cause even when the outer error carries another code', () => {
+      const error = Object.assign(new TypeError('fetch failed'), {
+        code: 'UND_ERR_CONNECT',
+        cause: Object.assign(new Error('getaddrinfo ENOTFOUND'), { code: 'ENOTFOUND' }),
+      })
+
+      expect(isHostNotFound(error)).toBe(true)
+    })
+
+    it('does not treat a transient resolver failure as a missing host', () => {
+      const error = Object.assign(new TypeError('fetch failed'), {
+        cause: Object.assign(new Error('getaddrinfo EAI_AGAIN'), { code: 'EAI_AGAIN' }),
+      })
+
+      expect(isHostNotFound(error)).toBe(false)
+    })
+  })
+
   describe('parseProviderJson', () => {
     it('maps a non-JSON body to provider_unavailable 502', async () => {
       const res = new Response('<html>502 Bad Gateway</html>', { status: 200 })
@@ -124,9 +144,24 @@ describe('token service-account error helpers', () => {
       expect(snippet).toBe(`${'x'.repeat(500)}...`)
     })
 
+    it('stops reading an oversized error body instead of buffering all of it', async () => {
+      let pulled = 0
+      const chunk = new Uint8Array(16 * 1024).fill(120)
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          pulled++
+          if (pulled > 1000) controller.close()
+          else controller.enqueue(chunk)
+        },
+      })
+
+      await expect(readProviderErrorSnippet(new Response(body, { status: 500 }))).resolves.toBe('')
+      expect(pulled).toBeLessThan(20)
+    })
+
     it('never throws on an unreadable body', async () => {
       const res = new Response('gone', { status: 500 })
-      vi.spyOn(res, 'text').mockRejectedValue(new Error('body stream already read'))
+      await res.text()
 
       await expect(readProviderErrorSnippet(res)).resolves.toBe('')
     })

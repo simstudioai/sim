@@ -1,6 +1,11 @@
 import { v2MetaOperations } from '@/lib/api/application/operations'
 import type { V2ApiKeyType } from '@/lib/api/contracts/v2/meta'
-import { assertOperationPrincipal, type OperationUseCase } from '@/lib/core/application'
+import type { OAuthApiScope } from '@/lib/auth/oauth-provider'
+import {
+  assertOperationPrincipal,
+  credentialApiScopes,
+  type OperationUseCase,
+} from '@/lib/core/application'
 
 /**
  * The credential facts the authenticating adapter has already established.
@@ -18,6 +23,7 @@ export interface ReadV2ApiCapabilitiesResult {
   v2Enabled: boolean
   keyType: V2ApiKeyType
   expiresAt: Date | null
+  scopes: OAuthApiScope[]
 }
 
 /**
@@ -39,6 +45,7 @@ export const readV2ApiCapabilities: OperationUseCase<
       v2Enabled: true,
       keyType: input.keyType,
       expiresAt: input.expiresAt,
+      scopes: credentialApiScopes(principal),
     }
   },
 }

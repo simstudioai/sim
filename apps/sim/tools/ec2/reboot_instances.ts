@@ -1,5 +1,6 @@
 import type { Ec2RebootInstancesParams, Ec2RebootInstancesResponse } from '@/tools/ec2/types'
 import { ec2ConnectionInput, suppliedParams } from '@/tools/ec2/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const rebootInstancesTool: InternalToolConfig<
@@ -10,6 +11,7 @@ export const rebootInstancesTool: InternalToolConfig<
   name: 'EC2 Reboot Instances',
   description: 'Request a reboot of one or more EC2 instances',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

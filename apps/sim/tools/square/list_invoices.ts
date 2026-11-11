@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InvoiceListResponse, ListInvoicesParams } from '@/tools/square/types'
 import {
   INVOICE_OUTPUT,
@@ -13,6 +14,7 @@ export const squareListInvoicesTool: ToolConfig<ListInvoicesParams, InvoiceListR
   name: 'Square List Invoices',
   description: 'List invoices for a specific location',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {

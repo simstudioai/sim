@@ -8,6 +8,7 @@ import {
   databricksUrl,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const startClusterTool: ToolConfig<DatabricksStartClusterParams, DatabricksSuccessResponse> =
@@ -16,6 +17,7 @@ export const startClusterTool: ToolConfig<DatabricksStartClusterParams, Databric
     name: 'Databricks Start Cluster',
     description: 'Start a terminated all-purpose compute cluster.',
     version: '1.0.0',
+    oauth: DATABRICKS_CREDENTIAL_OAUTH,
     params: {
       ...DATABRICKS_AUTH_PARAMS,
       clusterId: {

@@ -2,6 +2,7 @@ import type {
   InfisicalDeleteSecretParams,
   InfisicalDeleteSecretResponse,
 } from '@/tools/infisical/types'
+import { INFISICAL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteSecretTool: ToolConfig<
@@ -12,6 +13,7 @@ export const deleteSecretTool: ToolConfig<
   name: 'Infisical Delete Secret',
   description: 'Delete a secret from a project environment.',
   version: '1.0.0',
+  oauth: INFISICAL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

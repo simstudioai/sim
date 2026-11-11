@@ -29,6 +29,7 @@ interface KeyRow {
   name: string
   key: string
   expiresAt: Date
+  access?: 'read' | 'write'
 }
 
 /** Models a transaction-scoped advisory lock and commits only after the entire callback succeeds. */
@@ -67,7 +68,8 @@ function database() {
               where: () => ({
                 limit: async () => {
                   const row = rows.get(name)
-                  return row && row.expiresAt.getTime() > Date.now() + 30 * 60_000 ? [row] : []
+                  if (!row || row.expiresAt.getTime() <= Date.now() + 30 * 60_000) return []
+                  return [row]
                 },
               }),
             }),

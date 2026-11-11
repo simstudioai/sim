@@ -10,6 +10,7 @@ import {
   buildMediaMessageBody,
   buildMediaUploadUrl,
   buildMediaUrl,
+  buildMessagesUrl,
   transformWhatsAppSendResponse,
   whatsappMediaLimitFor,
 } from '@/tools/whatsapp/utils'
@@ -22,6 +23,14 @@ describe('WhatsApp request URL and headers', () => {
       /Phone Number ID is required/
     )
   })
+
+  it.each(['../../999/register#', '..', '123/subscribed_apps?'])(
+    'refuses a phone number ID that would leave its path segment (%s)',
+    (phoneNumberId) => {
+      expect(() => buildMessagesUrl(phoneNumberId)).toThrow(/phoneNumberId/)
+      expect(() => buildMediaUploadUrl(phoneNumberId)).toThrow(/phoneNumberId/)
+    }
+  )
 })
 
 describe('sendMessageTool body', () => {

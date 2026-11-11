@@ -1,6 +1,7 @@
 import { filterUndefined } from '@sim/utils/object'
 import type { FlintCreateTaskParams, FlintCreateTaskResponse } from '@/tools/flint/types'
 import { FLINT_API_BASE_URL, flintBaseParamFields, flintHeaders } from '@/tools/flint/utils'
+import { FLINT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const flintCreateTaskTool: ToolConfig<FlintCreateTaskParams, FlintCreateTaskResponse> = {
@@ -9,6 +10,7 @@ export const flintCreateTaskTool: ToolConfig<FlintCreateTaskParams, FlintCreateT
   description:
     'Start a background Flint agent task that modifies a site from a natural-language prompt.',
   version: '1.0.0',
+  oauth: FLINT_CREDENTIAL_OAUTH,
 
   params: {
     ...flintBaseParamFields,

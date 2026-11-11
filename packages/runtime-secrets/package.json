@@ -31,12 +31,15 @@
   "dependencies": {
     "@aws-sdk/client-secrets-manager": "3.1150.0",
     "@sim/logger": "workspace:*",
-    "@sim/utils": "workspace:*"
+    "@sim/security": "workspace:*",
+    "@sim/utils": "workspace:*",
+    "@smithy/fetch-http-handler": "5.8.0",
+    "@smithy/node-http-handler": "4.12.1"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
     "@types/node": "24.19.2",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.4"
+    "vitest": "^5.1.0"
   }
 }

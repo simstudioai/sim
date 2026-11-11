@@ -3,6 +3,7 @@ import type {
   GitLabDeleteUserIdentityResponse,
 } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabDeleteUserIdentityTool: ToolConfig<
@@ -15,6 +16,7 @@ export const gitlabDeleteUserIdentityTool: ToolConfig<
   description:
     "Delete a user's authentication identity (e.g. SAML or LDAP). Requires an administrator token with admin_mode on the instance.",
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {

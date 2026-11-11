@@ -2,6 +2,7 @@ import type {
   CodePipelineListActionExecutionsParams,
   CodePipelineListActionExecutionsResponse,
 } from '@/tools/codepipeline/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listActionExecutionsTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const listActionExecutionsTool: InternalToolConfig<
   description:
     'List action-level execution history for a CodePipeline pipeline, including per-action status, timing, and error details',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

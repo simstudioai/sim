@@ -1,5 +1,6 @@
 import type { LumaGetGuestParams, LumaGetGuestResponse } from '@/tools/luma/types'
 import { LUMA_GUEST_OUTPUT_PROPERTIES, resolveGuestCheckedInAt } from '@/tools/luma/types'
+import { LUMA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getGuestTool: ToolConfig<LumaGetGuestParams, LumaGetGuestResponse> = {
@@ -8,6 +9,7 @@ export const getGuestTool: ToolConfig<LumaGetGuestParams, LumaGetGuestResponse> 
   description:
     "Retrieve a single guest's details on a Luma event, including approval status, registration timestamps, and contact info.",
   version: '1.0.0',
+  oauth: LUMA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

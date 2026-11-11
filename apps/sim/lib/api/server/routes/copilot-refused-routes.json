@@ -5,6 +5,11 @@
     "operation": "chat.send"
   },
   {
+    "method": "POST",
+    "path": "/api/v2/credentials/workload-identity/subjects",
+    "operation": "credentials.workload_identity.prepare"
+  },
+  {
     "method": "DELETE",
     "path": "/api/v2/files/[fileId]/versions/[version]",
     "operation": "files.versions.delete"
@@ -173,6 +178,16 @@
     "method": "POST",
     "path": "/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/bulk",
     "operation": "permission_groups.members.bulk_add"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions",
+    "operation": "knowledge.search.source_permissions.read"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions",
+    "operation": "knowledge.search.source_permissions.replace"
   },
   {
     "method": "GET",

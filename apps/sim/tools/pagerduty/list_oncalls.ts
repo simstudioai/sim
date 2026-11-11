@@ -2,6 +2,7 @@ import type {
   PagerDutyListOncallsParams,
   PagerDutyListOncallsResponse,
 } from '@/tools/pagerduty/types'
+import { PAGERDUTY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listOncallsTool: ToolConfig<PagerDutyListOncallsParams, PagerDutyListOncallsResponse> =
@@ -10,6 +11,7 @@ export const listOncallsTool: ToolConfig<PagerDutyListOncallsParams, PagerDutyLi
     name: 'PagerDuty List On-Calls',
     description: 'List current on-call entries from PagerDuty.',
     version: '1.0.0',
+    oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

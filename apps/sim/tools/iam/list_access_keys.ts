@@ -1,4 +1,5 @@
 import type { IAMListAccessKeysParams, IAMListAccessKeysResponse } from '@/tools/iam/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listAccessKeysTool: InternalToolConfig<
@@ -10,6 +11,7 @@ export const listAccessKeysTool: InternalToolConfig<
   description:
     "List an IAM user's access key IDs with their status and age — use to find stale keys and to confirm which keys remain after a rotation",
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

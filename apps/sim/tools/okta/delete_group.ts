@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaDeleteGroupParams, OktaDeleteGroupResponse } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaDeleteGroup')
@@ -12,6 +13,7 @@ export const oktaDeleteGroupTool: ToolConfig<OktaDeleteGroupParams, OktaDeleteGr
   description:
     'Delete a group from your Okta organization. Groups of OKTA_GROUP or APP_GROUP type can be removed.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,4 +1,5 @@
 import type { FirefliesListUsersParams, FirefliesListUsersResponse } from '@/tools/fireflies/types'
+import { FIREFLIES_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const firefliesListUsersTool: ToolConfig<
@@ -9,6 +10,7 @@ export const firefliesListUsersTool: ToolConfig<
   name: 'Fireflies List Users',
   description: 'List all users within your Fireflies.ai team',
   version: '1.0.0',
+  oauth: FIREFLIES_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

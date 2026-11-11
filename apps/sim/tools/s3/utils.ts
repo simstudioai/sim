@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import { validateAwsRegion } from '@/lib/core/security/input-validation'
 
 export function encodeS3PathComponent(pathComponent: string): string {
   return encodeURIComponent(pathComponent).replace(/%2F/g, '/')
@@ -20,6 +21,12 @@ export function getSignatureKey(
   return kSigning
 }
 
+/**
+ * Characters a bucket name can hold, including pre-2018 us-east-1 names with
+ * uppercase letters and underscores — nothing that could end the host part.
+ */
+const S3_BUCKET_NAME = /^[A-Za-z0-9._-]{3,255}$/
+
 export function parseS3Uri(
   s3Uri: string,
   fallbackRegion?: string
@@ -28,6 +35,7 @@ export function parseS3Uri(
   region: string
   objectKey: string
 } {
+  let parsed: { bucketName: string; region: string; objectKey: string }
   try {
     const url = new URL(s3Uri)
     const hostname = url.hostname
@@ -84,13 +92,17 @@ export function parseS3Uri(
     if (!bucketName || !objectKey) {
       throw new Error('Invalid S3 URI format')
     }
-
-    return { bucketName, region, objectKey }
+    parsed = { bucketName, region, objectKey }
   } catch (_error) {
     throw new Error(
       'Invalid S3 Object URL format. Expected S3 virtual-hosted or path-style URL with object key.'
     )
   }
+  // Both become part of the request host, so neither may carry anything but its own name.
+  if (!S3_BUCKET_NAME.test(parsed.bucketName) || !validateAwsRegion(parsed.region).isValid) {
+    throw new Error('Invalid S3 bucket name or region')
+  }
+  return parsed
 }
 
 export function generatePresignedUrl(params: any, expiresIn = 3600): string {
@@ -103,7 +115,11 @@ export function generatePresignedUrl(params: any, expiresIn = 3600): string {
 
   const method = 'GET'
   const canonicalUri = `/${encodedPath}`
-  const canonicalQueryString = `X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=${encodeURIComponent(`${params.accessKeyId}/${dateStamp}/${params.region}/s3/aws4_request`)}&X-Amz-Date=${amzDate}&X-Amz-Expires=${expiresIn}&X-Amz-SignedHeaders=host`
+  // Temporary keys from a saved AWS credential sign with their session token (sorted query order).
+  const securityToken = params.sessionToken
+    ? `&X-Amz-Security-Token=${encodeURIComponent(params.sessionToken)}`
+    : ''
+  const canonicalQueryString = `X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=${encodeURIComponent(`${params.accessKeyId}/${dateStamp}/${params.region}/s3/aws4_request`)}&X-Amz-Date=${amzDate}&X-Amz-Expires=${expiresIn}${securityToken}&X-Amz-SignedHeaders=host`
   const canonicalHeaders = `host:${params.bucketName}.s3.${params.region}.amazonaws.com\n`
   const signedHeaders = 'host'
   const payloadHash = 'UNSIGNED-PAYLOAD'

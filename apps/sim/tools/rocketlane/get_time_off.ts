@@ -7,6 +7,7 @@ import {
   rocketlaneHeaders,
   TIME_OFF_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneGetTimeOffTool: ToolConfig<
@@ -17,6 +18,7 @@ export const rocketlaneGetTimeOffTool: ToolConfig<
   name: 'Rocketlane Get Time-Off',
   description: 'Retrieve a Rocketlane time-off by its ID',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

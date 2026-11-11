@@ -2,6 +2,7 @@ import type {
   AhrefsReferringDomainsParams,
   AhrefsReferringDomainsResponse,
 } from '@/tools/ahrefs/types'
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const SELECT_FIELDS = 'domain,domain_rating,links_to_target,dofollow_links,first_seen,last_seen'
@@ -15,6 +16,7 @@ export const referringDomainsTool: ToolConfig<
   description:
     'Get a list of domains that link to a target domain or URL. Returns unique referring domains with their domain rating, backlink counts, and discovery dates.',
   version: '1.0.0',
+  oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {
     target: {

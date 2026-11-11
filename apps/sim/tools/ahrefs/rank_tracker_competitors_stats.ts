@@ -2,6 +2,7 @@ import type {
   AhrefsRankTrackerCompetitorsStatsParams,
   AhrefsRankTrackerCompetitorsStatsResponse,
 } from '@/tools/ahrefs/types'
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const SELECT_FIELDS =
@@ -16,6 +17,7 @@ export const rankTrackerCompetitorsStatsTool: ToolConfig<
   description:
     "Get aggregate competitor stats for an Ahrefs Rank Tracker project: each competitor's traffic, traffic value, average position, and share of voice across all tracked keywords. This endpoint is free and does not consume API units.",
   version: '1.0.0',
+  oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {

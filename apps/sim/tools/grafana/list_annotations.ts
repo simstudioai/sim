@@ -2,6 +2,7 @@ import type {
   GrafanaListAnnotationsParams,
   GrafanaListAnnotationsResponse,
 } from '@/tools/grafana/types'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listAnnotationsTool: ToolConfig<
@@ -12,6 +13,7 @@ export const listAnnotationsTool: ToolConfig<
   name: 'Grafana List Annotations',
   description: 'Query annotations by time range, dashboard, or tags',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
