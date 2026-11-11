@@ -2,7 +2,9 @@ import { createHash, createPrivateKey, type KeyObject, X509Certificate } from 'n
 import { db } from '@sim/db'
 import { credential } from '@sim/db/schema'
 import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { backoffWithJitter } from '@sim/utils/retry'
 import { eq } from 'drizzle-orm'
 import { SignJWT } from 'jose'
 import { LRUCache } from 'lru-cache'
@@ -61,6 +63,11 @@ const MAX_RSA_MODULUS_BITS = 4096
 const MAX_PEM_LENGTH = 16_384
 /** A certificate issued moments ago on a machine whose clock runs ahead is not refused as "not valid yet". */
 const CERTIFICATE_CLOCK_SKEW_MS = 5 * 60 * 1000
+
+/** Extra token requests a run makes while a new federated credential propagates through Entra. */
+const FEDERATION_PROPAGATION_RETRIES = 2
+/** The refusals Entra answers while a new federated credential has not reached every node. */
+const FEDERATION_PROPAGATION_AADSTS = new Set([70021, 700213])
 
 /** Re-mint once less than this much of a token's lifetime remains. */
 const TOKEN_REUSE_MARGIN_MS = 5 * 60 * 1000
@@ -605,6 +612,33 @@ export async function verifyAndEncryptMicrosoftAppCredential(
   }
 }
 
+/**
+ * Requests a run's token, retrying a federated credential's "no matching federated identity
+ * record" refusal: Entra can answer it for several minutes after the federated credential is
+ * added, even after a token was issued, and Microsoft asks callers to retry. The save-time
+ * subject-pin probe never comes here, because it expects that very refusal.
+ * @see https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations#time-for-federated-credential-changes-to-propagate
+ */
+async function requestRunEntraToken(
+  config: MicrosoftAppConfig,
+  resource: string,
+  owner: WorkloadIdentityOwner
+): Promise<EntraToken> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await requestEntraToken(config, resource, owner)
+    } catch (error) {
+      const propagating =
+        config.authType === 'federated' &&
+        error instanceof MicrosoftAppCredentialError &&
+        error.aadsts !== undefined &&
+        FEDERATION_PROPAGATION_AADSTS.has(error.aadsts)
+      if (!propagating || attempt > FEDERATION_PROPAGATION_RETRIES) throw error
+      await sleep(backoffWithJitter(attempt, null))
+    }
+  }
+}
+
 interface CachedToken {
   accessToken: string
   instanceUrl?: string
@@ -693,7 +727,7 @@ export async function resolveMicrosoftAppCredentialToken(
       : { organizationId: row.organizationId ?? undefined }
     let token: EntraToken
     try {
-      token = await requestEntraToken(config, resource, owner)
+      token = await requestRunEntraToken(config, resource, owner)
     } catch (error) {
       if (!(error instanceof MicrosoftAppCredentialError)) throw error
       // Report in the shared service-account codes: an outage is not a bad credential, and a
