@@ -549,7 +549,11 @@ Return ONLY the JSON array.`,
     apiKey: { type: 'string', description: 'Provider API key' },
     azureEndpoint: { type: 'string', description: 'Azure endpoint URL' },
     azureApiVersion: { type: 'string', description: 'Azure API version' },
-    vertexCredential: { type: 'string', description: 'OAuth credential for Vertex AI' },
+    vertexCredential: {
+      type: 'string',
+      description:
+        'Google Cloud credential for Vertex AI (OAuth account or Google service account)',
+    },
     vertexProject: { type: 'string', description: 'Google Cloud project ID for Vertex AI' },
     vertexLocation: { type: 'string', description: 'Google Cloud location for Vertex AI' },
     bedrockAccessKeyId: { type: 'string', description: 'AWS Access Key ID for Bedrock' },

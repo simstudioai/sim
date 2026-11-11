@@ -66,8 +66,17 @@ const CERTIFICATE_CLOCK_SKEW_MS = 5 * 60 * 1000
 
 /** Extra token requests a run makes while a new federated credential propagates through Entra. */
 const FEDERATION_PROPAGATION_RETRIES = 2
-/** The refusals Entra answers while a new federated credential has not reached every node. */
-const FEDERATION_PROPAGATION_AADSTS = new Set([70021, 700213])
+/**
+ * The refusal Microsoft documents for a federated credential that has not reached every Entra
+ * node yet. AADSTS700213 is left out: Microsoft documents it only as a case-sensitive mismatch.
+ */
+const FEDERATION_PROPAGATION_AADSTS = 70021
+/**
+ * A run's whole token request, retries included, settles inside this budget so it stays under the
+ * 30 s deadline that concurrent runs sharing the mint wait for. A retry is only started when even
+ * a request that runs to its full timeout would still finish in time.
+ */
+const RUN_TOKEN_BUDGET_MS = 25_000
 
 /** Re-mint once less than this much of a token's lifetime remains. */
 const TOKEN_REUSE_MARGIN_MS = 5 * 60 * 1000
@@ -78,12 +87,18 @@ const GUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 const TENANT_DOMAIN_PATTERN =
   /^(?=.{4,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/
 
-/** The Microsoft services that may use this credential, and the resource each one calls. */
-type MicrosoftAppService =
-  | 'microsoft-ad'
-  | 'sharepoint'
-  | 'microsoft-intune'
-  | 'microsoft-dataverse'
+/**
+ * The Microsoft services that may use this credential. Each one's `serviceAccountProviderId` in
+ * `oauth.ts` offers the credential in its picker; this list is what the resolver accepts.
+ */
+const MICROSOFT_APP_SERVICES = [
+  'microsoft-ad',
+  'sharepoint',
+  'microsoft-intune',
+  'microsoft-dataverse',
+] as const
+
+type MicrosoftAppService = (typeof MICROSOFT_APP_SERVICES)[number]
 
 const tenantSchema = z
   .string()
@@ -619,8 +634,9 @@ export async function verifyAndEncryptMicrosoftAppCredential(
 /**
  * Requests a run's token, retrying a federated credential's "no matching federated identity
  * record" refusal: Entra can answer it for several minutes after the federated credential is
- * added, even after a token was issued, and Microsoft asks callers to retry. The save-time
- * subject-pin probe never comes here, because it expects that very refusal.
+ * added, even after a token was issued, and Microsoft asks callers to retry. The retries stop
+ * within {@link RUN_TOKEN_BUDGET_MS}. The save-time subject-pin probe never comes here, because
+ * it expects that very refusal.
  * @see https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations#time-for-federated-credential-changes-to-propagate
  */
 async function requestRunEntraToken(
@@ -628,6 +644,7 @@ async function requestRunEntraToken(
   resource: string,
   owner: WorkloadIdentityOwner
 ): Promise<EntraToken> {
+  const deadline = Date.now() + RUN_TOKEN_BUDGET_MS
   for (let attempt = 1; ; attempt++) {
     try {
       return await requestEntraToken(config, resource, owner)
@@ -635,10 +652,11 @@ async function requestRunEntraToken(
       const propagating =
         config.authType === 'federated' &&
         error instanceof MicrosoftAppCredentialError &&
-        error.aadsts !== undefined &&
-        FEDERATION_PROPAGATION_AADSTS.has(error.aadsts)
+        error.aadsts === FEDERATION_PROPAGATION_AADSTS
       if (!propagating || attempt > FEDERATION_PROPAGATION_RETRIES) throw error
-      await sleep(backoffWithJitter(attempt, null))
+      const delay = backoffWithJitter(attempt, null)
+      if (Date.now() + delay + REQUEST_TIMEOUT_MS > deadline) throw error
+      await sleep(delay)
     }
   }
 }
@@ -661,12 +679,7 @@ export interface MicrosoftAppCredentialToken {
 }
 
 function isMicrosoftAppService(value: string | undefined): value is MicrosoftAppService {
-  return (
-    value === 'microsoft-ad' ||
-    value === 'sharepoint' ||
-    value === 'microsoft-intune' ||
-    value === 'microsoft-dataverse'
-  )
+  return (MICROSOFT_APP_SERVICES as readonly (string | undefined)[]).includes(value)
 }
 
 /**

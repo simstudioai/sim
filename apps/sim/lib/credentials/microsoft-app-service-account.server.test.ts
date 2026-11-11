@@ -125,6 +125,8 @@ function fakeMicrosoft(
     tokenError?: Response
     /** Refusals answered to the first token requests, in order, before Entra starts issuing tokens. */
     tokenErrorsFirst?: Response[]
+    /** How long Entra takes to answer each token request. */
+    tokenDelayMs?: number
   } = {}
 ) {
   const tokenRequests: TokenRequest[] = []
@@ -133,6 +135,9 @@ function fakeMicrosoft(
     if (url.startsWith('https://login.microsoftonline.com/')) {
       const form = Object.fromEntries(new URLSearchParams(String(init.body)))
       tokenRequests.push({ url, form, redirect: init.redirect })
+      if (options.tokenDelayMs) {
+        await new Promise((resolve) => setTimeout(resolve, options.tokenDelayMs))
+      }
       if (options.tokenError) return options.tokenError.clone()
       const pendingError = pendingErrors.shift()
       if (pendingError) return pendingError
@@ -526,7 +531,7 @@ describe('getting a Microsoft app token for a run', () => {
       )
 
     beforeEach(() => {
-      vi.useFakeTimers({ toFake: ['setTimeout'] })
+      vi.useFakeTimers({ toFake: ['setTimeout', 'Date'] })
     })
 
     afterEach(() => {
@@ -544,21 +549,38 @@ describe('getting a Microsoft app token for a run', () => {
       return outcome.value
     }
 
-    it.each([70021, 700213])(
-      'retries an AADSTS%i refusal and returns the token Entra then issues',
-      async (code) => {
-        const tokens = fakeMicrosoft(fetch, { tokenErrorsFirst: [refusal(code), refusal(code)] })
-        storeCredential(
-          { authType: 'federated', subject: SUBJECT },
-          `ciphertext-propagating-${code}`
-        )
+    it('retries an AADSTS70021 refusal and returns the token Entra then issues', async () => {
+      const tokens = fakeMicrosoft(fetch, { tokenErrorsFirst: [refusal(70021), refusal(70021)] })
+      storeCredential({ authType: 'federated', subject: SUBJECT }, 'ciphertext-propagating')
 
-        await expect(
-          settle(resolveMicrosoftAppCredentialToken(`cred-propagating-${code}`, 'microsoft-ad'))
-        ).resolves.toEqual({ accessToken: 'at:https://graph.microsoft.com/.default' })
-        expect(tokens).toHaveLength(3)
-      }
-    )
+      await expect(
+        settle(resolveMicrosoftAppCredentialToken('cred-propagating', 'microsoft-ad'))
+      ).resolves.toEqual({ accessToken: 'at:https://graph.microsoft.com/.default' })
+      expect(tokens).toHaveLength(3)
+    })
+
+    it('does not retry AADSTS700213, the documented case-sensitive mismatch', async () => {
+      const tokens = fakeMicrosoft(fetch, { tokenErrorsFirst: [refusal(700213)] })
+      storeCredential({ authType: 'federated', subject: SUBJECT }, 'ciphertext-mismatched')
+
+      await expect(
+        settle(resolveMicrosoftAppCredentialToken('cred-mismatched', 'microsoft-ad'))
+      ).rejects.toMatchObject({
+        code: 'invalid_credentials',
+        logDetail: { reason: 'AADSTS700213' },
+      })
+      expect(tokens).toHaveLength(1)
+    })
+
+    it('stops retrying when a slow Entra would push the run past the shared mint deadline', async () => {
+      const tokens = fakeMicrosoft(fetch, { tokenError: refusal(70021), tokenDelayMs: 11_000 })
+      storeCredential({ authType: 'federated', subject: SUBJECT }, 'ciphertext-slow-refusal')
+
+      await expect(
+        settle(resolveMicrosoftAppCredentialToken('cred-slow-refusal', 'microsoft-ad'))
+      ).rejects.toMatchObject({ code: 'invalid_credentials' })
+      expect(tokens).toHaveLength(1)
+    })
 
     it('asks for a reconnect once the retries are spent', async () => {
       const tokens = fakeMicrosoft(fetch, { tokenError: refusal(70021) })

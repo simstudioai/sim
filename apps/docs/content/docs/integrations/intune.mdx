@@ -12,7 +12,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 {/* MANUAL-CONTENT-START:intro */}
 Use [Microsoft Intune](https://www.microsoft.com/en-us/security/business/microsoft-intune) to inspect managed devices, detected applications, compliance policy statuses, and device configuration metadata. Request device sync, restart, remote lock, or retirement; restart, lock, and retirement require explicit confirmation.
 
-Connect a Microsoft work or school account with an appropriate Intune role. The tenant needs an active Intune license and administrator consent for the delegated permissions below. Self-hosted deployments require `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, and the matching `/api/auth/oauth2/callback/microsoft-intune` callback.
+Connect a Microsoft work or school account with an appropriate Intune role. The tenant needs an active Intune license and administrator consent for the delegated permissions below. To connect through OAuth, self-hosted deployments require `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, and the matching `/api/auth/oauth2/callback/microsoft-intune` callback.
 
 To run as an app registration instead of a signed-in administrator, use a [Microsoft app credential](/integrations/microsoft-app-credentials) with the matching application permissions; every operation supports them.
 

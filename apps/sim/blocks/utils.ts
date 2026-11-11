@@ -476,7 +476,7 @@ export function getCohereRerankerApiKeyCondition() {
 
 /**
  * Whether `model` can only run with credentials that live on the block beyond an
- * API key: a Vertex OAuth credential, Bedrock AWS keys, or an Azure endpoint,
+ * API key: a Vertex credential, Bedrock AWS keys, or an Azure endpoint,
  * unless the deployment supplies them server-side (the same env flags that hide
  * those fields). The fields render only while the block's own `model` is in
  * that provider family, so nothing outside the family can inherit them.
@@ -631,7 +631,8 @@ export const PROVIDER_CREDENTIAL_INPUTS = {
   vertexLocation: { type: 'string', description: 'Google Cloud location for Vertex AI' },
   vertexCredential: {
     type: 'string',
-    description: 'Google Cloud OAuth credential ID for Vertex AI',
+    description:
+      'Google Cloud credential ID for Vertex AI (OAuth account or Google service account)',
   },
   bedrockAccessKeyId: { type: 'string', description: 'AWS Access Key ID for Bedrock' },
   bedrockSecretKey: { type: 'string', description: 'AWS Secret Access Key for Bedrock' },
