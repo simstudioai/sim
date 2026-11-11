@@ -259,7 +259,7 @@ describe('keyless subject uniqueness across providers', () => {
     'refuses a subject a live $providerId credential already holds',
     async ({ providerId, secret }) => {
       await expect(claim([{ id: 'held', providerId, secret }])).rejects.toThrow(
-        /Another credential already uses this trust setup/
+        /already uses this trust setup/
       )
     }
   )
