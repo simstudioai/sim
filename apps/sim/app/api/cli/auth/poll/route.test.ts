@@ -121,7 +121,8 @@ describe('POST /api/cli/auth/poll', () => {
     )
     const before = Date.now()
     const response = await POST(
-      pollRequest({ request: REQUEST, verifier: VERIFIER, access: 'write', expiresInDays: null })
+      pollRequest({ request: REQUEST, verifier: VERIFIER, access: 'write', expiresInDays: null }),
+      { params: Promise.resolve({}) }
     )
     expect(response.status).toBe(200)
     const [params] = mockCreatePersonalApiKey.mock.calls[0]

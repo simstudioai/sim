@@ -118,7 +118,8 @@ describe('POST /api/cli/auth/approve', () => {
         challenge: CHALLENGE,
         scope: 'copilot',
         access: 'read',
-      })
+      }),
+      { params: Promise.resolve({}) }
     )
     expect(response.status).toBe(400)
     expect(mockCreateApproval).not.toHaveBeenCalled()
