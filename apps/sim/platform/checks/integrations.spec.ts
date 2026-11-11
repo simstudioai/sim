@@ -92,7 +92,11 @@ test('app discovery preserves editable installed skills and sends templates to t
   )
   await expect(field).toHaveValue(editedInstructions)
   await remove.click()
-  await confirmation.getByRole('button', { name: 'Remove from skills', exact: true }).click()
+  // The confirmation names the skill as it is installed now, under its new name.
+  await page
+    .getByRole('dialog', { name: 'Remove runtime-vault-lookup', exact: true })
+    .getByRole('button', { name: 'Remove from skills', exact: true })
+    .click()
   await expect(skill).toHaveCount(0)
   await suggestion.click()
   await expect(skill.getByRole('button', { name: 'Add to skills', exact: true })).toBeEnabled()
