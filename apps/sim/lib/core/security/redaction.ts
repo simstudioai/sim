@@ -29,8 +29,11 @@ const SENSITIVE_KEY_PATTERNS: RegExp[] = [
   /^.*api[_-]?key$/i,
   // AWS's `secretAccessKey` / `awsSecretAccessKey`, which no suffix above covers.
   /^.*secret[_-]?access[_-]?key$/i,
-  // Convex's `deployKey`. A bare `secretKey` is left out: Infisical returns each
-  // secret's name in that field, and redacting it would hide every listed name.
+  // Prefixed secret keys such as Bedrock's `bedrockSecretKey` and Clerk's `clerkSecretKey`.
+  // The prefix is required: Infisical returns each secret's name in a bare `secretKey`
+  // field, and redacting it would hide every listed name.
+  /^.+secret[_-]?key$/i,
+  // Convex's `deployKey`.
   /^.*deploy[_-]?key$/i,
   /^passphrase$/i,
   /^authorization$/i,

@@ -184,9 +184,10 @@ async function sendThroughEgress(
   { url, method = 'GET', headers, body }: TokenCheckRequest
 ): Promise<ProviderResponse> {
   // A forward proxy re-resolves the host, so the transport refuses one with any refused record.
+  // An unparseable URL skips the proxy lookup; validation then refuses it as the user's input.
   const validation = await validateUrlWithDNS(url, 'url', profile, {
     logDetails: false,
-    requireEveryAddress: resolveEnvironmentProxy(new URL(url)) !== null,
+    requireEveryAddress: URL.canParse(url) && resolveEnvironmentProxy(new URL(url)) !== null,
   })
   if (!validation.isValid) {
     if (validation.refusal !== 'dns') throw hostNotAllowed()
