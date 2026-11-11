@@ -80,7 +80,7 @@ service id:
    `server.ts`). Make one cheap, documented read on the tools' own host with the tools' own auth,
    reusing their header and URL builders. `domain` and `workspaceId` normalize to exactly the form
    the tools build URLs from and throw for anything that could steer the host or path
-   (`normalizeHttpBaseUrl`, `allowedDomain`, `refuseUrlCredentials`); the normalized domain is what
+   (`normalizeHttpBaseUrl`, `allowedDomain`, `refuseUnsafeTypedUrl`); the normalized domain is what
    the credential stores. Set `egress` when the user chooses the host. Add `forbiddenMeansScoped`,
    `rejectsKey`, or `provesKey` only for documented replies (probe a fake key to see how a bad one
    answers), and `errorBodyEchoesToken` when an error body echoes the token.
