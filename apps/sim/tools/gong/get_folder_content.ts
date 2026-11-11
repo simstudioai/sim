@@ -1,5 +1,6 @@
 import type { GongGetFolderContentParams, GongGetFolderContentResponse } from '@/tools/gong/types'
 import { getGongErrorMessage } from '@/tools/gong/utils'
+import { GONG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getFolderContentTool: ToolConfig<
@@ -10,6 +11,7 @@ export const getFolderContentTool: ToolConfig<
   name: 'Gong Get Folder Content',
   description: 'Retrieve the list of calls in a specific library folder from Gong.',
   version: '1.0.0',
+  oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {
     accessKey: {

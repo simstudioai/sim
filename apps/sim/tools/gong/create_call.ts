@@ -1,5 +1,6 @@
 import type { GongCreateCallParams, GongCreateCallResponse } from '@/tools/gong/types'
 import { getGongErrorMessage, parseGongJsonArray } from '@/tools/gong/utils'
+import { GONG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createCallTool: ToolConfig<GongCreateCallParams, GongCreateCallResponse> = {
@@ -7,6 +8,7 @@ export const createCallTool: ToolConfig<GongCreateCallParams, GongCreateCallResp
   name: 'Gong Create Call',
   description: 'Upload call metadata to Gong and let Gong pull the media from a URL.',
   version: '1.0.0',
+  oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {
     accessKey: {

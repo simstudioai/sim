@@ -1,5 +1,6 @@
 import type { GongListTrackersParams, GongListTrackersResponse } from '@/tools/gong/types'
 import { getGongErrorMessage } from '@/tools/gong/utils'
+import { GONG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listTrackersTool: ToolConfig<GongListTrackersParams, GongListTrackersResponse> = {
@@ -7,6 +8,7 @@ export const listTrackersTool: ToolConfig<GongListTrackersParams, GongListTracke
   name: 'Gong List Trackers',
   description: 'Retrieve smart tracker and keyword tracker definitions from Gong settings.',
   version: '1.0.0',
+  oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {
     accessKey: {

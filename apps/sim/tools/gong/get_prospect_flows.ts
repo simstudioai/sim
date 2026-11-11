@@ -1,5 +1,6 @@
 import type { GongGetProspectFlowsParams, GongGetProspectFlowsResponse } from '@/tools/gong/types'
 import { getGongErrorMessage, parseGongIdList } from '@/tools/gong/utils'
+import { GONG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getProspectFlowsTool: ToolConfig<
@@ -10,6 +11,7 @@ export const getProspectFlowsTool: ToolConfig<
   name: 'Gong Get Prospect Flows',
   description: 'Get the Gong Engage flows currently assigned to the given CRM prospects.',
   version: '1.0.0',
+  oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {
     accessKey: {

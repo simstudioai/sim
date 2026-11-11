@@ -48,6 +48,7 @@ import { FirefliesV2Block, FirefliesV3Block } from '@/blocks/blocks/fireflies'
 import { FlintBlock, FlintV2Block } from '@/blocks/blocks/flint'
 import { GammaBlock, GammaV2Block } from '@/blocks/blocks/gamma'
 import { GitLabBlock, GitLabV2Block } from '@/blocks/blocks/gitlab'
+import { GongBlock, GongV2Block } from '@/blocks/blocks/gong'
 import { GrafanaBlock, GrafanaV2Block } from '@/blocks/blocks/grafana'
 import { GrainV2Block, GrainV3Block } from '@/blocks/blocks/grain'
 import { GranolaBlock, GranolaV2Block } from '@/blocks/blocks/granola'
@@ -367,6 +368,7 @@ const VERSIONS: Array<{
     successor: PlanetScaleV2Block,
     secretIds: ['serviceTokenId', 'serviceToken'],
   },
+  { legacy: GongBlock, successor: GongV2Block, secretIds: ['accessKey', 'accessKeySecret'] },
 ]
 
 function valuesFor(ids: readonly string[], prefix: string): Record<string, string> {

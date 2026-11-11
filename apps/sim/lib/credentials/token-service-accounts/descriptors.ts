@@ -93,6 +93,7 @@ export const GAUGE_SERVICE_ACCOUNT_PROVIDER_ID = 'gauge-service-account' as cons
 export const HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID = 'higgsfield-service-account' as const
 export const THRIVE_SERVICE_ACCOUNT_PROVIDER_ID = 'thrive-service-account' as const
 export const PLANETSCALE_SERVICE_ACCOUNT_PROVIDER_ID = 'planetscale-service-account' as const
+export const GONG_SERVICE_ACCOUNT_PROVIDER_ID = 'gong-service-account' as const
 export const SUPABASE_SERVICE_ACCOUNT_PROVIDER_ID = 'supabase-service-account' as const
 export const INFISICAL_SERVICE_ACCOUNT_PROVIDER_ID = 'infisical-service-account' as const
 export const OKTA_SERVICE_ACCOUNT_PROVIDER_ID = 'okta-service-account' as const
@@ -223,6 +224,7 @@ export type TokenServiceAccountProviderId =
   | typeof HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof THRIVE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof PLANETSCALE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof GONG_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SUPABASE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof INFISICAL_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof OKTA_SERVICE_ACCOUNT_PROVIDER_ID
@@ -2366,6 +2368,31 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       "Create a service token on your PlanetScale organization's Service tokens page, copy its ID and token, and grant it access to the organization and databases your workflows use.",
     invalidCredentialsHelp:
       'PlanetScale rejected this service token. Check that the token ID and token belong together and that the token has not been deleted or expired.',
+  },
+  [GONG_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: GONG_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Gong',
+    tokenNoun: 'access key secret',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Access key secret',
+        placeholder: 'Paste your Gong access key secret',
+        secret: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Access key',
+        placeholder: 'Paste your Gong access key',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/gong',
+    helpText:
+      'A Gong technical administrator creates the access key and secret on the API page of the Gong company settings.',
+    invalidCredentialsHelp:
+      'Gong rejected this access key and secret. Check that they were created together, have not been revoked, and that your Gong plan includes API access.',
   },
 }
 

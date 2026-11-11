@@ -3,6 +3,7 @@ import type {
   GongListLibraryFoldersResponse,
 } from '@/tools/gong/types'
 import { getGongErrorMessage } from '@/tools/gong/utils'
+import { GONG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listLibraryFoldersTool: ToolConfig<
@@ -13,6 +14,7 @@ export const listLibraryFoldersTool: ToolConfig<
   name: 'Gong List Library Folders',
   description: 'Retrieve library folders from Gong.',
   version: '1.0.0',
+  oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {
     accessKey: {

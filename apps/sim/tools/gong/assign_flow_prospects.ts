@@ -3,6 +3,7 @@ import type {
   GongAssignFlowProspectsResponse,
 } from '@/tools/gong/types'
 import { getGongErrorMessage, parseGongIdList } from '@/tools/gong/utils'
+import { GONG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const assignFlowProspectsTool: ToolConfig<
@@ -13,6 +14,7 @@ export const assignFlowProspectsTool: ToolConfig<
   name: 'Gong Assign Flow Prospects',
   description: 'Assign up to 200 CRM prospects (contacts or leads) to a Gong Engage flow.',
   version: '1.0.0',
+  oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {
     accessKey: {

@@ -171,6 +171,10 @@ export const GITLAB_CREDENTIAL_OAUTH = tokenCredentialOAuth('gitlab', {
   accessToken: 'accessToken',
   host: 'domain',
 })
+export const GONG_CREDENTIAL_OAUTH = tokenCredentialOAuth('gong', {
+  accessKey: 'providerWorkspaceId',
+  accessKeySecret: 'accessToken',
+})
 export const GRAFANA_CREDENTIAL_OAUTH = tokenCredentialOAuth('grafana', {
   baseUrl: 'domain',
   apiKey: 'accessToken',
@@ -368,6 +372,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   gamma: GAMMA_CREDENTIAL_OAUTH,
   'github-token': GITHUB_CREDENTIAL_OAUTH,
   gitlab: GITLAB_CREDENTIAL_OAUTH,
+  gong: GONG_CREDENTIAL_OAUTH,
   grafana: GRAFANA_CREDENTIAL_OAUTH,
   grain: GRAIN_CREDENTIAL_OAUTH,
   granola: GRANOLA_CREDENTIAL_OAUTH,

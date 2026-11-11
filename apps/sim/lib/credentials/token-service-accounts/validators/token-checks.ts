@@ -681,6 +681,37 @@ export const validateGitLabServiceAccount = tokenCheckValidator({
 })
 
 /**
+ * Listing workspaces is a cheap documented read on the fixed host the tools call, with the same
+ * Basic `accessKey:accessKeySecret` the tools encode with `btoa`. Gong documents a 403 ("Access
+ * denied") for this read without telling a bad key from a missing permission, so any refusal
+ * rejects. The access key is the Basic username, so one with a colon is refused unsent, as is a
+ * pair `btoa` cannot encode.
+ */
+export const validateGongServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Gong',
+  workspaceId: ({ providerWorkspaceId }) => {
+    const accessKey = (providerWorkspaceId ?? '').trim()
+    if (!/^[\x21-\x39\x3b-\x7e]+$/.test(accessKey)) throw new Error('invalid access key')
+    return accessKey
+  },
+  request: ({ apiToken, providerWorkspaceId = '' }) => {
+    let credentials: string
+    try {
+      credentials = btoa(`${providerWorkspaceId}:${apiToken}`)
+    } catch {
+      throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+        step: 'verify',
+        reason: 'invalid Gong access key secret',
+      })
+    }
+    return {
+      url: 'https://api.gong.io/v2/workspaces',
+      headers: { Authorization: `Basic ${credentials}`, Accept: 'application/json' },
+    }
+  },
+})
+
+/**
  * Grafana's `GET /api/user` needs a signed-in, non-anonymous identity but no role, so it
  * answers 200 for any valid service account token and 401 for a bad one, even where
  * anonymous access lets most reads answer 200 to any token.

@@ -126,7 +126,7 @@ import {
 } from '@/blocks/blocks/github'
 import { GitLabBlock, GitLabBlockMeta, GitLabV2Block } from '@/blocks/blocks/gitlab'
 import { GmailBlock, GmailBlockMeta, GmailV2Block, GmailV2BlockMeta } from '@/blocks/blocks/gmail'
-import { GongBlock, GongBlockMeta } from '@/blocks/blocks/gong'
+import { GongBlock, GongBlockMeta, GongV2Block } from '@/blocks/blocks/gong'
 import { GoogleSearchBlock, GoogleSearchBlockMeta } from '@/blocks/blocks/google'
 import { GoogleAdsBlock, GoogleAdsBlockMeta } from '@/blocks/blocks/google_ads'
 import { GoogleAppsheetBlock, GoogleAppsheetBlockMeta } from '@/blocks/blocks/google_appsheet'
@@ -638,6 +638,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   gmail: GmailBlock,
   gmail_v2: GmailV2Block,
   gong: GongBlock,
+  gong_v2: GongV2Block,
   google_ads: GoogleAdsBlock,
   google_appsheet: GoogleAppsheetBlock,
   google_bigquery: GoogleBigQueryBlock,

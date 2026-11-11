@@ -1,5 +1,6 @@
 import type { GongListFlowsParams, GongListFlowsResponse } from '@/tools/gong/types'
 import { getGongErrorMessage } from '@/tools/gong/utils'
+import { GONG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listFlowsTool: ToolConfig<GongListFlowsParams, GongListFlowsResponse> = {
@@ -7,6 +8,7 @@ export const listFlowsTool: ToolConfig<GongListFlowsParams, GongListFlowsRespons
   name: 'Gong List Flows',
   description: 'List Gong Engage flows (sales engagement sequences).',
   version: '1.0.0',
+  oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {
     accessKey: {

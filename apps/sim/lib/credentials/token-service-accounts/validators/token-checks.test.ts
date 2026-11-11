@@ -18,6 +18,7 @@ import {
   validateElevenLabsServiceAccount,
   validateEmailBisonServiceAccount,
   validateFlintServiceAccount,
+  validateGongServiceAccount,
   validateGrafanaServiceAccount,
   validateInfisicalServiceAccount,
   validateInstantlyServiceAccount,
@@ -338,6 +339,7 @@ describe('saved credentials whose connection names a host, region, or account', 
     ],
     ['Twilio', validateTwilioServiceAccount, { providerWorkspaceId: 'AC123/../Messages' }],
     ['PlanetScale', validatePlanetScaleServiceAccount, { providerWorkspaceId: 'id:extra' }],
+    ['Gong', validateGongServiceAccount, { providerWorkspaceId: 'key:extra' }],
     ['PlanetScale', validatePlanetScaleServiceAccount, { providerWorkspaceId: 'id with space' }],
   ])(
     '%s refuses a typed value that could steer the request, before sending the key',
@@ -520,6 +522,46 @@ describe('PlanetScale saved service token verification', () => {
 
     await expect(
       validatePlanetScaleServiceAccount({ apiToken: 'tok:extra', providerWorkspaceId: 'tok-id' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('Gong saved access key verification', () => {
+  it('lists workspaces on the tools host with the Basic key and secret the tools send', async () => {
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({ requestId: 'r', workspaces: [] }))
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateGongServiceAccount({ apiToken: 'key-secret', providerWorkspaceId: ' KEY123 ' })
+    ).resolves.toMatchObject({ displayName: 'Gong (KEY123)', normalizedWorkspaceId: 'KEY123' })
+    expect(fetch).toHaveBeenCalledWith(
+      'https://api.gong.io/v2/workspaces',
+      expect.objectContaining({
+        method: 'GET',
+        redirect: 'error',
+        headers: expect.objectContaining({ Authorization: `Basic ${btoa('KEY123:key-secret')}` }),
+      })
+    )
+  })
+
+  it.each([401, 403])('rejects a key pair Gong answers with %i', async (status) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ requestId: 'r', errors: ['Access denied'] }, status))
+    )
+
+    await expect(
+      validateGongServiceAccount({ apiToken: 'bad', providerWorkspaceId: 'KEY123' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it('refuses a secret the tools could not encode, before any request', async () => {
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateGongServiceAccount({ apiToken: 'sécret-€', providerWorkspaceId: 'KEY123' })
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
     expect(fetch).not.toHaveBeenCalled()
   })

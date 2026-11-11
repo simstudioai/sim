@@ -1,5 +1,6 @@
 import type { GongListCallsParams, GongListCallsResponse } from '@/tools/gong/types'
 import { getGongErrorMessage } from '@/tools/gong/utils'
+import { GONG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listCallsTool: ToolConfig<GongListCallsParams, GongListCallsResponse> = {
@@ -7,6 +8,7 @@ export const listCallsTool: ToolConfig<GongListCallsParams, GongListCallsRespons
   name: 'Gong List Calls',
   description: 'Retrieve call data by date range from Gong.',
   version: '1.0.0',
+  oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {
     accessKey: {

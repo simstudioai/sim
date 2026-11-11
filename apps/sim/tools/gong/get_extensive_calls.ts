@@ -1,5 +1,6 @@
 import type { GongGetExtensiveCallsParams, GongGetExtensiveCallsResponse } from '@/tools/gong/types'
 import { getGongErrorMessage, parseGongIdList } from '@/tools/gong/utils'
+import { GONG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getExtensiveCallsTool: ToolConfig<
@@ -11,6 +12,7 @@ export const getExtensiveCallsTool: ToolConfig<
   description:
     'Retrieve detailed call data including trackers, topics, highlights, and AI spotlight content (brief, outline, key points, call outcome) from Gong.',
   version: '1.0.0',
+  oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {
     accessKey: {

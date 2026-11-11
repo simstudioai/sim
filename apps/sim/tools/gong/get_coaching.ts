@@ -6,6 +6,7 @@ import type {
   GongGetCoachingResponse,
 } from '@/tools/gong/types'
 import { getGongErrorMessage } from '@/tools/gong/utils'
+import { GONG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getCoachingTool: ToolConfig<GongGetCoachingParams, GongGetCoachingResponse> = {
@@ -13,6 +14,7 @@ export const getCoachingTool: ToolConfig<GongGetCoachingParams, GongGetCoachingR
   name: 'Gong Get Coaching',
   description: 'Retrieve coaching metrics for a manager from Gong.',
   version: '1.0.0',
+  oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {
     accessKey: {

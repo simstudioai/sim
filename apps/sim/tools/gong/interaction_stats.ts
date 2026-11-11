@@ -1,5 +1,6 @@
 import type { GongInteractionStatsParams, GongInteractionStatsResponse } from '@/tools/gong/types'
 import { getGongErrorMessage, parseGongIdList } from '@/tools/gong/utils'
+import { GONG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const interactionStatsTool: ToolConfig<
@@ -11,6 +12,7 @@ export const interactionStatsTool: ToolConfig<
   description:
     'Retrieve interaction statistics for users by date range from Gong. Only includes calls with Whisper enabled.',
   version: '1.0.0',
+  oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {
     accessKey: {

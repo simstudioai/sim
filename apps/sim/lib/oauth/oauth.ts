@@ -60,6 +60,7 @@ import {
   GithubIcon,
   GitLabIcon,
   GmailIcon,
+  GongIcon,
   GoogleAdsIcon,
   GoogleBigQueryIcon,
   GoogleCalendarIcon,
@@ -3489,6 +3490,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'planetscale',
+  },
+  gong: {
+    name: 'Gong',
+    icon: GongIcon,
+    services: {
+      gong: {
+        name: 'Gong',
+        description:
+          'Read calls, transcripts, users, and activity, and manage Engage flows in Gong.',
+        providerId: 'gong',
+        serviceAccountProviderId: 'gong-service-account',
+        icon: GongIcon,
+        baseProviderIcon: GongIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'gong',
   },
   higgsfield: {
     name: 'Higgsfield',

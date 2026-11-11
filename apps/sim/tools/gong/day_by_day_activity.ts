@@ -1,5 +1,6 @@
 import type { GongDayByDayActivityParams, GongDayByDayActivityResponse } from '@/tools/gong/types'
 import { getGongErrorMessage, parseGongIdList } from '@/tools/gong/utils'
+import { GONG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const dayByDayActivityTool: ToolConfig<
@@ -11,6 +12,7 @@ export const dayByDayActivityTool: ToolConfig<
   description:
     'Retrieve detailed day-by-day activity (call IDs per activity type) for users by date range from Gong.',
   version: '1.0.0',
+  oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {
     accessKey: {
