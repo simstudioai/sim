@@ -30,6 +30,14 @@ vi.mock('@/lib/concurrency/leader-lock', () => ({
 }))
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/credentials/coordinated-client-token', () => ({
+  resolveCoordinatedClientToken: async (input: {
+    exchange: () => Promise<{ accessToken: string; expiresAt: Date }>
+  }) => {
+    const exchanged = await input.exchange()
+    return { accessToken: exchanged.accessToken, expiresInSeconds: 86_000 }
+  },
+}))
 vi.mock('@/lib/credentials/workload-identity/issuer', () => ({
   isWorkloadIdentityConfigured: async () => true,
   mintWorkloadIdentityToken: async ({ subject }: { subject: string }) => `sim-oidc|${subject}`,
@@ -1351,5 +1359,88 @@ describe('OCI service-account resolver', () => {
         undefined
       )
     ).resolves.toEqual({ accessToken: 'credential-authoritative' })
+  })
+})
+
+describe('token provider credentials saved in client-credentials mode', () => {
+  const fetchMock = vi.fn<typeof fetch>()
+  const shopifyBlob = {
+    type: 'token_service_account',
+    providerId: 'shopify-service-account',
+    authMethod: 'client_credentials',
+    clientId: 'client-1',
+    clientSecret: 'secret-1',
+    domain: 'acme.myshopify.com',
+  }
+
+  beforeEach(() => {
+    resetDbChainMock()
+    vi.clearAllMocks()
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+    mocks.coalesceLocally.mockImplementation(
+      async (_key: string, producer: () => Promise<unknown>) => producer()
+    )
+  })
+
+  function storeBlob(credentialId: string, blob: Record<string, unknown>, reads = 2) {
+    for (let read = 0; read < reads; read++) {
+      queueTableRows(credential, [{ encryptedServiceAccountKey: `enc-${credentialId}` }])
+    }
+    mocks.decryptSecret.mockResolvedValue({ decrypted: JSON.stringify(blob) })
+  }
+
+  it('mints a Shopify token with the stored client credentials and returns the store domain', async () => {
+    storeBlob('shopify-cc-1', shopifyBlob)
+    fetchMock.mockResolvedValue(Response.json({ access_token: 'minted', expires_in: 86399 }))
+
+    await expect(
+      resolveServiceAccountToken('shopify-cc-1', 'shopify-service-account')
+    ).resolves.toEqual({ accessToken: 'minted', domain: 'acme.myshopify.com' })
+    const request = new Request(fetchMock.mock.calls[0][0], fetchMock.mock.calls[0][1])
+    expect(request.url).toBe('https://acme.myshopify.com/admin/oauth/access_token')
+  })
+
+  it('leaves a coordinated Shopify token to the coordinator instead of caching it per instance', async () => {
+    storeBlob('shopify-cc-2', shopifyBlob, 4)
+    fetchMock.mockImplementation(async () =>
+      Response.json({ access_token: `minted-${fetchMock.mock.calls.length}`, expires_in: 86399 })
+    )
+
+    await resolveServiceAccountToken('shopify-cc-2', 'shopify-service-account')
+    await expect(
+      resolveServiceAccountToken('shopify-cc-2', 'shopify-service-account')
+    ).resolves.toMatchObject({ accessToken: 'minted-2' })
+  })
+
+  it('still returns a pasted Shopify token as is', async () => {
+    storeBlob(
+      'shopify-pasted',
+      {
+        type: 'token_service_account',
+        providerId: 'shopify-service-account',
+        apiToken: 'shpat_pasted',
+        domain: 'acme.myshopify.com',
+      },
+      1
+    )
+
+    await expect(
+      resolveServiceAccountToken('shopify-pasted', 'shopify-service-account')
+    ).resolves.toEqual({
+      accessToken: 'shpat_pasted',
+      domain: 'acme.myshopify.com',
+      providerWorkspaceId: undefined,
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses a client-credentials blob stored under another provider', async () => {
+    storeBlob('shopify-wrong', { ...shopifyBlob, providerId: 'hubspot-service-account' }, 1)
+
+    await expect(
+      resolveServiceAccountToken('shopify-wrong', 'shopify-service-account')
+    ).rejects.toThrow('malformed')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

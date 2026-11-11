@@ -26,6 +26,12 @@ export type TokenServiceAccountValidationCode =
    * asked for a Google Workspace service or to impersonate a Google Workspace user (domain-wide delegation).
    */
   | 'unsupported_use'
+  /**
+   * The provider refused this grant for the account the credential names, although the client
+   * itself may be valid: Shopify answers `shop_not_permitted` when the app and the store are not
+   * in the same Shopify organization.
+   */
+  | 'grant_not_permitted'
 
 export class TokenServiceAccountValidationError extends Error {
   constructor(

@@ -16,6 +16,14 @@ const {
 }))
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/credentials/coordinated-client-token', () => ({
+  resolveCoordinatedClientToken: async (input: {
+    exchange: () => Promise<{ accessToken: string; expiresAt: Date }>
+  }) => {
+    const exchanged = await input.exchange()
+    return { accessToken: exchanged.accessToken, expiresInSeconds: 86_000 }
+  },
+}))
 const mockEncryptSecret = encryptionMockFns.mockEncryptSecret
 vi.mock('@/lib/webhooks/providers/slack', () => ({ fetchSlackTeamId: mockFetchSlackTeamId }))
 vi.mock('@/lib/credentials/atlassian-service-account', () => ({
@@ -488,5 +496,100 @@ describe('verifyAndBuildServiceAccountSecret', () => {
         verifyAndBuildServiceAccountSecret(providerId, { serviceAccountJson: '{}' })
       ).rejects.toThrow('Unsupported service-account provider')
     }
+  })
+})
+
+describe('a token provider in client-credentials mode', () => {
+  const fetchMock = vi.fn<typeof fetch>()
+
+  beforeEach(() => {
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+    mockEncryptSecret.mockImplementation(async (value: string) => ({ encrypted: value }))
+  })
+
+  function answerShopify() {
+    fetchMock.mockImplementation(async (input, init) => {
+      const request = new Request(input, init)
+      if (request.url.endsWith('/admin/oauth/access_token')) {
+        return Response.json({ access_token: 'minted-token', expires_in: 86399 })
+      }
+      expect(request.headers.get('x-shopify-access-token')).toBe('minted-token')
+      return Response.json({
+        data: { shop: { name: 'Acme', myshopifyDomain: 'acme.myshopify.com' } },
+      })
+    })
+  }
+
+  it('stores the client credentials, never a token, after proving the minted token', async () => {
+    answerShopify()
+
+    const result = await verifyAndBuildServiceAccountSecret('shopify-service-account', {
+      authMethod: 'client_credentials',
+      clientId: 'client-1',
+      clientSecret: 'secret-1',
+      domain: 'Acme.myshopify.com',
+    })
+
+    const blob = JSON.parse(result.encryptedServiceAccountKey)
+    expect(blob).toMatchObject({
+      type: 'token_service_account',
+      providerId: 'shopify-service-account',
+      authMethod: 'client_credentials',
+      clientId: 'client-1',
+      clientSecret: 'secret-1',
+      domain: 'acme.myshopify.com',
+    })
+    expect(blob.apiToken).toBeUndefined()
+    expect(result.encryptedServiceAccountKey).not.toContain('minted-token')
+    expect(result.principal).toMatchObject({ kind: 'tenant', id: 'acme.myshopify.com' })
+  })
+
+  it('keeps a pasted Shopify token on the token path when no auth method is sent', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({ data: { shop: { name: 'Acme', myshopifyDomain: 'acme.myshopify.com' } } })
+    )
+
+    const result = await verifyAndBuildServiceAccountSecret('shopify-service-account', {
+      apiToken: 'shpat_pasted',
+      domain: 'acme.myshopify.com',
+      clientId: 'ignored',
+      clientSecret: 'ignored',
+    })
+
+    const blob = JSON.parse(result.encryptedServiceAccountKey)
+    expect(blob.apiToken).toBe('shpat_pasted')
+    expect(blob.authMethod).toBeUndefined()
+    expect(blob.clientSecret).toBeUndefined()
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('requires the client ID, secret, and store domain without calling Shopify', async () => {
+    await expect(
+      verifyAndBuildServiceAccountSecret('shopify-service-account', {
+        authMethod: 'client_credentials',
+        clientId: 'client-1',
+        domain: 'acme.myshopify.com',
+      })
+    ).rejects.toBeInstanceOf(ServiceAccountSecretError)
+    await expect(
+      verifyAndBuildServiceAccountSecret('shopify-service-account', {
+        authMethod: 'client_credentials',
+        clientId: 'client-1',
+        clientSecret: 'secret-1',
+      })
+    ).rejects.toBeInstanceOf(ServiceAccountSecretError)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps the token path for a provider without a client-credentials mode', async () => {
+    await expect(
+      verifyAndBuildServiceAccountSecret('hubspot-service-account', {
+        authMethod: 'client_credentials',
+        clientId: 'client-1',
+        clientSecret: 'secret-1',
+      })
+    ).rejects.toThrow('apiToken is required')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

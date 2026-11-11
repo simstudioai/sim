@@ -19,4 +19,39 @@ describe('required fields for a service-account create', () => {
       getMissingServiceAccountFields('hubspot-service-account', { serviceAccountJson: '{}' })
     ).toEqual(['apiToken'])
   })
+
+  it('asks a Shopify client-credentials create for the client ID, secret, and store domain', () => {
+    expect(
+      getMissingServiceAccountFields('shopify-service-account', {
+        authMethod: 'client_credentials',
+      })
+    ).toEqual(['clientId', 'clientSecret', 'domain'])
+    expect(
+      getMissingServiceAccountFields('shopify-service-account', {
+        authMethod: 'client_credentials',
+        clientId: 'client',
+        clientSecret: 'secret',
+        domain: 'acme.myshopify.com',
+      })
+    ).toEqual([])
+  })
+
+  it('still asks a Shopify create without an auth method for the token and store domain', () => {
+    expect(
+      getMissingServiceAccountFields('shopify-service-account', {
+        clientId: 'client',
+        clientSecret: 'secret',
+      })
+    ).toEqual(['apiToken', 'domain'])
+  })
+
+  it('does not let client credentials stand in for a token on a provider without that mode', () => {
+    expect(
+      getMissingServiceAccountFields('hubspot-service-account', {
+        authMethod: 'client_credentials',
+        clientId: 'client',
+        clientSecret: 'secret',
+      })
+    ).toEqual(['apiToken'])
+  })
 })

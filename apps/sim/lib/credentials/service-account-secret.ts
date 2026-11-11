@@ -48,15 +48,20 @@ import {
   SnowflakeCredentialError,
   verifyAndEncryptSnowflakeKeylessCredential,
 } from '@/lib/credentials/snowflake-service-account.server'
+import { getTokenClientCredentialGrant } from '@/lib/credentials/token-service-accounts/client-credentials'
 import {
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
   SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
+  TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD,
   TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
+  type TokenServiceAccountDescriptor,
 } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
   getTokenServiceAccountValidator,
+  type TokenServiceAccountClientCredentialBlob,
   type TokenServiceAccountSecretBlob,
+  type TokenServiceAccountValidator,
 } from '@/lib/credentials/token-service-accounts/server'
 import {
   KeylessCredentialRefusedError,
@@ -471,6 +476,12 @@ async function buildTokenServiceAccountSecret(
       `No validator registered for service-account provider ${providerId}`
     )
   }
+  if (
+    descriptor.clientCredentials &&
+    fields.authMethod?.trim() === TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD
+  ) {
+    return buildTokenClientCredentialSecret(descriptor, validator, fields)
+  }
   const apiToken = fields.apiToken?.trim()
   const domain = fields.domain?.trim()
   const requiresDomain = descriptor.fields.some((field) => field.id === 'domain')
@@ -492,6 +503,62 @@ async function buildTokenServiceAccountSecret(
     ...(requiresWorkspace
       ? { providerWorkspaceId: validation.normalizedWorkspaceId ?? providerWorkspaceId }
       : {}),
+    metadata: { ...validation.storedMetadata, ...principalMetadata },
+  }
+  const { encrypted } = await encryptSecret(JSON.stringify(blob))
+  return {
+    providerId,
+    encryptedServiceAccountKey: encrypted,
+    displayName: validation.displayName,
+    auditMetadata: { ...validation.auditMetadata, ...principalMetadata },
+    principal: validation.principal,
+  }
+}
+
+/**
+ * Builds a token provider's client-credentials secret: mints a token with the submitted client
+ * ID and secret, proves it with the provider's own token check (the same request the pasted-token
+ * mode verifies with), and stores the client credentials instead of a token so execution re-mints.
+ */
+async function buildTokenClientCredentialSecret(
+  descriptor: TokenServiceAccountDescriptor,
+  validator: TokenServiceAccountValidator,
+  fields: ServiceAccountSecretFields
+): Promise<ServiceAccountSecretResult> {
+  const { providerId } = descriptor
+  const grant = getTokenClientCredentialGrant(providerId)
+  if (!grant) {
+    throw new ServiceAccountSecretError(
+      `No client-credentials grant registered for service-account provider ${providerId}`
+    )
+  }
+  const clientId = fields.clientId?.trim()
+  const clientSecret = fields.clientSecret?.trim()
+  const domain = fields.domain?.trim()
+  const requiresDomain = descriptor.fields.some((field) => field.id === 'domain')
+  if (!clientId || !clientSecret || (requiresDomain && !domain)) {
+    throw new ServiceAccountSecretError(
+      `clientId, clientSecret${requiresDomain ? ', and domain are' : ' are'} required for ${descriptor.serviceLabel} client credentials`
+    )
+  }
+  const minted = await grant.mint({
+    clientId,
+    clientSecret,
+    ...(requiresDomain ? { domain } : {}),
+  })
+  const validation = await validator({
+    apiToken: minted.accessToken,
+    ...(requiresDomain ? { domain } : {}),
+    authMethod: TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD,
+  })
+  const principalMetadata = serviceAccountPrincipalMetadata(validation.principal)
+  const blob: TokenServiceAccountClientCredentialBlob = {
+    type: TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
+    providerId,
+    authMethod: TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD,
+    clientId,
+    clientSecret,
+    ...(requiresDomain ? { domain: validation.normalizedDomain ?? domain } : {}),
     metadata: { ...validation.storedMetadata, ...principalMetadata },
   }
   const { encrypted } = await encryptSecret(JSON.stringify(blob))

@@ -19,13 +19,15 @@ import {
   parseClientCredentialAccountSecretBlob,
 } from '@/lib/credentials/client-credential-accounts/server'
 import { isGoogleWorkloadIdentitySecret } from '@/lib/credentials/google-workload-identity'
+import { getTokenClientCredentialGrant } from '@/lib/credentials/token-service-accounts/client-credentials'
 import {
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
   SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
-  parseTokenServiceAccountSecretBlob,
+  parseTokenServiceAccountSecret,
+  type TokenServiceAccountClientCredentialBlob,
   type TokenServiceAccountSecretBlob,
 } from '@/lib/credentials/token-service-accounts/server'
 import { CLEARED_REFRESH_REVOCATION, CredentialRevokedError } from '@/lib/oauth/credential-revoked'
@@ -566,13 +568,14 @@ export interface ServiceAccountTokenResult {
 
 /**
  * Loads and parses the decrypted secret blob for a token service-account
- * credential (pasted long-lived provider token). Throws if the credential is
- * missing or the blob doesn't belong to the expected provider.
+ * credential: a pasted long-lived provider token, or the client ID and secret
+ * of a provider's client-credentials mode. Throws if the credential is missing
+ * or the blob doesn't belong to the expected provider.
  */
 async function getTokenServiceAccountSecret(
   credentialId: string,
   providerId: string
-): Promise<TokenServiceAccountSecretBlob> {
+): Promise<TokenServiceAccountSecretBlob | TokenServiceAccountClientCredentialBlob> {
   const [credentialRow] = await db
     .select({ encryptedServiceAccountKey: credential.encryptedServiceAccountKey })
     .from(credential)
@@ -584,11 +587,12 @@ async function getTokenServiceAccountSecret(
   }
 
   const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
-  return parseTokenServiceAccountSecretBlob(decrypted, providerId)
+  return parseTokenServiceAccountSecret(decrypted, providerId)
 }
 
 interface CachedClientCredentialToken {
-  accessToken: string
+  /** The resolved token with the destination fields that travel with it. */
+  token: ServiceAccountTokenResult
   expiresAtMs: number
   /**
    * Fingerprint of the encrypted secret the token was minted from (see
@@ -597,10 +601,12 @@ interface CachedClientCredentialToken {
    * the cached token belongs to the old app and must be re-minted.
    */
   secretFingerprint: string
-  /** Salesforce or NetSuite — the provider origin returned alongside the minted token. */
-  instanceUrl?: string
-  /** Zoho Desk only — the Desk REST base derived from the token's api_domain. */
-  apiDomain?: string
+}
+
+/** A token minted from a stored secret, with how long it stays valid. */
+interface MintedServiceAccountToken {
+  token: ServiceAccountTokenResult
+  expiresInSeconds: number
 }
 
 interface FailedClientCredentialMint {
@@ -662,17 +668,19 @@ function secretFingerprintOf(encryptedServiceAccountKey: string): string {
 }
 
 /**
- * Resolves a client-credential service-account credential to a short-lived
- * access token: decrypts the stored credential material (client id + secret,
- * or the private key and run-as username for key-based grants) and mints via
- * the provider's registered minter (skipping the connect-time identity
- * lookup), read-through the per-instance cache. Wrapped in `coalesceLocally`
- * so concurrent block executions on one instance share a single mint.
+ * Resolves a stored secret that mints short-lived tokens, read-through the
+ * per-instance cache: re-reads the credential row, serves a cached token minted
+ * from the same ciphertext while enough of it remains, replays a recent mint
+ * failure, and otherwise decrypts and mints. Wrapped in `coalesceLocally` so
+ * concurrent block executions on one instance share a single mint.
+ * `sharedToken` providers coordinate one token per application themselves, so
+ * their tokens are never cached here.
  */
-async function resolveClientCredentialAccountToken(
+async function resolveMintedServiceAccountToken(
   credentialId: string,
-  providerId: string,
-  options?: CredentialTokenResolutionOptions
+  mint: (decrypted: string) => Promise<MintedServiceAccountToken>,
+  options: CredentialTokenResolutionOptions | undefined,
+  sharedToken: boolean
 ): Promise<ServiceAccountTokenResult> {
   const signal = options?.signal
   signal?.throwIfAborted()
@@ -694,18 +702,13 @@ async function resolveClientCredentialAccountToken(
     }
     const secretFingerprint = secretFingerprintOf(credentialRow.encryptedServiceAccountKey)
 
-    const usesSharedToken = providerId === VANTA_SERVICE_ACCOUNT_PROVIDER_ID
-    const cached = usesSharedToken ? undefined : clientCredentialTokenCache.get(cacheIdentity)
+    const cached = sharedToken ? undefined : clientCredentialTokenCache.get(cacheIdentity)
     if (
       cached &&
       cached.secretFingerprint === secretFingerprint &&
       cached.expiresAtMs - Date.now() > CLIENT_CREDENTIAL_TOKEN_MIN_TTL_MS
     ) {
-      return {
-        accessToken: cached.accessToken,
-        instanceUrl: cached.instanceUrl,
-        apiDomain: cached.apiDomain,
-      }
+      return { ...cached.token }
     }
 
     const failed = clientCredentialMintFailureCache.get(cacheIdentity)
@@ -720,12 +723,47 @@ async function resolveClientCredentialAccountToken(
 
     try {
       const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
+      const minted = await mint(decrypted)
+      if (!sharedToken)
+        clientCredentialTokenCache.set(cacheIdentity, {
+          token: minted.token,
+          expiresAtMs: Date.now() + minted.expiresInSeconds * 1000,
+          secretFingerprint,
+        })
+      return { ...minted.token }
+    } catch (error) {
+      if (!(error instanceof Error && error.name === 'AbortError')) {
+        clientCredentialMintFailureCache.set(cacheIdentity, {
+          error: options?.privacyMode === 'selector' ? new Error('Credential mint failed') : error,
+          secretFingerprint,
+          expiresAtMs: Date.now() + CLIENT_CREDENTIAL_MINT_FAILURE_TTL_MS,
+        })
+      }
+      throw error
+    }
+  })
+  return waitWithAbort(resolution, signal)
+}
+
+/**
+ * Resolves a client-credential service-account credential to a short-lived
+ * access token: decrypts the stored credential material (client id + secret,
+ * or the private key and run-as username for key-based grants) and mints via
+ * the provider's registered minter, skipping the connect-time identity lookup.
+ */
+function resolveClientCredentialAccountToken(
+  credentialId: string,
+  providerId: string,
+  options?: CredentialTokenResolutionOptions
+): Promise<ServiceAccountTokenResult> {
+  return resolveMintedServiceAccountToken(
+    credentialId,
+    async (decrypted) => {
       const blob = parseClientCredentialAccountSecretBlob(decrypted, providerId)
       const minter = getClientCredentialAccountMinter(providerId)
       if (!minter) {
         throw new Error(`No minter registered for service-account provider ${providerId}`)
       }
-
       const mint = await minter(
         {
           clientId: blob.clientId,
@@ -740,31 +778,58 @@ async function resolveClientCredentialAccountToken(
         },
         { skipIdentity: true }
       )
-      if (!usesSharedToken)
-        clientCredentialTokenCache.set(cacheIdentity, {
+      return {
+        token: {
           accessToken: mint.accessToken,
-          expiresAtMs: Date.now() + mint.expiresInSeconds * 1000,
-          secretFingerprint,
           instanceUrl: mint.instanceUrl,
           apiDomain: mint.apiDomain,
-        })
+        },
+        expiresInSeconds: mint.expiresInSeconds,
+      }
+    },
+    options,
+    providerId === VANTA_SERVICE_ACCOUNT_PROVIDER_ID
+  )
+}
+
+/**
+ * Resolves a token provider credential saved in client-credentials mode
+ * (Shopify Dev Dashboard app, Linear OAuth app): mints with the stored client
+ * ID and secret instead of returning a pasted token. The stored store domain
+ * travels with the token exactly as it does for a pasted one.
+ */
+function resolveTokenClientCredentialToken(
+  credentialId: string,
+  providerId: string,
+  options?: CredentialTokenResolutionOptions
+): Promise<ServiceAccountTokenResult> {
+  const grant = getTokenClientCredentialGrant(providerId)
+  if (!grant) {
+    return Promise.reject(
+      new Error(`No client-credentials grant registered for service-account provider ${providerId}`)
+    )
+  }
+  return resolveMintedServiceAccountToken(
+    credentialId,
+    async (decrypted) => {
+      const blob = parseTokenServiceAccountSecret(decrypted, providerId)
+      if (!('authMethod' in blob)) {
+        throw new Error('Stored token service-account secret changed mode')
+      }
+      // The mint is shared by every coalesced caller, so no one caller's signal may cancel it.
+      const minted = await grant.mint({
+        clientId: blob.clientId,
+        clientSecret: blob.clientSecret,
+        domain: blob.domain,
+      })
       return {
-        accessToken: mint.accessToken,
-        instanceUrl: mint.instanceUrl,
-        apiDomain: mint.apiDomain,
+        token: { accessToken: minted.accessToken, domain: blob.domain },
+        expiresInSeconds: minted.expiresInSeconds,
       }
-    } catch (error) {
-      if (!(error instanceof Error && error.name === 'AbortError')) {
-        clientCredentialMintFailureCache.set(cacheIdentity, {
-          error: options?.privacyMode === 'selector' ? new Error('Credential mint failed') : error,
-          secretFingerprint,
-          expiresAtMs: Date.now() + CLIENT_CREDENTIAL_MINT_FAILURE_TTL_MS,
-        })
-      }
-      throw error
-    }
-  })
-  return waitWithAbort(resolution, signal)
+    },
+    options,
+    grant.sharedToken
+  )
 }
 
 interface ServiceAccountTokenOptions extends CredentialTokenResolutionOptions {
@@ -888,6 +953,9 @@ export async function resolveServiceAccountToken(
   }
   if (providerId && isTokenServiceAccountProviderId(providerId)) {
     const secret = await getTokenServiceAccountSecret(credentialId, providerId)
+    if ('authMethod' in secret) {
+      return resolveTokenClientCredentialToken(credentialId, providerId, options)
+    }
     const descriptorAuthStyle = getTokenServiceAccountDescriptor(providerId)?.authStyle
     return {
       accessToken: secret.apiToken,

@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { ServiceAccountPrincipal } from '@/lib/credentials/principal'
 import {
   AFFINITY_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -107,6 +108,7 @@ import {
   TELEGRAM_SERVICE_ACCOUNT_PROVIDER_ID,
   THRIVE_SERVICE_ACCOUNT_PROVIDER_ID,
   TINYBIRD_SERVICE_ACCOUNT_PROVIDER_ID,
+  TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD,
   TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
   type TokenServiceAccountProviderId,
   TRELLO_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -250,6 +252,12 @@ export interface TokenServiceAccountFields {
   apiToken: string
   domain?: string
   providerWorkspaceId?: string
+  /**
+   * `client_credentials` when `apiToken` was just minted from the provider's client-credentials
+   * grant rather than pasted, for checks whose identity differs between the two (a Linear app
+   * actor). Absent for a pasted token.
+   */
+  authMethod?: typeof TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD
 }
 
 /** Result of a successful provider verification. */
@@ -435,17 +443,82 @@ export interface TokenServiceAccountSecretBlob {
   metadata?: Record<string, string>
 }
 
+/**
+ * Secret blob for a token provider's client-credentials mode: the client ID and secret it mints
+ * with replace the pasted token. Only providers declaring `clientCredentials` write it.
+ */
+export interface TokenServiceAccountClientCredentialBlob {
+  type: typeof TOKEN_SERVICE_ACCOUNT_SECRET_TYPE
+  providerId: string
+  authMethod: typeof TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD
+  clientId: string
+  clientSecret: string
+  domain?: string
+  metadata?: Record<string, string>
+}
+
+/**
+ * Parses a pasted-token blob. A client-credentials blob has no token and is refused, so callers
+ * that only understand pasted tokens (Snowflake) fail closed on one.
+ */
 export function parseTokenServiceAccountSecretBlob(
   decrypted: string,
   expectedProviderId: string
 ): TokenServiceAccountSecretBlob {
-  const parsed = JSON.parse(decrypted) as TokenServiceAccountSecretBlob
-  if (
-    parsed.type !== TOKEN_SERVICE_ACCOUNT_SECRET_TYPE ||
-    parsed.providerId !== expectedProviderId ||
-    !parsed.apiToken
-  ) {
+  const parsed = parseTokenServiceAccountSecret(decrypted, expectedProviderId)
+  if ('authMethod' in parsed) {
     throw new Error('Stored token service-account secret is malformed')
   }
   return parsed
+}
+
+/** Parses either mode of a token provider's secret blob, checking it belongs to the provider. */
+export function parseTokenServiceAccountSecret(
+  decrypted: string,
+  expectedProviderId: string
+): TokenServiceAccountSecretBlob | TokenServiceAccountClientCredentialBlob {
+  const malformed = new Error('Stored token service-account secret is malformed')
+  const parsed: unknown = JSON.parse(decrypted)
+  if (
+    !isRecordLike(parsed) ||
+    parsed.type !== TOKEN_SERVICE_ACCOUNT_SECRET_TYPE ||
+    parsed.providerId !== expectedProviderId
+  ) {
+    throw malformed
+  }
+  const optional = {
+    ...(typeof parsed.domain === 'string' ? { domain: parsed.domain } : {}),
+    ...(isRecordLike(parsed.metadata)
+      ? { metadata: parsed.metadata as Record<string, string> }
+      : {}),
+  }
+  if (parsed.authMethod === undefined) {
+    if (typeof parsed.apiToken !== 'string' || !parsed.apiToken) throw malformed
+    return {
+      type: TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
+      providerId: expectedProviderId,
+      apiToken: parsed.apiToken,
+      ...(typeof parsed.providerWorkspaceId === 'string'
+        ? { providerWorkspaceId: parsed.providerWorkspaceId }
+        : {}),
+      ...optional,
+    }
+  }
+  if (
+    parsed.authMethod !== TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD ||
+    typeof parsed.clientId !== 'string' ||
+    !parsed.clientId ||
+    typeof parsed.clientSecret !== 'string' ||
+    !parsed.clientSecret
+  ) {
+    throw malformed
+  }
+  return {
+    type: TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
+    providerId: expectedProviderId,
+    authMethod: TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD,
+    clientId: parsed.clientId,
+    clientSecret: parsed.clientSecret,
+    ...optional,
+  }
 }

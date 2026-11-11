@@ -67,7 +67,36 @@ export interface TokenServiceAccountDescriptor {
    * token route surfaces this so tool header builders can switch schemes.
    */
   authStyle?: 'bearer' | 'x-api-token'
+  /**
+   * A client-credentials grant the provider offers beside the pasted token. A credential saved
+   * with `authMethod: 'client_credentials'` stores the client ID and secret (and `domain`, when
+   * the descriptor has one) and mints a short-lived token at execution time; a credential saved
+   * without it keeps the pasted-token mode unchanged.
+   */
+  clientCredentials?: TokenServiceAccountClientCredentials
 }
+
+/** Copy for a token provider's client-credentials mode in the connect modal. */
+export interface TokenServiceAccountClientCredentials {
+  /** Authentication dropdown label for the client-credentials mode. */
+  label: string
+  /** Authentication dropdown label for the existing pasted-token mode. */
+  tokenLabel: string
+  /** Guidance shown under the client ID field. */
+  helpText: string
+  /** Replaces the generic `invalid_credentials` copy for this mode. */
+  invalidCredentialsHelp: string
+  /** Copy for `grant_not_permitted`, when the provider can refuse the grant for one account. */
+  notPermittedHelp?: string
+  /**
+   * Preselects this mode for a new connection, for providers whose current setup no longer
+   * issues a pasted token. A reconnect always opens on the pasted-token mode.
+   */
+  preferred?: boolean
+}
+
+/** `authMethod` value selecting a token provider's client-credentials mode. */
+export const TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD = 'client_credentials' as const
 
 export const HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID = 'hubspot-service-account' as const
 export const AIRTABLE_SERVICE_ACCOUNT_PROVIDER_ID = 'airtable-service-account' as const
@@ -506,9 +535,20 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/shopify-service-account',
     helpText:
-      'The token is revealed once, is bound to a single store, and does not expire. Dev Dashboard apps issue tokens through OAuth rather than a UI reveal.',
+      'Only custom apps created in the Shopify admin reveal this token. For an app created in the Dev Dashboard, choose Client credentials instead.',
     invalidCredentialsHelp:
       'Shopify rejected this token. Make sure you copied the Admin API access token (starts with shpat_) — not the API key or API secret key — for an app installed on this exact store domain, and that it has not since been revoked or regenerated.',
+    clientCredentials: {
+      preferred: true,
+      label: 'Client credentials (Dev Dashboard app)',
+      tokenLabel: 'Admin API access token (shpat_)',
+      helpText:
+        'Use the client ID and secret from the Dev Dashboard app. The app must be installed on this store, and the app and store must belong to the same Shopify organization.',
+      invalidCredentialsHelp:
+        'Shopify rejected these client credentials. Check that the client ID and secret belong to a Dev Dashboard app that is installed on this exact store domain.',
+      notPermittedHelp:
+        'Shopify does not allow client credentials for this store. Client credentials only work when the app and the store belong to the same Shopify organization, so check that this store is part of the organization that owns the app.',
+    },
   },
   [WEBFLOW_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: WEBFLOW_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -2343,6 +2383,26 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
 }
 
 /**
+ * Required contract fields per token provider in client-credentials mode: the client ID and
+ * secret replace the token, and every other descriptor field (a store domain) stays required.
+ */
+export const TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS: Record<
+  string,
+  ReadonlyArray<'clientId' | 'clientSecret' | Exclude<TokenServiceAccountFieldId, 'apiToken'>>
+> = Object.fromEntries(
+  Object.values(TOKEN_SERVICE_ACCOUNT_DESCRIPTORS)
+    .filter((descriptor) => descriptor.clientCredentials)
+    .map((descriptor) => [
+      descriptor.providerId,
+      [
+        'clientId',
+        'clientSecret',
+        ...descriptor.fields.flatMap((field) => (field.id === 'apiToken' ? [] : [field.id])),
+      ],
+    ])
+)
+
+/**
  * Required contract fields per token service-account provider, consumed by the
  * `createCredentialBodySchema` superRefine so validation errors name the exact
  * missing field. Derived from each descriptor's field list.
@@ -2379,13 +2439,22 @@ export function getTokenServiceAccountDescriptor(
 export function getTokenServiceAccountErrorMessage(
   descriptor: TokenServiceAccountDescriptor,
   code: string | undefined,
-  fallbackMessage = "We couldn't add this credential. Try again in a moment."
+  fallbackMessage = "We couldn't add this credential. Try again in a moment.",
+  authMethod?: string
 ): string {
+  const clientCredentials =
+    authMethod === TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD ? descriptor.clientCredentials : undefined
   switch (code) {
     case 'invalid_credentials':
       return (
+        clientCredentials?.invalidCredentialsHelp ??
         descriptor.invalidCredentialsHelp ??
         `We couldn't authenticate with that ${descriptor.tokenNoun}. Double-check it in ${descriptor.serviceLabel} and try again.`
+      )
+    case 'grant_not_permitted':
+      return (
+        clientCredentials?.notPermittedHelp ??
+        `${descriptor.serviceLabel} does not allow these client credentials for this account.`
       )
     case 'site_not_found':
       return "We couldn't find an account at that domain. Check the spelling and try again."
