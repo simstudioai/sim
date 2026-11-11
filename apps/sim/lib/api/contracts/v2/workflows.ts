@@ -1937,7 +1937,7 @@ export const v2ResumeWorkflowQueuedSchema = v2ExecuteWorkflowQueuedSchema
   })
 export type V2ResumeWorkflowQueued = z.output<typeof v2ResumeWorkflowQueuedSchema>
 
-const v2ResumeWorkflowDataSchema = v2ExecuteWorkflowDataSchema
+export const v2ResumeWorkflowDataSchema = v2ExecuteWorkflowDataSchema
   .omit({ executionTimeoutSeconds: true })
   .meta({
     id: 'WorkflowResumeResult',

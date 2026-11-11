@@ -13,6 +13,7 @@ import {
   type V2ExecuteWorkflowBody,
   type V2ResumeWorkflowBody,
   v2ExecuteWorkflowDataSchema,
+  v2ResumeWorkflowDataSchema,
   v2WorkflowRunStatusSchema,
 } from '@/lib/api/contracts/v2/workflows'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
@@ -482,7 +483,7 @@ try {
       assert.deepEqual(points[0].inputFields, [
         { name: 'approved', label: 'approved', type: 'boolean', required: true },
       ])
-      const resumed = v2ExecuteWorkflowDataSchema.parse(
+      const resumed = v2ResumeWorkflowDataSchema.parse(
         (
           await request(
             'POST',

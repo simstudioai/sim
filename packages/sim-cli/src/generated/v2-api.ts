@@ -23035,6 +23035,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum schedules to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
