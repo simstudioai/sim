@@ -28,7 +28,7 @@ export async function clearRouteCacheFromOtherBuild(nextDirectory: string): Prom
     await writeFile(join(routeCache, BUILD_MARKER), buildId)
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
-    logger.warn('Could not clear the route cache from an earlier build', {
+    logger.error('Could not clear the route cache from an earlier build', {
       error: getErrorMessage(error),
     })
   }

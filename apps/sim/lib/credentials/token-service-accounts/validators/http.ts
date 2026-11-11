@@ -1,4 +1,3 @@
-import { resolveEnvironmentProxy } from '@sim/security/environment-proxy'
 import { truncate } from '@sim/utils/string'
 import { EgressRefusedError } from '@/lib/core/network/transport.server'
 import type { EgressProfile } from '@/lib/core/security/egress/profiles'
@@ -183,12 +182,9 @@ async function sendThroughEgress(
   profile: NonNullable<TokenCheck['egress']>,
   { url, method = 'GET', headers, body }: TokenCheckRequest
 ): Promise<ProviderResponse> {
-  // A forward proxy re-resolves the host, so the transport refuses one with any refused record.
-  // An unparseable URL skips the proxy lookup; validation then refuses it as the user's input.
-  const validation = await validateUrlWithDNS(url, 'url', profile, {
-    logDetails: false,
-    requireEveryAddress: URL.canParse(url) && resolveEnvironmentProxy(new URL(url)) !== null,
-  })
+  // The transport applies the stricter every-address rule itself when it routes through an
+  // environment proxy; its refusal is classified below, so a gateway route is not pre-judged.
+  const validation = await validateUrlWithDNS(url, 'url', profile, { logDetails: false })
   if (!validation.isValid) {
     if (validation.refusal !== 'dns') throw hostNotAllowed()
     const notFound = isHostNotFound(validation.cause)

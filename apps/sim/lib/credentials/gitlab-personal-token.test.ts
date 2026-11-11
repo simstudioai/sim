@@ -106,6 +106,19 @@ describe('GitLab personal token verification', () => {
       message: expect.stringContaining("can't connect to that address"),
     })
   })
+  it('reports a GitLab host that does not resolve as the user input', async () => {
+    mocks.fetch.mockReset().mockRejectedValue(
+      Object.assign(new Error('getaddrinfo ENOTFOUND gitlab.example.invalid'), {
+        code: 'ENOTFOUND',
+      })
+    )
+    await expect(
+      verifyGitLabPersonalToken('secret', 'gitlab.example.invalid')
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining("couldn't find that GitLab host"),
+    })
+  })
   it('binds organization tokens independently of the execution workspace', async () => {
     mocks.encrypt.mockResolvedValue({ encrypted: 'ciphertext' })
     const { workspaceId: _workspaceId, ...identity } = envelope

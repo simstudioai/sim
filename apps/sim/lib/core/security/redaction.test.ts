@@ -31,6 +31,7 @@ describe('isSensitiveKey', () => {
     'exa_api_key',
     'secretAccessKey',
     'awsSecretAccessKey',
+    'secretKey',
     'bedrockSecretKey',
     'apiSecretKey',
     'clerkSecretKey',
@@ -45,7 +46,6 @@ describe('isSensitiveKey', () => {
   it.concurrent.each([
     'tokenCount',
     'tokenizer',
-    'secretKey',
     'deployKeyName',
     'passwordStrength',
     'authMethod',

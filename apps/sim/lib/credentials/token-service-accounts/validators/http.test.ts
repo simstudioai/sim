@@ -5,16 +5,9 @@ import {
 } from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockResolveHost } = vi.hoisted(() => ({ mockResolveHost: vi.fn() }))
-
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
-vi.mock('@sim/security/dns', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/security/dns')>()),
-  resolveHostAddresses: mockResolveHost,
-}))
 
 import { EgressRefusedError } from '@/lib/core/network/transport.server'
-import type * as InputValidation from '@/lib/core/security/input-validation.server'
 import {
   normalizeHttpBaseUrl,
   refuseUnsafeTypedUrl,
@@ -217,24 +210,6 @@ describe('tokenCheckValidator with a typed host', () => {
   })
 
   describe('behind an environment proxy', () => {
-    it('refuses a host with a private record alongside its public one before sending the token', async () => {
-      vi.stubEnv('HTTPS_PROXY', 'http://proxy.internal:3128')
-      const actual = await vi.importActual<typeof InputValidation>(
-        '@/lib/core/security/input-validation.server'
-      )
-      validateUrl.mockImplementation(actual.validateUrlWithDNS)
-      mockResolveHost.mockResolvedValue({
-        addresses: ['93.184.216.34', '10.0.0.5'],
-        preferred: '93.184.216.34',
-      })
-      pinnedFetch.mockResolvedValue(jsonResponse({ ok: true }))
-
-      await expect(
-        validateHost({ apiToken: 'good', domain: 'split.example.com' })
-      ).rejects.toMatchObject({ code: 'host_not_allowed', status: 400 })
-      expect(pinnedFetch).not.toHaveBeenCalled()
-    })
-
     it("reports the proxy route's own refusal as the host, not an outage", async () => {
       pinnedFetch.mockRejectedValue(new EgressRefusedError('url resolves to a private address'))
 
