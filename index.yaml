@@ -15,6 +15,45 @@ entries:
           url: https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA
       category: developer-tools
     apiVersion: v2
+    appVersion: v0.9.53
+    created: "2026-11-11T05:50:05.026146313Z"
+    description: A Helm chart for Sim - the open-source AI workspace where teams build,
+      deploy, and manage AI agents
+    digest: 88e69b1568084bb073c3cee2579877b91966d101f0eda591d476650aa81ce046
+    home: https://sim.ai
+    icon: https://raw.githubusercontent.com/simstudioai/sim/main/apps/sim/public/brandbook/logo/small.png
+    keywords:
+    - ai
+    - workflow
+    - automation
+    - agents
+    - nextjs
+    kubeVersion: '>=1.25.0-0'
+    maintainers:
+    - email: help@sim.ai
+      name: Sim Team
+      url: https://sim.ai
+    name: sim
+    sources:
+    - https://github.com/simstudioai/sim
+    type: application
+    urls:
+    - https://github.com/simstudioai/sim/releases/download/helm-chart-1.11.14/sim-1.11.14.tgz
+    version: 1.11.14
+  - annotations:
+      artifacthub.io/category: ai-machine-learning
+      artifacthub.io/license: Apache-2.0
+      artifacthub.io/links: |
+        - name: Homepage
+          url: https://sim.ai
+        - name: Documentation
+          url: https://docs.sim.ai
+        - name: Source
+          url: https://github.com/simstudioai/sim
+        - name: Slack
+          url: https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA
+      category: developer-tools
+    apiVersion: v2
     appVersion: v0.9.43
     created: "2026-11-04T17:51:52.050388763Z"
     description: A Helm chart for Sim - the open-source AI workspace where teams build,
@@ -391,4 +430,4 @@ entries:
     urls:
     - https://github.com/simstudioai/sim/releases/download/helm-chart-1.11.0/sim-1.11.0.tgz
     version: 1.11.0
-generated: "2026-11-04T17:51:52.05040854Z"
+generated: "2026-11-11T05:50:05.026165399Z"
