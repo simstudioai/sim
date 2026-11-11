@@ -59,6 +59,8 @@ const CERTIFICATE_ASSERTION_TTL_SECONDS = 300
 const MIN_RSA_MODULUS_BITS = 2048
 const MAX_RSA_MODULUS_BITS = 4096
 const MAX_PEM_LENGTH = 16_384
+/** A certificate issued moments ago on a machine whose clock runs ahead is not refused as "not valid yet". */
+const CERTIFICATE_CLOCK_SKEW_MS = 5 * 60 * 1000
 
 /** Re-mint once less than this much of a token's lifetime remains. */
 const TOKEN_REUSE_MARGIN_MS = 5 * 60 * 1000
@@ -167,7 +169,9 @@ const storedSecretSchema = z
 /** A configuration problem Sim can name the fix for; its message is shown to the person saving. */
 export class MicrosoftAppCredentialError extends Error {
   /**
-   * @param status The HTTP status Microsoft answered with, when Microsoft itself refused.
+   * @param status The HTTP status of the failed exchange: Microsoft's answer, or 502 when Entra
+   *   could not be reached or answered without a token. Absent for a problem with the stored
+   *   configuration itself (an expired certificate, say), which only a reconnect fixes.
    * @param aadsts The Entra `AADSTS` error code, when Entra reported one.
    */
   constructor(
@@ -280,6 +284,12 @@ function loadCertificateMaterial(
       'This certificate has expired. Upload a new one to the app registration and save it here.'
     )
   }
+  const validFrom = Date.parse(certificate.validFrom)
+  if (validFrom > Date.now() + CERTIFICATE_CLOCK_SKEW_MS) {
+    throw new MicrosoftAppCredentialError(
+      `This certificate is not valid until ${new Date(validFrom).toISOString()}. Use a certificate that is already valid.`
+    )
+  }
   return {
     key,
     thumbprintS256: createHash('sha256').update(certificate.raw).digest('base64url'),
@@ -363,7 +373,7 @@ async function requestEntraToken(
     })
   } catch {
     signal?.throwIfAborted()
-    throw new MicrosoftAppCredentialError('Could not reach Microsoft Entra. Try again.')
+    throw new MicrosoftAppCredentialError('Could not reach Microsoft Entra. Try again.', 502)
   }
   const payload = (await response.json().catch(() => ({}))) as {
     access_token?: unknown
@@ -686,11 +696,15 @@ export async function resolveMicrosoftAppCredentialToken(
       token = await requestEntraToken(config, resource, owner)
     } catch (error) {
       if (!(error instanceof MicrosoftAppCredentialError)) throw error
-      // Report in the shared service-account codes: an outage is not a bad credential.
+      // Report in the shared service-account codes: an outage is not a bad credential, and a
+      // stored certificate that can no longer sign (expired, say) is one only a reconnect fixes.
       throw new TokenServiceAccountValidationError(
-        error.status === undefined ? 'provider_unavailable' : providerFailureCode(error.status),
-        error.status ?? 502,
-        { step: 'microsoft_app_token', reason: error.aadsts ? `AADSTS${error.aadsts}` : undefined }
+        error.status === undefined ? 'invalid_credentials' : providerFailureCode(error.status),
+        error.status ?? 400,
+        {
+          step: 'microsoft_app_token',
+          reason: error.aadsts ? `AADSTS${error.aadsts}` : error.message,
+        }
       )
     }
     const value: CachedToken = { accessToken: token.accessToken, instanceUrl }

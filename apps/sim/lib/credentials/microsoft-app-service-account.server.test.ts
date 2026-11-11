@@ -58,25 +58,31 @@ function derUtcTime(date: Date): Buffer {
   return der(0x17, Buffer.from(`${text}Z`))
 }
 
+const DAY_MS = 86_400_000
+
 /**
  * A self-signed RSA certificate (CN=sim-test-app) generated for this test run,
  * so no key material is committed.
  */
-function generateTestCertificate(): { certificate: string; privateKey: string } {
+function generateTestCertificate(
+  validity: { notBefore: number; notAfter: number } = {
+    notBefore: Date.now() - DAY_MS,
+    notAfter: Date.now() + 365 * DAY_MS,
+  }
+): { certificate: string; privateKey: string } {
   const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
   const sha256WithRsa = der(0x30, derOid('1.2.840.113549.1.1.11'), der(0x05))
   const name = der(
     0x30,
     der(0x31, der(0x30, derOid('2.5.4.3'), der(0x0c, Buffer.from('sim-test-app'))))
   )
-  const now = Date.now()
   const tbs = der(
     0x30,
     der(0xa0, der(0x02, Buffer.from([0x02]))),
     der(0x02, Buffer.from([0x01])),
     sha256WithRsa,
     name,
-    der(0x30, derUtcTime(new Date(now - 86_400_000)), derUtcTime(new Date(now + 365 * 86_400_000))),
+    der(0x30, derUtcTime(new Date(validity.notBefore)), derUtcTime(new Date(validity.notAfter))),
     name,
     publicKey.export({ type: 'spki', format: 'der' })
   )
@@ -224,6 +230,18 @@ describe('saving a Microsoft app credential', () => {
     await expect(
       save({ authType: 'certificate', certificate: TEST_CERTIFICATE, privateKey: otherKey })
     ).rejects.toThrow(/does not belong to this certificate/)
+    expect(fetch).not.toHaveBeenCalled()
+    expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
+  })
+
+  it('refuses a certificate that is not valid yet before contacting Entra', async () => {
+    fakeMicrosoft(fetch)
+    const future = generateTestCertificate({
+      notBefore: Date.now() + 2 * DAY_MS,
+      notAfter: Date.now() + 365 * DAY_MS,
+    })
+
+    await expect(save({ authType: 'certificate', ...future })).rejects.toThrow(/not valid until/)
     expect(fetch).not.toHaveBeenCalled()
     expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
   })
@@ -448,6 +466,29 @@ describe('getting a Microsoft app token for a run', () => {
     await resolveMicrosoftAppCredentialToken('cred-cache', 'sharepoint')
     expect(tokens).toHaveLength(2)
     expect(tokens[1]?.form.client_secret).toBe('rotated')
+  })
+
+  it('asks for a reconnect once the stored certificate has expired, without contacting Entra', async () => {
+    fakeMicrosoft(fetch)
+    const expired = generateTestCertificate({
+      notBefore: Date.now() - 400 * DAY_MS,
+      notAfter: Date.now() - DAY_MS,
+    })
+    storeCredential({ authType: 'certificate', ...expired }, 'ciphertext-expired-certificate')
+
+    await expect(
+      resolveMicrosoftAppCredentialToken('cred-expired-certificate', 'microsoft-ad')
+    ).rejects.toMatchObject({ code: 'invalid_credentials', status: 400 })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('reports an unreachable Entra as the provider being unavailable', async () => {
+    fetch.mockRejectedValue(new TypeError('fetch failed'))
+    storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-unreachable')
+
+    await expect(
+      resolveMicrosoftAppCredentialToken('cred-unreachable', 'microsoft-ad')
+    ).rejects.toMatchObject({ code: 'provider_unavailable', status: 502 })
   })
 
   it('reports an Entra outage as the provider being unavailable, not a bad credential', async () => {
