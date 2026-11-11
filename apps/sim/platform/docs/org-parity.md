@@ -107,7 +107,7 @@ One row per capability of the legacy organization surface. Every capability is e
 | Privacy | Browser telemetry, opt-out first, rollback on failure | General privacy view | Unverified | "privacy and shortcuts render" shows the switch; opt-out and rollback have no live check |
 | Privacy | Cookie choices, commit per toggle, revert on failure | General privacy view | Unverified | No live check yet. Hosted only; the same consent store, mounted on this section. Needs a hosted environment to prove, so not in |
 | Privacy | Consent banner on first visit | Root layout | Unverified | The product root mounts its own `_components/consent-banner` inside the shared `ConsentProvider`, over the same runtime (`useConsentBanner` in `shared/cookie-consent.ts`): policy-gated, Customize expands in place, staged switches commit on Save. Needs a hosted environment to prove |
-| Account | Home page action | General | Unverified | No live check yet. Hosted only, same gate |
+| Account | Home page action | General | Declined | A row that only opened the marketing site in a new tab, with no setting of its own; the site is reached from its own address |
 | Account | Sign out | General | Unverified | No live check clicks this entry: it would end the session the suite shares. The shell entry is proved by "sign out ends the session" |
 | Account | Reset password email | General | Unverified | No live check yet |
 | Account | Authorized apps: search, paging, revoke | Authorized apps | Unverified | No live check yet. Covers the list; revoke needs a seeded OAuth grant |

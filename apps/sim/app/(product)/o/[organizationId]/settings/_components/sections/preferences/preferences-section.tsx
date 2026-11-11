@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { Select } from '@sim/emcn/picker/select'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
@@ -23,49 +24,88 @@ const THEMES = [
   { value: 'dark', label: 'Dark' },
 ]
 
-interface PreferencesSectionProps {
-  fixture?: boolean
-}
-
-function Profile({ fixture }: PreferencesSectionProps) {
-  const profile = useProfileSettings()
+/** The profile read's pending and failed states around the form it fills. */
+function ProfileRead({
+  profile,
+  children,
+}: {
+  profile: ReturnType<typeof useProfileSettings>
+  children: ReactNode
+}) {
   if (profile.status === 'pending') return <SettingsSection title='Profile' />
   if (profile.status === 'error')
     return <FailureNotice message='Failed to load your profile' onRetry={profile.retry} />
-  return fixture ? (
-    <ProfileSettings name={profile.name} email={profile.email} image={profile.image} />
-  ) : (
-    <ProfileForm
-      name={profile.name}
-      email={profile.email}
-      picture={profile.image}
-      uploading={profile.uploading}
-      onSaveName={profile.saveName}
-      onPictureChange={profile.onPictureChange}
+  return children
+}
+
+/** The viewer's profile, saved to their account. */
+export function LiveProfile() {
+  const profile = useProfileSettings()
+  return (
+    <ProfileRead profile={profile}>
+      <ProfileForm
+        name={profile.name}
+        email={profile.email}
+        picture={profile.image}
+        uploading={profile.uploading}
+        onSaveName={profile.saveName}
+        onPictureChange={profile.onPictureChange}
+      />
+    </ProfileRead>
+  )
+}
+
+/** The fixture viewer's profile, edited for this interface session only. */
+export function SessionProfile() {
+  const profile = useProfileSettings()
+  return (
+    <ProfileRead profile={profile}>
+      <ProfileSettings name={profile.name} email={profile.email} image={profile.image} />
+    </ProfileRead>
+  )
+}
+
+interface ThemeRowProps {
+  value: string | undefined
+  onValueChange: (value: string) => void
+}
+
+function ThemeRow({ value, onValueChange }: ThemeRowProps) {
+  return (
+    <SettingsRow label='Theme' description='Select your preferred color theme' field>
+      <Select label='Theme' options={THEMES} value={value} onValueChange={onValueChange} />
+    </SettingsRow>
+  )
+}
+
+/** The theme saved to the viewer's account. */
+export function LiveThemeRow() {
+  const appearance = useAppearanceSettings()
+  return <ThemeRow value={appearance.theme} onValueChange={appearance.setTheme} />
+}
+
+/** A fixture's theme, kept in the URL so a check can open the page in either appearance. */
+export function SessionThemeRow() {
+  const [theme, setTheme] = useQueryState(
+    fixtureAppearanceParam.key,
+    fixtureAppearanceParam.parser.withOptions({ history: 'replace', scroll: false })
+  )
+  return (
+    <ThemeRow
+      value={theme ?? undefined}
+      onValueChange={(value) => {
+        if (value === 'system' || value === 'light' || value === 'dark') void setTheme(value)
+      }}
     />
   )
 }
 
-function Appearance({ fixture }: PreferencesSectionProps) {
-  const [fixtureTheme, setFixtureTheme] = useQueryState(
-    fixtureAppearanceParam.key,
-    fixtureAppearanceParam.parser.withOptions({ history: 'replace', scroll: false })
-  )
+/** Theme (`theme`, filled by the route) and time zone. */
+export function AppearanceSection({ theme }: { theme: ReactNode }) {
   const appearance = useAppearanceSettings()
   return (
     <SavedSettingsSection title='Appearance'>
-      <SettingsRow label='Theme' description='Select your preferred color theme' field>
-        <Select
-          label='Theme'
-          options={THEMES}
-          value={(fixture ? fixtureTheme : appearance.theme) ?? undefined}
-          onValueChange={(value) => {
-            if (!fixture) return appearance.setTheme(value)
-            if (value === 'system' || value === 'light' || value === 'dark')
-              void setFixtureTheme(value)
-          }}
-        />
-      </SettingsRow>
+      {theme}
       <SettingsRow label='Time zone' description='Used for dates and schedules you read' field>
         <SearchableSelect
           label='Time zone'
@@ -80,7 +120,7 @@ function Appearance({ fixture }: PreferencesSectionProps) {
   )
 }
 
-function Canvas() {
+export function CanvasSection() {
   const snap = useSnapToGridSetting()
   return (
     <SavedSettingsSection title='Canvas'>
@@ -114,15 +154,5 @@ function Canvas() {
         description='Show the zoom and layout controls on the canvas'
       />
     </SavedSettingsSection>
-  )
-}
-
-export default function PreferencesSection({ fixture }: PreferencesSectionProps) {
-  return (
-    <>
-      <Profile fixture={fixture} />
-      <Appearance fixture={fixture} />
-      <Canvas />
-    </>
   )
 }

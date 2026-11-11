@@ -45,7 +45,6 @@ const SETTINGS_SEARCH_INDEX: Readonly<Record<string, readonly IndexedEntry[]>> =
       row: 'Canvas error notifications',
       terms: 'alerts toast errors',
     },
-    { label: 'Home page', row: 'Home page', terms: 'marketing website', requires: 'hosted' },
     { label: 'Sign out', row: 'Sign out', terms: 'log out logout' },
     { label: 'Reset password', row: 'Reset password', terms: 'change password credentials' },
     {
@@ -69,7 +68,7 @@ const SETTINGS_SEARCH_INDEX: Readonly<Record<string, readonly IndexedEntry[]>> =
     { label: 'Invoices', row: 'Invoices', terms: 'receipts billing history' },
   ],
   'knowledge-graphs': [
-    { label: 'Graphs', row: 'Graphs', terms: 'memory spaces active' },
+    { label: 'Your graphs', row: 'Your graphs', terms: 'memory spaces active' },
     { label: 'New knowledge graph', terms: 'create memory space' },
   ],
   members: [

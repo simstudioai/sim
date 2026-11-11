@@ -14,11 +14,10 @@ import { useKnowledgeGraphs } from '@/platform/shared/knowledge-graphs'
 export default function KnowledgeGraphsSection({ organization }: SettingsSectionProps) {
   const graphs = useKnowledgeGraphs(organization.organization.id)
   const [creating, setCreating] = useState(false)
-  const [name, setName] = useState('')
   return (
     <>
       <SettingsPageHeader />
-      <SettingsSection title='Graphs'>
+      <SettingsSection title='Your graphs'>
         {graphs.status === 'error' ? (
           <FailureNotice
             message={graphs.error ?? 'Failed to load knowledge graphs'}
@@ -54,10 +53,7 @@ export default function KnowledgeGraphsSection({ organization }: SettingsSection
             size='compact'
             icon='I074'
             disabled={graphs.status !== 'success' || graphs.selecting}
-            onClick={() => {
-              setName('')
-              setCreating(true)
-            }}
+            onClick={() => setCreating(true)}
           >
             New graph
           </Button>
@@ -66,18 +62,21 @@ export default function KnowledgeGraphsSection({ organization }: SettingsSection
       <Modal
         open={creating}
         onOpenChange={setCreating}
+        variant='form'
         title='New knowledge graph'
-        confirmLabel={graphs.creating ? 'Creating…' : 'Create and activate'}
-        confirmDisabled={!name.trim()}
-        onConfirm={() => graphs.create(name.trim())}
+        confirmLabel='Create and activate'
+        onConfirm={(values) => {
+          const name = values.get('name')
+          return graphs.create(typeof name === 'string' ? name.trim() : '')
+        }}
       >
         <TextField
           label='Name'
+          name='name'
           placeholder='e.g. Fresh exploration'
           maxLength={graphs.nameMaxLength}
-          disabled={graphs.creating}
-          value={name}
-          onChange={setName}
+          required
+          pattern={'.*\\S.*'}
         />
       </Modal>
     </>

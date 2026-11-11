@@ -8,8 +8,18 @@ import {
   AccountSettingsRows,
   AccountSettingsSubview,
 } from '@/app/(product)/o/[organizationId]/settings/_components/sections/account/account-section'
-import PreferencesSection from '@/app/(product)/o/[organizationId]/settings/_components/sections/preferences/preferences-section'
-import PrivacySection from '@/app/(product)/o/[organizationId]/settings/_components/sections/privacy/privacy-section'
+import {
+  AppearanceSection,
+  CanvasSection,
+  LiveProfile,
+  LiveThemeRow,
+  SessionProfile,
+  SessionThemeRow,
+} from '@/app/(product)/o/[organizationId]/settings/_components/sections/preferences/preferences-section'
+import PrivacySection, {
+  LiveCookies,
+  SessionCookies,
+} from '@/app/(product)/o/[organizationId]/settings/_components/sections/privacy/privacy-section'
 import { type SurfaceScope, surfaceHref } from '@/platform/lib/data/organization-model'
 
 type GeneralView = 'privacy' | 'authorized-apps' | 'organization-accounts'
@@ -29,8 +39,7 @@ function generalHref(
   return params.size ? `${path}?${params}` : path
 }
 
-export default function GeneralSection(props: SettingsSectionProps) {
-  const { organization, query, fixture } = props
+export default function GeneralSection({ organization, query, fixture }: SettingsSectionProps) {
   const view = Array.isArray(query.view) ? query.view[0] : query.view
   if (view === 'privacy') {
     return (
@@ -42,10 +51,10 @@ export default function GeneralSection(props: SettingsSectionProps) {
           description='Control what Sim collects about how you use it'
         />
         <PrivacySection
-          organization={organization}
-          subpath={props.subpath}
-          query={query}
-          fixture={fixture}
+          preview={fixture}
+          cookies={
+            organization.deployment.hosted && (fixture ? <SessionCookies /> : <LiveCookies />)
+          }
         />
       </>
     )
@@ -54,18 +63,14 @@ export default function GeneralSection(props: SettingsSectionProps) {
     !organization.navFlags.anonymous &&
     (view === 'authorized-apps' || view === 'organization-accounts')
   ) {
-    return (
-      <AccountSettingsSubview
-        organization={organization}
-        view={view}
-        backHref={generalHref(organization, query)}
-      />
-    )
+    return <AccountSettingsSubview view={view} backHref={generalHref(organization, query)} />
   }
   return (
     <>
       <SettingsPageHeader />
-      <PreferencesSection fixture={fixture} />
+      {fixture ? <SessionProfile /> : <LiveProfile />}
+      <AppearanceSection theme={fixture ? <SessionThemeRow /> : <LiveThemeRow />} />
+      <CanvasSection />
       <SettingsSection title='Privacy'>
         <SettingsRow
           label='Privacy settings'
@@ -79,12 +84,13 @@ export default function GeneralSection(props: SettingsSectionProps) {
           </Button>
         </SettingsRow>
       </SettingsSection>
-      <AccountSettingsRows
-        actionsUnavailable={fixture}
-        organization={organization}
-        authorizedAppsHref={generalHref(organization, query, 'authorized-apps')}
-        organizationAccountsHref={generalHref(organization, query, 'organization-accounts')}
-      />
+      {!organization.navFlags.anonymous && (
+        <AccountSettingsRows
+          actionsUnavailable={fixture}
+          authorizedAppsHref={generalHref(organization, query, 'authorized-apps')}
+          organizationAccountsHref={generalHref(organization, query, 'organization-accounts')}
+        />
+      )}
     </>
   )
 }

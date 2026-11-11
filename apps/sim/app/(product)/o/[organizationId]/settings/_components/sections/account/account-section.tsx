@@ -10,12 +10,10 @@ import { DetailHeader } from '@/app/(product)/_components/settings-parts/setting
 import { AuthorizedApps } from '@/app/(product)/o/[organizationId]/settings/_components/sections/account/authorized-apps'
 import { DeleteAccount } from '@/app/(product)/o/[organizationId]/settings/_components/sections/account/delete-account'
 import { OrganizationAccounts } from '@/app/(product)/o/[organizationId]/settings/_components/sections/account/organization-accounts'
-import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { signOutAndLeave } from '@/platform/lib/data/session'
 import { useAccountEmail, useResetPasswordAction } from '@/platform/shared/account'
 
 interface AccountSettingsRowsProps {
-  organization: PlatformOrganization
   /** Leaves Reset password, Sign out and Delete account unavailable, where nothing could run them. */
   actionsUnavailable?: boolean
   authorizedAppsHref: string
@@ -25,7 +23,6 @@ interface AccountSettingsRowsProps {
 type AccountView = 'authorized-apps' | 'organization-accounts'
 
 interface AccountSettingsSubviewProps {
-  organization: PlatformOrganization
   view: AccountView
   backHref: string
 }
@@ -41,12 +38,8 @@ const VIEWS = {
   },
 } as const
 
-export function AccountSettingsSubview({
-  organization,
-  view,
-  backHref,
-}: AccountSettingsSubviewProps) {
-  if (organization.navFlags.anonymous) return null
+/** A signed-in viewer's account sub-view; the route opens it only for a signed-in viewer. */
+export function AccountSettingsSubview({ view, backHref }: AccountSettingsSubviewProps) {
   return (
     <>
       <DetailHeader
@@ -60,7 +53,8 @@ export function AccountSettingsSubview({
   )
 }
 
-function SignedInRows({
+/** A signed-in viewer's account rows; the route renders them only for a signed-in viewer. */
+export function AccountSettingsRows({
   actionsUnavailable,
   authorizedAppsHref,
   organizationAccountsHref,
@@ -70,7 +64,7 @@ function SignedInRows({
   const [dialog, setDialog] = useState<'reset' | 'delete' | null>(null)
   const [signingOut, setSigningOut] = useState(false)
   return (
-    <>
+    <SettingsSection title='Account'>
       <SettingsRow
         label={VIEWS['authorized-apps'].title}
         description={VIEWS['authorized-apps'].description}
@@ -139,42 +133,6 @@ function SignedInRows({
       />
       {dialog === 'delete' && email && (
         <DeleteAccount email={email} onClose={() => setDialog(null)} />
-      )}
-    </>
-  )
-}
-
-export function AccountSettingsRows(props: AccountSettingsRowsProps) {
-  const { organization } = props
-  if (organization.navFlags.anonymous && !organization.deployment.hosted) return null
-  return (
-    <SettingsSection title='Account'>
-      {organization.deployment.hosted && (
-        <SettingsRow label='Home page' description='Open Sim’s public home page'>
-          <Button
-            size='compact'
-            render={
-              <a
-                href='/?home'
-                aria-label='Open home page'
-                target='_blank'
-                rel='noopener noreferrer'
-              >
-                Open
-              </a>
-            }
-          >
-            Open
-          </Button>
-        </SettingsRow>
-      )}
-      {!organization.navFlags.anonymous && (
-        <SignedInRows
-          organization={organization}
-          actionsUnavailable={props.actionsUnavailable}
-          authorizedAppsHref={props.authorizedAppsHref}
-          organizationAccountsHref={props.organizationAccountsHref}
-        />
       )}
     </SettingsSection>
   )

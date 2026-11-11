@@ -1,11 +1,10 @@
 'use client'
 
 import { Button } from '@sim/emcn/button'
-import { SettingsRow } from '@sim/emcn/settings-section'
-import { Switch } from '@sim/emcn/switch'
 import { PlatformSurface } from '@sim/emcn-platform/surface/platform-surface'
 import Link from 'next/link'
 import styles from '@/app/(product)/_components/consent-banner/consent-banner.module.css'
+import { SwitchRow } from '@/app/(product)/_components/settings-parts/switch-row'
 import { useConsentBanner } from '@/platform/shared/cookie-consent'
 
 /**
@@ -37,18 +36,14 @@ export function ConsentBanner() {
         {expanded && (
           <div className={styles.categories}>
             {categories.map((category) => (
-              <SettingsRow
+              <SwitchRow
                 key={category.name}
                 label={category.title}
                 description={category.description}
-              >
-                <Switch
-                  label={category.title}
-                  checked={category.checked}
-                  disabled={category.locked}
-                  onCheckedChange={(checked) => stage(category.name, checked)}
-                />
-              </SettingsRow>
+                checked={category.checked}
+                disabled={category.locked}
+                onCheckedChange={(checked) => stage(category.name, checked)}
+              />
             ))}
           </div>
         )}

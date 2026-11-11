@@ -54,7 +54,7 @@ export function ProfileForm({
           hidden
           type='file'
           aria-label='Set your profile picture'
-          accept='image/png,image/jpeg,image/jpg'
+          accept={PICTURE_TYPES.join(',')}
           disabled={uploading}
           onChange={onPictureChange}
         />

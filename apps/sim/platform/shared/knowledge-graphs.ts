@@ -22,8 +22,8 @@ export function useKnowledgeGraphs(organizationId: string) {
       name: space.name,
       description:
         space.id === null
-          ? 'Your original knowledge graph, preserved.'
-          : 'Private to you in this organization.',
+          ? 'Your original knowledge graph, preserved'
+          : 'Private to you in this organization',
       active: space.id === spaces.data?.activeSpaceId,
     })),
     nameMaxLength: MEMORY_SPACE_NAME_MAX_LENGTH,

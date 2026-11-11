@@ -1,13 +1,15 @@
 'use client'
 
-import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
-import { Switch } from '@sim/emcn/switch'
+import { SettingsSection } from '@sim/emcn/settings-section'
 import { useInterfacePreferences } from '@/app/(product)/_components/session/interface-preferences'
+import { Muted } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { SwitchRow } from '@/app/(product)/_components/settings-parts/switch-row'
 import styles from '@/app/(product)/o/[organizationId]/settings/_components/sections/privacy/cookie-preferences.module.css'
 import { cookieChoices, useCookieCategories } from '@/platform/shared/cookie-consent'
 
+const COOKIE_POLICY_HREF = '/cookie-policy'
+
 interface CookieListProps<Name extends string> {
-  policyHref: string
   categories: {
     name: Name
     title: string
@@ -19,48 +21,49 @@ interface CookieListProps<Name extends string> {
   commit: (name: Name, checked: boolean) => void
 }
 
-function CookieList<Name extends string>({
-  policyHref,
-  categories,
-  commit,
-  saving,
-}: CookieListProps<Name>) {
+function CookieList<Name extends string>({ categories, commit, saving }: CookieListProps<Name>) {
   return (
-    <SettingsSection title='Cookies'>
-      {categories.map((category) => (
-        <SettingsRow key={category.name} label={category.title} description={category.description}>
-          <Switch
+    <>
+      <SettingsSection title='Cookies'>
+        {categories.map((category) => (
+          <SwitchRow
+            key={category.name}
             label={category.title}
+            description={category.description}
             checked={category.checked}
             disabled={category.locked || saving}
             onCheckedChange={(checked) => void commit(category.name, checked)}
           />
-        </SettingsRow>
-      ))}
-      <p className={styles.note} data-type='T060'>
-        Your choice applies to this browser and is kept for 365 days. The{' '}
-        <a href={policyHref} target='_blank' rel='noopener noreferrer'>
+        ))}
+      </SettingsSection>
+      <Muted>
+        Your choice applies to this browser for 365 days. The{' '}
+        <a
+          className={styles.policy}
+          href={COOKIE_POLICY_HREF}
+          target='_blank'
+          rel='noopener noreferrer'
+        >
           Cookie Policy
         </a>{' '}
         lists what each category covers.
-      </p>
-    </SettingsSection>
+      </Muted>
+    </>
   )
 }
 
-function CookieCategories({ policyHref }: { policyHref: string }) {
+/** The hosted cookie choices, saved through the consent runtime. */
+export function CookieCategories() {
   const { categories, commit, saving } = useCookieCategories()
-  return (
-    <CookieList categories={categories} commit={commit} saving={saving} policyHref={policyHref} />
-  )
+  return <CookieList categories={categories} commit={commit} saving={saving} />
 }
 
-function SessionCookieCategories({ policyHref }: { policyHref: string }) {
+/** A fixture's cookie choices, kept for this interface session without the consent runtime. */
+export function SessionCookieCategories() {
   const session = useInterfacePreferences()
   if (!session) throw new Error('Cookie choices need interface preferences')
   return (
     <CookieList
-      policyHref={policyHref}
       categories={cookieChoices.map((choice) => ({
         ...choice,
         checked: choice.locked || Boolean(session.cookieChoices[choice.name]),
@@ -70,14 +73,4 @@ function SessionCookieCategories({ policyHref }: { policyHref: string }) {
       }
     />
   )
-}
-
-interface CookiePreferencesProps {
-  policyHref: string
-  fixture?: true
-}
-
-export default function CookiePreferences({ policyHref, fixture }: CookiePreferencesProps) {
-  if (fixture) return <SessionCookieCategories policyHref={policyHref} />
-  return <CookieCategories policyHref={policyHref} />
 }
