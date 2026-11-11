@@ -3,6 +3,8 @@ import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal
 import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { sortObjectKeysDeep } from '@sim/utils/object'
+import { compareStrings } from '@sim/utils/string'
 import {
   generateLoopBlocks,
   generateParallelBlocks,
@@ -12,6 +14,7 @@ import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { ForbiddenOperationError, principalAuditSource } from '@/lib/core/application'
 import { getBlockVisibility } from '@/lib/core/config/block-visibility'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbOrTx } from '@/lib/db/types'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/entitlement'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
@@ -147,8 +150,11 @@ function asGraph(value: Record<string, unknown>): Pick<WorkflowState, 'blocks' |
  * graph. A null result therefore remains a hard failure rather than becoming a
  * fallback graph that a write could persist after a failed read.
  */
-async function loadStoredGraph(workflowId: string): Promise<Record<string, unknown>> {
-  const normalized = await loadWorkflowFromNormalizedTables(workflowId)
+async function loadStoredGraph(
+  workflowId: string,
+  executor?: DbOrTx
+): Promise<Record<string, unknown>> {
+  const normalized = await loadWorkflowFromNormalizedTables(workflowId, executor)
   if (!normalized) {
     throw new OrchestrationError('validation', `Workflow ${workflowId} has no normalized state`)
   }
@@ -216,13 +222,50 @@ function applyBlockEnabledChanges(
   return { blocks: current, applied }
 }
 
+/**
+ * An order-insensitive identity for a stored graph, so two reads of the same
+ * rows compare equal even though the loader neither orders its rows nor fixes
+ * the key order of the records it builds.
+ */
+function storedGraphFingerprint(graph: Record<string, unknown>): string {
+  const edges = [...(asGraph(graph).edges ?? [])].sort((a, b) => compareStrings(a.id, b.id))
+  return JSON.stringify(sortObjectKeysDeep({ ...graph, edges }))
+}
+
+interface BaseGraph {
+  graph: Record<string, unknown>
+  /** Set when the base was read from storage, so the write can prove it is still current. */
+  storedFingerprint?: string
+}
+
 async function resolveBaseGraph(
   principal: Principal,
   input: ApplyWorkflowOperationsInput,
   context: ActiveWorkflowApplicationContext
-): Promise<Record<string, unknown>> {
-  if (input.baseGraph && principal.kind === 'delegated') return input.baseGraph
-  return loadStoredGraph(context.workflowId)
+): Promise<BaseGraph> {
+  if (input.baseGraph && principal.kind === 'delegated') return { graph: input.baseGraph }
+  const graph = await loadStoredGraph(context.workflowId)
+  return { graph, storedFingerprint: storedGraphFingerprint(graph) }
+}
+
+/**
+ * Refuses the write when the stored graph is no longer the one the batch was
+ * applied to. Runs under the workflow row lock, so a concurrent edit that
+ * committed after the base read surfaces as a conflict instead of being
+ * silently overwritten by a graph that never saw it.
+ */
+async function assertStoredGraphUnchanged(
+  workflowId: string,
+  storedFingerprint: string,
+  tx: DbOrTx
+): Promise<void> {
+  const current = await loadStoredGraph(workflowId, tx)
+  if (storedGraphFingerprint(current) !== storedFingerprint) {
+    throw new OrchestrationError(
+      'conflict',
+      'The workflow changed while these operations were being applied. Re-read it and retry.'
+    )
+  }
 }
 
 /**
@@ -233,6 +276,8 @@ async function resolveBaseGraph(
  * skipped items, and exactly one write of the fully-resolved graph happens at the
  * end, through the shared persistence primitive. A caller that needs all-or-nothing
  * sets `atomic`, which decides between the in-memory apply and that single write.
+ * When the batch was applied to the stored graph, that write is refused as a
+ * `conflict` if another edit committed in between, rather than overwriting it.
  *
  * Copilot's `edit_workflow` tool and `POST /api/v2/workflows/{workflowId}/operations` are
  * both adapters over this; the tool is the only caller allowed to supply
@@ -261,7 +306,11 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
       const subjectUserId = attribution.attributedUserId
 
       input.checkAborted?.()
-      const baseGraph = await resolveBaseGraph(principal, input, context)
+      const { graph: baseGraph, storedFingerprint } = await resolveBaseGraph(
+        principal,
+        input,
+        context
+      )
 
       const [permissionConfig, blockVisibility] = await Promise.all([
         resolvePermissionGroupConfig(
@@ -432,6 +481,7 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
         }
       }
 
+      const nextState = { blocks: graph.blocks, edges: graph.edges }
       const persisted = await replaceWorkflowNormalizedState({
         workflowId: context.workflowId,
         workspaceId: context.workspaceId,
@@ -442,7 +492,18 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
          * governed subject are the same human and cannot diverge here.
          */
         subjectUserId,
-        state: { blocks: graph.blocks, edges: graph.edges },
+        /**
+         * Applying the batch reaches credential lookups, MCP server discovery,
+         * and lint queries, so it ran outside the lock; only the staleness check
+         * runs under it.
+         */
+        state:
+          storedFingerprint === undefined
+            ? nextState
+            : async (tx) => {
+                await assertStoredGraphUnchanged(context.workflowId, storedFingerprint, tx)
+                return nextState
+              },
       })
 
       logger.info('Applied workflow operations', {
