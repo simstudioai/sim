@@ -59,6 +59,7 @@ test('native file tools remember folder consent across chats and restarts until 
     const bundle = await build({
       stdin: {
         contents: `import { createRoot } from 'react-dom/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context';
 import { PlatformSurface } from '@sim/emcn-platform/surface/platform-surface';
@@ -67,7 +68,9 @@ import DesktopSection from '@/app/(product)/o/[organizationId]/settings/_compone
 import { SurfaceScopeProvider } from '@/platform/lib/surface-scope';
 const router = { bfcacheId: 'fixture', back: () => history.back(), forward: () => history.forward(), refresh: () => location.reload(), push: url => location.assign(url), replace: url => location.replace(url), prefetch: () => {} };
 const organization = { featureFlags: { 'mothership-computer-use': false } };
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 createRoot(document.getElementById('settings')).render(
+  <QueryClientProvider client={queryClient}>
   <AppRouterContext.Provider value={router}>
     <SurfaceScopeProvider routePrefix='/o/fixture-organization'>
       <FeatureFlagsProvider flags={{ dashboards: false, 'workflow-tests': false, 'mothership-model-selector': false, 'mothership-plan-mode': false }}>
@@ -80,6 +83,7 @@ createRoot(document.getElementById('settings')).render(
       </FeatureFlagsProvider>
     </SurfaceScopeProvider>
   </AppRouterContext.Provider>
+  </QueryClientProvider>
 );`,
         resolveDir: SIM_DIR,
         loader: 'tsx',
