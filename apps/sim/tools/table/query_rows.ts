@@ -31,6 +31,14 @@ export const tableQueryRowsTool: InternalToolConfig<TableRowQueryParams, TableQu
       description: 'Sort order as {field: "asc"|"desc"}',
       visibility: 'user-or-llm',
     },
+    columns: {
+      type: 'array',
+      required: false,
+      items: { type: 'string' },
+      description:
+        'Stable column IDs or table column names to include in each row data object. Omit or pass an empty array to return all columns. A reference that matches no column is ignored.',
+      visibility: 'user-or-llm',
+    },
     limit: {
       type: 'number',
       required: false,
@@ -59,6 +67,7 @@ export const tableQueryRowsTool: InternalToolConfig<TableRowQueryParams, TableQu
         workspaceId,
         ...(params.filter ? { filter: JSON.stringify(params.filter) } : {}),
         ...(params.sort ? { sort: JSON.stringify(params.sort) } : {}),
+        ...(params.columns?.length ? { columns: JSON.stringify(params.columns) } : {}),
         ...(params.limit !== undefined ? { limit: String(params.limit) } : {}),
         ...(params.offset !== undefined ? { offset: String(params.offset) } : {}),
       }

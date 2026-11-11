@@ -23,4 +23,13 @@ describe('table query_rows transformer', () => {
       /Invalid number for Limit/
     )
   })
+
+  it('passes selected output columns to the query tool and treats an empty selection as all', () => {
+    expect(
+      params({ operation: 'query_rows', tableId: 'table-1', outputColumns: ['Email'] }).columns
+    ).toEqual(['Email'])
+    expect(
+      params({ operation: 'query_rows', tableId: 'table-1', outputColumns: [] }).columns
+    ).toBeUndefined()
+  })
 })

@@ -12,6 +12,11 @@ import type {
   TablePredicateInput,
 } from '@/lib/table/types'
 import type { BlockConfig } from '@/blocks/types'
+import {
+  resolveTableColumnSelection,
+  TABLE_OUTPUT_COLUMNS_INPUT,
+  TABLE_OUTPUT_COLUMNS_SUBBLOCK,
+} from '@/blocks/utils'
 import { TABLE_ID_PARAM } from '@/tools/table/params'
 import { getTrigger } from '@/triggers'
 
@@ -88,28 +93,6 @@ function resolveOrder(params: TableBlockParams): SortSpec | undefined {
   }
   const parsed = parseJSON(raw, 'Sort')
   return (parsed as SortSpec | undefined) || undefined
-}
-
-/**
- * Resolves the "Columns to Return" selection. Only an absent value (`undefined`,
- * `null`, the dependsOn-cleared `''`, or `[]`) means "all columns"; anything
- * else must be a list of column ids/names. A malformed value fails fast rather
- * than silently widening a deliberately narrowed query to every column — the
- * same stance `parseOptionalLimit` takes for a malformed limit. A JSON string is
- * accepted because an agent-authored block config serializes arrays that way.
- */
-function resolveOutputColumns(raw: unknown): string[] | undefined {
-  if (raw === undefined || raw === null || raw === '') return undefined
-  const parsed = typeof raw === 'string' ? parseJSON(raw, 'Columns to Return') : raw
-  if (!Array.isArray(parsed)) {
-    throw new Error('Invalid Columns to Return: expected a list of column ids or names')
-  }
-  if (parsed.length === 0) return undefined
-  const columns = parsed.map((column) => (typeof column === 'string' ? column.trim() : ''))
-  if (columns.some((column) => column.length === 0)) {
-    throw new Error('Invalid Columns to Return: every entry must be a non-empty column id or name')
-  }
-  return columns
 }
 
 interface ParsedParams {
@@ -200,9 +183,7 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
 
   query_rows: (params) => ({
     tableId: params.tableId,
-    // The canvas selection wins; a model-supplied `columns` (Agent tool use) is the
-    // fallback so it is not clobbered by an empty canvas value when merged.
-    columns: resolveOutputColumns(params.outputColumns) ?? resolveOutputColumns(params.columns),
+    columns: resolveTableColumnSelection(params),
     filter: resolveFilter(params),
     order: resolveOrder(params),
     // Omitted limit returns the entire result (server fails fast over 5MB);
@@ -342,19 +323,7 @@ export const TableV2Block: BlockConfig = {
       required: true,
     },
 
-    {
-      id: 'outputColumns',
-      title: 'Columns to Return',
-      type: 'dropdown',
-      selectorKey: 'table.outputColumns',
-      multiSelect: true,
-      searchable: true,
-      preserveLabelCase: true,
-      placeholder: 'All columns',
-      description: 'Only include these columns in each returned row. Leave empty for all columns.',
-      dependsOn: { any: ['tableSelector', 'manualTableId'] },
-      condition: { field: 'operation', value: 'query_rows' },
-    },
+    TABLE_OUTPUT_COLUMNS_SUBBLOCK,
 
     {
       id: 'rowId',
@@ -590,10 +559,7 @@ Return ONLY the JSON object:`,
     data: { type: 'json', description: 'Row data for insert/update' },
     rows: { type: 'array', description: 'Array of row data for batch insert' },
     rowId: { type: 'string', description: 'Row identifier for ID-based operations' },
-    outputColumns: {
-      type: 'array',
-      description: 'Table columns to include in each queried row; omit for all columns',
-    },
+    outputColumns: TABLE_OUTPUT_COLUMNS_INPUT,
     filterInput: {
       type: 'json',
       description:

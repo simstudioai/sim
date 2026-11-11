@@ -31,7 +31,7 @@ describe('table_v2 query_rows transformer', () => {
   it('fails fast instead of silently returning every column for a malformed selection', () => {
     expect(() =>
       params({ operation: 'query_rows', tableId: 't', outputColumns: 'col_name,col_email' })
-    ).toThrow(/Invalid JSON in Columns to Return/)
+    ).toThrow(/Invalid JSON for Columns to Return/)
     expect(() =>
       params({ operation: 'query_rows', tableId: 't', outputColumns: { col_name: true } })
     ).toThrow(/Invalid Columns to Return/)
