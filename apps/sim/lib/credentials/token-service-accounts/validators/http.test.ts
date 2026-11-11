@@ -3,7 +3,7 @@ import {
   inputValidationMock,
   inputValidationMockFns,
 } from '@sim/testing/mocks/input-validation.mock'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockResolveHost } = vi.hoisted(() => ({ mockResolveHost: vi.fn() }))
 
@@ -217,10 +217,6 @@ describe('tokenCheckValidator with a typed host', () => {
   })
 
   describe('behind an environment proxy', () => {
-    afterEach(() => {
-      vi.unstubAllEnvs()
-    })
-
     it('refuses a host with a private record alongside its public one before sending the token', async () => {
       vi.stubEnv('HTTPS_PROXY', 'http://proxy.internal:3128')
       const actual = await vi.importActual<typeof InputValidation>(
