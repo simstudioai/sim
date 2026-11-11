@@ -12,7 +12,7 @@ const MIN_REMAINING_MS = 5 * 60 * 1000
 const FAILURE_TTL_MS = 30_000
 
 /** The provider token a coordinated exchange produced. */
-export interface CoordinatedClientTokenExchange {
+interface CoordinatedClientTokenExchange {
   accessToken: string
   expiresAt: Date
 }

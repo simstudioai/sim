@@ -77,7 +77,7 @@ export interface TokenServiceAccountDescriptor {
 }
 
 /** Copy for a token provider's client-credentials mode in the connect modal. */
-export interface TokenServiceAccountClientCredentials {
+interface TokenServiceAccountClientCredentials {
   /** Authentication dropdown label for the client-credentials mode. */
   label: string
   /** Authentication dropdown label for the existing pasted-token mode. */

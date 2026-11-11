@@ -5616,7 +5616,6 @@
   "apps/sim/tools/pipedrive/types.ts#PIPEDRIVE_PROJECT_OUTPUT_PROPERTIES",
   "apps/sim/tools/pitchbook/utils.ts#appendFilters",
   "apps/sim/tools/pitchbook/utils.ts#pitchbookErrorMessage",
-  "apps/sim/tools/planetscale/utils.ts#PLANETSCALE_API_ORIGIN",
   "apps/sim/tools/polymarket/types.ts#POLYMARKET_CLOB_URL",
   "apps/sim/tools/polymarket/types.ts#POLYMARKET_DATA_URL",
   "apps/sim/tools/postgresql/types.ts#POSTGRES_COLUMN_OUTPUT_PROPERTIES",

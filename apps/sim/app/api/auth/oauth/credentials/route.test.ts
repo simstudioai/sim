@@ -173,6 +173,8 @@ describe('OAuth Credentials API Route', () => {
       hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockReset().mockResolvedValue({
         success: true,
         userId: 'user-123',
+        userName: 'Test User',
+        userEmail: 'test@example.com',
         authType: 'session',
       })
       permissionsMockFns.mockCheckWorkspaceAccess.mockResolvedValue({
@@ -208,7 +210,8 @@ describe('OAuth Credentials API Route', () => {
         ])
 
       const response = await GET(
-        createMockRequestWithQuery('GET', `?provider=vertex-ai&workspaceId=${workspaceId}`)
+        createMockRequestWithQuery('GET', `?provider=vertex-ai&workspaceId=${workspaceId}`),
+        { params: Promise.resolve({}) }
       )
 
       expect(response.status).toBe(200)

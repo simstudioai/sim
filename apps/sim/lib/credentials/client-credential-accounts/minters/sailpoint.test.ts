@@ -64,7 +64,7 @@ describe('SailPoint API client token exchange', () => {
 
     expect(mockFetch.mock.calls[0]?.[0]).toBe('https://agency.api.identitynowgov.com/oauth/token')
     expect(result.domain).toBe('agency.api.identitynowgov.com')
-    expect(result.identity.displayName).toBe('SailPoint agency')
+    expect(result.identity?.displayName).toBe('SailPoint agency')
   })
 
   it.each([

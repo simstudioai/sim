@@ -166,8 +166,13 @@ describe('withAwsCredential', () => {
 
   const stsFailure = (name: string, httpStatusCode: number) =>
     Object.assign(new Error(`${name} from STS`), { name, $metadata: { httpStatusCode } })
-  const sdkFailure = (Exception: typeof IDPCommunicationErrorException) =>
-    new Exception({ message: 'from STS', $metadata: { httpStatusCode: 400 } })
+  const sdkFailure = (
+    Exception:
+      | typeof IDPCommunicationErrorException
+      | typeof InvalidIdentityTokenException
+      | typeof ExpiredTokenException
+      | typeof IDPRejectedClaimException
+  ) => new Exception({ message: 'from STS', $metadata: { httpStatusCode: 400 } })
 
   it.each([
     ['STS could not reach the OIDC issuer', sdkFailure(IDPCommunicationErrorException), 503],
