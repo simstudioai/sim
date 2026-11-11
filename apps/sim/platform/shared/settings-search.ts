@@ -85,7 +85,7 @@ const SETTINGS_SEARCH_INDEX: Readonly<Record<string, readonly IndexedEntry[]>> =
     { label: 'Manage credits', terms: 'member usage limit', requires: 'admin' },
   ],
   'connected-accounts': [
-    { label: 'Credential Groups', terms: 'connected accounts shared oauth service accounts mcp' },
+    { label: 'Credential groups', terms: 'connected accounts shared oauth service accounts mcp' },
     { label: 'People', row: 'People', terms: 'members assigned group', query: 'tab=people' },
     { label: 'Providers', row: 'Providers', terms: 'integrations apps' },
   ],

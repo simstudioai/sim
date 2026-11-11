@@ -48,10 +48,12 @@ function useSettingRowReveal() {
 
 interface SettingsScreenProps {
   title: string
+  /** The page's one-line summary under its title, from the Settings navigation metadata. */
+  description?: string
   children: ReactNode
 }
 
-export function SettingsScreen({ title, children }: SettingsScreenProps) {
+export function SettingsScreen({ title, description, children }: SettingsScreenProps) {
   const start = useRef<HTMLDivElement>(null)
   const [scrolled, setScrolled] = useState(false)
   const content = useSettingRowReveal()
@@ -87,6 +89,7 @@ export function SettingsScreen({ title, children }: SettingsScreenProps) {
         <main ref={content} className={styles.content}>
           <header className={styles.heading}>
             <h1 data-type='T076'>{title}</h1>
+            {description && <p data-type='T067'>{description}</p>}
           </header>
           {children}
         </main>

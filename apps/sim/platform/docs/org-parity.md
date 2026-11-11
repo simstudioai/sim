@@ -92,6 +92,7 @@ One row per capability of the legacy organization surface. Every capability is e
 
 | Domain | Capability | Legacy source | Status | Proof or reason |
 | --- | --- | --- | --- | --- |
+| Navigation | Settings sidebar groups below Personal: Organization, Governance, Sim Search and Platform | `O/settings/navigation.ts` | Open | Owner: Emir Karabeg. Paper's Settings draws Personal (Preferences, Keyboard shortcuts, Notifications, Connections) and a single organization entry; the other groups keep legacy's sections and order until he designs them |
 | Preferences | Display name read and edit, pending, inline failure | General | Done | "a display name saves" |
 | Preferences | Picture upload, 5MB and type validation, failure notice | General | Unverified | No live check yet. Same hook as legacy (`hooks/use-profile-picture-upload`); not exercised in which uploads no file |
 | Preferences | Avatar fallback to the whitelabel logo | General | Hidden | Legacy mounts no brand provider on `/o`, so the organization surface never showed it. Applying a brand to the Platform needs its token mapping |

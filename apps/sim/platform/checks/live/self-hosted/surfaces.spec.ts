@@ -21,7 +21,7 @@ const SECTIONS: readonly (readonly [string, (page: Page) => Locator])[] = [
   ['/search', heading(/^Search /)],
   ['/chat', (page) => page.getByRole('main').getByRole('textbox').first()],
   ['/integrations', heading('Integrations')],
-  ['/settings', heading('General')],
+  ['/settings', heading('Preferences')],
   ['/settings/members', heading('Members')],
   ['/settings/links', heading('Links')],
 ]
@@ -43,7 +43,7 @@ test('self-hosted settings offer no billing section, a saved billing link is not
 }) => {
   await signInAsAdmin(page, liveRoute('/settings'))
   const nav = page.getByRole('navigation', { name: 'Settings', exact: true })
-  await expect(nav.getByRole('link', { name: 'General', exact: true })).toBeVisible()
+  await expect(nav.getByRole('link', { name: 'Preferences', exact: true })).toBeVisible()
   // The section's navigation label is Subscription; Billing is its legacy name.
   await expect(nav.getByRole('link', { name: 'Subscription', exact: true })).toHaveCount(0)
   await expect(nav.getByRole('link', { name: 'Billing', exact: true })).toHaveCount(0)

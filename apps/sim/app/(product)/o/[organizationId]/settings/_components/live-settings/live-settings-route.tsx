@@ -26,7 +26,7 @@ export function LiveSettingsRoute({ path, query, organization, fixture }: LiveSe
     notFound()
   const { Section } = entry
   return (
-    <SettingsScreen title={setting.title}>
+    <SettingsScreen title={setting.title} description={setting.description}>
       {isClientSettingsSection(setting.key) ? (
         <OrganizationSettingsSection
           section={setting.key}

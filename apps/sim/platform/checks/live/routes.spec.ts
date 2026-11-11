@@ -42,15 +42,15 @@ const ADMIN_ROUTES: readonly (readonly [string, string, Landmark])[] = [
   ['people-directory', liveRoute('/people?view=directory'), pageHeading('People')],
   ['people-chart', liveRoute('/people?view=chart'), pageHeading('People')],
   ['integrations', liveRoute('/integrations'), pageHeading('Integrations')],
-  ['settings-preferences', liveRoute('/settings'), settingsHeading('General')],
-  ['settings-notifications', liveRoute('/settings/notifications'), settingsHeading('General')],
+  ['settings-preferences', liveRoute('/settings'), settingsHeading('Preferences')],
+  ['settings-notifications', liveRoute('/settings/notifications'), settingsHeading('Preferences')],
   [
     'settings-shortcuts',
     liveRoute('/settings/keyboard-shortcuts'),
     settingsHeading('Keyboard shortcuts'),
   ],
-  ['settings-privacy', liveRoute('/settings/privacy'), settingsHeading('General')],
-  ['settings-account', liveRoute('/settings/account'), settingsHeading('General')],
+  ['settings-privacy', liveRoute('/settings/privacy'), settingsHeading('Preferences')],
+  ['settings-account', liveRoute('/settings/account'), settingsHeading('Preferences')],
   [
     'settings-recently-deleted',
     liveRoute('/settings/recently-deleted'),
@@ -189,7 +189,7 @@ test('Each route names its own tab', async ({ page }) => {
     [liveRoute('/search'), 'Search'],
     [liveRoute('/chat'), 'Chat'],
     [liveRoute('/integrations'), 'Integrations'],
-    [liveRoute('/settings'), 'General'],
+    [liveRoute('/settings'), 'Preferences'],
     [liveRoute('/settings/members'), 'Members'],
     [liveRoute('/settings/usage/events'), 'Usage events'],
   ]

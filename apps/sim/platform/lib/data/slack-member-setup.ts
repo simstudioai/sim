@@ -47,7 +47,7 @@ function memberAccountsMessage(previousAppSetup: boolean, optionActive: boolean 
   if (previousAppSetup)
     return 'Remove app setup on the Slack source to clear the previous Slack app first.'
   if (optionActive === undefined) return 'Verify member permissions in your Slack workspace.'
-  if (!optionActive) return 'Enable Slack in Credential Groups to verify member permissions.'
+  if (!optionActive) return 'Enable Slack in credential groups to verify member permissions.'
   return 'Verify member permissions. Members will need to reconnect if their app or permissions change.'
 }
 

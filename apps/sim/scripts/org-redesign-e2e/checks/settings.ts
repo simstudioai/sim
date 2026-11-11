@@ -56,7 +56,8 @@ export const SETTINGS_FOR_ADMIN = [
 ]
 
 const MEMBER_SETTINGS = [
-  'General',
+  'Preferences',
+  'Keyboard shortcuts',
   'Members',
   'Recently deleted',
   'Requests',
@@ -64,10 +65,11 @@ const MEMBER_SETTINGS = [
   'Search MCP',
 ]
 const ADMIN_SETTINGS = [
-  'General',
+  'Preferences',
+  'Keyboard shortcuts',
   'Subscription',
   'Members',
-  'Credential Groups',
+  'Credential groups',
   'Insights',
   'White-labeling',
   'Recently deleted',
@@ -318,7 +320,7 @@ export async function settingsChecks() {
   await check('the settings frame: breadcrumb and a section on the design', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await page.goto(settingsUrl('general'))
-      await expect(settingsLocation(page)).toContainText('General')
+      await expect(settingsLocation(page)).toContainText('Preferences')
       await expect(page.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible()
       await expect(page.getByRole('button', { name: 'Reset password', exact: true })).toBeVisible()
       await expect(
@@ -328,7 +330,9 @@ export async function settingsChecks() {
           .first()
       ).toBeVisible()
       await expect(
-        page.locator('[data-platform-ui]').getByRole('heading', { name: 'General', exact: true })
+        page
+          .locator('[data-platform-ui]')
+          .getByRole('heading', { name: 'Preferences', exact: true })
       ).toBeVisible()
     })
   })
@@ -336,7 +340,7 @@ export async function settingsChecks() {
     await withSession(ADMIN, async ({ page }) => {
       for (const [key, title] of [
         ['integrations', 'Sources'],
-        ['connected-accounts', 'Credential Groups'],
+        ['connected-accounts', 'Credential groups'],
         ['search-slack', 'Sim Search in Slack'],
       ] as const) {
         await page.goto(settingsUrl(key))
@@ -441,7 +445,7 @@ export async function settingsChecks() {
         (address) =>
           address.pathname === org.settings || address.pathname === org.settingsSection('general')
       )
-      await expect(settingsLocation(page)).toContainText('General')
+      await expect(settingsLocation(page)).toContainText('Preferences')
       await sidebar(page).getByRole('button', { name: 'Back to app', exact: true }).click()
       await expect(page).toHaveURL(url(org.integrations))
     })
@@ -685,7 +689,7 @@ export async function settingsChecks() {
         await issuer.evaluate((field) => field.closest('form')?.requestSubmit())
         const general = page
           .getByRole('navigation', { name: 'Settings', exact: true })
-          .getByRole('link', { name: 'General', exact: true })
+          .getByRole('link', { name: 'Preferences', exact: true })
         await general.click()
         await pageTurn(page)
         assert.equal(bodies.length, 1, 'A second add went out while the first was pending')

@@ -57,7 +57,7 @@ test('a member who is not a platform administrator gets not found from the platf
   // An organization administrator, which is not a platform administrator.
   await signInAsAdmin(page, liveRoute('/settings'))
   const nav = page.getByRole('navigation', { name: 'Settings', exact: true })
-  await expect(nav.getByRole('link', { name: 'General', exact: true })).toBeVisible()
+  await expect(nav.getByRole('link', { name: 'Preferences', exact: true })).toBeVisible()
   await expect(nav.getByRole('link', { name: 'Admin', exact: true })).toHaveCount(0)
   for (const section of ['admin', 'mothership']) {
     await page.goto(liveRoute(`/settings/${section}`))

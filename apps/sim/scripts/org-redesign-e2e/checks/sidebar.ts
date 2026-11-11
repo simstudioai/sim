@@ -685,7 +685,7 @@ export async function sidebarChecks() {
       await expect(menu.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible()
       await menu.getByRole('button', { name: 'Settings', exact: true }).click()
       await expect(page).toHaveURL(url(org.settings))
-      await expect(page.getByLabel('Settings location')).toContainText('General')
+      await expect(page.getByLabel('Settings location')).toContainText('Preferences')
     })
   })
   await check('sign out ends the session', () =>

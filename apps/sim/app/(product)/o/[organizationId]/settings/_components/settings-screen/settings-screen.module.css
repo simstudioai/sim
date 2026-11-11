@@ -1,12 +1,15 @@
+/* Every settings page reads at Paper's settings column, narrower than the dashboard's page column. */
 .content {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-24);
+  max-inline-size: var(--container-app-settings);
+  margin-inline: auto;
 }
 
 .heading {
   display: grid;
-  gap: var(--ui-stack-gap);
+  gap: var(--spacing-8);
 }
 
 .heading p {
@@ -22,6 +25,7 @@
   gap: var(--spacing-12);
   min-block-size: var(--spacing-48);
   padding-inline: max(var(--ui-navigation-inset), var(--spacing-24)) var(--spacing-24);
+  border-block-end: var(--spacing-stroke-default) solid var(--ui-divider);
   background: var(--ui-canvas);
 }
 

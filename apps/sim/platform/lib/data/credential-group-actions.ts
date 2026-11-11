@@ -114,7 +114,7 @@ export function useLiveCredentialGroupActions(
   const { groupId, options } = management
 
   async function updateOptions(next: ProviderOptions) {
-    if (!groupId) throw new Error('Set up Credential Groups first')
+    if (!groupId) throw new Error('Set up credential groups first')
     await update.mutateAsync({ organizationId, groupId, update: { options: next } })
   }
 
@@ -124,7 +124,7 @@ export function useLiveCredentialGroupActions(
         await ensure.mutateAsync({ organizationId })
         router.refresh()
       } catch (error) {
-        toast.error(getErrorMessage(error, 'Could not set up Credential Groups'))
+        toast.error(getErrorMessage(error, 'Could not set up credential groups'))
       }
     },
     addProvider: async ({ method, provider }) => {

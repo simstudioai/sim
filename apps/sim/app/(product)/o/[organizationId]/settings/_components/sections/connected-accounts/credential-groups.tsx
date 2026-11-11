@@ -44,7 +44,7 @@ export function CredentialGroups({
   const [tab, setTab] = useQueryState('tab', tabParser.withOptions({ shallow }))
   const [settingUp, setSettingUp] = useState(false)
   if (!data.canManage)
-    return <EmptyState title='An organization admin manages Credential Groups.' />
+    return <EmptyState title='An organization admin manages credential groups.' />
   if (!data.setup)
     return (
       <SettingsSection title='Setup'>
@@ -60,7 +60,7 @@ export function CredentialGroups({
               void actions.setUp().finally(() => setSettingUp(false))
             }}
           >
-            Set up Credential Groups
+            Set up credential groups
           </Button>
         </SettingsRow>
       </SettingsSection>
@@ -69,7 +69,7 @@ export function CredentialGroups({
     <SectionStack>
       <ActionRow>
         <SegmentedControl
-          label='Credential Groups views'
+          label='Credential groups views'
           options={VIEWS}
           value={tab}
           onSelect={(value) => void setTab(value)}

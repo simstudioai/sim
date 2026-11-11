@@ -372,7 +372,7 @@ export async function linksChecks() {
         const linksHeading = page.getByRole('heading', { level: 1, name: 'Links', exact: true })
         try {
           await expect(
-            page.getByRole('heading', { level: 1, name: 'General', exact: true })
+            page.getByRole('heading', { level: 1, name: 'Preferences', exact: true })
           ).toBeVisible()
           await expect(linksHeading).toHaveCount(0)
           await expect(page.getByRole('status', { name: /loading/i })).toHaveCount(0)

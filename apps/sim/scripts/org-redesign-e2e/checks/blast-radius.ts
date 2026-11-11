@@ -165,7 +165,7 @@ export async function blastRadiusChecks() {
         (address) => address.pathname === org.settingsSection('connected-accounts')
       )
       await expect(
-        page.getByRole('heading', { level: 1, name: 'Credential Groups', exact: true })
+        page.getByRole('heading', { level: 1, name: 'Credential groups', exact: true })
       ).toBeVisible()
     })
   })

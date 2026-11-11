@@ -152,7 +152,7 @@ export async function landingChecks() {
         const location = page.getByLabel('Settings location')
         // Bare Settings opens General in place; the product does not rewrite the URL.
         await page.goto(url(org.settings))
-        await expect(location).toContainText('General')
+        await expect(location).toContainText('Preferences')
         await page.goto(url(org.settingsSection('authorized-apps')))
         await expect(page).toHaveURL(
           (address) =>

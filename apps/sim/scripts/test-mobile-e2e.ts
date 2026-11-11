@@ -175,7 +175,7 @@ const routes: SurfaceRoute[] = [
   {
     name: 'settings',
     path: organization.settings,
-    content: (page) => page.getByRole('button', { name: /^Theme:/ }),
+    content: (page) => page.getByRole('combobox', { name: 'Theme', exact: true }),
   },
 ]
 const selectedViewport = process.env.MOBILE_E2E_VIEWPORT

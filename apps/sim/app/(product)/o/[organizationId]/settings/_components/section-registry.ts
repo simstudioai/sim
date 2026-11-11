@@ -14,7 +14,7 @@ export interface SettingsSectionProps {
   query: Record<string, string | string[] | undefined>
 }
 
-type SettingsSectionKey = LiveSettingsKey | 'keyboard-shortcuts' | 'links'
+type SettingsSectionKey = LiveSettingsKey
 
 /** Sections that read or gate on the server before they render. */
 type ServerSettingsSectionKey =
