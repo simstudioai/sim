@@ -313,7 +313,7 @@ describe('login command', () => {
     })
     expect(mocks.writeCredentialsProfile).toHaveBeenLastCalledWith('default', null)
     expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain(
-      'API key key-id was created on your account but could not be stored safely. Revoke key key-id in Settings → API keys.'
+      'API key key-id was created on your account but could not be stored safely. Revoke the newest key named "CLI (…Z)", created at about'
     )
   })
 
@@ -864,6 +864,15 @@ describe('login command — OAuth', () => {
   afterEach(() => {
     if (originalIsTTY) Object.defineProperty(process.stdin, 'isTTY', originalIsTTY)
     else Reflect.deleteProperty(process.stdin, 'isTTY')
+  })
+
+  it('fails fast on an unreachable endpoint when --expires-in picks the handoff', async () => {
+    setInteractive(false)
+    mocks.discoverOAuthProvider.mockResolvedValue('unreachable')
+
+    await expect(login('--expires-in', '30')).rejects.toThrow('Could not reach https://sim.ai')
+
+    expect(mocks.pollForKey).not.toHaveBeenCalled()
   })
 
   /** Only an API key can expire, so asking for a lifetime chooses the handoff over OAuth. */

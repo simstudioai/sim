@@ -415,7 +415,6 @@ async function chooseLoginFlow(
 ): Promise<'oauth' | 'handoff'> {
   requireSecureEndpoint(profile.endpoint)
   if (options.method === 'api-key') return 'handoff'
-  if (options.method === undefined && options.expiresIn !== undefined) return 'handoff'
   if (
     options.method === undefined &&
     isLikelyRemoteSession() &&
@@ -432,6 +431,7 @@ async function chooseLoginFlow(
   if (status === 'unreachable') {
     throw new SimApiError(`Could not reach ${profile.endpoint}. Check the endpoint.`, 0)
   }
+  if (options.method === undefined && options.expiresIn !== undefined) return 'handoff'
   if (status === 'unavailable') {
     if (options.method === 'oauth') {
       throw new SimApiError(
@@ -754,7 +754,10 @@ async function loginWithHandoff(
     })
   } catch (error) {
     const keyId = typeof key.id === 'string' && key.id ? safeOneLine(key.id) : 'unknown'
-    const listedAs = key.name ? `"${safeOneLine(key.name)}"` : `key ${keyId}`
+    // An older server does not report the name, but names every key `CLI (<UTC time>Z)` as it mints.
+    const listedAs = key.name
+      ? `"${safeOneLine(key.name)}"`
+      : `the newest key named "CLI (…Z)", created at about ${new Date().toISOString().slice(0, 19).replace('T', ' ')}Z,`
     printLine(
       styles().yellow(
         `API key ${keyId} was created on your account but could not be stored safely. Revoke ${listedAs} in Settings → API keys.`
