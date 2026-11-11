@@ -1898,6 +1898,8 @@ export const SailPointBlockMeta = {
 export const SailPointV2Block: BlockConfig = {
   ...SailPointBlock,
   type: 'sailpoint_v2',
+  longDescription:
+    'Connect SailPoint Identity Security Cloud with a Personal Access Token or a client-credentials API client to search identity-governance data, manage access requests and approvals, review certifications, and import source data. The token owner and scopes determine the operations available to the integration.',
   authMode: AuthMode.OAuth,
   hideFromToolbar: false,
   sunset: undefined,

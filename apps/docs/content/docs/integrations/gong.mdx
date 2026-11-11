@@ -12,7 +12,9 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 {/* MANUAL-CONTENT-START:intro */}
 Use [Gong](https://www.gong.io/) to list calls, read call details and transcripts, and retrieve topics, trackers, interaction statistics, and other extensive call data. The actions also read users, activity and coaching metrics, answered scorecards, scorecard definitions, tracker configuration, call-library folders and content, and Engage flows.
 
-Look up an email address or phone number to find related calls, emails, meetings, CRM records, and engagement events. Connect your Gong API credentials and inspect the returned data when preparing coaching reports or syncing conversations to another system.
+Look up an email address or phone number to find related calls, emails, meetings, CRM records, and engagement events, and inspect the returned data when preparing coaching reports or syncing conversations to another system.
+
+Connect Gong once as a Gong credential: a Gong technical administrator creates an access key and secret on the **API** page of the Gong company settings, then adds both. Sim calls `https://api.gong.io`; an account whose API page shows a different base URL is not supported by the credential yet. Workflows built with the earlier Gong block keep the access key and secret they entered in the block.
 
 **Create Call** uploads metadata and asks Gong to fetch the recording from a media URL. **Assign Flow Prospects** and **Unassign Flow Prospects** change a prospect’s Engage flow assignments. **Purge Email Address** and **Purge Phone Number** request deletion of associated Gong data. [Gong processes these deletions in the background](https://help.gong.io/docs/delete-personal-data); a returned request ID does not confirm completion.
 {/* MANUAL-CONTENT-END */}

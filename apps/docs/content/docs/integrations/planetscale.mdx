@@ -12,7 +12,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 {/* MANUAL-CONTENT-START:intro */}
 Use [PlanetScale](https://planetscale.com/) to inspect databases and branches, create or delete branches, restore backups into a new branch, and create or inspect backups. Vitess deploy-request actions create, review, approve, queue, or close schema-change requests.
 
-Create an organization service token with access to the databases and actions your workflow needs. Enter the service token ID, token, and organization slug in the block. Deploy requests are specific to Vitess; use the MySQL or PostgreSQL block to execute SQL.
+Connect PlanetScale once as a PlanetScale credential: create a service token on your organization's **Service tokens** page, grant it access to the databases and actions your workflows need, then add its ID and token. The organization slug stays in the block. Workflows built with the earlier PlanetScale block keep the service token ID and token they entered in the block. Deploy requests are specific to Vitess; use the MySQL or PostgreSQL block to execute SQL.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]

@@ -12,7 +12,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 {/* MANUAL-CONTENT-START:intro */}
 The SailPoint integration connects Sim workflows to SailPoint Identity Security Cloud (ISC) with a Personal Access Token (PAT) or an API client that has the client credentials grant. Connect it once as a SailPoint credential: enter the tenant name from your ISC URL (or its `*.api.identitynow.com` host) plus the client ID and client secret. Sim checks the credential by exchanging it at the tenant's `/oauth/token` endpoint when you save it, then calls SailPoint's current service-versioned endpoints, such as `/identities/v1`, `/access-requests/v1`, and `/certifications/v1`. There is no global API-version setting.
 
-Workflows built with the earlier SailPoint block keep the tenant, client ID, and client secret they entered in the block, including `*.api.identitynowgov.com` hosts. A saved credential accepts only `*.api.identitynow.com` tenants, the domain SailPoint documents for API calls.
+Workflows built with the earlier SailPoint block keep the tenant, client ID, and client secret they entered in the block, including `*.api.identitynowgov.com` hosts. A saved credential accepts only `*.api.identitynow.com` tenants, the domain SailPoint documents for API calls; to add another block for a tenant on another domain, duplicate one of those blocks.
 
 ## Permissions
 
@@ -39,7 +39,7 @@ The 40 actions cover six connected workflows: search and entity lookup; account,
 
 ## Use the block [#usage-instructions]
 
-Connect SailPoint Identity Security Cloud with a Personal Access Token to search identity-governance data, manage access requests and approvals, review certifications, and import source data. The token owner and scopes determine the operations available to the integration.
+Connect SailPoint Identity Security Cloud with a Personal Access Token or a client-credentials API client to search identity-governance data, manage access requests and approvals, review certifications, and import source data. The token owner and scopes determine the operations available to the integration.
 
 ## Actions
 
