@@ -5,6 +5,7 @@
   gap: var(--spacing-24);
   max-inline-size: var(--container-app-settings);
   margin-inline: auto;
+  padding-block: var(--spacing-24) var(--spacing-32);
 }
 
 .heading {
