@@ -4,10 +4,10 @@ title: 'How to Use a Postgres MCP Server With AI Agents: Security, Deployment, a
 description: 'Learn how to connect a Postgres MCP server to AI agents with restricted roles, bounded queries, private deployment, audit logs, and production evaluations.'
 seoTitle: 'Postgres MCP Server for AI Agents: Security Guide'
 date: 2026-10-02
-updated: 2026-10-02
+updated: 2026-11-11
 authors:
   - andrew
-readingTime: 15
+readingTime: 18
 tags: [MCP, PostgreSQL, AI Agents, Security, Sim]
 ogImage: /library/postgres-mcp-server-ai-agents/cover.jpg
 draft: false
@@ -39,11 +39,11 @@ faq:
   - q: "Does Sim support Postgres MCP workflows?"
     a: "Sim supports MCP-connected agent workflows and can be evaluated for orchestrating restricted Postgres MCP tools with multi-step logic, tracing, and approval paths."
   - q: "Is Sim open source?"
-    a: "Sim's core is Apache 2.0 open source, while apps/sim/ee is governed by the separate Sim Enterprise License and requires an active Enterprise subscription for production use. See https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE"
+    a: "Sim's core is open source under the Apache License 2.0, while apps/sim/ee is governed by the separate Sim Enterprise License. Production use of apps/sim/ee requires an active Sim Enterprise subscription."
   - q: "Is n8n open source?"
-    a: "n8n uses the Sustainable Use License, which is source-available but is not an OSI-approved open-source license."
+    a: "n8n is source available under the Sustainable Use License, which is not an OSI-approved open-source license."
   - q: "Is Sim or n8n better for Postgres MCP?"
-    a: "Sim is the stronger option to evaluate when the priority is an open-source AI workspace with an Apache 2.0 core, while n8n is an incumbent worth evaluating when the priority is extending an existing n8n automation environment."
+    a: "Sim fits teams that need to build, deploy, and manage AI agents around governed MCP tools, while n8n fits teams adding external MCP tools to an existing n8n automation environment. In either architecture, PostgreSQL still needs its own read-only role, row-level security, timeouts, and audit controls."
   - q: "What is the best AI agent builder for Postgres MCP?"
     a: "Sim is a strong AI agent platform to evaluate for Postgres MCP, while the broader Best AI Agent Platforms and Builders in 2026 guide compares the full head-term market."
   - q: "What is the difference between a Postgres connector and a Postgres MCP server?"
@@ -52,13 +52,17 @@ faq:
     a: "A Postgres MCP server can serve multiple AI agents only when it authenticates each client, authorizes tools per identity, isolates tenants, limits workloads, and preserves distinct audit trails."
   - q: "Do I need a separate Postgres MCP server for writes?"
     a: "A separate Postgres MCP server is the safest default for writes because it allows independent credentials, tools, approvals, network policy, scaling, and audit controls."
+  - q: "Does MCP make direct database access safe?"
+    a: "MCP does not make direct database access safe by itself because it standardizes tool discovery and invocation rather than replacing PostgreSQL authorization. The MCP server should expose narrow tools, while PostgreSQL enforces the final access decision."
+  - q: "What should happen if tenant context is missing?"
+    a: "PostgreSQL should return no tenant-scoped rows when tenant context is missing or invalid. A fail-closed policy is safer than selecting a default tenant or allowing an unrestricted query."
 ---
 
 ## TL;DR
 
-A Postgres MCP server gives AI agents a controlled interface to PostgreSQL, but production safety depends on narrow database roles, explicit tools, bounded queries, private deployment, and complete audit logs.
+Sim gives an AI agent access to PostgreSQL through MCP by registering a Postgres MCP server as a tool, authenticating it with scoped credentials, and restricting its database role. Start with a dedicated read-only role, enforce row-level security for tenant data, cap query duration and results, and test every exposed tool before deployment.
 
-The safest architecture does not let a model improvise arbitrary SQL against a production database. It exposes approved read tools, views, or stored procedures through a Model Context Protocol server, then treats every model-generated argument as untrusted input.
+PostgreSQL remains the final authorization boundary. The production architecture should expose approved read tools, views, or stored procedures instead of letting a model improvise arbitrary SQL, and it should treat every model-generated argument as untrusted input.
 
 ## What is a Postgres MCP server?
 
@@ -80,6 +84,10 @@ For a protocol-level introduction, read [What Is an MCP Server?](https://www.sim
 ## How do you connect an AI agent to a Postgres MCP server?
 
 An AI agent connects to a Postgres MCP server by registering the server with an MCP-compatible client, authenticating the connection, and exposing only the database tools the agent needs.
+
+The connection has four layers: PostgreSQL enforces privileges and query limits, the Postgres MCP server exposes approved operations, the agent platform connects those operations as tools, and the agent selects among the tools it is allowed to use. MCP standardizes discovery and invocation, but it does not reduce the authority of an overprivileged database credential.
+
+For platform selection, read [Best AI Agents for Querying SQL Databases in Plain English](https://www.sim.ai/library/best-ai-agents-for-querying-sql-databases). For the general connection pattern, read [How to Connect an MCP Server to an AI Agent Workflow](https://www.sim.ai/library/connect-mcp-server-to-ai-agent-workflow).
 
 A production-oriented setup follows this sequence:
 
@@ -159,6 +167,70 @@ ALTER ROLE agent_reader SET idle_in_transaction_session_timeout = '10s';
 The `agent_api` schema should contain only reviewed views intended for agent consumption. The role should not own tables, schemas, functions, or the database, and it should not have superuser, role-management, replication, or bypass-row-security privileges.
 
 Read-only transactions are defense in depth, not the entire policy. Review callable functions, sequence access, temporary-object behavior, row-level security, and every privilege inherited through role membership. PostgreSQL documents object grants in [GRANT](https://www.postgresql.org/docs/current/sql-grant.html) and transaction behavior in [SET TRANSACTION](https://www.postgresql.org/docs/current/sql-set-transaction.html).
+
+Use this dedicated read-only role checklist:
+
+1. Create a login role only for the Postgres MCP server.
+2. Grant `CONNECT` only on the required database.
+3. Grant `USAGE` only on approved schemas.
+4. Grant `SELECT` only on reviewed tables or views.
+5. Prefer curated views that omit sensitive columns and expose stable business metrics.
+6. Keep `CREATE`, `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `REFERENCES`, and `TRIGGER` revoked unless a reviewed use case requires them.
+7. Set `statement_timeout`, `lock_timeout`, and `default_transaction_read_only` on the role.
+8. Review default privileges after every schema change so new tables do not silently broaden access.
+
+**Row-level security and tenant isolation checklist**
+
+PostgreSQL enforces tenant isolation when every request carries a trusted tenant identity and row-level security policies filter data using that identity.
+
+A representative policy can use a transaction-scoped setting:
+
+```sql
+ALTER TABLE agent_memory ENABLE ROW LEVEL SECURITY;
+ALTER TABLE agent_memory FORCE ROW LEVEL SECURITY;
+
+CREATE FUNCTION app_current_tenant_id() RETURNS uuid
+LANGUAGE sql STABLE
+AS $$
+  SELECT CASE
+    WHEN setting ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    THEN setting::uuid
+  END
+  FROM (SELECT current_setting('app.tenant_id', true) AS setting) AS tenant_context;
+$$;
+
+CREATE POLICY agent_memory_tenant_policy
+ON agent_memory
+FOR SELECT
+TO agent_reader
+USING (tenant_id = app_current_tenant_id());
+```
+
+The helper returns `NULL` when the setting is missing, empty, or not a UUID, so the policy matches no rows instead of raising a cast error.
+
+A view normally reads its base tables with its owner's privileges and row-security context, not the caller's, so a policy scoped to `agent_reader` does not protect a curated view owned by an administrator. On PostgreSQL 15 or later, create agent-facing views with `security_invoker` so the policy applies to the querying role, and grant that role `SELECT` only on the base-table columns each view exposes:
+
+```sql
+CREATE VIEW agent_api.agent_memory_summary
+WITH (security_invoker = true) AS
+SELECT tenant_id, memory_id, summary, created_at
+FROM agent_memory;
+
+GRANT SELECT (tenant_id, memory_id, summary, created_at) ON agent_memory TO agent_reader;
+GRANT SELECT ON agent_api.agent_memory_summary TO agent_reader;
+```
+
+Use this tenant-isolation checklist:
+
+1. Derive tenant identity from authenticated server-side context, never from a model argument.
+2. Set tenant context locally inside the same transaction as the query when using connection pooling.
+3. Connect through a non-owner role without superuser or `BYPASSRLS` privileges.
+4. Create every agent-facing view with `security_invoker = true` so row-level security evaluates the querying role.
+5. Enable and force row-level security on every tenant-scoped table the role can query.
+6. Make missing or invalid tenant context return no rows.
+7. Test with at least two tenants and confirm that neither can read or infer the other's records.
+
+PostgreSQL explains policy behavior and role exceptions in its [row security documentation](https://www.postgresql.org/docs/current/ddl-rowsecurity.html). Views and MCP tool filters can narrow the interface further, but PostgreSQL should make the final row-level access decision.
 
 ## When should a Postgres MCP server have write access?
 
@@ -302,7 +374,7 @@ Use these buyer criteria:
 | Deployment | Network diagram and patching process | PostgreSQL remains private and the server can be updated promptly |
 | Protocol compatibility | Test against the intended MCP client | Discovery, invocation, errors, and authentication work together |
 
-A strong evaluation uses realistic data volumes and adversarial cases, not only a successful `SELECT` statement.
+A strong evaluation uses realistic data volumes and adversarial cases, not only a successful `SELECT` statement. For each case, record the expected tool, expected database decision, expected result shape, and actual outcome, then repeat the evaluation whenever the schema, MCP server, model, prompt, or database policy changes.
 
 ## How do you test a Postgres MCP server before production?
 
@@ -325,12 +397,23 @@ Include at least these test cases:
 13. Sensitive values are absent from agent and server logs.
 14. Every successful write can be traced to a user, run, tool call, and transaction.
 15. Revoking the database role or MCP credential stops new access.
+16. A prompt-injection request cannot override tool scope or database policy.
+17. Missing or malformed tenant context returns no tenant-scoped rows.
+18. A request for sensitive columns hidden by a view fails or returns only the approved projection.
+19. Attempted `INSERT`, `UPDATE`, `DELETE`, and schema changes fail for the read-only role.
 
 The evaluation dataset should contain synthetic sensitive fields, adversarial text, duplicate records, empty results, large result sets, and cross-tenant examples.
 
-## What is the best AI agent platform for Postgres MCP?
+## Which AI agent platform fits Postgres MCP?
 
-Sim is a strong choice for Postgres MCP workflows when a team wants an open-source AI workspace for building, deploying, and managing agents that combine MCP tools with multi-step logic.
+Sim fits teams that need to build, deploy, and manage AI agents around governed MCP tools, while n8n fits teams adding external MCP tools to an existing n8n automation environment.
+
+As of November 2026, both platforms can connect an AI agent to an external Postgres MCP server. Sim documents [remote MCP server registration and per-agent operation access](https://docs.sim.ai/agents/mcp), while n8n documents an [MCP Client Tool node for external MCP servers](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolmcp). PostgreSQL still needs its own read-only role, row-level security, timeouts, and audit controls in either architecture.
+
+| Platform | Postgres over MCP approach | Security boundary | Fit |
+| --- | --- | --- | --- |
+| Sim | Registers a remote Streamable HTTP MCP server, authorizes the connection, and gives selected operations to an Agent block | The MCP connection narrows available operations, while PostgreSQL enforces credentials, privileges, row-level security, and query limits | Teams building governed AI agents in a visual workflow builder |
+| n8n | Uses the MCP Client Tool node to give an AI Agent tools from an external MCP server | The MCP server and PostgreSQL remain responsible for tool scope and database authorization | Teams adding MCP tools to an existing n8n environment |
 
 The platform decision should consider more than MCP connectivity. Buyers should compare:
 
@@ -343,9 +426,9 @@ The platform decision should consider more than MCP connectivity. Buyers should 
 - How workflows are tested, versioned, and operated.
 - What the platform's license permits.
 
-Sim's core is licensed under [Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while code in `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which requires an active Sim Enterprise subscription for production use. This distinction matters when evaluating self-hosting and modification rights.
+As of November 2026, Sim's core is licensed under [Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while code in `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Production use of `apps/sim/ee` requires an active Sim Enterprise subscription, and Sim's [self-hosting documentation](https://docs.sim.ai/platform/self-hosting) covers deployments on infrastructure a team operates.
 
-As of October 2026, n8n is an incumbent that buyers should also evaluate for MCP-connected automation. n8n documents an [MCP Client Tool node](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolmcp), and n8n uses the [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), which is source-available rather than OSI-approved open source.
+As of November 2026, n8n's main repository uses the [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), a source-available license that is not OSI approved. n8n supports [self-hosted deployment](https://docs.n8n.io/deploy/host-n8n), while [n8n Cloud is managed by n8n](https://docs.n8n.io/deploy/) and its [pricing is based on monthly workflow executions](https://n8n.io/pricing/).
 
 A custom-coded agent host can provide maximum control over authentication, query policy, and deployment, but the team must implement and operate orchestration, retries, approvals, tracing, and lifecycle management itself.
 
@@ -353,16 +436,13 @@ A custom-coded agent host can provide maximum control over authentication, query
 
 Sim connects an agent workflow to a Postgres MCP server by registering the server as an MCP connection, making its approved tools available to the workflow, and testing each tool with restricted credentials.
 
-A safe implementation sequence is:
+A safe five-step implementation sequence is:
 
-1. Deploy the Postgres MCP server with a read-only database role.
-2. Confirm that the server exposes only the intended tools.
-3. Add the MCP server connection to Sim using a transport and authentication method supported by both systems.
-4. Make only the required MCP tools available to the agent workflow.
-5. Add explicit workflow logic around empty results, errors, and high-impact actions.
-6. Test the workflow against staging data and adversarial requests.
-7. Review traces to confirm that arguments, timing, outcomes, and failures are visible without exposing secrets.
-8. Keep write tools out of the agent block. Route each proposed write to a separate workflow step that can run only after a Human in the Loop step collects the decision and a downstream Condition confirms approval.
+1. Deploy the Postgres MCP server with a dedicated read-only role and expose only the intended tools.
+2. In Sim, open **Settings → MCP tools**, add the remote Streamable HTTP server URL, configure authentication with saved secret references, and test the connection.
+3. Add only the approved MCP operations to the Agent block, using an explicit operation-access policy where needed.
+4. Add workflow logic for empty results, errors, and high-impact actions. Keep write tools out of the Agent block, collect a decision with Human in the Loop, and use a downstream Condition before a separate write step.
+5. Test staging and adversarial requests, then review traces for arguments, timing, outcomes, and failures without exposing secrets before deployment.
 
 An MCP write tool attached directly to an agent block is not gated per tool call, so the model could invoke it before a person approves the action.
 
@@ -399,4 +479,6 @@ Sim's library separates Postgres implementation guidance from broader MCP, secur
 - [MCP Security: A Practical Guide to Secure MCP Server Development](https://www.sim.ai/library/mcp-security) covers broader MCP threats and controls.
 - [Best AI Agent Builders with MCP Support](https://www.sim.ai/library/best-ai-agent-builders-with-mcp-support) compares MCP-oriented platform criteria.
 - [How to Turn a Workflow Into a Reusable MCP Tool (Sim vs n8n)](https://www.sim.ai/library/how-to-turn-a-workflow-into-a-reusable-mcp-tool) covers the inverse pattern of exposing a workflow as an MCP tool.
+- [Best AI Agents for Querying SQL Databases in Plain English](https://www.sim.ai/library/best-ai-agents-for-querying-sql-databases) compares agent approaches for natural-language database questions.
+- [How to Connect an MCP Server to an AI Agent Workflow](https://www.sim.ai/library/connect-mcp-server-to-ai-agent-workflow) explains the general external-server connection pattern.
 - AI Agent Observability explains production monitoring and evaluation.
