@@ -5,7 +5,7 @@ import { jsonResponse } from '@sim/testing/helpers/http'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { validateGitHubServiceAccount } from '@/lib/credentials/token-service-accounts/validators/token-checks'
 
-const TOKEN = 'github_pat_11ABCDEFG0secretvalue'
+const TOKEN = 'test-github-token'
 
 describe('GitHub saved personal access token verification', () => {
   const fetch = vi.fn()
