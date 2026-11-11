@@ -38,7 +38,7 @@ const DESTINATION_PARAM =
 const OPERATION_PAYLOAD_PARAMS: Readonly<Record<string, readonly string[]>> = {
   // The page the remote browser opens; the token goes to api.browser-use.com.
   browser_use_run_task: ['startUrl'],
-  // A guild id in the discord.com API path.
+  // A guild id the operation never sends; it posts only to the channel's discord.com endpoint.
   discord_send_message: ['serverId'],
   // The audio Fireflies downloads; the token goes to api.fireflies.ai.
   fireflies_upload_audio: ['audioUrl'],
