@@ -73,9 +73,14 @@ async function loadPreviousPublicJwk(): Promise<JWK | null> {
  * AWS and Databricks fetch discovery and keys from the issuer over https on the
  * default port, and discovery appends paths to it, so any other issuer (or one
  * with a query or fragment) can never be trusted; keyless stays off
- * rather than advertising an issuer no relying party accepts. Sim serves
- * discovery and keys only under {@link WORKLOAD_IDENTITY_PATH}, so a pinned
- * issuer may name another host that reaches this app but must keep that path.
+ * rather than advertising an issuer no relying party accepts.
+ *
+ * Sim serves discovery and keys under {@link WORKLOAD_IDENTITY_PATH}. A pinned
+ * issuer whose path ends there reaches them directly or through a
+ * prefix-stripping proxy, like the default issuer on a path-prefixed app URL.
+ * Any other path works only if a proxy routes it to that path, which Sim can't
+ * see, so it is warned about rather than refused: trust policies already name
+ * the pinned URL, and saving a keyless credential proves the route end to end.
  */
 function assertPublicIssuer(issuer: string): void {
   const url = new URL(issuer)
@@ -85,9 +90,10 @@ function assertPublicIssuer(issuer: string): void {
     )
   }
   if (env.WORKLOAD_IDENTITY_ISSUER?.trim()) {
-    if (url.pathname !== WORKLOAD_IDENTITY_PATH) {
-      throw new Error(
-        `WORKLOAD_IDENTITY_ISSUER must end in ${WORKLOAD_IDENTITY_PATH}, the path Sim serves discovery and keys on; only its host may differ`
+    if (!url.pathname.endsWith(WORKLOAD_IDENTITY_PATH)) {
+      logger.warn(
+        `WORKLOAD_IDENTITY_ISSUER does not end in ${WORKLOAD_IDENTITY_PATH}, where Sim serves discovery and keys; clouds can verify its tokens only if a proxy routes the issuer there`,
+        { issuer }
       )
     }
     return

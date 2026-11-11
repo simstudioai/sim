@@ -152,15 +152,30 @@ describe('workload identity issuer', () => {
     'https://sim.example.com',
     'https://oidc.example.com/workload',
     'https://sim.example.com/oidc/workload/v2',
-    'https://sim.example.com/OIDC/workload',
-  ])('stays off for an issuer whose path Sim does not serve discovery on (%s)', async (url) => {
-    setEnv('WORKLOAD_IDENTITY_ISSUER', url)
+  ])(
+    'keeps a pinned issuer on another path working, warning that a proxy must route it (%s)',
+    async (url) => {
+      setEnv('WORKLOAD_IDENTITY_ISSUER', url)
+      const logger = getMockLogger('WorkloadIdentityIssuer')
+      logger.warn.mockClear()
+      const issuer = await loadIssuer()
+
+      expect(await issuer.isWorkloadIdentityConfigured()).toBe(true)
+      expect(issuer.getWorkloadIdentityIssuer()).toBe(url)
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('/oidc/workload'), {
+        issuer: url,
+      })
+    }
+  )
+
+  it('accepts a pinned issuer behind a path prefix without a warning', async () => {
+    setEnv('WORKLOAD_IDENTITY_ISSUER', 'https://example.com/sim/oidc/workload')
+    const logger = getMockLogger('WorkloadIdentityIssuer')
+    logger.warn.mockClear()
     const issuer = await loadIssuer()
 
-    expect(await issuer.isWorkloadIdentityConfigured()).toBe(false)
-    expect(getMockLogger('WorkloadIdentityIssuer').error).toHaveBeenCalledWith(expect.any(String), {
-      error: expect.objectContaining({ message: expect.stringContaining('/oidc/workload') }),
-    })
+    expect(await issuer.isWorkloadIdentityConfigured()).toBe(true)
+    expect(logger.warn).not.toHaveBeenCalled()
   })
 
   it('keeps signing with the current key when the retiring key is malformed', async () => {
