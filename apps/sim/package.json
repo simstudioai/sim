@@ -281,7 +281,7 @@
     "sim": "workspace:*",
     "socket.io-client": "4.8.4",
     "ssh2": "^1.17.0",
-    "streamdown": "2.5.0",
+    "streamdown": "2.7.1",
     "stripe": "18.5.0",
     "tldts": "7.4.19",
     "twilio": "6.2.0",
