@@ -445,6 +445,23 @@ describe('row query and upsert application semantics', () => {
     expect(mockQueryRows).not.toHaveBeenCalled()
   })
 
+  it('turns a read cancelled by its statement timeout into an actionable 400', async () => {
+    mockQueryRows.mockRejectedValueOnce(
+      Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' })
+    )
+
+    await expect(
+      queryTableRows.execute({
+        principal: PRINCIPAL,
+        input: { tableId: TABLE.id, limit: 100 },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      details: { code: 'TABLE_QUERY_TIMEOUT' },
+      message: expect.stringContaining('Sort by createdAt or updatedAt'),
+    })
+  })
+
   it('resumes the same offset page under the identical predicate', async () => {
     const cursor = encodeCursor({
       lastRow: { id: 'row-100', orderKey: null },

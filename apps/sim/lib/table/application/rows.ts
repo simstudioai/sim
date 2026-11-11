@@ -2,7 +2,8 @@ import { isDeepStrictEqual } from 'node:util'
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { getRequestContext } from '@sim/logger'
+import { createLogger, getRequestContext } from '@sim/logger'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord, toRecord } from '@sim/utils/object'
 import {
@@ -77,6 +78,7 @@ import { columnTypeOf } from '@/lib/table/column-types'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { signalTableRowsChanged, signalTableRowsChangedByActor } from '@/lib/table/events'
 import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
+import { READ_STATEMENT_TIMEOUT_MS } from '@/lib/table/planner'
 import { isTablePredicate, predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
   validatePredicate,
@@ -97,6 +99,8 @@ import { replaceTableRowsWithTx } from '@/lib/table/rows/service'
 import { predicateToStorage, resolveFilterSelectValues } from '@/lib/table/select-values'
 import { coerceRowValues } from '@/lib/table/validation'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const logger = createLogger('TableRowsApplication')
 
 const ROW_CHANGE_COUNTERS = ['rowsInserted', 'rowsUpdated', 'rowsDeleted'] as const
 
@@ -501,6 +505,25 @@ async function throwValidationResponse(
   throw new TableRowsValidationError(body.error ?? 'Invalid row data', body.details)
 }
 
+/**
+ * A read cancelled by its own `statement_timeout`: the query shape costs more than the table's
+ * size allows. Sorting or range-filtering on a stored column reads every row's data, so it is the
+ * caller's to narrow, and retrying the same query only times out again.
+ */
+function rethrowReadQueryError(error: unknown, tableId: string): never {
+  if (getPostgresErrorCode(error) === '57014') {
+    logger.warn('Table read hit its statement timeout', { tableId })
+    throw new TableRowsValidationError(
+      `The query took longer than ${READ_STATEMENT_TIMEOUT_MS / 1000} seconds and was stopped. ` +
+        'Sorting or range-filtering on a column reads every row in the table, which is too slow ' +
+        'at this table size. Sort by createdAt or updatedAt, add an equality filter, or keep ' +
+        'fewer rows (an Expiration column deletes old rows automatically).',
+      { code: 'TABLE_QUERY_TIMEOUT' }
+    )
+  }
+  rethrowQueryValidation(error)
+}
+
 function rethrowQueryValidation(error: unknown): never {
   if (error instanceof TableQueryValidationError) {
     throw new TableRowsValidationError(error.message, error.code ? { code: error.code } : undefined)
@@ -551,7 +574,7 @@ export const listTableRows = defineAuthorizedTableUseCase({
         nextCursor: result.nextCursor,
       }
     } catch (error) {
-      rethrowQueryValidation(error)
+      rethrowReadQueryError(error, context.table.id)
     }
   },
 })
@@ -680,7 +703,7 @@ export const queryTableRows = defineAuthorizedTableUseCase({
           : {}),
       }
     } catch (error) {
-      rethrowQueryValidation(error)
+      rethrowReadQueryError(error, context.table.id)
     }
   },
 })
@@ -720,7 +743,7 @@ export const searchTableRows = defineAuthorizedTableUseCase({
       )
       return { table: context.table, ...result }
     } catch (error) {
-      rethrowQueryValidation(error)
+      rethrowReadQueryError(error, context.table.id)
     }
   },
 })

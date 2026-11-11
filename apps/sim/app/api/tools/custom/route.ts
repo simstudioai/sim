@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { customTools } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { and, desc, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -16,7 +16,10 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { upsertCustomTools } from '@/lib/workflows/custom-tools/operations'
+import {
+  CustomToolTitleConflictError,
+  upsertCustomTools,
+} from '@/lib/workflows/custom-tools/operations'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CustomToolsAPI')
@@ -176,6 +179,15 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     return NextResponse.json({ success: true, data: resultTools })
   } catch (error) {
+    if (error instanceof CustomToolTitleConflictError) {
+      return NextResponse.json({ error: error.message }, { status: 409 })
+    }
+    if (getPostgresErrorCode(error) === '23505') {
+      return NextResponse.json(
+        { error: 'A custom tool with that title already exists in this workspace' },
+        { status: 409 }
+      )
+    }
     logger.error('Error updating custom tools', error)
     const errorMessage = getErrorMessage(error, 'Failed to update custom tools')
     return NextResponse.json({ error: errorMessage }, { status: 500 })
