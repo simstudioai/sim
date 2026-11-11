@@ -60,9 +60,30 @@ export const validateAffinityServiceAccount = tokenCheckValidator({
   }),
 })
 
-/** Listing one AgentMail inbox answers 200 for a valid key and 403 otherwise. */
+/** AgentMail error codes that name the key itself as unusable. */
+const AGENTMAIL_REJECTED_KEY_CODES: ReadonlySet<string> = new Set([
+  'missing_authorization',
+  'invalid_token_type',
+  'unknown_api_key',
+  'api_key_expired',
+  'unauthorized',
+])
+
+/**
+ * Listing one AgentMail inbox answers 200 for a valid key. An unknown or
+ * expired key gets a coded 401 or the gateway's bare `{"message":"Forbidden"}`
+ * 403; a valid key that lacks the inbox-read permission or is scoped to a pod
+ * or inbox gets a 403 coded `missing_permission` or `forbidden`, and can still
+ * run the tools its scope covers.
+ */
 export const validateAgentMailServiceAccount = tokenCheckValidator({
   serviceLabel: 'AgentMail',
+  forbiddenMeansScoped: true,
+  rejectsKey: (errorBody) => {
+    const { code, message } = toRecord(errorBody)
+    if (code === undefined) return message === 'Forbidden'
+    return AGENTMAIL_REJECTED_KEY_CODES.has(String(code))
+  },
   request: ({ apiToken }) => ({
     url: 'https://api.agentmail.to/v0/inboxes?limit=1',
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },

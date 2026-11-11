@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import {
+  validateAgentMailServiceAccount,
   validateAlgoliaServiceAccount,
   validateAshbyServiceAccount,
   validateAzureDevOpsServiceAccount,
@@ -162,6 +163,49 @@ describe('saved key verification for vendors with scoped keys', () => {
 
     await expect(validateYouTubeServiceAccount({ apiToken: 'AIza-off' })).rejects.toMatchObject({
       code: 'invalid_credentials',
+    })
+  })
+})
+
+describe('AgentMail saved API key verification', () => {
+  it.each([
+    ['lacks a permission the inbox listing needs', 'missing_permission'],
+    ['is scoped to a pod or inbox, not the organization', 'forbidden'],
+  ])('accepts a valid key that %s', async (_case, code) => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ name: 'ForbiddenError', code, message: 'Forbidden' }, 403)
+        )
+    )
+
+    await expect(validateAgentMailServiceAccount({ apiToken: 'am_scoped' })).resolves.toMatchObject(
+      { displayName: 'AgentMail' }
+    )
+  })
+
+  it.each([
+    ['the gateway refuses with a bare Forbidden', { message: 'Forbidden' }, 403],
+    ['the key is unknown', { code: 'unknown_api_key', message: 'Unauthorized' }, 401],
+    ['the key has expired', { code: 'api_key_expired', message: 'Unauthorized' }, 401],
+  ])('rejects the key when %s', async (_case, body, status) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(body, status)))
+
+    await expect(validateAgentMailServiceAccount({ apiToken: 'am_bad' })).rejects.toMatchObject({
+      code: 'invalid_credentials',
+    })
+  })
+
+  it('reports an outage, not a bad key, for an uncoded gateway error', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ message: 'Internal server error' }, 502))
+    )
+
+    await expect(validateAgentMailServiceAccount({ apiToken: 'am_any' })).rejects.toMatchObject({
+      code: 'provider_unavailable',
     })
   })
 })
