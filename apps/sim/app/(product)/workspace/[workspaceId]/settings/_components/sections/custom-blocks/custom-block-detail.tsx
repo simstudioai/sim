@@ -2,26 +2,27 @@
 
 import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
-import { SwitchField, TextAreaField, TextField } from '@sim/emcn/field'
+import { TextAreaField, TextField } from '@sim/emcn/field'
 import { FileField } from '@sim/emcn/field/file-field'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
-import { MultiSelect } from '@sim/emcn/picker/multi-select'
-import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
-import { SaveActions } from '@sim/emcn/settings-section/save-actions'
 import { InlineNotice } from '@sim/emcn/status'
-import { Switch } from '@sim/emcn/switch'
 import { getErrorMessage } from '@sim/utils/errors'
 import { compareStrings } from '@sim/utils/string'
 import { toast } from '@/lib/toast/sink'
+import { SettingsSaveBar } from '@/app/(product)/_components/settings-parts/save-bar'
 import {
+  ActionRow,
   DetailHeader,
   FieldStack,
   FormFieldset,
   Muted,
   SectionStack,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
-import { MetadataFields } from '@/app/(product)/_components/workspace/metadata-fields/metadata-fields'
+import { SwitchRow } from '@/app/(product)/_components/settings-parts/switch-row'
+import { BlockInputs } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/custom-blocks/block-inputs'
+import { BlockOutputs } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/custom-blocks/block-outputs'
+import { BlockSource } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/custom-blocks/block-source'
 import {
   type CustomBlock,
   type CustomBlockInput,
@@ -36,12 +37,13 @@ import {
   useUpdateCustomBlock,
   useWorkspacesQuery,
 } from '@/platform/lib/data/custom-blocks'
-import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
+import { requestSettingsLeave, useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import {
   flattenWorkflowOutputs,
   useDeployedWorkflowState,
   useWorkflows,
 } from '@/platform/lib/data/workflows/records'
+import { plural } from '@/platform/shared/plural'
 
 const OUTPUT_SEP = '::'
 const ICON_ACCEPT = 'image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'
@@ -103,16 +105,42 @@ function normalizeInputOverrides(
     .sort((left, right) => compareStrings(left.id, right.id))
 }
 
+function sameOutputs(left: readonly CustomBlockOutput[], right: readonly CustomBlockOutput[]) {
+  return (
+    left.length === right.length &&
+    left.every(
+      (output, index) =>
+        output.blockId === right[index].blockId &&
+        output.path === right[index].path &&
+        output.name.trim() === right[index].name.trim()
+    )
+  )
+}
+
+function sameInputOverrides(
+  left: readonly CustomBlockInputPlaceholder[],
+  right: readonly CustomBlockInputPlaceholder[]
+) {
+  return (
+    left.length === right.length &&
+    left.every(
+      (input, index) =>
+        input.id === right[index].id &&
+        input.placeholder === right[index].placeholder &&
+        input.required === right[index].required
+    )
+  )
+}
+
+/** Whether two forms would save the same block: names trimmed, inputs reduced to their overrides. */
 function sameFormValues(left: CustomBlockFormValues, right: CustomBlockFormValues) {
   return (
     left.name.trim() === right.name.trim() &&
     left.description.trim() === right.description.trim() &&
     left.iconUrl === right.iconUrl &&
     left.traceChildRuns === right.traceChildRuns &&
-    JSON.stringify(left.outputs.map((output) => ({ ...output, name: output.name.trim() }))) ===
-      JSON.stringify(right.outputs.map((output) => ({ ...output, name: output.name.trim() }))) &&
-    JSON.stringify(normalizeInputOverrides(left.inputs)) ===
-      JSON.stringify(normalizeInputOverrides(right.inputs))
+    sameOutputs(left.outputs, right.outputs) &&
+    sameInputOverrides(normalizeInputOverrides(left.inputs), normalizeInputOverrides(right.inputs))
   )
 }
 
@@ -146,14 +174,12 @@ export function CustomBlockDetail({ existing, workspaceId, onBack }: CustomBlock
   const eligibleDefaultWorkspaceId = orgWorkspaces.some((w) => w.id === workspaceId)
     ? workspaceId
     : (orgWorkspaces[0]?.id ?? workspaceId)
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(workspaceId)
-  if (
-    isCreate &&
-    orgWorkspaces.length > 0 &&
-    !orgWorkspaces.some((w) => w.id === selectedWorkspaceId)
-  ) {
-    setSelectedWorkspaceId(eligibleDefaultWorkspaceId)
-  }
+  /** The picked source workspace, which falls back to the default while it is not an eligible one. */
+  const [pickedWorkspaceId, setPickedWorkspaceId] = useState<string | null>(null)
+  const selectedWorkspaceId =
+    pickedWorkspaceId && orgWorkspaces.some((w) => w.id === pickedWorkspaceId)
+      ? pickedWorkspaceId
+      : eligibleDefaultWorkspaceId
   const [selectedWorkflowId, setSelectedWorkflowId] = useState('')
   const { data: workflows = [] } = useWorkflows(isCreate ? selectedWorkspaceId : undefined)
 
@@ -230,7 +256,10 @@ export function CustomBlockDetail({ existing, workspaceId, onBack }: CustomBlock
   const visibleOutputs = deployedLoaded
     ? outputs.filter((o) => labelByKey.has(encodeOutput(o.blockId, o.path)))
     : outputs
-  const selectedOutputKeys = visibleOutputs.map((o) => encodeOutput(o.blockId, o.path))
+  const outputFields = visibleOutputs.map((o) => {
+    const key = encodeOutput(o.blockId, o.path)
+    return { key, label: labelByKey.get(key) ?? o.path, name: o.name }
+  })
 
   const formChanged = Boolean(
     draft && (!sameFormValues(draft.values, draft.baseline) || iconUrl !== draft.baseline.iconUrl)
@@ -239,20 +268,16 @@ export function CustomBlockDetail({ existing, workspaceId, onBack }: CustomBlock
     formChanged ||
     (isCreate && Boolean(selectedWorkflowId || selectedWorkspaceId !== eligibleDefaultWorkspaceId))
 
-  if (
-    draft &&
-    !formChanged &&
-    !iconUpload.isUploading &&
-    JSON.stringify(draft.values) === JSON.stringify(draft.baseline)
-  )
-    setDraft(null)
-
   const mutating = publish.isPending || update.isPending || remove.isPending
   const saving = mutating || iconUpload.isUploading
-  const guard = useSettingsUnsavedGuard({
-    isDirty: dirty,
-    navigationBlocked: saving,
-    onDiscard: handleDiscard,
+  /**
+   * The save bar registers an edit's draft; the publish flow, which submits through Create block
+   * instead, registers its own here, and a delete holds navigation either way.
+   */
+  useSettingsUnsavedGuard({
+    isDirty: isCreate && dirty,
+    navigationBlocked: remove.isPending || (isCreate && saving),
+    onDiscard: isCreate ? handleDiscard : undefined,
   })
   // Outputs are required: there is no "expose the whole result" option.
   const saveDisabled =
@@ -266,10 +291,14 @@ export function CustomBlockDetail({ existing, workspaceId, onBack }: CustomBlock
 
   function updateForm(change: (current: CustomBlockFormValues) => CustomBlockFormValues) {
     if (mutating) return
-    setDraft((current) => ({
-      baseline: current?.baseline ?? savedValues,
-      values: change(current?.values ?? savedValues),
-    }))
+    setDraft((current) => {
+      const baseline = current?.baseline ?? savedValues
+      const values = change(current?.values ?? savedValues)
+      // An edit back to the saved block drops the draft, so the view follows the saved block again.
+      return sameFormValues(values, baseline) && !iconUpload.isUploading
+        ? null
+        : { baseline, values }
+    })
   }
 
   function setInputOverride(
@@ -314,7 +343,7 @@ export function CustomBlockDetail({ existing, workspaceId, onBack }: CustomBlock
 
   function handleDiscard() {
     if (isCreate) {
-      setSelectedWorkspaceId(eligibleDefaultWorkspaceId)
+      setPickedWorkspaceId(null)
       setSelectedWorkflowId('')
     }
     setDraft(null)
@@ -381,64 +410,25 @@ export function CustomBlockDetail({ existing, workspaceId, onBack }: CustomBlock
     <SectionStack>
       <DetailHeader
         backLabel='Custom blocks'
-        onBack={() => guard.guardBack(onBack)}
+        onBack={() => requestSettingsLeave(onBack)}
         title={existing?.name || 'New block'}
         description='Publish a deployed workflow as a reusable, organization-wide block'
       />
       {error && <InlineNotice intent='danger' message={error} />}
       <FormFieldset disabled={fieldsDisabled}>
-        <SettingsSection title='Source'>
-          <FieldStack>
-            {existing ? (
-              <>
-                <MetadataFields
-                  label='Source workflow'
-                  fields={[
-                    { id: 'workspace', label: 'Workspace', value: existing.workspaceName ?? '—' },
-                    { id: 'workflow', label: 'Workflow', value: existing.workflowName },
-                  ]}
-                />
-                <Muted>
-                  {notDeployed
-                    ? 'This workflow isn’t deployed. Redeploy it so the block can run.'
-                    : 'The source workflow can’t be changed.'}
-                </Muted>
-              </>
-            ) : (
-              <>
-                <SearchableSelect
-                  label='Workspace'
-                  options={orgWorkspaces.map((w) => ({ value: w.id, label: w.name }))}
-                  value={selectedWorkspaceId}
-                  onValueChange={(next) => {
-                    if (!next) return
-                    setSelectedWorkspaceId(next)
-                    setSelectedWorkflowId('')
-                  }}
-                  placeholder='Select a workspace'
-                  searchLabel='Search workspaces'
-                />
-                <SearchableSelect
-                  label='Workflow'
-                  options={workflows.map((w) => ({ value: w.id, label: w.name }))}
-                  value={selectedWorkflowId || null}
-                  onValueChange={(next) => setSelectedWorkflowId(next ?? '')}
-                  placeholder='Select a deployed workflow'
-                  searchLabel='Search workflows'
-                  error={
-                    notDeployed
-                      ? 'This workflow isn’t deployed. Deploy it first, then publish it as a block.'
-                      : undefined
-                  }
-                  disabled={workflows.length === 0}
-                  disabledReason={
-                    workflows.length === 0 ? 'No workflows in this workspace.' : undefined
-                  }
-                />
-              </>
-            )}
-          </FieldStack>
-        </SettingsSection>
+        <BlockSource
+          existing={existing}
+          notDeployed={notDeployed}
+          workspaces={orgWorkspaces}
+          workspaceId={selectedWorkspaceId}
+          onWorkspaceChange={(next) => {
+            setPickedWorkspaceId(next)
+            setSelectedWorkflowId('')
+          }}
+          workflows={workflows}
+          workflowId={selectedWorkflowId}
+          onWorkflowChange={setSelectedWorkflowId}
+        />
         <SettingsSection title='Details'>
           <FieldStack>
             <FileField
@@ -477,75 +467,54 @@ export function CustomBlockDetail({ existing, workspaceId, onBack }: CustomBlock
             />
           </FieldStack>
         </SettingsSection>
-        <SettingsSection title='Inputs'>
-          <FieldStack>
-            {!deployed.isLoading && visibleInputs.length === 0 && (
-              <Muted>This workflow’s Start block has no inputs.</Muted>
-            )}
-            {!deployed.isLoading &&
-              visibleInputs.map((input) => (
-                <InputOverride
-                  key={input.id}
-                  input={input}
-                  disabled={fieldsDisabled}
-                  onChange={(patch) => setInputOverride(input.id, patch)}
-                />
-              ))}
-          </FieldStack>
-        </SettingsSection>
-        <SettingsSection title='Outputs'>
-          <FieldStack>
-            <MultiSelect
-              label='Outputs (at least one)'
-              options={outputOptions}
-              value={selectedOutputKeys}
-              onValueChange={handleOutputsChange}
-              placeholder='Select outputs'
-              searchLabel='Search outputs'
-              disabled={
-                saving || deployed.isLoading || outputOptions.length === 0 || !canManageBlock
-              }
-            />
-            {visibleOutputs.map((o) => {
-              const key = encodeOutput(o.blockId, o.path)
-              return (
-                <TextField
-                  key={key}
-                  label={labelByKey.get(key) ?? o.path}
-                  value={o.name}
-                  onChange={(next) => setOutputName(key, next)}
-                  placeholder='name'
-                  maxLength={60}
-                  disabled={fieldsDisabled}
-                />
-              )
-            })}
-          </FieldStack>
-        </SettingsSection>
+        <BlockInputs
+          loading={deployed.isLoading}
+          inputs={visibleInputs}
+          disabled={fieldsDisabled}
+          onChange={setInputOverride}
+        />
+        <BlockOutputs
+          options={outputOptions}
+          outputs={outputFields}
+          pickerDisabled={
+            saving || deployed.isLoading || outputOptions.length === 0 || !canManageBlock
+          }
+          disabled={fieldsDisabled}
+          onOutputsChange={handleOutputsChange}
+          onNameChange={setOutputName}
+        />
         <SettingsSection title='Tracing'>
-          <SettingsRow
+          <SwitchRow
             label='Trace runs in consumer logs'
-            description='Shows this block’s steps inside the trace of every workflow that runs it, org-wide. Anyone who can read those logs sees the source workflow’s block names, inputs, outputs, and prompts — including people with no access to this workspace.'
-          >
-            <Switch
-              label='Trace runs in consumer logs'
-              checked={traceChildRuns}
-              onCheckedChange={(checked) =>
-                updateForm((current) => ({ ...current, traceChildRuns: checked }))
-              }
-              disabled={fieldsDisabled}
-            />
-          </SettingsRow>
+            description='Show this block’s steps, inputs and prompts in the logs of every workflow that runs it, including to people outside this workspace'
+            checked={traceChildRuns}
+            disabled={fieldsDisabled}
+            onCheckedChange={(checked) =>
+              updateForm((current) => ({ ...current, traceChildRuns: checked }))
+            }
+          />
         </SettingsSection>
       </FormFieldset>
-      {canManageBlock && (
-        <SaveActions
-          dirty={dirty}
-          saving={saving}
-          blocked={saveDisabled}
-          onSave={() => void handleSave()}
-          onDiscard={handleDiscard}
-        />
+      {isCreate ? (
+        <ActionRow>
+          <Button
+            variant='primary'
+            disabled={saveDisabled || saving}
+            onClick={() => void handleSave()}
+          >
+            {saving ? 'Creating…' : 'Create block'}
+          </Button>
+        </ActionRow>
+      ) : (
+        canManageBlock && (
+          <SettingsSaveBar
+            dirty={dirty}
+            saving={saving}
+            blocked={saveDisabled}
+            onSave={() => void handleSave()}
+            onDiscard={handleDiscard}
+          />
+        )
       )}
       {existing && canManageBlock && (
         <SettingsSection title='Manage block'>
@@ -564,7 +533,7 @@ export function CustomBlockDetail({ existing, workspaceId, onBack }: CustomBlock
                 void usageCountsQuery.refetch()
               }}
             >
-              {remove.isPending ? 'Deleting…' : 'Delete'}
+              Delete
             </Button>
           </SettingsRow>
         </SettingsSection>
@@ -574,7 +543,7 @@ export function CustomBlockDetail({ existing, workspaceId, onBack }: CustomBlock
           target={showDelete}
           onClose={() => setShowDelete(false)}
           title='Delete custom block'
-          description={`Delete ${existing.name}? This cannot be undone.`}
+          description={`${existing.name} is removed for everyone who uses it. This action cannot be undone.`}
           confirmLabel='Delete'
           pendingLabel='Deleting…'
           confirmDisabled={confirmationText !== existing.name}
@@ -588,10 +557,10 @@ export function CustomBlockDetail({ existing, workspaceId, onBack }: CustomBlock
             (usageCount > 0 ? (
               <InlineNotice
                 intent='danger'
-                message={`${usageCount} ${usageCount === 1 ? 'workflow is' : 'workflows are'} still using this block and will fail at run time.`}
+                message={`${plural(usageCount, 'workflow')} still ${usageCount === 1 ? 'uses' : 'use'} this block and will fail at run time`}
               />
             ) : (
-              <Muted>No workflows are currently using it.</Muted>
+              <Muted>No workflows use it</Muted>
             ))}
           <TextField
             label={`Type ${existing.name} to confirm`}
@@ -603,33 +572,5 @@ export function CustomBlockDetail({ existing, workspaceId, onBack }: CustomBlock
         </ConfirmDialog>
       )}
     </SectionStack>
-  )
-}
-
-interface InputOverrideProps {
-  input: CustomBlockInput
-  disabled: boolean
-  onChange: (patch: Partial<Pick<CustomBlockInput, 'placeholder' | 'required'>>) => void
-}
-
-/** One exposed Start input: whether consumers must fill it, and the hint its empty field shows. */
-function InputOverride({ input, disabled, onChange }: InputOverrideProps) {
-  return (
-    <>
-      <TextField
-        label={`${input.name} (${input.type})`}
-        value={input.placeholder ?? ''}
-        onChange={(placeholder) => onChange({ placeholder })}
-        placeholder={input.description || 'Shown in the empty field'}
-        maxLength={200}
-        disabled={disabled}
-      />
-      <SwitchField
-        label={`${input.name} required`}
-        checked={input.required ?? false}
-        onCheckedChange={(required) => onChange({ required })}
-        disabled={disabled}
-      />
-    </>
   )
 }

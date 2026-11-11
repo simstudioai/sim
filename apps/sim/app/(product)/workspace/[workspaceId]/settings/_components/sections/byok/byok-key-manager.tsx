@@ -11,10 +11,11 @@ import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { StatusTag } from '@sim/emcn/status'
 import { BrandMark } from '@/app/(product)/_components/brand-mark/brand-mark'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
 import {
+  DetailHeader,
   FieldStack,
-  Muted,
-  RowStack,
+  SectionStack,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
 import styles from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/byok/byok.module.css'
 import {
@@ -22,6 +23,7 @@ import {
   PROVIDERS,
 } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/byok/providers'
 import { type BYOKProviderId, MAX_BYOK_KEYS_PER_PROVIDER } from '@/platform/lib/data/byok'
+import { plural } from '@/platform/shared/plural'
 
 /** A stored key, in rotation order within its provider. */
 export interface ByokManagerKey {
@@ -37,100 +39,184 @@ export interface ByokManagerCapabilities {
   delete: boolean
 }
 
-interface ByokKeyManagerProps {
-  /** Providers whose key this workspace inherits from its organization. */
-  inheritedProviderIds: ReadonlySet<BYOKProviderId>
+interface SaveKeyParams {
+  providerId: BYOKProviderId
+  apiKey: string
+  keyId?: string
+  name: string
+}
+
+/** What both the provider list and one provider's keys need to add, replace and delete keys. */
+export interface ByokKeyActions {
   keysByProvider: ReadonlyMap<string, readonly ByokManagerKey[]>
   capabilities: ByokManagerCapabilities
-  searchTerm: string
-  /** Usage and security copy that replaces the key dialog's default. */
+  /** Usage copy that replaces the key dialog's default. */
   keyUsageDescription?: string
   /** The consequence of deleting a provider's last key. */
   lastKeyDeleteMessage: string
   isDeleting: boolean
-  onSaveKey: (params: {
-    providerId: BYOKProviderId
-    apiKey: string
-    keyId?: string
-    name: string
-  }) => Promise<void>
+  onSaveKey: (params: SaveKeyParams) => Promise<void>
   onDeleteKey: (providerId: BYOKProviderId, keyId: string) => Promise<void>
 }
 
-interface EditingState {
-  providerId: BYOKProviderId
-  /** Set when updating an existing key. */
-  keyId?: string
-}
+type ByokProvider = (typeof PROVIDERS)[number]
 
 const NO_KEYS: readonly ByokManagerKey[] = []
 
-/**
- * Provider keys grouped by kind, each provider with a pool of keys requests round-robin across:
- * add, update and delete keys, and see a provider's pool in its own dialog.
- */
-export function ByokKeyManager({
-  inheritedProviderIds,
+function providerName(providerId: BYOKProviderId): string {
+  return PROVIDERS.find((provider) => provider.id === providerId)?.name ?? 'provider'
+}
+
+interface KeyDialogProps {
+  provider: ByokProvider
+  /** The key being replaced; absent when adding one. */
+  existing?: ByokManagerKey
+  description?: string
+  onSave: (params: SaveKeyParams) => Promise<void>
+  onClose: () => void
+}
+
+/** Adds a provider key or replaces one's secret, holding its own draft. */
+function KeyDialog({ provider, existing, description, onSave, onClose }: KeyDialogProps) {
+  const [apiKey, setApiKey] = useState('')
+  const [name, setName] = useState(existing?.name ?? '')
+  return (
+    <Modal
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+      title={`${existing ? 'Update' : 'Add'} ${provider.name} API key`}
+      description={
+        description ?? `Requests round-robin across every ${provider.name} key, stored encrypted`
+      }
+      confirmLabel='Save'
+      confirmDisabled={!apiKey.trim()}
+      submitOnEnter
+      onConfirm={() =>
+        onSave({
+          providerId: provider.id,
+          apiKey: apiKey.trim(),
+          keyId: existing?.id,
+          name: name.trim(),
+        })
+      }
+    >
+      <AutofillDecoys />
+      <FieldStack>
+        <SecretField
+          label='API key'
+          required
+          name='byok_api_key'
+          placeholder={provider.placeholder}
+          value={apiKey}
+          onChange={setApiKey}
+        />
+        <TextField
+          label='Name'
+          optional
+          placeholder='e.g. Production key'
+          maxLength={120}
+          value={name}
+          onChange={setName}
+        />
+      </FieldStack>
+    </Modal>
+  )
+}
+
+interface DeleteTarget {
+  providerId: BYOKProviderId
+  keyId: string
+}
+
+/** The add or update dialog and the delete confirm, opened from a provider row or its keys. */
+function useKeyDialogs({
   keysByProvider,
   capabilities,
-  searchTerm,
   keyUsageDescription,
   lastKeyDeleteMessage,
   isDeleting,
   onSaveKey,
   onDeleteKey,
-}: ByokKeyManagerProps) {
-  const [editing, setEditing] = useState<EditingState | null>(null)
-  const [apiKeyInput, setApiKeyInput] = useState('')
-  const [nameInput, setNameInput] = useState('')
-  const [deleteConfirm, setDeleteConfirm] = useState<Required<EditingState> | null>(null)
-  const [managingProviderId, setManagingProviderId] = useState<BYOKProviderId | null>(null)
-
-  const term = searchTerm.trim().toLowerCase()
-  const filteredIds = new Set(
-    PROVIDERS.filter(
-      (provider) =>
-        !term ||
-        provider.name.toLowerCase().includes(term) ||
-        provider.description.toLowerCase().includes(term)
-    ).map((provider) => provider.id)
-  )
+}: ByokKeyActions) {
+  const [editing, setEditing] = useState<{
+    provider: ByokProvider
+    key?: ByokManagerKey
+  } | null>(null)
+  const [deleting, setDeleting] = useState<DeleteTarget | null>(null)
   const providerKeys = (providerId: string) => keysByProvider.get(providerId) ?? NO_KEYS
-  const editingMeta = PROVIDERS.find((provider) => provider.id === editing?.providerId)
-  const managingMeta = PROVIDERS.find((provider) => provider.id === managingProviderId)
-  const managingKeys = managingProviderId ? providerKeys(managingProviderId) : NO_KEYS
-  const isUpdatingExistingKey = Boolean(editing?.keyId)
-  const canSaveEditingKey = isUpdatingExistingKey ? capabilities.update : capabilities.add
+
+  const dialogs = (
+    <>
+      {editing && (
+        <KeyDialog
+          provider={editing.provider}
+          existing={editing.key}
+          description={keyUsageDescription}
+          onSave={onSaveKey}
+          onClose={() => setEditing(null)}
+        />
+      )}
+      <ConfirmDialog
+        target={deleting}
+        onClose={() => setDeleting(null)}
+        title={(target) => `Delete ${providerName(target.providerId)} key`}
+        description={(target) => {
+          const consequence =
+            providerKeys(target.providerId).length === 1
+              ? lastKeyDeleteMessage
+              : `Requests will continue using the remaining ${providerName(target.providerId)} keys.`
+          return `${consequence} This action cannot be undone.`
+        }}
+        confirmLabel='Delete'
+        pendingLabel='Deleting…'
+        confirmDisabled={!capabilities.delete}
+        pending={isDeleting}
+        onConfirm={(target) => onDeleteKey(target.providerId, target.keyId)}
+      />
+    </>
+  )
+
+  return {
+    providerKeys,
+    edit: (provider: ByokProvider, key?: ByokManagerKey) => setEditing({ provider, key }),
+    remove: setDeleting,
+    dialogs,
+  }
+}
+
+interface ByokProviderListProps {
+  actions: ByokKeyActions
+  /** Providers whose key this workspace inherits from its organization. */
+  inheritedProviderIds: ReadonlySet<BYOKProviderId>
+  searchTerm: string
+  onOpenProvider: (providerId: BYOKProviderId) => void
+}
+
+/**
+ * Providers grouped by kind. A provider with no key adds one in place; one with keys opens its
+ * pool as a sub-view.
+ */
+export function ByokProviderList({
+  inheritedProviderIds,
+  searchTerm,
+  onOpenProvider,
+  actions,
+}: ByokProviderListProps) {
+  const { capabilities } = actions
+  const { providerKeys, edit, dialogs } = useKeyDialogs(actions)
   const canManageKeys = capabilities.add || capabilities.update || capabilities.delete
 
-  const openEditModal = (providerId: BYOKProviderId, key?: ByokManagerKey) => {
-    if (key ? !capabilities.update : !capabilities.add) return
-    setManagingProviderId(null)
-    setEditing({ providerId, keyId: key?.id })
-    setApiKeyInput('')
-    setNameInput(key?.name ?? '')
-  }
-
-  const openDeleteConfirm = (providerId: BYOKProviderId, keyId: string) => {
-    if (!capabilities.delete) return
-    setManagingProviderId(null)
-    setDeleteConfirm({ providerId, keyId })
-  }
-
-  const handleSave = async () => {
-    if (!editing || !apiKeyInput.trim() || !canSaveEditingKey) return false
-    await onSaveKey({
-      providerId: editing.providerId,
-      apiKey: apiKeyInput.trim(),
-      keyId: editing.keyId,
-      name: nameInput.trim(),
-    })
-  }
-
+  const term = searchTerm.trim().toLowerCase()
   const visibleSections = PROVIDER_SECTIONS.map((section) => ({
     label: section.label,
     rows: PROVIDERS.filter(
-      (provider) => section.ids.includes(provider.id) && filteredIds.has(provider.id)
+      (provider) =>
+        section.ids.includes(provider.id) &&
+        (!term ||
+          provider.name.toLowerCase().includes(term) ||
+          provider.description.toLowerCase().includes(term))
     ),
   })).filter((section) => section.rows.length > 0)
 
@@ -156,20 +242,16 @@ export function ByokKeyManager({
                       {inherited && <StatusTag label='Inherited from organization' />}
                       {keys.length === 0 ? (
                         capabilities.add && (
-                          <Button
-                            size='compact'
-                            variant='primary'
-                            onClick={() => openEditModal(provider.id)}
-                          >
+                          <Button size='compact' onClick={() => edit(provider)}>
                             Add key
                           </Button>
                         )
                       ) : (
                         <>
                           <span className={styles.count} data-type='T060'>
-                            {keys.length} {keys.length === 1 ? 'key' : 'keys'}
+                            {plural(keys.length, 'key')}
                           </span>
-                          <Button size='compact' onClick={() => setManagingProviderId(provider.id)}>
+                          <Button size='compact' onClick={() => onOpenProvider(provider.id)}>
                             {canManageKeys ? 'Manage' : 'View'}
                           </Button>
                         </>
@@ -182,108 +264,81 @@ export function ByokKeyManager({
           </SettingsSection>
         ))
       )}
-
-      <Modal
-        open={managingProviderId !== null}
-        onOpenChange={(open) => {
-          if (!open) setManagingProviderId(null)
-        }}
-        title={managingMeta ? `${managingMeta.name} API keys` : 'API keys'}
-        description='Requests are distributed evenly across these keys. Your keys are encrypted and stored securely.'
-        confirmLabel={capabilities.add ? 'Add key' : undefined}
-        confirmDisabled={managingKeys.length >= MAX_BYOK_KEYS_PER_PROVIDER}
-        onConfirm={() => {
-          if (managingProviderId) openEditModal(managingProviderId)
-        }}
-      >
-        <RowStack>
-          {managingKeys.map((key) => (
-            <SettingsRow key={key.id} label={key.name ?? 'Unnamed key'} description={key.maskedKey}>
-              {(capabilities.update || capabilities.delete) && managingProviderId && (
-                <span className={styles.controls}>
-                  {capabilities.update && (
-                    <Button size='compact' onClick={() => openEditModal(managingProviderId, key)}>
-                      Update
-                    </Button>
-                  )}
-                  {capabilities.delete && (
-                    <Button
-                      size='compact'
-                      variant='quiet'
-                      destructive
-                      onClick={() => openDeleteConfirm(managingProviderId, key.id)}
-                    >
-                      Delete
-                    </Button>
-                  )}
-                </span>
-              )}
-            </SettingsRow>
-          ))}
-        </RowStack>
-        {capabilities.add && managingKeys.length >= MAX_BYOK_KEYS_PER_PROVIDER && (
-          <Muted>{`Key limit reached (${MAX_BYOK_KEYS_PER_PROVIDER} keys per provider).`}</Muted>
-        )}
-      </Modal>
-
-      <Modal
-        open={editing !== null}
-        onOpenChange={(open) => {
-          if (!open) setEditing(null)
-        }}
-        title={
-          editingMeta
-            ? `${isUpdatingExistingKey ? 'Update' : 'Add'} ${editingMeta.name} API key`
-            : 'API key'
-        }
-        description={
-          keyUsageDescription ??
-          `Requests are distributed evenly across all ${editingMeta?.name ?? ''} keys. Your key is encrypted and stored securely.`
-        }
-        confirmLabel='Save'
-        confirmDisabled={!apiKeyInput.trim() || !canSaveEditingKey}
-        submitOnEnter
-        onConfirm={handleSave}
-      >
-        <AutofillDecoys />
-        <FieldStack>
-          <SecretField
-            label='API key'
-            required
-            name='byok_api_key'
-            placeholder={editingMeta?.placeholder ?? ''}
-            value={apiKeyInput}
-            onChange={setApiKeyInput}
-          />
-          <TextField
-            label='Name'
-            optional
-            placeholder='e.g. Production key'
-            maxLength={120}
-            value={nameInput}
-            onChange={setNameInput}
-          />
-        </FieldStack>
-      </Modal>
-
-      <ConfirmDialog
-        target={deleteConfirm}
-        onClose={() => setDeleteConfirm(null)}
-        title='Delete API key'
-        description={(target) => {
-          const name = PROVIDERS.find((provider) => provider.id === target.providerId)?.name
-          const consequence =
-            providerKeys(target.providerId).length === 1
-              ? lastKeyDeleteMessage
-              : `Requests will continue using the remaining ${name ?? 'provider'} keys.`
-          return `Are you sure you want to delete the ${name ?? 'selected'} API key? ${consequence} This action cannot be undone.`
-        }}
-        confirmLabel='Delete'
-        pendingLabel='Deleting…'
-        confirmDisabled={!capabilities.delete}
-        pending={isDeleting}
-        onConfirm={(target) => onDeleteKey(target.providerId, target.keyId)}
-      />
+      {dialogs}
     </>
+  )
+}
+
+interface ByokProviderKeysProps {
+  actions: ByokKeyActions
+  providerId: BYOKProviderId
+  onBack: () => void
+}
+
+/** One provider's pool of keys: replace or delete each, and add one up to the provider's limit. */
+export function ByokProviderKeys({ providerId, onBack, actions }: ByokProviderKeysProps) {
+  const { capabilities } = actions
+  const { providerKeys, edit, remove, dialogs } = useKeyDialogs(actions)
+  const provider = PROVIDERS.find((candidate) => candidate.id === providerId)
+  if (!provider) return null
+  const keys = providerKeys(provider.id)
+  const addKey = capabilities.add ? (
+    <Button
+      size='compact'
+      icon='I074'
+      disabled={keys.length >= MAX_BYOK_KEYS_PER_PROVIDER}
+      disabledReason='Key limit reached'
+      onClick={() => edit(provider)}
+    >
+      Add key
+    </Button>
+  ) : undefined
+
+  return (
+    <SectionStack>
+      <DetailHeader
+        backLabel='BYOK'
+        onBack={onBack}
+        title={provider.name}
+        description='Requests round-robin across these keys, stored encrypted'
+      />
+      <SettingsList
+        title='Keys'
+        empty={keys.length === 0 ? { title: 'No keys yet', action: addKey } : undefined}
+      >
+        {keys.map((key) => (
+          <SettingsRow key={key.id} label={key.name ?? 'Unnamed key'} description={key.maskedKey}>
+            {(capabilities.update || capabilities.delete) && (
+              <span className={styles.controls}>
+                {capabilities.update && (
+                  <Button size='compact' onClick={() => edit(provider, key)}>
+                    Update
+                  </Button>
+                )}
+                {capabilities.delete && (
+                  <Button
+                    size='compact'
+                    variant='quiet'
+                    destructive
+                    onClick={() => remove({ providerId: provider.id, keyId: key.id })}
+                  >
+                    Delete
+                  </Button>
+                )}
+              </span>
+            )}
+          </SettingsRow>
+        ))}
+        {addKey && (
+          <SettingsRow
+            label='New key'
+            description={`Up to ${plural(MAX_BYOK_KEYS_PER_PROVIDER, 'key')} per provider`}
+          >
+            {addKey}
+          </SettingsRow>
+        )}
+      </SettingsList>
+      {dialogs}
+    </SectionStack>
   )
 }

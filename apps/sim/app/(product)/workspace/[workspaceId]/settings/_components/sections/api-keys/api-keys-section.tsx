@@ -2,21 +2,21 @@
 
 import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
-import { EmptyState } from '@sim/emcn/empty-state'
-import { useClipboard } from '@sim/emcn/feedback/use-clipboard'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
-import { FailureNotice, StatusTag } from '@sim/emcn/status'
-import { Switch } from '@sim/emcn/switch'
+import { StatusTag } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toast } from '@/lib/toast/sink'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
 import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   SectionStack,
   SectionToolbar,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { SettingsRead } from '@/app/(product)/_components/settings-parts/settings-read'
+import { SwitchRow } from '@/app/(product)/_components/settings-parts/switch-row'
 import { CreateApiKeyModal } from '@/app/(product)/workspace/[workspaceId]/_components/create-api-key-modal/create-api-key-modal'
 import type { WorkspaceSettingsSectionProps } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
 import styles from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/api-keys/api-keys.module.css'
@@ -35,8 +35,8 @@ import { formatInstantDate } from '@/platform/shared/time'
 
 const logger = createLogger('ApiKeysSection')
 
-const PERSONAL_KEYS_HINT =
-  'Allow collaborators to authenticate with their own keys. Hosted usage is billed to this workspace, attributed to the key owner, and counted toward their member cap.'
+const PERSONAL_KEYS_DESCRIPTION =
+  'Let collaborators use their own keys, with hosted usage billed to this workspace'
 
 interface DeleteTarget {
   key: ApiKey
@@ -53,7 +53,6 @@ interface ApiKeyRowProps {
 }
 
 function ApiKeyRow({ apiKey, overridden = false, canDelete, onDelete }: ApiKeyRowProps) {
-  const { copy } = useClipboard()
   const lastUsed = apiKey.lastUsed ? formatInstantDate(apiKey.lastUsed) : 'never'
   const expiry = apiKey.expiresAt
     ? Date.parse(apiKey.expiresAt) <= Date.now()
@@ -64,9 +63,7 @@ function ApiKeyRow({ apiKey, overridden = false, canDelete, onDelete }: ApiKeyRo
     <SettingsRow
       label={apiKey.name}
       description={`${apiKey.displayKey} · last used ${lastUsed}${expiry}${
-        overridden
-          ? ' · A workspace API key with the same name overrides this. Rename your personal key to use it.'
-          : ''
+        overridden ? ' · a workspace key has this name' : ''
       }`}
     >
       <span className={styles.controls}>
@@ -78,18 +75,9 @@ function ApiKeyRow({ apiKey, overridden = false, canDelete, onDelete }: ApiKeyRo
           align='end'
           actions={[
             {
-              id: 'copy',
-              label: 'Copy name',
-              onSelect: () =>
-                void copy(apiKey.name).then((copied) => {
-                  if (copied) toast.success('Copied name to clipboard')
-                }),
-            },
-            {
               id: 'delete',
               label: 'Delete',
               destructive: true,
-              separatorBefore: true,
               disabled: !canDelete,
               onSelect: onDelete,
             },
@@ -134,9 +122,7 @@ export default function ApiKeysSection({ workspaceId }: WorkspaceSettingsSection
     permissionConfig.isSuccess &&
     !permissionConfig.data?.config?.disablePersonalApiKeys
 
-  const loadFailed = Boolean(keys.error) && keys.data === undefined
-  const createDisabled =
-    keys.isLoading || loadFailed || (!allowPersonalApiKeys && !canManageWorkspaceKeys)
+  const canCreate = allowPersonalApiKeys || canManageWorkspaceKeys
 
   const term = search.trim().toLowerCase()
   const searching = term !== ''
@@ -154,94 +140,102 @@ export default function ApiKeysSection({ workspaceId }: WorkspaceSettingsSection
     }
   }
 
-  const keyList = loadFailed ? (
-    <FailureNotice
-      message={getErrorMessage(keys.error, 'Failed to load API keys')}
-      retrying={keys.isFetching}
-      onRetry={() => void keys.refetch()}
-    />
-  ) : keys.isLoading ? null : workspaceKeys.length === 0 && personalKeys.length === 0 ? (
-    <EmptyState title='No API keys yet' description='Create an API key to get started.' />
-  ) : searching && visibleWorkspaceKeys.length === 0 && visiblePersonalKeys.length === 0 ? (
-    <EmptyState title='No matching API keys' />
-  ) : (
-    <>
-      {(!searching || visibleWorkspaceKeys.length > 0) && (
-        <SettingsSection title='Workspace'>
-          {workspaceKeys.length === 0 ? (
-            <p className={styles.status} data-type='T060'>
-              No workspace API keys yet
-            </p>
-          ) : (
-            visibleWorkspaceKeys.map((key) => (
-              <ApiKeyRow
-                key={key.id}
-                apiKey={key}
-                canDelete={canManageWorkspaceKeys}
-                onDelete={() => setDeleting({ key, keyType: 'workspace' })}
-              />
-            ))
-          )}
-        </SettingsSection>
-      )}
-      {(!searching || visiblePersonalKeys.length > 0) && (
-        <SettingsSection title='Personal'>
-          {visiblePersonalKeys.map((key) => (
-            <ApiKeyRow
-              key={key.id}
-              apiKey={key}
-              overridden={conflicts.has(key.name)}
-              canDelete
-              onDelete={() => setDeleting({ key, keyType: 'personal' })}
-            />
-          ))}
-        </SettingsSection>
-      )}
-    </>
-  )
-
   return (
     <SectionStack>
       <SettingsPageHeader />
-      <SectionToolbar
-        grow={
-          <SearchField
-            label='Search API keys'
-            placeholder='Search API keys…'
-            value={search}
-            onValueChange={setSearch}
-          />
-        }
-      >
-        <Button
-          variant='primary'
-          size='compact'
-          icon='I074'
-          disabled={createDisabled}
-          onClick={() => setCreating(true)}
-        >
-          Create API key
-        </Button>
-      </SectionToolbar>
-      {keyList}
-      {!keys.isLoading && canManageWorkspaceKeys && (
-        <SettingsSection title='Permissions'>
-          <SettingsRow label='Allow personal API keys' description={PERSONAL_KEYS_HINT}>
-            <Switch
-              label='Allow personal API keys'
-              checked={storedAllowPersonalApiKeys}
-              disabled={updateSettings.isPending}
-              onCheckedChange={(checked) =>
-                void updateSettings
-                  .mutateAsync({ workspaceId, allowPersonalApiKeys: checked })
-                  .catch((error: unknown) =>
-                    logger.error('Error updating workspace settings', { error })
-                  )
+      <SettingsRead query={keys} failureMessage='Couldn’t load API keys'>
+        {(data) => (
+          <>
+            {data.workspaceKeys.length + data.personalKeys.length > 0 && (
+              <SectionToolbar
+                grow={
+                  <SearchField
+                    label='Search API keys'
+                    placeholder='Search API keys…'
+                    value={search}
+                    onValueChange={setSearch}
+                  />
+                }
+              />
+            )}
+            <SettingsList
+              title='Workspace'
+              empty={
+                visibleWorkspaceKeys.length > 0
+                  ? undefined
+                  : {
+                      title: searching
+                        ? 'No matching workspace API keys'
+                        : 'No workspace API keys yet',
+                    }
               }
-            />
-          </SettingsRow>
-        </SettingsSection>
-      )}
+            >
+              {visibleWorkspaceKeys.map((key) => (
+                <ApiKeyRow
+                  key={key.id}
+                  apiKey={key}
+                  canDelete={canManageWorkspaceKeys}
+                  onDelete={() => setDeleting({ key, keyType: 'workspace' })}
+                />
+              ))}
+            </SettingsList>
+            <SettingsList
+              title='Personal'
+              empty={
+                visiblePersonalKeys.length > 0
+                  ? undefined
+                  : {
+                      title: searching
+                        ? 'No matching personal API keys'
+                        : 'No personal API keys yet',
+                    }
+              }
+            >
+              {visiblePersonalKeys.map((key) => (
+                <ApiKeyRow
+                  key={key.id}
+                  apiKey={key}
+                  overridden={conflicts.has(key.name)}
+                  canDelete
+                  onDelete={() => setDeleting({ key, keyType: 'personal' })}
+                />
+              ))}
+            </SettingsList>
+            <SettingsSection title='Manage'>
+              <SettingsRow
+                label='New API key'
+                description='Authenticate the Sim API and SDKs as this workspace or as you'
+              >
+                <Button
+                  size='compact'
+                  icon='I074'
+                  disabled={!canCreate}
+                  disabledReason='Personal API keys are turned off for this workspace'
+                  onClick={() => setCreating(true)}
+                >
+                  Create API key
+                </Button>
+              </SettingsRow>
+              {canManageWorkspaceKeys && (
+                <SwitchRow
+                  label='Allow personal API keys'
+                  description={PERSONAL_KEYS_DESCRIPTION}
+                  checked={storedAllowPersonalApiKeys}
+                  disabled={updateSettings.isPending}
+                  onCheckedChange={(checked) =>
+                    void updateSettings
+                      .mutateAsync({ workspaceId, allowPersonalApiKeys: checked })
+                      .catch((error: unknown) => {
+                        logger.error('Error updating workspace settings', { error })
+                        toast.error(getErrorMessage(error, 'Couldn’t update API key settings'))
+                      })
+                  }
+                />
+              )}
+            </SettingsSection>
+          </>
+        )}
+      </SettingsRead>
       {creating && (
         <CreateApiKeyModal
           workspaceId={workspaceId}

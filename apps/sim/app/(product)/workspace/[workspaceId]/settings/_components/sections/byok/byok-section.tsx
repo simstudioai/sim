@@ -2,8 +2,7 @@
 
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { SearchField } from '@sim/emcn/search-field'
-import { FailureNotice, InlineNotice } from '@sim/emcn/status'
-import { getErrorMessage } from '@sim/utils/errors'
+import { InlineNotice } from '@sim/emcn/status'
 import { useQueryState } from 'nuqs'
 import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
@@ -11,12 +10,16 @@ import {
   SectionStack,
   SectionToolbar,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { SettingsRead } from '@/app/(product)/_components/settings-parts/settings-read'
 import type { WorkspaceSettingsSectionProps } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
 import {
-  ByokKeyManager,
+  type ByokKeyActions,
   type ByokManagerCapabilities,
   type ByokManagerKey,
+  ByokProviderKeys,
+  ByokProviderList,
 } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/byok/byok-key-manager'
+import { PROVIDERS } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/byok/providers'
 import {
   type BYOKProviderId,
   byokScopeParam,
@@ -31,6 +34,7 @@ import {
   useUpsertBYOKKey,
   useUpsertOrganizationBYOKKey,
 } from '@/platform/lib/data/byok'
+import { useSettingsSubview } from '@/platform/lib/data/settings-subview'
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
 
 const SCOPE_OPTIONS = [
@@ -54,6 +58,7 @@ export default function ByokSection({ workspaceId }: WorkspaceSettingsSectionPro
     ...byokScopeUrlKeys,
   })
   const [searchTerm, setSearchTerm] = useSettingsSearch()
+  const subview = useSettingsSubview({ idParam: 'provider' })
   const isOrganizationScope = requestedScope === 'organization' && canSelectOrganization
   const organizationQueryId = isOrganizationScope ? (hostOrganizationId ?? undefined) : undefined
   const inheritedStatusWorkspaceId =
@@ -96,9 +101,57 @@ export default function ByokSection({ workspaceId }: WorkspaceSettingsSectionPro
 
   const description = isOrganizationScope
     ? organizationKeys.data?.entitled === false
-      ? 'Organization keys apply to all current and future workspaces unless a workspace adds its own key. An active organization plan is required to add or update them; existing keys can still be deleted.'
-      : 'Organization keys apply to all current and future workspaces unless a workspace adds its own key.'
+      ? 'Organization keys apply to every workspace without its own key. Adding or updating one needs an active organization plan'
+      : 'Organization keys apply to every workspace without its own key'
     : undefined
+
+  const keyActions: ByokKeyActions = {
+    keysByProvider,
+    capabilities,
+    keyUsageDescription: isOrganizationScope
+      ? 'Every workspace in this organization uses this key unless it adds its own'
+      : undefined,
+    lastKeyDeleteMessage: isOrganizationScope
+      ? 'Workspaces without their own key will use their next available configured key source.'
+      : hostOrganizationId
+        ? 'This workspace will inherit an organization key when available, or use its next available configured key source.'
+        : 'This workspace will use its next available configured key source.',
+    isDeleting: isOrganizationScope
+      ? deleteOrganizationKey.isPending
+      : deleteWorkspaceKey.isPending,
+    onSaveKey: async ({ providerId, apiKey, keyId, name }) => {
+      if (organizationQueryId) {
+        await upsertOrganizationKey.mutateAsync({
+          organizationId: organizationQueryId,
+          providerId,
+          apiKey,
+          keyId,
+          name,
+        })
+        return
+      }
+      await upsertWorkspaceKey.mutateAsync({ workspaceId, providerId, apiKey, keyId, name })
+    },
+    onDeleteKey: async (providerId, keyId) => {
+      if (organizationQueryId) {
+        await deleteOrganizationKey.mutateAsync({
+          organizationId: organizationQueryId,
+          providerId,
+          keyId,
+        })
+        return
+      }
+      await deleteWorkspaceKey.mutateAsync({ workspaceId, providerId, keyId })
+    },
+  }
+
+  const openProviderId = PROVIDERS.find((provider) => provider.id === subview.id)?.id
+  if (openProviderId && activeQuery.isPending) return null
+  if (openProviderId && activeQuery.data !== undefined) {
+    return (
+      <ByokProviderKeys providerId={openProviderId} onBack={subview.close} actions={keyActions} />
+    )
+  }
 
   return (
     <SectionStack>
@@ -132,60 +185,17 @@ export default function ByokSection({ workspaceId }: WorkspaceSettingsSectionPro
           message='Inherited key status unavailable. Refresh to try again.'
         />
       )}
-      {activeQuery.error && activeQuery.data === undefined ? (
-        <FailureNotice
-          message={getErrorMessage(activeQuery.error, 'Failed to load provider keys')}
-          retrying={activeQuery.isFetching}
-          onRetry={() => void activeQuery.refetch()}
-        />
-      ) : activeQuery.isPending ? null : (
-        <ByokKeyManager
-          key={`${workspaceId}:${isOrganizationScope ? 'organization' : 'workspace'}`}
-          inheritedProviderIds={inheritedProviderIds}
-          keysByProvider={keysByProvider}
-          capabilities={capabilities}
-          searchTerm={searchTerm}
-          keyUsageDescription={
-            isOrganizationScope
-              ? 'This key is available to executions in every current and future workspace attached to this organization unless the workspace has its own key for this provider. Create PR, Update PR, and Plan may pass it into the untrusted Pi sandbox; Pi search still requires an explicit block key. Your key is encrypted and stored securely.'
-              : undefined
-          }
-          lastKeyDeleteMessage={
-            isOrganizationScope
-              ? 'Workspaces without their own key will use their next available configured key source.'
-              : hostOrganizationId
-                ? 'This workspace will inherit an organization key when available, or use its next available configured key source.'
-                : 'This workspace will use its next available configured key source.'
-          }
-          isDeleting={
-            isOrganizationScope ? deleteOrganizationKey.isPending : deleteWorkspaceKey.isPending
-          }
-          onSaveKey={async ({ providerId, apiKey, keyId, name }) => {
-            if (organizationQueryId) {
-              await upsertOrganizationKey.mutateAsync({
-                organizationId: organizationQueryId,
-                providerId,
-                apiKey,
-                keyId,
-                name,
-              })
-              return
-            }
-            await upsertWorkspaceKey.mutateAsync({ workspaceId, providerId, apiKey, keyId, name })
-          }}
-          onDeleteKey={async (providerId, keyId) => {
-            if (organizationQueryId) {
-              await deleteOrganizationKey.mutateAsync({
-                organizationId: organizationQueryId,
-                providerId,
-                keyId,
-              })
-              return
-            }
-            await deleteWorkspaceKey.mutateAsync({ workspaceId, providerId, keyId })
-          }}
-        />
-      )}
+      <SettingsRead query={activeQuery} failureMessage='Couldn’t load provider keys'>
+        {() => (
+          <ByokProviderList
+            key={`${workspaceId}:${isOrganizationScope ? 'organization' : 'workspace'}`}
+            inheritedProviderIds={inheritedProviderIds}
+            searchTerm={searchTerm}
+            onOpenProvider={subview.open}
+            actions={keyActions}
+          />
+        )}
+      </SettingsRead>
     </SectionStack>
   )
 }

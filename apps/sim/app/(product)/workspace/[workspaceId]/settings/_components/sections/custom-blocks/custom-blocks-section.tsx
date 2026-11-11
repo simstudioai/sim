@@ -1,31 +1,33 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { ActivityRow } from '@sim/emcn/activity-row'
 import { Avatar } from '@sim/emcn/avatar'
 import { Button } from '@sim/emcn/button'
-import { EmptyState } from '@sim/emcn/empty-state'
 import { Icon } from '@sim/emcn/icon'
 import { SearchField } from '@sim/emcn/search-field'
-import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { SettingsRow } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
 import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   ResourceList,
   SectionStack,
   SectionToolbar,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { SettingsRead } from '@/app/(product)/_components/settings-parts/settings-read'
 import type { WorkspaceSettingsSectionProps } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
 import { CustomBlockDetail } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/custom-blocks/custom-block-detail'
+import { UpgradeNotice } from '@/app/(product)/workspace/[workspaceId]/settings/_components/upgrade-notice/upgrade-notice'
 import {
+  customBlockIdParam,
   useCanPublishCustomBlock,
-  useCustomBlockParam,
   useCustomBlocks,
   useSettingsSearch,
   useWhitelabelSettings,
   useWorkspacesQuery,
 } from '@/platform/lib/data/custom-blocks'
+import { useSettingsSubview } from '@/platform/lib/data/settings-subview'
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
 
 function blockGlyph(name: string, iconUrl: string | null) {
@@ -44,7 +46,8 @@ export default function CustomBlocksSection({ workspaceId }: WorkspaceSettingsSe
   )
   const access = useCanPublishCustomBlock(workspaceId)
   const blocksQuery = useCustomBlocks(workspaceId)
-  const blocks = blocksQuery.data ?? []
+  // Placeholder data is another workspace's blocks reading as success, so it counts as loading.
+  const blocksLoading = blocksQuery.isPending || blocksQuery.isPlaceholderData
   const workspacesQuery = useWorkspacesQuery()
   const workspaces = workspacesQuery.data ?? []
   // A block without an uploaded icon shows the host organization's logo, as the legacy branding did.
@@ -63,129 +66,131 @@ export default function CustomBlocksSection({ workspaceId }: WorkspaceSettingsSe
     workspaces.some((w) => w.organizationId === currentOrgId && w.permissions === 'admin')
 
   const [search, setSearch] = useSettingsSearch()
-  const [selectedBlockId, setSelectedBlockId] = useCustomBlockParam()
-  /** The create flow has no entity id and is not deep-linkable, so it stays local. */
-  const [isCreating, setIsCreating] = useState(false)
-  const selectedBlock = selectedBlockId
-    ? blocks.find((block) => block.id === selectedBlockId)
+  const subview = useSettingsSubview({
+    idParam: customBlockIdParam.key,
+    createParam: 'create-custom-block',
+  })
+  const selectedBlock = subview.id
+    ? blocksQuery.data?.find((block) => block.id === subview.id)
     : undefined
-  // A `?block=` the settled list does not hold (deleted, or never this workspace's) leaves the URL.
-  const unknownBlock =
-    Boolean(selectedBlockId) &&
-    blocksQuery.data !== undefined &&
-    !blocksQuery.isPlaceholderData &&
-    !selectedBlock
-  useEffect(() => {
-    if (unknownBlock) void setSelectedBlockId(null, { history: 'replace' })
-  }, [unknownBlock, setSelectedBlockId])
+  const deepLinked = subview.id !== null || subview.creating
 
   // The list read also answers the entitlement, so a deep link never flashes the list first.
-  if (access.isPending) return selectedBlockId === null ? <SettingsPageHeader /> : null
+  if (access.isPending) return deepLinked ? null : <SettingsPageHeader />
+  if (subview.id !== null && blocksLoading) return null
 
   if (access.data === undefined)
     return (
-      <>
+      <SectionStack>
         <SettingsPageHeader />
         <FailureNotice
-          message={getErrorMessage(access.error, 'Failed to load custom block access')}
+          message={getErrorMessage(access.error, 'Couldn’t load custom block access')}
           retrying={access.isFetching}
           onRetry={() => void access.refetch()}
         />
-      </>
+      </SectionStack>
     )
 
   if (!access.data)
     return (
-      <>
+      <SectionStack>
         <SettingsPageHeader />
-        <EmptyState title='Custom blocks require an Enterprise plan. Contact your admin to enable them.' />
-      </>
+        <UpgradeNotice
+          title='Custom blocks require an Enterprise plan'
+          description='Ask your organization’s admin to enable them'
+          canUpgrade={false}
+        />
+      </SectionStack>
     )
 
-  if (isCreating || (selectedBlock && canAdmin))
+  if ((subview.creating && canCreate) || selectedBlock)
     return (
       <CustomBlockDetail
-        key={isCreating ? 'new' : selectedBlock?.id}
-        existing={isCreating ? null : (selectedBlock ?? null)}
+        key={subview.creating ? 'new' : selectedBlock?.id}
+        existing={subview.creating ? null : (selectedBlock ?? null)}
         workspaceId={workspaceId}
-        onBack={() => {
-          setIsCreating(false)
-          void setSelectedBlockId(null, { history: 'replace' })
-        }}
+        onBack={subview.close}
       />
     )
 
-  const query = search.trim().toLowerCase()
-  const filtered = query
-    ? blocks.filter((block) => block.name.toLowerCase().includes(query))
-    : blocks
+  const createBlock = canCreate ? (
+    <Button size='compact' icon='I074' onClick={subview.create}>
+      Create block
+    </Button>
+  ) : undefined
 
   return (
     <SectionStack>
       <SettingsPageHeader />
-      <SectionToolbar
-        grow={
-          <SearchField
-            label='Search custom blocks'
-            placeholder='Search custom blocks…'
-            value={search}
-            onValueChange={setSearch}
-          />
-        }
-      />
       {workspacesQuery.isError && workspacesQuery.data === undefined && (
         <FailureNotice
-          message={getErrorMessage(workspacesQuery.error, 'Failed to load your workspaces')}
+          message={getErrorMessage(workspacesQuery.error, 'Couldn’t load your workspaces')}
           retrying={workspacesQuery.isFetching}
           onRetry={() => void workspacesQuery.refetch()}
         />
       )}
-      <SettingsSection title='Blocks'>
-        {blocks.length === 0 ? (
-          <EmptyState
-            title='No custom blocks yet'
-            description={canCreate ? 'Create a block to publish a workflow as a block.' : undefined}
-          />
-        ) : filtered.length === 0 ? (
-          <EmptyState title='No matching blocks' />
-        ) : (
-          <ResourceList>
-            {filtered.map((block) => {
-              const leading = blockGlyph(block.name, block.iconUrl || fallbackIconUrl)
-              const metadata = block.enabled ? undefined : 'Disabled'
-              return canAdmin ? (
-                <ActivityRow
-                  key={block.id}
-                  leading={leading}
-                  title={block.name}
-                  detail={block.description || undefined}
-                  textMetadata={metadata}
-                  onOpen={() => void setSelectedBlockId(block.id)}
+      <SettingsRead query={blocksQuery} failureMessage='Couldn’t load custom blocks'>
+        {(blocks) => {
+          if (blocksLoading) return null
+          const query = search.trim().toLowerCase()
+          const filtered = query
+            ? blocks.filter((block) => block.name.toLowerCase().includes(query))
+            : blocks
+          return (
+            <>
+              {blocks.length > 0 && (
+                <SectionToolbar
+                  grow={
+                    <SearchField
+                      label='Search custom blocks'
+                      placeholder='Search custom blocks…'
+                      value={search}
+                      onValueChange={setSearch}
+                    />
+                  }
                 />
-              ) : (
-                <ActivityRow
-                  key={block.id}
-                  leading={leading}
-                  title={block.name}
-                  detail={block.description || undefined}
-                  textMetadata={metadata}
-                  readOnly
-                />
-              )
-            })}
-          </ResourceList>
-        )}
-        {canCreate && (
-          <SettingsRow
-            label='New custom block'
-            description='Publish a deployed workflow as a reusable block'
-          >
-            <Button size='compact' icon='I074' onClick={() => setIsCreating(true)}>
-              Create block
-            </Button>
-          </SettingsRow>
-        )}
-      </SettingsSection>
+              )}
+              <SettingsList
+                title='Blocks'
+                empty={
+                  blocks.length === 0
+                    ? {
+                        title: 'No custom blocks yet',
+                        description: canCreate
+                          ? 'Publish a deployed workflow as a reusable block'
+                          : undefined,
+                        action: createBlock,
+                      }
+                    : filtered.length === 0
+                      ? { title: 'No matching blocks' }
+                      : undefined
+                }
+              >
+                <ResourceList>
+                  {filtered.map((block) => (
+                    <ActivityRow
+                      key={block.id}
+                      leading={blockGlyph(block.name, block.iconUrl || fallbackIconUrl)}
+                      title={block.name}
+                      detail={block.description || undefined}
+                      textMetadata={block.enabled ? undefined : 'Disabled'}
+                      onOpen={() => subview.open(block.id)}
+                    />
+                  ))}
+                </ResourceList>
+                {createBlock && (
+                  <SettingsRow
+                    label='New custom block'
+                    description='Publish a deployed workflow as a reusable block'
+                  >
+                    {createBlock}
+                  </SettingsRow>
+                )}
+              </SettingsList>
+            </>
+          )
+        }}
+      </SettingsRead>
     </SectionStack>
   )
 }

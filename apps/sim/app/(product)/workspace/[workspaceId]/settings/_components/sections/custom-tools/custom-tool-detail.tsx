@@ -3,12 +3,14 @@
 import { useMemo, useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
-import { SettingsSection } from '@sim/emcn/settings-section'
-import { SaveActions } from '@sim/emcn/settings-section/save-actions'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { getErrorMessage } from '@sim/utils/errors'
+import { SettingsSaveBar } from '@/app/(product)/_components/settings-parts/save-bar'
 import {
+  ActionRow,
   DetailHeader,
   SectionStack,
+  SectionToolbar,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { CustomToolCodeField } from '@/app/(product)/workspace/[workspaceId]/_components/custom-tool-editor/custom-tool-code-field'
 import {
@@ -17,7 +19,6 @@ import {
   CustomToolSchemaField,
 } from '@/app/(product)/workspace/[workspaceId]/_components/custom-tool-editor/custom-tool-editor'
 import { GeneratePrompt } from '@/app/(product)/workspace/[workspaceId]/_components/generate-prompt/generate-prompt'
-import styles from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/custom-tools/custom-tools.module.css'
 import {
   type CustomToolDefinition,
   createLogger,
@@ -25,7 +26,7 @@ import {
   useDeleteCustomTool,
   useUpdateCustomTool,
 } from '@/platform/lib/data/custom-tools'
-import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
+import { requestSettingsLeave, useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import {
   extractSchemaParameters,
   FUNCTION_NAME_LOCKED,
@@ -65,8 +66,8 @@ interface CustomToolDetailProps {
 
 /**
  * One custom tool as a Settings sub-view: its schema and code stacked, each with AI generation,
- * Save and Discard beneath them, and Delete beside the heading. The fields are the workflow
- * editor's, so the two surfaces never drift.
+ * the save bar beneath them and Delete at the end. The create flow submits through Create tool
+ * instead. The fields are the workflow editor's, so the two surfaces never drift.
  */
 export function CustomToolDetail({
   workspaceId,
@@ -139,10 +140,14 @@ export function CustomToolDetail({
   const controlsDisabled = readOnly || saving || deleteTool.isPending
   const isSchemaValid = useMemo(() => validateCustomToolSchema(jsonSchema).isValid, [jsonSchema])
 
-  const guard = useSettingsUnsavedGuard({
-    isDirty: dirty,
-    navigationBlocked: saving || deleteTool.isPending || streaming,
-    onDiscard: handleDiscard,
+  /**
+   * The save bar registers an existing tool's draft; this holds navigation while a generation
+   * streams or a delete runs, and registers the create flow's draft, which has no save bar.
+   */
+  useSettingsUnsavedGuard({
+    isDirty: !isEditing && dirty,
+    navigationBlocked: deleteTool.isPending || streaming || (!isEditing && saving),
+    onDiscard: isEditing ? undefined : handleDiscard,
   })
 
   const handleSave = async () => {
@@ -204,29 +209,17 @@ export function CustomToolDetail({
     <SectionStack>
       <DetailHeader
         backLabel='Custom tools'
-        onBack={() => guard.guardBack(onBack)}
+        onBack={() => requestSettingsLeave(onBack)}
         title={identity.name || tool?.title || 'New tool'}
         description={
           identity.description ||
           tool?.schema.function.description ||
           'Define the JSON schema your agents call, and the code that runs'
         }
-      >
-        {tool && !readOnly && (
-          <Button
-            variant='quiet'
-            destructive
-            disabled={deleteTool.isPending}
-            onClick={() => setConfirmingDelete(true)}
-          >
-            {deleteTool.isPending ? 'Deleting…' : 'Delete'}
-          </Button>
-        )}
-      </DetailHeader>
+      />
       <SettingsSection title='Schema'>
         {(schemaError || !controlsDisabled) && (
-          <div className={styles.bar}>
-            {schemaError && <CustomToolError message={schemaError} />}
+          <SectionToolbar grow={schemaError && <CustomToolError message={schemaError} />}>
             {!controlsDisabled && (
               <GeneratePrompt
                 isLoading={schemaGeneration.isLoading}
@@ -234,7 +227,7 @@ export function CustomToolDetail({
                 onSubmit={(prompt) => schemaGeneration.generateStream({ prompt })}
               />
             )}
-          </div>
+          </SectionToolbar>
         )}
         <CustomToolSchemaField
           value={jsonSchema}
@@ -251,8 +244,7 @@ export function CustomToolDetail({
       </SettingsSection>
       <SettingsSection title='Code'>
         {(codeError || !controlsDisabled) && (
-          <div className={styles.bar}>
-            {codeError && <CustomToolError message={codeError} />}
+          <SectionToolbar grow={codeError && <CustomToolError message={codeError} />}>
             {!controlsDisabled && (
               <GeneratePrompt
                 isLoading={codeGeneration.isLoading}
@@ -260,7 +252,7 @@ export function CustomToolDetail({
                 onSubmit={(prompt) => codeGeneration.generateStream({ prompt })}
               />
             )}
-          </div>
+          </SectionToolbar>
         )}
         <CustomToolCodeField
           value={functionCode}
@@ -276,14 +268,42 @@ export function CustomToolDetail({
           disabled={controlsDisabled}
         />
       </SettingsSection>
-      {!readOnly && (
-        <SaveActions
-          dirty={dirty}
-          saving={saving}
-          blocked={!isSchemaValid || streaming}
-          onSave={() => void handleSave()}
-          onDiscard={handleDiscard}
-        />
+      {!readOnly &&
+        (isEditing ? (
+          <SettingsSaveBar
+            dirty={dirty}
+            saving={saving}
+            blocked={!isSchemaValid || streaming}
+            onSave={() => void handleSave()}
+            onDiscard={handleDiscard}
+          />
+        ) : (
+          <ActionRow>
+            <Button
+              variant='primary'
+              disabled={!dirty || !isSchemaValid || streaming || saving}
+              onClick={() => void handleSave()}
+            >
+              {saving ? 'Creating…' : 'Create tool'}
+            </Button>
+          </ActionRow>
+        ))}
+      {tool && !readOnly && (
+        <SettingsSection title='Manage tool'>
+          <SettingsRow
+            label='Delete tool'
+            description='Remove this tool from the workspace and its workflows'
+          >
+            <Button
+              variant='quiet'
+              destructive
+              disabled={deleteTool.isPending}
+              onClick={() => setConfirmingDelete(true)}
+            >
+              Delete
+            </Button>
+          </SettingsRow>
+        </SettingsSection>
       )}
       <ConfirmDialog
         target={confirmingDelete}

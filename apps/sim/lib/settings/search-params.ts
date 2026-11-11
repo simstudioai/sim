@@ -77,36 +77,16 @@ export const serverTabUrlKeys = {
   clearOnDefault: true,
 } as const
 
-/**
- * `custom-block-id` deep-links the Custom Blocks settings tab to a specific
- * block's detail sub-view. The "create new" flow stays in local state — only
- * existing entities are deep-linkable.
- */
+/** `custom-block-id` deep-links the Custom Blocks settings tab to one block's detail sub-view. */
 export const customBlockIdParam = {
   key: 'custom-block-id',
   parser: parseAsString,
 } as const
 
-/** Opening a block's detail is a destination → push to history; clear on close. */
-export const customBlockIdUrlKeys = {
-  history: 'push',
-  clearOnDefault: true,
-} as const
-
-/**
- * `custom-tool-id` deep-links the Custom Tools settings tab to a specific
- * tool's detail sub-view. The "create new" flow stays in local state — only
- * existing entities are deep-linkable.
- */
+/** `custom-tool-id` deep-links the Custom Tools settings tab to one tool's detail sub-view. */
 export const customToolIdParam = {
   key: 'custom-tool-id',
   parser: parseAsString,
-} as const
-
-/** Opening a tool's detail is a destination → push to history; clear on close. */
-export const customToolIdUrlKeys = {
-  history: 'push',
-  clearOnDefault: true,
 } as const
 
 /**

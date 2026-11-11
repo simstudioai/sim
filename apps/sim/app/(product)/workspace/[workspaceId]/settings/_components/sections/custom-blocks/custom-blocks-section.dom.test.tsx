@@ -3,7 +3,7 @@
  *
  * Who may create a custom block depends on the viewer's workspaces, a read of its own. Failure
  * modes: that read failing silently, hiding Create block as if the viewer lacked the right; and a
- * `?block=` naming a deleted or unknown block staying in the URL once the list has settled.
+ * deep link flashing the list before the block it names has loaded.
  */
 import { act } from 'react'
 import { stubResizeObserver } from '@sim/testing/mocks/browser-apis.mock'
@@ -12,17 +12,33 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 const reads = vi.hoisted(() => ({
   refetchWorkspaces: vi.fn(),
-  setBlock: vi.fn(),
   blockParam: null as string | null,
-  blocks: { data: [] as unknown[] | undefined, isPlaceholderData: false },
+  blocks: { data: [] as unknown[] | undefined, isPending: false, isPlaceholderData: false },
+}))
+vi.mock('@/platform/lib/data/settings-subview', () => ({
+  useSettingsSubview: () => ({
+    id: reads.blockParam,
+    creating: false,
+    open: vi.fn(),
+    close: vi.fn(),
+    create: vi.fn(),
+    showCreated: vi.fn(),
+  }),
 }))
 vi.mock('@/platform/lib/data/workspace-settings', () => ({
   useWorkspaceSettingsSection: () => ({ canMutate: true, hostContext: null }),
 }))
 vi.mock('@/platform/lib/data/custom-blocks', () => ({
+  customBlockIdParam: { key: 'custom-block-id' },
   useCanPublishCustomBlock: () => ({ isPending: false, data: true }),
-  useCustomBlockParam: () => [reads.blockParam, reads.setBlock],
-  useCustomBlocks: () => reads.blocks,
+  useCustomBlocks: () => ({
+    ...reads.blocks,
+    error: null,
+    isLoadingError: false,
+    isRefetchError: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  }),
   useSettingsSearch: () => ['', vi.fn()],
   useWhitelabelSettings: () => ({ data: undefined }),
   useWorkspacesQuery: () => ({
@@ -42,9 +58,8 @@ let root: Root
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   stubResizeObserver()
-  reads.setBlock.mockClear()
   reads.blockParam = null
-  reads.blocks = { data: [], isPlaceholderData: false }
+  reads.blocks = { data: [], isPending: false, isPlaceholderData: false }
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
@@ -62,15 +77,9 @@ it('shows a failed workspace read with Retry', async () => {
   expect(reads.refetchWorkspaces).toHaveBeenCalled()
 })
 
-it('clears a ?block= the settled list does not hold', () => {
-  reads.blockParam = 'deleted-block'
-  act(() => root.render(<CustomBlocksSection workspaceId='ws' subpath={[]} />))
-  expect(reads.setBlock).toHaveBeenCalledWith(null, { history: 'replace' })
-})
-
-it('keeps a ?block= while the list is still loading', () => {
+it('shows nothing for a deep link while the list is still loading', () => {
   reads.blockParam = 'block-1'
-  reads.blocks = { data: undefined, isPlaceholderData: false }
+  reads.blocks = { data: undefined, isPending: true, isPlaceholderData: false }
   act(() => root.render(<CustomBlocksSection workspaceId='ws' subpath={[]} />))
-  expect(reads.setBlock).not.toHaveBeenCalled()
+  expect(container.childElementCount).toBe(0)
 })
