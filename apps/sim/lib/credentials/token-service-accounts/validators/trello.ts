@@ -48,7 +48,7 @@ export async function validateTrelloServiceAccount(
 
   const res = await fetchProvider(
     url.toString(),
-    { headers: { Accept: 'application/json' } },
+    { headers: { Accept: 'application/json' }, redirect: 'error' },
     'members_me'
   )
   if (res.status === 401) {

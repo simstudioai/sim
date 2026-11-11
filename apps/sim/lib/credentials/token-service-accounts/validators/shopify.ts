@@ -95,6 +95,7 @@ export async function validateShopifyServiceAccount(
         'X-Shopify-Access-Token': fields.apiToken,
       },
       body: JSON.stringify({ query: SHOP_QUERY }),
+      redirect: 'error',
     },
     'shop_query',
     { dnsFailureCode: 'site_not_found', dnsFailureReason: 'store domain does not resolve' }

@@ -43,6 +43,7 @@ export async function validateNotionServiceAccount(
         'Notion-Version': NOTION_VERSION,
         Accept: 'application/json',
       },
+      redirect: 'error',
     },
     'users_me'
   )

@@ -36,6 +36,7 @@ export async function validateAsanaServiceAccount(
         Authorization: `Bearer ${fields.apiToken}`,
         Accept: 'application/json',
       },
+      redirect: 'error',
     },
     'users_me'
   )

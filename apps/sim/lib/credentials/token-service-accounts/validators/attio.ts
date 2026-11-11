@@ -37,6 +37,7 @@ export async function validateAttioServiceAccount(
         Authorization: `Bearer ${fields.apiToken}`,
         Accept: 'application/json',
       },
+      redirect: 'error',
     },
     'self'
   )

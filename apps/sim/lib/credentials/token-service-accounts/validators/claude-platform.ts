@@ -29,6 +29,7 @@ export async function validateClaudePlatformServiceAccount(
         'anthropic-version': ANTHROPIC_VERSION,
         'anthropic-beta': MANAGED_AGENTS_BETA,
       },
+      redirect: 'error',
     },
     'agents_list'
   )

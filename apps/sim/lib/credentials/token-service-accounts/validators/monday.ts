@@ -80,6 +80,7 @@ export async function validateMondayServiceAccount(
       method: 'POST',
       headers: mondayHeaders(fields.apiToken),
       body: JSON.stringify({ query: VALIDATION_QUERY }),
+      redirect: 'error',
     },
     'me'
   )

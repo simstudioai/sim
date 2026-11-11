@@ -31,6 +31,7 @@ export async function validateAirtableServiceAccount(
         Authorization: `Bearer ${fields.apiToken}`,
         Accept: 'application/json',
       },
+      redirect: 'error',
     },
     'whoami'
   )
