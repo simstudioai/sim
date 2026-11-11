@@ -211,7 +211,7 @@
     "date-fns": "4.4.0",
     "decimal.js": "10.6.0",
     "diff": "9.0.0",
-    "docx": "^9.6.1",
+    "docx": "^9.15.2",
     "docx-preview": "^0.4.1",
     "drizzle-orm": "^0.45.4",
     "echarts": "6.1.0",

@@ -740,6 +740,17 @@ async function executeTask(request, executionId) {
     releaseables.push(textDecodeCallback)
     await jail.set('__textDecode', textDecodeCallback)
 
+    // btoa / atob delegate to Node's native WHATWG implementations, so
+    // libraries that encode base64 through them (docx's Packer.toBase64String,
+    // document protection hashes, data-URI images) behave as in a browser.
+    const btoaCallback = new ivm.Callback((data) => btoa(data))
+    releaseables.push(btoaCallback)
+    await jail.set('__btoa', btoaCallback)
+
+    const atobCallback = new ivm.Callback((data) => atob(data))
+    releaseables.push(atobCallback)
+    await jail.set('__atob', atobCallback)
+
     // Delegate timers to Node's real timer heap via ivm.Reference (the pattern
     // recommended by laverdet/isolated-vm#136). Host-side bookkeeping was
     // hoisted to the function scope above so the finally can always sweep.
@@ -890,6 +901,8 @@ async function executeTask(request, executionId) {
         const __error = globalThis.__error;
         const __textEncode = globalThis.__textEncode;
         const __textDecode = globalThis.__textDecode;
+        const __btoa = globalThis.__btoa;
+        const __atob = globalThis.__atob;
         const __setTimeoutRef = globalThis.__setTimeoutRef;
         const __clearTimeoutRef = globalThis.__clearTimeoutRef;
         const __setIntervalRef = globalThis.__setIntervalRef;
@@ -926,6 +939,9 @@ async function executeTask(request, executionId) {
             return __textDecode(bytes);
           }
         };
+
+        globalThis.btoa = function btoa(data) { return __btoa(String(data)); };
+        globalThis.atob = function atob(data) { return __atob(String(data)); };
 
         // setTimeout / setInterval delegate to Node's real timer heap via
         // ivm.Reference. The \`ms\` arg is honored (host clamps to the script
@@ -1039,7 +1055,7 @@ async function executeTask(request, executionId) {
       const undefined_globals = [
         'Isolate', 'Context', 'Script', 'Module', 'Callback', 'Reference',
         'ExternalCopy', '__dirname', '__filename', '__brokerRef',
-        '__log', '__error', '__textEncode', '__textDecode',
+        '__log', '__error', '__textEncode', '__textDecode', '__btoa', '__atob',
         '__setTimeoutRef', '__clearTimeoutRef', '__setIntervalRef'
       ];
       for (const name of undefined_globals) {
