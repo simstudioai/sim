@@ -97,7 +97,7 @@ The Start block's `inputFormat` field declares the input fields a run accepts. A
 }
 ```
 
-Replace `START_ID` with the Start block ID. `inputs` maps field IDs from the block catalog to values. `connections` maps a source handle to a target block, and replaces that block's outgoing edges. Within one batch, refer to new blocks by the `block_id` you gave them.
+Replace `START_ID` with the Start block ID. The CLI's `--operations` takes just the array, so the CLI examples pass `.operations` from this file. `inputs` maps field IDs from the block catalog to values. `connections` maps a source handle to a target block, and replaces that block's outgoing edges. Within one batch, refer to new blocks by the `block_id` you gave them.
 
 Add `?dryRun=true` to validate and lint without saving:
 
@@ -112,7 +112,8 @@ Add `?dryRun=true` to validate and lint without saving:
   </Tab>
   <Tab value="CLI">
     ```bash
-    sim workflows operations apply "$WORKFLOW_ID" --operations @ops.json --dry-run
+    jq .operations ops.json |
+      sim workflows operations apply "$WORKFLOW_ID" --operations @- --dry-run
     ```
   </Tab>
 </Tabs>
@@ -151,7 +152,8 @@ Apply without `dryRun`. Set `atomic: true` in the body to write nothing when any
   </Tab>
   <Tab value="CLI">
     ```bash
-    sim workflows operations apply "$WORKFLOW_ID" --operations @ops.json --atomic --yes
+    jq .operations ops.json |
+      sim workflows operations apply "$WORKFLOW_ID" --operations @- --atomic --yes
     ```
   </Tab>
 </Tabs>
