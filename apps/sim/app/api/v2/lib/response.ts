@@ -253,13 +253,19 @@ export function v2UploadDataPlaneError(): NextResponse {
  * Render a contract `ZodError` as the v2 error envelope. The message is the
  * first issue's, prefixed with where it failed (`body.limit: ...`) so a caller
  * reading only the message knows which field to fix; `details` keeps every
- * issue with its slice-relative path.
+ * issue with its slice-relative path. A message that already leads with its
+ * field label (`enabled: expected one of ...`) drops it, so the field is named
+ * once.
  */
 export function v2ValidationError(error: ZodError, slice?: RequestSlice): NextResponse {
-  const message = getValidationErrorMessage(error, 'Invalid request')
-  const location = [slice, ...(error.issues[0]?.path ?? []).map(String)]
-    .filter((part) => part !== undefined && part !== '')
-    .join('.')
+  const path = (error.issues[0]?.path ?? []).map(String)
+  const fieldLabel = `${path.at(-1)}: `
+  const issueMessage = getValidationErrorMessage(error, 'Invalid request')
+  const message =
+    path.length > 0 && issueMessage.startsWith(fieldLabel)
+      ? issueMessage.slice(fieldLabel.length)
+      : issueMessage
+  const location = [slice, ...path].filter((part) => part !== undefined && part !== '').join('.')
   return v2Error('BAD_REQUEST', location ? `${location}: ${message}` : message, {
     details: serializeZodIssues(error),
   })
