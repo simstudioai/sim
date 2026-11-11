@@ -73,4 +73,20 @@ describe('getTwilioRecording', () => {
       output: { duration: 42, transcriptionText: 'hello', file: storedFile },
     })
   })
+  it('authenticates every request with an API key as its SID and secret', async () => {
+    const apiKey = `SK${'b'.repeat(32)}:key-secret`
+    await getTwilioRecording(
+      { accountSid: 'AC123', authToken: apiKey, recordingSid: 'RE123' },
+      { requestId: 'request-1' }
+    )
+
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledTimes(3)
+    for (const [, , init] of mockSecureFetchWithPinnedIP.mock.calls) {
+      expect(init.headers).toEqual(
+        expect.objectContaining({
+          Authorization: `Basic ${Buffer.from(apiKey).toString('base64')}`,
+        })
+      )
+    }
+  })
 })

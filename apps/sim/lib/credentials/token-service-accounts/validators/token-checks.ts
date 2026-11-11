@@ -44,6 +44,7 @@ import { PLANETSCALE_API_ORIGIN, planetScaleHeaders } from '@/tools/planetscale/
 import { createBasicAuthHeader } from '@/tools/servicenow/utils'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import { getThriveBaseUrl, getThriveHeaders, THRIVE_HOSTS } from '@/tools/thrive/utils'
+import { isTwilioApiKeyPair, twilioAuthorization } from '@/tools/twilio/utils'
 import { WHATSAPP_GRAPH_VERSION } from '@/tools/whatsapp/utils'
 
 /**
@@ -1535,9 +1536,14 @@ export const validateTriggerDevServiceAccount = tokenCheckValidator({
 const TWILIO_ACCOUNT_SID = /^AC[0-9a-f]{32}$/
 
 /**
- * Fetching the account resource with the SID and auth token as Basic auth (the tools' scheme)
- * answers 200 for a matching pair and 401 (code 20003) for a wrong token, an unknown SID, or a SID
- * the token doesn't belong to. The SID is checked first so it can never rewrite the path.
+ * The credential holds the account SID plus either its auth token or an API key pair
+ * (`SKxxx:secret`, sent as Twilio's Basic username and password for a key). An auth token fetches
+ * the account resource (the tools' scheme, `accountSid:authToken`): 200 for a matching pair, 401
+ * (code 20003) for a wrong token, an unknown SID, or a SID the token doesn't belong to. A Standard
+ * API key may not read the Accounts resource, so a key lists one of the account's phone numbers
+ * instead; Twilio refuses that read for a wrong secret or a key of another account. The SID is
+ * checked first so it can never rewrite the path, and a value with a colon that isn't a key pair
+ * is refused unsent.
  */
 export const validateTwilioServiceAccount = tokenCheckValidator({
   serviceLabel: 'Twilio',
@@ -1546,13 +1552,23 @@ export const validateTwilioServiceAccount = tokenCheckValidator({
     if (!TWILIO_ACCOUNT_SID.test(accountSid)) throw new Error('invalid Account SID')
     return accountSid
   },
-  request: ({ apiToken, providerWorkspaceId }) => ({
-    url: `https://api.twilio.com/2010-04-01/Accounts/${providerWorkspaceId}.json`,
-    headers: {
-      Authorization: `Basic ${Buffer.from(`${providerWorkspaceId}:${apiToken}`).toString('base64')}`,
-      Accept: 'application/json',
-    },
-  }),
+  request: ({ apiToken, providerWorkspaceId = '' }) => {
+    const apiKey = isTwilioApiKeyPair(apiToken)
+    if (!apiKey && apiToken.includes(':')) {
+      throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+        step: 'verify',
+        reason: 'neither an auth token nor an API key pair',
+      })
+    }
+    const account = `https://api.twilio.com/2010-04-01/Accounts/${providerWorkspaceId}`
+    return {
+      url: apiKey ? `${account}/IncomingPhoneNumbers.json?PageSize=1` : `${account}.json`,
+      headers: {
+        Authorization: twilioAuthorization(providerWorkspaceId, apiToken),
+        Accept: 'application/json',
+      },
+    }
+  },
 })
 
 /**

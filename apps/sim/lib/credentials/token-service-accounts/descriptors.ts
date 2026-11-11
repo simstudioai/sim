@@ -2142,8 +2142,8 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     fields: [
       {
         id: 'apiToken',
-        label: 'Auth token',
-        placeholder: 'Paste your Twilio auth token',
+        label: 'Auth token or API key',
+        placeholder: 'Paste your auth token, or SKxxx:secret for an API key',
         secret: true,
       },
       {
@@ -2157,9 +2157,9 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/twilio_sms',
     helpText:
-      'Copy the Account SID and Auth Token from Account Info on your Twilio Console dashboard.',
+      'Copy the Account SID and Auth Token from Account Info on your Twilio Console dashboard. To use an API key instead, enter its SID and secret joined by a colon (SKxxx:secret); a Standard or Main key works, and a restricted key needs read access to phone numbers.',
     invalidCredentialsHelp:
-      'Twilio rejected this Account SID and auth token. Check that the token belongs to this account and has not been rotated.',
+      'Twilio rejected this Account SID and auth token or API key. Check that the token or key belongs to this account and has not been rotated or deleted, and that an API key is entered as SKxxx:secret.',
   },
   [ALGOLIA_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: ALGOLIA_SERVICE_ACCOUNT_PROVIDER_ID,

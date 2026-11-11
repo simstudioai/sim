@@ -664,3 +664,73 @@ describe('ServiceNow saved username and password verification', () => {
     else await expect(result).resolves.toMatchObject({ principal: null })
   })
 })
+
+describe('Twilio saved credential verification', () => {
+  const ACCOUNT_SID = `AC${'a'.repeat(32)}`
+  const API_KEY_SID = `SK${'b'.repeat(32)}`
+
+  it('checks an auth token against the account resource, as before', async () => {
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({ sid: ACCOUNT_SID }))
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateTwilioServiceAccount({ apiToken: 'c'.repeat(32), providerWorkspaceId: ACCOUNT_SID })
+    ).resolves.toMatchObject({ displayName: `Twilio (${ACCOUNT_SID})` })
+    expect(fetch).toHaveBeenCalledWith(
+      `https://api.twilio.com/2010-04-01/Accounts/${ACCOUNT_SID}.json`,
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: `Basic ${Buffer.from(`${ACCOUNT_SID}:${'c'.repeat(32)}`).toString('base64')}`,
+        }),
+      })
+    )
+  })
+
+  it('checks an API key with a read a Standard key may make, sent as the key SID and secret', async () => {
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({ incoming_phone_numbers: [] }))
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateTwilioServiceAccount({
+        apiToken: `${API_KEY_SID}:key-secret`,
+        providerWorkspaceId: ACCOUNT_SID,
+      })
+    ).resolves.toMatchObject({ displayName: `Twilio (${ACCOUNT_SID})` })
+    expect(fetch).toHaveBeenCalledWith(
+      `https://api.twilio.com/2010-04-01/Accounts/${ACCOUNT_SID}/IncomingPhoneNumbers.json?PageSize=1`,
+      expect.objectContaining({
+        redirect: 'error',
+        headers: expect.objectContaining({
+          Authorization: `Basic ${Buffer.from(`${API_KEY_SID}:key-secret`).toString('base64')}`,
+        }),
+      })
+    )
+  })
+
+  it('rejects an API key Twilio refuses for this account', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ code: 20003, message: 'Authenticate' }, 401))
+    )
+
+    await expect(
+      validateTwilioServiceAccount({
+        apiToken: `${API_KEY_SID}:wrong`,
+        providerWorkspaceId: ACCOUNT_SID,
+      })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it.each([`SKshort:secret`, `${API_KEY_SID}:`, `${ACCOUNT_SID}:secret`, 'token:with:colons'])(
+    'refuses %s, which is neither an auth token nor an API key, before any request',
+    async (apiToken) => {
+      const fetch = vi.fn()
+      vi.stubGlobal('fetch', fetch)
+
+      await expect(
+        validateTwilioServiceAccount({ apiToken, providerWorkspaceId: ACCOUNT_SID })
+      ).rejects.toMatchObject({ code: 'invalid_credentials' })
+      expect(fetch).not.toHaveBeenCalled()
+    }
+  )
+})
