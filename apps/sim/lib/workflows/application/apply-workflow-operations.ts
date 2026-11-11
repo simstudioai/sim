@@ -226,10 +226,14 @@ function applyBlockEnabledChanges(
  * An order-insensitive identity for a stored graph, so two reads of the same
  * rows compare equal even though the loader neither orders its rows nor fixes
  * the key order of the records it builds.
+ *
+ * Only blocks and edges are compared: loops and parallels are rebuilt from the
+ * blocks on every load, with child `nodes` in row order.
  */
 function storedGraphFingerprint(graph: Record<string, unknown>): string {
-  const edges = [...(asGraph(graph).edges ?? [])].sort((a, b) => compareStrings(a.id, b.id))
-  return JSON.stringify(sortObjectKeysDeep({ ...graph, edges }))
+  const { blocks, edges } = asGraph(graph)
+  const sortedEdges = [...(edges ?? [])].sort((a, b) => compareStrings(a.id, b.id))
+  return JSON.stringify(sortObjectKeysDeep({ blocks, edges: sortedEdges }))
 }
 
 interface BaseGraph {

@@ -514,6 +514,30 @@ describe('applyWorkflowOperations', () => {
 
       expect(result.dryRun).toBe(false)
     })
+
+    /** Container `nodes` are rebuilt from the block rows, so they inherit the read's row order. */
+    it('commits when only container child order differs on the re-read', async () => {
+      const containers = (nodes: string[]) => ({
+        loops: { 'loop-1': { id: 'loop-1', nodes, iterations: 1, loopType: 'for' } },
+        parallels: { 'parallel-1': { id: 'parallel-1', nodes, count: 2, parallelType: 'count' } },
+      })
+      mocks.normalizeState
+        .mockReturnValueOnce({
+          state: { ...graph(), ...containers(['block-1', 'block-2']) },
+          warnings: [],
+        })
+        .mockReturnValueOnce({
+          state: { ...graph(), ...containers(['block-2', 'block-1']) },
+          warnings: [],
+        })
+
+      const result = await applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations },
+      })
+
+      expect(result.dryRun).toBe(false)
+    })
   })
 
   /**
