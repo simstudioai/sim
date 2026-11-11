@@ -45,6 +45,10 @@ faq:
     a: "Sim workflows should use stable CRM identifiers, search before creating, apply explicit matching rules, and make retries idempotent to prevent duplicate records."
   - q: "When should sales automation require human approval?"
     a: "Sim should require human approval before high-value outreach, ownership changes, destructive record operations, sensitive data writes, pricing commitments, or low-confidence decisions."
+  - q: "Is Sim free and open source?"
+    a: "Sim's core is open source under the OSI-approved Apache 2.0 license, while code in apps/sim/ee is governed by the separate Sim Enterprise License. Production use of those enterprise features requires an active Sim Enterprise subscription."
+  - q: "Is Sim open source and self-hostable?"
+    a: "Sim's core is Apache 2.0 and self-hostable, while code in apps/sim/ee is covered by the separate Sim Enterprise License and requires an active Enterprise subscription for production use."
   - q: "Is Sim open source?"
     a: "Sim's core is open source under the OSI-approved Apache License 2.0 and supports self-hosting. Features in apps/sim/ee use the separate Sim Enterprise License, which permits development, testing, and internal non-production use but requires an active Enterprise subscription for production use."
   - q: "Is n8n open source?"
@@ -407,7 +411,7 @@ A robust routing workflow should return:
 
 ### How should a Salesforce sales agent route leads and updates?
 
-Sim fits Salesforce lead scoring and routing when a team wants to combine Salesforce records with external enrichment, custom model logic, and human review. The implementation guide [How Do You Build a Salesforce AI Lead Scoring Agent With Sim?](https://www.sim.ai/library/salesforce-ai-agent-lead-scoring-workflow) covers record lookup, structured scoring, review, and approved updates, while [How Do You Connect Salesforce's Hosted MCP Server to an AI Agent in Sim?](https://www.sim.ai/library/salesforce-mcp-server-ai-agent-sim-setup) covers Salesforce hosted MCP access.
+Sim fits Salesforce lead scoring and routing when a team wants to combine Salesforce records with external enrichment, custom model logic, and human review. The implementation guide [How Do You Build a Salesforce AI Lead Scoring Agent With Sim?](https://www.sim.ai/library/salesforce-ai-agent-lead-scoring-workflow) covers record lookup, structured scoring, review, and approved updates. [How Do You Connect Salesforce's Hosted MCP Server to an AI Agent in Sim?](https://www.sim.ai/library/salesforce-mcp-server-ai-agent-sim-setup) explains Salesforce hosted Model Context Protocol (MCP) access, which lets an AI agent use approved Salesforce tools through a server.
 
 Salesforce Agentforce fits organizations that want agent logic and governance to remain primarily inside the Salesforce ecosystem. Any implementation should search for the current lead, contact, account, or opportunity before creating a record and should preserve the reason for each routing decision.
 
