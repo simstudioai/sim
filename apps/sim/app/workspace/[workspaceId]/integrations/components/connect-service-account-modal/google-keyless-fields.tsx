@@ -125,7 +125,7 @@ export function GoogleKeylessFields({ input, onChange, setup }: GoogleKeylessFie
         <ChipModalField
           type='custom'
           title='Setup commands'
-          hint='Run in the project above. They create the pool and an OIDC provider that accepts only this credential’s subject, then let that subject impersonate the service account.'
+          hint='They run in the project above and create the pool and an OIDC provider that accepts only this credential’s subject, then let that subject impersonate the service account.'
         >
           {(aria) => (
             <ChipTextarea

@@ -130,10 +130,12 @@ export function googleWorkloadIdentitySetupCommands(input: {
   const { ref, serviceAccountEmail, issuer, subject } = input
   return [
     `gcloud iam workload-identity-pools create ${ref.poolId} \\`,
+    `    --project="${ref.projectNumber}" \\`,
     '    --location="global" \\',
     '    --display-name="Sim"',
     '',
     `gcloud iam workload-identity-pools providers create-oidc ${ref.providerId} \\`,
+    `    --project="${ref.projectNumber}" \\`,
     '    --location="global" \\',
     `    --workload-identity-pool="${ref.poolId}" \\`,
     `    --issuer-uri="${issuer}" \\`,
@@ -141,6 +143,7 @@ export function googleWorkloadIdentitySetupCommands(input: {
     `    --attribute-condition="assertion.sub=='${subject}'"`,
     '',
     `gcloud iam service-accounts add-iam-policy-binding ${serviceAccountEmail} \\`,
+    `    --project="${ref.projectNumber}" \\`,
     '    --role="roles/iam.workloadIdentityUser" \\',
     `    --member="${googleWorkloadIdentityPrincipal(ref, subject)}"`,
   ].join('\n')

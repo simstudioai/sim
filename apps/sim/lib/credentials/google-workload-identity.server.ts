@@ -52,7 +52,6 @@ const SUBMITTED_AUTH_TYPE = 'workload_identity' as const
 
 const STS_TOKEN_URL = 'https://sts.googleapis.com/v1/token'
 const IAM_CREDENTIALS_ORIGIN = 'https://iamcredentials.googleapis.com'
-const TOKENINFO_URL = 'https://oauth2.googleapis.com/tokeninfo'
 const CLOUD_PLATFORM_SCOPE = 'https://www.googleapis.com/auth/cloud-platform'
 const TOKEN_EXCHANGE_GRANT = 'urn:ietf:params:oauth:grant-type:token-exchange'
 const ACCESS_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_token'
@@ -284,38 +283,6 @@ async function mintServiceAccountToken(
   return impersonateServiceAccount(config, federatedToken, scopes)
 }
 
-/**
- * Asks Google's tokeninfo endpoint about the impersonated token. It needs no
- * IAM role and no enabled API, unlike a Resource Manager or BigQuery read, so
- * it works for a service account that only holds BigQuery or Vertex AI roles.
- * @see https://docs.cloud.google.com/docs/authentication/token-types
- */
-async function confirmTokenAccepted(accessToken: string): Promise<void> {
-  let response: Response
-  try {
-    response = await fetch(`${TOKENINFO_URL}?access_token=${encodeURIComponent(accessToken)}`, {
-      headers: { Accept: 'application/json' },
-      redirect: 'error',
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    })
-  } catch {
-    throw new GoogleWorkloadIdentityError('Could not reach Google Cloud. Try again.')
-  }
-  const info = (await response.json().catch(() => ({}))) as { scope?: unknown }
-  if (
-    response.status !== 200 ||
-    typeof info.scope !== 'string' ||
-    !info.scope.split(' ').includes(CLOUD_PLATFORM_SCOPE)
-  ) {
-    throw new GoogleWorkloadIdentityError(
-      isProviderOutage(response.status)
-        ? 'Google Cloud is unavailable. Try again.'
-        : 'Google Cloud did not accept the service account token it issued. Try again.',
-      response.status
-    )
-  }
-}
-
 function isRefusal(error: unknown): boolean {
   return (
     error instanceof GoogleWorkloadIdentityError &&
@@ -385,8 +352,7 @@ export interface GoogleWorkloadIdentitySaveResult {
 /**
  * Validates the submitted configuration, then proves it end to end: Sim's
  * token is exchanged at STS, the federated token impersonates the service
- * account, and Google accepts the resulting token. Alongside, a subject no
- * credential holds must be refused. Returns the encrypted blob.
+ * account. Alongside, a subject no credential holds must be refused. Returns the encrypted blob.
  */
 export async function verifyAndEncryptGoogleWorkloadIdentityCredential(
   serialized: string,
@@ -415,10 +381,9 @@ export async function verifyAndEncryptGoogleWorkloadIdentityCredential(
     throw new GoogleWorkloadIdentityError('This credential’s subject is too long for Google Cloud.')
   }
 
-  const verify = async () => {
-    const token = await mintServiceAccountToken(config, owner, [CLOUD_PLATFORM_SCOPE])
-    await confirmTokenAccepted(token.accessToken)
-  }
+  // A token from generateAccessToken proves the provider accepted Sim's token and the
+  // service account lets this subject impersonate it.
+  const verify = () => mintServiceAccountToken(config, owner, [CLOUD_PLATFORM_SCOPE])
   // The pin probe is independent of the verification, so both run at once; a
   // verification failure still reports first.
   const [verified, pinned] = await Promise.allSettled([
@@ -485,7 +450,10 @@ export async function resolveGoogleWorkloadIdentityToken(
     })
   }
   if (input.scopes.length === 0) {
-    throw new Error('Scopes are required for service account credentials')
+    throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+      step: 'google_keyless_scopes',
+      reason: 'scopes are required for service account credentials',
+    })
   }
   const scopeKey = [...new Set(input.scopes)].sort().join(' ')
   const cacheKey = `${input.credentialId}:${input.secretVersion}:${scopeKey}`

@@ -54,7 +54,7 @@ interface RecordedRequest {
 }
 
 /**
- * A fake Google STS, IAM Credentials, and tokeninfo. STS accepts a Sim token
+ * A fake Google STS and IAM Credentials. STS accepts a Sim token
  * only for the provider's own audience and for subjects `acceptSubject`
  * allows, and returns a federated token naming the subject; IAM lets the
  * subjects `canImpersonate` allows impersonate the service account.
@@ -113,9 +113,6 @@ function fakeGoogle(
         accessToken: `ya29.sa-token-for-${(request.body.scope as string[]).join(',')}`,
         expireTime: new Date(Date.now() + 3600_000).toISOString(),
       })
-    }
-    if (url.startsWith('https://oauth2.googleapis.com/tokeninfo?')) {
-      return jsonResponse({ scope: CLOUD_PLATFORM, expires_in: 3599 })
     }
     return jsonResponse({}, 404)
   })
@@ -210,6 +207,35 @@ describe('saving a keyless Google Cloud credential', () => {
     fakeGoogle(fetch)
 
     await expect(save({})).rejects.toThrow(/also trusts other Sim credentials/)
+    expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      label: 'STS is unavailable for the stray subject',
+      fail: (url: string, body: string) =>
+        url.startsWith('https://sts.') && !body.includes(SUBJECT)
+          ? jsonResponse({ error: 'temporarily_unavailable' }, 503)
+          : undefined,
+    },
+    {
+      label: 'IAM is unreachable for the stray subject',
+      fail: (url: string, _body: string, auth: string) => {
+        if (url.startsWith('https://iamcredentials.') && auth !== `Bearer fed:${SUBJECT}`) {
+          throw new TypeError('fetch failed')
+        }
+        return undefined
+      },
+    },
+  ])('refuses to save when it cannot confirm the subject is pinned: $label', async ({ fail }) => {
+    fakeGoogle(fetch, { canImpersonate: (subject) => subject === SUBJECT })
+    const google = fetch.getMockImplementation()
+    fetch.mockImplementation(async (url: string, init: RequestInit = {}) => {
+      const auth = new Headers(init.headers).get('authorization') ?? ''
+      return fail(url, String(init.body ?? ''), auth) ?? google?.(url, init)
+    })
+
+    await expect(save({})).rejects.toThrow(/could not confirm this service account trusts only/)
     expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
   })
 
@@ -343,6 +369,15 @@ describe('getting a keyless Google Cloud token for a run', () => {
       expect(fetch).not.toHaveBeenCalled()
     }
   )
+
+  it('refuses a request with no scopes in the shared validation shape', async () => {
+    fakeGoogle(fetch)
+
+    await expect(resolve({ credentialId: 'cred-no-scopes', scopes: [] })).rejects.toMatchObject({
+      code: 'invalid_credentials',
+    })
+    expect(fetch).not.toHaveBeenCalled()
+  })
 
   it('reuses a minted token until the stored secret changes', async () => {
     const google = fakeGoogle(fetch)
