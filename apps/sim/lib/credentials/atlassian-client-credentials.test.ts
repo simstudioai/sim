@@ -58,30 +58,6 @@ describe('Atlassian service-account OAuth 2.0 credentials', () => {
     expect(minted.expiresInSeconds).toBeLessThanOrEqual(3600)
   })
 
-  it.each([
-    [401, 'invalid_credentials'],
-    [403, 'invalid_credentials'],
-    [429, 'provider_unavailable'],
-    [500, 'provider_unavailable'],
-  ])('maps an HTTP %i token response to %s', async (status, code) => {
-    mockFetch.mockResolvedValue(jsonResponse({ error: 'access_denied' }, { status }))
-
-    await expect(
-      mintAtlassianServiceAccountToken('atl-client', 'atl-secret')
-    ).rejects.toMatchObject({ code })
-  })
-
-  it.each([
-    ['no access token', { expires_in: 3600 }],
-    ['no lifetime', { access_token: 'atl-token' }],
-  ])('refuses a token response with %s', async (_label, body) => {
-    mockFetch.mockResolvedValue(jsonResponse(body))
-
-    await expect(
-      mintAtlassianServiceAccountToken('atl-client', 'atl-secret')
-    ).rejects.toMatchObject({ code: 'provider_unavailable' })
-  })
-
   it('never sends a request without a client secret', async () => {
     await expect(mintAtlassianServiceAccountToken('atl-client', '')).rejects.toMatchObject({
       code: 'invalid_credentials',

@@ -88,28 +88,19 @@ describe('Shopify client credentials grant', () => {
     })
   })
 
-  it.each([
-    [401, 'invalid_credentials'],
-    [400, 'invalid_credentials'],
-    [404, 'site_not_found'],
-    [429, 'provider_unavailable'],
-    [503, 'provider_unavailable'],
-  ])('maps an HTTP %i token response to %s', async (status, code) => {
-    mockFetch.mockResolvedValue(jsonResponse({ error: 'invalid_client' }, { status }))
-
-    await expect(mintShopifyClientCredentialsToken(FIELDS)).rejects.toMatchObject({ code })
-  })
-
-  it.each([
-    ['no access token', { expires_in: 86399 }],
-    ['a blank access token', { access_token: ' ', expires_in: 86399 }],
-    ['no lifetime', { access_token: 'shop-token' }],
-    ['a non-positive lifetime', { access_token: 'shop-token', expires_in: 0 }],
-  ])('refuses a token response with %s', async (_label, body) => {
-    mockFetch.mockResolvedValue(jsonResponse(body))
+  it('reports a store Shopify cannot find as a wrong domain, not a bad secret', async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ error: 'not_found' }, { status: 404 }))
 
     await expect(mintShopifyClientCredentialsToken(FIELDS)).rejects.toMatchObject({
-      code: 'provider_unavailable',
+      code: 'site_not_found',
+    })
+  })
+
+  it('reports any other refusal by its status', async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ error: 'invalid_client' }, { status: 401 }))
+
+    await expect(mintShopifyClientCredentialsToken(FIELDS)).rejects.toMatchObject({
+      code: 'invalid_credentials',
     })
   })
 

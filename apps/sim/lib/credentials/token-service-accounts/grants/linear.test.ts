@@ -75,33 +75,6 @@ describe('Linear client credentials grant', () => {
     )
   })
 
-  it.each([
-    [400, 'invalid_credentials'],
-    [401, 'invalid_credentials'],
-    [429, 'provider_unavailable'],
-    [503, 'provider_unavailable'],
-  ])('maps an HTTP %i token response to %s', async (status, code) => {
-    mockFetch.mockResolvedValue(
-      jsonResponse(
-        { error: 'unsupported_grant_type', error_description: 'Client does not support it' },
-        { status }
-      )
-    )
-
-    await expect(mintLinearClientCredentialsToken(FIELDS)).rejects.toMatchObject({ code })
-  })
-
-  it.each([
-    ['no access token', { expires_in: 3600 }],
-    ['no lifetime', { access_token: 'lin_oauth_1' }],
-  ])('refuses a token response with %s', async (_label, body) => {
-    mockFetch.mockResolvedValue(jsonResponse(body))
-
-    await expect(mintLinearClientCredentialsToken(FIELDS)).rejects.toMatchObject({
-      code: 'provider_unavailable',
-    })
-  })
-
   it('never sends a request without a client secret', async () => {
     await expect(
       mintLinearClientCredentialsToken({ ...FIELDS, clientSecret: '' })

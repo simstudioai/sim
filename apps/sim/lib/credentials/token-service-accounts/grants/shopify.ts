@@ -1,14 +1,11 @@
-import { isRecordLike } from '@sim/utils/object'
-import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
+import { exchangeClientCredentialsGrant } from '@/lib/credentials/client-credentials-grant'
 import { resolveCoordinatedClientToken } from '@/lib/credentials/coordinated-client-token'
 import type {
   TokenClientCredentialFields,
   TokenClientCredentialMint,
 } from '@/lib/credentials/token-service-accounts/client-credentials'
 import {
-  fetchProvider,
   providerFailureCode,
-  readProviderErrorSnippet,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
 import {
@@ -17,82 +14,26 @@ import {
 } from '@/lib/credentials/token-service-accounts/validators/shopify'
 
 const STEP = 'shopify_token_mint'
-const MAX_TOKEN_RESPONSE_BYTES = 64 * 1024
 /** Shopify documents a fixed 24-hour lifetime (`expires_in` is always 86399). */
 const MAX_TOKEN_LIFETIME_SECONDS = 86_400
 
-async function exchangeShopifyToken(
-  shop: string,
-  clientId: string,
-  clientSecret: string,
-  signal?: AbortSignal
-): Promise<{ accessToken: string; expiresAt: Date }> {
-  const startedAt = Date.now()
-  const response = await fetchProvider(
-    `https://${shop}/admin/oauth/access_token`,
-    {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      // Shopify ignores `scope` on this grant; the token carries every scope the store granted.
-      body: new URLSearchParams({
-        grant_type: 'client_credentials',
-        client_id: clientId,
-        client_secret: clientSecret,
-      }).toString(),
-      redirect: 'error',
-      cache: 'no-store',
-      signal,
-    },
-    STEP,
-    { dnsFailureCode: 'site_not_found', dnsFailureReason: 'store domain does not resolve' }
-  )
-  if (!response.ok) {
-    const body = await readProviderErrorSnippet(response)
-    if (/shop_not_permitted/i.test(body)) {
-      throw new TokenServiceAccountValidationError('grant_not_permitted', response.status, {
-        step: STEP,
-        domain: shop,
-        reason: 'app and store are not in the same Shopify organization',
-      })
-    }
-    throw new TokenServiceAccountValidationError(
-      response.status === 404 ? 'site_not_found' : providerFailureCode(response.status),
-      response.status,
-      { step: STEP, domain: shop, reason: 'provider rejected token exchange' }
-    )
-  }
-  let payload: unknown
-  try {
-    payload = await readResponseJsonWithLimit<unknown>(response, {
-      maxBytes: MAX_TOKEN_RESPONSE_BYTES,
-      label: 'Shopify token response',
-      signal,
-    })
-  } catch {
-    signal?.throwIfAborted()
-    payload = undefined
-  }
-  if (
-    !isRecordLike(payload) ||
-    typeof payload.access_token !== 'string' ||
-    !payload.access_token.trim() ||
-    typeof payload.expires_in !== 'number' ||
-    !Number.isSafeInteger(payload.expires_in) ||
-    payload.expires_in <= 0
-  ) {
-    throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+/**
+ * Shopify answers `shop_not_permitted` when the app and store are in different organizations,
+ * which no secret fixes, and 404 for a store domain that does not exist.
+ */
+function classifyShopifyRefusal(shop: string, status: number, body: string) {
+  if (/shop_not_permitted/i.test(body)) {
+    return new TokenServiceAccountValidationError('grant_not_permitted', status, {
       step: STEP,
-      reason: 'provider returned an invalid token response',
+      domain: shop,
+      reason: 'app and store are not in the same Shopify organization',
     })
   }
-  const lifetimeSeconds = Math.min(payload.expires_in, MAX_TOKEN_LIFETIME_SECONDS)
-  return {
-    accessToken: payload.access_token,
-    expiresAt: new Date(startedAt + lifetimeSeconds * 1000),
-  }
+  return new TokenServiceAccountValidationError(
+    status === 404 ? 'site_not_found' : providerFailureCode(status),
+    status,
+    { step: STEP, domain: shop, reason: 'provider rejected token exchange' }
+  )
 }
 
 /**
@@ -128,7 +69,22 @@ export async function mintShopifyClientCredentialsToken(
     application: [shop, clientId],
     clientSecret: fields.clientSecret,
     step: STEP,
-    exchange: (signal) => exchangeShopifyToken(shop, clientId, fields.clientSecret, signal),
+    exchange: (signal) =>
+      exchangeClientCredentialsGrant({
+        // Shopify ignores `scope` on this grant; the token carries every scope the store granted.
+        url: `https://${shop}/admin/oauth/access_token`,
+        clientId,
+        clientSecret: fields.clientSecret,
+        step: STEP,
+        label: 'Shopify token response',
+        maxLifetimeSeconds: MAX_TOKEN_LIFETIME_SECONDS,
+        fetchOptions: {
+          dnsFailureCode: 'site_not_found',
+          dnsFailureReason: 'store domain does not resolve',
+        },
+        classifyRefusal: (status, body) => classifyShopifyRefusal(shop, status, body),
+        signal,
+      }),
     signal: options?.signal,
   })
 }
