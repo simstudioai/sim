@@ -590,6 +590,7 @@ export function TableGrid({
     rows,
     rowTotal,
     isLoadingRows,
+    rowsError,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
@@ -4973,104 +4974,114 @@ export function TableGrid({
                 )}
               </thead>
               <tbody ref={tbodyRef}>
-                {isLoadingTable || isLoadingRows
-                  ? null
-                  : (() => {
-                      const virtualItems = rowVirtualizer.getVirtualItems()
-                      // `item.start`/`item.end` include `scrollMargin` (the sticky-header
-                      // offset) but `getTotalSize()` already nets it out, so both spacer
-                      // heights are computed relative to `scrollMargin`.
-                      const scrollMargin = rowVirtualizer.options.scrollMargin
-                      const paddingTop =
-                        virtualItems.length > 0 ? virtualItems[0].start - scrollMargin : 0
-                      const paddingBottom =
-                        virtualItems.length > 0
-                          ? rowVirtualizer.getTotalSize() -
-                            (virtualItems[virtualItems.length - 1].end - scrollMargin)
-                          : 0
-                      return (
-                        <>
-                          {paddingTop > 0 && (
-                            <tr aria-hidden>
-                              <td
-                                colSpan={displayColumns.length + 1}
-                                style={{ height: paddingTop }}
-                              />
-                            </tr>
-                          )}
-                          {virtualItems.map((virtualRow) => {
-                            const index = virtualRow.index
-                            const row = rows[index]
-                            if (!row) return null
-                            return (
-                              <DataRow
-                                key={row.id}
-                                row={row}
-                                columns={displayColumns}
-                                workspaceId={workspaceId}
-                                timezoneStatus={timezoneState.status}
-                                rowIndex={index}
-                                isFirstRow={index === 0}
-                                editingColumnName={
-                                  editingCell?.rowId === row.id ? editingCell.columnName : null
-                                }
-                                initialCharacter={
-                                  editingCell?.rowId === row.id ? initialCharacter : null
-                                }
-                                editorsReadOnly={Boolean(locks?.updateLocked)}
-                                pendingCellValue={
-                                  pendingUpdate && pendingUpdate.rowId === row.id
-                                    ? pendingUpdate.data
-                                    : null
-                                }
-                                normalizedSelection={normalizedSelection}
-                                onClick={handleCellClick}
-                                onDoubleClick={handleCellDoubleClick}
-                                onSave={handleInlineSave}
-                                onCancel={handleInlineCancel}
-                                onContextMenu={handleRowContextMenu}
-                                onCellMouseDown={handleCellMouseDown}
-                                onCellMouseEnter={handleCellMouseEnter}
-                                isRowChecked={rowSelectionIncludes(rowSelection, row.id)}
-                                onRowToggle={handleRowToggle}
-                                onRowMouseDown={handleRowMouseDown}
-                                onRowMouseEnter={handleRowMouseEnter}
-                                runningCount={runningByRowId[row.id] ?? 0}
-                                hasWorkflowColumns={hasWorkflowColumns}
-                                numRegionWidth={numRegionWidth}
-                                onStopRow={onStopRow}
-                                onRunRow={onRunRow}
-                                workflowGroups={tableWorkflowGroups}
-                                activeDispatches={activeDispatches}
-                                pinnedOffsets={pinnedOffsets.size > 0 ? pinnedOffsets : undefined}
-                                lastPinnedColKey={lastPinnedColKey}
-                                findMatchColumns={findMatchColumnsByRowId.get(row.id)}
-                              />
-                            )
-                          })}
-                          {paddingBottom > 0 && (
-                            <tr aria-hidden>
-                              <td
-                                colSpan={displayColumns.length + 1}
-                                style={{ height: paddingBottom }}
-                              />
-                            </tr>
-                          )}
-                          {isFetchingNextPage && (
-                            <tr>
-                              <td colSpan={displayColumns.length + 1} className='h-[35px] p-0'>
-                                <div className='flex items-center justify-center'>
-                                  <Loader
-                                    animate
-                                    className='size-[14px] shrink-0 text-[var(--text-tertiary)]'
-                                  />
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </>
-                      )
-                    })()}
+                {isLoadingTable || isLoadingRows ? null : rowsError ? (
+                  <tr>
+                    <td
+                      colSpan={displayColumns.length + 1}
+                      role='alert'
+                      className='px-4 py-3 text-[var(--text-error)] text-caption'
+                    >
+                      {rowsError.message}
+                    </td>
+                  </tr>
+                ) : (
+                  (() => {
+                    const virtualItems = rowVirtualizer.getVirtualItems()
+                    // `item.start`/`item.end` include `scrollMargin` (the sticky-header
+                    // offset) but `getTotalSize()` already nets it out, so both spacer
+                    // heights are computed relative to `scrollMargin`.
+                    const scrollMargin = rowVirtualizer.options.scrollMargin
+                    const paddingTop =
+                      virtualItems.length > 0 ? virtualItems[0].start - scrollMargin : 0
+                    const paddingBottom =
+                      virtualItems.length > 0
+                        ? rowVirtualizer.getTotalSize() -
+                          (virtualItems[virtualItems.length - 1].end - scrollMargin)
+                        : 0
+                    return (
+                      <>
+                        {paddingTop > 0 && (
+                          <tr aria-hidden>
+                            <td
+                              colSpan={displayColumns.length + 1}
+                              style={{ height: paddingTop }}
+                            />
+                          </tr>
+                        )}
+                        {virtualItems.map((virtualRow) => {
+                          const index = virtualRow.index
+                          const row = rows[index]
+                          if (!row) return null
+                          return (
+                            <DataRow
+                              key={row.id}
+                              row={row}
+                              columns={displayColumns}
+                              workspaceId={workspaceId}
+                              timezoneStatus={timezoneState.status}
+                              rowIndex={index}
+                              isFirstRow={index === 0}
+                              editingColumnName={
+                                editingCell?.rowId === row.id ? editingCell.columnName : null
+                              }
+                              initialCharacter={
+                                editingCell?.rowId === row.id ? initialCharacter : null
+                              }
+                              editorsReadOnly={Boolean(locks?.updateLocked)}
+                              pendingCellValue={
+                                pendingUpdate && pendingUpdate.rowId === row.id
+                                  ? pendingUpdate.data
+                                  : null
+                              }
+                              normalizedSelection={normalizedSelection}
+                              onClick={handleCellClick}
+                              onDoubleClick={handleCellDoubleClick}
+                              onSave={handleInlineSave}
+                              onCancel={handleInlineCancel}
+                              onContextMenu={handleRowContextMenu}
+                              onCellMouseDown={handleCellMouseDown}
+                              onCellMouseEnter={handleCellMouseEnter}
+                              isRowChecked={rowSelectionIncludes(rowSelection, row.id)}
+                              onRowToggle={handleRowToggle}
+                              onRowMouseDown={handleRowMouseDown}
+                              onRowMouseEnter={handleRowMouseEnter}
+                              runningCount={runningByRowId[row.id] ?? 0}
+                              hasWorkflowColumns={hasWorkflowColumns}
+                              numRegionWidth={numRegionWidth}
+                              onStopRow={onStopRow}
+                              onRunRow={onRunRow}
+                              workflowGroups={tableWorkflowGroups}
+                              activeDispatches={activeDispatches}
+                              pinnedOffsets={pinnedOffsets.size > 0 ? pinnedOffsets : undefined}
+                              lastPinnedColKey={lastPinnedColKey}
+                              findMatchColumns={findMatchColumnsByRowId.get(row.id)}
+                            />
+                          )
+                        })}
+                        {paddingBottom > 0 && (
+                          <tr aria-hidden>
+                            <td
+                              colSpan={displayColumns.length + 1}
+                              style={{ height: paddingBottom }}
+                            />
+                          </tr>
+                        )}
+                        {isFetchingNextPage && (
+                          <tr>
+                            <td colSpan={displayColumns.length + 1} className='h-[35px] p-0'>
+                              <div className='flex items-center justify-center'>
+                                <Loader
+                                  animate
+                                  className='size-[14px] shrink-0 text-[var(--text-tertiary)]'
+                                />
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    )
+                  })()
+                )}
               </tbody>
             </table>
             {remoteSelections.length > 0 && (

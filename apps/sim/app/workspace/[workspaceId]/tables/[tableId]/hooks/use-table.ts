@@ -54,6 +54,12 @@ export interface UseTableReturn {
    */
   filter: TablePredicate | null
   isLoadingRows: boolean
+  /**
+   * Why the first page of rows failed to load (e.g. a filter the server
+   * rejects), or null. Without it a rejected query is indistinguishable from
+   * an empty result.
+   */
+  rowsError: Error | null
   refetchRows: () => void
   /**
    * The resolved value's `hasNextPage` reflects the post-fetch cache state —
@@ -106,6 +112,7 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
   const {
     data: rowsData,
     isLoading: isLoadingRows,
+    error: rowsQueryError,
     refetch,
     fetchNextPage,
     hasNextPage,
@@ -123,6 +130,10 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     () => rowsData?.pages.flatMap((p) => p.rows) ?? [],
     [rowsData?.pages]
   )
+
+  // Only a failed first page leaves the grid with nothing to show; a failed
+  // next page or background refetch keeps the rows already loaded.
+  const rowsError = rowsData === undefined ? rowsQueryError : null
 
   // Server-side COUNT(*) for the active filter (page 0 only). Null until the first page lands;
   // callers fall back to the table's unfiltered `rowCount`. This is the true "select all" total —
@@ -264,6 +275,7 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     rowTotal,
     filter,
     isLoadingRows,
+    rowsError,
     refetchRows,
     fetchNextPage: fetchNextPageWrapped,
     hasNextPage: Boolean(hasNextPage),
