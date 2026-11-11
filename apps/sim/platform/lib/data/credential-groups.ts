@@ -1,4 +1,5 @@
 import 'server-only'
+import { type DehydratedState, dehydrate } from '@tanstack/react-query'
 import {
   getOrganizationAccountsContract,
   getOrganizationAccountWorkspaceAccessContract,
@@ -8,6 +9,11 @@ import {
 import { getOrganizationAccountWorkspaceAccess } from '@/lib/credential-groups/application/organization-access'
 import { listOrganizationAccountPeople } from '@/lib/credential-groups/application/organization-account-management'
 import { getOrganizationAccountsSettings } from '@/lib/credential-groups/application/organization-accounts'
+import {
+  ORGANIZATION_ACCOUNTS_STALE_TIME,
+  organizationAccountsKeys,
+} from '@/hooks/queries/utils/organization-accounts-keys'
+import { makeQueryClient } from '@/hooks/queries/utils/query-client'
 import type { CredentialGroupManagement } from '@/platform/lib/data/credential-group-actions'
 import type { CredentialGroupsData } from '@/platform/lib/data/models/connected-accounts'
 import { asRouteResponse, requireSessionViewer } from '@/platform/lib/data/server-read'
@@ -16,13 +22,18 @@ import { credentialGroupCatalog } from '@/platform/lib/integrations/metadata.gen
 /**
  * Fetch only the active view. The organization contract decides which integrations are available.
  * `management` carries what the live edits send back: the group, its saved options (by id, so the
- * server keeps their scopes) and the workspace access revision.
+ * server keeps their scopes) and the workspace access revision. People is read a page at a time in
+ * the browser; `state` seeds its first page under the browser's key.
  */
 export async function readCredentialGroups(
   id: string,
   tab: string,
   query: Record<string, string | string[] | undefined>
-): Promise<{ data: CredentialGroupsData; management: CredentialGroupManagement }> {
+): Promise<{
+  data: CredentialGroupsData
+  management: CredentialGroupManagement
+  state: DehydratedState
+}> {
   const { principal } = await requireSessionViewer()
   const input = { organizationId: id }
   const settings = await asRouteResponse(
@@ -48,23 +59,27 @@ export async function readCredentialGroups(
           await getOrganizationAccountWorkspaceAccess.execute({ principal, input })
         )
       : null
-  const filter = query['credential-group-people']
-  const people =
-    group && settings.canManage && tab === 'people'
-      ? await asRouteResponse(
+  const queryClient = makeQueryClient()
+  if (group && settings.canManage && tab === 'people') {
+    const filter = query['credential-group-people']
+    const search = typeof filter === 'string' ? filter.trim() : ''
+    await queryClient.prefetchInfiniteQuery({
+      queryKey: organizationAccountsKeys.people(id, search),
+      initialPageParam: undefined as string | undefined,
+      staleTime: ORGANIZATION_ACCOUNTS_STALE_TIME,
+      queryFn: async () =>
+        asRouteResponse(
           listOrganizationAccountPeopleContract,
           await listOrganizationAccountPeople.execute({
             principal,
             input: {
               ...input,
-              ...listOrganizationAccountPeopleQuerySchema.parse({
-                search: typeof filter === 'string' ? filter : undefined,
-                cursor: typeof query.cursor === 'string' ? query.cursor : undefined,
-              }),
+              ...listOrganizationAccountPeopleQuerySchema.parse({ search: search || undefined }),
             },
           })
-        )
-      : null
+        ),
+    })
+  }
   const management: CredentialGroupManagement = {
     groupId: group?.id ?? null,
     options:
@@ -101,24 +116,6 @@ export async function readCredentialGroups(
         workspaceId: grant.workspaceId,
         types: grant.access.mode === 'all' ? 'all' : grant.access.credentialTypes,
       })) ?? [],
-    nextCursor: people?.nextCursor,
-    people:
-      people?.enrollments.map((person) => ({
-        id: person.id,
-        email: person.email,
-        revoked: person.status === 'revoked',
-        accounts: [
-          ...person.connections
-            .filter((entry) => entry.status === 'active')
-            .map(
-              (entry) =>
-                `${credentialGroupCatalog.find((item) => item.method === 'oauth' && item.provider === entry.provider)?.name ?? 'GitLab'}${entry.count > 1 ? ` · ${entry.count}` : ''}`
-            ),
-          ...person.mcpConnections
-            .filter((entry) => entry.status === 'active')
-            .map((entry) => entry.name),
-        ],
-      })) ?? [],
   }
-  return { data, management }
+  return { data, management, state: dehydrate(queryClient) }
 }

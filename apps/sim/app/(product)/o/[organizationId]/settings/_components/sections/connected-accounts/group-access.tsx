@@ -3,18 +3,28 @@
 import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { SearchField } from '@sim/emcn/search-field'
-import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { SettingsRow, SettingsSurface } from '@sim/emcn/settings-section'
 import { parseAsString, useQueryState } from 'nuqs'
-import { FieldStack, SectionStack } from '@/app/(product)/_components/settings-parts/settings-parts'
+import {
+  ActionRow,
+  FieldStack,
+  SectionStack,
+} from '@/app/(product)/_components/settings-parts/settings-parts'
 import type {
   CredentialGroupActions,
   WorkspaceGrant,
 } from '@/platform/lib/data/credential-group-actions'
-import type { CredentialGroupsData } from '@/platform/lib/data/models/connected-accounts'
+import {
+  type CredentialGroupsData,
+  MAX_WORKSPACE_GRANTS,
+} from '@/platform/lib/data/models/connected-accounts'
+import { LOCALE } from '@/platform/shared/time'
 
 interface GroupAccessProps {
   data: CredentialGroupsData
@@ -27,7 +37,7 @@ export function GroupAccess({ data, actions }: GroupAccessProps) {
     parseAsString.withDefault('')
   )
   const [editing, setEditing] = useState<WorkspaceGrant>()
-  const [removing, setRemoving] = useState(false)
+  const [removing, setRemoving] = useState<{ workspaceId: string; name: string }>()
   const available = data.workspaces.filter(
     (workspace) => !data.grants.some((grant) => grant.workspaceId === workspace.id)
   )
@@ -36,54 +46,89 @@ export function GroupAccess({ data, actions }: GroupAccessProps) {
       workspace.name.toLowerCase().includes(search.trim().toLowerCase()) &&
       data.grants.some((grant) => grant.workspaceId === workspace.id)
   )
+  const searching = search.trim().length > 0
   const existing = editing && data.grants.some((grant) => grant.workspaceId === editing.workspaceId)
+  const atLimit = data.grants.length >= MAX_WORKSPACE_GRANTS
+  const addWorkspace = (
+    <Button
+      size='compact'
+      disabled={!available.length || atLimit}
+      disabledReason={
+        atLimit
+          ? `Access is limited to ${MAX_WORKSPACE_GRANTS.toLocaleString(LOCALE)} workspaces`
+          : 'Every workspace already has access'
+      }
+      onClick={() => setEditing({ workspaceId: '', types: [] })}
+    >
+      Add workspace
+    </Button>
+  )
   return (
     <SectionStack>
-      <SearchField
-        label='Search workspaces'
-        value={search}
-        onValueChange={(value) => void setSearch(value)}
-      />
-      <SettingsSection title='Workspaces'>
-        {visible.map((workspace) => {
-          const grant = data.grants.find((item) => item.workspaceId === workspace.id)
-          if (!grant) return null
-          const description =
-            grant.types === 'all'
-              ? 'All integrations'
-              : grant.types
-                  .map(
-                    (type) =>
-                      data.credentialTypes.find((item) => item.value === type)?.label ?? type
-                  )
-                  .sort()
-                  .join(', ')
-          return (
-            <SettingsRow key={workspace.id} label={workspace.name} description={description}>
-              <Button size='compact' onClick={() => setEditing(grant)}>
-                Edit access
-              </Button>
-            </SettingsRow>
-          )
-        })}
-        {!visible.length && (
+      {data.grants.length > 0 && (
+        <SearchField
+          label='Search workspaces'
+          placeholder='Search workspaces…'
+          value={search}
+          onValueChange={(value) => void setSearch(value)}
+        />
+      )}
+      {visible.length === 0 ? (
+        searching && data.grants.length > 0 ? (
+          <EmptyState title='No matching workspaces' />
+        ) : (
           <EmptyState
-            title={search.trim() ? 'No matching workspaces' : 'No workspaces have access'}
+            title='No workspaces have access'
+            description='Let a workspace use accounts from this pool'
+            action={addWorkspace}
           />
-        )}
-        <SettingsRow
-          label='Grant workspace access'
-          description='Let a workspace use accounts from this pool'
-        >
-          <Button
-            size='compact'
-            disabled={!available.length || data.grants.length >= 1000}
-            onClick={() => setEditing({ workspaceId: '', types: [] })}
+        )
+      ) : (
+        <SettingsSurface>
+          {visible.map((workspace) => {
+            const grant = data.grants.find((item) => item.workspaceId === workspace.id)
+            if (!grant) return null
+            const description =
+              grant.types === 'all'
+                ? 'All integrations'
+                : grant.types
+                    .map(
+                      (type) =>
+                        data.credentialTypes.find((item) => item.value === type)?.label ?? type
+                    )
+                    .sort()
+                    .join(', ')
+            return (
+              <SettingsRow key={workspace.id} label={workspace.name} description={description}>
+                <ActionRow>
+                  <Button size='compact' onClick={() => setEditing(grant)}>
+                    Edit access
+                  </Button>
+                  <ActionMenu
+                    icon='I108'
+                    label={`${workspace.name} actions`}
+                    actions={[
+                      {
+                        id: 'remove',
+                        label: 'Remove',
+                        destructive: true,
+                        onSelect: () =>
+                          setRemoving({ workspaceId: workspace.id, name: workspace.name }),
+                      },
+                    ]}
+                  />
+                </ActionRow>
+              </SettingsRow>
+            )
+          })}
+          <SettingsRow
+            label='Grant workspace access'
+            description='Let a workspace use accounts from this pool'
           >
-            Add workspace
-          </Button>
-        </SettingsRow>
-      </SettingsSection>
+            {addWorkspace}
+          </SettingsRow>
+        </SettingsSurface>
+      )}
       {editing && (
         <Modal
           open
@@ -97,7 +142,6 @@ export function GroupAccess({ data, actions }: GroupAccessProps) {
           }
           confirmLabel={existing ? 'Save access' : 'Add workspace'}
           confirmDisabled={!editing.workspaceId || !editing.types.length}
-          pending={removing}
           onConfirm={() =>
             actions.saveGrants(
               existing
@@ -138,29 +182,20 @@ export function GroupAccess({ data, actions }: GroupAccessProps) {
                 })
               }
             />
-            {existing && (
-              <Button
-                variant='destructive'
-                disabled={removing}
-                onClick={() => {
-                  setRemoving(true)
-                  actions
-                    .saveGrants(
-                      data.grants.filter((grant) => grant.workspaceId !== editing.workspaceId)
-                    )
-                    .then(
-                      () => setEditing(undefined),
-                      () => {}
-                    )
-                    .finally(() => setRemoving(false))
-                }}
-              >
-                Remove access
-              </Button>
-            )}
           </FieldStack>
         </Modal>
       )}
+      <ConfirmDialog
+        target={removing}
+        onClose={() => setRemoving(undefined)}
+        title={({ name }) => `Remove ${name}`}
+        description='The workspace can no longer use accounts from this pool.'
+        confirmLabel='Remove'
+        pendingLabel='Removing…'
+        onConfirm={({ workspaceId }) =>
+          actions.saveGrants(data.grants.filter((grant) => grant.workspaceId !== workspaceId))
+        }
+      />
     </SectionStack>
   )
 }

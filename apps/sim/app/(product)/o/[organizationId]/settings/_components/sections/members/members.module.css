@@ -1,9 +1,3 @@
-.panel {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--spacing-24);
-}
-
 .controls {
   display: inline-flex;
   align-items: center;

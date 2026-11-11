@@ -10,7 +10,8 @@ import { toast } from '@/lib/toast/sink'
 import { FieldStack } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { CredentialGroups } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/credential-groups'
 import type { CredentialGroupActions } from '@/platform/lib/data/credential-group-actions'
-import type { CredentialGroupsData } from '@/platform/lib/data/models/connected-accounts'
+import { useFixtureCredentialGroupPeople } from '@/platform/lib/data/credential-group-people'
+import type { CredentialGroupsFixture } from '@/platform/lib/data/models/connected-accounts'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useSettingsFixtureDraft } from '@/platform/lib/data/settings-providers'
 import { usePlatformHref } from '@/platform/lib/platform-href'
@@ -77,8 +78,9 @@ function FixtureSlackSetup({ slackTeams, configured, onAdd, onClose }: FixtureSl
 }
 
 /** Credential Groups on the session's example: every edit stays in the fixture draft. */
-export function FixtureCredentialGroups({ data }: { data: CredentialGroupsData }) {
+export function FixtureCredentialGroups({ data }: { data: CredentialGroupsFixture }) {
   const { data: groups, update } = useSettingsFixtureDraft('connected-accounts', data)
+  const people = useFixtureCredentialGroupPeople(groups.people)
   const actions: CredentialGroupActions = {
     setUp: async () => update((current) => ({ ...current, setup: true })),
     addProvider: async (item) =>
@@ -140,6 +142,7 @@ export function FixtureCredentialGroups({ data }: { data: CredentialGroupsData }
   return (
     <CredentialGroups
       data={groups}
+      people={people}
       actions={actions}
       shallow
       renderSlackSetup={(provider, onClose) => (

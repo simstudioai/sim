@@ -1,16 +1,6 @@
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-8);
-}
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: end;
-  gap: var(--ui-action-gap);
+/* Lets the period picker return focus to the menu's own button without an id. */
+.periodMenu {
+  display: contents;
 }
 .block {
   display: grid;
@@ -47,9 +37,10 @@
   gap: var(--spacing-24);
 }
 .heatmap {
+  container: heatmap / inline-size;
   display: grid;
   gap: var(--spacing-8);
-  min-inline-size: calc(var(--spacing-128) * 5);
+  min-inline-size: 0;
   padding: var(--spacing-4);
 }
 .heatMonths,
@@ -128,6 +119,19 @@
   justify-content: space-between;
   gap: var(--spacing-8);
   color: var(--ui-secondary);
+}
+/*
+ * At the settings column's width the year's 53 weeks share it as square cells. Narrower, a cell keeps
+ * a readable size and the oldest weeks fall off the start, so today stays in view without a scrollbar.
+ */
+@container heatmap (max-width: 40rem) {
+  .heatMonths,
+  .heatGrid {
+    grid-auto-columns: var(--spacing-12);
+    justify-content: end;
+    overflow: clip;
+    overflow-clip-margin: var(--spacing-4);
+  }
 }
 .heatLegend {
   display: flex;

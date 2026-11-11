@@ -7,8 +7,9 @@ import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
-import { Tooltip } from '@sim/emcn/tooltip'
 import { InviteModal } from '@/app/(product)/_components/invite-modal/invite-modal'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
+import { SectionStack } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { ManageCreditsModal } from '@/app/(product)/o/[organizationId]/settings/_components/section-parts/manage-credits-modal'
 import {
   InvitationRow,
@@ -16,7 +17,6 @@ import {
   WorkspaceInvitationRow,
   WorkspaceMemberRow,
 } from '@/app/(product)/o/[organizationId]/settings/_components/sections/members/member-rows'
-import styles from '@/app/(product)/o/[organizationId]/settings/_components/sections/members/members.module.css'
 import {
   type RemovalTarget,
   RemoveMemberModal,
@@ -60,6 +60,13 @@ export function MembersPanel({ organization }: MembersPanelProps) {
     searching &&
     visible &&
     visible.members.length + visible.invitations.length + visible.workspaces.length === 0
+  const hasRows = Boolean(
+    roster.model &&
+      roster.model.members.length +
+        roster.model.invitations.length +
+        roster.model.workspaces.length >
+        0
+  )
   const startRemoval = (row: MemberRowModel) =>
     setRemoval({
       userId: row.userId,
@@ -69,13 +76,15 @@ export function MembersPanel({ organization }: MembersPanelProps) {
     })
 
   return (
-    <div className={styles.panel}>
-      <SearchField
-        label='Search members'
-        placeholder='Search members…'
-        value={search}
-        onValueChange={setSearch}
-      />
+    <SectionStack>
+      {hasRows && (
+        <SearchField
+          label='Search members'
+          placeholder='Search members…'
+          value={search}
+          onValueChange={setSearch}
+        />
+      )}
 
       {members.seats.visible && <SeatsOverview seats={members.seats} />}
 
@@ -93,10 +102,14 @@ export function MembersPanel({ organization }: MembersPanelProps) {
       ) : (
         <>
           {(!searching || visible.members.length + visible.invitations.length > 0) && (
-            <SettingsSection title={`Members ${visible.total}`}>
-              {visible.members.length + visible.invitations.length === 0 && (
-                <EmptyState title='No members yet' />
-              )}
+            <SettingsList
+              title='Members'
+              empty={
+                visible.members.length + visible.invitations.length === 0
+                  ? { title: 'No members yet' }
+                  : undefined
+              }
+            >
               {visible.members.map((row) => (
                 <MemberRow
                   key={row.key}
@@ -116,13 +129,18 @@ export function MembersPanel({ organization }: MembersPanelProps) {
                   onRevoke={setRevoking}
                 />
               ))}
-            </SettingsSection>
+            </SettingsList>
           )}
           {visible.workspaces.map((workspace) => (
-            <SettingsSection key={workspace.id} title={`${workspace.name} ${workspace.total}`}>
-              {workspace.members.length + workspace.invitations.length === 0 && (
-                <EmptyState title='No members in this workspace' />
-              )}
+            <SettingsList
+              key={workspace.id}
+              title={workspace.name}
+              empty={
+                workspace.members.length + workspace.invitations.length === 0
+                  ? { title: 'No members in this workspace' }
+                  : undefined
+              }
+            >
               {workspace.members.map((row) => (
                 <WorkspaceMemberRow
                   key={row.key}
@@ -149,7 +167,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
                   onRevoke={setRevoking}
                 />
               ))}
-            </SettingsSection>
+            </SettingsList>
           ))}
         </>
       )}
@@ -161,17 +179,14 @@ export function MembersPanel({ organization }: MembersPanelProps) {
               label='Invite people'
               description='Add people to your organization by email'
             >
-              <Tooltip label='Invitations are disabled' enabled={!members.canInvite}>
-                <span>
-                  <Button
-                    size='compact'
-                    disabled={!members.canInvite}
-                    onClick={() => setInviting(true)}
-                  >
-                    Invite
-                  </Button>
-                </span>
-              </Tooltip>
+              <Button
+                size='compact'
+                disabled={!members.canInvite}
+                disabledReason='Invitations are disabled'
+                onClick={() => setInviting(true)}
+              >
+                Invite
+              </Button>
             </SettingsRow>
           )}
           {members.canLeave && members.viewerId && (
@@ -200,8 +215,8 @@ export function MembersPanel({ organization }: MembersPanelProps) {
       <ConfirmDialog
         target={workspaceRemoval}
         onClose={() => setWorkspaceRemoval(null)}
-        title='Remove from workspace'
-        description={({ name, workspaceName }) => `${name} will lose access to ${workspaceName}.`}
+        title={({ name, workspaceName }) => `Remove ${name} from ${workspaceName}`}
+        description='They will lose access to every workflow, table and file in it.'
         confirmLabel='Remove'
         pendingLabel='Removing…'
         onConfirm={({ userId, workspaceId }) => actions.removeFromWorkspace(userId, workspaceId)}
@@ -209,8 +224,8 @@ export function MembersPanel({ organization }: MembersPanelProps) {
       <ConfirmDialog
         target={revoking}
         onClose={() => setRevoking(null)}
-        title='Revoke invite'
-        description={({ email }) => `The invite sent to ${email} will stop working.`}
+        title={({ email }) => `Revoke invite for ${email}`}
+        description='The invite link will stop working.'
         confirmLabel='Revoke'
         pendingLabel='Revoking…'
         onConfirm={({ id }) => actions.revokeInvitation(id)}
@@ -228,6 +243,6 @@ export function MembersPanel({ organization }: MembersPanelProps) {
           onClose={() => setCredits(null)}
         />
       )}
-    </div>
+    </SectionStack>
   )
 }

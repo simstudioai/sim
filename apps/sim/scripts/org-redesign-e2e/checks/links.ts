@@ -115,7 +115,9 @@ export async function linksChecks() {
         await search(page).fill('Weekly hours')
         await expect(rowFor(page, NAMED_LINKS.mostUsed.name)).toBeVisible()
         await search(page).fill('zzzz-nothing')
-        await expect(page.getByText('Searched every link you can see.')).toBeVisible()
+        await expect(
+          page.getByText('Searched every link you can see', { exact: true })
+        ).toBeVisible()
         await page.getByRole('button', { name: 'Clear search', exact: true }).last().click()
         await expect(search(page)).toHaveValue('')
         await expect(rowFor(page, NAMED_LINKS.handbook.name)).toBeVisible()

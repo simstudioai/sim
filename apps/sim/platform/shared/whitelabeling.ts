@@ -15,7 +15,6 @@ import {
 } from '@/ee/whitelabeling/hooks/whitelabel'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useProfilePictureUpload } from '@/hooks/use-profile-picture-upload'
-import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import { queryView } from '@/platform/shared/query-view'
 
 const TEXT_FIELDS = [
@@ -96,7 +95,10 @@ function useBrandImage(
   }
 }
 
-/** One form's draft over its saved baseline. Mount it once a read has resolved. */
+/**
+ * One form's draft over its saved baseline. Mount it once a read has resolved. The page's
+ * `SettingsSaveBar` registers the draft with the Settings leave guard.
+ */
 export function useWhitelabelForm(
   organizationId: string,
   initial: WhitelabelSettings,
@@ -124,12 +126,11 @@ export function useWhitelabelForm(
     wordmark.resetTo(saved.wordmarkUrl)
     setText(saved.text)
   }
-  useSettingsUnsavedGuard({ isDirty: dirty, navigationBlocked: saving, onDiscard: discard })
   return {
     text,
     dirty,
+    /** Also while an image uploads, so the draft cannot be saved or left half-sent. */
     saving,
-    uploading,
     change: (field: WhitelabelTextField, value: string) =>
       setText((current) => ({ ...current, [field]: value })),
     changeColor: (field: WhitelabelTextField, value: string) =>

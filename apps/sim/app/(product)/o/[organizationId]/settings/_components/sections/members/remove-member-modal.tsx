@@ -38,7 +38,7 @@ function removalCopy(target: RemovalTarget | null) {
     return {
       title: 'Leave organization',
       confirmLabel: 'Leave organization',
-      body: 'Are you sure you want to leave this organization? You will lose access to all team resources. This action cannot be undone.',
+      body: 'You will lose access to all team resources. This action cannot be undone.',
     }
   if (target?.isExternal)
     return {

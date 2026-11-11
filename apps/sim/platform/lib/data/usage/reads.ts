@@ -61,12 +61,11 @@ export function useUsageView() {
       }),
     selectTab: (tab: UsageTab) =>
       void setState({ tab, workspace: null, expanded: null, activityPage: 0 }),
-    /** Whether the viewer chose a custom range, which has no dates until they pick some. */
-    selectPeriod: (label: string): boolean => {
+    /** Applies a preset period; the custom range comes through `applyRange`. */
+    selectPeriod: (label: string) => {
       const next = USAGE_WINDOW_PRESETS.find((item) => PERIOD_LABELS[item] === label)
-      if (!next || next === 'custom') return next === 'custom'
+      if (!next || next === 'custom') return
       void setState({ preset: next, startDate: null, endDate: null, activityPage: 0 })
-      return false
     },
     applyRange: (start: string, end: string) => {
       const days = Math.ceil((new Date(end).getTime() - new Date(start).getTime()) / DAY_MS) + 1
@@ -78,6 +77,8 @@ export function useUsageView() {
       return true
     },
     currentPeriod: PERIOD_LABELS[view.preset],
+    /** The period option that opens a custom range. */
+    customPeriod: PERIOD_LABELS.custom,
   }
 }
 

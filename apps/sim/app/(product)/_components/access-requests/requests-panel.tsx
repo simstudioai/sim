@@ -1,9 +1,9 @@
 'use client'
 
 import { SegmentedControl } from '@sim/emcn/segmented-control'
-import styles from '@/app/(product)/_components/access-requests/access-requests.module.css'
 import { MyRequests } from '@/app/(product)/_components/access-requests/my-requests'
 import { ReviewRequests } from '@/app/(product)/_components/access-requests/review-requests'
+import { SectionStack } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { type RequestScope, useMyRequests, useRequestsUrl } from '@/platform/lib/data/requests'
 
 interface RequestsPanelProps {
@@ -20,7 +20,7 @@ export function RequestsPanel({ scope, reviewOrganizationId }: RequestsPanelProp
   const mine = useMyRequests(scope, view)
   const showCatalog = view === 'catalog' || mine.showCatalog
   return (
-    <div className={styles.panel}>
+    <SectionStack>
       {(showCatalog || canReview) && (
         <SegmentedControl
           label='Access request views'
@@ -40,6 +40,6 @@ export function RequestsPanel({ scope, reviewOrganizationId }: RequestsPanelProp
       ) : (
         <MyRequests scope={scope} view={view} mine={mine} />
       )}
-    </div>
+    </SectionStack>
   )
 }

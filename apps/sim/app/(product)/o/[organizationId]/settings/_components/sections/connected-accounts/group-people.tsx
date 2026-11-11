@@ -7,103 +7,105 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { LoadMoreFooter } from '@sim/emcn/scroll-area/load-more-footer'
 import { SearchField } from '@sim/emcn/search-field'
-import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { SettingsRow, SettingsSurface } from '@sim/emcn/settings-section'
+import { FailureNotice } from '@sim/emcn/status'
 import { RecipientField } from '@sim/emcn-platform/workspace-fields'
-import { parseAsString, useQueryState } from 'nuqs'
 import { FieldStack, SectionStack } from '@/app/(product)/_components/settings-parts/settings-parts'
 import type { CredentialGroupActions } from '@/platform/lib/data/credential-group-actions'
-import type { CredentialGroupsData } from '@/platform/lib/data/models/connected-accounts'
+import { useCredentialGroupPeopleSearch } from '@/platform/lib/data/credential-group-people'
+import type {
+  CredentialGroupPeople,
+  CredentialGroupPerson,
+} from '@/platform/lib/data/models/connected-accounts'
 
 interface GroupPeopleProps {
-  people: CredentialGroupsData['people']
-  nextCursor?: string | null
-  /** The whole roster is already here, so search filters it without a server read. */
-  shallow: boolean
+  /** The rows its source has paged in, already matching the search. */
+  people: CredentialGroupPeople
   actions: CredentialGroupActions
 }
 
-export function GroupPeople({ people, nextCursor, shallow, actions }: GroupPeopleProps) {
-  const [search, setSearch] = useQueryState(
-    'credential-group-people',
-    parseAsString.withDefault('').withOptions({ shallow })
-  )
-  const [, setCursor] = useQueryState('cursor', parseAsString.withOptions({ shallow: false }))
+/** The tab names the list, so the rows sit in a surface without a heading of their own. */
+export function GroupPeople({ people, actions }: GroupPeopleProps) {
+  const [search, setSearch] = useCredentialGroupPeopleSearch()
   const [invite, setInvite] = useState(false)
-  const [revoking, setRevoking] = useState<CredentialGroupsData['people'][number]>()
+  const [revoking, setRevoking] = useState<CredentialGroupPerson>()
   const [recipients, setRecipients] = useState<{ address: string; invalid?: boolean }[]>([])
-  const [limit, setLimit] = useState(50)
-  const visible = people.filter((person) =>
-    person.email.toLowerCase().includes(search.trim().toLowerCase())
+  const searching = search.trim().length > 0
+  const requestConnections = (
+    <Button
+      size='compact'
+      onClick={() => {
+        setRecipients([])
+        setInvite(true)
+      }}
+    >
+      Request connections
+    </Button>
   )
   return (
     <SectionStack>
-      <SearchField
-        label='Search people'
-        value={search}
-        onValueChange={(value) => {
-          setLimit(50)
-          void setSearch(value)
-          if (!shallow) void setCursor(null)
-        }}
-      />
-      <SettingsSection title='People'>
-        {visible.slice(0, limit).map((person) => (
+      {(people.rows.length > 0 || searching) && (
+        <SearchField
+          label='Search people'
+          placeholder='Search people…'
+          value={search}
+          onValueChange={(value) => void setSearch(value)}
+        />
+      )}
+      {people.failure ? (
+        <FailureNotice message={people.failure.message} onRetry={people.failure.retry} />
+      ) : people.pending ? null : people.rows.length === 0 ? (
+        searching ? (
+          <EmptyState title='No matching people' />
+        ) : (
+          <EmptyState
+            title='No people invited yet'
+            description='Ask people to connect their accounts to this pool'
+            action={requestConnections}
+          />
+        )
+      ) : (
+        <SettingsSurface>
+          {people.rows.map((person) => (
+            <SettingsRow
+              key={person.id}
+              label={person.email}
+              leading={<Avatar name={person.email} size='inline' />}
+              description={person.revoked ? 'Revoked' : person.accounts.join(', ') || 'Invited'}
+            >
+              <ActionMenu
+                icon='I108'
+                label={`${person.email} actions`}
+                actions={[
+                  {
+                    id: 'resend',
+                    label: 'Resend',
+                    disabled: person.revoked,
+                    onSelect: () => void actions.resend(person.id),
+                  },
+                  {
+                    id: 'revoke',
+                    label: 'Revoke',
+                    destructive: true,
+                    separatorBefore: true,
+                    disabled: person.revoked,
+                    onSelect: () => setRevoking(person),
+                  },
+                ]}
+              />
+            </SettingsRow>
+          ))}
+          {people.loadMore && <LoadMoreFooter state={people.loadMore} />}
           <SettingsRow
-            key={person.id}
-            label={person.email}
-            leading={<Avatar name={person.email} size='inline' />}
-            description={person.revoked ? 'Revoked' : person.accounts.join(', ') || 'Invited'}
+            label='Request account connections'
+            description='Ask people to connect their accounts to this pool'
           >
-            <ActionMenu
-              icon='I108'
-              label={`${person.email} actions`}
-              actions={[
-                {
-                  id: 'resend',
-                  label: 'Resend',
-                  disabled: person.revoked,
-                  onSelect: () => void actions.resend(person.id),
-                },
-                {
-                  id: 'revoke',
-                  label: 'Revoke',
-                  destructive: true,
-                  disabled: person.revoked,
-                  onSelect: () => setRevoking(person),
-                },
-              ]}
-            />
+            {requestConnections}
           </SettingsRow>
-        ))}
-        {!visible.length && (
-          <EmptyState title={search.trim() ? 'No matching people' : 'No people invited yet'} />
-        )}
-        {visible.length > limit && (
-          <Button size='compact' onClick={() => setLimit(limit + 50)}>
-            Load more
-          </Button>
-        )}
-        {!shallow && nextCursor && (
-          <Button size='compact' onClick={() => void setCursor(nextCursor)}>
-            Next page
-          </Button>
-        )}
-        <SettingsRow
-          label='Request account connections'
-          description='Ask people to connect their accounts to this pool'
-        >
-          <Button
-            size='compact'
-            onClick={() => {
-              setRecipients([])
-              setInvite(true)
-            }}
-          >
-            Request connections
-          </Button>
-        </SettingsRow>
-      </SettingsSection>
+        </SettingsSurface>
+      )}
       <Modal
         open={invite}
         onOpenChange={setInvite}

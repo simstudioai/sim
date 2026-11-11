@@ -1,6 +1,12 @@
 'use client'
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import type {
   ContractBodyInput,
@@ -12,6 +18,7 @@ import {
   configureOrganizationMcpContract,
   getOrganizationDatabricksSetupContract,
   inviteOrganizationAccountPeopleContract,
+  listOrganizationAccountPeopleContract,
   removeOrganizationAccountMcpProviderContract,
   resendOrganizationAccountInvitationContract,
   revokeOrganizationAccountEnrollmentContract,
@@ -73,7 +80,33 @@ export function useUpdateOrganizationAccountWorkspaceAccess() {
   })
 }
 
+/**
+ * The people asked to connect accounts, a page at a time, matching `search`. The section's server
+ * read seeds the first page under the same key.
+ */
+export function useOrganizationAccountPeople(
+  organizationId: string,
+  search: string,
+  enabled: boolean
+) {
+  return useInfiniteQuery({
+    queryKey: organizationAccountsKeys.people(organizationId, search),
+    enabled,
+    staleTime: ORGANIZATION_ACCOUNTS_STALE_TIME,
+    placeholderData: keepPreviousData,
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam, signal }) =>
+      requestJson(listOrganizationAccountPeopleContract, {
+        params: { id: organizationId },
+        query: { search: search || undefined, cursor: pageParam },
+        signal,
+      }),
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
+  })
+}
+
 export function useInviteOrganizationAccountPeople() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({
       organizationId,
@@ -85,6 +118,8 @@ export function useInviteOrganizationAccountPeople() {
         params: { id: organizationId },
         body,
       }),
+    onSuccess: (_, { organizationId }) =>
+      invalidateOrganizationAccounts(queryClient, organizationId),
   })
 }
 

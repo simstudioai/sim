@@ -7,6 +7,7 @@ import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
+import { SectionStack } from '@/app/(product)/_components/settings-parts/settings-parts'
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
 import { useDeletedChats, useRestoreChat } from '@/platform/shared/recently-deleted'
 
@@ -22,7 +23,7 @@ function DeletedChatRow({ organizationId, chat }: DeletedChatRowProps) {
   return (
     <SettingsRow label={chat.name} description={chat.deleted} leading={<Icon name='I073' />}>
       <Button size='compact' disabled={restore.pending} onClick={() => restore.run(chat.id)}>
-        {restore.pending ? 'Restoring' : 'Restore'}
+        {restore.pending ? 'Restoring…' : 'Restore'}
       </Button>
     </SettingsRow>
   )
@@ -34,28 +35,32 @@ export default function RecentlyDeletedSection({ organization }: SettingsSection
   return (
     <>
       <SettingsPageHeader />
-      <SearchField
-        label='Search deleted chats'
-        placeholder='Search deleted chats'
-        value={deleted.search}
-        onValueChange={deleted.setSearch}
-      />
-      {deleted.status === 'error' ? (
-        <FailureNotice
-          message={deleted.error ?? 'Failed to load deleted chats'}
-          onRetry={deleted.retry}
-        />
-      ) : deleted.status === 'pending' ? (
-        <SettingsSection title={TITLE} />
-      ) : deleted.chats.length === 0 ? (
-        <EmptyState title={deleted.hasAny ? 'No matching chats' : 'No deleted chats'} />
-      ) : (
-        <SettingsSection title={TITLE}>
-          {deleted.chats.map((chat) => (
-            <DeletedChatRow key={chat.id} organizationId={organizationId} chat={chat} />
-          ))}
-        </SettingsSection>
-      )}
+      <SectionStack>
+        {deleted.hasAny && (
+          <SearchField
+            label='Search deleted chats'
+            placeholder='Search deleted chats…'
+            value={deleted.search}
+            onValueChange={deleted.setSearch}
+          />
+        )}
+        {deleted.status === 'error' ? (
+          <FailureNotice
+            message={deleted.error ?? 'Failed to load deleted chats'}
+            onRetry={deleted.retry}
+          />
+        ) : deleted.status === 'pending' ? (
+          <SettingsSection title={TITLE} />
+        ) : deleted.chats.length === 0 ? (
+          <EmptyState title={deleted.hasAny ? 'No matching chats' : 'No deleted chats'} />
+        ) : (
+          <SettingsSection title={TITLE}>
+            {deleted.chats.map((chat) => (
+              <DeletedChatRow key={chat.id} organizationId={organizationId} chat={chat} />
+            ))}
+          </SettingsSection>
+        )}
+      </SectionStack>
     </>
   )
 }

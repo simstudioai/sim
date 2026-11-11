@@ -5,12 +5,14 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { Pagination } from '@sim/emcn/pagination'
 import { SearchField } from '@sim/emcn/search-field'
-import { SettingsRow, SettingsSurface } from '@sim/emcn/settings-section'
+import { SettingsRow, SettingsSection, SettingsSurface } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
-import { Switch } from '@sim/emcn/switch'
 import { toast } from '@/lib/toast/sink'
 import styles from '@/app/(product)/_components/access-requests/access-requests.module.css'
 import { ReviewModal } from '@/app/(product)/_components/access-requests/review-modal'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
+import { SectionToolbar } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { SwitchRow } from '@/app/(product)/_components/settings-parts/switch-row'
 import {
   REQUEST_STATUS_OPTIONS,
   type RequestStatusFilter,
@@ -34,15 +36,8 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
   const { params, setParams } = useRequestsUrl(true)
   const { settings } = list
   const reviewId = params['request-id']
-  const heading = list.statusLabel ? `${list.statusLabel} requests` : 'Requests'
   return (
     <>
-      <SearchField
-        label='Search requests'
-        placeholder='Search requests…'
-        value={list.search}
-        onValueChange={list.setSearch}
-      />
       {settings.loading ? null : settings.error ? (
         <FailureNotice
           title='Unable to load request settings'
@@ -52,62 +47,71 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
         />
       ) : (
         <SettingsSurface>
-          <SettingsRow
+          <SwitchRow
             label='Allow requests'
             description={
               settings.allowed
-                ? undefined
-                : 'New requests and approvals are paused. You can still view history and decline pending requests.'
+                ? 'Members can ask for access to workspaces and integrations'
+                : 'New requests and approvals are paused; you can still view history and decline pending requests'
             }
-          >
-            <Switch
-              label='Allow requests'
-              checked={settings.allowed}
-              disabled={settings.updating}
-              onCheckedChange={(next) =>
-                settings.update(next).catch((error: Error) => toast.error(error.message))
-              }
-            />
-          </SettingsRow>
-        </SettingsSurface>
-      )}
-      <div className={styles.listHeading}>
-        <h2 data-type='T042'>{list.count === undefined ? heading : `${heading} ${list.count}`}</h2>
-        <span className={styles.filter}>
-          <ChoiceMenu
-            label='Filter request status'
-            options={REQUEST_STATUS_OPTIONS}
-            value={list.status}
-            onValueChange={(next) =>
-              list.setStatus(
-                REQUEST_STATUS_OPTIONS.find((option) => option.value === next)?.value ?? 'pending'
-              )
+            checked={settings.allowed}
+            disabled={settings.updating}
+            onCheckedChange={(next) =>
+              settings.update(next).catch((error: Error) => toast.error(error.message))
             }
           />
-        </span>
-      </div>
-      {list.searching || list.loading ? null : list.error ? (
+        </SettingsSurface>
+      )}
+      <SectionToolbar
+        grow={
+          (list.rows.length > 0 || Boolean(list.query)) && (
+            <SearchField
+              label='Search requests'
+              placeholder='Search requests…'
+              value={list.search}
+              onValueChange={list.setSearch}
+            />
+          )
+        }
+      >
+        <ChoiceMenu
+          label='Filter request status'
+          options={REQUEST_STATUS_OPTIONS}
+          value={list.status}
+          onValueChange={(next) =>
+            list.setStatus(
+              REQUEST_STATUS_OPTIONS.find((option) => option.value === next)?.value ?? 'pending'
+            )
+          }
+        />
+      </SectionToolbar>
+      {list.searching || list.loading ? (
+        <SettingsSection title='Requests' />
+      ) : list.error ? (
         <FailureNotice
           title='Unable to load requests'
           message={list.error.message}
           retrying={list.fetching}
           onRetry={list.retry}
         />
-      ) : list.rows.length === 0 ? (
-        <EmptyState
-          title={emptyTitle(list.query, list.status, list.statusLabel)}
-          description={
-            list.query
-              ? undefined
-              : list.status === 'pending'
-                ? 'Requests that need your review will appear here.'
-                : list.status === 'all'
-                  ? 'Requests will appear here once someone sends one.'
-                  : undefined
-          }
-        />
       ) : (
-        <SettingsSurface>
+        <SettingsList
+          title='Requests'
+          empty={
+            list.rows.length === 0
+              ? {
+                  title: emptyTitle(list.query, list.status, list.statusLabel),
+                  description: list.query
+                    ? undefined
+                    : list.status === 'pending'
+                      ? 'Requests that need your review will appear here'
+                      : list.status === 'all'
+                        ? 'Requests will appear here once someone sends one'
+                        : undefined,
+                }
+              : undefined
+          }
+        >
           {list.rows.map((row) => (
             <SettingsRow key={row.id} label={row.title} description={row.detail}>
               <span className={styles.controls}>
@@ -122,7 +126,7 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
               </span>
             </SettingsRow>
           ))}
-        </SettingsSurface>
+        </SettingsList>
       )}
       {!list.searching && (list.page > 0 || list.hasMore) && (
         <Pagination

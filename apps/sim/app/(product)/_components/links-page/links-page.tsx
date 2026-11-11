@@ -1,26 +1,29 @@
 'use client'
 
-import { type MouseEvent, memo, type ReactNode, type TouchEvent, useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { Avatar } from '@sim/emcn/avatar'
 import { Button } from '@sim/emcn/button'
 import { DataTable, TableLabel } from '@sim/emcn/data-display'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { Icon } from '@sim/emcn/icon'
-import type { MenuAction } from '@sim/emcn/menu/action-menu'
-import { ActionMenu, ContextActionMenu } from '@sim/emcn/menu/action-menu'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import type { LoadMoreState } from '@sim/emcn/scroll-area/use-load-more'
 import { SearchField } from '@sim/emcn/search-field'
 import { FailureNotice } from '@sim/emcn/status'
-import { Favicon } from '@/components/favicon/favicon'
 import { LinkEditor } from '@/app/(product)/_components/links-page/link-editor'
+import { accessLabel, LinkNameCell } from '@/app/(product)/_components/links-page/link-name-cell'
+import {
+  LinkRowContextMenu,
+  linkActions,
+  type RowActions,
+} from '@/app/(product)/_components/links-page/link-row-menu'
 import styles from '@/app/(product)/_components/links-page/links-page.module.css'
 import { SectionToolbar } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { useMinuteClock } from '@/platform/lib/data/clock'
 import {
   type LinkRecord,
-  linkHost,
   openChromeStore,
   openLink,
   useLinksHosted,
@@ -36,98 +39,6 @@ const COLUMNS = [
   { key: 'access', label: 'Access', kind: 'text', showFrom: 'wide' },
   { key: 'updated', label: 'Updated', kind: 'text', showFrom: 'wide' },
 ] as const
-
-/** How the link is shared beyond the default: open to everyone and editable by any member. */
-function accessLabel(link: LinkRecord): string | null {
-  const limits = [link.unlisted && 'Unlisted', link.restrictEdit && 'Restricted'].filter(Boolean)
-  return limits.length ? limits.join(', ') : null
-}
-
-/** The row's actions. `canEdit` gates both changes; `canManage` only gates the editor's Access. */
-function linkActions(
-  link: LinkRecord,
-  { onCopy, onEdit, onDelete }: RowActions
-): readonly MenuAction[] {
-  return [
-    { id: 'open', label: 'Open', icon: 'I030', onSelect: () => openLink(link.name) },
-    { id: 'copy', label: 'Copy link', icon: 'I006', onSelect: () => void onCopy(link.name) },
-    ...(link.canEdit
-      ? ([
-          { id: 'edit', label: 'Edit', icon: 'I036', onSelect: () => onEdit(link) },
-          {
-            id: 'delete',
-            label: 'Delete',
-            icon: 'I061',
-            destructive: true,
-            separatorBefore: true,
-            onSelect: () => onDelete(link),
-          },
-        ] satisfies MenuAction[])
-      : []),
-  ]
-}
-
-interface RowActions {
-  onCopy: (name: string) => Promise<void>
-  onEdit: (link: LinkRecord) => void
-  onDelete: (link: LinkRecord) => void
-}
-
-interface LinkRowContextMenuProps extends RowActions {
-  links: readonly LinkRecord[]
-  children: ReactNode
-}
-
-/**
- * One context menu serves the whole table, so the row under the pointer decides its actions. Off a
- * row, the event stops here: the browser keeps its own menu, as it does for a touch and hold. The
- * selection lives here so a touch on the table does not re-render its rows.
- */
-function LinkRowContextMenu({ links, children, ...actions }: LinkRowContextMenuProps) {
-  const [menuLinkId, setMenuLinkId] = useState<string | null>(null)
-  const menuLink = links.find((link) => link.id === menuLinkId)
-
-  const selectRowUnderPointer = (event: MouseEvent<HTMLElement> | TouchEvent<HTMLElement>) => {
-    const row =
-      event.target instanceof Element ? event.target.closest<HTMLElement>('tr[data-index]') : null
-    const link = row ? links[Number(row.dataset.index)] : undefined
-    if (link) setMenuLinkId(link.id)
-    else event.stopPropagation()
-  }
-
-  return (
-    <div onContextMenuCapture={selectRowUnderPointer} onTouchStartCapture={selectRowUnderPointer}>
-      <ContextActionMenu
-        label='Link actions'
-        actions={menuLink ? linkActions(menuLink, actions) : []}
-      >
-        {children}
-      </ContextActionMenu>
-    </div>
-  )
-}
-
-interface LinkSummaryProps {
-  link: LinkRecord
-  updated: string
-}
-
-/**
- * What the table's hidden columns would say, under the name, so a narrow table loses nothing. Access
- * leads its line, where truncation cannot take it.
- */
-function LinkSummary({ link, updated }: LinkSummaryProps) {
-  const facts = [accessLabel(link), link.createdBy?.name, updated].filter(Boolean).join(' · ')
-  return (
-    <span className={styles.summary} data-type='T052'>
-      <span className={styles.summaryDestination}>
-        <OverflowText text={link.url}>{link.url}</OverflowText>
-      </span>
-      {link.description && <OverflowText text={link.description}>{link.description}</OverflowText>}
-      <OverflowText text={facts}>{facts}</OverflowText>
-    </span>
-  )
-}
 
 interface LinksTableProps extends RowActions {
   links: readonly LinkRecord[]
@@ -157,14 +68,7 @@ const LinksTable = memo(function LinksTable({
           updated,
         },
         cells: {
-          name: (
-            <TableLabel leading={<Favicon host={linkHost(link)} fallback={<Icon name='I041' />} />}>
-              <span className={styles.nameCell}>
-                <OverflowText text={link.name}>{link.name}</OverflowText>
-                <LinkSummary link={link} updated={updated} />
-              </span>
-            </TableLabel>
-          ),
+          name: <LinkNameCell link={link} updated={updated} />,
           destination: <OverflowText text={link.url}>{link.url}</OverflowText>,
           description: link.description ? (
             <OverflowText text={link.description}>{link.description}</OverflowText>
@@ -215,9 +119,9 @@ interface LinksPageProps {
 }
 
 /**
- * Links' actions, then its search and sort, painted before the first read of links settles. Links is
- * a Settings section, so the Settings screen owns the page's column, landmark and one heading; the
- * actions sit beneath it where the page header held them, above the options row.
+ * Links' toolbar (search, sort and its actions), painted before the first read of links settles.
+ * Links is a Settings section, so the Settings screen owns the page's column, landmark and one
+ * heading. Search and sort leave once the settled list turns out to be empty.
  */
 export function LinksPage({ organizationId }: LinksPageProps) {
   const links = useLinksPage(organizationId)
@@ -226,9 +130,32 @@ export function LinksPage({ organizationId }: LinksPageProps) {
   const [deleting, setDeleting] = useState<LinkRecord | null>(null)
   const unsettled = links.status === 'pending' || (links.isPlaceholder && links.rows.length === 0)
 
+  const settledEmpty = !unsettled && links.status !== 'error' && links.rows.length === 0
+  const searchable = !settledEmpty || Boolean(links.term)
+
   return (
     <div className={styles.page}>
-      <SectionToolbar>
+      <SectionToolbar
+        grow={
+          searchable && (
+            <SearchField
+              label='Search links'
+              placeholder='Search links…'
+              value={links.search}
+              onValueChange={links.setSearch}
+            />
+          )
+        }
+      >
+        {searchable && (
+          <ActionMenu
+            label={links.sortLabel}
+            icon={null}
+            triggerSize='compact'
+            align='end'
+            actions={links.sortActions}
+          />
+        )}
         {hosted && (
           <Button icon='I041' onClick={openChromeStore}>
             Install Sim for Chrome
@@ -238,41 +165,20 @@ export function LinksPage({ organizationId }: LinksPageProps) {
           New link
         </Button>
       </SectionToolbar>
-      <div className={styles.options}>
-        <SearchField
-          variant='quiet'
-          label='Search links'
-          placeholder='Search links…'
-          value={links.search}
-          onValueChange={links.setSearch}
-        />
-        <ActionMenu
-          label={links.sortLabel}
-          icon={null}
-          triggerSize='compact'
-          align='end'
-          actions={links.sortActions}
-        />
-      </div>
       {links.status === 'error' ? (
         <FailureNotice message={links.error ?? 'Failed to load links'} onRetry={links.retry} />
       ) : unsettled ? null : links.rows.length === 0 ? (
         links.term ? (
           <EmptyState
             title='No matching links'
-            description='Searched every link you can see.'
+            description='Searched every link you can see'
             action={<Button onClick={() => links.setSearch('')}>Clear search</Button>}
           />
         ) : (
           <EmptyState
             graphic={<Icon name='I041' />}
             title='Links'
-            description='Create short links like handbook for the pages your team opens most.'
-            action={
-              <Button variant='primary' onClick={links.startCreate}>
-                New link
-              </Button>
-            }
+            description='Create short links like handbook for the pages your team opens most'
           />
         )
       ) : (
@@ -304,10 +210,10 @@ export function LinksPage({ organizationId }: LinksPageProps) {
       <ConfirmDialog
         target={deleting}
         onClose={() => setDeleting(null)}
-        title='Delete link'
+        title={({ name }) => `Delete ${name}`}
         confirmLabel='Delete'
         pendingLabel='Deleting…'
-        description={`${deleting?.name ?? 'This link'} will stop working for everyone in your organization.`}
+        description='It will stop working for everyone in your organization.'
         onConfirm={(link) => links.remove(link.id)}
       />
     </div>
