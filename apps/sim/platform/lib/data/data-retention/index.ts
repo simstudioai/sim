@@ -16,7 +16,6 @@ export {
 } from '@/ee/data-retention/hooks/data-retention'
 export {
   buildRetentionUpdate,
-  type EditingPolicy,
   hoursToDisplayDays,
   newOverrideDraft,
   normalizePolicyDraft,

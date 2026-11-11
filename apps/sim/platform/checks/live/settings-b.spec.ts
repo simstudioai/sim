@@ -104,7 +104,7 @@ test.describe('governance settings', () => {
           response.url().includes('/api/auth/sso/providers')
       )
       await page.goto(liveRoute('/settings/sso'))
-      await expect(page.getByRole('radio', { name: 'Domains' })).toBeAttached()
+      await expect(page.getByRole('tab', { name: 'Domains' })).toBeAttached()
       const body = await (await providers).text()
       expect(body).not.toContain(clientSecret)
       const listed = (

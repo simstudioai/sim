@@ -5,7 +5,7 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { OverlayDialog } from '@sim/emcn/modal/overlay-dialog'
 import { Pagination } from '@sim/emcn/pagination'
 import { PropertyList } from '@sim/emcn/property-list'
-import { FailureNotice, StatusTag } from '@sim/emcn/status'
+import { FailureNotice, InlineNotice, StatusTag } from '@sim/emcn/status'
 import { SectionStack } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { type MothershipEnv, useMothershipOverview } from '@/platform/lib/data/mothership-admin'
 import { formatTimestamp } from '@/platform/shared/time'
@@ -54,7 +54,7 @@ export function MothershipOverview({
   const { breakdown, requests } = useMothershipOverview(env, start, end)
   const summary = breakdown.data
   const totalCost = summary?.users.reduce((total, user) => total + user.total_cost, 0) ?? 0
-  const records = requests.data?.requests.slice(0, 100) ?? []
+  const records = requests.data?.requests ?? []
   const active = records.find((request) => request.request_id === selected)
   const stateOf = (row: (typeof records)[number]) =>
     row.error ? 'Error' : row.aborted ? 'Aborted' : 'OK'
@@ -97,13 +97,19 @@ export function MothershipOverview({
           )}
         </>
       ) : breakdown.status === 'error' ? (
-        <FailureNotice message='Couldn’t load user activity.' onRetry={breakdown.retry} />
+        <FailureNotice message='Couldn’t load user activity' onRetry={breakdown.retry} />
       ) : null}
       {requests.data ? (
         records.length ? (
           <>
+            {requests.data.count > records.length && (
+              <InlineNotice
+                intent='info'
+                message={`Showing the latest ${records.length} of ${requests.data.count} requests. Narrow the reporting period to see the rest`}
+              />
+            )}
             <DataTable
-              title={`Recent requests (${requests.data.count})`}
+              title='Recent requests'
               columns={REQUEST_COLUMNS}
               rows={records
                 .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
@@ -173,11 +179,11 @@ export function MothershipOverview({
         ) : (
           <EmptyState
             title='No recent requests'
-            description='Choose a different environment or reporting period.'
+            description='Choose a different environment or reporting period'
           />
         )
       ) : requests.status === 'error' ? (
-        <FailureNotice message='Couldn’t load recent requests.' onRetry={requests.retry} />
+        <FailureNotice message='Couldn’t load recent requests' onRetry={requests.retry} />
       ) : null}
     </SectionStack>
   )

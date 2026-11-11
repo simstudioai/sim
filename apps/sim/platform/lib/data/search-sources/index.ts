@@ -40,7 +40,6 @@ export {
 export { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 export { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 export { useSettingsSearch } from '@/hooks/use-settings-search'
-export { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 export { useAddConnectorForm } from '@/platform/lib/data/search-sources/add-form'
 export { useSearchAvailability } from '@/platform/lib/data/search-sources/scope'
 export {

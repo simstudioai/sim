@@ -3,12 +3,8 @@
 import { useState } from 'react'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { DateRangePicker } from '@sim/emcn/picker/date-picker'
-import { SegmentedControl } from '@sim/emcn/segmented-control'
-import {
-  ActionRow,
-  SectionStack,
-  SectionToolbar,
-} from '@/app/(product)/_components/settings-parts/settings-parts'
+import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
+import { SectionStack } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { MothershipByok } from '@/app/(product)/o/[organizationId]/settings/_components/sections/mothership/mothership-byok'
 import { MothershipLicenses } from '@/app/(product)/o/[organizationId]/settings/_components/sections/mothership/mothership-licenses'
 import { MothershipOverview } from '@/app/(product)/o/[organizationId]/settings/_components/sections/mothership/mothership-overview'
@@ -38,20 +34,44 @@ export function MothershipPanel({ referenceTime }: MothershipPanelProps) {
   const validRange =
     range.start <= range.end &&
     [range.start, range.end].every((date) => Number.isFinite(Date.parse(`${date}Z`)))
+  const panels = {
+    overview: (
+      <SectionStack>
+        <DateRangePicker
+          label='Reporting period (UTC)'
+          withTime
+          value={range}
+          error={validRange ? undefined : 'Choose an end time after the start'}
+          onValueChange={(next) => {
+            if (next) view.setRange(next)
+          }}
+        />
+        {validRange && (
+          <MothershipOverview
+            env={env}
+            start={new Date(`${range.start}Z`).toISOString()}
+            end={new Date(`${range.end}Z`).toISOString()}
+            page={view.page}
+            selected={view.request}
+            onPageChange={view.setPage}
+            onOpenRequest={view.openRequest}
+            onCloseRequest={view.closeRequest}
+          />
+        )}
+      </SectionStack>
+    ),
+    licenses: <MothershipLicenses key={env} env={env} />,
+    byok: <MothershipByok />,
+  }
   return (
-    <SectionStack>
-      <SectionToolbar
-        grow={
-          <ActionRow>
-            <SegmentedControl
-              label='Mothership views'
-              value={tab}
-              options={MOTHERSHIP_VIEWS}
-              onSelect={(value) => change({ tab: value })}
-            />
-          </ActionRow>
-        }
-      >
+    <ContentTabs
+      label='Mothership views'
+      current={tab}
+      onSelect={(id) => {
+        const next = MOTHERSHIP_VIEWS.find(({ value }) => value === id)
+        if (next) change({ tab: next.value })
+      }}
+      actions={
         <ChoiceMenu
           label='Environment'
           value={env}
@@ -65,34 +85,12 @@ export function MothershipPanel({ referenceTime }: MothershipPanelProps) {
             if (option && option.value !== env) change({ env: option.value })
           }}
         />
-      </SectionToolbar>
-      {tab === 'overview' && (
-        <>
-          <DateRangePicker
-            label='Reporting period (UTC)'
-            withTime
-            value={range}
-            error={validRange ? undefined : 'Choose an end time after the start.'}
-            onValueChange={(next) => {
-              if (next) view.setRange(next)
-            }}
-          />
-          {validRange && (
-            <MothershipOverview
-              env={env}
-              start={new Date(`${range.start}Z`).toISOString()}
-              end={new Date(`${range.end}Z`).toISOString()}
-              page={view.page}
-              selected={view.request}
-              onPageChange={view.setPage}
-              onOpenRequest={view.openRequest}
-              onCloseRequest={view.closeRequest}
-            />
-          )}
-        </>
-      )}
-      {tab === 'licenses' && <MothershipLicenses key={env} env={env} />}
-      {tab === 'byok' && <MothershipByok />}
-    </SectionStack>
+      }
+      items={MOTHERSHIP_VIEWS.map((item) => ({
+        id: item.value,
+        label: item.label,
+        content: item.value === tab ? panels[item.value] : null,
+      }))}
+    />
   )
 }

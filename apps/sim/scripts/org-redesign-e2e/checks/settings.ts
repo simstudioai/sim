@@ -264,7 +264,7 @@ async function organizationSectionChecks() {
         ])
       await actions.click()
       await menuEntry(page, 'Remove from Search').click()
-      const confirm = dialog(page, 'Remove Slack Search')
+      const confirm = dialog(page, 'Remove Sim Search')
       await confirm.getByRole('button', { name: 'Remove', exact: true }).click()
       await expect.poll(() => removed.length).toBe(1)
       assert.match(removed[0], new RegExp(`/${installation.id}\\?`))

@@ -1,38 +1,31 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@sim/emcn/button'
-import { EmptyState } from '@sim/emcn/empty-state'
 import { Icon } from '@sim/emcn/icon'
-import { ActionMenu } from '@sim/emcn/menu/action-menu'
-import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
-import { SearchField } from '@sim/emcn/search-field'
-import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
-import {
-  ActionRow,
-  Muted,
-  SectionStack,
-  SectionToolbar,
-} from '@/app/(product)/_components/settings-parts/settings-parts'
 import { AddSourceModal } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/add-source-modal'
 import { AssistantApps } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/assistant-apps'
 import {
   GENERIC_SECRETS_NAME,
   GENERIC_SECRETS_SOURCE_TYPE,
   GenericSecretSourceModal,
-  GenericSecretSourceRow,
 } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/generic-secrets'
+import {
+  sourceScope,
+  sourceTypeMeta,
+} from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/model'
 import { PolicyModal } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/policy-modal'
 import { SourceSetup } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/source-setup-host'
+import {
+  type SourceListRow,
+  type SourceRowAction,
+  SourcesList,
+} from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/sources-list'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import {
-  assistantAccountOptions,
   defaultLiveSearchPolicy,
   getLiveSearchAccessAvailability,
   hasSlackSearchUserScopes,
@@ -42,6 +35,8 @@ import {
   liveSearchMcpConnector,
   liveSearchMemberAccountProvider,
   type SearchIntegrationApproval,
+  type SearchIntegrationStatus,
+  useGenericSecretSourceRemoval,
   useSearchAvailability,
   useSettingsSearch,
   useSourceSettings,
@@ -61,7 +56,7 @@ export function LiveSources() {
   const router = useRouter()
   const [search, setSearch] = useSettingsSearch()
   const [editing, setEditing] = useState<SearchIntegrationApproval | null>(null)
-  const [removing, setRemoving] = useState<string | null>(null)
+  const [configuringSecrets, setConfiguringSecrets] = useState(false)
   const [adding, setAdding] = useState(false)
   const [addingSecrets, setAddingSecrets] = useState(false)
   const providerHref = (type: string) =>
@@ -112,11 +107,106 @@ export function LiveSources() {
         ]
       : []),
   ]
-  const assistantVisible =
-    accounts.data && assistantAccountOptions(accounts.data, search).visible.length > 0
-  const removingName = removing
-    ? LIVE_SEARCH_SOURCE_TYPES.find(([type]) => type === removing)?.[1].name
-    : ''
+  const removeSecrets = useGenericSecretSourceRemoval(organization.id)
+
+  function sourceRow(integration: SearchIntegrationStatus): SourceListRow | null {
+    const entry = LIVE_SEARCH_SOURCE_TYPES.find(
+      ([sourceType]) => sourceType === integration.connectorType
+    )
+    if (!entry) return null
+    const [type, typeInfo] = entry
+    const meta = sourceTypeMeta(type)
+    const serviceAccount =
+      meta.serviceAccountOnly || integration.policy?.accessMode === 'service_account'
+    const memberProvider = liveSearchMemberAccountProvider(type)
+    const mcpProvider = liveSearchMcpConnector(type)
+    const group = accounts.data?.credentialGroup
+    const slackOption = group?.options.find((option) => option.provider === 'slack')
+    const needsSlackSetup =
+      meta.slackApp &&
+      accounts.data !== undefined &&
+      (group?.status !== 'active' ||
+        slackOption?.status !== 'active' ||
+        slackOption.configurationStatus !== 'ready' ||
+        !hasSlackSearchUserScopes(slackOption.requiredScopes))
+    const needsMemberSetup =
+      integration.available !== false &&
+      accounts.data !== undefined &&
+      Boolean(memberProvider || mcpProvider) &&
+      (group?.status !== 'active' ||
+        (mcpProvider
+          ? !group.mcpServers.some(
+              (server) => server.managedConnectorId === mcpProvider && server.enabled
+            )
+          : !group.options.some(
+              (option) =>
+                option.provider === memberProvider &&
+                option.status === 'active' &&
+                option.configurationStatus === 'ready'
+            )))
+    const actions: SourceRowAction[] = [
+      ...(needsSlackSetup ? [{ label: 'Verify permissions', href: slackHref }] : []),
+      ...(needsMemberSetup
+        ? [
+            {
+              label: 'Set up accounts',
+              disabled: settings.pending,
+              onSelect: () =>
+                settings.setUpAccounts(type, integration.policy ?? defaultLiveSearchPolicy(type)),
+            },
+          ]
+        : []),
+      ...(serviceAccount ? [{ label: meta.connections, href: providerHref(type) }] : []),
+      ...(meta.slackApp && !needsSlackSetup ? [{ label: 'Slack app', href: slackHref }] : []),
+      ...(LIVE_SEARCH_SERVICE_PROVIDERS.includes(type) && !meta.serviceAccountOnly
+        ? [{ label: 'Configure', onSelect: () => setEditing(integration) }]
+        : []),
+    ]
+    const [primary, ...more] = actions
+    return {
+      id: type,
+      name: typeInfo.name,
+      leading: <Icon providerId={type} />,
+      description:
+        integration.available === false
+          ? 'Currently unavailable'
+          : needsSlackSetup
+            ? 'Member accounts · Verify Search permissions'
+            : sourceScope(type, serviceAccount, Boolean(integration.policy?.sourceId)),
+      primary,
+      more,
+      removeConsequence: 'Members can no longer search this source',
+      removeDisabled: settings.pending,
+      onRemove: () => settings.removeSource(type),
+    }
+  }
+
+  const secretsRow: SourceListRow | null =
+    showSecrets && secretSource
+      ? {
+          id: GENERIC_SECRETS_SOURCE_TYPE,
+          name: GENERIC_SECRETS_NAME,
+          leading: <Icon name='I070' />,
+          description: secretSource.mode === 'organization' ? 'Organization' : 'Member',
+          primary:
+            secretSource.mode === 'organization'
+              ? { label: 'Secrets', href: surfaceHref(surface, '/settings/integrations/secrets') }
+              : { label: 'Configure', onSelect: () => setConfiguringSecrets(true) },
+          more:
+            secretSource.mode === 'organization'
+              ? [{ label: 'Configure', onSelect: () => setConfiguringSecrets(true) }]
+              : [],
+          removeConsequence: 'Its organization and member secrets are deleted',
+          onRemove: () => removeSecrets(secretSource.id),
+        }
+      : null
+  const rows =
+    !policies.data || !secrets.data
+      ? null
+      : [
+          ...visible.flatMap((integration) => sourceRow(integration) ?? []),
+          ...(secretsRow ? [secretsRow] : []),
+        ]
 
   return (
     <SourceSetup
@@ -126,167 +216,33 @@ export function LiveSources() {
       memberAccessAvailable={searchAccess.memberScoped}
       mirroredAccessAvailable={searchAccess.sourceMirrored}
     >
-      <SectionStack>
-        <SettingsPageHeader />
-        <SectionToolbar
-          grow={
-            <SearchField
-              label='Search sources'
-              placeholder='Search sources…'
-              value={search}
-              onValueChange={setSearch}
+      <SourcesList
+        search={search}
+        onSearchChange={setSearch}
+        assistantApps={
+          accounts.data && (
+            <AssistantApps
+              organizationId={organization.id}
+              search={search}
+              data={accounts.data}
+              policies={policies.error ? undefined : policies.data}
             />
-          }
-        />
-        {accounts.data && (
-          <AssistantApps
-            organizationId={organization.id}
-            search={search}
-            data={accounts.data}
-            policies={policies.error ? undefined : policies.data}
-          />
-        )}
-        {settings.failure ? (
-          <FailureNotice
-            message={settings.failure.message}
-            retrying={settings.failure.retrying}
-            onRetry={settings.failure.retry}
-          />
-        ) : !policies.data || !secrets.data ? null : (
-          <SettingsSection title='Search sources'>
-            {visible.map((integration) => {
-              const entry = LIVE_SEARCH_SOURCE_TYPES.find(
-                ([sourceType]) => sourceType === integration.connectorType
-              )
-              if (!entry) return null
-              const [type, meta] = entry
-              const serviceAccount =
-                type === 'gitlab' || integration.policy?.accessMode === 'service_account'
-              const memberProvider = liveSearchMemberAccountProvider(type)
-              const mcpProvider = liveSearchMcpConnector(type)
-              const group = accounts.data?.credentialGroup
-              const slackOption = group?.options.find((option) => option.provider === 'slack')
-              const needsSlackSetup =
-                type === 'slack' &&
-                accounts.data &&
-                (group?.status !== 'active' ||
-                  slackOption?.status !== 'active' ||
-                  slackOption.configurationStatus !== 'ready' ||
-                  !hasSlackSearchUserScopes(slackOption.requiredScopes))
-              const needsMemberSetup =
-                integration.available !== false &&
-                accounts.data &&
-                (memberProvider || mcpProvider) &&
-                (group?.status !== 'active' ||
-                  (mcpProvider
-                    ? !group.mcpServers.some(
-                        (server) => server.managedConnectorId === mcpProvider && server.enabled
-                      )
-                    : !group.options.some(
-                        (option) =>
-                          option.provider === memberProvider &&
-                          option.status === 'active' &&
-                          option.configurationStatus === 'ready'
-                      )))
-              const scope = serviceAccount
-                ? type === 'gitlab'
-                  ? 'Projects and permissions'
-                  : type === 'github'
-                    ? 'GitHub App repositories'
-                    : integration.policy?.sourceId
-                      ? 'Service account'
-                      : 'Service account · Add a connection'
-                : 'Member accounts'
-              return (
-                <SettingsRow
-                  key={type}
-                  label={meta.name}
-                  leading={<Icon providerId={type} />}
-                  description={
-                    integration.available === false
-                      ? 'Currently unavailable'
-                      : needsSlackSetup
-                        ? 'Member accounts · Verify Search permissions'
-                        : scope
-                  }
-                >
-                  <ActionRow>
-                    {serviceAccount && (
-                      <Button size='compact' render={<Link href={providerHref(type)} />}>
-                        {type === 'gitlab'
-                          ? 'Projects'
-                          : type === 'github'
-                            ? 'Repositories'
-                            : 'Connections'}
-                      </Button>
-                    )}
-                    {type === 'slack' && (
-                      <Button size='compact' render={<Link href={slackHref} />}>
-                        {needsSlackSetup ? 'Verify permissions' : 'Slack app'}
-                      </Button>
-                    )}
-                    {needsMemberSetup && (
-                      <Button
-                        size='compact'
-                        disabled={settings.pending}
-                        onClick={() =>
-                          settings.setUpAccounts(
-                            type,
-                            integration.policy ?? defaultLiveSearchPolicy(type)
-                          )
-                        }
-                      >
-                        Set up accounts
-                      </Button>
-                    )}
-                    {LIVE_SEARCH_SERVICE_PROVIDERS.includes(type) && type !== 'gitlab' && (
-                      <Button size='compact' onClick={() => setEditing(integration)}>
-                        Configure
-                      </Button>
-                    )}
-                    <ActionMenu
-                      label={`${meta.name} source actions`}
-                      icon='I108'
-                      actions={[
-                        {
-                          id: 'remove',
-                          label: 'Remove source',
-                          destructive: true,
-                          disabled: settings.pending,
-                          onSelect: () => setRemoving(type),
-                        },
-                      ]}
-                    />
-                  </ActionRow>
-                </SettingsRow>
-              )
-            })}
-            {showSecrets && (
-              <GenericSecretSourceRow organizationId={organization.id} source={secretSource} />
-            )}
-            {!visible.length && !showSecrets && (
-              <EmptyState
-                title={
-                  search
-                    ? 'No matching sources'
-                    : assistantVisible
-                      ? 'No sources yet'
-                      : 'No sources yet. Add a source to get started.'
-                }
-              />
-            )}
-            <SettingsRow label='Add source' description='Connect a source for Sim Search to read'>
-              <Button
-                size='compact'
-                icon='I074'
-                disabled={!availableToAdd.length || settings.pending}
-                onClick={() => setAdding(true)}
-              >
-                Add source
-              </Button>
-            </SettingsRow>
-          </SettingsSection>
-        )}
+          )
+        }
+        rows={rows}
+        failure={
+          settings.failure && (
+            <FailureNotice
+              message={settings.failure.message}
+              retrying={settings.failure.retrying}
+              onRetry={settings.failure.retry}
+            />
+          )
+        }
+        searchable={added.length > 0 || Boolean(secretSource) || search !== ''}
+        addDisabled={!availableToAdd.length || settings.pending}
+        onAdd={() => setAdding(true)}
+      >
         {editing && (
           <PolicyModal
             key={editing.connectorType}
@@ -302,17 +258,12 @@ export function LiveSources() {
             onClose={() => setAddingSecrets(false)}
           />
         )}
-        {removing !== null && (
-          <ConfirmDialog
-            target
-            onClose={() => setRemoving(null)}
-            title={`Remove ${removingName} source`}
-            confirmLabel='Remove source'
-            pendingLabel='Removing…'
-            onConfirm={() => settings.removeSource(removing)}
-          >
-            <Muted>Members will no longer be able to search this source.</Muted>
-          </ConfirmDialog>
+        {configuringSecrets && secretSource && (
+          <GenericSecretSourceModal
+            organizationId={organization.id}
+            source={secretSource}
+            onClose={() => setConfiguringSecrets(false)}
+          />
         )}
         {adding && (
           <AddSourceModal
@@ -322,13 +273,11 @@ export function LiveSources() {
                 type,
                 type === GENERIC_SECRETS_SOURCE_TYPE
                   ? 'Organization or member secrets'
-                  : type === 'github'
-                    ? 'GitHub App repositories'
-                    : type === 'gitlab'
-                      ? 'Projects and permissions'
-                      : access.admin
-                        ? 'Service account or member accounts'
-                        : 'Member accounts',
+                  : sourceTypeMeta(type).serviceScope !== 'Service account'
+                    ? sourceTypeMeta(type).serviceScope
+                    : access.admin
+                      ? 'Service account or member accounts'
+                      : 'Member accounts',
               ])
             )}
             pending={settings.pending}
@@ -349,11 +298,12 @@ export function LiveSources() {
                 setAddingSecrets(true)
                 return
               }
-              if (type === 'gitlab' || !LIVE_SEARCH_SERVICE_PROVIDERS.includes(type)) {
+              const meta = sourceTypeMeta(type)
+              if (meta.serviceAccountOnly || !LIVE_SEARCH_SERVICE_PROVIDERS.includes(type)) {
                 settings.addSource(type, () => {
                   setAdding(false)
-                  if (type === 'gitlab') router.push(providerHref(type))
-                  if (type === 'slack') router.push(slackHref)
+                  if (meta.serviceAccountOnly) router.push(providerHref(type))
+                  if (meta.slackApp) router.push(slackHref)
                 })
                 return
               }
@@ -363,13 +313,16 @@ export function LiveSources() {
                 approved: false,
                 policy: {
                   ...defaultLiveSearchPolicy(type),
-                  accessMode: mode === 'admin' || type === 'github' ? 'service_account' : 'member',
+                  accessMode:
+                    mode === 'admin' || sourceTypeMeta(type).appInstallation
+                      ? 'service_account'
+                      : 'member',
                 },
               })
             }}
           />
         )}
-      </SectionStack>
+      </SourcesList>
     </SourceSetup>
   )
 }

@@ -1,16 +1,16 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import { Button, Chip } from '@sim/emcn/button'
+import { Chip } from '@sim/emcn/button'
 import { Checkbox } from '@sim/emcn/checkbox'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
-import { SaveActions } from '@sim/emcn/settings-section/save-actions'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
+import { SettingsSaveBar } from '@/app/(product)/_components/settings-parts/save-bar'
 import {
   ActionRow,
   DetailHeader,
@@ -18,7 +18,9 @@ import {
   Muted,
   SectionStack,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { ExternalLink } from '@/app/(product)/o/[organizationId]/settings/_components/section-parts/external-link'
 import { ConnectorSettingsFields } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/connector-settings-fields'
+import { sourceTypeMeta } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/model'
 import {
   CONNECTOR_META_REGISTRY,
   describeSearchSource,
@@ -33,10 +35,10 @@ import {
   type ConnectorDetailData,
   type ResourceScope,
   useConnectorSettingsForm,
-  useSettingsUnsavedGuard,
   useSourceConnection,
   useSourceIntegrationStatus,
 } from '@/platform/lib/data/search-sources'
+import { requestSettingsLeave } from '@/platform/lib/data/settings-guard'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 interface SourceDetailProps {
@@ -62,12 +64,12 @@ export function SourceDetail({ connectorId }: SourceDetailProps) {
   )
 
   if (!viewer.isAdmin)
-    return shell('Connection', <EmptyState title='Only organization admins can manage sources.' />)
+    return shell('Connection', <EmptyState title='Only organization admins can manage sources' />)
   if (failure?.blocking)
     return shell(
       'Connection',
       failure.gone ? (
-        <EmptyState title='This connection is no longer available.' />
+        <EmptyState title='This connection is no longer available' />
       ) : (
         <FailureNotice
           message={getErrorMessage(failure.error, 'Could not load connection')}
@@ -77,18 +79,21 @@ export function SourceDetail({ connectorId }: SourceDetailProps) {
       )
     )
   if (!indexPending && !knowledgeBaseId)
-    return shell('Connection', <EmptyState title='This connection is no longer available.' />)
+    return shell('Connection', <EmptyState title='This connection is no longer available' />)
   if (!connector) return shell('Connection', null)
   if (
     connector.accessMode === 'members' &&
-    !(connector.connectorType === 'github' && connector.sourceConfig.githubRepositoryId)
+    !(
+      sourceTypeMeta(connector.connectorType).appInstallation &&
+      connector.sourceConfig.githubRepositoryId
+    )
   )
     return shell(
       'Member accounts',
       <>
         <Muted>
           Members search all content their connected accounts can access. Manage this integration’s
-          account mode in Sources.
+          account mode in Sources
         </Muted>
         <ActionRow>
           <Chip href={backHref}>Manage sources</Chip>
@@ -267,11 +272,6 @@ function SourceSettingsForm({
     isSearchIndex: true,
     onSaved,
   })
-  const guard = useSettingsUnsavedGuard({
-    isDirty: form.dirty,
-    navigationBlocked: form.saving,
-    onDiscard,
-  })
   const lifecycle = useConnectorActions({
     connector,
     knowledgeBaseId: connector.knowledgeBaseId,
@@ -301,23 +301,11 @@ function SourceSettingsForm({
     <SectionStack>
       <DetailHeader
         backLabel={backText}
-        onBack={() => guard.guardBack(onBack)}
+        onBack={() => requestSettingsLeave(onBack)}
         title={title}
         description={description}
       >
-        {form.docsUrl && (
-          <Button
-            variant='quiet'
-            size='compact'
-            render={
-              <a href={form.docsUrl} target='_blank' rel='noopener noreferrer'>
-                Docs
-              </a>
-            }
-          >
-            Docs
-          </Button>
-        )}
+        {form.docsUrl && <ExternalLink href={form.docsUrl} label='Docs' />}
         <ActionMenu label='Connection actions' icon='I108' actions={menu} />
       </DetailHeader>
       {lifecycle.error && <InlineNotice intent='danger' message={lifecycle.error.message} />}
@@ -333,7 +321,7 @@ function SourceSettingsForm({
           <ConnectorSettingsFields fields={form.fieldsProps} />
         </FieldStack>
       </SettingsSection>
-      <SaveActions
+      <SettingsSaveBar
         dirty={form.dirty}
         saving={form.saving}
         blocked={!form.canSave}
@@ -344,11 +332,11 @@ function SourceSettingsForm({
       <ConfirmDialog
         target={removal.open}
         onClose={() => removal.onOpenChange(false)}
-        title='Remove connection'
+        title={`Remove ${title}`}
         description={
           removal.requiresDocumentDeletion
-            ? 'This removes the connection, stops future syncs, and deletes its synced documents from Sim.'
-            : 'This removes the connection and stops future syncs. Synced documents remain unless you delete them below.'
+            ? 'Future syncs stop and its synced documents are deleted from Sim'
+            : 'Future syncs stop. Synced documents remain unless you delete them below'
         }
         confirmLabel='Remove'
         pendingLabel='Removing…'

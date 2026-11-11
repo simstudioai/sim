@@ -2,18 +2,17 @@
 
 import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
-import { EmptyState } from '@sim/emcn/empty-state'
 import { TextField } from '@sim/emcn/field'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
 import { Pagination } from '@sim/emcn/pagination'
 import { SearchField } from '@sim/emcn/search-field'
-import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
-import { InlineNotice, StatusTag } from '@sim/emcn/status'
+import { SettingsRow } from '@sim/emcn/settings-section'
+import { FailureNotice, InlineNotice, StatusTag } from '@sim/emcn/status'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
 import {
   ActionRow,
-  FieldStack,
-  Muted,
+  SectionStack,
   SectionToolbar,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { AddUserDialog } from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/add-user-dialog'
@@ -47,107 +46,112 @@ export function AdminDirectory({ directory, onImpersonate }: AdminDirectoryProps
     return directory.setRole(pendingUser, pending.action === 'Promote' ? 'admin' : 'user')
   }
   const action = pending?.action
+  const userRows = rows.map((user) => {
+    const busy = directory.busy(user.id)
+    return (
+      <SettingsRow key={user.id} label={user.name || '—'} description={user.email}>
+        <ActionRow>
+          <StatusTag
+            label={user.role === 'admin' ? 'Admin' : 'User'}
+            intent={user.role === 'admin' ? 'info' : 'neutral'}
+          />
+          {user.banned && <StatusTag label='Banned' intent='danger' />}
+          {user.id !== directory.operatorId && (
+            <>
+              <Button
+                size='compact'
+                disabled={directory.impersonating || busy}
+                onClick={() => onImpersonate(user)}
+              >
+                Impersonate
+              </Button>
+              <ActionMenu
+                label={`${user.email} actions`}
+                icon='I108'
+                align='end'
+                actions={[
+                  {
+                    id: 'reset',
+                    label: 'Reset password',
+                    disabled: busy,
+                    onSelect: () => directory.resetPassword(user),
+                  },
+                  {
+                    id: 'role',
+                    label: user.role === 'admin' ? 'Demote' : 'Promote',
+                    destructive: user.role === 'admin',
+                    disabled: busy,
+                    onSelect: () =>
+                      setPending({
+                        id: user.id,
+                        action: user.role === 'admin' ? 'Demote' : 'Promote',
+                      }),
+                  },
+                  user.banned
+                    ? {
+                        id: 'unban',
+                        label: 'Unban',
+                        disabled: busy,
+                        onSelect: () => directory.unban(user),
+                      }
+                    : {
+                        id: 'ban',
+                        label: 'Ban',
+                        separatorBefore: true,
+                        destructive: true,
+                        disabled: busy,
+                        onSelect: () => {
+                          setReason('')
+                          setPending({ id: user.id, action: 'Ban' })
+                        },
+                      },
+                ]}
+              />
+            </>
+          )}
+        </ActionRow>
+      </SettingsRow>
+    )
+  })
   return (
-    <SettingsSection title='User management'>
-      <FieldStack>
-        <DirectorySearch
-          key={q}
-          initial={q}
-          searching={directory.searching}
-          onSearch={(term) => void setSearch({ q: term || null, offset: null })}
-          onAdd={() => setAdding(true)}
+    <SectionStack>
+      <DirectorySearch
+        key={q}
+        initial={q}
+        searching={directory.searching}
+        onSearch={(term) => void setSearch({ q: term || null, offset: null })}
+        onAdd={() => setAdding(true)}
+      />
+      {directory.warning && <InlineNotice intent='warning' message={directory.warning} />}
+      {q ? (
+        directory.error ? (
+          <FailureNotice
+            message={directory.error}
+            retrying={directory.searching}
+            onRetry={directory.retry}
+          />
+        ) : (
+          results && (
+            <SettingsList
+              title='Users'
+              empty={rows.length === 0 ? { title: 'No matching users' } : undefined}
+            >
+              {userRows}
+            </SettingsList>
+          )
+        )
+      ) : (
+        rows.length > 0 && <SettingsList title='Recently impersonated'>{userRows}</SettingsList>
+      )}
+      {q && pages > 1 && (
+        <Pagination
+          label='User search pages'
+          page={page}
+          pageCount={pages}
+          disabled={directory.searching}
+          onPageChange={(next) => void setSearch({ offset: (next - 1) * ADMIN_PAGE_SIZE })}
         />
-        {directory.error && <InlineNotice intent='danger' message={directory.error} />}
-        {directory.warning && <InlineNotice intent='warning' message={directory.warning} />}
-        {q && results && rows.length === 0 && <EmptyState title='No matching users' />}
-        {rows.length > 0 && (
-          <div>
-            {!q && <Muted>Recently impersonated</Muted>}
-            {rows.map((user) => {
-              const busy = directory.busy(user.id)
-              return (
-                <SettingsRow key={user.id} field label={user.name || '—'} description={user.email}>
-                  <ActionRow>
-                    <StatusTag
-                      label={user.role}
-                      intent={user.role === 'admin' ? 'info' : 'neutral'}
-                    />
-                    <StatusTag
-                      label={user.banned ? 'Banned' : 'Active'}
-                      intent={user.banned ? 'danger' : 'success'}
-                    />
-                    {user.id !== directory.operatorId && (
-                      <>
-                        <Button
-                          size='compact'
-                          disabled={directory.impersonating || busy}
-                          onClick={() => onImpersonate(user)}
-                        >
-                          Impersonate
-                        </Button>
-                        <ActionMenu
-                          label={`${user.email} actions`}
-                          icon='I108'
-                          align='end'
-                          actions={[
-                            {
-                              id: 'reset',
-                              label: 'Reset password',
-                              disabled: busy,
-                              onSelect: () => directory.resetPassword(user),
-                            },
-                            {
-                              id: 'role',
-                              label: user.role === 'admin' ? 'Demote' : 'Promote',
-                              destructive: user.role === 'admin',
-                              disabled: busy,
-                              onSelect: () =>
-                                setPending({
-                                  id: user.id,
-                                  action: user.role === 'admin' ? 'Demote' : 'Promote',
-                                }),
-                            },
-                            user.banned
-                              ? {
-                                  id: 'unban',
-                                  label: 'Unban',
-                                  disabled: busy,
-                                  onSelect: () => directory.unban(user),
-                                }
-                              : {
-                                  id: 'ban',
-                                  label: 'Ban',
-                                  separatorBefore: true,
-                                  destructive: true,
-                                  disabled: busy,
-                                  onSelect: () => {
-                                    setReason('')
-                                    setPending({ id: user.id, action: 'Ban' })
-                                  },
-                                },
-                          ]}
-                        />
-                      </>
-                    )}
-                  </ActionRow>
-                </SettingsRow>
-              )
-            })}
-          </div>
-        )}
-        {q && pages > 1 && (
-          <>
-            <Muted>{`Page ${page} of ${pages} (${results?.total ?? 0} users)`}</Muted>
-            <Pagination
-              label='User search pages'
-              page={page}
-              pageCount={pages}
-              disabled={directory.searching}
-              onPageChange={(next) => void setSearch({ offset: (next - 1) * ADMIN_PAGE_SIZE })}
-            />
-          </>
-        )}
-      </FieldStack>
+      )}
       {adding && (
         <AddUserDialog
           onClose={() => setAdding(false)}
@@ -164,13 +168,13 @@ export function AdminDirectory({ directory, onImpersonate }: AdminDirectoryProps
           onOpenChange={(open) => {
             if (!open) setPending(undefined)
           }}
-          title={`${action} user`}
+          title={`${action} ${pendingUser.name || pendingUser.email}`}
           description={
             action === 'Ban'
-              ? `Banning ${pendingUser.email} signs them out everywhere and blocks them from signing back in. You can unban them later.`
+              ? `Banning ${pendingUser.email} signs them out everywhere and blocks them from signing back in. You can unban them later`
               : action === 'Demote'
                 ? `Demoting ${pendingUser.email} removes their platform admin access.`
-                : `Promoting ${pendingUser.email} grants full platform admin access, including impersonating any user.`
+                : `Promoting ${pendingUser.email} grants full platform admin access, including impersonating any user`
           }
           confirmLabel={pending.action}
           destructive={action !== 'Promote'}
@@ -187,7 +191,7 @@ export function AdminDirectory({ directory, onImpersonate }: AdminDirectoryProps
           )}
         </Modal>
       )}
-    </SettingsSection>
+    </SectionStack>
   )
 }
 

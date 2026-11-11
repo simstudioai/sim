@@ -11,9 +11,9 @@ import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { SettingsSection } from '@sim/emcn/settings-section'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toast } from '@/lib/toast/sink'
+import { SettingsSaveBar } from '@/app/(product)/_components/settings-parts/save-bar'
 import {
   ActionRow,
-  DetailHeader,
   FieldStack,
   FormFieldset,
   Muted,
@@ -112,27 +112,44 @@ function ClientSecretField({
 
 interface ProviderFormProps {
   organizationId: string
-  /** With `initialForm`, edits this saved provider. Without, creates one. */
+  /** With `initialForm`, edits this saved provider in place under `SettingsSaveBar`. Without, creates one. */
   existingProvider?: SsoProviderView
   initialForm?: SsoProviderForm
-  onOpenDomains?: () => void
-  onSaved: (providerId: string) => void
-  onBack?: () => void
+  onSaved?: (providerId: string) => void
+}
+
+interface AddProviderProps {
+  dirty: boolean
+  adding: boolean
+  onDiscard: () => void
+}
+
+/** A new provider's submit, Add provider, with its draft held by the Settings leave guard. */
+function AddProvider({ dirty, adding, onDiscard }: AddProviderProps) {
+  useSettingsUnsavedGuard({ isDirty: dirty, navigationBlocked: adding, onDiscard })
+  return (
+    <ActionRow>
+      {/* Never disabled on validation errors: errors show only once a save is attempted. */}
+      <Button variant='primary' submit disabled={adding}>
+        {adding ? 'Adding…' : 'Add provider'}
+      </Button>
+    </ActionRow>
+  )
 }
 
 export function ProviderForm({
   organizationId,
   existingProvider,
   initialForm,
-  onOpenDomains,
   onSaved,
-  onBack,
 }: ProviderFormProps) {
   const configure = useConfigureSSO()
   const isEditing = Boolean(existingProvider)
   const original = initialForm ?? DEFAULT_SSO_FORM
   const baseUrl = getBaseUrl()
-  const [form, setForm] = useState<SsoProviderForm>(original)
+  /** Held only once edited, so a saved provider's form shows what the server stored. */
+  const [draft, setDraft] = useState<SsoProviderForm | null>(null)
+  const form = draft ?? original
   const [showErrors, setShowErrors] = useState(false)
   const [isReplacing, setIsReplacing] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -161,25 +178,25 @@ export function ProviderForm({
   )
 
   function discard() {
-    setForm(original)
+    setDraft(null)
     setShowErrors(false)
     setIsReplacing(false)
-    if (isEditing) onBack?.()
   }
-  const guard = useSettingsUnsavedGuard({
-    isDirty: dirty,
-    navigationBlocked: configure.isPending,
-    onDiscard: discard,
-  })
 
   function set<Key extends keyof SsoProviderForm>(key: Key, value: SsoProviderForm[Key]) {
     if (configure.isPending) return
-    setForm((current) => ({ ...current, [key]: value }))
+    setDraft((current) => ({ ...(current ?? original), [key]: value }))
   }
 
   function changeType(providerType: SsoProviderForm['providerType']) {
     // Claim names are protocol-specific, so an override must not survive a switch.
-    setForm((current) => ({ ...current, providerType, mapId: '', mapEmail: '', mapName: '' }))
+    setDraft((current) => ({
+      ...(current ?? original),
+      providerType,
+      mapId: '',
+      mapEmail: '',
+      mapName: '',
+    }))
     setShowErrors(false)
   }
 
@@ -193,7 +210,8 @@ export function ProviderForm({
     try {
       await configure.mutateAsync(buildSsoRegistrationBody(form, organizationId, hasStoredSecret))
       toast.success(isEditing ? 'Identity provider updated' : 'Identity provider added')
-      onSaved(form.providerId)
+      if (isEditing) discard()
+      onSaved?.(form.providerId)
     } catch (error) {
       toast.error(getErrorMessage(error, 'Unknown error occurred'))
     }
@@ -209,13 +227,6 @@ export function ProviderForm({
 
   return (
     <SectionStack>
-      {onBack ? (
-        <DetailHeader
-          backLabel='Identity providers'
-          onBack={() => guard.guardBack(onBack)}
-          title={existingProvider?.providerId ?? 'New identity provider'}
-        />
-      ) : null}
       <form
         autoComplete='off'
         noValidate
@@ -225,16 +236,6 @@ export function ProviderForm({
         }}
       >
         <FormFieldset disabled={configure.isPending}>
-          {!existingProvider && (
-            <ActionRow>
-              <Muted>Use a verified email domain for this connection.</Muted>
-              {onOpenDomains && (
-                <Button size='compact' onClick={onOpenDomains}>
-                  Manage domains
-                </Button>
-              )}
-            </ActionRow>
-          )}
           <SettingsSection title='Identity provider'>
             <FieldStack>
               <SelectField
@@ -470,32 +471,15 @@ export function ProviderForm({
                 {form.jitProvisioningEnabled
                   ? 'New users join as Members and use a seat. Grant workspace access separately.'
                   : 'Invite or provision new members before they sign in. Existing members keep their access.'}{' '}
-                An active SCIM connection can disable automatic membership in Provisioning rules.
+                An active SCIM connection can disable automatic membership in Provisioning rules
               </Muted>
             </FieldStack>
           </SettingsSection>
-          <ActionRow>
-            {/* Never disabled on validation errors: errors show only once a save is attempted. */}
-            <Button variant='primary' submit disabled={configure.isPending}>
-              {configure.isPending
-                ? isEditing
-                  ? 'Saving…'
-                  : 'Adding…'
-                : isEditing
-                  ? 'Save'
-                  : 'Add provider'}
-            </Button>
-            {dirty && (
-              <Button variant='quiet' disabled={configure.isPending} onClick={discard}>
-                Discard
-              </Button>
-            )}
-            {isEditing && !dirty && onBack && (
-              <Button variant='quiet' onClick={onBack}>
-                Cancel
-              </Button>
-            )}
-          </ActionRow>
+          {isEditing ? (
+            <SettingsSaveBar dirty={dirty} saving={configure.isPending} onDiscard={discard} />
+          ) : (
+            <AddProvider dirty={dirty} adding={configure.isPending} onDiscard={discard} />
+          )}
         </FormFieldset>
       </form>
     </SectionStack>
