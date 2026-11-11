@@ -1340,7 +1340,7 @@
       "get": {
         "operationId": "getWorkflow",
         "summary": "Get workflow",
-        "description": "Get workflow metadata, variables, and trigger input fields from the saved draft. Requires workspace read access. Input fields may differ from the live deployment. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
+        "description": "Get workflow metadata, variables, and trigger input fields from the saved draft. Requires workspace read access. Input fields may differ from the live deployment; `inputSchema` describes the `input` an API run of the active deployment accepts. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -1403,7 +1403,21 @@
                         "createdAt": "2026-05-01T09:00:00.000Z",
                         "updatedAt": "2026-08-09T18:04:11.000Z",
                         "variables": {},
-                        "inputs": []
+                        "inputs": [
+                          {
+                            "name": "ticket",
+                            "type": "string"
+                          }
+                        ],
+                        "inputSchema": {
+                          "type": "object",
+                          "properties": {
+                            "ticket": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["ticket"]
+                        }
                       }
                     }
                   }
@@ -4379,7 +4393,8 @@
                         "error": null,
                         "startedAt": "2026-08-09T18:04:10.000Z",
                         "endedAt": "2026-08-09T18:04:11.000Z",
-                        "durationMs": 1000
+                        "durationMs": 1000,
+                        "executionTimeoutSeconds": 3000
                       }
                     }
                   }
@@ -4424,7 +4439,8 @@
                     "value": {
                       "data": {
                         "runId": "run_8f14e45f-ceea-467f-a",
-                        "statusUrl": "https://www.sim.ai/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/runs/run_8f14e45f-ceea-467f-a"
+                        "statusUrl": "https://www.sim.ai/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/runs/run_8f14e45f-ceea-467f-a",
+                        "executionTimeoutSeconds": 5400
                       }
                     }
                   }
@@ -4618,6 +4634,179 @@
                           "cost": {
                             "total": 12
                           }
+                        }
+                      ],
+                      "nextCursor": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/runs/paused": {
+      "get": {
+        "operationId": "listPausedWorkflowRunsV2",
+        "summary": "List paused workflow runs",
+        "description": "List a workspace's runs waiting on human input, with workspace read access. Each run lists the human pause points it still waits at, exactly as Get workflow run shows them; resume one with Resume workflow run. Request each point's reviewer content with `includeOutput`. Organization permission groups can hide pause fields. A page ends early, with a cursor, once it holds 100 pause points.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "workflows.runs.list_paused",
+        "x-oauth-scope": "api:read",
+        "tags": ["Workflow Runs"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace whose paused runs should be listed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace whose paused runs should be listed."
+            }
+          },
+          {
+            "name": "includeOutput",
+            "in": "query",
+            "required": false,
+            "description": "Include each pause point's reviewer `display` content when true.",
+            "schema": {
+              "description": "Include each pause point's reviewer `display` content when true.",
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum runs to return per page. A page also ends early once it holds 100 pause points, so it can return fewer runs while `nextCursor` is set. Must be a whole number from 1 to 25. Defaults to 10.",
+            "schema": {
+              "default": 10,
+              "description": "Maximum runs to return per page. A page also ends early once it holds 100 pause points, so it can return fewer runs while `nextCursor` is set. Must be a whole number from 1 to 25. Defaults to 10.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 25
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result.",
+            "schema": {
+              "default": "pausedAt",
+              "description": "Field used to sort the result.",
+              "type": "string",
+              "enum": ["pausedAt"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "desc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of paused workflow runs.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PausedRunListResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": [
+                        {
+                          "runId": "run_8f14e45f-ceea-467f-a",
+                          "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                          "workflowName": "Customer support triage",
+                          "pausedAt": "2026-08-09T18:04:11.000Z",
+                          "points": [
+                            {
+                              "contextId": "blk_approval",
+                              "blockId": "blk_approval",
+                              "blockName": "Manager approval",
+                              "kind": "human",
+                              "status": "paused",
+                              "registeredAt": "2026-08-09T18:04:11.000Z",
+                              "resumeAt": null,
+                              "parallel": null,
+                              "loop": null,
+                              "inputFields": [
+                                {
+                                  "name": "approved",
+                                  "label": "Approved",
+                                  "type": "boolean",
+                                  "required": true
+                                }
+                              ],
+                              "display": null,
+                              "queuePosition": null
+                            }
+                          ]
                         }
                       ],
                       "nextCursor": null
@@ -11414,6 +11603,39 @@
         "title": "Workflow input field",
         "description": "An input field from an input-definition trigger in the saved draft."
       },
+      "WorkflowApiInputSchema": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "JSON Schema type of the `input` object; always `object`."
+          },
+          "properties": {
+            "description": "Input field schemas keyed by field name.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "description": "JSON Schema for one input field."
+            }
+          },
+          "required": {
+            "description": "Names of the input fields an API run requires.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Name of a required input field."
+            }
+          }
+        },
+        "required": ["type"],
+        "additionalProperties": {
+          "description": "Additional JSON Schema keyword."
+        },
+        "title": "Workflow API input schema",
+        "description": "JSON Schema for the `input` an API run of the active deployment accepts."
+      },
       "WorkflowDetail": {
         "type": "object",
         "properties": {
@@ -11513,7 +11735,18 @@
             "items": {
               "$ref": "#/components/schemas/WorkflowInputField"
             },
-            "description": "Input fields from the saved draft's input-definition trigger; they may differ from the live deployment."
+            "description": "Input fields from the saved draft's input-definition trigger; they may differ from the live deployment. Use `inputSchema` for what an API run accepts."
+          },
+          "inputSchema": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkflowApiInputSchema"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "JSON Schema for the `input` an API run of the active deployment accepts, including `required` fields. Null when the workflow is not deployed or its active deployment has no API entry point."
           }
         },
         "required": [
@@ -11530,11 +11763,12 @@
           "createdAt",
           "updatedAt",
           "variables",
-          "inputs"
+          "inputs",
+          "inputSchema"
         ],
         "additionalProperties": false,
         "title": "Workflow detail",
-        "description": "Workflow metadata, variables, and saved draft trigger input fields."
+        "description": "Workflow metadata, variables, saved draft trigger input fields, and the input schema of the active deployment."
       },
       "WorkflowDetailResponse": {
         "type": "object",
@@ -11564,7 +11798,21 @@
               "createdAt": "2026-05-01T09:00:00.000Z",
               "updatedAt": "2026-08-09T18:04:11.000Z",
               "variables": {},
-              "inputs": []
+              "inputs": [
+                {
+                  "name": "ticket",
+                  "type": "string"
+                }
+              ],
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "ticket": {
+                    "type": "string"
+                  }
+                },
+                "required": ["ticket"]
+              }
             }
           }
         ]
@@ -15291,15 +15539,15 @@
             "description": "Stable machine-readable execution failure code. `BLOCK_EXECUTION_FAILED` and `CHILD_WORKFLOW_FAILED` are reported only where block attribution is available; elsewhere a block-level failure is reported as `EXECUTION_FAILED`."
           },
           "blockId": {
-            "description": "Identifier of the failing block. Present on the synchronous execute response only; the polled run resource and the resume response cannot attribute a block.",
+            "description": "Identifier of the failing block, when attributable. Get workflow run reads it from the run trace, so it is absent there when the trace is unavailable or hidden by organization permission groups, and for a timeout, cancellation, usage-limit, or invalid-input failure.",
             "type": "string"
           },
           "blockName": {
-            "description": "Display name of the failing block. Present on the synchronous execute response only.",
+            "description": "Display name of the failing block, when attributable. Present whenever `blockId` is.",
             "type": "string"
           },
           "blockType": {
-            "description": "Integration or block type that failed. Present on the synchronous execute response only.",
+            "description": "Integration or block type that failed, when attributable. Present whenever `blockId` is.",
             "type": "string"
           }
         },
@@ -15373,9 +15621,29 @@
             "description": "Execution duration in milliseconds.",
             "type": "number",
             "minimum": 0
+          },
+          "executionTimeoutSeconds": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Execution timeout applied to this run, in seconds: the plan's timeout, lowered by `executionTimeoutSeconds` when one was requested. Null when the run has no execution timeout."
           }
         },
-        "required": ["runId", "workflowId", "status", "output", "blockOutputs", "error"],
+        "required": [
+          "runId",
+          "workflowId",
+          "status",
+          "output",
+          "blockOutputs",
+          "error",
+          "executionTimeoutSeconds"
+        ],
         "additionalProperties": false,
         "title": "Workflow run result",
         "description": "Synchronous workflow run output and in-band execution status. Run failures are reported in band, not as HTTP errors — a run that exceeds its execution timeout returns HTTP 200 with `status: \"failed\"` and `error.code: \"TIMEOUT\"`, so branch on `status`."
@@ -15405,7 +15673,8 @@
               "error": null,
               "startedAt": "2026-08-09T18:04:10.000Z",
               "endedAt": "2026-08-09T18:04:11.000Z",
-              "durationMs": 1000
+              "durationMs": 1000,
+              "executionTimeoutSeconds": 3000
             }
           }
         ]
@@ -15425,9 +15694,21 @@
             "type": "string",
             "format": "uri",
             "description": "Absolute URL of the workflow run resource."
+          },
+          "executionTimeoutSeconds": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Execution timeout applied to this run, in seconds: the plan's timeout, lowered by `executionTimeoutSeconds` when one was requested. Null when the run has no execution timeout."
           }
         },
-        "required": ["runId", "statusUrl"],
+        "required": ["runId", "statusUrl", "executionTimeoutSeconds"],
         "additionalProperties": false,
         "title": "Queued workflow run",
         "description": "Receipt returned when a workflow run is queued, or is still running when `waitTimeoutSeconds` elapsed."
@@ -15448,7 +15729,8 @@
           {
             "data": {
               "runId": "run_8f14e45f-ceea-467f-a",
-              "statusUrl": "https://www.sim.ai/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/runs/run_8f14e45f-ceea-467f-a"
+              "statusUrl": "https://www.sim.ai/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/runs/run_8f14e45f-ceea-467f-a",
+              "executionTimeoutSeconds": 5400
             }
           }
         ]
@@ -15801,6 +16083,43 @@
           }
         ]
       },
+      "PausedRun": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "description": "Unique workflow run identifier.",
+            "examples": ["run_8f14e45f-ceea-467f-a"]
+          },
+          "workflowId": {
+            "type": "string",
+            "description": "Workflow that produced the run."
+          },
+          "workflowName": {
+            "type": "string",
+            "description": "Name of the workflow that produced the run."
+          },
+          "pausedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the run entered the paused state.",
+            "format": "date-time"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowRunPausePoint"
+            },
+            "description": "Human pause points still waiting for a resume, earliest first, at most 100. Resume one with Resume workflow run, naming its `contextId` and supplying `input`. Get workflow run lists every point of the run, including time pauses and points already resuming."
+          }
+        },
+        "required": ["runId", "workflowId", "workflowName", "pausedAt", "points"],
+        "additionalProperties": false,
+        "title": "Paused run",
+        "description": "A run waiting on human input, with the points it waits at."
+      },
       "WorkflowRunPausePoint": {
         "type": "object",
         "properties": {
@@ -16017,6 +16336,69 @@
         "title": "Pause input field",
         "description": "One field a human pause asks the resumer to fill."
       },
+      "PausedRunListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PausedRun"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Paused run list response",
+        "description": "A cursor-paginated page of runs waiting on human input.",
+        "examples": [
+          {
+            "data": [
+              {
+                "runId": "run_8f14e45f-ceea-467f-a",
+                "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                "workflowName": "Customer support triage",
+                "pausedAt": "2026-08-09T18:04:11.000Z",
+                "points": [
+                  {
+                    "contextId": "blk_approval",
+                    "blockId": "blk_approval",
+                    "blockName": "Manager approval",
+                    "kind": "human",
+                    "status": "paused",
+                    "registeredAt": "2026-08-09T18:04:11.000Z",
+                    "resumeAt": null,
+                    "parallel": null,
+                    "loop": null,
+                    "inputFields": [
+                      {
+                        "name": "approved",
+                        "label": "Approved",
+                        "type": "boolean",
+                        "required": true
+                      }
+                    ],
+                    "display": null,
+                    "queuePosition": null
+                  }
+                ]
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
       "V2RunFile": {
         "type": "object",
         "properties": {
@@ -16229,7 +16611,7 @@
                     "items": {
                       "$ref": "#/components/schemas/WorkflowRunPausePoint"
                     },
-                    "description": "Every point the run is paused at, earliest first, at most 100. Resume one with Resume workflow run, naming its `contextId` and supplying `input`."
+                    "description": "Every point the run is paused at, earliest first, at most 100; past 100, points not yet resumed are kept in preference to resumed ones. Resume one with Resume workflow run, naming its `contextId` and supplying `input`."
                   }
                 },
                 "required": [
@@ -16279,7 +16661,7 @@
                 "type": "null"
               }
             ],
-            "description": "Structured execution failure, or null when none occurred. Reclassified from the persisted error message, so `blockId`/`blockName`/`blockType` are absent and a block-level failure reports `EXECUTION_FAILED` here even when the same run reported `BLOCK_EXECUTION_FAILED` on its synchronous execute response."
+            "description": "Structured execution failure, or null when none occurred. The failing block is read from the run trace, so `blockId`/`blockName`/`blockType` are absent, and a block-level failure reports `EXECUTION_FAILED`, when the trace is unavailable or hidden by organization permission groups."
           },
           "output": {
             "anyOf": [
@@ -16390,12 +16772,84 @@
           }
         ]
       },
+      "WorkflowResumeResult": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "description": "Unique workflow run identifier.",
+            "examples": ["run_8f14e45f-ceea-467f-a"]
+          },
+          "workflowId": {
+            "type": "string",
+            "description": "Workflow that produced the run."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["completed", "failed", "paused", "cancelled"],
+            "description": "Terminal or paused run status."
+          },
+          "output": {
+            "description": "Workflow output, including partial output on failure."
+          },
+          "blockOutputs": {
+            "anyOf": [
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "description": "Output value produced by one workflow block."
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Outputs of the blocks named by `selectedOutputs`, keyed by those selector strings exactly as sent, or null when none were requested. `output` stays the final workflow output regardless. Selectors whose block did not run or whose path is absent are omitted (an unknown block is a `400` instead); failed runs include the outputs of the blocks that did run."
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExecutionError"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Structured execution failure, or null when none occurred."
+          },
+          "startedAt": {
+            "description": "ISO 8601 timestamp when execution started.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "endedAt": {
+            "description": "ISO 8601 timestamp when execution ended.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "durationMs": {
+            "description": "Execution duration in milliseconds.",
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": ["runId", "workflowId", "status", "output", "blockOutputs", "error"],
+        "additionalProperties": false,
+        "title": "Workflow resume result",
+        "description": "Synchronous resumed run output and in-band execution status. Run failures are reported in band, not as HTTP errors, so branch on `status`."
+      },
       "ResumeWorkflowSyncResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/WorkflowRunResult"
+            "$ref": "#/components/schemas/WorkflowResumeResult"
           }
         },
         "required": ["data"],

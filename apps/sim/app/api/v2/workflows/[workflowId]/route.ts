@@ -34,7 +34,7 @@ export const GET = defineV2JsonRoute({
   errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
   mapInput: ({ params }) => ({ workflowId: params.workflowId }),
   useCase: readWorkflow,
-  present: ({ workflow, workspaceId, folderPath, inputs }) => ({
+  present: ({ workflow, workspaceId, folderPath, inputs, inputSchema }) => ({
     data: {
       id: workflow.id,
       webUrl: workspaceResourceWebUrl(getBaseUrl(), workspaceId, 'workflow', workflow.id),
@@ -48,6 +48,7 @@ export const GET = defineV2JsonRoute({
       lastRunAt: workflow.lastRunAt?.toISOString() ?? null,
       variables: (workflow.variables as Record<string, unknown> | null) ?? {},
       inputs,
+      inputSchema,
       createdAt: workflow.createdAt.toISOString(),
       updatedAt: workflow.updatedAt.toISOString(),
     },

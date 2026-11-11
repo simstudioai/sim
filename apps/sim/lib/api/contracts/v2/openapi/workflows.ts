@@ -29,6 +29,7 @@ import {
 import { workspaceSyncOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workspace-sync'
 import {
   EXECUTE_OPTION_CONSTRAINTS,
+  V2_MAX_PAUSED_RUN_POINTS_PER_PAGE,
   v2ActivateWorkflowVersionContract,
   v2ApplyWorkflowOperationsContract,
   v2ApplyWorkflowVariablesContract,
@@ -52,6 +53,7 @@ import {
   v2GetWorkflowStateContract,
   v2GetWorkflowVersionContract,
   v2ImportWorkflowContract,
+  v2ListPausedRunsContract,
   v2ListWorkflowFoldersContract,
   v2ListWorkflowRunsContract,
   v2ListWorkflowsContract,
@@ -236,7 +238,7 @@ const executeSyncResponseSchema = documentedSchema(
   'ExecuteWorkflowSyncResponse',
   'Synchronous workflow execution response',
   'Completed, failed, paused, or cancelled synchronous workflow run.',
-  [RUN_RESULT_EXAMPLE]
+  [{ data: { ...RUN_RESULT_EXAMPLE.data, executionTimeoutSeconds: 3_000 } }]
 )
 
 const executeQueuedResponseSchema = documentedSchema(
@@ -244,7 +246,7 @@ const executeQueuedResponseSchema = documentedSchema(
   'ExecuteWorkflowQueuedResponse',
   'Queued workflow execution response',
   'Receipt returned for an asynchronous workflow run, or for a synchronous run still running when `waitTimeoutSeconds` elapsed.',
-  [QUEUED_RUN_EXAMPLE]
+  [{ data: { ...QUEUED_RUN_EXAMPLE.data, executionTimeoutSeconds: 5_400 } }]
 )
 
 const resumeSyncResponseSchema = documentedSchema(
@@ -615,7 +617,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.read,
       operationId: 'getWorkflow',
       summary: 'Get workflow',
-      description: `Get workflow metadata, variables, and trigger input fields from the saved draft. Requires workspace read access. Input fields may differ from the live deployment. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Get workflow metadata, variables, and trigger input fields from the saved draft. Requires workspace read access. Input fields may differ from the live deployment; \`inputSchema\` describes the \`input\` an API run of the active deployment accepts. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The requested workflow.'),
     }),
@@ -627,7 +629,20 @@ const declaredRoutes = [
         'WorkflowDetailResponse',
         'Workflow detail response',
         'Detailed workflow metadata, variables, and trigger inputs.',
-        [{ data: { ...WORKFLOW_EXAMPLE, variables: {}, inputs: [] } }]
+        [
+          {
+            data: {
+              ...WORKFLOW_EXAMPLE,
+              variables: {},
+              inputs: [{ name: 'ticket', type: 'string' }],
+              inputSchema: {
+                type: 'object',
+                properties: { ticket: { type: 'string' } },
+                required: ['ticket'],
+              },
+            },
+          },
+        ]
       ),
     }
   ),
@@ -1437,6 +1452,57 @@ const declaredRoutes = [
                 endedAt: '2026-08-09T18:04:11.000Z',
                 durationMs: 1_000,
                 cost: { total: 12 },
+              },
+            ],
+            nextCursor: null,
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ListPausedRunsContract,
+    workflowRunOperation({
+      applicationOperation: workflowOperations.listPausedRuns,
+      operationId: 'listPausedWorkflowRunsV2',
+      summary: 'List paused workflow runs',
+      description: `List a workspace's runs waiting on human input, with workspace read access. Each run lists the human pause points it still waits at, exactly as Get workflow run shows them; resume one with Resume workflow run. Request each point's reviewer content with \`includeOutput\`. Organization permission groups can hide pause fields. A page ends early, with a cursor, once it holds ${V2_MAX_PAUSED_RUN_POINTS_PER_PAGE} pause points.`,
+      errors: RESOURCE_ERRORS,
+      success: jsonSuccess('A page of paused workflow runs.'),
+    }),
+    {
+      query: v2ListPausedRunsContract.query,
+      response: documentedSchema(
+        v2ListPausedRunsContract.response.schema,
+        'PausedRunListResponse',
+        'Paused run list response',
+        'A cursor-paginated page of runs waiting on human input.',
+        [
+          {
+            data: [
+              {
+                runId: RUN_ID,
+                workflowId: WORKFLOW_ID,
+                workflowName: 'Customer support triage',
+                pausedAt: '2026-08-09T18:04:11.000Z',
+                points: [
+                  {
+                    contextId: 'blk_approval',
+                    blockId: 'blk_approval',
+                    blockName: 'Manager approval',
+                    kind: 'human',
+                    status: 'paused',
+                    registeredAt: '2026-08-09T18:04:11.000Z',
+                    resumeAt: null,
+                    parallel: null,
+                    loop: null,
+                    inputFields: [
+                      { name: 'approved', label: 'Approved', type: 'boolean', required: true },
+                    ],
+                    display: null,
+                    queuePosition: null,
+                  },
+                ],
               },
             ],
             nextCursor: null,

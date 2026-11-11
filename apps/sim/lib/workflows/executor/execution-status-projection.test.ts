@@ -36,7 +36,10 @@ vi.mock('@/lib/workflows/executor/paused-execution-metadata', () => ({
 }))
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
-import { getWorkflowExecutionStatus } from '@/lib/workflows/executor/execution-status'
+import {
+  getProjectedWorkflowExecutionStatus,
+  getWorkflowExecutionStatus,
+} from '@/lib/workflows/executor/execution-status'
 
 const mockGetJob = asyncJobsMockFns.mockJobQueue.getJob
 const mockMaterializeForDisplayWithBlockOutputs =
@@ -74,6 +77,62 @@ function readRun(viewerUserId: string | null | undefined) {
     executionId: 'execution-1',
     includeOutput: true,
     selectedOutputs: [BLOCK_ID],
+    workspaceId: 'workspace-1',
+    workspaceOrganizationId: 'organization-1',
+    viewerUserId,
+  })
+}
+
+function queueFailedRun(): void {
+  queueTableRows(schemaMock.workflowExecutionLogs, [
+    {
+      executionId: 'execution-1',
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      status: 'failed',
+      level: 'error',
+      trigger: 'api',
+      startedAt: new Date('2026-08-05T12:00:00.000Z'),
+      endedAt: new Date('2026-08-05T12:00:01.000Z'),
+      totalDurationMs: 1000,
+      executionData: { executionState: {} },
+      costTotal: '0.75',
+    },
+  ])
+  queueTableRows(schemaMock.resumeQueue, [])
+  queueTableRows(schemaMock.pausedExecutions, [])
+  mockMaterializeForDisplayWithBlockOutputs.mockResolvedValueOnce({
+    executionData: {
+      error: 'Lookup: upstream returned 500',
+      traceSpans: [
+        {
+          id: 'workflow-execution',
+          name: 'Workflow Execution',
+          type: 'workflow',
+          status: 'error',
+          children: [
+            {
+              id: 'span-1',
+              name: 'Lookup',
+              type: 'api',
+              status: 'error',
+              blockId: BLOCK_ID,
+              executionOrder: 1,
+            },
+          ],
+        },
+      ],
+    },
+    blockOutputs: new Map(),
+  })
+}
+
+function readProjectedRun(viewerUserId: string | null | undefined) {
+  return getProjectedWorkflowExecutionStatus({
+    workflowId: 'workflow-1',
+    executionId: 'execution-1',
+    includeOutput: false,
+    selectedOutputs: [],
     workspaceId: 'workspace-1',
     workspaceOrganizationId: 'organization-1',
     viewerUserId,
@@ -140,6 +199,32 @@ describe('run-detail field projection', () => {
     expect(status?.finalOutput).toEqual({ answer: 'a customer address' })
     expect(status?.blockOutputs).toEqual({ [BLOCK_ID]: { answer: 'a customer address' } })
     expect(permissionGroupScopeMockFns.mockResolvePermissionGroupConfig).not.toHaveBeenCalled()
+  })
+
+  it("names a failed run's failing block from its recorded trace", async () => {
+    queueFailedRun()
+
+    const projected = await readProjectedRun(undefined)
+
+    expect(projected?.status.error).toBe('Lookup: upstream returned 500')
+    expect(projected?.failedBlock).toEqual({
+      blockId: BLOCK_ID,
+      blockName: 'Lookup',
+      blockType: 'api',
+    })
+  })
+
+  it('withholds the failing block from a member whose group hides trace spans', async () => {
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      hideTraceSpans: true,
+    })
+    queueFailedRun()
+
+    const projected = await readProjectedRun('user-1')
+
+    expect(projected?.status.error).toBe('Lookup: upstream returned 500')
+    expect(projected?.failedBlock).toBeNull()
   })
 
   /** The queue branch answers before any log row exists, and is projected too. */

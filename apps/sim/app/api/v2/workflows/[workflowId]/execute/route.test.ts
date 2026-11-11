@@ -386,6 +386,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
           startedAt: '2026-07-31T00:00:00.000Z',
           endedAt: '2026-07-31T00:00:01.000Z',
           durationMs: 42,
+          executionTimeoutSeconds: 60,
         },
       })
       expect((await reader.read()).done).toBe(true)
@@ -491,6 +492,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     expect(body.data).toEqual({
       runId: 'execution-123',
       statusUrl: 'http://localhost:3000/api/v2/workflows/workflow-1/runs/execution-123',
+      executionTimeoutSeconds: 300,
     })
     expect(mockPreprocessExecution).toHaveBeenCalledWith(
       expect.objectContaining({ rateLimitCounter: 'async' })
@@ -1135,9 +1137,11 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
         endTime: '2026-07-31T00:00:01.000Z',
       },
     }
+    /** A detached run is admitted under asynchronous limits, so it reports the async timeout. */
     const receipt = {
       runId: 'execution-123',
       statusUrl: 'http://localhost:3000/api/v2/workflows/workflow-1/runs/execution-123',
+      executionTimeoutSeconds: 300,
     }
 
     /** A run the test settles by hand, recording the signal the executor was handed. */

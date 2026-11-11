@@ -114,6 +114,11 @@ export function getMaxExecutionTimeout(): number {
   return MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS * 1000
 }
 
+/** A timeout in milliseconds as the API reports it: seconds, or null when untimed (`0`). */
+export function executionTimeoutSeconds(timeoutMs: number): number | null {
+  return timeoutMs > 0 ? timeoutMs / 1000 : null
+}
+
 /** Applies an async API request cap without allowing it to exceed account policy. */
 export function resolveAsyncExecutionTimeout(
   policyTimeoutMs: number,

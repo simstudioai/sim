@@ -40,6 +40,11 @@ const BILLING_STATUS_EXAMPLE = {
       limitBytes: 1_073_741_824,
       percentUsed: 0.48828125,
     },
+    limits: {
+      maxSyncExecutionTimeoutSeconds: 3_000,
+      maxAsyncExecutionTimeoutSeconds: 5_400,
+      maxConcurrentExecutions: 50,
+    },
   },
 } as const
 
@@ -83,7 +88,7 @@ const routes = [
       operationId: 'getBillingStatus',
       summary: 'Get billing status',
       description:
-        "Get the current plan, billing standing, credit allowance, and storage quota. Pooled `credits` and `storage` are visible only to callers who can manage the payer's billing; workspace API keys receive null for both. Use List billing logs for credit history.",
+        "Get the current plan, billing standing, credit allowance, storage quota, and plan limits on runs. Pooled `credits` and `storage` are visible only to callers who can manage the payer's billing; workspace API keys receive null for both, but every caller reads `limits`. Use List billing logs for credit history.",
       errors: RESOURCE_ERRORS,
       success: { description: 'The current billing and storage status.' },
     }),

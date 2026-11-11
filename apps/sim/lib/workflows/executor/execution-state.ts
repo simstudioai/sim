@@ -192,6 +192,14 @@ export async function getWorkflowExecutionCopilotToolCallId(
 }
 
 /** A paused execution's pause points, stored keyed by context id (older rows: an array). */
+/**
+ * A point still waiting on a human: not a time pause, and not yet resumed or resuming. The
+ * paused-run list admits runs by this rule; `paused-runs.ts` spells it in SQL.
+ */
+export function isWaitingHumanPausePoint(point: PausePoint): boolean {
+  return point.pauseKind !== 'time' && point.resumeStatus === 'paused'
+}
+
 export function normalizePausePoints(raw: unknown): PausePoint[] {
   if (!raw) return []
   if (Array.isArray(raw)) return raw as PausePoint[]
@@ -220,9 +228,7 @@ export async function getHumanPauseResumeUrl(
   if (!paused || (paused.status !== 'paused' && paused.status !== 'partially_resumed')) {
     return null
   }
-  const waitsOnPerson = normalizePausePoints(paused.pausePoints).some(
-    (point) => point.resumeStatus === 'paused' && point.pauseKind !== 'time'
-  )
+  const waitsOnPerson = normalizePausePoints(paused.pausePoints).some(isWaitingHumanPausePoint)
   return waitsOnPerson ? buildResumeUiUrl(getBaseUrl(), workflowId, executionId) : null
 }
 
