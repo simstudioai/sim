@@ -209,7 +209,9 @@ export interface ReplaceWorkflowNormalizedStateInput {
    * lock is taken, inside the same transaction, so a concurrent write that
    * commits between a caller's own read and this one cannot be silently
    * overwritten by a stale graph. Passing an already-read value is correct only
-   * when the caller composed it without reading the stored graph.
+   * when the caller composed it without reading the stored graph. A caller that
+   * cannot compose its graph under the lock re-reads the stored graph in the
+   * reader and refuses the write when it changed.
    */
   state: ReplaceWorkflowState | ((tx: DbOrTx) => Promise<ReplaceWorkflowState>)
   requestId?: string
