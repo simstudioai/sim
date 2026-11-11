@@ -1,3 +1,4 @@
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   SelectorConnectionUnavailableError,
@@ -96,4 +97,23 @@ describe('provider HTTP selector boundary', () => {
       expect(cancel).toHaveBeenCalledOnce()
     }
   )
+
+  it('logs a failed provider call without its query string, search text, or email path segments', async () => {
+    mockFetch.mockResolvedValueOnce(new Response('{}', { status: 404 }))
+
+    await expect(
+      fetchProviderJson(
+        "https://www.googleapis.com/calendar/v3/calendars/jane%40example.com/root/search(q='payroll')?access_token=secret"
+      )
+    ).rejects.toBeInstanceOf(SelectorOptionsUnavailableError)
+
+    expect(getMockLogger('SelectorProviderHttp').warn).toHaveBeenCalledWith(
+      'Selector provider request failed',
+      {
+        endpoint: 'www.googleapis.com/calendar/v3/calendars/{redacted}/root/search()',
+        reason: 'status',
+        status: 404,
+      }
+    )
+  })
 })
