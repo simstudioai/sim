@@ -32,6 +32,7 @@ import {
 } from '@/lib/credentials/google-workload-identity'
 import type { ServiceAccountSecretFields } from '@/lib/credentials/service-account-secret'
 import {
+  CLIENT_CREDENTIALS_AUTH_METHOD,
   getTokenServiceAccountDescriptor,
   SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
   type TokenServiceAccountProviderId,
@@ -127,7 +128,17 @@ const ATLASSIAN_ERROR_MESSAGES: Record<string, string> = {
   duplicate_display_name: 'A credential with that name already exists in this workspace.',
   atlassian_unavailable:
     "We couldn't reach Atlassian to verify these credentials. Try again in a moment.",
+  provider_unavailable:
+    "We couldn't reach Atlassian to verify these credentials. Try again in a moment.",
 }
+
+/** Copy that differs when the service account signs in with an OAuth 2.0 credential. */
+const ATLASSIAN_CLIENT_CREDENTIAL_ERROR_MESSAGES: Record<string, string> = {
+  invalid_credentials:
+    "We couldn't authenticate with that client ID and secret. Check that they belong to an OAuth 2.0 credential of a service account with access to this site and product.",
+}
+
+type AtlassianAuthMethod = 'api_token' | typeof CLIENT_CREDENTIALS_AUTH_METHOD
 
 const FALLBACK_ERROR_MESSAGE = "We couldn't add this service account. Try again in a moment."
 
@@ -138,11 +149,13 @@ function normalizeAtlassianDomain(raw: string): string {
     .replace(/\/+$/, '')
 }
 
-function messageForAtlassianError(err: unknown): string {
-  if (isApiClientError(err) && err.code && ATLASSIAN_ERROR_MESSAGES[err.code]) {
-    return ATLASSIAN_ERROR_MESSAGES[err.code]
-  }
-  return FALLBACK_ERROR_MESSAGE
+function messageForAtlassianError(err: unknown, authMethod: AtlassianAuthMethod | null): string {
+  if (!isApiClientError(err) || !err.code) return FALLBACK_ERROR_MESSAGE
+  const clientMessage =
+    authMethod === CLIENT_CREDENTIALS_AUTH_METHOD
+      ? ATLASSIAN_CLIENT_CREDENTIAL_ERROR_MESSAGES[err.code]
+      : undefined
+  return clientMessage ?? ATLASSIAN_ERROR_MESSAGES[err.code] ?? FALLBACK_ERROR_MESSAGE
 }
 
 interface ConnectServiceAccountModalProps {
@@ -960,7 +973,16 @@ function AtlassianServiceAccountModalForm({
   initialDescription,
   onCreated,
 }: AtlassianServiceAccountModalProps) {
+  /**
+   * A reconnect cannot pre-select the sign-in: the stored one lives inside the encrypted secret
+   * and is never returned to the client, so the admin restates it while retyping the secret.
+   */
+  const [authMethod, setAuthMethod] = useState<AtlassianAuthMethod | null>(
+    credentialId ? null : 'api_token'
+  )
   const [apiToken, setApiToken] = useState('')
+  const [clientId, setClientId] = useState('')
+  const [clientSecret, setClientSecret] = useState('')
   const [domain, setDomain] = useState('')
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
   const [description, setDescription] = useState(initialDescription ?? '')
@@ -969,26 +991,41 @@ function AtlassianServiceAccountModalForm({
   const createCredential = useCreateScopedCredential()
   const updateCredential = useUpdateScopedCredential()
 
+  const usesClientCredentials = authMethod === CLIENT_CREDENTIALS_AUTH_METHOD
   const trimmedToken = apiToken.trim()
   const normalizedDomain = normalizeAtlassianDomain(domain)
   const showDomainHint =
     normalizedDomain.length > 0 && !ATLASSIAN_DOMAIN_HINT_REGEX.test(normalizedDomain)
 
   const isPending = createCredential.isPending || updateCredential.isPending
-  const isDisabled = !trimmedToken || !normalizedDomain || isPending
+  const isDisabled =
+    !authMethod ||
+    (usesClientCredentials ? !clientId.trim() || !clientSecret.trim() : !trimmedToken) ||
+    !normalizedDomain ||
+    isPending
+
+  const clearError = () => {
+    if (error) setError(null)
+  }
 
   const handleSubmit = async () => {
     setError(null)
     if (isDisabled) return
+    const secretFields = usesClientCredentials
+      ? {
+          authMethod: CLIENT_CREDENTIALS_AUTH_METHOD,
+          clientId: clientId.trim(),
+          clientSecret: clientSecret.trim(),
+          domain: normalizedDomain,
+        }
+      : { apiToken: trimmedToken, domain: normalizedDomain }
     try {
       let connectedCredentialId = credentialId
       if (credentialId) {
         await updateCredential.mutateAsync({
           ...resourceScopeFields(resourceScopeFromOwner({ workspaceId, organizationId })),
           credentialId,
-          apiToken: trimmedToken,
-          domain: normalizedDomain,
-
+          ...secretFields,
           displayName: displayName.trim() || undefined,
           description: description.trim() || undefined,
         })
@@ -997,8 +1034,7 @@ function AtlassianServiceAccountModalForm({
           ...resourceScopeFields(resourceScopeFromOwner({ workspaceId, organizationId })),
           type: 'service_account',
           providerId: ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
-          apiToken: trimmedToken,
-          domain: normalizedDomain,
+          ...secretFields,
           atlassianProduct,
           displayName: displayName.trim() || undefined,
           description: description.trim() || undefined,
@@ -1008,7 +1044,7 @@ function AtlassianServiceAccountModalForm({
       if (connectedCredentialId) onCreated?.(connectedCredentialId)
       onOpenChange(false)
     } catch (err: unknown) {
-      setError(messageForAtlassianError(err))
+      setError(messageForAtlassianError(err, authMethod))
       logger.error('Failed to add Atlassian service account credential', err)
     }
   }
@@ -1024,33 +1060,97 @@ function AtlassianServiceAccountModalForm({
       </ChipModalHeader>
       <ChipModalBody>
         <ChipModalField
-          type='custom'
-          title='API token'
+          type='dropdown'
+          title='Authentication'
+          value={authMethod ?? undefined}
+          onChange={(value) => {
+            setAuthMethod(value as AtlassianAuthMethod)
+            clearError()
+          }}
+          options={[
+            { value: 'api_token', label: 'Scoped API token' },
+            {
+              value: CLIENT_CREDENTIALS_AUTH_METHOD,
+              label: 'OAuth 2.0 credential (client credentials)',
+            },
+          ]}
           required
           hint={
-            atlassianProduct === 'confluence'
-              ? 'Use a service-account token with Confluence access. Required scopes are listed in the setup guide.'
-              : ATLASSIAN_COVERAGE_HINT
+            usesClientCredentials
+              ? 'Sim requests a 60-minute token with the client ID and secret. Atlassian supports these credentials for Jira and Confluence.'
+              : undefined
           }
-        >
-          {(aria) => (
-            <SecretInput
-              {...aria}
-              value={apiToken}
+        />
+
+        {usesClientCredentials ? (
+          <>
+            <ChipModalField
+              type='input'
+              title='Client ID'
+              value={clientId}
               onChange={(value) => {
-                setApiToken(value)
-                if (error) setError(null)
+                setClientId(value)
+                clearError()
               }}
-              placeholder='Paste API token'
-              name='atlassian_service_account_api_token'
-              autoComplete='new-password'
-              autoCorrect='off'
-              autoCapitalize='off'
-              data-lpignore='true'
-              data-form-type='other'
+              placeholder='Paste the client ID'
+              autoComplete='off'
+              required
+              hint={
+                atlassianProduct === 'confluence'
+                  ? 'Use an OAuth 2.0 credential with Confluence scopes. Required scopes are listed in the setup guide.'
+                  : ATLASSIAN_COVERAGE_HINT
+              }
             />
-          )}
-        </ChipModalField>
+            <ChipModalField type='custom' title='Client secret' required>
+              {(aria) => (
+                <SecretInput
+                  {...aria}
+                  value={clientSecret}
+                  onChange={(value) => {
+                    setClientSecret(value)
+                    clearError()
+                  }}
+                  placeholder='Paste the client secret'
+                  name='atlassian_service_account_client_secret'
+                  autoComplete='new-password'
+                  autoCorrect='off'
+                  autoCapitalize='off'
+                  data-lpignore='true'
+                  data-form-type='other'
+                />
+              )}
+            </ChipModalField>
+          </>
+        ) : authMethod === 'api_token' ? (
+          <ChipModalField
+            type='custom'
+            title='API token'
+            required
+            hint={
+              atlassianProduct === 'confluence'
+                ? 'Use a service-account token with Confluence access. Required scopes are listed in the setup guide.'
+                : ATLASSIAN_COVERAGE_HINT
+            }
+          >
+            {(aria) => (
+              <SecretInput
+                {...aria}
+                value={apiToken}
+                onChange={(value) => {
+                  setApiToken(value)
+                  clearError()
+                }}
+                placeholder='Paste API token'
+                name='atlassian_service_account_api_token'
+                autoComplete='new-password'
+                autoCorrect='off'
+                autoCapitalize='off'
+                data-lpignore='true'
+                data-form-type='other'
+              />
+            )}
+          </ChipModalField>
+        ) : null}
 
         <ChipModalField
           type='input'

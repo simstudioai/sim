@@ -27,6 +27,7 @@ export type ClientCredentialAccountFieldId =
   | 'authMethod'
   | 'privateKey'
   | 'username'
+  | 'apiToken'
 
 /**
  * The field id that selects between a descriptor's auth methods. A descriptor
@@ -143,6 +144,7 @@ export const CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID = 'crowdstrike-service-acco
 export const DATADOG_SERVICE_ACCOUNT_PROVIDER_ID = 'datadog-service-account' as const
 export const SAILPOINT_SERVICE_ACCOUNT_PROVIDER_ID = 'sailpoint-service-account' as const
 export const ZOOMINFO_SERVICE_ACCOUNT_PROVIDER_ID = 'zoominfo-service-account' as const
+export const ZENDESK_SERVICE_ACCOUNT_PROVIDER_ID = 'zendesk-service-account' as const
 
 /** Permissions requested when connecting a Manage Vanta application. */
 export const VANTA_PERMISSION_OPTIONS = [
@@ -173,6 +175,7 @@ export type ClientCredentialAccountProviderId =
   | typeof DATADOG_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SAILPOINT_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ZOOMINFO_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ZENDESK_SERVICE_ACCOUNT_PROVIDER_ID
 
 /**
  * Exact account-specific SuiteTalk origin accepted by NetSuite's OAuth and
@@ -504,6 +507,40 @@ function buildDocuSignConsentUrl(
   return `https://${DOCUSIGN_ENVIRONMENTS[resolved].authHost}/oauth/auth?${params.toString()}`
 }
 
+/** A Zendesk account subdomain: the `{subdomain}` in `{subdomain}.zendesk.com`. */
+export const ZENDESK_SUBDOMAIN_REGEX = /^[a-z0-9][a-z0-9-]*$/
+
+/**
+ * Normalizes a pasted Zendesk subdomain, accepting the full `https://acme.zendesk.com` URL as
+ * well as the bare `acme`. Shared by the connect modal's format hint and the server-side minter
+ * so both judge the same value; the minter refuses anything that does not then match
+ * {@link ZENDESK_SUBDOMAIN_REGEX}.
+ */
+export function normalizeZendeskSubdomain(rawSubdomain: string): string {
+  return rawSubdomain
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/[/?#].*$/, '')
+    .replace(/\.zendesk\.com$/, '')
+}
+
+/** Zendesk's two server-to-server sign-ins: an OAuth client's client-credentials grant, or an API token. */
+export const ZENDESK_AUTH_METHODS = {
+  clientCredentials: 'client_credentials',
+  apiToken: 'api_token',
+} as const
+
+/** Permissions a Zendesk client-credentials token requests. */
+const ZENDESK_SCOPE_OPTIONS: ReadonlyArray<ClientCredentialAccountOption> = [
+  { value: 'read', label: 'Read only' },
+  { value: 'read write', label: 'Read and write' },
+]
+
+export const ZENDESK_SCOPES: ReadonlySet<string> = new Set(
+  ZENDESK_SCOPE_OPTIONS.map((option) => option.value)
+)
+
 export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
   ClientCredentialAccountProviderId,
   ClientCredentialAccountDescriptor
@@ -721,6 +758,84 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
       "Only needed when the user belongs to more than one account and the one to use isn't their default.",
     consentUrl: (values, redirectUri) =>
       buildDocuSignConsentUrl(values.clientId ?? '', values.dataCenter, redirectUri),
+  },
+  [ZENDESK_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: ZENDESK_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Zendesk',
+    connectNoun: 'API credential',
+    fields: [
+      {
+        id: 'authMethod',
+        label: 'Authentication method',
+        placeholder: 'Select a method',
+        secret: false,
+        optional: true,
+        options: [
+          {
+            value: ZENDESK_AUTH_METHODS.clientCredentials,
+            label: 'OAuth client (client credentials)',
+          },
+          { value: ZENDESK_AUTH_METHODS.apiToken, label: 'API token (deprecated by Zendesk)' },
+        ],
+      },
+      {
+        id: 'orgId',
+        label: 'Subdomain',
+        placeholder: 'your-company',
+        secret: false,
+        hintPattern: ZENDESK_SUBDOMAIN_REGEX,
+        hintNormalize: normalizeZendeskSubdomain,
+        hintMessage: 'Expected the subdomain from your-company.zendesk.com, like your-company.',
+      },
+      {
+        id: 'clientId',
+        label: 'Client identifier',
+        placeholder: 'Paste the OAuth client unique identifier',
+        secret: false,
+        optional: true,
+        requiredForAuthMethods: [ZENDESK_AUTH_METHODS.clientCredentials],
+        hint: 'Create a confidential OAuth client in Admin Center under Apps and integrations > APIs > OAuth Clients.',
+      },
+      {
+        id: 'clientSecret',
+        label: 'Client secret',
+        placeholder: 'Paste the client secret',
+        secret: true,
+        optional: true,
+        requiredForAuthMethods: [ZENDESK_AUTH_METHODS.clientCredentials],
+      },
+      {
+        id: 'scope',
+        label: 'Permissions',
+        placeholder: 'Select permissions',
+        secret: false,
+        optional: true,
+        requiredForAuthMethods: [ZENDESK_AUTH_METHODS.clientCredentials],
+        options: ZENDESK_SCOPE_OPTIONS,
+        hint: 'Every call runs as the user the OAuth client belongs to, with that user’s Zendesk role.',
+      },
+      {
+        id: 'username',
+        label: 'Agent email',
+        placeholder: 'agent@your-company.com',
+        secret: false,
+        optional: true,
+        requiredForAuthMethods: [ZENDESK_AUTH_METHODS.apiToken],
+        hint: 'Every call runs as this agent or admin, with their Zendesk role.',
+      },
+      {
+        id: 'apiToken',
+        label: 'API token',
+        placeholder: 'Paste the API token',
+        secret: true,
+        optional: true,
+        requiredForAuthMethods: [ZENDESK_AUTH_METHODS.apiToken],
+        hint: 'Zendesk has deprecated API tokens in favor of OAuth. Use an OAuth client unless you cannot create one.',
+      },
+    ],
+    defaultAuthMethod: ZENDESK_AUTH_METHODS.clientCredentials,
+    docsUrl: 'https://docs.sim.ai/integrations/zendesk',
+    helpText: 'Sim connects only to your-company.zendesk.com; host-mapped domains are not used.',
   },
   [RAMP_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: RAMP_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -1201,6 +1316,16 @@ export function resolveSalesforceAuthMethod(authMethod: string | undefined): str
       CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS[SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID],
       authMethod
     ) ?? SALESFORCE_DEFAULT_AUTH_METHOD
+  )
+}
+
+/** Resolves a stored Zendesk auth method against the descriptor's options, for the minter. */
+export function resolveZendeskAuthMethod(authMethod: string | undefined): string {
+  return (
+    resolveClientCredentialAuthMethod(
+      CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS[ZENDESK_SERVICE_ACCOUNT_PROVIDER_ID],
+      authMethod
+    ) ?? ZENDESK_AUTH_METHODS.clientCredentials
   )
 }
 

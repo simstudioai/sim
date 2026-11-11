@@ -494,6 +494,15 @@ export async function resolveCredentialToken(
                 'This credential cannot be used here. Keyless Google Cloud credentials work only with Google Cloud tools such as BigQuery and cannot impersonate a Google Workspace user; use a JSON key credential instead',
             }
           }
+          if (error.code === 'grant_not_permitted') {
+            return {
+              ok: false,
+              status: 400,
+              code: error.code,
+              error:
+                'The provider does not allow this app’s client credentials for the connected account — check the app’s installation and organization, then reconnect the credential',
+            }
+          }
           if (error.code === 'account_not_found') {
             return {
               ok: false,

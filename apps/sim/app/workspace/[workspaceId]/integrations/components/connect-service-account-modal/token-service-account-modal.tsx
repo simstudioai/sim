@@ -20,6 +20,7 @@ import {
 } from '@/lib/core/resource-scope'
 import type { ServiceAccountSecretFields } from '@/lib/credentials/service-account-secret'
 import {
+  CLIENT_CREDENTIALS_AUTH_METHOD,
   getTokenServiceAccountErrorMessage,
   type TokenServiceAccountDescriptor,
   type TokenServiceAccountField,
@@ -38,6 +39,8 @@ function normalizeDomainInput(raw: string): string {
     .replace(/^https?:\/\//i, '')
     .replace(/[/?#].*$/, '')
 }
+
+type TokenAuthMethod = 'token' | typeof CLIENT_CREDENTIALS_AUTH_METHOD
 
 function openDocs(url: string): void {
   window.open(url, '_blank', 'noopener,noreferrer')
@@ -95,7 +98,25 @@ function TokenServiceAccountModalForm({
   onSubmitCredentials,
   submitPending,
 }: TokenServiceAccountModalProps) {
+  const clientCredentials = descriptor.clientCredentials
+  const [selectedAuthMethod, setSelectedAuthMethod] = useState<TokenAuthMethod | null>(null)
+  /**
+   * A reconnect cannot pre-select the mode: the stored one lives inside the encrypted secret and
+   * is never returned to the client, so the admin restates it while retyping the secret. Until
+   * then neither mode's fields show, so a reconnect never switches modes by default.
+   */
+  const mustRestateAuthMethod = Boolean(clientCredentials && credentialId && !selectedAuthMethod)
+  const authMethod: TokenAuthMethod | null =
+    selectedAuthMethod ??
+    (mustRestateAuthMethod
+      ? null
+      : clientCredentials?.preferred
+        ? CLIENT_CREDENTIALS_AUTH_METHOD
+        : 'token')
+  const usesClientCredentials = authMethod === CLIENT_CREDENTIALS_AUTH_METHOD
   const [apiToken, setApiToken] = useState('')
+  const [clientId, setClientId] = useState('')
+  const [clientSecret, setClientSecret] = useState('')
   const [domain, setDomain] = useState('')
   const [providerWorkspaceId, setProviderWorkspaceId] = useState('')
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
@@ -114,7 +135,8 @@ function TokenServiceAccountModalForm({
   const isPending =
     createCredential.isPending || updateCredential.isPending || submitPending === true
   const isDisabled =
-    !trimmedToken ||
+    !authMethod ||
+    (usesClientCredentials ? !clientId.trim() || !clientSecret.trim() : !trimmedToken) ||
     (Boolean(domainField) && !normalizedDomain) ||
     (Boolean(workspaceField) && !providerWorkspaceId.trim()) ||
     isPending
@@ -129,7 +151,13 @@ function TokenServiceAccountModalForm({
     if (isDisabled) return
     try {
       const secretFields = {
-        apiToken: trimmedToken,
+        ...(usesClientCredentials
+          ? {
+              authMethod: CLIENT_CREDENTIALS_AUTH_METHOD,
+              clientId: clientId.trim(),
+              clientSecret: clientSecret.trim(),
+            }
+          : { apiToken: trimmedToken }),
         ...(workspaceField ? { providerWorkspaceId: providerWorkspaceId.trim() } : {}),
         ...(domainField ? { domain: normalizedDomain } : {}),
       }
@@ -170,7 +198,8 @@ function TokenServiceAccountModalForm({
         getTokenServiceAccountErrorMessage(
           descriptor,
           code,
-          onSubmitCredentials ? getErrorMessage(err, 'Could not save this connection.') : undefined
+          onSubmitCredentials ? getErrorMessage(err, 'Could not save this connection.') : undefined,
+          authMethod ?? undefined
         )
       )
       logger.error(`Failed to add ${descriptor.serviceLabel} service account credential`, err)
@@ -187,7 +216,58 @@ function TokenServiceAccountModalForm({
         Add {serviceName} {descriptor.connectNoun}
       </ChipModalHeader>
       <ChipModalBody>
-        {tokenField && (
+        {clientCredentials && (
+          <ChipModalField
+            type='dropdown'
+            title='Authentication'
+            value={authMethod ?? undefined}
+            onChange={(value) => {
+              setSelectedAuthMethod(value as TokenAuthMethod)
+              if (error) setError(null)
+            }}
+            options={[
+              { value: CLIENT_CREDENTIALS_AUTH_METHOD, label: clientCredentials.label },
+              { value: 'token', label: clientCredentials.tokenLabel },
+            ]}
+            required
+          />
+        )}
+
+        {clientCredentials && usesClientCredentials && (
+          <>
+            <ChipModalField
+              type='input'
+              title='Client ID'
+              value={clientId}
+              onChange={(value) => {
+                setClientId(value)
+                if (error) setError(null)
+              }}
+              placeholder='Paste the client ID'
+              required
+              autoComplete='off'
+              hint={clientCredentials.helpText}
+            />
+            <ChipModalField type='custom' title='Client secret' required>
+              <SecretInput
+                value={clientSecret}
+                onChange={(value) => {
+                  setClientSecret(value)
+                  if (error) setError(null)
+                }}
+                placeholder='Paste the client secret'
+                name={`${descriptor.providerId}_client_secret`}
+                autoComplete='new-password'
+                autoCorrect='off'
+                autoCapitalize='off'
+                data-lpignore='true'
+                data-form-type='other'
+              />
+            </ChipModalField>
+          </>
+        )}
+
+        {tokenField && authMethod === 'token' && (
           <ChipModalField
             type='custom'
             title={tokenField.label}

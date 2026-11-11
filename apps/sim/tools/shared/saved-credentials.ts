@@ -406,6 +406,22 @@ export const YOUTUBE_CREDENTIAL_OAUTH = tokenCredentialOAuth('youtube', { apiKey
 export const ZEP_CREDENTIAL_OAUTH = tokenCredentialOAuth('zep', { apiKey: 'accessToken' })
 
 /**
+ * Credential policy for every Zendesk tool. A saved Zendesk credential resolves
+ * to an OAuth bearer token or an encoded API-token Basic credential (named by
+ * the authoritative `authStyle`) plus its subdomain, so the block's email, API
+ * token, and subdomain all come from the credential; the tools read the token
+ * from `accessToken`.
+ */
+export const ZENDESK_CREDENTIAL_OAUTH = {
+  required: false,
+  provider: 'zendesk',
+  credentialKind: 'service-account',
+  credentialParams: { subdomain: 'domain' },
+  credentialSuppliedParams: ['email', 'apiToken', 'subdomain'],
+  authoritativeParams: ['authStyle'],
+} as const satisfies OAuthConfig
+
+/**
  * Every saved-credential policy keyed by the picker's service id. A
  * credential-only block replaces exactly the params its policy supplies, so
  * the block and its tools read one table.
@@ -516,6 +532,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   youcom: YOUCOM_CREDENTIAL_OAUTH,
   youtube: YOUTUBE_CREDENTIAL_OAUTH,
   zep: ZEP_CREDENTIAL_OAUTH,
+  zendesk: ZENDESK_CREDENTIAL_OAUTH,
   zoominfo: ZOOMINFO_CREDENTIAL_OAUTH,
 } as const
 

@@ -19,6 +19,7 @@ import {
   SAILPOINT_SERVICE_ACCOUNT_PROVIDER_ID,
   SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID,
   VANTA_SERVICE_ACCOUNT_PROVIDER_ID,
+  ZENDESK_SERVICE_ACCOUNT_PROVIDER_ID,
   ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID,
   ZOOM_SERVICE_ACCOUNT_PROVIDER_ID,
   ZOOMINFO_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -38,6 +39,7 @@ import { mintRampServiceAccountToken } from '@/lib/credentials/client-credential
 import { mintSailPointServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/sailpoint'
 import { mintSalesforceServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/salesforce'
 import { mintVantaServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/vanta'
+import { mintZendeskServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zendesk'
 import { mintZohoDeskServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoho-desk'
 import { mintZoomServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoom'
 import { mintZoomInfoServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoominfo'
@@ -80,8 +82,13 @@ export interface ClientCredentialAccountFields {
    * {@link clientSecret} in practice.
    */
   privateKey?: string
-  /** User a key-based grant authenticates as (Salesforce JWT username, DocuSign user ID). */
+  /**
+   * User a key-based grant authenticates as (Salesforce JWT username, DocuSign
+   * user ID), or the agent email a Zendesk API token signs in with.
+   */
   username?: string
+  /** Long-lived API token for a provider's token sign-in branch (Zendesk API token). */
+  apiToken?: string
 }
 
 /** Identity derived from a successful mint, used at connect time. */
@@ -124,9 +131,10 @@ export interface ClientCredentialAccountMintResult {
    */
   apiDomain?: string
   /**
-   * The region, site, or tenant the token is bound to (a CrowdStrike cloud,
-   * Datadog site, or SailPoint tenant API host), forwarded to tools as the credential's `domain`, which fills
-   * the tool param that picks the provider host.
+   * The region, site, tenant, or account host the token is bound to (a
+   * CrowdStrike cloud, Datadog site, SailPoint tenant API host, or Zendesk
+   * subdomain), forwarded to tools as the credential's `domain`, which fills the
+   * tool param that picks the provider host.
    */
   domain?: string
   /**
@@ -136,6 +144,11 @@ export interface ClientCredentialAccountMintResult {
   applicationKey?: string
   /** Scopes granted to the app, when the provider reports them. */
   grantedScopes?: string[]
+  /**
+   * `basic` when `accessToken` is an HTTP Basic credential rather than a bearer
+   * token (a Zendesk API token sign-in). Absent means Bearer.
+   */
+  authStyle?: 'basic'
   identity?: ClientCredentialAccountIdentity
 }
 
@@ -185,6 +198,7 @@ const CLIENT_CREDENTIAL_ACCOUNT_MINTERS: Record<
   [DATADOG_SERVICE_ACCOUNT_PROVIDER_ID]: mintDatadogServiceAccountToken,
   [SAILPOINT_SERVICE_ACCOUNT_PROVIDER_ID]: mintSailPointServiceAccountToken,
   [ZOOMINFO_SERVICE_ACCOUNT_PROVIDER_ID]: mintZoomInfoServiceAccountToken,
+  [ZENDESK_SERVICE_ACCOUNT_PROVIDER_ID]: mintZendeskServiceAccountToken,
 }
 
 export function getClientCredentialAccountMinter(
@@ -216,6 +230,8 @@ export interface ClientCredentialAccountSecretBlob {
   authMethod?: string
   privateKey?: string
   username?: string
+  /** Present only on a Zendesk API-token credential. */
+  apiToken?: string
   metadata?: Record<string, string>
 }
 

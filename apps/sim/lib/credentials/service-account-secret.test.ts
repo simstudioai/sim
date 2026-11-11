@@ -16,9 +16,21 @@ const {
 }))
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/credentials/coordinated-client-token', () => ({
+  resolveCoordinatedClientToken: async (input: {
+    exchange: () => Promise<{ accessToken: string; expiresAt: Date }>
+  }) => {
+    const exchanged = await input.exchange()
+    return { accessToken: exchanged.accessToken, expiresInSeconds: 86_000 }
+  },
+  invalidateCoordinatedClientToken: async () => {},
+}))
 const mockEncryptSecret = encryptionMockFns.mockEncryptSecret
 vi.mock('@/lib/webhooks/providers/slack', () => ({ fetchSlackTeamId: mockFetchSlackTeamId }))
-vi.mock('@/lib/credentials/atlassian-service-account', () => ({
+vi.mock('@/lib/credentials/atlassian-service-account', async (importOriginal) => ({
+  AtlassianValidationError: (
+    await importOriginal<typeof import('@/lib/credentials/atlassian-service-account')>()
+  ).AtlassianValidationError,
   validateAtlassianServiceAccount: mockValidateAtlassian,
   normalizeAtlassianDomain: mockNormalizeDomain,
 }))
@@ -51,11 +63,13 @@ vi.mock('@/lib/credentials/client-credential-accounts/server', () => ({
     providerId === 'box-service-account' ||
     providerId === 'netsuite-service-account' ||
     providerId === 'oracle-epm-service-account' ||
-    providerId === 'oracle-fusion-service-account'
+    providerId === 'oracle-fusion-service-account' ||
+    providerId === 'zendesk-service-account'
       ? mockClientCredentialMinter
       : undefined,
 }))
 
+import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
 import {
   ServiceAccountSecretError,
   verifyAndBuildServiceAccountSecret,
@@ -120,6 +134,106 @@ describe('verifyAndBuildServiceAccountSecret', () => {
       cloudId: 'cloud-1',
       atlassianProduct: 'confluence',
     })
+  })
+
+  it('stores an Atlassian OAuth 2.0 credential, not its minted token, after proving it', async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+    vi.stubGlobal('fetch', fetchMock)
+    fetchMock.mockResolvedValue(Response.json({ access_token: 'atl-minted', expires_in: 3600 }))
+    mockValidateAtlassian.mockResolvedValue({
+      accountId: 'svc-1',
+      displayName: 'Workflow bot',
+      cloudId: 'cloud-1',
+    })
+
+    const result = await verifyAndBuildServiceAccountSecret(ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID, {
+      authMethod: 'client_credentials',
+      clientId: 'atl-client',
+      clientSecret: 'atl-secret',
+      domain: 'Acme.atlassian.net',
+      atlassianProduct: 'confluence',
+    })
+
+    expect(mockValidateAtlassian).toHaveBeenCalledWith(
+      'atl-minted',
+      'acme.atlassian.net',
+      'confluence'
+    )
+    const blob = JSON.parse(result.encryptedServiceAccountKey)
+    expect(blob).toMatchObject({
+      type: 'atlassian_service_account',
+      authMethod: 'client_credentials',
+      clientId: 'atl-client',
+      clientSecret: 'atl-secret',
+      domain: 'acme.atlassian.net',
+      cloudId: 'cloud-1',
+      atlassianProduct: 'confluence',
+      atlassianAccountId: 'svc-1',
+    })
+    expect(blob.apiToken).toBeUndefined()
+    expect(result.encryptedServiceAccountKey).not.toContain('atl-minted')
+  })
+
+  it('replaces a shared Atlassian token the site rejects, once', async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+    vi.stubGlobal('fetch', fetchMock)
+    fetchMock.mockImplementation(async () =>
+      Response.json({ access_token: `atl-${fetchMock.mock.calls.length}`, expires_in: 3600 })
+    )
+    mockValidateAtlassian.mockImplementation(async (token: string) => {
+      if (token !== 'atl-2') throw new AtlassianValidationError('invalid_credentials', 401)
+      return { accountId: 'svc-1', displayName: 'Workflow bot', cloudId: 'cloud-1' }
+    })
+    const fields = {
+      authMethod: 'client_credentials',
+      clientId: 'atl-client',
+      clientSecret: 'atl-secret',
+      domain: 'acme.atlassian.net',
+    }
+
+    await expect(
+      verifyAndBuildServiceAccountSecret(ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID, fields)
+    ).resolves.toMatchObject({ displayName: 'Workflow bot' })
+
+    mockValidateAtlassian.mockRejectedValue(
+      new AtlassianValidationError('invalid_credentials', 401)
+    )
+    await expect(
+      verifyAndBuildServiceAccountSecret(ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID, fields)
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+  })
+
+  it('does not mint again when the Atlassian site is unavailable', async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+    vi.stubGlobal('fetch', fetchMock)
+    fetchMock.mockResolvedValue(Response.json({ access_token: 'atl-minted', expires_in: 3600 }))
+    mockValidateAtlassian.mockRejectedValue(
+      new AtlassianValidationError('atlassian_unavailable', 503)
+    )
+
+    await expect(
+      verifyAndBuildServiceAccountSecret(ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID, {
+        authMethod: 'client_credentials',
+        clientId: 'atl-client',
+        clientSecret: 'atl-secret',
+        domain: 'acme.atlassian.net',
+      })
+    ).rejects.toMatchObject({ code: 'atlassian_unavailable' })
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('requires the Atlassian client ID, secret, and site without minting', async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(
+      verifyAndBuildServiceAccountSecret(ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID, {
+        authMethod: 'client_credentials',
+        clientId: 'atl-client',
+        domain: 'acme.atlassian.net',
+      })
+    ).rejects.toBeInstanceOf(ServiceAccountSecretError)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('accepts a legacy Google create with an empty providerId', async () => {
@@ -278,6 +392,53 @@ describe('verifyAndBuildServiceAccountSecret', () => {
         principalId: 'acc-1',
       },
     })
+  })
+
+  it('stores only the Zendesk sign-in the selected method uses', async () => {
+    mockClientCredentialMinter.mockResolvedValue({
+      accessToken: 'encoded',
+      expiresInSeconds: 3600,
+      authStyle: 'basic',
+      domain: 'acme',
+      identity: {
+        displayName: 'Zendesk acme',
+        principal: { kind: 'user', id: '42' },
+        auditMetadata: {},
+      },
+    })
+    const submitted = {
+      orgId: 'acme',
+      clientId: 'leftover-client',
+      clientSecret: 'leftover-secret',
+      scope: 'read',
+      username: ' agent@example.com ',
+      apiToken: ' zendesk-api-token ',
+    }
+
+    const apiToken = await verifyAndBuildServiceAccountSecret('zendesk-service-account', {
+      ...submitted,
+      authMethod: 'api_token',
+    })
+    const tokenBlob = JSON.parse(apiToken.encryptedServiceAccountKey)
+    expect(tokenBlob).toMatchObject({
+      authMethod: 'api_token',
+      orgId: 'acme',
+      username: 'agent@example.com',
+      apiToken: 'zendesk-api-token',
+    })
+    expect(tokenBlob.clientSecret).toBeUndefined()
+    expect(tokenBlob.scope).toBeUndefined()
+
+    const client = await verifyAndBuildServiceAccountSecret('zendesk-service-account', submitted)
+    const clientBlob = JSON.parse(client.encryptedServiceAccountKey)
+    expect(clientBlob).toMatchObject({
+      authMethod: 'client_credentials',
+      clientId: 'leftover-client',
+      clientSecret: 'leftover-secret',
+      scope: 'read',
+    })
+    expect(clientBlob.apiToken).toBeUndefined()
+    expect(clientBlob.username).toBeUndefined()
   })
 
   it('threads NetSuite certificate material into the minter and encrypted blob', async () => {
@@ -502,5 +663,100 @@ describe('verifyAndBuildServiceAccountSecret', () => {
         verifyAndBuildServiceAccountSecret(providerId, { serviceAccountJson: '{}' })
       ).rejects.toThrow('Unsupported service-account provider')
     }
+  })
+})
+
+describe('a token provider in client-credentials mode', () => {
+  const fetchMock = vi.fn<typeof fetch>()
+
+  beforeEach(() => {
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+    mockEncryptSecret.mockImplementation(async (value: string) => ({ encrypted: value }))
+  })
+
+  function answerShopify() {
+    fetchMock.mockImplementation(async (input, init) => {
+      const request = new Request(input, init)
+      if (request.url.endsWith('/admin/oauth/access_token')) {
+        return Response.json({ access_token: 'minted-token', expires_in: 86399 })
+      }
+      expect(request.headers.get('x-shopify-access-token')).toBe('minted-token')
+      return Response.json({
+        data: { shop: { name: 'Acme', myshopifyDomain: 'acme.myshopify.com' } },
+      })
+    })
+  }
+
+  it('stores the client credentials, never a token, after proving the minted token', async () => {
+    answerShopify()
+
+    const result = await verifyAndBuildServiceAccountSecret('shopify-service-account', {
+      authMethod: 'client_credentials',
+      clientId: 'client-1',
+      clientSecret: 'secret-1',
+      domain: 'Acme.myshopify.com',
+    })
+
+    const blob = JSON.parse(result.encryptedServiceAccountKey)
+    expect(blob).toMatchObject({
+      type: 'token_service_account',
+      providerId: 'shopify-service-account',
+      authMethod: 'client_credentials',
+      clientId: 'client-1',
+      clientSecret: 'secret-1',
+      domain: 'acme.myshopify.com',
+    })
+    expect(blob.apiToken).toBeUndefined()
+    expect(result.encryptedServiceAccountKey).not.toContain('minted-token')
+    expect(result.principal).toMatchObject({ kind: 'tenant', id: 'acme.myshopify.com' })
+  })
+
+  it('keeps a pasted Shopify token on the token path when no auth method is sent', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({ data: { shop: { name: 'Acme', myshopifyDomain: 'acme.myshopify.com' } } })
+    )
+
+    const result = await verifyAndBuildServiceAccountSecret('shopify-service-account', {
+      apiToken: 'shpat_pasted',
+      domain: 'acme.myshopify.com',
+      clientId: 'ignored',
+      clientSecret: 'ignored',
+    })
+
+    const blob = JSON.parse(result.encryptedServiceAccountKey)
+    expect(blob.apiToken).toBe('shpat_pasted')
+    expect(blob.authMethod).toBeUndefined()
+    expect(blob.clientSecret).toBeUndefined()
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('requires the client ID, secret, and store domain without calling Shopify', async () => {
+    await expect(
+      verifyAndBuildServiceAccountSecret('shopify-service-account', {
+        authMethod: 'client_credentials',
+        clientId: 'client-1',
+        domain: 'acme.myshopify.com',
+      })
+    ).rejects.toBeInstanceOf(ServiceAccountSecretError)
+    await expect(
+      verifyAndBuildServiceAccountSecret('shopify-service-account', {
+        authMethod: 'client_credentials',
+        clientId: 'client-1',
+        clientSecret: 'secret-1',
+      })
+    ).rejects.toBeInstanceOf(ServiceAccountSecretError)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps the token path for a provider without a client-credentials mode', async () => {
+    await expect(
+      verifyAndBuildServiceAccountSecret('hubspot-service-account', {
+        authMethod: 'client_credentials',
+        clientId: 'client-1',
+        clientSecret: 'secret-1',
+      })
+    ).rejects.toThrow('apiToken is required')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

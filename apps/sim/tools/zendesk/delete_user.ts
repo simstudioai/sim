@@ -1,5 +1,11 @@
+import { ZENDESK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError } from '@/tools/zendesk/types'
+import {
+  buildZendeskUrl,
+  handleZendeskError,
+  ZENDESK_CREDENTIAL_PARAMS,
+  zendeskAuthorization,
+} from '@/tools/zendesk/types'
 
 export interface ZendeskDeleteUserParams {
   email: string
@@ -24,7 +30,10 @@ export const zendeskDeleteUserTool: ToolConfig<ZendeskDeleteUserParams, ZendeskD
     description: 'Delete a user from Zendesk',
     version: '1.0.0',
 
+    oauth: ZENDESK_CREDENTIAL_OAUTH,
+
     params: {
+      ...ZENDESK_CREDENTIAL_PARAMS,
       email: {
         type: 'string',
         required: true,
@@ -54,14 +63,10 @@ export const zendeskDeleteUserTool: ToolConfig<ZendeskDeleteUserParams, ZendeskD
     request: {
       url: (params) => buildZendeskUrl(params.subdomain, `/users/${params.userId}`),
       method: 'DELETE',
-      headers: (params) => {
-        const credentials = `${params.email}/token:${params.apiToken}`
-        const base64Credentials = Buffer.from(credentials).toString('base64')
-        return {
-          Authorization: `Basic ${base64Credentials}`,
-          'Content-Type': 'application/json',
-        }
-      },
+      headers: (params) => ({
+        Authorization: zendeskAuthorization(params),
+        'Content-Type': 'application/json',
+      }),
     },
 
     transformResponse: async (response: Response, params) => {
