@@ -1,6 +1,9 @@
 import { truncate } from '@sim/utils/string'
 import type { EgressProfile } from '@/lib/core/security/egress/profiles'
-import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   fetchProvider,
@@ -154,13 +157,34 @@ function normalizedField(
   }
 }
 
-/** Sends a check through the guarded egress profile, mapping a host that doesn't exist to `site_not_found`. */
+/**
+ * Sends a check through the guarded egress profile. A host the policy refuses
+ * (a private address, or plain http where https is required) is the user's
+ * input, so it fails as `invalid_credentials` rather than `provider_unavailable`,
+ * which renders as a retryable 503. A host that doesn't exist is `site_not_found`.
+ */
 async function sendThroughEgress(
   profile: NonNullable<TokenCheck['egress']>,
   { url, method = 'GET', headers, body }: TokenCheckRequest
 ): Promise<ProviderResponse> {
+  const validation = await validateUrlWithDNS(url, 'url', profile, { logDetails: false })
+  if (!validation.isValid) {
+    // Only a failed DNS lookup carries a cause; without one the policy refused the host.
+    if (validation.cause === undefined) {
+      throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+        step: 'verify',
+        reason: 'host not allowed',
+      })
+    }
+    const notFound = isHostNotFound(validation.cause)
+    throw new TokenServiceAccountValidationError(
+      notFound ? 'site_not_found' : 'provider_unavailable',
+      notFound ? 400 : 502,
+      { step: 'verify', reason: notFound ? 'host does not resolve' : 'host lookup failed' }
+    )
+  }
   try {
-    return await secureFetchWithValidation(url, {
+    return await secureFetchWithPinnedIP(url, validation.resolvedIP, {
       profile,
       method,
       headers,
@@ -170,13 +194,11 @@ async function sendThroughEgress(
       maxResponseBytes: MAX_EGRESS_RESPONSE_BYTES,
       logUrlValidationDetails: false,
     })
-  } catch (error) {
-    const notFound = isHostNotFound(error)
-    throw new TokenServiceAccountValidationError(
-      notFound ? 'site_not_found' : 'provider_unavailable',
-      notFound ? 400 : 502,
-      { step: 'verify', reason: notFound ? 'host does not resolve' : 'host unreachable' }
-    )
+  } catch {
+    throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+      step: 'verify',
+      reason: 'host unreachable',
+    })
   }
 }
 
@@ -204,6 +226,7 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
         ...(workspaceId === undefined ? {} : { accountId: workspaceId }),
       },
       ...(domain === undefined ? {} : { normalizedDomain: domain }),
+      ...(workspaceId === undefined ? {} : { normalizedWorkspaceId: workspaceId }),
     }
     const request = check.request(fields)
     const response: ProviderResponse = check.egress

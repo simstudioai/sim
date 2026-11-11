@@ -270,6 +270,8 @@ export interface TokenServiceAccountValidationResult {
   storedMetadata?: Record<string, string>
   /** Normalized domain to persist instead of the raw user input (when collected). */
   normalizedDomain?: string
+  /** Normalized account id to persist instead of the raw user input (when collected). */
+  normalizedWorkspaceId?: string
 }
 
 export type TokenServiceAccountValidator = (

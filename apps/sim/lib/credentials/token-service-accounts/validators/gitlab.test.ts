@@ -15,10 +15,16 @@ import { validateGitLabServiceAccount } from '@/lib/credentials/token-service-ac
 const activeToken = { name: 'sim-workflows', active: true, revoked: false, scopes: ['api'] }
 
 describe('GitLab saved token verification', () => {
-  const fetch = inputValidationMockFns.mockSecureFetchWithValidation
+  const fetch = inputValidationMockFns.mockSecureFetchWithPinnedIP
+  const validateUrl = inputValidationMockFns.mockValidateUrlWithDNS
 
   beforeEach(() => {
     fetch.mockReset()
+    validateUrl.mockReset().mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.7',
+      originalHostname: 'gitlab.example.com',
+    })
   })
 
   it('verifies the token at the host it was typed with and stores that host', async () => {
@@ -33,6 +39,7 @@ describe('GitLab saved token verification', () => {
     })
     expect(fetch).toHaveBeenCalledWith(
       'https://gitlab.example.com/api/v4/personal_access_tokens/self',
+      '203.0.113.7',
       expect.objectContaining({ maxRedirects: 0, profile: 'configuredEndpoint' })
     )
   })
@@ -67,11 +74,11 @@ describe('GitLab saved token verification', () => {
   })
 
   it('reports a host that does not exist as not found, so the user fixes it instead of retrying', async () => {
-    fetch.mockRejectedValue(
-      new Error('url hostname could not be resolved', {
-        cause: Object.assign(new Error('getaddrinfo ENOTFOUND'), { code: 'ENOTFOUND' }),
-      })
-    )
+    validateUrl.mockResolvedValue({
+      isValid: false,
+      error: 'url hostname could not be resolved',
+      cause: Object.assign(new Error('getaddrinfo ENOTFOUND'), { code: 'ENOTFOUND' }),
+    })
 
     await expect(
       validateGitLabServiceAccount({ apiToken: 'glpat-x', domain: 'gitlab.exmaple.com' })

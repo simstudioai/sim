@@ -393,7 +393,9 @@ async function buildTokenServiceAccountSecret(
     providerId,
     apiToken,
     ...(requiresDomain ? { domain: validation.normalizedDomain ?? domain } : {}),
-    ...(requiresWorkspace ? { providerWorkspaceId } : {}),
+    ...(requiresWorkspace
+      ? { providerWorkspaceId: validation.normalizedWorkspaceId ?? providerWorkspaceId }
+      : {}),
     metadata: { ...validation.storedMetadata, ...principalMetadata },
   }
   const { encrypted } = await encryptSecret(JSON.stringify(blob))
