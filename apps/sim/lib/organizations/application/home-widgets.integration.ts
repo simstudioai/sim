@@ -341,7 +341,12 @@ describe('whose mail a widget reads', () => {
     serveProviders()
     await expect(
       readOrganizationHomeEmail.execute({
-        principal: { kind: 'personal_api_key', userId: memberId, keyId: generateId() },
+        principal: {
+          kind: 'personal_api_key',
+          userId: memberId,
+          keyId: generateId(),
+          access: 'write',
+        },
         input,
       })
     ).rejects.toBeInstanceOf(PrincipalKindAuthorizationError)

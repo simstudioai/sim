@@ -226,7 +226,12 @@ describe('whose workspaces the read covers', () => {
   it('takes a session only', async () => {
     await expect(
       readOrganizationHomeWorkspaceActivity.execute({
-        principal: { kind: 'personal_api_key', userId: memberId, keyId: generateId() },
+        principal: {
+          kind: 'personal_api_key',
+          userId: memberId,
+          keyId: generateId(),
+          access: 'write',
+        },
         input,
       })
     ).rejects.toBeInstanceOf(PrincipalKindAuthorizationError)
