@@ -10,6 +10,9 @@
  * lives in `@/lib/credentials/client-credential-accounts/server`.
  */
 
+import { CROWDSTRIKE_CLOUDS } from '@/tools/crowdstrike/types'
+import { DATADOG_SITE_LABELS, DATADOG_SITES } from '@/tools/datadog/types'
+
 /** Discriminator stored inside every encrypted client-credential secret blob. */
 export const CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE = 'client_credential_account' as const
 
@@ -136,6 +139,10 @@ export const GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID = 'greenhouse-service-accoun
 export const JAMA_SERVICE_ACCOUNT_PROVIDER_ID = 'jama-service-account' as const
 export const HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID = 'helpscout-service-account' as const
 export const DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID = 'docusign-service-account' as const
+export const CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID = 'crowdstrike-service-account' as const
+export const DATADOG_SERVICE_ACCOUNT_PROVIDER_ID = 'datadog-service-account' as const
+export const SAILPOINT_SERVICE_ACCOUNT_PROVIDER_ID = 'sailpoint-service-account' as const
+export const ZOOMINFO_SERVICE_ACCOUNT_PROVIDER_ID = 'zoominfo-service-account' as const
 
 /** Permissions requested when connecting a Manage Vanta application. */
 export const VANTA_PERMISSION_OPTIONS = [
@@ -162,6 +169,10 @@ export type ClientCredentialAccountProviderId =
   | typeof HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof JAMA_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof DATADOG_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof SAILPOINT_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ZOOMINFO_SERVICE_ACCOUNT_PROVIDER_ID
 
 /**
  * Exact account-specific SuiteTalk origin accepted by NetSuite's OAuth and
@@ -397,6 +408,45 @@ export function resolveZohoDeskDataCenter(rawDataCenter?: string): {
   return { id, ...ZOHO_DESK_DATA_CENTERS[id] }
 }
 
+/** A SailPoint Identity Security Cloud API host: one tenant label under `api.identitynow.com`. */
+const SAILPOINT_API_HOST_REGEX = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.api\.identitynow\.com$/
+
+const SAILPOINT_TENANT_LABEL_REGEX = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
+const SAILPOINT_UI_HOST_REGEX = /^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.identitynow\.com$/
+/** `api.identitynow.com` is SailPoint's API domain itself, so `api` never names a tenant. */
+const SAILPOINT_API_DOMAIN_AS_TENANT = 'api.api.identitynow.com'
+
+/**
+ * Normalizes a SailPoint tenant name, API host, UI host, or https URL of either
+ * to the tenant's API host (`{tenant}.api.identitynow.com`), the domain
+ * SailPoint documents for API calls and token requests. Returns `undefined`
+ * for anything else (other domains, credentials, ports, more than one tenant
+ * label, or `api`, SailPoint's own API domain) rather than throwing, so the
+ * connect modal's format hint and the minter share one admission rule.
+ * @see https://developer.sailpoint.com/docs/api/authentication
+ */
+export function normalizeSailPointTenantHost(rawTenant: string): string | undefined {
+  const host = toSailPointApiHost(rawTenant.trim().toLowerCase())
+  return host === SAILPOINT_API_DOMAIN_AS_TENANT ? undefined : host
+}
+
+function toSailPointApiHost(tenant: string): string | undefined {
+  if (!tenant) return undefined
+  if (SAILPOINT_TENANT_LABEL_REGEX.test(tenant)) return `${tenant}.api.identitynow.com`
+  let parsed: URL
+  try {
+    parsed = new URL(tenant.includes('://') ? tenant : `https://${tenant}`)
+  } catch {
+    return undefined
+  }
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.port) {
+    return undefined
+  }
+  if (SAILPOINT_API_HOST_REGEX.test(parsed.hostname)) return parsed.hostname
+  const uiHost = SAILPOINT_UI_HOST_REGEX.exec(parsed.hostname)
+  return uiHost ? `${uiHost[1]}.api.identitynow.com` : undefined
+}
+
 /**
  * DocuSign's two account systems. Each environment has its own authentication
  * service and its own eSignature REST hosts, and a token from one is never
@@ -485,6 +535,129 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/jama',
     helpText:
       'Create API credentials in your Jama profile. Your account needs REST API access and a Named Creator license.',
+  },
+  [ZOOMINFO_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: ZOOMINFO_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'ZoomInfo',
+    connectNoun: 'API app',
+    fields: [
+      {
+        id: 'clientId',
+        label: 'Client ID',
+        placeholder: 'Paste the client ID',
+        secret: false,
+        hint: 'Create a client credentials app in the ZoomInfo Developer Portal. Its integration user and scopes apply to every call.',
+      },
+      {
+        id: 'clientSecret',
+        label: 'Client secret',
+        placeholder: 'Paste the client secret',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/zoominfo',
+  },
+  [SAILPOINT_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: SAILPOINT_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'SailPoint',
+    connectNoun: 'API client',
+    fields: [
+      {
+        id: 'orgId',
+        label: 'Tenant',
+        placeholder: 'acme or acme.api.identitynow.com',
+        secret: false,
+        hintPattern: SAILPOINT_API_HOST_REGEX,
+        hintNormalize: (value) => normalizeSailPointTenantHost(value) ?? value.trim().toLowerCase(),
+        hintMessage:
+          'Expected your tenant name or its API host, like acme or acme.api.identitynow.com.',
+      },
+      {
+        id: 'clientId',
+        label: 'Client ID',
+        placeholder: 'Paste the client ID',
+        secret: false,
+        hint: 'Use an API client with the client credentials grant, or a personal access token.',
+      },
+      {
+        id: 'clientSecret',
+        label: 'Client secret',
+        placeholder: 'Paste the client secret',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/sailpoint',
+    helpText:
+      'The tenant name is shown under Admin > Dashboard > Overview. For a vanity domain, use the tenant name.',
+  },
+  [DATADOG_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: DATADOG_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Datadog',
+    connectNoun: 'API key pair',
+    fields: [
+      {
+        id: 'dataCenter',
+        label: 'Site',
+        placeholder: 'Select a site',
+        secret: false,
+        options: DATADOG_SITES.map((site) => ({ value: site, label: DATADOG_SITE_LABELS[site] })),
+        hint: 'The site in the address you sign in to Datadog with.',
+      },
+      {
+        id: 'clientId',
+        label: 'API key',
+        placeholder: 'Paste the API key',
+        secret: true,
+        hint: 'Create keys in Datadog under Organization Settings > API Keys and Application Keys.',
+      },
+      {
+        id: 'clientSecret',
+        label: 'Application key',
+        placeholder: 'Paste the application key',
+        secret: true,
+        hint: 'Workflows act with this key and its scopes. Datadog checks it on the first request that needs it.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/datadog',
+  },
+  [CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'CrowdStrike',
+    connectNoun: 'API client',
+    fields: [
+      {
+        id: 'dataCenter',
+        label: 'Cloud',
+        placeholder: 'Select a cloud',
+        secret: false,
+        // The Falcon console names each cloud by its id in upper case (US-1, US-GOV-1).
+        options: CROWDSTRIKE_CLOUDS.map((cloud) => ({ value: cloud, label: cloud.toUpperCase() })),
+        hint: 'The Falcon cloud your console signs in to.',
+      },
+      {
+        id: 'clientId',
+        label: 'Client ID',
+        placeholder: 'Paste the client ID',
+        secret: false,
+        hint: 'Create the API client in Falcon under Support and resources > API clients and keys, with the scopes your workflows need.',
+      },
+      {
+        id: 'clientSecret',
+        label: 'Client secret',
+        placeholder: 'Paste the client secret',
+        secret: true,
+      },
+      {
+        id: 'orgId',
+        label: 'Member CID',
+        placeholder: 'Only for an MSSP parent CID',
+        secret: false,
+        optional: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/crowdstrike',
+    helpText:
+      'Leave blank unless the API client belongs to a parent CID and every call should act on one child CID.',
   },
   [DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID,

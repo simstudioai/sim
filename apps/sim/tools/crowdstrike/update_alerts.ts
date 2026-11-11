@@ -2,6 +2,7 @@ import type {
   CrowdStrikeUpdateAlertsParams,
   CrowdStrikeUpdateAlertsResponse,
 } from '@/tools/crowdstrike/types'
+import { CROWDSTRIKE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const crowdstrikeUpdateAlertsTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const crowdstrikeUpdateAlertsTool: InternalToolConfig<
   description:
     'Update CrowdStrike Falcon alerts by composite ID: change status, assign or unassign an analyst, add or remove tags, append a comment, or toggle visibility (PATCH /alerts/entities/alerts/v3). This modifies live alerts in the Falcon console. Requires the "Alerts: Write" API scope.',
   version: '1.0.0',
+  oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -32,6 +34,12 @@ export const crowdstrikeUpdateAlertsTool: InternalToolConfig<
       required: true,
       visibility: 'user-only',
       description: 'CrowdStrike Falcon cloud region',
+    },
+    accessToken: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Access token minted from the selected CrowdStrike credential',
     },
     compositeIds: {
       type: 'json',
@@ -125,6 +133,7 @@ export const crowdstrikeUpdateAlertsTool: InternalToolConfig<
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,
+      accessToken: params.accessToken,
       compositeIds: params.compositeIds,
       includeHidden: params.includeHidden,
       operation: 'crowdstrike_update_alerts',

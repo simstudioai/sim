@@ -547,6 +547,8 @@ export interface ServiceAccountTokenResult {
   /** Atlassian and domain-scoped token providers (e.g. Shopify) — the site/store domain. */
   domain?: string
   providerWorkspaceId?: string
+  /** Datadog only — the application key sent beside the API key (`accessToken`). */
+  applicationKey?: string
   /** Salesforce or NetSuite — the provider origin the token must be used against. */
   instanceUrl?: string
   /**
@@ -588,7 +590,8 @@ async function getTokenServiceAccountSecret(
 }
 
 interface CachedClientCredentialToken {
-  accessToken: string
+  /** The minted token and the destination fields it is bound to, exactly as tools receive them. */
+  token: ServiceAccountTokenResult
   expiresAtMs: number
   /**
    * Fingerprint of the encrypted secret the token was minted from (see
@@ -597,10 +600,6 @@ interface CachedClientCredentialToken {
    * the cached token belongs to the old app and must be re-minted.
    */
   secretFingerprint: string
-  /** Salesforce or NetSuite — the provider origin returned alongside the minted token. */
-  instanceUrl?: string
-  /** Zoho Desk only — the Desk REST base derived from the token's api_domain. */
-  apiDomain?: string
 }
 
 interface FailedClientCredentialMint {
@@ -701,11 +700,7 @@ async function resolveClientCredentialAccountToken(
       cached.secretFingerprint === secretFingerprint &&
       cached.expiresAtMs - Date.now() > CLIENT_CREDENTIAL_TOKEN_MIN_TTL_MS
     ) {
-      return {
-        accessToken: cached.accessToken,
-        instanceUrl: cached.instanceUrl,
-        apiDomain: cached.apiDomain,
-      }
+      return cached.token
     }
 
     const failed = clientCredentialMintFailureCache.get(cacheIdentity)
@@ -740,19 +735,20 @@ async function resolveClientCredentialAccountToken(
         },
         { skipIdentity: true }
       )
-      if (!usesSharedToken)
-        clientCredentialTokenCache.set(cacheIdentity, {
-          accessToken: mint.accessToken,
-          expiresAtMs: Date.now() + mint.expiresInSeconds * 1000,
-          secretFingerprint,
-          instanceUrl: mint.instanceUrl,
-          apiDomain: mint.apiDomain,
-        })
-      return {
+      const token: ServiceAccountTokenResult = {
         accessToken: mint.accessToken,
         instanceUrl: mint.instanceUrl,
         apiDomain: mint.apiDomain,
+        domain: mint.domain,
+        applicationKey: mint.applicationKey,
       }
+      if (!usesSharedToken)
+        clientCredentialTokenCache.set(cacheIdentity, {
+          token,
+          expiresAtMs: Date.now() + mint.expiresInSeconds * 1000,
+          secretFingerprint,
+        })
+      return token
     } catch (error) {
       if (!(error instanceof Error && error.name === 'AbortError')) {
         clientCredentialMintFailureCache.set(cacheIdentity, {

@@ -9,6 +9,7 @@ import {
   datadogPathSegment,
   splitCommaList,
 } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getBrowserSyntheticsResultsTool: ToolConfig<
@@ -20,6 +21,7 @@ export const getBrowserSyntheticsResultsTool: ToolConfig<
   description:
     'Get the latest result summaries (up to the last 150 runs) for a Synthetic browser test, including step counts and errors.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     publicId: {

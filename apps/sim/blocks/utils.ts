@@ -75,8 +75,12 @@ interface SavedCredentialOptions {
    * endpoints, keyless self-hosted servers) passes a condition or `false`.
    */
   required?: SubBlockConfig['required']
-  /** Where the picker shows. Defaults to the replaced secret's own `condition`. */
-  condition?: SubBlockConfig['condition']
+  /**
+   * Where the picker shows. Defaults to the replaced secret's own `condition`;
+   * `null` shows it in every operation, for a block whose replaced fields show
+   * differently (a key every operation sends beside one only some send).
+   */
+  condition?: SubBlockConfig['condition'] | null
 }
 
 /**
@@ -116,7 +120,7 @@ export function withSavedCredential(
   if (new Set(legacy.subBlocks.filter(isReplaced).map(inherited)).size > 1) {
     throw new Error(`Block "${legacy.type}": the replaced secrets show or require differently`)
   }
-  const condition = options.condition ?? secretCondition
+  const condition = options.condition === null ? undefined : (options.condition ?? secretCondition)
   const conditionFields = (value: SubBlockConfig['condition']): string[] =>
     value && typeof value !== 'function'
       ? [value.field, ...conditionFields(value.and as SubBlockConfig['condition'])]

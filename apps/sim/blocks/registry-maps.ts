@@ -68,12 +68,16 @@ import { ContextDevBlock, ContextDevBlockMeta } from '@/blocks/blocks/context_de
 import { ConvexBlock, ConvexBlockMeta, ConvexV2Block } from '@/blocks/blocks/convex'
 import { CredentialBlock } from '@/blocks/blocks/credential'
 import { CredentialGroupBlock } from '@/blocks/blocks/credential-group'
-import { CrowdStrikeBlock, CrowdStrikeBlockMeta } from '@/blocks/blocks/crowdstrike'
+import {
+  CrowdStrikeBlock,
+  CrowdStrikeBlockMeta,
+  CrowdStrikeV2Block,
+} from '@/blocks/blocks/crowdstrike'
 import { CrunchbaseBlock, CrunchbaseBlockMeta, CrunchbaseV2Block } from '@/blocks/blocks/crunchbase'
 import { CursorBlock, CursorBlockMeta, CursorV2Block, CursorV3Block } from '@/blocks/blocks/cursor'
 import { DagsterBlock, DagsterBlockMeta } from '@/blocks/blocks/dagster'
 import { DatabricksBlock, DatabricksBlockMeta, DatabricksV2Block } from '@/blocks/blocks/databricks'
-import { DatadogBlock, DatadogBlockMeta } from '@/blocks/blocks/datadog'
+import { DatadogBlock, DatadogBlockMeta, DatadogV2Block } from '@/blocks/blocks/datadog'
 import { DatagmaBlock, DatagmaBlockMeta } from '@/blocks/blocks/datagma'
 import { DaytonaBlock, DaytonaBlockMeta, DaytonaV2Block } from '@/blocks/blocks/daytona'
 import { DeploymentsBlock } from '@/blocks/blocks/deployments'
@@ -365,7 +369,7 @@ import { RootlyBlock, RootlyBlockMeta, RootlyV2Block } from '@/blocks/blocks/roo
 import { RouterBlock, RouterV2Block } from '@/blocks/blocks/router'
 import { RssBlock, RssBlockMeta } from '@/blocks/blocks/rss'
 import { S3Block, S3BlockMeta, S3V2Block } from '@/blocks/blocks/s3'
-import { SailPointBlock, SailPointBlockMeta } from '@/blocks/blocks/sailpoint'
+import { SailPointBlock, SailPointBlockMeta, SailPointV2Block } from '@/blocks/blocks/sailpoint'
 import { SalesforceBlock, SalesforceBlockMeta } from '@/blocks/blocks/salesforce'
 import { SapConcurBlock, SapConcurBlockMeta } from '@/blocks/blocks/sap_concur'
 import { SapS4HanaBlock, SapS4HanaBlockMeta } from '@/blocks/blocks/sap_s4hana'
@@ -479,7 +483,7 @@ import { ZepBlock, ZepBlockMeta, ZepV2Block } from '@/blocks/blocks/zep'
 import { ZeroBounceBlock, ZeroBounceBlockMeta } from '@/blocks/blocks/zerobounce'
 import { ZohoDeskBlock, ZohoDeskBlockMeta } from '@/blocks/blocks/zoho-desk'
 import { ZoomBlock, ZoomBlockMeta } from '@/blocks/blocks/zoom'
-import { ZoomInfoBlock, ZoomInfoBlockMeta } from '@/blocks/blocks/zoominfo'
+import { ZoomInfoBlock, ZoomInfoBlockMeta, ZoomInfoV2Block } from '@/blocks/blocks/zoominfo'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 
 /** All block configs keyed by block type. The execution source of truth. */
@@ -563,6 +567,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   credential: CredentialBlock,
   credential_group: CredentialGroupBlock,
   crowdstrike: CrowdStrikeBlock,
+  crowdstrike_v2: CrowdStrikeV2Block,
   crunchbase: CrunchbaseBlock,
   crunchbase_v2: CrunchbaseV2Block,
   cursor: CursorBlock,
@@ -572,6 +577,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   databricks: DatabricksBlock,
   databricks_v2: DatabricksV2Block,
   datadog: DatadogBlock,
+  datadog_v2: DatadogV2Block,
   datagma: DatagmaBlock,
   daytona: DaytonaBlock,
   daytona_v2: DaytonaV2Block,
@@ -854,6 +860,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   s3: S3Block,
   s3_v2: S3V2Block,
   sailpoint: SailPointBlock,
+  sailpoint_v2: SailPointV2Block,
   salesforce: SalesforceBlock,
   sap_concur: SapConcurBlock,
   sap_s4hana: SapS4HanaBlock,
@@ -979,6 +986,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   zoho_desk: ZohoDeskBlock,
   zoom: ZoomBlock,
   zoominfo: ZoomInfoBlock,
+  zoominfo_v2: ZoomInfoV2Block,
 }
 
 /**

@@ -2,6 +2,7 @@ import type {
   CrowdStrikeInitRtrSessionParams,
   CrowdStrikeInitRtrSessionResponse,
 } from '@/tools/crowdstrike/types'
+import { CROWDSTRIKE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const crowdstrikeInitRtrSessionTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const crowdstrikeInitRtrSessionTool: InternalToolConfig<
   description:
     'Open a CrowdStrike Falcon Real Time Response session against a host so read-only commands can be run on it (POST /real-time-response/entities/sessions/v1). This connects a live remote shell to the endpoint. Requires the "Real time response: Read" API scope.',
   version: '1.0.0',
+  oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -32,6 +34,12 @@ export const crowdstrikeInitRtrSessionTool: InternalToolConfig<
       required: true,
       visibility: 'user-only',
       description: 'CrowdStrike Falcon cloud region',
+    },
+    accessToken: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Access token minted from the selected CrowdStrike credential',
     },
     deviceId: {
       type: 'string',
@@ -58,6 +66,7 @@ export const crowdstrikeInitRtrSessionTool: InternalToolConfig<
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,
+      accessToken: params.accessToken,
       deviceId: params.deviceId,
       operation: 'crowdstrike_init_rtr_session',
       origin: params.origin,

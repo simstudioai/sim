@@ -2,6 +2,7 @@ import type {
   CrowdStrikeGetSensorAggregatesParams,
   CrowdStrikeGetSensorAggregatesResponse,
 } from '@/tools/crowdstrike/types'
+import { CROWDSTRIKE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const crowdstrikeGetSensorAggregatesTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const crowdstrikeGetSensorAggregatesTool: InternalToolConfig<
   description:
     'Aggregate CrowdStrike Identity Protection sensors from a JSON aggregate query body (POST /identity-protection/aggregates/devices/GET/v1). These are the domain controllers Falcon Identity Protection monitors, not Falcon endpoint sensors. Requires the "Identity Protection Entities: Read" API scope.',
   version: '1.0.0',
+  oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -33,6 +35,12 @@ export const crowdstrikeGetSensorAggregatesTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'CrowdStrike Falcon cloud region',
     },
+    accessToken: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Access token minted from the selected CrowdStrike credential',
+    },
     aggregateQuery: {
       type: 'json',
       required: true,
@@ -47,6 +55,7 @@ export const crowdstrikeGetSensorAggregatesTool: InternalToolConfig<
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,
+      accessToken: params.accessToken,
       operation: 'crowdstrike_get_sensor_aggregates',
     }),
   },

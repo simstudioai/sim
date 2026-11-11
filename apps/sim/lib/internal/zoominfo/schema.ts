@@ -4,9 +4,14 @@ import { z } from 'zod'
 export const ZOOMINFO_API_BASE = 'https://api.zoominfo.com/gtm'
 export const ZOOMINFO_TOKEN_URL = `${ZOOMINFO_API_BASE}/oauth/v1/token`
 
+/**
+ * Inline client credentials, or the token a saved ZoomInfo credential minted
+ * in their place. `resolveZoomInfoAuth` requires one or the other.
+ */
 export const zoomInfoAuthSchema = z.object({
-  clientId: z.string().min(1, 'clientId is required'),
-  clientSecret: z.string().min(1, 'clientSecret is required'),
+  clientId: z.string().min(1, 'clientId is required').optional(),
+  clientSecret: z.string().min(1, 'clientSecret is required').optional(),
+  accessToken: z.string().min(1).max(16_384).optional(),
 })
 
 export const zoomInfoProviderRequestSchema = zoomInfoAuthSchema.extend({

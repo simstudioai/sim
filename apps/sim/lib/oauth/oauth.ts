@@ -36,9 +36,11 @@ import {
   CodaIcon,
   ConfluenceIcon,
   ConvexIcon,
+  CrowdStrikeIcon,
   CrunchbaseIcon,
   CursorIcon,
   DatabricksIcon,
+  DatadogIcon,
   DaytonaIcon,
   DevinIcon,
   DiscordIcon,
@@ -144,6 +146,7 @@ import {
   RipplingIcon,
   RocketlaneIcon,
   RootlyIcon,
+  SailPointIcon,
   SalesforceIcon,
   SendgridIcon,
   SentryIcon,
@@ -184,6 +187,7 @@ import {
   ZepIcon,
   ZohoDeskIcon,
   ZoomIcon,
+  ZoomInfoIcon,
 } from '@/components/icons'
 import { env } from '@/lib/core/config/env'
 import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
@@ -1664,6 +1668,75 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'fivetran',
+  },
+  zoominfo: {
+    name: 'ZoomInfo',
+    icon: ZoomInfoIcon,
+    services: {
+      zoominfo: {
+        name: 'ZoomInfo',
+        description: 'Search and enrich B2B company and contact data with ZoomInfo.',
+        providerId: 'zoominfo',
+        serviceAccountProviderId: 'zoominfo-service-account',
+        authType: 'service_account',
+        icon: ZoomInfoIcon,
+        baseProviderIcon: ZoomInfoIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'zoominfo',
+  },
+  sailpoint: {
+    name: 'SailPoint',
+    icon: SailPointIcon,
+    services: {
+      sailpoint: {
+        name: 'SailPoint',
+        description: 'Govern identities and access in SailPoint Identity Security Cloud.',
+        providerId: 'sailpoint',
+        serviceAccountProviderId: 'sailpoint-service-account',
+        authType: 'service_account',
+        icon: SailPointIcon,
+        baseProviderIcon: SailPointIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'sailpoint',
+  },
+  datadog: {
+    name: 'Datadog',
+    icon: DatadogIcon,
+    services: {
+      datadog: {
+        name: 'Datadog',
+        description: 'Monitor infrastructure, applications, and logs with Datadog.',
+        providerId: 'datadog',
+        serviceAccountProviderId: 'datadog-service-account',
+        authType: 'service_account',
+        icon: DatadogIcon,
+        baseProviderIcon: DatadogIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'datadog',
+  },
+  crowdstrike: {
+    name: 'CrowdStrike',
+    icon: CrowdStrikeIcon,
+    services: {
+      crowdstrike: {
+        name: 'CrowdStrike',
+        description:
+          'Investigate and respond to CrowdStrike Falcon alerts, hosts, IOCs, and vulnerabilities.',
+        providerId: 'crowdstrike',
+        serviceAccountProviderId: 'crowdstrike-service-account',
+        authType: 'service_account',
+        icon: CrowdStrikeIcon,
+        baseProviderIcon: CrowdStrikeIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'crowdstrike',
   },
   vanta: {
     name: 'Vanta',

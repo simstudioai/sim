@@ -1,5 +1,6 @@
 import type { UpdateSloParams, UpdateSloResponse } from '@/tools/datadog/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const updateSloTool: InternalToolConfig<UpdateSloParams, UpdateSloResponse> = {
@@ -8,6 +9,7 @@ export const updateSloTool: InternalToolConfig<UpdateSloParams, UpdateSloRespons
   description:
     'Update a service level objective. Reads the current SLO first and applies only the fields you supply, so anything left blank keeps its stored value.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     sloId: {

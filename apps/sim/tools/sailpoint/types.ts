@@ -1,6 +1,11 @@
+/**
+ * Inline API client credentials, or the token a saved SailPoint credential
+ * minted, with the tenant it was minted for, in their place.
+ */
 export interface SailPointCredentials {
-  clientId: string
-  clientSecret: string
+  clientId?: string
+  clientSecret?: string
+  accessToken?: string
   tenant: string
 }
 

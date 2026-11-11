@@ -2,6 +2,7 @@ import type {
   CrowdStrikeQueryVulnerabilitiesParams,
   CrowdStrikeQueryVulnerabilitiesResponse,
 } from '@/tools/crowdstrike/types'
+import { CROWDSTRIKE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const crowdstrikeQueryVulnerabilitiesTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const crowdstrikeQueryVulnerabilitiesTool: InternalToolConfig<
   description:
     'Search CrowdStrike Falcon Spotlight vulnerabilities with a required Falcon Query Language filter and return their IDs (GET /spotlight/queries/vulnerabilities/v1). Requires the spotlight-vulnerabilities:read API scope, shown as "Vulnerabilities: Read" in the Falcon API client UI.',
   version: '1.0.0',
+  oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -32,6 +34,12 @@ export const crowdstrikeQueryVulnerabilitiesTool: InternalToolConfig<
       required: true,
       visibility: 'user-only',
       description: 'CrowdStrike Falcon cloud region',
+    },
+    accessToken: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Access token minted from the selected CrowdStrike credential',
     },
     filter: {
       type: 'string',
@@ -66,6 +74,7 @@ export const crowdstrikeQueryVulnerabilitiesTool: InternalToolConfig<
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,
+      accessToken: params.accessToken,
       filter: params.filter,
       limit: params.limit,
       operation: 'crowdstrike_query_vulnerabilities',

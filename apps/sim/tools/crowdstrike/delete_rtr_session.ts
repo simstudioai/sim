@@ -2,6 +2,7 @@ import type {
   CrowdStrikeDeleteRtrSessionParams,
   CrowdStrikeDeleteRtrSessionResponse,
 } from '@/tools/crowdstrike/types'
+import { CROWDSTRIKE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const crowdstrikeDeleteRtrSessionTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const crowdstrikeDeleteRtrSessionTool: InternalToolConfig<
   description:
     'Close an open CrowdStrike Falcon Real Time Response session (DELETE /real-time-response/entities/sessions/v1). Requires the "Real time response: Read" API scope.',
   version: '1.0.0',
+  oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -33,6 +35,12 @@ export const crowdstrikeDeleteRtrSessionTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'CrowdStrike Falcon cloud region',
     },
+    accessToken: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Access token minted from the selected CrowdStrike credential',
+    },
     sessionId: {
       type: 'string',
       required: true,
@@ -46,6 +54,7 @@ export const crowdstrikeDeleteRtrSessionTool: InternalToolConfig<
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,
+      accessToken: params.accessToken,
       operation: 'crowdstrike_delete_rtr_session',
       sessionId: params.sessionId,
     }),

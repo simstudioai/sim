@@ -5,6 +5,7 @@ import {
   normalizeFileInput,
   parseOptionalJsonInput,
   parseOptionalNumberInput,
+  withSavedCredential,
 } from '@/blocks/utils'
 
 const SAILPOINT_OPERATIONS = [
@@ -134,6 +135,8 @@ const ACCEPTED_OUTPUT_OPERATIONS = [
 
 export const SailPointBlock: BlockConfig = {
   type: 'sailpoint',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'sailpoint_v2' },
   name: 'SailPoint',
   description: 'Govern identities and access in SailPoint Identity Security Cloud',
   longDescription:
@@ -1891,3 +1894,17 @@ export const SailPointBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const SailPointV2Block: BlockConfig = {
+  ...SailPointBlock,
+  type: 'sailpoint_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(SailPointBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'sailpoint',
+    title: 'SailPoint Credential',
+  }),
+}

@@ -2,6 +2,8 @@ import {
   BOX_SERVICE_ACCOUNT_PROVIDER_ID,
   CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE,
   type ClientCredentialAccountProviderId,
+  CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID,
+  DATADOG_SERVICE_ACCOUNT_PROVIDER_ID,
   DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID,
   FIVETRAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -14,12 +16,16 @@ import {
   ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID,
   partitionClientCredentialFields,
   RAMP_SERVICE_ACCOUNT_PROVIDER_ID,
+  SAILPOINT_SERVICE_ACCOUNT_PROVIDER_ID,
   SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID,
   VANTA_SERVICE_ACCOUNT_PROVIDER_ID,
   ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID,
   ZOOM_SERVICE_ACCOUNT_PROVIDER_ID,
+  ZOOMINFO_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { mintBoxServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/box'
+import { mintCrowdStrikeServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/crowdstrike'
+import { mintDatadogServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/datadog'
 import { mintDocuSignServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/docusign'
 import { mintFivetranServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/fivetran'
 import { mintGreenhouseServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/greenhouse'
@@ -29,10 +35,12 @@ import { mintNetSuiteServiceAccountToken } from '@/lib/credentials/client-creden
 import { mintOracleEpmServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/oracle-epm'
 import { mintOracleFusionServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/oracle-fusion'
 import { mintRampServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/ramp'
+import { mintSailPointServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/sailpoint'
 import { mintSalesforceServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/salesforce'
 import { mintVantaServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/vanta'
 import { mintZohoDeskServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoho-desk'
 import { mintZoomServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoom'
+import { mintZoomInfoServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoominfo'
 import type { ServiceAccountPrincipal } from '@/lib/credentials/principal'
 
 /** Credential fields normalized according to the provider descriptor; passwords retain exact bytes. */
@@ -48,7 +56,8 @@ export interface ClientCredentialAccountFields {
   /**
    * Provider-specific org identifier (Zoom Account ID, Box Enterprise ID,
    * Salesforce My Domain host, Zoho Desk organization ID, NetSuite SuiteTalk
-   * origin, or an Oracle EPM environment URL).
+   * origin, an Oracle EPM environment URL, a CrowdStrike member CID, or a
+   * SailPoint tenant).
    */
   orgId: string
   /**
@@ -114,6 +123,17 @@ export interface ClientCredentialAccountMintResult {
    * {@link instanceUrl} because the two reach different tool params.
    */
   apiDomain?: string
+  /**
+   * The region, site, or tenant the token is bound to (a CrowdStrike cloud,
+   * Datadog site, or SailPoint tenant API host), forwarded to tools as the credential's `domain`, which fills
+   * the tool param that picks the provider host.
+   */
+  domain?: string
+  /**
+   * Datadog only — the application key every Datadog read sends beside the API
+   * key (`accessToken`). A secret, handled like the token.
+   */
+  applicationKey?: string
   /** Scopes granted to the app, when the provider reports them. */
   grantedScopes?: string[]
   identity?: ClientCredentialAccountIdentity
@@ -161,6 +181,10 @@ const CLIENT_CREDENTIAL_ACCOUNT_MINTERS: Record<
   [GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID]: mintGreenhouseServiceAccountToken,
   [HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID]: mintHelpScoutServiceAccountToken,
   [DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID]: mintDocuSignServiceAccountToken,
+  [CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID]: mintCrowdStrikeServiceAccountToken,
+  [DATADOG_SERVICE_ACCOUNT_PROVIDER_ID]: mintDatadogServiceAccountToken,
+  [SAILPOINT_SERVICE_ACCOUNT_PROVIDER_ID]: mintSailPointServiceAccountToken,
+  [ZOOMINFO_SERVICE_ACCOUNT_PROVIDER_ID]: mintZoomInfoServiceAccountToken,
 }
 
 export function getClientCredentialAccountMinter(

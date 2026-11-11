@@ -37,12 +37,17 @@ export function datadogApiUrl(site: DatadogSite | undefined, path: string): stri
  */
 export function resolveDatadogSite(site: unknown): DatadogSite {
   if (site === undefined || site === null || site === '') return 'datadoghq.com'
-  if (typeof site !== 'string' || !(DATADOG_SITES as readonly string[]).includes(site)) {
+  if (!isDatadogSite(site)) {
     throw new Error(
       `Datadog "site" must be one of ${DATADOG_SITES.join(', ')}, but was ${String(site)}`
     )
   }
-  return site as DatadogSite
+  return site
+}
+
+/** Narrows an untrusted value to one of Datadog's published sites in {@link DATADOG_SITES}. */
+export function isDatadogSite(value: unknown): value is DatadogSite {
+  return typeof value === 'string' && (DATADOG_SITES as readonly string[]).includes(value)
 }
 
 /**

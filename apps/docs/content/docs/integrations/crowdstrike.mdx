@@ -10,7 +10,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-[CrowdStrike](https://www.crowdstrike.com/) is a cybersecurity platform providing endpoint protection, threat intelligence, and identity security through its Falcon suite. This integration authenticates with a Falcon API client ID and secret against a chosen cloud region and covers the Alerts, Hosts, Host Groups, IOC Management, Spotlight, Real Time Response, Case Management, and Identity Protection APIs.
+[CrowdStrike](https://www.crowdstrike.com/) is a cybersecurity platform providing endpoint protection, threat intelligence, and identity security through its Falcon suite. This integration covers the Alerts, Hosts, Host Groups, IOC Management, Spotlight, Real Time Response, Case Management, and Identity Protection APIs.
 
 With this integration, you can:
 
@@ -23,7 +23,9 @@ With this integration, you can:
 - **Read cases**: Search Case Management cases and read case details
 - **Query identity sensors**: Search Identity Protection sensors, fetch sensor details, and run aggregate queries
 
-Each operation maps to a specific Falcon API scope — for example `Alerts: Read` and `Alerts: Write`, `Hosts: Write` for containment, `Host groups: Read`/`Write`, `IOC Management: Read`/`Write`, `Vulnerabilities: Read`, `Real time response: Read`, and `Cases: Read`. Containment and indicator deletion change live protection behavior, so scope the credential to only the operations your workflows need.
+Connect a Falcon API client once as a CrowdStrike credential: create the API client in Falcon under **Support and resources > API clients and keys**, then add its client ID and secret and choose the cloud your console signs in to. Sim checks the credential by requesting a token when you save it, and requests a new one before each 30-minute Falcon token expires. An MSSP parent CID can enter a member CID so every call acts on that one child CID. Workflows built with the earlier CrowdStrike block keep the client ID, secret, and cloud they entered in the block.
+
+Each operation maps to a specific Falcon API scope — for example `Alerts: Read` and `Alerts: Write`, `Hosts: Write` for containment, `Host groups: Read`/`Write`, `IOC Management: Read`/`Write`, `Vulnerabilities: Read`, `Real time response: Read`, and `Cases: Read`. Containment and indicator deletion change live protection behavior, so scope the API client to only the operations your workflows need.
 
 Note that CrowdStrike decommissioned the legacy Detects API (September 30, 2025) and the CrowdScore Incidents API (March 9, 2026). This integration uses the current Alerts API and Case Management API in their place.
 {/* MANUAL-CONTENT-END */}
