@@ -450,7 +450,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ApplyWorkflowOperationsContract,
     summary: 'Apply workflow operations',
     description:
-      'Apply draft edits and block enablement changes in one write. Requires workspace write access. The live deployment is unchanged; lint is advisory.\n\nInspect `skipped` and `inputValidationErrors` for edits that did not apply. Deferred edges apply when their targets exist; do not resubmit them. With `atomic=true`, declined operations or dropped inputs return `409` (`OPERATIONS_NOT_APPLIED`) without saving. Use returned `mintedBlockIds` in later requests. `dryRun=true` evaluates without saving, auditing, or notifying. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+      'Apply draft edits and block enablement changes in one write. Requires workspace write access. The live deployment is unchanged; lint is advisory.\n\nInspect `skipped` and `inputValidationErrors` for edits that did not apply. Deferred edges apply when their targets exist; do not resubmit them. With `atomic=true`, declined operations or dropped inputs return `409` (`OPERATIONS_NOT_APPLIED`) without saving. A `409` with code `CONFLICT` means the workflow changed after the batch read it and nothing was saved; re-read the workflow and retry. Use returned `mintedBlockIds` in later requests. `dryRun=true` evaluates without saving, auditing, or notifying. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/operations/route').then((route) => route.POST),
