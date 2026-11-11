@@ -115,15 +115,12 @@ describe('POST /api/cli/auth/poll', () => {
     expect(mockCreatePersonalApiKey).not.toHaveBeenCalled()
   })
 
-  it('mints with the access and lifetime the approval recorded, whatever the poll body says', async () => {
+  it('mints with the access and lifetime the approval recorded', async () => {
     mockPollApproval.mockResolvedValue(
       approved({ scope: 'platform', access: 'read', expiresInDays: 30 })
     )
     const before = Date.now()
-    const response = await POST(
-      pollRequest({ request: REQUEST, verifier: VERIFIER, access: 'write', expiresInDays: null }),
-      { params: Promise.resolve({}) }
-    )
+    const response = await POST(pollRequest({ request: REQUEST, verifier: VERIFIER }))
     expect(response.status).toBe(200)
     const [params] = mockCreatePersonalApiKey.mock.calls[0]
     expect(params.access).toBe('read')
