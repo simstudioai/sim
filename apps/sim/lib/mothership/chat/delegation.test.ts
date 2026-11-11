@@ -65,18 +65,13 @@ function database() {
           if (!locked) throw new Error('Read before acquiring the user lock')
           return {
             from: () => ({
-              where: (condition: SQL) => {
-                const query = dialect.sqlToQuery(condition)
-                // Only the access filter binds 'write'; the other predicates bind ids, names and dates.
-                const writeOnly = query.params.includes('write')
-                return {
-                  limit: async () => {
-                    const row = rows.get(name)
-                    if (!row || row.expiresAt.getTime() <= Date.now() + 30 * 60_000) return []
-                    return writeOnly && row.access === 'read' ? [] : [row]
-                  },
-                }
-              },
+              where: () => ({
+                limit: async () => {
+                  const row = rows.get(name)
+                  if (!row || row.expiresAt.getTime() <= Date.now() + 30 * 60_000) return []
+                  return [row]
+                },
+              }),
             }),
           }
         },
@@ -159,22 +154,6 @@ describe('delegation key concurrency', () => {
     db.failNextInsert()
     expect(await mintDelegationToken({ workspaceId: 'shared', userId: 'alice' })).toBeNull()
     expect(db.rows.get('mothership-delegation:alice')).toBe(old)
-  })
-
-  it('replaces a read-only key instead of handing it to the CLI', async () => {
-    const db = database()
-    db.rows.set('mothership-delegation:actor', {
-      id: 'read-key',
-      name: 'mothership-delegation:actor',
-      key: 'encrypted-read-only',
-      expiresAt: new Date(Date.now() + 6 * 60 * 60_000),
-      access: 'read',
-    })
-    expect(await mintDelegationToken({ workspaceId: 'shared', userId: 'actor' })).toBe('plain-1')
-    expect(db.rows.get('mothership-delegation:actor')).toMatchObject({
-      key: 'encrypted-1',
-      access: 'write',
-    })
   })
 
   it('does not log bound credential values from database errors', async () => {

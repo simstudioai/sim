@@ -29,9 +29,11 @@ const SENSITIVE_KEY_PATTERNS: RegExp[] = [
   /^.*api[_-]?key$/i,
   // AWS's `secretAccessKey` / `awsSecretAccessKey`, which no suffix above covers.
   /^.*secret[_-]?access[_-]?key$/i,
-  // Credential fields named for the key itself: Clerk's `secretKey`, Bedrock's
-  // `bedrockSecretKey`, and Convex's `deployKey`.
+  // Secret keys, bare or prefixed: Clerk and Amplitude take their credential in a bare
+  // `secretKey`, Bedrock in `bedrockSecretKey`. This also masks the secret names Infisical
+  // returns under `secretKey` in display copies; a hidden name is safer than a leaked key.
   /^.*secret[_-]?key$/i,
+  // Convex's `deployKey`.
   /^.*deploy[_-]?key$/i,
   /^passphrase$/i,
   /^authorization$/i,

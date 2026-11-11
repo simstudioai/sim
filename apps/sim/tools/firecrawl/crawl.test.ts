@@ -106,10 +106,12 @@ describe('Firecrawl legacy crawl depth', () => {
       apiKey: 'test',
       url: 'https://example.com/docs',
       maxDepth: '',
+      maxDiscoveryDepth: ' ',
     }
     const body = crawlTool.request.body(blankDepth)
     if (!isPlainRecord(body)) throw new Error('Expected a JSON request body')
     expect(body.includePaths).toBeUndefined()
     expect(body.regexOnFullURL).toBeUndefined()
+    expect(body).not.toHaveProperty('maxDiscoveryDepth')
   })
 })

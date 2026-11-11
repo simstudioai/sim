@@ -39,8 +39,9 @@ const POLL_PATH = '/api/cli/auth/poll'
  * 429 is the poll cadence hitting the per-IP bucket, not a refusal.
  *
  * Everything else stays terminal: 400 means a malformed request id or verifier,
- * and 401/403/404 mean the server is refusing on purpose. Retrying those just
- * spins until the 15-minute timeout.
+ * or a key the server refused to create as requested, which the same poll would
+ * be refused again for; 401/403/404 mean the server is refusing on purpose.
+ * Retrying those just spins until the 15-minute timeout.
  */
 const RETRYABLE_POLL_STATUSES = new Set([409, 429, 500, 502, 503, 504])
 

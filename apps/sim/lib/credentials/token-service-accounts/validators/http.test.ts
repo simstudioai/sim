@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
+import { EgressRefusedError } from '@/lib/core/network/transport.server'
 import {
   normalizeHttpBaseUrl,
   refuseUnsafeTypedUrl,
@@ -178,6 +179,9 @@ describe('tokenCheckValidator with a typed host', () => {
     expect(() => normalizeHttpBaseUrl('https:/grafana.example.com')).toThrow(/scheme/)
     expect(() => refuseUnsafeTypedUrl('https:/evil.com')).toThrow(/scheme/)
     expect(() => refuseUnsafeTypedUrl('HTTP:evil.com')).toThrow(/scheme/)
+    // The URL parser drops tabs and newlines, so they must not hide a scheme from the guard.
+    expect(() => refuseUnsafeTypedUrl('ht\ntps:/evil.com')).toThrow(/scheme/)
+    expect(() => normalizeHttpBaseUrl('ht\ttps:/evil.com')).toThrow(/scheme/)
     expect(refuseUnsafeTypedUrl('https://grafana.example.com')).toBe('https://grafana.example.com')
     expect(normalizeHttpBaseUrl('grafana.example.com:3000/')).toBe(
       'https://grafana.example.com:3000'
@@ -193,12 +197,26 @@ describe('tokenCheckValidator with a typed host', () => {
   })
 
   it('reports a host the egress policy refuses as the user input, not a retryable outage', async () => {
-    validateUrl.mockResolvedValue({ isValid: false, error: 'url resolves to a private address' })
+    validateUrl.mockResolvedValue({
+      isValid: false,
+      error: 'url resolves to a private address',
+      refusal: 'policy',
+    })
 
     await expect(
       validateHost({ apiToken: 'good', domain: 'grafana.internal' })
-    ).rejects.toMatchObject({ code: 'invalid_credentials', status: 400 })
+    ).rejects.toMatchObject({ code: 'host_not_allowed', status: 400 })
     expect(pinnedFetch).not.toHaveBeenCalled()
+  })
+
+  describe('behind an environment proxy', () => {
+    it("reports the proxy route's own refusal as the host, not an outage", async () => {
+      pinnedFetch.mockRejectedValue(new EgressRefusedError('url resolves to a private address'))
+
+      await expect(
+        validateHost({ apiToken: 'good', domain: 'tools.example.com' })
+      ).rejects.toMatchObject({ code: 'host_not_allowed', status: 400 })
+    })
   })
 
   it('reports a host that cannot be reached as the provider being unavailable', async () => {
@@ -222,6 +240,7 @@ describe('tokenCheckValidator with a typed host', () => {
       isValid: false,
       error: 'url hostname could not be resolved',
       cause,
+      refusal: 'dns',
     })
 
     await expect(

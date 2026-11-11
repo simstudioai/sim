@@ -1,9 +1,12 @@
+import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import {
   getWorkloadIdentityDiscoveryDocument,
   getWorkloadIdentityJwks,
   isWorkloadIdentityConfigured,
 } from '@/lib/credentials/workload-identity/issuer'
+
+const logger = createLogger('WorkloadIdentityDiscovery')
 
 /**
  * Cloud providers fetch these anonymously (AWS STS, Databricks) and
@@ -28,7 +31,11 @@ export async function workloadIdentityDiscoveryResponse() {
 
 /** The issuer's public signing keys (JWKS), or 404 when this deployment has no usable signing key. */
 export async function workloadIdentityJwksResponse() {
-  const jwks = await getWorkloadIdentityJwks().catch(() => null)
+  const jwks = await getWorkloadIdentityJwks().catch((error: unknown) => {
+    // Still a 404 to the provider, but a broken signing key must not look like an unconfigured one.
+    logger.warn('Could not build the workload identity JWKS', { error })
+    return null
+  })
   if (!jwks) return notConfigured()
   return NextResponse.json(jwks, { headers: DISCOVERY_HEADERS })
 }

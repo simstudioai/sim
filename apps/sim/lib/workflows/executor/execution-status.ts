@@ -493,7 +493,12 @@ async function readWorkflowExecutionStatus(
       nextResumeAt: pausedExecutions.nextResumeAt,
     })
     .from(pausedExecutions)
-    .where(eq(pausedExecutions.executionId, executionId))
+    .where(
+      and(
+        eq(pausedExecutions.executionId, executionId),
+        eq(pausedExecutions.workflowId, workflowId)
+      )
+    )
     .limit(1)
 
   const isCurrentlyPaused =

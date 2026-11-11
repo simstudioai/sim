@@ -457,6 +457,28 @@ describe('ordinary tool credential binding', () => {
     })
   })
 
+  it.each([
+    ['a session', { success: true, userId: 'user-1', authType: 'session' }],
+    ['an API key', { success: true, userId: 'user-1', authType: 'api_key' }],
+  ] as const)(
+    'releases a saved secret to server-side callers only, never %s',
+    async (_label, auth) => {
+      const result = await resolveCredentialAccessToken({
+        requestId: 'binding-test',
+        credentialId: 'credential-1',
+        toolId: 'oracle_fusion_financials_list_payables_invoices',
+        authenticate: async () => auth,
+      })
+
+      expect(result).toMatchObject({
+        ok: false,
+        status: 403,
+        code: 'SERVICE_ACCOUNT_SESSION_FORBIDDEN',
+      })
+      expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
+    }
+  )
+
   it('refuses to release a service-account secret without a tool to bind it to', async () => {
     const result = await resolveCredentialAccessToken({
       requestId: 'binding-test',

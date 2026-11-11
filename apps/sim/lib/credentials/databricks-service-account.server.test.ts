@@ -194,6 +194,7 @@ describe('getting a Databricks token for a run', () => {
 
     await expect(resolveDatabricksCredentialToken('cred-1')).rejects.toMatchObject({
       code: 'provider_unavailable',
+      status: 502,
       logDetail: { reason: 'Databricks token response exceeded the size limit' },
     })
   })

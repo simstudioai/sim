@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
+import { EgressRefusedError } from '@/lib/core/network/transport.server'
 import {
   decryptPersonalToken,
   encryptPersonalToken,
@@ -95,6 +96,28 @@ describe('GitLab personal token verification', () => {
     mocks.fetch.mockReset().mockResolvedValue(respond({ secret: 'sensitive' }, 401))
     await expect(verifyGitLabPersonalToken('secret')).rejects.toThrow('GitLab rejected this token')
     expect(mocks.fetch).toHaveBeenCalledTimes(1)
+  })
+  it('reports a host the egress policy refuses as the user input', async () => {
+    mocks.fetch
+      .mockReset()
+      .mockRejectedValue(new EgressRefusedError('url resolves to a private address'))
+    await expect(verifyGitLabPersonalToken('secret', 'gitlab.internal')).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining("can't connect to that address"),
+    })
+  })
+  it('reports a GitLab host that does not resolve as the user input', async () => {
+    mocks.fetch.mockReset().mockRejectedValue(
+      Object.assign(new Error('getaddrinfo ENOTFOUND gitlab.example.invalid'), {
+        code: 'ENOTFOUND',
+      })
+    )
+    await expect(
+      verifyGitLabPersonalToken('secret', 'gitlab.example.invalid')
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining("couldn't find that GitLab host"),
+    })
   })
   it('binds organization tokens independently of the execution workspace', async () => {
     mocks.encrypt.mockResolvedValue({ encrypted: 'ciphertext' })

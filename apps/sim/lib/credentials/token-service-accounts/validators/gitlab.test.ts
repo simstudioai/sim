@@ -77,6 +77,7 @@ describe('GitLab saved token verification', () => {
     validateUrl.mockResolvedValue({
       isValid: false,
       error: 'url hostname could not be resolved',
+      refusal: 'dns',
       cause: Object.assign(new Error('getaddrinfo ENOTFOUND'), { code: 'ENOTFOUND' }),
     })
 

@@ -154,7 +154,7 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       }
 
       if (params.prompt) body.prompt = params.prompt
-      if (params.maxDiscoveryDepth != null)
+      if (params.maxDiscoveryDepth != null && String(params.maxDiscoveryDepth).trim() !== '')
         body.maxDiscoveryDepth = Number(params.maxDiscoveryDepth)
       if (params.sitemap) body.sitemap = params.sitemap
       if (typeof params.crawlEntireDomain === 'boolean')

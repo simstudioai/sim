@@ -234,7 +234,9 @@ describe('reusing a keyless trust setup', () => {
         const result = await create(`Blocked by ${unreadableId}`, keyless(grant()))
 
         expect(result).toMatchObject({ success: false, errorCode: 'conflict' })
-        expect(result.error).toContain('Unreadable sibling')
+        // The caller may not be able to see the sibling, so the refusal never names it.
+        expect(result.error).not.toContain('Unreadable sibling')
+        expect(result.error).toContain('this workspace')
       } finally {
         await db.delete(credential).where(eq(credential.id, unreadableId))
       }
