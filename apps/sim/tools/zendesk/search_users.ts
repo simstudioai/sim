@@ -1,3 +1,4 @@
+import { ZENDESK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import {
   buildZendeskUrl,
@@ -5,6 +6,8 @@ import {
   METADATA_OUTPUT,
   PAGING_OUTPUT,
   USERS_ARRAY_OUTPUT,
+  ZENDESK_CREDENTIAL_PARAMS,
+  zendeskAuthorization,
 } from '@/tools/zendesk/types'
 
 export interface ZendeskSearchUsersParams {
@@ -43,7 +46,10 @@ export const zendeskSearchUsersTool: ToolConfig<
   description: 'Search for users in Zendesk using a query string',
   version: '1.0.0',
 
+  oauth: ZENDESK_CREDENTIAL_OAUTH,
+
   params: {
+    ...ZENDESK_CREDENTIAL_PARAMS,
     email: {
       type: 'string',
       required: true,
@@ -101,14 +107,10 @@ export const zendeskSearchUsersTool: ToolConfig<
       return `${url}?${query}`
     },
     method: 'GET',
-    headers: (params) => {
-      const credentials = `${params.email}/token:${params.apiToken}`
-      const base64Credentials = Buffer.from(credentials).toString('base64')
-      return {
-        Authorization: `Basic ${base64Credentials}`,
-        'Content-Type': 'application/json',
-      }
-    },
+    headers: (params) => ({
+      Authorization: zendeskAuthorization(params),
+      'Content-Type': 'application/json',
+    }),
   },
 
   transformResponse: async (response: Response) => {

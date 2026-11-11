@@ -1,5 +1,12 @@
+import { ZENDESK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError, USER_OUTPUT_PROPERTIES } from '@/tools/zendesk/types'
+import {
+  buildZendeskUrl,
+  handleZendeskError,
+  USER_OUTPUT_PROPERTIES,
+  ZENDESK_CREDENTIAL_PARAMS,
+  zendeskAuthorization,
+} from '@/tools/zendesk/types'
 
 export interface ZendeskGetCurrentUserParams {
   email: string
@@ -25,7 +32,10 @@ export const zendeskGetCurrentUserTool: ToolConfig<
   description: 'Get the currently authenticated user from Zendesk',
   version: '1.0.0',
 
+  oauth: ZENDESK_CREDENTIAL_OAUTH,
+
   params: {
+    ...ZENDESK_CREDENTIAL_PARAMS,
     email: {
       type: 'string',
       required: true,
@@ -49,14 +59,10 @@ export const zendeskGetCurrentUserTool: ToolConfig<
   request: {
     url: (params) => buildZendeskUrl(params.subdomain, '/users/me'),
     method: 'GET',
-    headers: (params) => {
-      const credentials = `${params.email}/token:${params.apiToken}`
-      const base64Credentials = Buffer.from(credentials).toString('base64')
-      return {
-        Authorization: `Basic ${base64Credentials}`,
-        'Content-Type': 'application/json',
-      }
-    },
+    headers: (params) => ({
+      Authorization: zendeskAuthorization(params),
+      'Content-Type': 'application/json',
+    }),
   },
 
   transformResponse: async (response: Response) => {

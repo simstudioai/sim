@@ -650,6 +650,7 @@ async function buildClientCredentialAccountSecret(
       : undefined,
     privateKey: usesField('privateKey') ? fields.privateKey?.trim() || undefined : undefined,
     username: usesField('username') ? fields.username?.trim() || undefined : undefined,
+    apiToken: usesField('apiToken') ? fields.apiToken?.trim() || undefined : undefined,
   }
 
   // Requirements are per-auth-method, not per-provider: Salesforce's JWT

@@ -465,7 +465,7 @@ import { WorkflowInputBlock } from '@/blocks/blocks/workflow_input'
 import { XBlock, XBlockMeta } from '@/blocks/blocks/x'
 import { YouComBlock, YouComBlockMeta, YouComV2Block } from '@/blocks/blocks/youcom'
 import { YouTubeBlock, YouTubeBlockMeta, YouTubeV2Block } from '@/blocks/blocks/youtube'
-import { ZendeskBlock, ZendeskBlockMeta } from '@/blocks/blocks/zendesk'
+import { ZendeskBlock, ZendeskBlockMeta, ZendeskV2Block } from '@/blocks/blocks/zendesk'
 import { ZepBlock, ZepBlockMeta, ZepV2Block } from '@/blocks/blocks/zep'
 import { ZeroBounceBlock, ZeroBounceBlockMeta } from '@/blocks/blocks/zerobounce'
 import { ZohoDeskBlock, ZohoDeskBlockMeta } from '@/blocks/blocks/zoho-desk'
@@ -962,6 +962,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   youtube: YouTubeBlock,
   youtube_v2: YouTubeV2Block,
   zendesk: ZendeskBlock,
+  zendesk_v2: ZendeskV2Block,
   zep: ZepBlock,
   zep_v2: ZepV2Block,
   zoho_desk: ZohoDeskBlock,

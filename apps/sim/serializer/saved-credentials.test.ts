@@ -120,6 +120,7 @@ import { VercelBlock, VercelV2Block } from '@/blocks/blocks/vercel'
 import { WhatsAppBlock, WhatsAppV2Block } from '@/blocks/blocks/whatsapp'
 import { YouComBlock, YouComV2Block } from '@/blocks/blocks/youcom'
 import { YouTubeBlock, YouTubeV2Block } from '@/blocks/blocks/youtube'
+import { ZendeskBlock, ZendeskV2Block } from '@/blocks/blocks/zendesk'
 import { ZepBlock, ZepV2Block } from '@/blocks/blocks/zep'
 import type { BlockConfig } from '@/blocks/types'
 import { Serializer } from '@/serializer'
@@ -347,6 +348,11 @@ const VERSIONS: Array<{
   { legacy: UpstashBlock, successor: UpstashV2Block, secretIds: ['restUrl', 'restToken'] },
   { legacy: EmailBisonBlock, successor: EmailBisonV2Block, secretIds: ['apiKey'] },
   { legacy: DevinBlock, successor: DevinV2Block, secretIds: ['apiKey'] },
+  {
+    legacy: ZendeskBlock,
+    successor: ZendeskV2Block,
+    secretIds: ['email', 'apiToken', 'subdomain'],
+  },
   { legacy: OktaBlock, successor: OktaV2Block, secretIds: ['apiKey'] },
   {
     legacy: InfisicalBlock,

@@ -16,6 +16,7 @@ import {
   RAMP_SERVICE_ACCOUNT_PROVIDER_ID,
   SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID,
   VANTA_SERVICE_ACCOUNT_PROVIDER_ID,
+  ZENDESK_SERVICE_ACCOUNT_PROVIDER_ID,
   ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID,
   ZOOM_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
@@ -31,6 +32,7 @@ import { mintOracleFusionServiceAccountToken } from '@/lib/credentials/client-cr
 import { mintRampServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/ramp'
 import { mintSalesforceServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/salesforce'
 import { mintVantaServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/vanta'
+import { mintZendeskServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zendesk'
 import { mintZohoDeskServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoho-desk'
 import { mintZoomServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoom'
 import type { ServiceAccountPrincipal } from '@/lib/credentials/principal'
@@ -71,8 +73,13 @@ export interface ClientCredentialAccountFields {
    * {@link clientSecret} in practice.
    */
   privateKey?: string
-  /** User a key-based grant authenticates as (Salesforce JWT username, DocuSign user ID). */
+  /**
+   * User a key-based grant authenticates as (Salesforce JWT username, DocuSign
+   * user ID), or the agent email a Zendesk API token signs in with.
+   */
   username?: string
+  /** Long-lived API token for a provider's token sign-in branch (Zendesk API token). */
+  apiToken?: string
 }
 
 /** Identity derived from a successful mint, used at connect time. */
@@ -116,6 +123,16 @@ export interface ClientCredentialAccountMintResult {
   apiDomain?: string
   /** Scopes granted to the app, when the provider reports them. */
   grantedScopes?: string[]
+  /**
+   * Account host the token must be used against, forwarded to tools through
+   * their credential-mapped `domain` (the Zendesk subdomain).
+   */
+  domain?: string
+  /**
+   * `basic` when `accessToken` is an HTTP Basic credential rather than a bearer
+   * token (a Zendesk API token sign-in). Absent means Bearer.
+   */
+  authStyle?: 'basic'
   identity?: ClientCredentialAccountIdentity
 }
 
@@ -161,6 +178,7 @@ const CLIENT_CREDENTIAL_ACCOUNT_MINTERS: Record<
   [GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID]: mintGreenhouseServiceAccountToken,
   [HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID]: mintHelpScoutServiceAccountToken,
   [DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID]: mintDocuSignServiceAccountToken,
+  [ZENDESK_SERVICE_ACCOUNT_PROVIDER_ID]: mintZendeskServiceAccountToken,
 }
 
 export function getClientCredentialAccountMinter(
@@ -192,6 +210,8 @@ export interface ClientCredentialAccountSecretBlob {
   authMethod?: string
   privateKey?: string
   username?: string
+  /** Present only on a Zendesk API-token credential. */
+  apiToken?: string
   metadata?: Record<string, string>
 }
 

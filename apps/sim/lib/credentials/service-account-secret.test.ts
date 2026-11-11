@@ -59,7 +59,8 @@ vi.mock('@/lib/credentials/client-credential-accounts/server', () => ({
     providerId === 'box-service-account' ||
     providerId === 'netsuite-service-account' ||
     providerId === 'oracle-epm-service-account' ||
-    providerId === 'oracle-fusion-service-account'
+    providerId === 'oracle-fusion-service-account' ||
+    providerId === 'zendesk-service-account'
       ? mockClientCredentialMinter
       : undefined,
 }))
@@ -272,6 +273,53 @@ describe('verifyAndBuildServiceAccountSecret', () => {
         principalId: 'acc-1',
       },
     })
+  })
+
+  it('stores only the Zendesk sign-in the selected method uses', async () => {
+    mockClientCredentialMinter.mockResolvedValue({
+      accessToken: 'encoded',
+      expiresInSeconds: 3600,
+      authStyle: 'basic',
+      domain: 'acme',
+      identity: {
+        displayName: 'Zendesk acme',
+        principal: { kind: 'user', id: '42' },
+        auditMetadata: {},
+      },
+    })
+    const submitted = {
+      orgId: 'acme',
+      clientId: 'leftover-client',
+      clientSecret: 'leftover-secret',
+      scope: 'read',
+      username: ' agent@example.com ',
+      apiToken: ' zendesk-api-token ',
+    }
+
+    const apiToken = await verifyAndBuildServiceAccountSecret('zendesk-service-account', {
+      ...submitted,
+      authMethod: 'api_token',
+    })
+    const tokenBlob = JSON.parse(apiToken.encryptedServiceAccountKey)
+    expect(tokenBlob).toMatchObject({
+      authMethod: 'api_token',
+      orgId: 'acme',
+      username: 'agent@example.com',
+      apiToken: 'zendesk-api-token',
+    })
+    expect(tokenBlob.clientSecret).toBeUndefined()
+    expect(tokenBlob.scope).toBeUndefined()
+
+    const client = await verifyAndBuildServiceAccountSecret('zendesk-service-account', submitted)
+    const clientBlob = JSON.parse(client.encryptedServiceAccountKey)
+    expect(clientBlob).toMatchObject({
+      authMethod: 'client_credentials',
+      clientId: 'leftover-client',
+      clientSecret: 'leftover-secret',
+      scope: 'read',
+    })
+    expect(clientBlob.apiToken).toBeUndefined()
+    expect(clientBlob.username).toBeUndefined()
   })
 
   it('threads NetSuite certificate material into the minter and encrypted blob', async () => {

@@ -123,7 +123,7 @@ const oauthTokenResponseSchema = z.object({
   providerWorkspaceId: z.string().optional(),
   realmId: z.string().optional(),
   quickBooksEnvironment: z.enum(['sandbox', 'production']).optional(),
-  authStyle: z.enum(['x-api-token', 'snowflake-workload-identity']).optional(),
+  authStyle: z.enum(['x-api-token', 'snowflake-workload-identity', 'basic']).optional(),
 })
 
 /** Token material a resolved credential yields, on the wire and in-process alike. */

@@ -1,6 +1,13 @@
 import { createLogger } from '@sim/logger'
+import { ZENDESK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError, USER_OUTPUT_PROPERTIES } from '@/tools/zendesk/types'
+import {
+  buildZendeskUrl,
+  handleZendeskError,
+  USER_OUTPUT_PROPERTIES,
+  ZENDESK_CREDENTIAL_PARAMS,
+  zendeskAuthorization,
+} from '@/tools/zendesk/types'
 
 const logger = createLogger('ZendeskUpdateUser')
 
@@ -35,7 +42,10 @@ export const zendeskUpdateUserTool: ToolConfig<ZendeskUpdateUserParams, ZendeskU
     description: 'Update an existing user in Zendesk',
     version: '1.0.0',
 
+    oauth: ZENDESK_CREDENTIAL_OAUTH,
+
     params: {
+      ...ZENDESK_CREDENTIAL_PARAMS,
       email: {
         type: 'string',
         required: true,
@@ -113,14 +123,10 @@ export const zendeskUpdateUserTool: ToolConfig<ZendeskUpdateUserParams, ZendeskU
     request: {
       url: (params) => buildZendeskUrl(params.subdomain, `/users/${params.userId}`),
       method: 'PUT',
-      headers: (params) => {
-        const credentials = `${params.email}/token:${params.apiToken}`
-        const base64Credentials = Buffer.from(credentials).toString('base64')
-        return {
-          Authorization: `Basic ${base64Credentials}`,
-          'Content-Type': 'application/json',
-        }
-      },
+      headers: (params) => ({
+        Authorization: zendeskAuthorization(params),
+        'Content-Type': 'application/json',
+      }),
       body: (params) => {
         const user: any = {}
 

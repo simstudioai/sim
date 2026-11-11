@@ -178,6 +178,7 @@ import {
   xIcon,
   YouComIcon,
   YouTubeIcon,
+  ZendeskIcon,
   ZepIcon,
   ZohoDeskIcon,
   ZoomIcon,
@@ -2640,6 +2641,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'zep',
+  },
+  zendesk: {
+    name: 'Zendesk',
+    icon: ZendeskIcon,
+    services: {
+      zendesk: {
+        name: 'Zendesk',
+        description: 'Manage tickets, users, and organizations in Zendesk Support.',
+        providerId: 'zendesk',
+        serviceAccountProviderId: 'zendesk-service-account',
+        icon: ZendeskIcon,
+        baseProviderIcon: ZendeskIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'zendesk',
   },
   discord: {
     name: 'Discord',

@@ -560,10 +560,11 @@ export interface ServiceAccountTokenResult {
    * Set when the token must be sent in an `x-api-token` header instead of
    * `Authorization: Bearer` (e.g. Pipedrive personal API tokens), or is a
    * Sim-signed OIDC token a keyless Snowflake credential presents through
-   * workload identity federation. Absent means Bearer; OAuth credentials never
+   * workload identity federation, or `basic` for an HTTP Basic credential (a
+   * Zendesk API token sign-in). Absent means Bearer; OAuth credentials never
    * carry it.
    */
-  authStyle?: 'x-api-token' | 'snowflake-workload-identity'
+  authStyle?: 'x-api-token' | 'snowflake-workload-identity' | 'basic'
 }
 
 /**
@@ -775,6 +776,7 @@ function resolveClientCredentialAccountToken(
           authMethod: blob.authMethod,
           privateKey: blob.privateKey,
           username: blob.username,
+          apiToken: blob.apiToken,
         },
         { skipIdentity: true }
       )
@@ -783,6 +785,8 @@ function resolveClientCredentialAccountToken(
           accessToken: mint.accessToken,
           instanceUrl: mint.instanceUrl,
           apiDomain: mint.apiDomain,
+          ...(mint.domain ? { domain: mint.domain } : {}),
+          ...(mint.authStyle ? { authStyle: mint.authStyle } : {}),
         },
         expiresInSeconds: mint.expiresInSeconds,
       }
