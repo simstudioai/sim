@@ -189,9 +189,11 @@
   text-align: inherit;
   cursor: pointer;
 }
+/* The stretched target sits above cell content, so text in any cell opens the row; the selection and action cells stay above it. */
 .rowTarget::after {
   position: absolute;
   inset: 0;
+  z-index: 1;
   content: "";
 }
 .table [data-kind="action"] {
@@ -204,8 +206,9 @@
   position: relative;
   inline-size: var(--spacing-32);
 }
-.table td[data-kind="selection"] {
-  z-index: 1;
+.table td[data-kind="selection"],
+.table td[data-kind="action"] {
+  z-index: 2;
 }
 .table [data-kind="action"][data-passive] {
   padding-inline-end: var(--spacing-8);
