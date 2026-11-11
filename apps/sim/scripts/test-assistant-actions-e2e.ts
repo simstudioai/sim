@@ -613,7 +613,7 @@ try {
     await capture('integration-account-actions')
     await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
     const confirmation = page.getByRole('dialog', {
-      name: 'Disconnect taylor@acme.example?',
+      name: 'Disconnect taylor@acme.example',
       exact: true,
     })
     await expect(confirmation).toBeVisible()
@@ -696,7 +696,10 @@ try {
           expected
         )
       }
-      await page.getByRole('link', { name: 'Back to Jira', exact: true }).click()
+      await page
+        .getByRole('navigation', { name: 'Jira navigation', exact: true })
+        .getByRole('link', { name: 'Jira', exact: true })
+        .click()
       await expect(firstAccount).toBeVisible()
       await openAccountPermissions('taylor@acme.example', credentialId)
       await expect(policy.getByRole('radio', { name: 'Ask', exact: true })).toBeChecked()
@@ -709,7 +712,7 @@ try {
       await capture('integration-selected-account-actions')
       await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
       const confirmation = page.getByRole('dialog', {
-        name: 'Disconnect launch-team@acme.example?',
+        name: 'Disconnect launch-team@acme.example',
         exact: true,
       })
       await expect(confirmation).toContainText('launch-team@acme.example')

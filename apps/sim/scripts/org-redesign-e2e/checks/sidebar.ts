@@ -409,7 +409,7 @@ export async function sidebarChecks() {
   })
 
   section('2 Sidebar: workspaces')
-  await check('a member sees only their workspaces; + is disabled and says why', async () => {
+  await check('a member sees only their workspaces, and no + to add one', async () => {
     await onHome(MEMBER, async ({ page }) => {
       await expect(
         sidebar(page).getByRole('link', { name: MEMBER_ADMIN_WORKSPACE.name })
@@ -419,10 +419,8 @@ export async function sidebarChecks() {
       ).toBeVisible()
       await expect(railLink(page, 'Finance')).toHaveCount(0)
       await expect(
-        railRegion(page, 'Workspaces').getByRole('button', {
-          name: /Only organization owners and admins can create organization workspaces/,
-        })
-      ).toBeDisabled()
+        railRegion(page, 'Workspaces').getByRole('button', { name: 'Add workspace', exact: true })
+      ).toHaveCount(0)
     })
   })
   await check('no workspaces says so', async () => {

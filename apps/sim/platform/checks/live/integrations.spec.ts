@@ -95,7 +95,7 @@ test('a workspace credential renames from its page, and the name survives a relo
         new URL(response.url()).pathname === `/api/credentials/${credential.id}`
     )
     await name.fill(renamed)
-    await details.getByRole('button', { name: 'Save changes', exact: true }).click()
+    await details.getByRole('button', { name: 'Save', exact: true }).click()
     const response = await saved
     expect(response.ok()).toBe(true)
     expect(new URL(response.url()).searchParams.get('workspaceId')).toBe(WORKSPACE_ID)

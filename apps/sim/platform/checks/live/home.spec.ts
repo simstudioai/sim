@@ -377,7 +377,7 @@ test.describe('Home with connected accounts', () => {
       const email = page.getByRole('region', { name: 'Email', exact: true })
       await email.getByRole('button', { name: 'Email options' }).click()
       await page.getByRole('menuitem', { name: 'Disconnect Email' }).click()
-      const dialog = page.getByRole('dialog', { name: 'Disconnect Email?' })
+      const dialog = page.getByRole('dialog', { name: 'Disconnect Email', exact: true })
       await dialog.getByRole('button', { name: 'Disconnect', exact: true }).click()
       await expect(dialog).toBeHidden()
       await expect(email.getByText('Connect your email', { exact: true })).toBeVisible()
