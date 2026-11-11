@@ -215,12 +215,13 @@ export async function resolveAwsSessionCredentials(
   return toSessionCredentials(response.Credentials)
 }
 
-/** Whether a decrypted AWS secret is an OIDC role rather than access keys. */
-export function isKeylessAwsSecret(decrypted: string): boolean {
+/** The auth mode a decrypted AWS secret holds, or undefined when it is not one. */
+export function storedAwsAuthType(decrypted: string): AwsCredentialConfig['authType'] | undefined {
   try {
-    return readStoredSubject(JSON.parse(decrypted)) !== undefined
+    const parsed = storedSecretSchema.safeParse(JSON.parse(decrypted))
+    return parsed.success ? parsed.data.config.authType : undefined
   } catch {
-    return false
+    return undefined
   }
 }
 

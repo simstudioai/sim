@@ -3017,7 +3017,7 @@
           "lang": "bash",
           "meta": null,
           "sha256": "48d4019bc1905094aec776873af1d5a4e94ec2f52d043c51bbbb559b6a876944",
-          "bytes": 262,
+          "bytes": 276,
           "line": 102
         },
         {
@@ -3080,7 +3080,7 @@
           "lang": "bash",
           "meta": null,
           "sha256": "48d4019bc1905094aec776873af1d5a4e94ec2f52d043c51bbbb559b6a876944",
-          "bytes": 262,
+          "bytes": 276,
           "line": 375
         }
       ],
@@ -11191,7 +11191,7 @@
           "lang": "bash",
           "meta": null,
           "sha256": "48d4019bc1905094aec776873af1d5a4e94ec2f52d043c51bbbb559b6a876944",
-          "bytes": 262,
+          "bytes": 276,
           "line": 788
         },
         {
@@ -11205,7 +11205,7 @@
           "lang": "bash",
           "meta": null,
           "sha256": "48d4019bc1905094aec776873af1d5a4e94ec2f52d043c51bbbb559b6a876944",
-          "bytes": 262,
+          "bytes": 276,
           "line": 824
         },
         {

@@ -160,6 +160,9 @@ describe('hostSteeringParams', () => {
   })
 })
 
+/** Any real service-account provider: the fixture tool's URL builder, not the provider, is under test. */
+const PROVIDER = 'jama'
+
 /** A native token block: a service-account picker and one tool, no legacy block. */
 function nativeBlock(toolId: string): BlockConfig {
   return {
@@ -169,7 +172,7 @@ function nativeBlock(toolId: string): BlockConfig {
       {
         id: 'credential',
         type: 'oauth-input',
-        serviceId: 'native-fixture',
+        serviceId: PROVIDER,
         credentialKind: 'service-account',
         canonicalParamId: 'oauthCredential',
         mode: 'basic',
@@ -181,7 +184,7 @@ function nativeBlock(toolId: string): BlockConfig {
 }
 
 /** A tenant-host tool whose instance URL the saved credential supplies only when pinned. */
-function nativeHostTool(oauth: OAuthConfig) {
+function nativeHostTool(oauth: OAuthConfig | undefined) {
   const executable = {
     ...requestTool(
       { accessToken: { type: 'string', required: true }, instanceUrl: required, id: required },
@@ -195,11 +198,11 @@ function nativeHostTool(oauth: OAuthConfig) {
   }
 }
 
-const nativeOAuth = {
+const nativeOAuth: OAuthConfig = {
   required: true,
-  provider: 'native-fixture',
+  provider: PROVIDER,
   credentialKind: 'service-account',
-} as const satisfies OAuthConfig
+}
 
 describe('savedCredentialContractErrors', () => {
   it('fails a native block whose host param the credential does not pin', () => {
@@ -228,11 +231,21 @@ describe('savedCredentialContractErrors', () => {
       [],
       nativeHostTool({
         required: true,
-        provider: 'native-fixture',
+        provider: PROVIDER,
         authoritativeParams: ['instanceUrl'],
       })
     )
 
     expect(errors).toEqual([expect.stringContaining('accepts "any" credentials')])
+  })
+
+  it('fails a native block whose tool has no credential policy, so its token is never filled', () => {
+    const errors = savedCredentialContractErrors(
+      nativeBlock('probe_fixture'),
+      [],
+      nativeHostTool(undefined)
+    )
+
+    expect(errors).toEqual([expect.stringContaining('no credential policy')])
   })
 })

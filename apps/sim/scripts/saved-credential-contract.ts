@@ -284,11 +284,13 @@ export function savedCredentialContractErrors(
     const tool = tools.metadata(toolId)
     const oauth = tool?.oauth
     if (!tool || !oauth) {
-      // A tool that takes none of the replaced secrets (its own per-call auth) needs no policy.
+      // A successor's tool that takes none of the replaced secrets keeps its own per-call auth
+      // (a routing key, a webhook URL) and needs no policy. A native block has no such tools:
+      // without a policy the executor never fills the tool's token from the picker.
       const takesReplacedSecret = Object.keys(tool?.params ?? {}).some((param) =>
         replacedSecrets.has(param)
       )
-      if (takesReplacedSecret) {
+      if (legacies.length === 0 || takesReplacedSecret) {
         errors.push(`Block "${block.type}" → tool "${toolId}": no credential policy (oauth).`)
       }
       continue

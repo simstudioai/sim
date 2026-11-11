@@ -499,7 +499,7 @@ export async function resolveCredentialToken(
               status: 400,
               code: error.code,
               error:
-                'The credential’s user is no longer a member of the Account ID set on the credential — reconnect the credential',
+                'DocuSign found no account for this credential’s user. Check the Account ID on the credential, if one is set, and that the user belongs to an account in this environment, then reconnect the credential',
             }
           }
         }

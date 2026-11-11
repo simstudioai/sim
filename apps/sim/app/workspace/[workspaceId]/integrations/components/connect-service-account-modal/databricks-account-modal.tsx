@@ -93,13 +93,10 @@ function DatabricksAccountForm({
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
   const [description, setDescription] = useState(initialDescription ?? '')
 
-  // A reconnect opens on keyless only for a keyless credential, so a key-based connection is
-  // never switched to keyless by default; a new connection defaults to keyless wherever this
-  // deployment supports it.
+  // A reconnect opens on the credential's stored mode, so it never switches auth by default;
+  // a new connection defaults to keyless wherever this deployment supports it.
   const defaultAuthType: DatabricksAuthType = credentialId
-    ? keyless.reconnectsKeyless
-      ? 'oidc_federation'
-      : 'service_principal'
+    ? (keyless.reconnectAuthType ?? 'service_principal')
     : keyless.available
       ? 'oidc_federation'
       : 'service_principal'

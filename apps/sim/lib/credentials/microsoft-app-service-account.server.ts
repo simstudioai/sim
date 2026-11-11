@@ -455,13 +455,15 @@ async function verifyDataverseApplicationUser(environmentUrl: string, token: str
   )
 }
 
-/** Whether a decrypted Microsoft app credential secret is a keyless (federated) one. */
-export function isKeylessMicrosoftAppSecret(decrypted: string): boolean {
+/** The auth mode a decrypted Microsoft app credential secret holds, or undefined when it is not one. */
+export function storedMicrosoftAppAuthType(
+  decrypted: string
+): 'federated' | 'client_secret' | 'certificate' | undefined {
   try {
     const parsed = storedSecretSchema.safeParse(JSON.parse(decrypted))
-    return parsed.success && parsed.data.config.authType === 'federated'
+    return parsed.success ? parsed.data.config.authType : undefined
   } catch {
-    return false
+    return undefined
   }
 }
 
