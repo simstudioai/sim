@@ -210,6 +210,34 @@ describe('AgentMail saved API key verification', () => {
   })
 })
 
+describe('New Relic saved User key verification', () => {
+  it('reports a NerdGraph error answer without a user as an outage, not a bad key', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ data: { actor: null }, errors: [{ message: 'Internal Server Error' }] })
+        )
+    )
+
+    await expect(
+      validateNewRelicServiceAccount({ apiToken: 'NRAK-valid', domain: 'us' })
+    ).rejects.toMatchObject({ code: 'provider_unavailable' })
+  })
+
+  it('still rejects a NerdGraph answer that resolves no user and reports no error', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ data: { actor: { user: null } } }))
+    )
+
+    await expect(
+      validateNewRelicServiceAccount({ apiToken: 'NRAK-unknown', domain: 'us' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+})
+
 describe('Ashby saved API key verification', () => {
   it('accepts a valid key that lacks the read permission for this endpoint', async () => {
     vi.stubGlobal(

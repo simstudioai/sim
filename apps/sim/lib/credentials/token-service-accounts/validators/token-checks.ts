@@ -1034,8 +1034,9 @@ export const validateMem0ServiceAccount = tokenCheckValidator({
  * A New Relic User API key is bound to its data center, so it is checked against the
  * NerdGraph host of the region typed with it (`us` or `eu`, stored lower-cased because
  * the tools send anything but `eu` to the US host). An unknown key, or one from the other
- * region, gets 401; NerdGraph can also answer 200 with an `errors` array, so only a
- * resolved user proves the key.
+ * region, gets 401, so only a resolved user proves the key. A 200 whose `errors` array
+ * left the user unresolved is NerdGraph failing to answer this fixed query, not a verdict
+ * on the key.
  */
 export const validateNewRelicServiceAccount = tokenCheckValidator({
   serviceLabel: 'New Relic',
@@ -1046,7 +1047,17 @@ export const validateNewRelicServiceAccount = tokenCheckValidator({
     headers: { ...newRelicHeaders(apiToken), Accept: 'application/json' },
     body: JSON.stringify({ query: '{ actor { user { id } } }' }),
   }),
-  acceptsBody: (body) => toRecord(toRecord(toRecord(body).data).actor).user != null,
+  acceptsBody: (body) => {
+    const { data, errors } = toRecord(body)
+    if (toRecord(toRecord(data).actor).user != null) return true
+    if (toArray(errors).length > 0) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'NerdGraph answered with errors and no user',
+      })
+    }
+    return false
+  },
 })
 
 /**
