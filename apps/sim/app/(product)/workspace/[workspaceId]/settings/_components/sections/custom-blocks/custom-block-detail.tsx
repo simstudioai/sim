@@ -383,6 +383,7 @@ export function CustomBlockDetail({ existing, workspaceId, onBack }: CustomBlock
         backLabel='Custom blocks'
         onBack={() => guard.guardBack(onBack)}
         title={existing?.name || 'New block'}
+        description='Publish a deployed workflow as a reusable, organization-wide block'
       />
       {error && <InlineNotice intent='danger' message={error} />}
       <FormFieldset disabled={fieldsDisabled}>
@@ -548,7 +549,10 @@ export function CustomBlockDetail({ existing, workspaceId, onBack }: CustomBlock
       )}
       {existing && canManageBlock && (
         <SettingsSection title='Manage block'>
-          <SettingsRow label='Delete block'>
+          <SettingsRow
+            label='Delete block'
+            description='Remove this block for everyone who uses it'
+          >
             <Button
               variant='quiet'
               destructive

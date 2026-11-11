@@ -76,7 +76,7 @@ export function SecretSettings({ data, href, update }: SecretSettingsProps) {
             </FieldStack>
           </SettingsRow>
         ))}
-        <SettingsRow label='Add secret'>
+        <SettingsRow label='Add secret' description='Store a value your sources can use'>
           <Button
             size='compact'
             icon='I074'

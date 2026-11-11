@@ -102,7 +102,10 @@ export function AssistantApps({ organizationId, search, data, policies }: Assist
         )
       })}
       {available.length > 0 && (
-        <SettingsRow label='New Assistant app'>
+        <SettingsRow
+          label='New Assistant app'
+          description='Approve an app members connect their own accounts to'
+        >
           <SearchableSelect
             label='Add Assistant app'
             labelHidden

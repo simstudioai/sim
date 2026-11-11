@@ -107,10 +107,15 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
         description='Saved on this device, encrypted. Chat can never read, choose, or type it.'
       />
       <SettingsSection title='Login'>
-        <SettingsRow label='Site' leading={<CredentialIcon icon={credential.icon} />} field>
+        <SettingsRow
+          label='Site'
+          description='The site this password signs in to'
+          leading={<CredentialIcon icon={credential.icon} />}
+          field
+        >
           <Input label='Site' value={credential.origin} placeholder='Site' viewOnly />
         </SettingsRow>
-        <SettingsRow label='Username' field>
+        <SettingsRow label='Username' description='The username saved with this password' field>
           <Input
             label='Username'
             value={credential.username || '—'}
@@ -118,7 +123,7 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
             viewOnly
           />
         </SettingsRow>
-        <SettingsRow label='Password' field>
+        <SettingsRow label='Password' description='Stored encrypted on this device' field>
           <Input
             label='Password'
             value={revealed ?? MASK_PLACEHOLDER}
@@ -151,7 +156,10 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
         </SettingsRow>
       </SettingsSection>
       <SettingsSection title='Manage password'>
-        <SettingsRow label='Forget password'>
+        <SettingsRow
+          label='Forget password'
+          description='Delete the saved password for this site from this device'
+        >
           <Button
             variant='quiet'
             destructive

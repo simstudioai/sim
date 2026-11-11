@@ -13,7 +13,7 @@ paths:
 
 **Do not add subtitles, helper text, or descriptive copy beneath headings, labels, cards, or settings by default.** Prefer one concise, self-explanatory heading or label. Only add supporting copy when the user explicitly asks for it, or when it is necessary to prevent misunderstanding or error — and never use it to restate the heading.
 
-This applies to app UI outside the Platform: settings rows, modals, panels, cards, list rows, empty states, form fields, and section headers. Platform views (`app/(product)`, `platform`) follow the stricter one-line-per-control rule in `apps/sim/platform/AGENTS.md`, which `check:platform-design` enforces (`helper-copy`); marketing surfaces (`app/(landing)`, docs) follow `constitution.md`.
+This applies to app UI outside the Platform: settings rows, modals, panels, cards, list rows, empty states, form fields, and section headers. Platform views (`app/(product)`, `platform`) follow Paper instead, in `apps/sim/platform/AGENTS.md`: a field carries no hint line (`check:platform-design` `helper-copy`), while every form `Modal`, settings page, `SettingsRow` and `DetailHeader` carries a concise description as Paper draws it; marketing surfaces (`app/(landing)`, docs) follow `constitution.md`.
 
 ## Platform copy vocabulary
 

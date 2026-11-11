@@ -168,7 +168,10 @@ export default function CustomBlocksSection({ workspaceId }: WorkspaceSettingsSe
           </ResourceList>
         )}
         {canCreate && (
-          <SettingsRow label='New custom block'>
+          <SettingsRow
+            label='New custom block'
+            description='Publish a deployed workflow as a reusable block'
+          >
             <Button size='compact' icon='I074' onClick={() => setIsCreating(true)}>
               Create block
             </Button>

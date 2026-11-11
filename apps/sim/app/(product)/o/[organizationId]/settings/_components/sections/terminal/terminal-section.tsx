@@ -1,7 +1,7 @@
 'use client'
 
-import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { Select } from '@sim/emcn/picker/select'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
@@ -98,7 +98,10 @@ export default function TerminalSection() {
 
   return (
     <SettingsSection title='General'>
-      <SettingsRow label={ENABLED_LABEL}>
+      <SettingsRow
+        label={ENABLED_LABEL}
+        description='Chat can run commands in a terminal on this computer'
+      >
         <Switch
           label={ENABLED_LABEL}
           checked={preferences.terminalEnabled}
@@ -106,9 +109,8 @@ export default function TerminalSection() {
           onCheckedChange={(checked) => void setEnabled(checked)}
         />
       </SettingsRow>
-      <SettingsRow label='Theme'>
+      <SettingsRow label='Theme' description='Select the terminal’s color theme' field>
         <SearchableSelect
-          variant='text'
           label='Terminal theme'
           labelHidden
           searchLabel='Search themes'
@@ -127,8 +129,8 @@ export default function TerminalSection() {
           }}
         />
       </SettingsRow>
-      <SettingsRow label='Default zoom'>
-        <ChoiceMenu
+      <SettingsRow label='Default zoom' description='Text size for new terminal sessions' field>
+        <Select
           label='Terminal default zoom'
           options={ZOOM_OPTIONS}
           value={String(preferences.terminalDefaultZoom)}

@@ -361,7 +361,6 @@ export const PROPER_PHRASES: readonly string[] = [
   'Claude Desktop',
   'Compute Units',
   'Control Center',
-  'Credential Groups',
   'Generic Secrets',
   'GitHub App',
   'Graph Explorer',
@@ -534,8 +533,8 @@ export function classifyPage(source: ts.SourceFile): PageKind {
   return 'unclassified'
 }
 
-/** Where a helper line sits: under a field, a form dialog's title, a row or page header, or in field data. */
-export type HelperCopyKind = 'field-hint' | 'dialog-subtitle' | 'row-subtitle' | 'data-hint'
+/** Where a helper line sits: under a field, or in field data. */
+export type HelperCopyKind = 'field-hint' | 'data-hint'
 
 /** A helper line, the node it sits on, and the subject (`label`, `title` or field `id`) that names it. */
 export interface HelperCopy {
@@ -613,11 +612,10 @@ function fieldSubject(object: ts.ObjectLiteralExpression, fallback: string): str
 /**
  * The helper lines in `source`, each a second line of copy under something that already has a name:
  * a `hint` on an EMCN field, or on any element when the hint spells out copy (a wrapper's
- * pass-through `hint={hint}` is judged where it reaches EMCN); a `description` on a form `Modal`
- * (a confirm or feedback dialog's description is its question, not a subtitle); a literal
- * `description` on a `SettingsRow` or a settings `DetailHeader` (a computed one reports state); and a
- * non-empty `hint` in field data. `disabledReason`, `error` and `aria-*` are other attributes, so
- * nothing here reads them.
+ * pass-through `hint={hint}` is judged where it reaches EMCN); and a non-empty `hint` in field data.
+ * A `description` on a `Modal`, `SettingsRow` or `DetailHeader` is the design's own second line
+ * (Paper's dialogs and settings rows each carry one), so nothing here reads it, nor
+ * `disabledReason`, `error` or `aria-*`.
  */
 export function helperCopy(source: ts.SourceFile): HelperCopy[] {
   const emcn = emcnBindings(source)
@@ -629,25 +627,6 @@ export function helperCopy(source: ts.SourceFile): HelperCopy[] {
       const hint = attribute(node, 'hint')
       if (hint?.initializer && (exported || containsCopy(hint.initializer)))
         found.push({ kind: 'field-hint', node: hint, subject: subjectOf(node, 'label') })
-      const description = attribute(node, 'description')
-      if (description?.initializer) {
-        const variant = attribute(node, 'variant')
-        if (exported === 'Modal' && (!variant || staticText(variant.initializer) === 'form'))
-          found.push({
-            kind: 'dialog-subtitle',
-            node: description,
-            subject: subjectOf(node, 'title'),
-          })
-        else if (
-          (exported === 'SettingsRow' || tag === 'DetailHeader') &&
-          staticText(description.initializer)?.trim()
-        )
-          found.push({
-            kind: 'row-subtitle',
-            node: description,
-            subject: subjectOf(node, tag === 'DetailHeader' ? 'title' : 'label'),
-          })
-      }
     }
     if (
       ts.isPropertyAssignment(node) &&

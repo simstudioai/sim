@@ -164,7 +164,10 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
                     )
                   })}
                 </ResourceList>
-                <SettingsRow label='New identity provider'>
+                <SettingsRow
+                  label='New identity provider'
+                  description='Connect a SAML or OIDC identity provider'
+                >
                   <Button
                     size='compact'
                     onClick={() => void setParams({ provider: null, createProvider: true })}

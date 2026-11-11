@@ -2,6 +2,7 @@
 
 import { type ChangeEventHandler, useRef, useState } from 'react'
 import { Avatar } from '@sim/emcn/avatar'
+import { Button } from '@sim/emcn/button'
 import { TextField } from '@sim/emcn/field'
 import { Icon } from '@sim/emcn/icon'
 import { IdentityButton } from '@sim/emcn/identity-button'
@@ -36,7 +37,7 @@ export function ProfileForm({
   const displayName = name || email
   return (
     <SettingsSection title='Profile'>
-      <SettingsRow label='Picture'>
+      <SettingsRow label='Picture' description='Set your profile picture'>
         <IdentityButton
           label={uploading ? 'Uploading profile picture' : 'Change profile picture'}
           onClick={uploading ? undefined : () => picker.current?.click()}
@@ -58,14 +59,10 @@ export function ProfileForm({
           onChange={onPictureChange}
         />
       </SettingsRow>
-      <SettingsRow label='Name'>
-        <IdentityButton
-          label={name || 'Set name'}
-          trailingIcon='I036'
-          onClick={() => setEditing(true)}
-        >
+      <SettingsRow label='Name' description='Set your display name'>
+        <Button trailingIcon='I036' onClick={() => setEditing(true)}>
           {name || 'Set name'}
-        </IdentityButton>
+        </Button>
         <Modal
           open={editing}
           onOpenChange={setEditing}
@@ -89,7 +86,7 @@ export function ProfileForm({
           />
         </Modal>
       </SettingsRow>
-      <SettingsRow label='Email'>
+      <SettingsRow label='Email' description='Your account email'>
         <span data-type='T067'>{email || '—'}</span>
       </SettingsRow>
     </SettingsSection>

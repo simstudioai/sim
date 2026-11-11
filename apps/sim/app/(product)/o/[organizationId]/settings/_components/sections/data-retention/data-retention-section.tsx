@@ -167,7 +167,10 @@ function RetentionForm({ initialData, organizationId, workspaceOptions }: Retent
             />
           ))}
         </ResourceList>
-        <SettingsRow label='Workspace override'>
+        <SettingsRow
+          label='Workspace override'
+          description='Set a different policy for some workspaces'
+        >
           <Button
             variant='primary'
             icon='I074'

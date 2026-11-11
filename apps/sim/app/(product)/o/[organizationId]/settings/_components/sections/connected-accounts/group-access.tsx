@@ -71,7 +71,10 @@ export function GroupAccess({ data, actions }: GroupAccessProps) {
             title={search.trim() ? 'No matching workspaces' : 'No workspaces have access'}
           />
         )}
-        <SettingsRow label='Grant workspace access'>
+        <SettingsRow
+          label='Grant workspace access'
+          description='Let a workspace use accounts from this pool'
+        >
           <Button
             size='compact'
             disabled={!available.length || data.grants.length >= 1000}

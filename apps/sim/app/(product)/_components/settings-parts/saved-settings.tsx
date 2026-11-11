@@ -1,12 +1,9 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { IconButton } from '@sim/emcn/button'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
-import { Tooltip } from '@sim/emcn/tooltip'
-import styles from '@/app/(product)/_components/settings-parts/saved-settings.module.css'
 import { useBooleanSetting, useSavedSettingsRead } from '@/platform/lib/data/preferences'
 
 interface SavedSettingsSectionProps {
@@ -26,38 +23,14 @@ export function SavedSettingsSection({ title, children }: SavedSettingsSectionPr
 interface BooleanRowProps {
   setting: Parameters<typeof useBooleanSetting>[0]
   label: string
-  /** A clip of the behavior and the one line that explains it, both in the row's About tooltip. */
-  preview?: {
-    clip: 'auto-connect-on-drop' | 'auto-focus-on-click' | 'canvas-error-notification'
-    caption: string
-  }
+  description: string
 }
 
 /** A saved on-or-off preference. */
-export function BooleanRow({ setting, label, preview }: BooleanRowProps) {
+export function BooleanRow({ setting, label, description }: BooleanRowProps) {
   const { checked, disabled, set } = useBooleanSetting(setting)
   return (
-    <SettingsRow label={label}>
-      {preview && (
-        <Tooltip
-          label={preview.caption}
-          panel={
-            <span className={styles.preview} data-material='floating' data-elevation='menu'>
-              <span data-type='T060'>{preview.caption}</span>
-              <video
-                aria-label={`${label} example`}
-                autoPlay
-                muted
-                playsInline
-                loop={preview.clip !== 'canvas-error-notification'}
-                src={`/tooltips/${preview.clip}.mp4`}
-              />
-            </span>
-          }
-        >
-          <IconButton icon='I047' label={`About ${label.toLowerCase()}`} size='compact' />
-        </Tooltip>
-      )}
+    <SettingsRow label={label} description={description}>
       <Switch label={label} checked={checked} disabled={disabled} onCheckedChange={set} />
     </SettingsRow>
   )

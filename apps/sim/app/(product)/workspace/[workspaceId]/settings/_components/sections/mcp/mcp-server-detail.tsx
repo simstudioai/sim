@@ -151,7 +151,7 @@ export function McpServerDetail({
           </SettingsRow>
         )}
         {manageable && server.authType === 'oauth' && server.connectionStatus !== 'connected' && (
-          <SettingsRow label='Authentication'>
+          <SettingsRow label='Authentication' description='Sign in to this server to use its tools'>
             <Button size='compact' variant='primary' onClick={onAuthorize}>
               {authorizing ? 'Reopen authorization' : 'Authorize'}
             </Button>

@@ -18,14 +18,21 @@ import {
 
 interface PreferenceRowProps {
   label: string
+  description: string
   checked: boolean
   disabled: boolean
   onCheckedChange: (checked: boolean) => void
 }
 
-function PreferenceRow({ label, checked, disabled, onCheckedChange }: PreferenceRowProps) {
+function PreferenceRow({
+  label,
+  description,
+  checked,
+  disabled,
+  onCheckedChange,
+}: PreferenceRowProps) {
   return (
-    <SettingsRow label={label}>
+    <SettingsRow label={label} description={description}>
       <Switch
         label={label}
         checked={checked}
@@ -100,7 +107,7 @@ export default function DesktopSection({ organization }: SettingsSectionProps) {
       <ComputerUse enabled={organization.featureFlags['mothership-computer-use']} />
       <SettingsSection title='General'>
         {shellVersion && (
-          <SettingsRow label='Version'>
+          <SettingsRow label='Version' description='The desktop app version on this computer'>
             <span data-type='T067'>
               {updateState.status === 'ready' && updateState.version
                 ? `${shellVersion} → ${updateState.version} on restart`
@@ -110,6 +117,7 @@ export default function DesktopSection({ organization }: SettingsSectionProps) {
         )}
         <PreferenceRow
           label='Launch Sim at login'
+          description='Open Sim when you sign in to this computer'
           checked={preferences.launchAtLogin}
           disabled={generalPending}
           onCheckedChange={(checked) => void updatePreference('launchAtLogin', checked)}
@@ -117,6 +125,7 @@ export default function DesktopSection({ organization }: SettingsSectionProps) {
         {supportsPreventSleep && (
           <PreferenceRow
             label='Prevent sleep while a chat is running'
+            description='Keep this computer awake until a chat finishes'
             checked={preferences.preventSleepWhileRunning ?? true}
             disabled={preventSleepPending}
             onCheckedChange={(checked) => void setPreventSleep(checked)}
@@ -124,12 +133,14 @@ export default function DesktopSection({ organization }: SettingsSectionProps) {
         )}
         <PreferenceRow
           label='Show Sim in Control Center'
+          description='Reach Sim from the menu bar'
           checked={preferences.trayEnabled}
           disabled={generalPending}
           onCheckedChange={(checked) => void updatePreference('trayEnabled', checked)}
         />
         <PreferenceRow
           label='Automatically download updates'
+          description='Download new versions in the background'
           checked={preferences.autoDownloadUpdates}
           disabled={generalPending}
           onCheckedChange={(checked) => void updatePreference('autoDownloadUpdates', checked)}
@@ -139,6 +150,7 @@ export default function DesktopSection({ organization }: SettingsSectionProps) {
         <SettingsSection title='Local files'>
           <PreferenceRow
             label='Full file access'
+            description='Sim can read and import files from any folder on this computer'
             checked={preferences.fullFileAccess ?? false}
             disabled={fullFileAccessPending}
             onCheckedChange={(checked) => void setFullFileAccess(checked)}
@@ -148,18 +160,21 @@ export default function DesktopSection({ organization }: SettingsSectionProps) {
       <SettingsSection title='Notifications'>
         <PreferenceRow
           label='Enable desktop notifications'
+          description='When a run needs your attention'
           checked={preferences.notificationsEnabled}
           disabled={generalPending}
           onCheckedChange={(checked) => void updatePreference('notificationsEnabled', checked)}
         />
         <PreferenceRow
           label='Play notification sounds'
+          description='Play a sound when work finishes'
           checked={preferences.notificationSounds}
           disabled={notificationsDisabled || generalPending}
           onCheckedChange={(checked) => void updatePreference('notificationSounds', checked)}
         />
         <PreferenceRow
           label="Notify only when Sim isn't focused"
+          description='Stay quiet while you are using Sim'
           checked={preferences.notificationsOnlyWhenUnfocused}
           disabled={notificationsDisabled || generalPending}
           onCheckedChange={(checked) =>

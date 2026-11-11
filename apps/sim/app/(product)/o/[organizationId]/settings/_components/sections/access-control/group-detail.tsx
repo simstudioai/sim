@@ -370,7 +370,10 @@ export function GroupDetail({
           {core.length === 0 && tools.length === 0 && <Muted>No matching blocks</Muted>}
           {core.length > 0 && (
             <SettingsSection title='Core blocks'>
-              <SettingsRow label='All core blocks'>
+              <SettingsRow
+                label='All core blocks'
+                description='Set access for every core block at once'
+              >
                 <PermissionBulkSelect targets={targets(core)} controls={controls} />
               </SettingsRow>
               {core.map((block) => (
@@ -380,7 +383,10 @@ export function GroupDetail({
           )}
           {tools.length > 0 && (
             <SettingsSection title='Integrations and triggers'>
-              <SettingsRow label='All integrations and triggers'>
+              <SettingsRow
+                label='All integrations and triggers'
+                description='Choose access for an integration, then expand it to set individual tools'
+              >
                 <PermissionBulkSelect targets={targets(tools)} controls={controls} />
               </SettingsRow>
               {tools.map((block) => (
@@ -617,7 +623,7 @@ export function GroupDetail({
         catalogBody()
       )}
       <SettingsSection title='Manage'>
-        <SettingsRow label='Group settings'>
+        <SettingsRow label='Group settings' description='Save or discard your changes'>
           <ActionRow>
             {hasChanges && (
               <Button variant='quiet' disabled={updateGroup.isPending} onClick={discard}>
@@ -635,7 +641,10 @@ export function GroupDetail({
             </Button>
           </ActionRow>
         </SettingsRow>
-        <SettingsRow label='Delete permission group'>
+        <SettingsRow
+          label='Delete permission group'
+          description='Remove this group and its restrictions'
+        >
           <Button
             variant='quiet'
             destructive

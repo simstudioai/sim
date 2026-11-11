@@ -5,8 +5,8 @@ import { Button } from '@sim/emcn/button'
 import { CopyButton } from '@sim/emcn/button/copy-button'
 import { useFeedbackExpiry } from '@sim/emcn/feedback/use-feedback-expiry'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
-import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { Select } from '@sim/emcn/picker/select'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
@@ -176,8 +176,8 @@ export function ServerDetail({
         </FieldStack>
       </SettingsSection>
       <SettingsSection title='Connect'>
-        <SettingsRow label='MCP client'>
-          <ChoiceMenu
+        <SettingsRow label='MCP client' description='Select the client to set up' field>
+          <Select
             label='MCP client'
             value={client}
             options={MCP_CLIENTS}
@@ -189,7 +189,10 @@ export function ServerDetail({
         </SettingsRow>
         {client === 'sim' ? (
           <>
-            <SettingsRow label='Add to workspace'>
+            <SettingsRow
+              label='Add to workspace'
+              description='Use this server’s tools in other workflows through the MCP block'
+            >
               <Button
                 size='compact'
                 variant='primary'

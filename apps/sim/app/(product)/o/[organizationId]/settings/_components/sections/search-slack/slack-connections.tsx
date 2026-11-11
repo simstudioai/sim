@@ -37,7 +37,11 @@ export function SlackConnections({ connections, renderSetup }: SlackConnectionsP
       {list === null ? (
         <FailureNotice message='Could not load Slack connections' onRetry={connections.retry} />
       ) : list === undefined ? null : rows.length === 0 ? (
-        <SettingsRow leading={<Icon providerId='slack' />} label='Slack'>
+        <SettingsRow
+          leading={<Icon providerId='slack' />}
+          label='Slack'
+          description='Connect your workspace to ask questions in Slack'
+        >
           <Button
             size='compact'
             variant='primary'

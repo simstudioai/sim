@@ -311,7 +311,7 @@ export function ConnectionDetails({ source, connection, href, update }: DetailsP
       </SettingsSection>
       <SettingsSection title='Connection'>
         {source.docs && (
-          <SettingsRow label='Documentation'>
+          <SettingsRow label='Documentation' description='Read how to set up this source'>
             <Button
               render={
                 <a href={source.docs} target='_blank' rel='noreferrer'>
@@ -332,7 +332,7 @@ export function ConnectionDetails({ source, connection, href, update }: DetailsP
             {connection.paused ? 'Resume search' : 'Pause search'}
           </Button>
         </SettingsRow>
-        <SettingsRow label='Remove connection'>
+        <SettingsRow label='Remove connection' description='Disconnect this source from Sim Search'>
           <Button
             variant='quiet'
             destructive

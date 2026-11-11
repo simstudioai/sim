@@ -110,7 +110,10 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
         description={`${SOURCE_LABELS[drain.source]} → ${DESTINATION_LABELS[drain.destinationType]} · ${CADENCE_LABELS[drain.scheduleCadence]}`}
       />
       <SettingsSection title='Status'>
-        <SettingsRow label='Enabled'>
+        <SettingsRow
+          label='Enabled'
+          description='Disabled drains keep their place and resume where they left off'
+        >
           <Switch
             label='Enabled'
             checked={drain.enabled}
@@ -182,7 +185,7 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
             ]}
           />
         </FieldStack>
-        <SettingsRow label='Connection'>
+        <SettingsRow label='Connection' description='Check that Sim can reach the destination'>
           <Button
             disabled={testDrain.isPending}
             onClick={() =>
@@ -227,7 +230,7 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
         )}
       </SettingsSection>
       <SettingsSection title='Manage drain'>
-        <SettingsRow label='Delete drain'>
+        <SettingsRow label='Delete drain' description='Stop exporting and remove this drain'>
           <Button
             variant='quiet'
             destructive

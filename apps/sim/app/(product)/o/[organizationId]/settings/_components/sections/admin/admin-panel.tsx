@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
-import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { Select } from '@sim/emcn/picker/select'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
@@ -39,7 +39,10 @@ export function AdminPanel({ console: admin }: { console: AdminConsole }) {
         ) : (
           settings && (
             <>
-              <SettingsRow label='Super admin mode'>
+              <SettingsRow
+                label='Super admin mode'
+                description='Act with platform administrator access'
+              >
                 <Switch
                   label='Super admin mode'
                   checked={settings.superUserModeEnabled}
@@ -48,7 +51,7 @@ export function AdminPanel({ console: admin }: { console: AdminConsole }) {
                 />
               </SettingsRow>
               {settings.superUserModeEnabled && admin.benchmarkAvailable && (
-                <SettingsRow label='Benchmarks'>
+                <SettingsRow label='Benchmarks' description='Open the agent benchmark runs'>
                   <Button
                     size='compact'
                     render={<Link href={BENCHMARK_HREF}>Open benchmarks</Link>}
@@ -58,8 +61,12 @@ export function AdminPanel({ console: admin }: { console: AdminConsole }) {
                 </SettingsRow>
               )}
               {settings.superUserModeEnabled && (
-                <SettingsRow label='Mothership environment'>
-                  <ChoiceMenu
+                <SettingsRow
+                  label='Mothership environment'
+                  description='Default uses the configured Sim agent URL'
+                  field
+                >
+                  <Select
                     label='Mothership environment'
                     value={settings.mothershipEnvironment}
                     options={ENVIRONMENTS}

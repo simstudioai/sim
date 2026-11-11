@@ -126,7 +126,10 @@ export function MothershipLicenses({ env }: LicensesProps) {
         <LicenseForm generate={(draft) => actions.generateSampleLicense(env, draft)} />
       ) : (
         <SettingsSection title='Generate license'>
-          <SettingsRow label='Enterprise license'>
+          <SettingsRow
+            label='Enterprise license'
+            description='Issue a license using the approved order reference'
+          >
             <Button
               size='compact'
               render={<Link href={licenseGeneratorHref(env)}>Generate license</Link>}

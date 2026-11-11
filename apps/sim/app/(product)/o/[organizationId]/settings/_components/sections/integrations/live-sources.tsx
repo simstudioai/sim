@@ -273,7 +273,7 @@ export function LiveSources() {
                 }
               />
             )}
-            <SettingsRow label='Add source'>
+            <SettingsRow label='Add source' description='Connect a source for Sim Search to read'>
               <Button
                 size='compact'
                 icon='I074'

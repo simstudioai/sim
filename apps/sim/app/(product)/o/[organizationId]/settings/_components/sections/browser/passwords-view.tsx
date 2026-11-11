@@ -89,7 +89,12 @@ export function PasswordsView({
 
   return (
     <>
-      <DetailHeader backLabel='Browser' onBack={onBack} title='Passwords'>
+      <DetailHeader
+        backLabel='Browser'
+        onBack={onBack}
+        title='Passwords'
+        description='Saved logins for the built-in browser, encrypted on this device'
+      >
         {canImport && (
           <Button variant='primary' icon='I074' onClick={() => setImportOpen(true)}>
             Import
@@ -129,7 +134,10 @@ export function PasswordsView({
             <EmptyState title={`No matching passwords for “${searchTerm}”`} />
           )}
           <SettingsSection title='Manage passwords'>
-            <SettingsRow label='Delete all passwords'>
+            <SettingsRow
+              label='Delete all passwords'
+              description='Delete every saved password from this device'
+            >
               <Button
                 variant='quiet'
                 destructive

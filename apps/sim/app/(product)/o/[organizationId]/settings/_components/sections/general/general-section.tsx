@@ -35,9 +35,10 @@ export default function GeneralSection(props: SettingsSectionProps) {
     return (
       <>
         <DetailHeader
-          backLabel='General'
+          backLabel='Preferences'
           backHref={generalHref(organization, query)}
           title='Privacy'
+          description='Control what Sim collects about how you use it'
         />
         <PrivacySection
           organization={organization}
@@ -64,7 +65,10 @@ export default function GeneralSection(props: SettingsSectionProps) {
     <>
       <PreferencesSection fixture={fixture} />
       <SettingsSection title='Privacy'>
-        <SettingsRow label='Privacy settings'>
+        <SettingsRow
+          label='Privacy settings'
+          description='Control what Sim collects about how you use it'
+        >
           <Button
             size='compact'
             render={<Link href={generalHref(organization, query, 'privacy')} />}

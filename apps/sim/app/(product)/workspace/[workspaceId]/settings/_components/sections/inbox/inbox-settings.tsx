@@ -3,10 +3,10 @@
 import { useState } from 'react'
 import { Button, IconButton } from '@sim/emcn/button'
 import { TextField } from '@sim/emcn/field'
-import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { Modal } from '@sim/emcn/modal'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { MultiSelect } from '@sim/emcn/picker/multi-select'
+import { Select } from '@sim/emcn/picker/select'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -59,7 +59,10 @@ export function InboxSettings({
           <FieldStack>
             <TextField label='Address' value={address} viewOnly placeholder='' />
           </FieldStack>
-          <SettingsRow label='Change address'>
+          <SettingsRow
+            label='Change address'
+            description='Creates a new inbox; the old address stops receiving email at once'
+          >
             <Button
               variant='quiet'
               destructive
@@ -106,7 +109,7 @@ export function InboxSettings({
             ))}
           </>
         )}
-        <SettingsRow label='Add sender'>
+        <SettingsRow label='Add sender' description='Allow another address to email tasks'>
           <Button
             size='compact'
             icon='I074'
@@ -121,8 +124,12 @@ export function InboxSettings({
         </SettingsRow>
       </SettingsSection>
       <SettingsSection title='Secrets'>
-        <SettingsRow label='Secret access'>
-          <ChoiceMenu
+        <SettingsRow
+          label='Secret access'
+          description='Choose which secrets email tasks can use'
+          field
+        >
+          <Select
             label='Secret access'
             options={SECRET_SCOPE_OPTIONS}
             value={secretScope}
@@ -137,7 +144,7 @@ export function InboxSettings({
           />
         </SettingsRow>
         {secretScope === 'selected' && (
-          <SettingsRow label='Secrets'>
+          <SettingsRow label='Secrets' description='The secrets email tasks can read'>
             <MultiSelect
               label='Secrets'
               labelHidden

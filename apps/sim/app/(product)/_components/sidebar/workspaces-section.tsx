@@ -148,6 +148,7 @@ export function WorkspacesSection({
           open={creating}
           onOpenChange={setCreating}
           title='Create workspace'
+          description='Give this workspace a name.'
           confirmLabel='Create workspace'
           onConfirm={async (values) => {
             const name = readFormText(values, 'name')

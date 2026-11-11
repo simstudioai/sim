@@ -237,6 +237,11 @@ export function PolicyDetail({
               ? 'Add workspace override'
               : 'Edit workspace override'
         }
+        description={
+          isOrg
+            ? 'Applied to every workspace without its own override'
+            : 'Overrides the organization defaults for the selected workspaces'
+        }
       />
       <FormFieldset disabled={isSaving}>
         {!isOrg && (
@@ -325,7 +330,7 @@ export function PolicyDetail({
         </SettingsSection>
       </FormFieldset>
       <SettingsSection title='Policy changes'>
-        <SettingsRow label='Changes to this policy'>
+        <SettingsRow label='Changes to this policy' description='Save or discard your edits'>
           <ActionRow>
             {changed && (
               <Button variant='quiet' disabled={isSaving} onClick={onDiscard}>
@@ -342,7 +347,10 @@ export function PolicyDetail({
           </ActionRow>
         </SettingsRow>
         {canRemove && (
-          <SettingsRow label='Workspace override'>
+          <SettingsRow
+            label='Workspace override'
+            description='Use the organization defaults for these workspaces'
+          >
             <Button
               variant='quiet'
               destructive

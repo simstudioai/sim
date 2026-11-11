@@ -151,6 +151,7 @@ export function DrainCreate({ organizationId, onBack, onCreated }: DrainCreatePr
         backLabel='Data drains'
         onBack={() => guard.guardBack(onBack)}
         title='New drain'
+        description='Export logs, chats and runs to your own storage or observability stack on a schedule'
       />
       <FormFieldset disabled={createDrain.isPending}>
         <SettingsSection title='Drain'>

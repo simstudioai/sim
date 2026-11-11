@@ -123,6 +123,7 @@ export function AddWorkflowModal({
         if (!next) onClose()
       }}
       title='Add workflow'
+      description='Select a deployed workflow to add to this MCP server. The workflow will be available as a tool.'
       confirmLabel={addTool.isPending ? 'Adding…' : 'Add workflow'}
       confirmDisabled={!workflowId}
       onConfirm={async () => {

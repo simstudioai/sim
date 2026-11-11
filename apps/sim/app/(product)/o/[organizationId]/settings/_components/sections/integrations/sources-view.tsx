@@ -146,7 +146,10 @@ export function SourcesView({ initial, subpath }: SourcesViewProps) {
               </SettingsRow>
             ))}
           {apps.some((app) => !app.approved) && (
-            <SettingsRow label='Add Assistant app'>
+            <SettingsRow
+              label='Add Assistant app'
+              description='Approve an app members connect their own accounts to'
+            >
               <ActionMenu
                 label='Add app'
                 triggerSize='compact'
@@ -248,7 +251,7 @@ export function SourcesView({ initial, subpath }: SourcesViewProps) {
         {!visible.length && !showSecrets && (
           <EmptyState title={needle ? 'No matching sources' : 'No sources yet'} />
         )}
-        <SettingsRow label='Add source'>
+        <SettingsRow label='Add source' description='Connect a source for Sim Search to read'>
           <Button
             size='compact'
             disabled={!available.length && !!data.secretMode}

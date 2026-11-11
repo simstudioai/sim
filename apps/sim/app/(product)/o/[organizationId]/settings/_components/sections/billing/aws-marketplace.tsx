@@ -30,7 +30,7 @@ export function AwsMarketplaceSubscription({
     <SettingsSection title={title}>
       {subscription.licenses.map((license) => (
         <Fragment key={license.id}>
-          <SettingsRow label='Status'>
+          <SettingsRow label='Status' description='Your AWS Marketplace subscription'>
             <StatusTag label={license.statusLabel} intent={license.statusIntent} />
           </SettingsRow>
           {license.rows.map((row) => (

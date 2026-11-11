@@ -183,7 +183,10 @@ export function GroupProviders({ data, actions, renderSlackSetup }: GroupProvide
             }
           />
         )}
-        <SettingsRow label='Available integrations'>
+        <SettingsRow
+          label='Available integrations'
+          description='Choose which integrations people can connect'
+        >
           <Button
             size='compact'
             disabled={!available.length}

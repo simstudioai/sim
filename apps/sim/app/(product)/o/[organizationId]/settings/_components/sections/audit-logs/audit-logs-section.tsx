@@ -163,7 +163,7 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
         }
       />
       <SettingsSection title='Filters'>
-        <SettingsRow label='Resource type'>
+        <SettingsRow label='Resource type' description='Show events for these resource types'>
           <MultiSelect
             variant='text'
             label='Type'
@@ -175,7 +175,7 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
             searchLabel='Search types'
           />
         </SettingsRow>
-        <SettingsRow label='Time range'>
+        <SettingsRow label='Time range' description='Show events from this period'>
           <ChoiceMenu
             id={timeRangeId}
             label='Time range'
@@ -192,7 +192,7 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
           />
         </SettingsRow>
         {showCustomRange && (
-          <SettingsRow label='Custom time range'>
+          <SettingsRow label='Custom time range' description='Show events between two dates'>
             <DateRangePicker
               label='Custom time range'
               labelHidden
@@ -211,7 +211,7 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
           </SettingsRow>
         )}
         {scope.chipLabel && (
-          <SettingsRow label='Workspace'>
+          <SettingsRow label='Workspace' description='Show events from this workspace only'>
             <Button
               variant='secondary'
               size='compact'
@@ -225,7 +225,7 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
       </SettingsSection>
 
       <SettingsSection title='Audit events'>
-        <SettingsRow label='Filtered events'>
+        <SettingsRow label='Filtered events' description='Refresh or export the events that match'>
           <ActionRow>
             <Button
               variant='quiet'

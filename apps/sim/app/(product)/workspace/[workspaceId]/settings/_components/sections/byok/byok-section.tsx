@@ -145,7 +145,7 @@ export default function ByokSection({ workspaceId }: WorkspaceSettingsSectionPro
           searchTerm={searchTerm}
           keyUsageDescription={
             isOrganizationScope
-              ? 'This key is available to executions in every current and future workspace attached to this organization unless the workspace has its own key for this provider. Create PR, Update PR, and Plan may pass it into the untrusted Pi sandbox; Pi search still requires an explicit block key.'
+              ? 'This key is available to executions in every current and future workspace attached to this organization unless the workspace has its own key for this provider. Create PR, Update PR, and Plan may pass it into the untrusted Pi sandbox; Pi search still requires an explicit block key. Your key is encrypted and stored securely.'
               : undefined
           }
           lastKeyDeleteMessage={

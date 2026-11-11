@@ -157,7 +157,10 @@ export function MembersPanel({ organization }: MembersPanelProps) {
       {(members.canManage || members.canLeave) && (
         <SettingsSection title='Membership'>
           {members.canManage && (
-            <SettingsRow label='Invite people'>
+            <SettingsRow
+              label='Invite people'
+              description='Add people to your organization by email'
+            >
               <Tooltip label='Invitations are disabled' enabled={!members.canInvite}>
                 <span>
                   <Button
@@ -172,7 +175,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
             </SettingsRow>
           )}
           {members.canLeave && members.viewerId && (
-            <SettingsRow label='Organization membership'>
+            <SettingsRow label='Organization membership' description='Leave this organization'>
               <Button
                 size='compact'
                 variant='quiet'

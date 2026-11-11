@@ -124,19 +124,25 @@ export function ProviderDetail({
         />
       </SettingsSection>
       <SettingsSection title='Manage provider'>
-        <SettingsRow label='Configuration'>
+        <SettingsRow label='Configuration' description='Edit how Sim connects to this provider'>
           <Button size='compact' onClick={edit}>
             Edit
           </Button>
         </SettingsRow>
         {onMakePrimary && (
-          <SettingsRow label='Primary provider'>
+          <SettingsRow
+            label='Primary provider'
+            description='Sign people at this domain in through this provider first'
+          >
             <Button size='compact' onClick={onMakePrimary}>
               Make primary
             </Button>
           </SettingsRow>
         )}
-        <SettingsRow label='Delete identity provider'>
+        <SettingsRow
+          label='Delete identity provider'
+          description='Members can no longer sign in through this provider'
+        >
           <Button size='compact' variant='quiet' destructive onClick={onDelete}>
             Delete
           </Button>

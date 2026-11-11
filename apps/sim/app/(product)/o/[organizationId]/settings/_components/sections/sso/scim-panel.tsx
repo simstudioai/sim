@@ -340,7 +340,10 @@ export function ScimPanel({ organizationId, active, onOpenDomains }: ScimPanelPr
   return (
     <SectionStack>
       <SettingsSection title='Directory provisioning'>
-        <SettingsRow label='Enable directory provisioning'>
+        <SettingsRow
+          label='Enable directory provisioning'
+          description='Create, update and deactivate members from your identity provider with SCIM 2.0'
+        >
           <Switch
             label='Enable directory provisioning'
             checked={enabled}

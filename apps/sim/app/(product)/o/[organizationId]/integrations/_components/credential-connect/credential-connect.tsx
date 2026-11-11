@@ -150,6 +150,11 @@ function CredentialConnectForm({
             ? 'Continue'
             : 'Connect'
       }
+      description={
+        connection.setup === 'oauth' || connection.setup === 'mcp-oauth'
+          ? `Review access before continuing to ${integrationName}.`
+          : undefined
+      }
       confirmDisabled={disabled}
       onOpenChange={(open) => {
         if (!open) onClose()

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { CopyButton } from '@sim/emcn/button/copy-button'
 import { CopyField } from '@sim/emcn/field/value-fields'
-import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { Select } from '@sim/emcn/picker/select'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import {
   FieldStack,
@@ -92,8 +92,8 @@ export default function SearchMcpSection({ organization }: SettingsSectionProps)
     <SettingsSection title='Connection'>
       {organization.viewer.canUseSearchMcp ? (
         <>
-          <SettingsRow label='App'>
-            <ChoiceMenu
+          <SettingsRow label='App' description='Select the app to connect' field>
+            <Select
               label='MCP app'
               value={client.value}
               options={CLIENTS}
@@ -111,7 +111,7 @@ export default function SearchMcpSection({ organization }: SettingsSectionProps)
           to enable it.
         </Muted>
       )}
-      <SettingsRow label='Setup guide'>
+      <SettingsRow label='Setup guide' description='Read the Search MCP documentation'>
         <Button
           size='compact'
           render={

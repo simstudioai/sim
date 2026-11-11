@@ -111,7 +111,10 @@ export default function DataDrainsSection({ organization }: SettingsSectionProps
         ) : (
           <EmptyState title='No data drains yet' description='Create a drain to get started.' />
         )}
-        <SettingsRow label='New data drain'>
+        <SettingsRow
+          label='New data drain'
+          description='Export logs, chats and runs to your own storage on a schedule'
+        >
           <Button size='compact' icon='I074' disabled={isPending} onClick={() => setCreating(true)}>
             Create drain
           </Button>

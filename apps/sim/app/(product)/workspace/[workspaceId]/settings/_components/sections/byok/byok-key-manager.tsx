@@ -43,7 +43,7 @@ interface ByokKeyManagerProps {
   keysByProvider: ReadonlyMap<string, readonly ByokManagerKey[]>
   capabilities: ByokManagerCapabilities
   searchTerm: string
-  /** Where the key is exposed beyond this dialog's scope, shown under the key dialog's title. */
+  /** Usage and security copy that replaces the key dialog's default. */
   keyUsageDescription?: string
   /** The consequence of deleting a provider's last key. */
   lastKeyDeleteMessage: string
@@ -189,6 +189,7 @@ export function ByokKeyManager({
           if (!open) setManagingProviderId(null)
         }}
         title={managingMeta ? `${managingMeta.name} API keys` : 'API keys'}
+        description='Requests are distributed evenly across these keys. Your keys are encrypted and stored securely.'
         confirmLabel={capabilities.add ? 'Add key' : undefined}
         confirmDisabled={managingKeys.length >= MAX_BYOK_KEYS_PER_PROVIDER}
         onConfirm={() => {
@@ -235,7 +236,10 @@ export function ByokKeyManager({
             ? `${isUpdatingExistingKey ? 'Update' : 'Add'} ${editingMeta.name} API key`
             : 'API key'
         }
-        description={keyUsageDescription}
+        description={
+          keyUsageDescription ??
+          `Requests are distributed evenly across all ${editingMeta?.name ?? ''} keys. Your key is encrypted and stored securely.`
+        }
         confirmLabel='Save'
         confirmDisabled={!apiKeyInput.trim() || !canSaveEditingKey}
         submitOnEnter

@@ -1,7 +1,7 @@
 'use client'
 
-import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { Select } from '@sim/emcn/picker/select'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { useQueryState } from 'nuqs'
@@ -46,20 +46,19 @@ function Profile({ fixture }: PreferencesSectionProps) {
   )
 }
 
-function Preferences({ fixture }: PreferencesSectionProps) {
+function Appearance({ fixture }: PreferencesSectionProps) {
   const [fixtureTheme, setFixtureTheme] = useQueryState(
     fixtureAppearanceParam.key,
     fixtureAppearanceParam.parser.withOptions({ history: 'replace', scroll: false })
   )
   const appearance = useAppearanceSettings()
-  const snap = useSnapToGridSetting()
   return (
-    <SavedSettingsSection title='Preferences'>
-      <SettingsRow label='Theme'>
-        <ChoiceMenu
+    <SavedSettingsSection title='Appearance'>
+      <SettingsRow label='Theme' description='Select your preferred color theme' field>
+        <Select
           label='Theme'
           options={THEMES}
-          value={fixture ? fixtureTheme : appearance.theme}
+          value={(fixture ? fixtureTheme : appearance.theme) ?? undefined}
           onValueChange={(value) => {
             if (!fixture) return appearance.setTheme(value)
             if (value === 'system' || value === 'light' || value === 'dark')
@@ -67,9 +66,8 @@ function Preferences({ fixture }: PreferencesSectionProps) {
           }}
         />
       </SettingsRow>
-      <SettingsRow label='Time zone' description='Used for dates and schedules you read'>
+      <SettingsRow label='Time zone' description='Used for dates and schedules you read' field>
         <SearchableSelect
-          variant='text'
           label='Time zone'
           labelHidden
           searchLabel='Search time zones'
@@ -78,32 +76,31 @@ function Preferences({ fixture }: PreferencesSectionProps) {
           onValueChange={appearance.setTimezone}
         />
       </SettingsRow>
+    </SavedSettingsSection>
+  )
+}
+
+function Canvas() {
+  const snap = useSnapToGridSetting()
+  return (
+    <SavedSettingsSection title='Canvas'>
       <BooleanRow
         setting='autoConnect'
         label='Auto-connect on drop'
-        preview={{
-          clip: 'auto-connect-on-drop',
-          caption: 'Connect a dropped block to the nearest block automatically',
-        }}
+        description='Connect a dropped block to the nearest block automatically'
       />
       <BooleanRow
         setting='autoFocusOnClick'
         label='Auto-focus on click'
-        preview={{
-          clip: 'auto-focus-on-click',
-          caption: 'Center the canvas on a block when you click it',
-        }}
+        description='Center the canvas on a block when you click it'
       />
       <BooleanRow
         setting='errorNotificationsEnabled'
         label='Canvas error notifications'
-        preview={{
-          clip: 'canvas-error-notification',
-          caption: 'Show error popups on blocks when a workflow run fails',
-        }}
+        description='Show error popups on blocks when a workflow run fails'
       />
-      <SettingsRow label='Snap to grid'>
-        <ChoiceMenu
+      <SettingsRow label='Snap to grid' description='Align blocks to a grid as you move them' field>
+        <Select
           label='Snap to grid'
           options={snap.options}
           value={snap.value}
@@ -111,7 +108,11 @@ function Preferences({ fixture }: PreferencesSectionProps) {
           onValueChange={snap.set}
         />
       </SettingsRow>
-      <BooleanRow setting='showActionBar' label='Show canvas controls' />
+      <BooleanRow
+        setting='showActionBar'
+        label='Show canvas controls'
+        description='Show the zoom and layout controls on the canvas'
+      />
     </SavedSettingsSection>
   )
 }
@@ -120,7 +121,8 @@ export default function PreferencesSection({ fixture }: PreferencesSectionProps)
   return (
     <>
       <Profile fixture={fixture} />
-      <Preferences fixture={fixture} />
+      <Appearance fixture={fixture} />
+      <Canvas />
     </>
   )
 }

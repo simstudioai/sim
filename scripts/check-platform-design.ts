@@ -1516,13 +1516,12 @@ const HINT_DATA_MODULES: ReadonlySet<string> = new Set([
 ])
 const HELPER_COPY_MESSAGES: Record<HelperCopyKind, string> = {
   'field-hint': 'A field has no hint line',
-  'dialog-subtitle': 'A form dialog has no subtitle',
-  'row-subtitle': 'A settings row or page header has no written subtitle',
   'data-hint': 'Field data carries no hint',
 }
 /**
- * `helper-copy`: a field, form dialog, settings row or page header says what it needs in its own
- * label, placeholder or options, never in a second line beneath. A line that must stay (a one-time
+ * `helper-copy`: a field says what it needs in its own label, placeholder or options, never in a
+ * second line beneath. A dialog, settings row or page header keeps its description, as Paper
+ * designs it. A line that must stay (a one-time
  * secret warning, a consequence nothing else can show) is named in `HELPER_COPY_OWNERS` as
  * `<file>#<label, title or field id>` with its reason.
  */

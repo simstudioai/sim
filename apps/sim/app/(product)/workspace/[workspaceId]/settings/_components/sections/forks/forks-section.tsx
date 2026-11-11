@@ -240,7 +240,10 @@ export default function ForksSection({ workspaceId }: WorkspaceSettingsSectionPr
                 />
               )}
               {canMutate && (
-                <SettingsRow label='New fork'>
+                <SettingsRow
+                  label='New fork'
+                  description='Copy this workspace to work on separately'
+                >
                   <Button
                     variant='primary'
                     size='compact'

@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
-import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { Select } from '@sim/emcn/picker/select'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
@@ -33,6 +33,8 @@ interface DataRow {
   kind: BrowserDataKind
   label: string
   action: string
+  /** The row's description: what the data is. */
+  description: string
   /** What the user actually loses, spelled out in the confirmation. */
   consequence: string
 }
@@ -43,18 +45,21 @@ const DATA_ROWS: readonly DataRow[] = [
     kind: 'cookies',
     label: 'Cookies',
     action: 'Delete cookies',
+    description: 'What keeps the browser signed in to sites',
     consequence: 'sign the browser out of every site it is currently signed into',
   },
   {
     kind: 'site-data',
     label: 'Site data',
     action: 'Delete site data',
+    description: 'Drafts and preferences sites store on this device',
     consequence: 'erase the data sites have stored locally, such as drafts and preferences',
   },
   {
     kind: 'cache',
     label: 'Cached images and files',
     action: 'Delete cached images and files',
+    description: 'Copies that make sites load faster',
     consequence: 'free up space and make sites load more slowly the first time',
   },
 ]
@@ -146,7 +151,10 @@ function BrowserSettings({
   return (
     <>
       <SettingsSection title='General'>
-        <SettingsRow label={ENABLED_LABEL}>
+        <SettingsRow
+          label={ENABLED_LABEL}
+          description='Chat can open and use sites in the built-in browser'
+        >
           <Switch
             label={ENABLED_LABEL}
             checked={preferences.browserEnabled}
@@ -167,8 +175,8 @@ function BrowserSettings({
             />
           </SettingsRow>
         )}
-        <SettingsRow label='Theme'>
-          <ChoiceMenu
+        <SettingsRow label='Theme' description='Select the color theme sites see' field>
+          <Select
             label='Browser theme'
             options={THEMES}
             value={preferences.browserTheme}
@@ -179,8 +187,8 @@ function BrowserSettings({
             }}
           />
         </SettingsRow>
-        <SettingsRow label='Default zoom'>
-          <ChoiceMenu
+        <SettingsRow label='Default zoom' description='Zoom level for new pages' field>
+          <Select
             label='Default zoom'
             options={ZOOM_OPTIONS}
             value={String(preferences.browserDefaultZoom)}
@@ -200,7 +208,10 @@ function BrowserSettings({
             {downloadDirectoryPending ? 'Choosing…' : 'Change'}
           </Button>
         </SettingsRow>
-        <SettingsRow label='Passwords'>
+        <SettingsRow
+          label='Passwords'
+          description='Saved logins for the built-in browser, encrypted on this device'
+        >
           <Button size='compact' onClick={onOpenPasswords}>
             Manage
           </Button>
@@ -208,13 +219,16 @@ function BrowserSettings({
       </SettingsSection>
       <SettingsSection title='Browsing data'>
         {DATA_ROWS.map((row) => (
-          <SettingsRow key={row.kind} label={row.label}>
+          <SettingsRow key={row.kind} label={row.label} description={row.description}>
             <Button variant='quiet' destructive size='compact' onClick={() => setConfirming(row)}>
               {row.action}
             </Button>
           </SettingsRow>
         ))}
-        <SettingsRow label='Clear all browsing data'>
+        <SettingsRow
+          label='Clear all browsing data'
+          description='Cookies, site data and cache; your Sim account and saved passwords stay'
+        >
           <Button variant='quiet' destructive size='compact' onClick={() => setConfirming('all')}>
             Clear all
           </Button>

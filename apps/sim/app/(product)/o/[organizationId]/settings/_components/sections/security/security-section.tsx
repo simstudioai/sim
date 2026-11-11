@@ -116,7 +116,10 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
           )}
         </ActionRow>
       </FieldStack>
-      <SettingsRow label='End all sessions'>
+      <SettingsRow
+        label='End all sessions'
+        description='Members must sign in again; your current session stays active'
+      >
         <Button variant='quiet' destructive onClick={() => setConfirmingRevoke(true)}>
           Sign out all members
         </Button>

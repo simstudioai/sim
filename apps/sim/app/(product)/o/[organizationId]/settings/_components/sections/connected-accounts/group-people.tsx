@@ -89,7 +89,10 @@ export function GroupPeople({ people, nextCursor, shallow, actions }: GroupPeopl
             Next page
           </Button>
         )}
-        <SettingsRow label='Request account connections'>
+        <SettingsRow
+          label='Request account connections'
+          description='Ask people to connect their accounts to this pool'
+        >
           <Button
             size='compact'
             onClick={() => {

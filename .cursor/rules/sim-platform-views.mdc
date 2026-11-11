@@ -17,7 +17,9 @@ like that" is not one.
 
 | Job | Use | Never |
 | --- | --- | --- |
-| Explain a field, dialog or row | Its label, placeholder and options (`Access keys (long-lived)`); `error` for validation, `disabledReason` for a locked control, the dialog's Setup guide for steps | A `hint`, form `Modal` `description`, written `SettingsRow`/`DetailHeader` subtitle or data `hint` (`check:platform-design` `helper-copy`; a line that must stay is named in `HELPER_COPY_OWNERS`) |
+| Explain a field | Its label, placeholder and options (`Access keys (long-lived)`, `Description (optional)`); `error` for validation, `disabledReason` for a locked control, the dialog's Setup guide for steps | A field `hint` or data `hint` (`check:platform-design` `helper-copy`; a line that must stay is named in `HELPER_COPY_OWNERS`) |
+| Explain a dialog, settings page or row | A one-sentence form `Modal` `description`; the page's `description` in `apps/sim/platform/lib/data/settings-navigation.ts`; a concise `description` on every `SettingsRow`, `BooleanRow` and `DetailHeader` (`Select your preferred color theme`) | An About tooltip on a settings row, or a hand-written subtitle `<p>` |
+| Settings row choice | A bordered `Select` (`SearchableSelect` for a long list) in `SettingsRow field` | A `ChoiceMenu` or `variant='text'` trigger for a saved preference |
 | First read of a view | Render nothing for data-backed content while pending (static chrome renders at once), `FailureNotice` when the read fails, `EmptyState` when it settles empty. Read the query's `status`, not an empty list. An action's own pending label (`pendingLabel`, a Load action's `Loading…`) is feedback, not loading copy | A skeleton, shimmer, placeholder rows or loading copy (`check:platform-design` `loading-copy`); a pending hint, placeholder or detail line; treating empty as loading |
 | Failed read | `FailureNotice`, labelled Retry. `intent='warning'` where the read partly answered | A hand-built retry button or `InlineNotice` + `Button` |
 | Failed background refresh | `FailureNotice` above the content it keeps | Replacing content already on screen |

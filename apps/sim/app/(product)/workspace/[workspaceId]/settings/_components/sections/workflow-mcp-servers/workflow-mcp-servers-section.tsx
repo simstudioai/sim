@@ -162,7 +162,7 @@ export default function WorkflowMcpServersSection({ workspaceId }: WorkspaceSett
           </ResourceList>
         )}
         {canManage && (
-          <SettingsRow label='New MCP server'>
+          <SettingsRow label='New MCP server' description='Serve deployed workflows as MCP tools'>
             <Button
               size='compact'
               icon='I074'

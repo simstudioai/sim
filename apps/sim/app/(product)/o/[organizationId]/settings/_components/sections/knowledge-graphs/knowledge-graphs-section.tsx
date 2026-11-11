@@ -44,7 +44,10 @@ export default function KnowledgeGraphsSection({ organization }: SettingsSection
             </SettingsRow>
           ))
         )}
-        <SettingsRow label='New knowledge graph'>
+        <SettingsRow
+          label='New knowledge graph'
+          description='New chats use the active graph; existing chats keep theirs'
+        >
           <Button
             size='compact'
             icon='I074'

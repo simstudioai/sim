@@ -72,6 +72,7 @@ function CreateGroupModal({
       open={open}
       onOpenChange={change}
       title='Create permission group'
+      description='Give the group a name and choose the workspaces it governs.'
       confirmLabel={createGroup.isPending ? 'Creating…' : 'Create group'}
       confirmDisabled={!name.trim() || (!isDefault && workspaceIds.length === 0)}
       onConfirm={async () => {
@@ -207,12 +208,15 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
         </SettingsSection>
       )}
       <SettingsSection title='Manage'>
-        <SettingsRow label='New permission group'>
+        <SettingsRow label='New permission group' description='Limit what a set of members can use'>
           <Button size='compact' icon='I074' onClick={() => setCreating(true)}>
             Create group
           </Button>
         </SettingsRow>
-        <SettingsRow label='Access requests'>
+        <SettingsRow
+          label='Access requests'
+          description='Review requests to use restricted features'
+        >
           <Button
             size='compact'
             render={<Link href={hrefFor(surfaceHref(organization, '/settings/requests'))} />}

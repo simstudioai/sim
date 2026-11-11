@@ -263,7 +263,10 @@ export default function SandboxesSection({ workspaceId }: WorkspaceSettingsSecti
           />
         )}
         {canAdmin && (
-          <SettingsRow label='New sandbox'>
+          <SettingsRow
+            label='New sandbox'
+            description='Choose the packages and tools your Function blocks can use'
+          >
             <Button
               size='compact'
               icon='I074'

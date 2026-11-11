@@ -171,6 +171,7 @@ export function SandboxEditor({
         backLabel='Sandboxes'
         onBack={onBack}
         title={sandbox ? sandbox.name : 'New sandbox'}
+        description='Dependencies, system packages and managed CLI tools your Function blocks can use'
       />
       <FormFieldset disabled={disabled}>
         <SettingsSection title='Details'>
@@ -251,7 +252,7 @@ export function SandboxEditor({
       />
       {sandbox && canAdmin && (
         <SettingsSection title='Manage sandbox'>
-          <SettingsRow label='Delete sandbox'>
+          <SettingsRow label='Delete sandbox' description='Remove this sandbox from the workspace'>
             <Button
               variant='quiet'
               destructive

@@ -20,7 +20,12 @@ export function UsageEvents({ organizationId }: { organizationId: string }) {
   const events = useUsageEvents(organizationId, window)
   return (
     <>
-      <DetailHeader backLabel='Insights' backHref={backHref} title='Usage events' />
+      <DetailHeader
+        backLabel='Insights'
+        backHref={backHref}
+        title='Usage events'
+        description='Every credit-consuming event across your organization’s workspaces'
+      />
       {events.failed && events.rows.length === 0 ? (
         <FailureNotice message='Couldn’t load usage events.' onRetry={events.retry} />
       ) : events.pending ? null : events.rows.length === 0 ? (

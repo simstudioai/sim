@@ -28,7 +28,11 @@ function UsageLimit(props: Parameters<typeof useUsageLimitField>[0]) {
   const field = useUsageLimitField(props)
   return (
     <SettingsSection title='Usage limit'>
-      <SettingsRow label='Monthly limit, in credits' field>
+      <SettingsRow
+        label='Monthly limit, in credits'
+        description='Max usage per month; 1,000 credits = $5'
+        field
+      >
         <Input
           label='Monthly limit, in credits'
           inputMode='numeric'
@@ -85,7 +89,10 @@ export function BillingView({
       )}
       {billing.showOnDemand && (
         <SettingsSection title='Enable on-demand usage'>
-          <SettingsRow label={ON_DEMAND_LABEL}>
+          <SettingsRow
+            label={ON_DEMAND_LABEL}
+            description='Keep running past your plan’s included usage, billed as you go'
+          >
             <Tooltip enabled={billing.onDemand.locked} label={ON_DEMAND_LOCKED}>
               <span>
                 <Switch
@@ -104,22 +111,29 @@ export function BillingView({
           <BooleanRow
             setting='billingUsageNotificationsEnabled'
             label='Email me when I reach 80% usage'
+            description='Sent when usage reaches 80% of the monthly limit'
           />
         </SavedSettingsSection>
       )}
       {billing.showSubscription && (
         <SettingsSection title='Subscription'>
           {billing.periodEnd && (
-            <SettingsRow label={billing.periodEndLabel}>
+            <SettingsRow
+              label={billing.periodEndLabel}
+              description='When your current billing period ends'
+            >
               <span data-type='T067'>{billing.periodEnd}</span>
             </SettingsRow>
           )}
           {billing.weeklyRefresh && (
-            <SettingsRow label='Weekly refresh'>
+            <SettingsRow label='Weekly refresh' description='Credits your plan adds back each week'>
               <span data-type='T067'>{billing.weeklyRefresh}</span>
             </SettingsRow>
           )}
-          <SettingsRow label='Payment method'>
+          <SettingsRow
+            label='Payment method'
+            description='Update your card and billing details in Stripe'
+          >
             <Button
               size='compact'
               disabled={!billing.canOpenPortal || billing.portalPending}
@@ -131,6 +145,11 @@ export function BillingView({
           {billing.showCancellation && (
             <SettingsRow
               label={billing.cancelled ? 'Subscription canceled' : 'Cancel subscription'}
+              description={
+                billing.cancelled
+                  ? 'Restore it to keep your plan after this period'
+                  : 'Your plan stays active until the period ends'
+              }
             >
               {billing.cancelled ? (
                 <Button

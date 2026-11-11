@@ -313,7 +313,10 @@ export default function McpSection({ workspaceId }: WorkspaceSettingsSectionProp
           </ResourceList>
         )}
         {canEdit && (
-          <SettingsRow label='New MCP server'>
+          <SettingsRow
+            label='New MCP server'
+            description='Connect an MCP server your workflows can call'
+          >
             <Button
               size='compact'
               icon='I074'
