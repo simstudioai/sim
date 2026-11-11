@@ -1,4 +1,7 @@
-import { ZOOMINFO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
+import {
+  savedCredentialTokenParam,
+  ZOOMINFO_CREDENTIAL_OAUTH,
+} from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 import type {
   ZoomInfoEnrichContactsParams,
@@ -30,12 +33,7 @@ export const zoominfoEnrichContactsTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'ZoomInfo OAuth client secret',
     },
-    accessToken: {
-      type: 'string',
-      required: false,
-      visibility: 'hidden',
-      description: 'Access token minted from the selected ZoomInfo credential',
-    },
+    accessToken: savedCredentialTokenParam('ZoomInfo'),
     matchPersonInput: {
       type: 'string',
       required: true,

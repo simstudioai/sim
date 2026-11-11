@@ -1,4 +1,7 @@
-import { ZOOMINFO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
+import {
+  savedCredentialTokenParam,
+  ZOOMINFO_CREDENTIAL_OAUTH,
+} from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 import type { ZoomInfoSearchNewsParams, ZoomInfoSearchNewsResponse } from '@/tools/zoominfo/types'
 import {
@@ -31,12 +34,7 @@ export const zoominfoSearchNewsTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'ZoomInfo OAuth client secret',
     },
-    accessToken: {
-      type: 'string',
-      required: false,
-      visibility: 'hidden',
-      description: 'Access token minted from the selected ZoomInfo credential',
-    },
+    accessToken: savedCredentialTokenParam('ZoomInfo'),
     categories: {
       type: 'string',
       required: false,

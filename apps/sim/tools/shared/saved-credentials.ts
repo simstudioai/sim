@@ -1,6 +1,6 @@
 import type { OAuthService } from '@/lib/oauth'
 import type { SubBlockConfig } from '@/blocks/types'
-import type { CredentialParamSource, OAuthConfig } from '@/tools/types'
+import type { CredentialParamSource, OAuthConfig, ToolConfig } from '@/tools/types'
 
 /**
  * Credential policy for every AWS tool. `required: false` keeps the inline
@@ -36,6 +36,19 @@ export const AWS_SESSION_SIGNED_TOOL_IDS: ReadonlySet<string> = new Set(['s3_get
 export const OPERATION_RESOLVED_CREDENTIAL_PROVIDERS: ReadonlySet<string> = new Set([
   AWS_CREDENTIAL_OAUTH.provider,
 ])
+
+/**
+ * The hidden param a tool receives a saved credential's minted access token through. Hidden, so
+ * neither the user nor the model can fill it; the executor sets it from the selected credential.
+ */
+export function savedCredentialTokenParam(serviceLabel: string) {
+  return {
+    type: 'string',
+    required: false,
+    visibility: 'hidden',
+    description: `Access token minted from the selected ${serviceLabel} credential`,
+  } as const satisfies ToolConfig['params'][string]
+}
 
 /**
  * Credential policy for a tool that takes an inline token and also accepts a

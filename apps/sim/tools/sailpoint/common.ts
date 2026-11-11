@@ -2,6 +2,7 @@ import { toError } from '@sim/utils/errors'
 import { filterUndefined } from '@sim/utils/object'
 import { STANDARD_LIMIT_MAX } from '@/lib/internal/sailpoint/schema'
 import type { SailPointCredentials } from '@/tools/sailpoint/types'
+import { savedCredentialTokenParam } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolOutputProperty } from '@/tools/types'
 
 /** Credentials shared by every SailPoint Identity Security Cloud operation. */
@@ -25,12 +26,7 @@ export const sailpointCredentialParams = {
     description:
       'SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host',
   },
-  accessToken: {
-    type: 'string',
-    required: false,
-    visibility: 'hidden',
-    description: 'Access token minted from the selected SailPoint credential',
-  },
+  accessToken: savedCredentialTokenParam('SailPoint'),
 } as const satisfies ToolConfig['params']
 
 /** Standard collection pagination used by SailPoint service-semver list APIs. */

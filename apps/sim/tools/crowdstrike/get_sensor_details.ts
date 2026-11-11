@@ -2,7 +2,10 @@ import type {
   CrowdStrikeGetSensorDetailsParams,
   CrowdStrikeGetSensorDetailsResponse,
 } from '@/tools/crowdstrike/types'
-import { CROWDSTRIKE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
+import {
+  CROWDSTRIKE_CREDENTIAL_OAUTH,
+  savedCredentialTokenParam,
+} from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const crowdstrikeGetSensorDetailsTool: InternalToolConfig<
@@ -35,12 +38,7 @@ export const crowdstrikeGetSensorDetailsTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'CrowdStrike Falcon cloud region',
     },
-    accessToken: {
-      type: 'string',
-      required: false,
-      visibility: 'hidden',
-      description: 'Access token minted from the selected CrowdStrike credential',
-    },
+    accessToken: savedCredentialTokenParam('CrowdStrike'),
     ids: {
       type: 'json',
       required: true,
