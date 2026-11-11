@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { generateKeyPairSync } from 'node:crypto'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { createLocalJWKSet, decodeProtectedHeader, jwtVerify } from 'jose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { env } from '@/lib/core/config/env'
@@ -147,6 +148,21 @@ describe('workload identity issuer', () => {
     expect((await workloadIdentityDiscoveryResponse()).status).toBe(404)
   })
 
+  it.each([
+    'https://sim.example.com',
+    'https://oidc.example.com/workload',
+    'https://sim.example.com/oidc/workload/v2',
+    'https://sim.example.com/OIDC/workload',
+  ])('stays off for an issuer whose path Sim does not serve discovery on (%s)', async (url) => {
+    setEnv('WORKLOAD_IDENTITY_ISSUER', url)
+    const issuer = await loadIssuer()
+
+    expect(await issuer.isWorkloadIdentityConfigured()).toBe(false)
+    expect(getMockLogger('WorkloadIdentityIssuer').error).toHaveBeenCalledWith(expect.any(String), {
+      error: expect.objectContaining({ message: expect.stringContaining('/oidc/workload') }),
+    })
+  })
+
   it('keeps signing with the current key when the retiring key is malformed', async () => {
     setEnv('WORKLOAD_IDENTITY_PREVIOUS_KEY', 'not a PEM key')
     const issuer = await loadIssuer()
@@ -183,10 +199,11 @@ describe('workload identity issuer', () => {
     ).rejects.toMatchObject({ detailCode: 'WORKLOAD_IDENTITY_NOT_CONFIGURED' })
   })
 
-  it('uses the pinned issuer URL when one is configured', async () => {
-    setEnv('WORKLOAD_IDENTITY_ISSUER', 'https://oidc.example.com/workload/')
+  it('uses a pinned issuer on another host when it keeps the served path', async () => {
+    setEnv('WORKLOAD_IDENTITY_ISSUER', 'https://oidc.example.com/oidc/workload/')
     const issuer = await loadIssuer()
 
-    expect(issuer.getWorkloadIdentityIssuer()).toBe('https://oidc.example.com/workload')
+    expect(await issuer.isWorkloadIdentityConfigured()).toBe(true)
+    expect(issuer.getWorkloadIdentityIssuer()).toBe('https://oidc.example.com/oidc/workload')
   })
 })

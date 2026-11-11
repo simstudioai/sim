@@ -73,7 +73,9 @@ async function loadPreviousPublicJwk(): Promise<JWK | null> {
  * AWS and Databricks fetch discovery and keys from the issuer over https on the
  * default port, and discovery appends paths to it, so any other issuer (or one
  * with a query or fragment) can never be trusted; keyless stays off
- * rather than advertising an issuer no relying party accepts.
+ * rather than advertising an issuer no relying party accepts. Sim serves
+ * discovery and keys only under {@link WORKLOAD_IDENTITY_PATH}, so a pinned
+ * issuer may name another host that reaches this app but must keep that path.
  */
 function assertPublicIssuer(issuer: string): void {
   const url = new URL(issuer)
@@ -82,12 +84,18 @@ function assertPublicIssuer(issuer: string): void {
       'Workload identity issuer must be an https URL without a port, query, or fragment'
     )
   }
-  if (!env.WORKLOAD_IDENTITY_ISSUER?.trim()) {
-    logger.warn(
-      'Workload identity issuer follows the app URL; set WORKLOAD_IDENTITY_ISSUER so customer trust policies survive a URL change',
-      { issuer }
-    )
+  if (env.WORKLOAD_IDENTITY_ISSUER?.trim()) {
+    if (url.pathname !== WORKLOAD_IDENTITY_PATH) {
+      throw new Error(
+        `WORKLOAD_IDENTITY_ISSUER must end in ${WORKLOAD_IDENTITY_PATH}, the path Sim serves discovery and keys on; only its host may differ`
+      )
+    }
+    return
   }
+  logger.warn(
+    'Workload identity issuer follows the app URL; set WORKLOAD_IDENTITY_ISSUER so customer trust policies survive a URL change',
+    { issuer }
+  )
 }
 
 let signingMaterial: Promise<SigningMaterial> | undefined
