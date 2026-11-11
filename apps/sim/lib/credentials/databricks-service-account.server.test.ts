@@ -238,4 +238,39 @@ describe('getting a Databricks token for a run', () => {
       code: 'provider_unavailable',
     })
   })
+
+  it.each([
+    [
+      'the connection fails',
+      Object.assign(new TypeError('fetch failed'), {
+        cause: Object.assign(new Error('connect ECONNREFUSED 203.0.113.7:443'), {
+          code: 'ECONNREFUSED',
+        }),
+      }),
+    ],
+    ['the workspace answers with a redirect', new TypeError('fetch failed: unexpected redirect')],
+    ['the request times out', new DOMException('The operation timed out.', 'TimeoutError')],
+  ])(
+    'reports a workspace that cannot be reached when %s as unavailable, without connection details',
+    async (_case, failure) => {
+      fetch.mockRejectedValue(failure)
+
+      const error = await resolveDatabricksCredentialToken('cred-1').catch((caught) => caught)
+
+      expect(error).toMatchObject({ code: 'provider_unavailable', status: 502 })
+      expect(JSON.stringify(error)).not.toContain('203.0.113.7')
+    }
+  )
+
+  it('rethrows when the run itself is cancelled', async () => {
+    const controller = new AbortController()
+    fetch.mockImplementation(async () => {
+      controller.abort()
+      throw new DOMException('This operation was aborted', 'AbortError')
+    })
+
+    await expect(
+      resolveDatabricksCredentialToken('cred-1', controller.signal)
+    ).rejects.toMatchObject({ name: 'AbortError' })
+  })
 })
