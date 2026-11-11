@@ -476,27 +476,6 @@ describe('row query and upsert application semantics', () => {
     ).rejects.toBe(cancelled)
   })
 
-  it('returns every column when no selected column reference resolves', async () => {
-    mockQueryRows.mockResolvedValueOnce({
-      rows: [],
-      rowCount: 0,
-      totalCount: null,
-      nextCursor: null,
-    })
-
-    await queryTableRows.execute({
-      principal: PRINCIPAL,
-      input: { tableId: TABLE.id, columns: ['deleted_column'], limit: 10 },
-    })
-
-    expect(mockQueryRows).toHaveBeenCalledWith(
-      TABLE,
-      expect.objectContaining({ columnIds: undefined }),
-      expect.any(String),
-      undefined
-    )
-  })
-
   it('resumes the same offset page under the identical predicate', async () => {
     const cursor = encodeCursor({
       lastRow: { id: 'row-100', orderKey: null },

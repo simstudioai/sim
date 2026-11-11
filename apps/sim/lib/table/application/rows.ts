@@ -674,9 +674,6 @@ export const queryTableRows = defineAuthorizedTableUseCase({
           )
           if (column) columnIds.add(getColumnId(column))
         }
-        // Unknown references are ignored, so a selection naming only deleted columns is an
-        // empty selection — every column — not rows stripped to an empty `data`.
-        if (columnIds.size === 0) columnIds = undefined
       }
       const result = await queryRows(
         context.table,
