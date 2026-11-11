@@ -102,10 +102,10 @@ async function call(
     method === 'PATCH' ? await updateMember(request, context) : await removeMember(request, context)
   expect(response.headers.get('cache-control')).toMatch(/no-store/)
   const body = await response.json()
-  // traceId is per-request: check it against its header, then drop it from the compared body.
+  // requestId is per-request: check it against its header, then drop it from the compared body.
   if (body?.error) {
-    const { traceId, ...error } = body.error
-    expect(traceId).toBe(response.headers.get('x-request-id'))
+    const { requestId, ...error } = body.error
+    expect(requestId).toBe(response.headers.get('x-request-id'))
     body.error = error
   }
   return { status: response.status, retryAfter: response.headers.get('retry-after'), body }

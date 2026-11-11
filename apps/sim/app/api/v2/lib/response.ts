@@ -194,24 +194,25 @@ interface V2ErrorOptions {
 }
 
 /**
- * `{ error: { code, message, details?, traceId? } }`.
+ * `{ error: { code, message, details?, requestId? } }`.
  *
- * `traceId` is the id the route handler stamps on the `x-request-id` response
- * header, repeated in the body so a caller that only logs the body can still
- * quote it to support. Absent outside a route handler's request context.
+ * `requestId` is the id the route handler stamps on the `x-request-id` response
+ * header (and logs as `requestId`), repeated in the body so a caller that only
+ * logs the body can still quote it to support. Absent outside a route
+ * handler's request context.
  */
 export function v2Error(
   code: V2ErrorCode,
   message: string,
   options: V2ErrorOptions = {}
 ): NextResponse {
-  const error: { code: V2ErrorCode; message: string; details?: unknown; traceId?: string } = {
+  const error: { code: V2ErrorCode; message: string; details?: unknown; requestId?: string } = {
     code,
     message,
   }
   if (options.details !== undefined) error.details = options.details
-  const traceId = getRequestContext()?.requestId
-  if (traceId) error.traceId = traceId
+  const requestId = getRequestContext()?.requestId
+  if (requestId) error.requestId = requestId
   const status = options.status ?? V2_ERROR_STATUS_BY_CODE[code]
   const retryAfterSeconds = options.omitRetryAfter
     ? undefined
