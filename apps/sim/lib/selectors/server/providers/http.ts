@@ -1,8 +1,11 @@
+import { createLogger } from '@sim/logger'
 import { parseRetryAfter } from '@sim/utils/retry'
 import {
   SelectorConnectionUnavailableError,
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
+
+const logger = createLogger('SelectorProviderHttp')
 
 const PROVIDER_TIMEOUT_MS = 30_000
 const MAX_PROVIDER_RESPONSE_BYTES = 16 * 1024 * 1024
@@ -42,6 +45,35 @@ async function readBoundedBody(response: Response): Promise<string> {
     offset += chunk.byteLength
   }
   return new TextDecoder().decode(body)
+}
+
+/**
+ * Host and path of a provider request. The query string is dropped and OData-style path
+ * arguments (`search(q='...')`) are blanked, since both can carry tokens or a user's search text.
+ */
+function providerEndpoint(input: RequestInfo | URL): string | undefined {
+  try {
+    const url = new URL(input instanceof Request ? input.url : input)
+    return `${url.host}${url.pathname.replace(/\([^/]*\)/g, '()')}`
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Records why a provider call failed before the error is reduced to a bare status, the only
+ * place the upstream status and endpoint are still known.
+ */
+function logProviderFailure(
+  input: RequestInfo | URL,
+  reason: 'status' | 'network' | 'invalid_response',
+  status?: number
+): void {
+  logger.warn('Selector provider request failed', {
+    endpoint: providerEndpoint(input),
+    reason,
+    ...(status !== undefined ? { status } : {}),
+  })
 }
 
 export type ProviderJsonStatusResult<T> =
@@ -86,6 +118,7 @@ export async function fetchProviderJsonWithStatus<T>(
     response = await fetch(input, { ...init, signal, redirect: init?.redirect ?? 'error' })
   } catch (error) {
     if (init?.signal?.aborted) throw error
+    logProviderFailure(input, 'network')
     if (options.passthroughNetworkErrors) throw new RetryableProviderNetworkError()
     throw new SelectorOptionsUnavailableError()
   }
@@ -103,6 +136,7 @@ export async function fetchProviderJsonWithStatus<T>(
         ...(retryAfterMs !== null && retryAfterMs > 0 ? { retryAfterMs } : {}),
       }
     }
+    logProviderFailure(input, 'status', response.status)
     throw selectorProviderStatusError(response.status)
   }
   try {
@@ -113,6 +147,13 @@ export async function fetchProviderJsonWithStatus<T>(
     }
   } catch (error) {
     if (init?.signal?.aborted) throw error
+    logProviderFailure(
+      input,
+      error instanceof SyntaxError || error instanceof SelectorOptionsUnavailableError
+        ? 'invalid_response'
+        : 'network',
+      response.status
+    )
     if (error instanceof SelectorOptionsUnavailableError) throw error
     throw new SelectorOptionsUnavailableError()
   }
