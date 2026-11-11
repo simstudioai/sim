@@ -526,6 +526,8 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/webflow-service-account',
     helpText:
       'Site tokens expire after 365 days without API activity, and each token grants access to a single site.',
+    invalidCredentialsHelp:
+      'Webflow rejected this token, or it reaches no site. Generate a site API token in the site settings with at least the sites:read scope.',
   },
   [TRELLO_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: TRELLO_SERVICE_ACCOUNT_PROVIDER_ID,
