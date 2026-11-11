@@ -3,6 +3,7 @@ import { createSessionPrincipal } from '@sim/testing/factories/principal.factory
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
 import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
 import {
   billingAttributionMock,
   billingAttributionMockFns,
@@ -220,16 +221,13 @@ vi.mock('@/executor/utils/credential-token', () => ({
     mockResolveExecutorCredentialToken(...args),
 }))
 
-const { mockInvalidateCoordinatedClientToken, mockForgetRejectedClientCredentialToken } =
-  vi.hoisted(() => ({
-    mockInvalidateCoordinatedClientToken: vi.fn(),
-    mockForgetRejectedClientCredentialToken: vi.fn(),
-  }))
-
-vi.mock('@/lib/oauth/credential-service', () => ({
-  forgetRejectedClientCredentialToken: (...args: unknown[]) =>
-    mockForgetRejectedClientCredentialToken(...args),
+const { mockInvalidateCoordinatedClientToken } = vi.hoisted(() => ({
+  mockInvalidateCoordinatedClientToken: vi.fn(),
 }))
+
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
+const mockForgetRejectedClientCredentialToken =
+  authOAuthUtilsMockFns.mockForgetRejectedClientCredentialToken
 
 vi.mock('@/lib/credentials/coordinated-client-token', () => ({
   invalidateCoordinatedClientToken: (...args: unknown[]) =>

@@ -41,6 +41,7 @@ export const authOAuthUtilsMockFns = {
   mockRefreshAccessTokenIfNeeded: vi.fn(),
   mockRefreshTokenIfNeeded: vi.fn(),
   mockClearOAuthRefreshFailure: vi.fn(async (): Promise<void> => undefined),
+  mockForgetRejectedClientCredentialToken: vi.fn(),
   mockGetCredentialTerminalRefreshError: vi.fn(
     async (): Promise<{ errorCode: string; providerId: string } | null> => null
   ),
@@ -69,4 +70,6 @@ export const authOAuthUtilsMock = {
   refreshTokenIfNeeded: authOAuthUtilsMockFns.mockRefreshTokenIfNeeded,
   getCredentialTerminalRefreshError: authOAuthUtilsMockFns.mockGetCredentialTerminalRefreshError,
   clearOAuthRefreshFailure: authOAuthUtilsMockFns.mockClearOAuthRefreshFailure,
+  forgetRejectedClientCredentialToken:
+    authOAuthUtilsMockFns.mockForgetRejectedClientCredentialToken,
 }
