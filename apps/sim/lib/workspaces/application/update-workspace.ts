@@ -98,13 +98,14 @@ export const updateWorkspaceIdentity = defineAuthorizedWorkspaceUseCase({
     const parsed = workspaceIdentityPatchSchema.safeParse(input.patch)
     if (!parsed.success) throw new OrchestrationError('validation', parsed.error.issues[0].message)
     const patch = { name: parsed.data.name, logoUrl: parsed.data.logoUrl }
-    const [result, memberCount] = await Promise.all([
-      applyWorkspaceUpdate(context.workspaceId, patch),
-      countPublicWorkspaceMembers({
-        id: context.workspaceId,
-        organizationId: context.workspaceOrganizationId,
-      }),
-    ])
+    // Counted before the write, never after or alongside it: a failed count
+    // after the commit would report a persisted rename as failed and skip its
+    // audit. A rename does not change membership, so the earlier count holds.
+    const memberCount = await countPublicWorkspaceMembers({
+      id: context.workspaceId,
+      organizationId: context.workspaceOrganizationId,
+    })
+    const result = await applyWorkspaceUpdate(context.workspaceId, patch)
     const { id, name, color, logoUrl, createdAt, updatedAt } = result.updated
     return {
       ...result,
