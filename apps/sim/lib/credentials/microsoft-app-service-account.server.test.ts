@@ -12,6 +12,7 @@ import {
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { sleep } from '@sim/utils/helpers'
 import { decodeProtectedHeader, jwtVerify } from 'jose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -573,7 +574,7 @@ describe('getting a Microsoft app token for a run', () => {
     it('stops retrying when a slow Entra would push the run past the shared mint deadline', async () => {
       const tokens = fakeMicrosoft(fetch, {
         tokenError: refusal(70021),
-        tokenDelay: () => new Promise((resolve) => setTimeout(resolve, 11_000)),
+        tokenDelay: () => sleep(11_000),
       })
       storeCredential({ authType: 'federated', subject: SUBJECT }, 'ciphertext-slow-refusal')
 
