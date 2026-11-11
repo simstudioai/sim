@@ -9255,7 +9255,7 @@ sim workspaces update [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--name <value>` | No | New workspace display name. |
-| `--logo-url <value>` | No | New workspace logo URL, or null to remove the logo. (--logo-url null sends the word, not JSON null). |
+| `--logo-url <value>` | No | New workspace logo: a root-relative path (starting with /) or an https:// URL. To remove the logo, send logoUrl: null through the API or MCP (--logo-url null sends the word, not JSON null). |
 
 </CommandTable>
 

@@ -25290,7 +25290,11 @@ export const V2_OPERATIONS = {
     workspaceKeyUnsupported: true,
     body: {
       name: { kind: 'string', describe: 'New workspace display name.' },
-      logoUrl: { kind: 'string', describe: 'New workspace logo URL, or null to remove the logo.' },
+      logoUrl: {
+        kind: 'string',
+        describe:
+          'New workspace logo URL: a root-relative path (starting with /) or an https:// URL. Send null to remove the logo.',
+      },
     },
   },
   updateWorkspaceForkExclusions: {

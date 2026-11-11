@@ -15258,10 +15258,11 @@
             "maxLength": 255
           },
           "logoUrl": {
-            "description": "New workspace logo URL, or null to remove the logo.",
+            "description": "New workspace logo URL: a root-relative path (starting with /) or an https:// URL. Send null to remove the logo.",
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(\\/(?!\\/)|https:\\/\\/)"
               },
               {
                 "type": "null"
@@ -15270,6 +15271,7 @@
           }
         },
         "additionalProperties": false,
+        "minProperties": 1,
         "title": "Update workspace body",
         "description": "The workspace fields to change.",
         "examples": [

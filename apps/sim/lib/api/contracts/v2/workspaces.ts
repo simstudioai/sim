@@ -121,17 +121,18 @@ const v2UpdateWorkspaceBodySchema = z
       .describe('New workspace display name.'),
     logoUrl: z
       .string()
-      .refine((value) => value.startsWith('/') || value.startsWith('https://'), {
-        message: 'logoUrl must be an absolute path or an HTTPS URL',
-      })
+      .regex(/^(\/(?!\/)|https:\/\/)/, 'logoUrl must be a root-relative path or an HTTPS URL')
       .nullable()
       .optional()
-      .describe('New workspace logo URL, or null to remove the logo.'),
+      .describe(
+        'New workspace logo URL: a root-relative path (starting with /) or an https:// URL. Send null to remove the logo.'
+      ),
   })
   .strict()
   .refine((body) => body.name !== undefined || body.logoUrl !== undefined, {
     message: 'Provide name or logoUrl',
   })
+  .meta({ minProperties: 1 })
 
 export const v2UpdateWorkspaceContract = defineRouteContract({
   method: 'PATCH',

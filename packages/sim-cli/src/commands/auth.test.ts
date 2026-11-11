@@ -343,12 +343,31 @@ describe('login command', () => {
       expiresAt: null,
     })
 
-    await expect(login('--read-only')).rejects.toThrow('not the read-only key requested')
+    await expect(login('--read-only')).rejects.toThrow(
+      'issued a full-access key, not the key requested'
+    )
 
     expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
     expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain(
       'API key key-id was created but could not be stored safely'
     )
+  })
+
+  it('stores nothing when the issued expiry is not the one requested', async () => {
+    setInteractive(false)
+    mocks.pollForKey.mockResolvedValue({
+      id: 'key-id',
+      apiKey: 'sim-key',
+      scope: 'platform',
+      workspaceBound: false,
+      workspaceId: 'ws_1',
+      access: 'write',
+      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+    })
+
+    await expect(login('--expires-in', '30')).rejects.toThrow('not the key requested')
+
+    expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
   })
 
   it('stores nothing when the server answers with a malformed key', async () => {

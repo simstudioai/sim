@@ -1538,6 +1538,15 @@ export const CLI_CONTRACT: CliContract = {
   updateWorkspace: {
     profileWorkspacePath: true,
     fields: WORKSPACE_FIELDS,
+    // Body strings are sent as typed, so this flag cannot send JSON null; the
+    // literal "null" fails the path-or-HTTPS rule with a 400 rather than
+    // storing anything. Clearing stays an API and MCP capability.
+    flags: {
+      logoUrl: {
+        describe:
+          'New workspace logo: a root-relative path (starting with /) or an https:// URL. To remove the logo, send logoUrl: null through the API or MCP',
+      },
+    },
   },
   listWorkspaceMembers: {
     command: 'workspaces members list',

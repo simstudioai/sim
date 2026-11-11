@@ -639,26 +639,47 @@ export function loginCommand(): Command {
     })
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000
+
 /**
- * Refuses a minted key that is not the one requested.
+ * Clock difference tolerated between this machine and the server when checking
+ * a minted key's expiry against the lifetime requested.
+ */
+const EXPIRY_TOLERANCE_MS = 60 * 60 * 1000
+
+/**
+ * Refuses a minted key that is not exactly the one requested.
  *
  * The approval decides what is minted, and a server that predates read-only
  * and expiring handoff keys ignores the request and mints a full-access key
- * that never expires. Storing that after `--read-only` would hand back the
- * opposite of what was asked for.
+ * that never expires. A server that reports anything else — full access after
+ * `--read-only`, read-only without it, a lifetime other than `--expires-in` —
+ * minted a key nobody asked for, and storing it would hide that.
  */
 function requireRequestedKey(key: MintedKey, keyRequest: KeyRequest): void {
-  if (keyRequest.readOnly && key.access !== 'read') {
-    throw new SimApiError(
-      'The server issued a full-access key, not the read-only key requested. Nothing was stored; update the Sim deployment or drop --read-only.',
+  const refuse = (issued: string, flag: string) =>
+    new SimApiError(
+      `The server issued ${issued}, not the key requested. Nothing was stored; update the Sim deployment or adjust ${flag}.`,
       0
     )
+
+  const requestedAccess = keyRequest.readOnly ? 'read' : 'write'
+  // A server that predates the field reports none and mints full access.
+  const issuedAccess = key.access ?? 'write'
+  if (issuedAccess !== requestedAccess) {
+    throw refuse(issuedAccess === 'read' ? 'a read-only key' : 'a full-access key', '--read-only')
   }
-  if (keyRequest.expiresInDays !== undefined && !key.expiresAt) {
-    throw new SimApiError(
-      'The server issued a key that never expires, not one with the requested expiry. Nothing was stored; update the Sim deployment or drop --expires-in.',
-      0
-    )
+
+  if (keyRequest.expiresInDays === undefined) {
+    if (key.expiresAt)
+      throw refuse(`a key that expires ${safeOneLine(key.expiresAt ?? '')}`, '--expires-in')
+    return
+  }
+  const expiresAt = key.expiresAt ? Date.parse(key.expiresAt) : Number.NaN
+  if (Number.isNaN(expiresAt)) throw refuse('a key that never expires', '--expires-in')
+  const requested = Date.now() + keyRequest.expiresInDays * DAY_MS
+  if (Math.abs(expiresAt - requested) > EXPIRY_TOLERANCE_MS) {
+    throw refuse(`a key that expires ${safeOneLine(key.expiresAt ?? '')}`, '--expires-in')
   }
 }
 
