@@ -124,6 +124,7 @@ export const GET = defineInternalJsonRoute({
       limit: query.limit,
       offset: query.offset,
       after: query.after,
+      columns: query.columns,
       includeTotal: query.includeTotal,
       includeRunState: query.limit !== undefined && query.limit <= TABLE_LIMITS.MAX_QUERY_LIMIT,
       allowExpandedLimit: true,

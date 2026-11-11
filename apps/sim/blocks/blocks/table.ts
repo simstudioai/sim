@@ -3,7 +3,12 @@ import { toError } from '@sim/utils/errors'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { filterRulesToFilter, sortRulesToSort } from '@/lib/table/query-builder/converters'
 import type { BlockConfig } from '@/blocks/types'
-import { parseOptionalNumberInput } from '@/blocks/utils'
+import {
+  parseOptionalNumberInput,
+  resolveTableColumnSelection,
+  TABLE_OUTPUT_COLUMNS_INPUT,
+  TABLE_OUTPUT_COLUMNS_SUBBLOCK,
+} from '@/blocks/utils'
 import { TABLE_ID_PARAM } from '@/tools/table/params'
 import { getTrigger } from '@/triggers'
 
@@ -52,6 +57,9 @@ interface TableBlockParams {
   rows?: string | unknown
   filter?: string | unknown
   sort?: string | unknown
+  outputColumns?: unknown
+  /** The tool's own `columns` param, supplied by a model when the block runs as an Agent tool. */
+  columns?: unknown
   limit?: string
   offset?: string
   builderMode?: string
@@ -178,6 +186,7 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
 
     return {
       tableId: params.tableId,
+      columns: resolveTableColumnSelection(params),
       filter,
       sort,
       limit: parseOptionalNumberInput(params.limit, 'Limit', {
@@ -326,6 +335,8 @@ export const TableBlock: BlockConfig = {
       placeholder: 'Enter table ID',
       required: true,
     },
+
+    TABLE_OUTPUT_COLUMNS_SUBBLOCK,
 
     // Row ID for get/update/delete
     {
@@ -739,6 +750,7 @@ Return ONLY the sort JSON:`,
     data: { type: 'json', description: 'Row data for insert/update' },
     rows: { type: 'array', description: 'Array of row data for batch insert' },
     rowId: { type: 'string', description: 'Row identifier for ID-based operations' },
+    outputColumns: TABLE_OUTPUT_COLUMNS_INPUT,
     bulkFilterMode: {
       type: 'string',
       description: 'Filter input mode for bulk operations (builder or json)',

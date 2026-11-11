@@ -703,6 +703,60 @@ export function parseOptionalJsonInput<T = unknown>(value: unknown, label: strin
   return value as T
 }
 
+const COLUMN_SELECTION_LABEL = 'Columns to Return'
+
+function parseColumnSelection(raw: unknown): string[] | undefined {
+  const parsed = parseOptionalJsonInput<unknown>(raw, COLUMN_SELECTION_LABEL)
+  if (parsed === undefined || parsed === null) return undefined
+  if (!Array.isArray(parsed)) {
+    throw new Error(`Invalid ${COLUMN_SELECTION_LABEL}: expected a list of column ids or names`)
+  }
+  if (parsed.length === 0) return undefined
+  const columns = parsed.map((column) => (typeof column === 'string' ? column.trim() : ''))
+  if (columns.some((column) => column.length === 0)) {
+    throw new Error(
+      `Invalid ${COLUMN_SELECTION_LABEL}: every entry must be a non-empty column id or name`
+    )
+  }
+  return columns
+}
+
+/**
+ * Resolves a Table block's "Columns to Return" for a query. The canvas selection wins; a
+ * model-supplied `columns` (Agent tool use) is the fallback, so an empty canvas value does not
+ * clobber it. Only an absent value (`undefined`, `null`, `''`, or `[]`) means "all columns";
+ * anything else must be a list of column ids/names, and a malformed value fails fast rather than
+ * silently widening a deliberately narrowed query. A JSON string is accepted because an
+ * agent-authored block config serializes arrays that way.
+ */
+export function resolveTableColumnSelection(params: {
+  outputColumns?: unknown
+  columns?: unknown
+}): string[] | undefined {
+  return parseColumnSelection(params.outputColumns) ?? parseColumnSelection(params.columns)
+}
+
+/** The Table blocks' "Columns to Return" picker, shown for Query Rows. */
+export const TABLE_OUTPUT_COLUMNS_SUBBLOCK: SubBlockConfig = {
+  id: 'outputColumns',
+  title: COLUMN_SELECTION_LABEL,
+  type: 'dropdown',
+  selectorKey: 'table.outputColumns',
+  multiSelect: true,
+  searchable: true,
+  preserveLabelCase: true,
+  placeholder: 'All columns',
+  description: 'Only include these columns in each returned row. Leave empty for all columns.',
+  dependsOn: { any: ['tableSelector', 'manualTableId'] },
+  condition: { field: 'operation', value: 'query_rows' },
+}
+
+/** Block input entry for {@link TABLE_OUTPUT_COLUMNS_SUBBLOCK}. */
+export const TABLE_OUTPUT_COLUMNS_INPUT = {
+  type: 'array',
+  description: 'Table columns to include in each queried row; omit for all columns',
+} as const
+
 /**
  * Parses an optional numeric block input value.
  * Returns `undefined` for empty values and throws when the provided value is not a valid number.
