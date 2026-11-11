@@ -1134,8 +1134,6 @@ const SETTINGS_PAGE_LANE = 'Predates the shared settings part; the page lane mig
 /** Hand-built Save and Discard (`save-owner`), until the page adopts `SettingsSaveBar`. */
 const SAVE_BAR_MIGRATIONS: ReasonedAllowlist = granted(SETTINGS_PAGE_LANE, [
   `${PRODUCT_ROUTES}_components/secrets-editor/secrets-editor.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/access-control/group-detail.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/data-retention/policy-detail.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/source-connections.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/source-detail.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/source-secrets.tsx`,
@@ -1152,10 +1150,8 @@ const SAVE_BAR_MIGRATIONS: ReasonedAllowlist = granted(SETTINGS_PAGE_LANE, [
 const SWITCH_ROW_MIGRATIONS: ReasonedAllowlist = granted(SETTINGS_PAGE_LANE, [
   `${PRODUCT_ROUTES}_components/access-requests/review-requests.tsx`,
   `${PRODUCT_ROUTES}_components/consent-banner/consent-banner.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/access-control/group-detail.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/admin/admin-panel.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/browser/browser-section.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/data-drains/drain-detail.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/desktop/computer-use.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/desktop/desktop-section.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/privacy/cookie-preferences.tsx`,
@@ -1171,7 +1167,6 @@ const SWITCH_ROW_MIGRATIONS: ReasonedAllowlist = granted(SETTINGS_PAGE_LANE, [
 /** An `EmptyState` inside a settings surface (`empty-in-surface`), until the page adopts `SettingsList`. */
 const EMPTY_SURFACE_MIGRATIONS: ReasonedAllowlist = granted(SETTINGS_PAGE_LANE, [
   `${ORGANIZATION_ROUTES}settings/_components/sections/admin/admin-directory.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/audit-logs/audit-logs-section.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/connected-accounts/group-access.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/connected-accounts/group-people.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/connected-accounts/group-providers.tsx`,
@@ -1181,7 +1176,6 @@ const EMPTY_SURFACE_MIGRATIONS: ReasonedAllowlist = granted(SETTINGS_PAGE_LANE, 
   `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/source-secrets.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/sources-view.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/members/members-panel.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/security/security-section.tsx`,
   `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/custom-blocks/custom-blocks-section.tsx`,
   `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/forks/fork-activity.tsx`,
   `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/forks/forks-section.tsx`,

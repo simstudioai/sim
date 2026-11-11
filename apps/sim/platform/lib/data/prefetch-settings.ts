@@ -65,6 +65,25 @@ async function asViewer<T>(read: (principal: SessionPrincipal) => Promise<T>) {
   return withinPrefetchBudget(async () => read((await requireSessionViewer()).principal))
 }
 
+/** The organization's workspaces, as `useOrganizationWorkspaces` reads them. */
+function prefetchOrganizationWorkspaces(queryClient: QueryClient, organizationId: string) {
+  return queryClient.prefetchQuery({
+    queryKey: permissionGroupKeys.orgWorkspaces(organizationId),
+    queryFn: () =>
+      asViewer(async (principal) => {
+        const { data } = await listPermissionGroupWorkspaces.execute({
+          principal,
+          input: { organizationId },
+        })
+        const response = await asRouteResponse(listOrganizationWorkspacesContract, {
+          workspaces: data,
+        })
+        return response.workspaces
+      }),
+    staleTime: PERMISSION_GROUPS_STALE_TIME,
+  })
+}
+
 const SECTION_PREFETCHES: Partial<Record<LiveSettingsKey, SectionPrefetch>> = {
   security: (queryClient, { organization, deployment }) => {
     const organizationId = organization.id
@@ -100,21 +119,24 @@ const SECTION_PREFETCHES: Partial<Record<LiveSettingsKey, SectionPrefetch>> = {
   },
   'data-retention': (queryClient, { organization }) => {
     const organizationId = organization.id
-    return queryClient.prefetchQuery({
-      queryKey: dataRetentionKeys.settings(organizationId),
-      queryFn: () =>
-        asViewer(async (principal) => {
-          const response = await asRouteResponse(getOrganizationDataRetentionContract, {
-            success: true,
-            data: await getOrganizationDataRetention.execute({
-              principal,
-              input: { organizationId },
-            }),
-          })
-          return response.data
-        }),
-      staleTime: DATA_RETENTION_STALE_TIME,
-    })
+    return Promise.all([
+      queryClient.prefetchQuery({
+        queryKey: dataRetentionKeys.settings(organizationId),
+        queryFn: () =>
+          asViewer(async (principal) => {
+            const response = await asRouteResponse(getOrganizationDataRetentionContract, {
+              success: true,
+              data: await getOrganizationDataRetention.execute({
+                principal,
+                input: { organizationId },
+              }),
+            })
+            return response.data
+          }),
+        staleTime: DATA_RETENTION_STALE_TIME,
+      }),
+      prefetchOrganizationWorkspaces(queryClient, organizationId),
+    ])
   },
   sso: (queryClient, { organization }) => {
     const organizationId = organization.id
@@ -151,21 +173,7 @@ const SECTION_PREFETCHES: Partial<Record<LiveSettingsKey, SectionPrefetch>> = {
           }),
         staleTime: PERMISSION_GROUPS_STALE_TIME,
       }),
-      queryClient.prefetchQuery({
-        queryKey: permissionGroupKeys.orgWorkspaces(organizationId),
-        queryFn: () =>
-          asViewer(async (principal) => {
-            const { data } = await listPermissionGroupWorkspaces.execute({
-              principal,
-              input: { organizationId },
-            })
-            const response = await asRouteResponse(listOrganizationWorkspacesContract, {
-              workspaces: data,
-            })
-            return response.workspaces
-          }),
-        staleTime: PERMISSION_GROUPS_STALE_TIME,
-      }),
+      prefetchOrganizationWorkspaces(queryClient, organizationId),
     ])
   },
 }

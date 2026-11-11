@@ -1,0 +1,9 @@
+.rows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-list-gap);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

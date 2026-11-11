@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
-import { EmptyState } from '@sim/emcn/empty-state'
 import { TextField } from '@sim/emcn/field'
 import { CopyField } from '@sim/emcn/field/value-fields'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
@@ -11,12 +10,14 @@ import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toast } from '@/lib/toast/sink'
 import { SettingsSaveBar } from '@/app/(product)/_components/settings-parts/save-bar'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
 import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   FieldStack,
   Muted,
   SectionStack,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { SettingsRead } from '@/app/(product)/_components/settings-parts/settings-read'
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
 import {
   MIN_IDLE_TIMEOUT_HOURS,
@@ -38,41 +39,42 @@ interface SessionPolicyFormProps {
 function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
   const updatePolicy = useUpdateOrganizationSessionPolicy()
   const revokeSessions = useRevokeOrganizationSessions()
-  const initialMax = policy.configured.maxSessionHours?.toString() ?? ''
-  const initialIdle = policy.configured.idleTimeoutHours?.toString() ?? ''
-  const [maxHours, setMaxHours] = useState(initialMax)
-  const [idleHours, setIdleHours] = useState(initialIdle)
-  const [savedMax, setSavedMax] = useState(initialMax)
-  const [savedIdle, setSavedIdle] = useState(initialIdle)
+  const savedMax = policy.configured.maxSessionHours?.toString() ?? ''
+  const savedIdle = policy.configured.idleTimeoutHours?.toString() ?? ''
+  const [draftMax, setDraftMax] = useState<string | null>(null)
+  const [draftIdle, setDraftIdle] = useState<string | null>(null)
+  const [attempted, setAttempted] = useState(false)
   const [confirmingRevoke, setConfirmingRevoke] = useState(false)
+  const maxHours = draftMax ?? savedMax
+  const idleHours = draftIdle ?? savedIdle
   const dirty = maxHours !== savedMax || idleHours !== savedIdle
+  const maxCheck = parseSessionPolicyHours(maxHours, '')
+  const idleCheck = parseSessionPolicyHours('', idleHours)
+  const maxError = attempted && !maxCheck.ok ? maxCheck.error : undefined
+  const idleError = attempted && !idleCheck.ok ? idleCheck.error : undefined
 
   function discard() {
-    setMaxHours(savedMax)
-    setIdleHours(savedIdle)
+    setDraftMax(null)
+    setDraftIdle(null)
+    setAttempted(false)
   }
 
   async function save() {
     if (updatePolicy.isPending) return
+    setAttempted(true)
     const parsed = parseSessionPolicyHours(maxHours, idleHours)
-    if (!parsed.ok) {
-      toast.error(parsed.error)
-      return
-    }
+    if (!parsed.ok) return
     try {
-      const result = await updatePolicy.mutateAsync({
+      await updatePolicy.mutateAsync({
         orgId: organizationId,
         settings: {
           maxSessionHours: parsed.maxSessionHours,
           idleTimeoutHours: parsed.idleTimeoutHours,
         },
       })
-      const nextMax = result.data.configured.maxSessionHours?.toString() ?? ''
-      const nextIdle = result.data.configured.idleTimeoutHours?.toString() ?? ''
-      setMaxHours((current) => (current === maxHours ? nextMax : current))
-      setIdleHours((current) => (current === idleHours ? nextIdle : current))
-      setSavedMax(nextMax)
-      setSavedIdle(nextIdle)
+      setDraftMax((current) => (current === maxHours ? null : current))
+      setDraftIdle((current) => (current === idleHours ? null : current))
+      setAttempted(false)
       toast.success('Session policy updated')
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to update session policy'))
@@ -87,18 +89,21 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
           inputMode='numeric'
           placeholder='No limit'
           value={maxHours}
-          onChange={setMaxHours}
+          error={maxError}
+          onChange={setDraftMax}
         />
         <TextField
           label={`Idle timeout (hours, min ${MIN_IDLE_TIMEOUT_HOURS})`}
           inputMode='numeric'
           placeholder='No limit'
           value={idleHours}
-          onChange={setIdleHours}
+          error={idleError}
+          onChange={setDraftIdle}
         />
         <SettingsSaveBar
           dirty={dirty}
           saving={updatePolicy.isPending}
+          blocked={Boolean(maxError || idleError)}
           onSave={() => void save()}
           onDiscard={discard}
         />
@@ -115,7 +120,7 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
         target={confirmingRevoke}
         onClose={() => setConfirmingRevoke(false)}
         title='Sign out all members'
-        description='Every member of this organization will be signed out on their next request, except your current session. Members will need to sign in again.'
+        description='Every member except your current session is signed out on their next request and must sign in again'
         confirmLabel='Sign out all'
         pendingLabel='Signing out…'
         onConfirm={async () => {
@@ -134,61 +139,63 @@ function SessionPolicySection({
   organizationId: string
   billingEnabled: boolean
 }) {
-  const { data, error, isLoading, isFetching, refetch } =
-    useOrganizationSessionPolicy(organizationId)
-  if (isLoading) return <SettingsSection title='Session policies' />
-  if (!data) {
-    return (
-      <SettingsSection title='Session policies'>
-        <FieldStack>
-          <FailureNotice
-            message={getErrorMessage(error, 'Failed to load session policy')}
-            retrying={isFetching}
-            onRetry={() => void refetch()}
+  const query = useOrganizationSessionPolicy(organizationId)
+  return (
+    <SettingsRead query={query} failureMessage='Failed to load session policy'>
+      {(policy) =>
+        billingEnabled && !policy.isEnterprise ? (
+          <SettingsList
+            title='Session policies'
+            empty={{ title: 'Session policies are available on Enterprise plans' }}
           />
-        </FieldStack>
-      </SettingsSection>
-    )
-  }
-  if (billingEnabled && !data.isEnterprise) {
-    return (
-      <SettingsSection title='Session policies'>
-        <EmptyState title='Session policies are available on Enterprise plans only.' />
-      </SettingsSection>
-    )
-  }
-  return <SessionPolicyForm organizationId={organizationId} policy={data} />
+        ) : (
+          <SessionPolicyForm organizationId={organizationId} policy={policy} />
+        )
+      }
+    </SettingsRead>
+  )
 }
 
+const NETWORK_EMPTY = {
+  blocked: 'Supported HTTPS connections are paused',
+  gateway: 'Your outbound IP addresses aren’t available yet',
+  direct: 'Outbound IP addresses are not configured for this organization',
+} as const
+
 function NetworkSection({ organizationId }: { organizationId: string }) {
-  const { data, error, isPending, isFetching, refetch } = useOrganizationNetwork(organizationId)
+  const query = useOrganizationNetwork(organizationId)
   return (
-    <SettingsSection title='Outbound IP addresses'>
-      <FieldStack>
-        {isPending ? null : error || !data || data.mode === 'unavailable' ? (
-          <FailureNotice
-            message={getErrorMessage(error, 'Could not load network settings')}
-            retrying={isFetching}
-            onRetry={() => void refetch()}
+    <SettingsRead query={query} failureMessage='Could not load network settings'>
+      {(network) => {
+        if (network.mode === 'unavailable') {
+          return (
+            <FailureNotice
+              message='Could not load network settings'
+              retrying={query.isFetching}
+              onRetry={() => void query.refetch()}
+            />
+          )
+        }
+        if (network.mode === 'gateway' && network.publicIps.length > 0) {
+          return (
+            <SettingsSection title='Outbound IP addresses'>
+              <FieldStack>
+                <Muted>Allowlist every address below for supported HTTPS connections</Muted>
+                {network.publicIps.map((ip) => (
+                  <CopyField key={ip} label={`Outbound IP ${ip}`} value={`${ip}/32`} />
+                ))}
+              </FieldStack>
+            </SettingsSection>
+          )
+        }
+        return (
+          <SettingsList
+            title='Outbound IP addresses'
+            empty={{ title: NETWORK_EMPTY[network.mode] }}
           />
-        ) : data.mode === 'gateway' && data.publicIps.length > 0 ? (
-          <>
-            <Muted>Allowlist every address below for supported HTTPS connections.</Muted>
-            {data.publicIps.map((ip) => (
-              <CopyField key={ip} label={`Outbound IP ${ip}`} value={`${ip}/32`} />
-            ))}
-          </>
-        ) : (
-          <Muted>
-            {data.mode === 'blocked'
-              ? 'Supported HTTPS connections are paused.'
-              : data.mode === 'gateway'
-                ? 'Your outbound IP addresses aren’t available yet.'
-                : 'Outbound IP addresses are not configured for this organization.'}
-          </Muted>
-        )}
-      </FieldStack>
-    </SettingsSection>
+        )
+      }}
+    </SettingsRead>
   )
 }
 

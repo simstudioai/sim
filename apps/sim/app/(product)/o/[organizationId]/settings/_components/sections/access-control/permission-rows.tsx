@@ -2,6 +2,7 @@
 
 import { type ReactNode, useState } from 'react'
 import { Disclosure } from '@sim/emcn/disclosure'
+import { EmptyState } from '@sim/emcn/empty-state'
 import { Icon } from '@sim/emcn/icon'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
@@ -12,7 +13,6 @@ import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   ActionRow,
-  Muted,
   SectionToolbar,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
 import styles from '@/app/(product)/o/[organizationId]/settings/_components/sections/access-control/permission-rows.module.css'
@@ -27,6 +27,8 @@ import {
   type PermissionGroupAccessState,
   type PermissionGroupPlatformFeature,
   type PermissionResolvers,
+  type PermissionStatusFilter,
+  statusFilterOptions,
   useProviderModels,
 } from '@/platform/lib/data/access-control'
 import { compareText } from '@/platform/shared/time'
@@ -53,7 +55,7 @@ export function PermissionBulkSelect({ targets, controls }: PermissionBulkSelect
       triggerSize='compact'
       icon={null}
       disabled={!editable.length}
-      disabledReason={!editable.length ? 'No editable permissions are shown.' : undefined}
+      disabledReason={!editable.length ? 'No editable permissions are shown' : undefined}
       actions={bulkAccessOptions(editable.every(controls.canRequest)).map((option) => ({
         id: option.value,
         label: option.label,
@@ -63,9 +65,28 @@ export function PermissionBulkSelect({ targets, controls }: PermissionBulkSelect
   )
 }
 
+interface StatusFilterProps {
+  value: PermissionStatusFilter
+  onChange: (value: PermissionStatusFilter) => void
+}
+
+/** The toolbar filter every permission tab shares: show all, or only one access state. */
+export function StatusFilter({ value, onChange }: StatusFilterProps) {
+  return (
+    <ChoiceMenu
+      label='Filter by access'
+      value={value}
+      options={statusFilterOptions(value)}
+      onValueChange={(next) => onChange(next as PermissionStatusFilter)}
+    />
+  )
+}
+
 interface PermissionRowProps extends ControlsProps {
   target: AccessRequestTarget
   label: string
+  /** The nested choices' short name, as the disclosure that holds them reads: Models, Tools. */
+  detailsLabel?: string
   description?: string
   leading?: ReactNode
   badge?: string
@@ -76,6 +97,7 @@ interface PermissionRowProps extends ControlsProps {
 function PermissionRow({
   target,
   label,
+  detailsLabel = 'Options',
   description,
   leading,
   badge,
@@ -110,7 +132,7 @@ function PermissionRow({
         </ActionRow>
       </SettingsRow>
       {children && (
-        <Disclosure label={`Details for ${label}`} open={expanded} onOpenChange={setExpanded}>
+        <Disclosure label={detailsLabel} open={expanded} onOpenChange={setExpanded}>
           {expanded && <div className={styles.nested}>{children}</div>}
         </Disclosure>
       )}
@@ -121,6 +143,7 @@ function PermissionRow({
 interface PlatformPermissionRowProps extends ControlsProps {
   feature: PermissionGroupPlatformFeature
   inert: boolean
+  detailsLabel?: string
   children?: ReactNode
 }
 
@@ -128,12 +151,14 @@ interface PlatformPermissionRowProps extends ControlsProps {
 export function PlatformPermissionRow({
   feature,
   inert,
+  detailsLabel,
   children,
   controls,
 }: PlatformPermissionRowProps) {
   return (
     <PermissionRow
       label={feature.label}
+      detailsLabel={detailsLabel}
       target={{ kind: 'feature', configKey: feature.configKey }}
       description={inert ? `${feature.hint} ${ORGANIZATION_SCOPED_FEATURE_NOTE}` : feature.hint}
       badge={inert ? 'Organization' : undefined}
@@ -172,7 +197,7 @@ export function PermissionGrid({
     .sort((a, b) => compareText(a.label, b.label))
   const targetFor = (id: string) => ({ kind, id }) as AccessRequestTarget
   if (loading) return null
-  if (!items.length) return <Muted>{emptyLabel}</Muted>
+  if (!items.length) return <EmptyState title={emptyLabel} />
   return (
     <>
       <SectionToolbar
@@ -185,7 +210,7 @@ export function PermissionGrid({
           controls={controls}
         />
       </SectionToolbar>
-      {!filtered.length && <Muted>No matching items</Muted>}
+      {!filtered.length && <EmptyState title='No matching items' />}
       <div ref={scrollRef} className={styles.grid}>
         {filtered.map((item) => (
           <PermissionRow
@@ -219,7 +244,7 @@ function DynamicProviderModels({ provider, controls }: ControlsProps & { provide
       kind='model'
       loading={isPending}
       searchLabel='Search models…'
-      emptyLabel='No models available for this provider.'
+      emptyLabel='No models available for this provider'
       controls={controls}
     />
   )
@@ -239,7 +264,12 @@ export function ProviderRow({ providerId, model, controls }: ProviderRowProps) {
     controls
   )
   return (
-    <PermissionRow target={{ kind: 'provider', id: providerId }} label={name} controls={controls}>
+    <PermissionRow
+      target={{ kind: 'provider', id: providerId }}
+      label={name}
+      detailsLabel='Models'
+      controls={controls}
+    >
       {model.dynamicProviderIds.includes(providerId) ? (
         <DynamicProviderModels provider={providerId} controls={childControls} />
       ) : (
@@ -247,7 +277,7 @@ export function ProviderRow({ providerId, model, controls }: ProviderRowProps) {
           items={model.providerModels(providerId).map((id) => ({ id, label: id }))}
           kind='model'
           searchLabel='Search models…'
-          emptyLabel='No models available for this provider.'
+          emptyLabel='No models available for this provider'
           controls={childControls}
         />
       )}
@@ -270,6 +300,7 @@ export function BlockToolRow({ block, controls }: BlockToolRowProps) {
     <PermissionRow
       target={{ kind: 'integration', id: block.type }}
       label={block.name}
+      detailsLabel='Tools'
       description={block.description}
       leading={<Icon providerId={block.type} />}
       badge={block.sourceWorkspaceName ?? undefined}
@@ -280,7 +311,7 @@ export function BlockToolRow({ block, controls }: BlockToolRowProps) {
           items={block.tools}
           kind='tool'
           searchLabel='Search tools…'
-          emptyLabel='This integration exposes no configurable tools.'
+          emptyLabel='This integration exposes no configurable tools'
           controls={childControls}
         />
       ) : null}

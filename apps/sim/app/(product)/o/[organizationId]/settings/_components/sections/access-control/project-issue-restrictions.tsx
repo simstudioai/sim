@@ -37,7 +37,7 @@ export function ProjectIssueRestrictions({
       <FieldStack>
         <Muted>
           For selected Projects, teammates governed by this group need access to every active
-          environment to use Issues.
+          environment to use Issues
         </Muted>
         {projects.error && (
           <FailureNotice

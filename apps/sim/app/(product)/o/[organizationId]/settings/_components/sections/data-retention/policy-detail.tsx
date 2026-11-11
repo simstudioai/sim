@@ -10,6 +10,8 @@ import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { SearchField } from '@sim/emcn/search-field'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { generateShortId } from '@sim/utils/id'
+import { SettingsSaveBar } from '@/app/(product)/_components/settings-parts/save-bar'
 import {
   ActionRow,
   DetailHeader,
@@ -33,7 +35,7 @@ import {
   stageHasContent,
   updateStagePolicy,
 } from '@/platform/lib/data/data-retention'
-import { plural } from '@/platform/shared/plural'
+import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 
 function CustomPatternsEditor({
   patterns,
@@ -42,6 +44,9 @@ function CustomPatternsEditor({
   patterns: NonNullable<PiiStagePolicy['customPatterns']>
   onChange: (patterns: NonNullable<PiiStagePolicy['customPatterns']>) => void
 }) {
+  const [keys, setKeys] = useState(() => patterns.map(() => generateShortId()))
+  // A discard replaces the list from outside: re-key it, since no row survives as it was.
+  if (keys.length !== patterns.length) setKeys(patterns.map(() => generateShortId()))
   const update = (index: number, patch: Partial<(typeof patterns)[number]>) =>
     onChange(patterns.map((pattern, i) => (i === index ? { ...pattern, ...patch } : pattern)))
   return (
@@ -49,7 +54,12 @@ function CustomPatternsEditor({
       {patterns.map((pattern, index) => {
         const error = customPatternError(pattern.regex)
         return (
-          <FieldFrame key={index} label={`Custom pattern ${index + 1}`} labelHidden error={error}>
+          <FieldFrame
+            key={keys[index] ?? index}
+            label={`Custom pattern ${index + 1}`}
+            labelHidden
+            error={error}
+          >
             <div className={styles.pattern}>
               <Input
                 label='Name'
@@ -74,7 +84,10 @@ function CustomPatternsEditor({
               <IconButton
                 label='Remove pattern'
                 icon='I105'
-                onClick={() => onChange(patterns.filter((_, i) => i !== index))}
+                onClick={() => {
+                  setKeys(keys.filter((_, i) => i !== index))
+                  onChange(patterns.filter((_, i) => i !== index))
+                }}
               />
             </div>
           </FieldFrame>
@@ -85,7 +98,10 @@ function CustomPatternsEditor({
           size='compact'
           icon='I074'
           disabled={patterns.length >= MAX_CUSTOM_PII_PATTERNS}
-          onClick={() => onChange([...patterns, { name: '', regex: '', replacement: '' }])}
+          onClick={() => {
+            setKeys([...keys, generateShortId()])
+            onChange([...patterns, { name: '', regex: '', replacement: '' }])
+          }}
         >
           Add pattern
         </Button>
@@ -130,7 +146,7 @@ function StagePanel({ stageKey, description, value, onChange }: StagePanelProps)
       <Muted>
         Loose numeric recognizers (US Social Security Number, US bank account number) and Date or
         time match aggressively and frequently over-redact. Enable these only where false positives
-        are acceptable.
+        are acceptable
       </Muted>
       <SearchField
         label='Search PII types'
@@ -167,11 +183,6 @@ function StagePanel({ stageKey, description, value, onChange }: StagePanelProps)
           </div>
         </div>
       ))}
-      <Muted>
-        Custom patterns redact anything a regular expression can match (employee ids, internal urls,
-        ticket numbers). Each match is replaced with its replacement text, wrapped in angle brackets
-        (e.g. EMPLOYEE_ID → &lt;EMPLOYEE_ID&gt;).
-      </Muted>
       <CustomPatternsEditor
         patterns={value.customPatterns ?? []}
         onChange={(customPatterns) => update({ customPatterns })}
@@ -181,11 +192,12 @@ function StagePanel({ stageKey, description, value, onChange }: StagePanelProps)
 }
 
 interface PolicyDetailProps {
+  /** The override's workspace as its row names it; the organization's policy needs none. */
+  name: string
   draft: PolicyDraft
   isNew: boolean
-  changed: boolean
+  dirty: boolean
   isSaving: boolean
-  canRemove: boolean
   workspaceOptions: { value: string; label: string }[]
   onChange: (draft: PolicyDraft) => void
   onBack: () => void
@@ -200,12 +212,32 @@ const RETENTION_FIELDS = [
   { key: 'taskCleanupDays', label: 'Task cleanup' },
 ] as const
 
+interface AddOverrideProps {
+  dirty: boolean
+  isSaving: boolean
+  disabled: boolean
+  onDiscard: () => void
+  onSave: () => void
+}
+
+/** A new override's submit: Add override, with the draft held by the Settings leave guard. */
+function AddOverride({ dirty, isSaving, disabled, onDiscard, onSave }: AddOverrideProps) {
+  useSettingsUnsavedGuard({ isDirty: dirty, navigationBlocked: isSaving, onDiscard })
+  return (
+    <ActionRow>
+      <Button variant='primary' disabled={disabled || isSaving} onClick={onSave}>
+        {isSaving ? 'Adding…' : 'Add override'}
+      </Button>
+    </ActionRow>
+  )
+}
+
 export function PolicyDetail({
+  name,
   draft,
   isNew,
-  changed,
+  dirty,
   isSaving,
-  canRemove,
   workspaceOptions,
   onChange,
   onBack,
@@ -214,6 +246,7 @@ export function PolicyDetail({
   onRemove,
 }: PolicyDetailProps) {
   const isOrg = draft.isOrgDefault
+  const canRemove = !isOrg && !isNew
   const showPiiGrid = isOrg || draft.piiOverride
   const [activeStage, setActiveStage] = useState<PiiStageKey>(
     () =>
@@ -230,13 +263,7 @@ export function PolicyDetail({
       <DetailHeader
         backLabel='Data retention'
         onBack={onBack}
-        title={
-          isOrg
-            ? 'Organization defaults'
-            : isNew
-              ? 'Add workspace override'
-              : 'Edit workspace override'
-        }
+        title={isOrg ? 'Organization defaults' : isNew ? 'Add workspace override' : name}
         description={
           isOrg
             ? 'Applied to every workspace without its own override'
@@ -248,11 +275,8 @@ export function PolicyDetail({
           <SettingsSection title='Workspaces'>
             <FieldStack>
               <MultiSelect
-                label={
-                  draft.workspaceIds.length > 0
-                    ? `Overrides ${plural(draft.workspaceIds.length, 'workspace')}`
-                    : 'Select the workspaces this override applies to'
-                }
+                label='Workspaces'
+                labelHidden
                 searchLabel='Search workspaces'
                 placeholder='Select workspaces'
                 options={workspaceOptions}
@@ -260,6 +284,16 @@ export function PolicyDetail({
                 onValueChange={(workspaceIds) => onChange({ ...draft, workspaceIds })}
               />
             </FieldStack>
+            {canRemove && (
+              <SettingsRow
+                label='Remove override'
+                description='Use the organization defaults for these workspaces'
+              >
+                <Button variant='quiet' destructive onClick={() => setConfirmingRemove(true)}>
+                  Remove override
+                </Button>
+              </SettingsRow>
+            )}
           </SettingsSection>
         )}
         <SettingsSection title='Retention'>
@@ -292,7 +326,7 @@ export function PolicyDetail({
               </>
             )}
             {!isOrg && draft.piiOverride && (
-              <Muted>Overriding replaces all three redaction stages for this workspace.</Muted>
+              <Muted>Overriding replaces all three redaction stages for this workspace</Muted>
             )}
             {showPiiGrid && (
               <>
@@ -329,48 +363,29 @@ export function PolicyDetail({
           </FieldStack>
         </SettingsSection>
       </FormFieldset>
-      <SettingsSection title='Policy changes'>
-        <SettingsRow label='Changes to this policy' description='Save or discard your edits'>
-          <ActionRow>
-            {changed && (
-              <Button variant='quiet' disabled={isSaving} onClick={onDiscard}>
-                Discard
-              </Button>
-            )}
-            <Button
-              variant='primary'
-              disabled={!changed || isSaving || (!isOrg && draft.workspaceIds.length === 0)}
-              onClick={onSave}
-            >
-              {isSaving ? 'Saving…' : 'Save'}
-            </Button>
-          </ActionRow>
-        </SettingsRow>
-        {canRemove && (
-          <SettingsRow
-            label='Workspace override'
-            description='Use the organization defaults for these workspaces'
-          >
-            <Button
-              variant='quiet'
-              destructive
-              disabled={isSaving}
-              onClick={() => setConfirmingRemove(true)}
-            >
-              Remove override
-            </Button>
-          </SettingsRow>
-        )}
-      </SettingsSection>
+      {isNew ? (
+        <AddOverride
+          dirty={dirty}
+          isSaving={isSaving}
+          disabled={draft.workspaceIds.length === 0}
+          onDiscard={onDiscard}
+          onSave={onSave}
+        />
+      ) : (
+        <SettingsSaveBar
+          dirty={dirty}
+          saving={isSaving}
+          blocked={!isOrg && draft.workspaceIds.length === 0}
+          blockedReason='Select at least one workspace'
+          onSave={onSave}
+          onDiscard={onDiscard}
+        />
+      )}
       <ConfirmDialog
         target={confirmingRemove}
         onClose={() => setConfirmingRemove(false)}
-        title='Remove override'
-        description={`This removes the retention and PII redaction override for ${
-          draft.workspaceIds.length === 1
-            ? 'this workspace'
-            : `these ${draft.workspaceIds.length} workspaces`
-        }. They will fall back to the organization defaults.`}
+        title={`Remove override for ${name}`}
+        description='These workspaces fall back to the organization’s retention and PII redaction defaults'
         confirmLabel='Remove override'
         pendingLabel='Removing…'
         onConfirm={onRemove}
