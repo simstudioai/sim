@@ -208,7 +208,8 @@ export async function performCreatePersonalApiKey(
     return { success: true, key: { ...created, key: plainKey } }
   } catch (error) {
     logger.error('Failed to create personal API key', { error })
-    return { success: false, errorCode: 'internal', error: toError(error).message }
+    // The CLI poll route is unauthenticated, so an internal failure never echoes its cause.
+    return { success: false, errorCode: 'internal', error: 'Failed to create API key' }
   }
 }
 
@@ -266,10 +267,10 @@ export async function performCreateWorkspaceApiKey(
   } catch (error) {
     const message = toError(error).message
     logger.error('Failed to create workspace API key', { error })
-    return {
-      success: false,
-      error: message,
-      errorCode: message.includes('already exists') ? 'conflict' : 'internal',
+    if (message.includes('already exists')) {
+      return { success: false, error: message, errorCode: 'conflict' }
     }
+    // The CLI poll route is unauthenticated, so an internal failure never echoes its cause.
+    return { success: false, error: 'Failed to create API key', errorCode: 'internal' }
   }
 }

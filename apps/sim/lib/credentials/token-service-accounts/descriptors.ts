@@ -2338,6 +2338,8 @@ export function getTokenServiceAccountErrorMessage(
       )
     case 'site_not_found':
       return "We couldn't find an account at that domain. Check the spelling and try again."
+    case 'host_not_allowed':
+      return "Sim can't connect to that address. Use the service's public https URL."
     case 'provider_unavailable':
       return `We couldn't reach ${descriptor.serviceLabel} to verify these credentials. Try again in a moment.`
     case 'duplicate_display_name':

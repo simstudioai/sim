@@ -153,9 +153,10 @@ async function requestWorkspaceToken(
     if (error instanceof SyntaxError) return {}
     signal?.throwIfAborted()
     if (isPayloadSizeLimitError(error)) {
+      // A refusal's status still holds; an oversized success is the provider misbehaving.
       throw new DatabricksCredentialError(
         'Databricks token response exceeded the size limit',
-        response.status
+        response.ok ? 502 : response.status
       )
     }
     // An interrupted body says nothing about the credential, whatever the status line was.

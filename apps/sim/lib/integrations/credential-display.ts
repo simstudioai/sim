@@ -22,7 +22,6 @@ import { CANONICAL_SERVICE_ACCOUNT_SLUGS } from '@/lib/integrations/oauth-servic
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import type { OAuthProvider, OAuthServiceConfig } from '@/lib/oauth/types'
 import { getServiceConfigByProviderId, parseProvider } from '@/lib/oauth/utils'
-import { resolveAccessControlBlockType } from '@/lib/permission-groups/integration-allowlist'
 
 /**
  * Above this many covered integrations the subtitle states a count instead of
@@ -227,7 +226,7 @@ export function resolveCredentialDisplay(credential: DisplayableCredential): Cre
     return {
       service: null,
       integration,
-      blockType: resolveAccessControlBlockType('gitlab'),
+      blockType: integration?.type ?? 'gitlab',
       icon: GitlabIcon,
       familyName: null,
       coveredIntegrations: integration ? [integration] : [],

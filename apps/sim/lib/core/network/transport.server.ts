@@ -6,6 +6,14 @@ import { OutboundRoutingError } from '@/lib/core/network/routing'
 import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import { validateEgressUrl } from '@/lib/core/security/egress/validate'
 
+/** The egress policy refused a destination the transport was asked to reach through a proxy. */
+export class EgressRefusedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'EgressRefusedError'
+  }
+}
+
 interface OutboundTransportOptions {
   profile: EgressProfile
   resolvedIP?: string
@@ -58,7 +66,10 @@ export function createOutboundTransport(options: OutboundTransportOptions): Outb
       signal,
       requireEveryAddress: true,
     })
-    if (!validation.isValid) throw new Error(validation.error, { cause: validation.cause })
+    if (!validation.isValid) {
+      if (validation.refusal === 'policy') throw new EgressRefusedError(validation.error)
+      throw new Error(validation.error, { cause: validation.cause })
+    }
     if (closed) throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
     let agent = environmentProxies.get(proxyUrl)
     if (!agent) {

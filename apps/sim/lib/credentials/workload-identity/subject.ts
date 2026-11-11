@@ -205,6 +205,11 @@ function lockSubject(tx: DbTransaction, subject: string): Promise<void> {
   )
 }
 
+/** Names the owner without naming a credential, which the caller may not be able to see. */
+function scopeNoun(scope: ResourceScope): string {
+  return scope.kind === 'workspace' ? 'this workspace' : 'this organization'
+}
+
 /** Throws unless no live keyless credential of the owner other than `credentialId` holds `subject`. */
 async function assertNoOtherCredentialHolds(
   tx: DbTransaction,
@@ -213,7 +218,6 @@ async function assertNoOtherCredentialHolds(
   const rows = await tx
     .select({
       id: credential.id,
-      displayName: credential.displayName,
       encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
     })
     .from(credential)
@@ -233,12 +237,12 @@ async function assertNoOtherCredentialHolds(
         credentialId: row.id,
       })
       throw new WorkloadIdentitySubjectError(
-        `Sim could not read the saved credential "${row.displayName}", so it cannot confirm this trust setup is unused. Reconnect or delete that credential, then try again.`
+        `Sim could not read another keyless credential in ${scopeNoun(input.scope)}, so it cannot confirm this trust setup is unused. Ask an admin to reconnect or delete the broken keyless credential, then try again.`
       )
     }
     if (storedSubject === input.subject) {
       throw new WorkloadIdentitySubjectError(
-        'Another credential already uses this trust setup. Start the keyless connection again.'
+        `Another credential in ${scopeNoun(input.scope)} already uses this trust setup. Start the keyless connection again.`
       )
     }
   }
@@ -256,6 +260,12 @@ async function assertNoOtherCredentialHolds(
  * credential: the advisory lock holds concurrent saves of one subject until
  * commit, so the later save sees the earlier row. A sibling whose secret cannot
  * be read might hold the subject, so it refuses the save rather than skip it.
+ *
+ * Caveats: uniqueness holds only within one owner (a subject embeds its owner,
+ * so another owner's credential cannot hold it), only among live AWS and
+ * Databricks keyless credentials, and only for writers that call this inside
+ * their write transaction. The refusal never names the sibling, which the
+ * caller may not be able to see.
  */
 export async function assertWorkloadIdentitySubjectUnclaimed(
   tx: DbTransaction,

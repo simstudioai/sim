@@ -64,7 +64,9 @@ export function throwIfAdmissionRefused(result: PolledWebhookEventResult): void 
 
 /** Logs a poll stopped by {@link PollAdmissionRefusedError} and reports it as skipped. */
 export function skipAdmissionRefusedPoll(logger: Logger, webhookId: string): 'skipped' {
-  logger.info(`Execution admission refused webhook ${webhookId}; left its items for a later poll`)
+  logger.info('Execution admission refused the webhook; left its items for a later poll', {
+    webhookId,
+  })
   return 'skipped'
 }
 
@@ -175,12 +177,13 @@ export async function markWebhookFailed(webhookId: string, logger: Logger): Prom
       .returning({ isActive: webhook.isActive, wasActive: prior.wasActive })
 
     if (result?.wasActive && !result.isActive) {
-      logger.warn(
-        `Webhook ${webhookId} auto-disabled after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`
-      )
+      logger.warn('Webhook auto-disabled after consecutive failures', {
+        webhookId,
+        consecutiveFailures: MAX_CONSECUTIVE_FAILURES,
+      })
     }
   } catch (err) {
-    logger.error(`Failed to mark webhook ${webhookId} as failed:`, err)
+    logger.error('Failed to mark webhook as failed', { webhookId, error: err })
   }
 }
 
@@ -197,7 +200,7 @@ export async function markWebhookSuccess(webhookId: string, logger: Logger): Pro
         and(eq(webhook.id, webhookId), or(isNull(webhook.failedCount), ne(webhook.failedCount, 0)))
       )
   } catch (err) {
-    logger.error(`Failed to mark webhook ${webhookId} as successful:`, err)
+    logger.error('Failed to mark webhook as successful', { webhookId, error: err })
   }
 }
 
@@ -322,7 +325,7 @@ export async function updateWebhookProviderConfig(
       })
       .where(eq(webhook.id, webhookId))
   } catch (err) {
-    logger.error(`Failed to update webhook ${webhookId} config:`, err)
+    logger.error('Failed to update webhook config', { webhookId, error: err })
   }
 }
 

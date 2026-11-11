@@ -11,6 +11,7 @@ vi.mock('@sim/security/dns', () => ({
     addresses.find((address) => address.includes('.')) ?? addresses[0],
 }))
 
+import { EgressRefusedError } from '@/lib/core/network/transport.server'
 import {
   secureFetchWithValidation,
   validateUrlWithDNS,
@@ -120,6 +121,13 @@ describe('validateUrlWithDNS address classification', () => {
         profile: 'contentFetch',
       })
     ).rejects.toMatchObject({ message: 'url hostname could not be resolved', cause })
+  })
+
+  it('throws a policy refusal as an egress refusal, distinct from a lookup failure', async () => {
+    mockResolve.mockResolvedValue(resolved(['10.0.0.5']))
+    await expect(
+      secureFetchWithValidation('https://internal.example/api', { profile: 'configuredEndpoint' })
+    ).rejects.toBeInstanceOf(EgressRefusedError)
   })
 
   it('can conceal credential-derived host details in validation logs', async () => {

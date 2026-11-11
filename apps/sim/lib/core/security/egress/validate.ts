@@ -35,9 +35,13 @@ export interface EgressValidationSuccess {
   readonly originalHostname: string
 }
 
+/** Why a destination failed: its name could not be resolved, or the policy refused it. */
+export type EgressRefusal = 'dns' | 'policy'
+
 export interface EgressValidationFailure {
   readonly isValid: false
   readonly error: string
+  readonly refusal: EgressRefusal
   /** Retains resolver failure codes so callers can distinguish an outage from a policy denial. */
   readonly cause?: unknown
 }
@@ -67,7 +71,11 @@ function fail(
       ? { profile, reason: decision.reason, paramName }
       : { profile, reason: decision.reason, detail: decision.detail, paramName }
   )
-  return { isValid: false, error: describeEgressDenial(decision, paramName, profile) }
+  return {
+    isValid: false,
+    error: describeEgressDenial(decision, paramName, profile),
+    refusal: 'policy',
+  }
 }
 
 /**
@@ -85,14 +93,18 @@ export async function validateEgressUrl(
 ): Promise<EgressValidationResult> {
   options.signal?.throwIfAborted()
   if (!url || typeof url !== 'string') {
-    return { isValid: false, error: `${paramName} is required and must be a string` }
+    return {
+      isValid: false,
+      error: `${paramName} is required and must be a string`,
+      refusal: 'policy',
+    }
   }
 
   let parsed: URL
   try {
     parsed = new URL(url)
   } catch {
-    return { isValid: false, error: `${paramName} must be a valid URL` }
+    return { isValid: false, error: `${paramName} must be a valid URL`, refusal: 'policy' }
   }
 
   const policy = resolveEgressPolicy(profile)
@@ -129,7 +141,12 @@ export async function validateEgressUrl(
         ? { profile, paramName }
         : { profile, paramName, host, error: toError(error).message }
     )
-    return { isValid: false, error: `${paramName} hostname could not be resolved`, cause: error }
+    return {
+      isValid: false,
+      error: `${paramName} hostname could not be resolved`,
+      cause: error,
+      refusal: 'dns',
+    }
   }
 
   // Refused records are filtered rather than failing the whole host: pinning to a

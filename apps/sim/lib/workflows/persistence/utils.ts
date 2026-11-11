@@ -106,9 +106,10 @@ export interface DeployedWorkflowData extends NormalizedWorkflowData {
 }
 
 /**
- * The variables a queued deployed run (async API, schedule, webhook) executes with: the
- * deployed version's own, or the workflow's saved variables for a version deployed before
+ * The variables an unpinned queued deployed run (async API, schedule, webhook) executes with:
+ * the deployed version's own, or the workflow's saved variables for a version deployed before
  * deployments snapshotted them, which is what those runs have always used for such a version.
+ * A run pinned to a version reads that version's variables directly instead.
  */
 export function resolveDeployedRunVariables(
   deployedState: DeployedWorkflowData,

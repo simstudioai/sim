@@ -41,8 +41,9 @@ function parseNoProxyEntry(entry: string): NoProxyRule | null {
     host = withPort[1]
     port = Number(withPort[2])
   }
-  const [address, prefix] = host.split('/')
+  const [address, prefix, ...rest] = host.split('/')
   const family = ipFamily(address)
+  if (rest.length > 0) return null
   if (!family) return { kind: 'domain', domain: host.replace(/^\*?\./, '').toLowerCase(), port }
   const addresses = new BlockList()
   try {
@@ -74,7 +75,7 @@ function noProxyRules(raw: string): NoProxyRule[] {
  * Whether `NO_PROXY` sends this destination direct, with curl's matching: `*` matches
  * everything; `example.com`, `.example.com` and `*.example.com` all match the domain and
  * every subdomain; `host:port` and `[v6]:port` match only that port; IP entries match any
- * spelling of the address; and `10.0.0.0/8` or `fd00::/8` match IP-literal destinations in
+ * spelling of the address in the same address family; and `10.0.0.0/8` or `fd00::/8` match IP-literal destinations in
  * the range (never a hostname, which is not resolved here).
  */
 function isExcludedByNoProxy(hostname: string, port: number): boolean {

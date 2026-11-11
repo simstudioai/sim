@@ -390,6 +390,12 @@ describe('proxy selection from the environment', () => {
       proxy: 'http://p:3128/',
     },
     {
+      case: 'a malformed CIDR NO_PROXY entry is ignored rather than read as its first prefix',
+      env: { HTTPS_PROXY: 'http://p:3128', NO_PROXY: '10.0.0.0/8/junk' },
+      target: 'https://10.20.30.40/',
+      proxy: 'http://p:3128/',
+    },
+    {
       case: 'an IPv6 CIDR NO_PROXY entry excludes addresses inside the range',
       env: { HTTP_PROXY: 'http://p:3128', NO_PROXY: 'fd00::/8' },
       target: 'http://[fd12::1]/',

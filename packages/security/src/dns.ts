@@ -93,7 +93,8 @@ export async function resolveHostAddresses(
       }),
     ])
     if (resolved.length === 0) {
-      throw new Error(`No addresses for ${host}`)
+      // An empty answer is a name with no records, which the resolver itself reports as ENOTFOUND.
+      throw Object.assign(new Error(`No addresses for ${host}`), { code: 'ENOTFOUND' })
     }
     const addresses = resolved.map((entry) => entry.address) as [string, ...string[]]
     return {

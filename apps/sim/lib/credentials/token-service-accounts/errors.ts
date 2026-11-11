@@ -14,6 +14,8 @@ export type TokenServiceAccountValidationCode =
   | 'invalid_credentials'
   | 'permission_conflict'
   | 'site_not_found'
+  /** The egress policy refused the typed host (a private address, or plain http). */
+  | 'host_not_allowed'
   | 'provider_unavailable'
 
 export class TokenServiceAccountValidationError extends Error {

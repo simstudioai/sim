@@ -41,15 +41,17 @@ describe('Twilio list calls recordings lookup', () => {
     fetchMock.mockImplementation(async () => jsonResponse({ recordings: [{ sid: 'RE1' }] }))
   })
 
-  it.each(['@evil.test/x', '//evil.test/x', 'https://evil.test/x'])(
-    'never sends the saved credentials off the Twilio API origin for %s',
-    async (path) => {
-      await listCalls([path])
-      for (const [url] of fetchMock.mock.calls) {
-        expect(new URL(String(url)).origin).toBe('https://api.twilio.com')
-      }
+  it.each([
+    ['@evil.test/x', 1],
+    ['//evil.test/x', 0],
+    ['https://evil.test/x', 0],
+  ])('never sends the saved credentials off the Twilio API origin for %s', async (path, calls) => {
+    await listCalls([path])
+    expect(fetchMock).toHaveBeenCalledTimes(calls)
+    for (const [url] of fetchMock.mock.calls) {
+      expect(new URL(String(url)).origin).toBe('https://api.twilio.com')
     }
-  )
+  })
 
   it('fetches recordings for Twilio-relative paths', async () => {
     const result = await listCalls(['/2010-04-01/Accounts/AC123/Calls/CA0/Recordings.json'])
