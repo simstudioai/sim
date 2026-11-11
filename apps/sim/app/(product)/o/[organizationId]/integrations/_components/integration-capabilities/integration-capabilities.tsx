@@ -72,7 +72,7 @@ export function IntegrationCapabilities({
             instructions: skill.content,
             source: { providerId, name: skill.name },
           }}
-          createLabel='Add to Skills'
+          createLabel='Add to skills'
           deleteLabel='Remove from Skills'
           onSave={onSave}
           onClose={() => setSkill(null)}

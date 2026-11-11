@@ -609,7 +609,7 @@ export async function settingsChecks() {
     })
   })
   await check(
-    'Single sign-on: inline errors stop a bad Save, and a good one posts',
+    'Single sign-on: inline errors stop adding a bad provider, and a good one posts',
     async () => {
       await withSession(ADMIN, async ({ page }) => {
         const bodies: unknown[] = []
@@ -620,7 +620,7 @@ export async function settingsChecks() {
         await page.goto(settingsUrl('sso'))
         const issuer = page.getByRole('textbox', { name: 'Issuer URL' })
         await issuer.fill('not a url')
-        await page.getByRole('button', { name: 'Save', exact: true }).click()
+        await page.getByRole('button', { name: 'Add provider', exact: true }).click()
         await expect(
           page.getByText(/Enter a valid issuer URL|Issuer URL must/).first()
         ).toBeVisible()
@@ -641,7 +641,7 @@ export async function settingsChecks() {
         const secret = page.getByRole('textbox', { name: 'Client secret' })
         await secret.focus()
         await secret.fill('e2e-secret')
-        await page.getByRole('button', { name: 'Save', exact: true }).click()
+        await page.getByRole('button', { name: 'Add provider', exact: true }).click()
         await expect.poll(() => bodies.length).toBe(1)
         assert.equal(toRecord(bodies[0]).providerId, 'e2e-oidc')
         assert.match(JSON.stringify(bodies[0]), /e2e-secret/)
@@ -650,7 +650,7 @@ export async function settingsChecks() {
     { allow: [/500 POST .*sso\/register/] }
   )
   await check(
-    'Single sign-on: a pending Save holds the form and the page, and a failed one keeps the draft',
+    'Single sign-on: a pending add holds the form and the page, and a failed one keeps the draft',
     async () => {
       await withSession(ADMIN, async ({ page }) => {
         const bodies: unknown[] = []
@@ -676,9 +676,9 @@ export async function settingsChecks() {
         const secret = page.getByRole('textbox', { name: 'Client secret' })
         await secret.focus()
         await secret.fill('e2e-secret')
-        await page.getByRole('button', { name: 'Save', exact: true }).click()
+        await page.getByRole('button', { name: 'Add provider', exact: true }).click()
         await expect.poll(() => bodies.length).toBe(1)
-        await expect(page.getByRole('button', { name: 'Saving…', exact: true })).toBeDisabled()
+        await expect(page.getByRole('button', { name: 'Adding…', exact: true })).toBeDisabled()
         await expect(issuer).toBeDisabled()
 
         // Submitting again, or leaving for another section, does nothing while the first is out.
@@ -688,19 +688,19 @@ export async function settingsChecks() {
           .getByRole('link', { name: 'General', exact: true })
         await general.click()
         await pageTurn(page)
-        assert.equal(bodies.length, 1, 'A second Save went out while the first was pending')
+        assert.equal(bodies.length, 1, 'A second add went out while the first was pending')
         await expect(page).toHaveURL(settingsUrl('sso'))
         await expect(dialog(page, 'Unsaved changes')).toHaveCount(0)
 
         answerFirst.resolve()
-        await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled()
+        await expect(page.getByRole('button', { name: 'Add provider', exact: true })).toBeEnabled()
         await expect(clientId).toHaveValue('e2e-client')
         // The failed draft is still a draft: leaving now asks first.
         await general.click()
         const unsaved = dialog(page, 'Unsaved changes')
         await unsaved.getByRole('button', { name: 'Cancel', exact: true }).click()
         await expect(unsaved).toHaveCount(0)
-        await page.getByRole('button', { name: 'Save', exact: true }).click()
+        await page.getByRole('button', { name: 'Add provider', exact: true }).click()
         await expect.poll(() => bodies.length).toBe(2)
       })
     },
@@ -788,7 +788,7 @@ export async function settingsChecks() {
         const create = page.waitForRequest(
           (request) => request.method() === 'POST' && pathOf(request.url()).endsWith('/data-drains')
         )
-        await page.getByRole('button', { name: 'Create', exact: true }).click()
+        await page.getByRole('button', { name: 'Create drain', exact: true }).click()
         await create
       })
     },

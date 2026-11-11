@@ -167,6 +167,10 @@ export async function integrationChecks() {
     async () => {
       await withSession(CONNECTED, async ({ page }) => {
         await page.goto(url(org.integrations))
+        // evaluateAll does not wait, so read the order only once the directory has painted.
+        await expect(
+          page.getByRole('main').getByRole('region', { name: 'Available', exact: true })
+        ).toBeVisible()
         const groups = await page
           .getByRole('main')
           .getByRole('region')
@@ -190,7 +194,7 @@ export async function integrationChecks() {
         )
         await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toBeVisible()
         await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
-        const modal = dialog(page, `Disconnect ${CONNECTED.email}?`)
+        const modal = dialog(page, `Disconnect ${CONNECTED.email}`)
         await expect(
           modal.getByText('People and workflows using this credential will lose access.')
         ).toBeVisible()
@@ -243,7 +247,7 @@ export async function integrationChecks() {
             await expect(page.getByRole('heading', { level: 1, name: second })).toBeVisible()
             await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toBeVisible()
             await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
-            const modal = dialog(page, `Disconnect ${second}?`)
+            const modal = dialog(page, `Disconnect ${second}`)
             await expect(modal).toContainText(second)
             await expect(modal).not.toContainText(CONNECTED.email)
             await modal.getByRole('button', { name: 'Cancel', exact: true }).click()

@@ -72,7 +72,7 @@ test('app discovery preserves editable installed skills and sends templates to t
     'Confirm the target vault, retrieve the secret, and report only its item reference.'
   await editor.getByRole('textbox', { name: 'Name', exact: true }).fill('runtime-vault-lookup')
   await editor.getByRole('textbox', { name: 'Instructions', exact: true }).fill(editedInstructions)
-  await editor.getByRole('button', { name: 'Save changes', exact: true }).click()
+  await editor.getByRole('button', { name: 'Save', exact: true }).click()
   await main
     .getByRole('navigation', { name: 'Skills navigation', exact: true })
     .getByRole('link')
@@ -131,7 +131,7 @@ test('adding another credential preserves existing accounts and its details surv
   await list
     .getByRole('textbox', { name: 'Display name', exact: true })
     .fill('Gmail account review')
-  await list.getByRole('button', { name: 'Save changes', exact: true }).click()
+  await list.getByRole('button', { name: 'Save', exact: true }).click()
   await list
     .getByRole('navigation', { name: 'Gmail navigation', exact: true })
     .getByRole('link')
@@ -300,16 +300,15 @@ test('shared family credential edits and access changes propagate without removi
   await page.getByRole('menuitemradio', { name: 'Admin', exact: true }).click()
   await people.getByRole('button', { name: 'Manage access for Nina Patel', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Remove', exact: true }).click()
-  await page
-    .getByRole('dialog', { name: 'Remove Nina Patel?', exact: true })
-    .getByRole('button', { name: 'Remove', exact: true })
-    .click()
+  const removal = page.getByRole('dialog', { name: 'Remove member', exact: true })
+  await expect(removal).toContainText('Nina Patel will lose access to this credential.')
+  await removal.getByRole('button', { name: 'Remove', exact: true }).click()
   await expect(people.getByText('Nina Patel', { exact: true })).toHaveCount(0)
   await main.getByRole('tab', { name: 'Details', exact: true }).click()
   await main
     .getByRole('textbox', { name: 'Display name', exact: true })
     .fill('Shared Google operations')
-  await main.getByRole('button', { name: 'Save changes', exact: true }).click()
+  await main.getByRole('button', { name: 'Save', exact: true }).click()
   await main
     .getByRole('navigation', { name: 'Gmail navigation', exact: true })
     .getByRole('link')
@@ -690,7 +689,10 @@ test('managed, unconfigured and retained connections expose only the actions the
   await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(main.getByRole('radio')).toHaveCount(0)
-  await main.getByRole('link', { name: 'Back to Fireflies', exact: true }).click()
+  await main
+    .getByRole('navigation', { name: 'Fireflies navigation', exact: true })
+    .getByRole('link', { name: 'Fireflies', exact: true })
+    .click()
   await main.getByRole('link', { name: 'Integrations', exact: true }).click()
   for (const provider of ['GitLab', 'Slack', 'Granola', 'Zoom']) {
     await main.getByRole('link', { name: new RegExp(`^${provider} `) }).click()

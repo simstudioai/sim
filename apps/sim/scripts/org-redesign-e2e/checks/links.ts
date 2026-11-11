@@ -245,13 +245,13 @@ export async function linksChecks() {
             await modal.getByRole('textbox', { name: 'Name' }).fill('Hand Book')
             await expect(modal.getByRole('textbox', { name: 'Name' })).not.toHaveValue('Hand Book')
             await modal.getByRole('textbox', { name: 'Name' }).fill(NAMED_LINKS.handbook.name)
-            await modal.getByRole('button', { name: 'Create', exact: true }).click()
+            await modal.getByRole('button', { name: 'Create link', exact: true }).click()
             await expect(modal.getByText(/already exists/)).toBeVisible()
             await modal.getByRole('textbox', { name: 'Name' }).fill('parts-lookup')
             await expect(
               modal.getByRole('checkbox', { name: 'Hide from the links page' })
             ).toBeEnabled()
-            await modal.getByRole('button', { name: 'Create', exact: true }).click()
+            await modal.getByRole('button', { name: 'Create link', exact: true }).click()
             await expect(modal).toHaveCount(0)
             await expect(page).toHaveURL((address) => !address.searchParams.has('create'))
             await search(page).fill('parts-lookup')
@@ -285,7 +285,7 @@ export async function linksChecks() {
         withSession(MEMBER, async ({ page }) => {
           await page.goto(`${linksUrl}?create=held-link`)
           const modal = dialog(page, 'New link')
-          await modal.getByRole('button', { name: 'Create', exact: true }).click()
+          await modal.getByRole('button', { name: 'Create link', exact: true }).click()
           await expect(modal.getByRole('textbox', { name: 'Destination URL' })).toHaveAttribute(
             'aria-invalid',
             'true'
@@ -300,7 +300,7 @@ export async function linksChecks() {
             await release.promise
             await route.continue()
           })
-          await modal.getByRole('button', { name: 'Create', exact: true }).click()
+          await modal.getByRole('button', { name: 'Create link', exact: true }).click()
           await saving.promise
           await page.keyboard.press('Escape')
           await pageTurn(page)

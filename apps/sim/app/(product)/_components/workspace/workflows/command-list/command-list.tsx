@@ -62,7 +62,7 @@ export function CommandList() {
    * Mirrors the behavior of the corresponding global keyboard shortcuts:
    * - New Agent: add an agent block to the canvas
    * - Logs: navigate to workspace logs
-   * - Search Blocks: focus the toolbar's block search
+   * - Search blocks: focus the toolbar's block search
    *
    * @param label - Command label that was clicked.
    */
@@ -78,7 +78,7 @@ export function CommandList() {
             router.push(hrefFor(workspacePath(workspaceId, 'logs')))
             return
           }
-          case 'Search Blocks': {
+          case 'Search blocks': {
             invokeGlobalCommand('focus-toolbar-search')
             return
           }
