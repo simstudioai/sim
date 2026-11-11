@@ -35,6 +35,8 @@ const SENSITIVE_KEY_PATTERNS: RegExp[] = [
   /^.*secret[_-]?key$/i,
   // Convex's `deployKey`.
   /^.*deploy[_-]?key$/i,
+  // Datadog's `applicationKey`, sent beside the API key and as powerful as it.
+  /^.*application[_-]?key$/i,
   /^passphrase$/i,
   /^authorization$/i,
   /^proxy[_-]?authorization$/i,
