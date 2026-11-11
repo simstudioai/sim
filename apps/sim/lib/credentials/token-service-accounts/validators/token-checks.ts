@@ -28,6 +28,7 @@ import { convexApiUrl, convexAuthHeaders } from '@/tools/convex/utils'
 import { buildDynatraceUrl, dynatraceHeaders } from '@/tools/dynatrace/utils'
 import { normalizeEmailBisonBaseUrl } from '@/tools/emailbison/utils'
 import { normalizeGitLabHost } from '@/tools/gitlab/utils'
+import { gongAuthorization } from '@/tools/gong/utils'
 import { GRANOLA_API_BASE, granolaHeaders } from '@/tools/granola/utils'
 import { buildJotformHeaders, buildJotformUrl, JOTFORM_REGION_HOSTS } from '@/tools/jotform/utils'
 import {
@@ -40,7 +41,11 @@ import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
 import { getNerdGraphEndpoint, newRelicHeaders } from '@/tools/new_relic/utils'
 import { oktaHeaders } from '@/tools/okta/utils'
 import { planeApiUrl, planeHeaders } from '@/tools/plane/utils'
-import { PLANETSCALE_API_ORIGIN, planetScaleHeaders } from '@/tools/planetscale/utils'
+import {
+  isPlanetScaleTokenPart,
+  PLANETSCALE_API_ORIGIN,
+  planetScaleHeaders,
+} from '@/tools/planetscale/utils'
 import { createBasicAuthHeader } from '@/tools/servicenow/utils'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import { getThriveBaseUrl, getThriveHeaders, THRIVE_HOSTS } from '@/tools/thrive/utils'
@@ -688,10 +693,10 @@ export const validateGitLabServiceAccount = tokenCheckValidator({
 
 /**
  * Listing workspaces is a cheap documented read on the fixed host the tools call, with the same
- * Basic `accessKey:accessKeySecret` the tools encode with `btoa`. Gong documents a 403 ("Access
- * denied") for this read without telling a bad key from a missing permission, so any refusal
- * rejects. The access key is the Basic username, so one with a colon is refused unsent, as is a
- * pair `btoa` cannot encode.
+ * Basic header the tools send (`gongAuthorization`). Gong documents a 403 ("Access denied") for
+ * this read without telling a bad key from a missing permission, so any refusal rejects. The
+ * access key is the Basic username, so one with a colon is refused unsent, as is a pair the
+ * header cannot encode.
  */
 export const validateGongServiceAccount = tokenCheckValidator({
   serviceLabel: 'Gong',
@@ -701,9 +706,9 @@ export const validateGongServiceAccount = tokenCheckValidator({
     return accessKey
   },
   request: ({ apiToken, providerWorkspaceId = '' }) => {
-    let credentials: string
+    let authorization: string
     try {
-      credentials = btoa(`${providerWorkspaceId}:${apiToken}`)
+      authorization = gongAuthorization(providerWorkspaceId, apiToken)
     } catch {
       throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
         step: 'verify',
@@ -712,7 +717,7 @@ export const validateGongServiceAccount = tokenCheckValidator({
     }
     return {
       url: 'https://api.gong.io/v2/workspaces',
-      headers: { Authorization: `Basic ${credentials}`, Accept: 'application/json' },
+      headers: { Authorization: authorization, Accept: 'application/json' },
     }
   },
 })
@@ -1171,13 +1176,17 @@ export const validatePlaneServiceAccount = tokenCheckValidator({
 /**
  * Listing the organizations a service token can reach is the read PlanetScale's own docs use, sent
  * with the `<token id>:<token>` Authorization the tools build (`planetScaleHeaders`). A bad ID or
- * token gets 401; a JSON 403 is the vendor refusing a valid token this read. A pair the tools'
- * header builder refuses (a colon or whitespace would split it) is refused unsent.
+ * token gets 401. PlanetScale documents no meaning for a 403 here, so it rejects like any other
+ * refusal. An ID or token the tools' header builder refuses (a colon or whitespace would split
+ * the pair) is refused unsent.
  */
 export const validatePlanetScaleServiceAccount = tokenCheckValidator({
   serviceLabel: 'PlanetScale',
-  workspaceId: ({ providerWorkspaceId }) => (providerWorkspaceId ?? '').trim(),
-  forbiddenMeansScoped: true,
+  workspaceId: ({ providerWorkspaceId }) => {
+    const tokenId = (providerWorkspaceId ?? '').trim()
+    if (!isPlanetScaleTokenPart(tokenId)) throw new Error('invalid service token ID')
+    return tokenId
+  },
   request: ({ apiToken, providerWorkspaceId = '' }) => {
     let headers: Record<string, string>
     try {
