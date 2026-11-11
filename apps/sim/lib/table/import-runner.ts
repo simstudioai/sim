@@ -19,7 +19,7 @@ import {
   type TableSchema,
   validateMapping,
 } from '@/lib/table'
-import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
+import { getMaxRowsPerTable, notifyTableRowUsage, TableRowLimitError } from '@/lib/table/billing'
 import { withGeneratedColumnIds } from '@/lib/table/column-keys'
 import { sniffCsvDelimiterFromStream } from '@/lib/table/csv-delimiter-stream'
 import { appendTableEvent } from '@/lib/table/events'
@@ -55,6 +55,20 @@ const PROGRESS_INTERVAL_ROWS = 5000
  * writing into a table a second worker now owns.
  */
 class ImportSupersededError extends Error {}
+
+/**
+ * Thrown once an import has filled the table to its plan row limit while the file still has
+ * rows left. The rows that fit stay committed (the runner never rolls back), so the message
+ * reports how many landed instead of claiming the table was already full.
+ */
+class ImportRowLimitReachedError extends Error {
+  constructor(limit: number, imported: number) {
+    super(
+      `Import stopped at this table's row limit (${limit.toLocaleString('en-US')} rows) on your current plan. ${imported.toLocaleString('en-US')} rows were imported; the rest of the file was not.`
+    )
+    this.name = 'ImportRowLimitReachedError'
+  }
+}
 
 /** `create` infers a schema for a new table; `append`/`replace` map onto an existing one. */
 export type TableImportMode = 'create' | 'append' | 'replace'
@@ -182,7 +196,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
 
     // Append keeps the existing rows; create/replace start from empty (replace deletes
     // existing rows in resolveSetup). Per-batch capacity is checked against this base + the
-    // running total, so a stream that crosses the plan limit fails within one batch.
+    // running total, so a stream that crosses the plan limit stops exactly at it.
     const existingRowCount = mode === 'append' ? table.rowCount : 0
 
     // Count bytes as they flow so the row total can be extrapolated from byte progress.
@@ -290,16 +304,28 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       if (mode === 'replace') await deleteAllTableRows(table, revalidateDelete)
     }
 
-    const flush = async (rows: Record<string, unknown>[]) => {
-      if (rows.length === 0 || !schema || !headerToColumn) return
+    const flush = async (batchRows: Record<string, unknown>[]) => {
+      if (batchRows.length === 0 || !schema || !headerToColumn) return
       // Ownership gate before every insert: once this run loses the table (cancel/supersede),
       // updateJobProgress returns false and we stop before writing into a table a newer import
       // may own. Runs per batch (not just at the emit cadence) so we stop within one batch.
       const owns = await updateJobProgressInWorkspace(tableId, workspaceId, inserted, importId)
       if (!owns) throw new ImportSupersededError()
-      // Held per batch and folded into the run total only once the rows commit: an
-      // assertRowCapacity rejection or a failed insert below discards this batch entirely,
-      // and counting its blanked cells would report loss for rows that never landed.
+      // Fill the table up to its plan limit rather than rejecting the whole batch that crosses
+      // it: batches are thousands of rows, so dropping the crossing batch strands the table
+      // well short of the limit it reports as reached.
+      const rowLimit = await getMaxRowsPerTable(workspaceId)
+      const capacity =
+        rowLimit < 0 ? batchRows.length : Math.max(0, rowLimit - (existingRowCount + inserted))
+      if (capacity === 0) {
+        throw inserted > 0
+          ? new ImportRowLimitReachedError(rowLimit, inserted)
+          : new TableRowLimitError(rowLimit)
+      }
+      const rows = capacity < batchRows.length ? batchRows.slice(0, capacity) : batchRows
+      // Held per batch and folded into the run total only once the rows commit: a failed insert
+      // below discards this batch entirely, and counting its blanked cells would report loss for
+      // rows that never landed.
       let batchCellsRejected = 0
       const coerced = coerceRowsForTable(
         rows,
@@ -310,11 +336,6 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
           batchCellsRejected++
         }
       )
-      const rowLimit = await assertRowCapacity({
-        workspaceId,
-        currentRowCount: existingRowCount + inserted,
-        addedRows: coerced.length,
-      })
       const result = await bulkInsertImportBatch(
         {
           tableId,
@@ -339,6 +360,10 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       inserted += result.inserted
       lastOrderKey = result.lastOrderKey
       cellsRejected += batchCellsRejected
+      if (rows.length < batchRows.length) {
+        await updateJobProgressInWorkspace(tableId, workspaceId, inserted, importId)
+        throw new ImportRowLimitReachedError(rowLimit, inserted)
+      }
       // Emit after the first batch, then every interval, so the bar appears early without flooding.
       if (
         inserted - lastReported >= PROGRESS_INTERVAL_ROWS ||
