@@ -1749,7 +1749,6 @@ const v2AppliedExecutionTimeoutSchema = z
   .number()
   .positive()
   .nullable()
-  .optional()
   .describe(
     "Execution timeout applied to this run, in seconds: the plan's timeout, lowered by `executionTimeoutSeconds` when one was requested. Null when the run has no execution timeout."
   )
@@ -2231,7 +2230,7 @@ export const v2WorkflowRunStatusSchema = z
         points: z
           .array(v2WorkflowRunPausePointSchema)
           .describe(
-            'Every point the run is paused at, earliest first, at most 100; past 100, points not yet resumed are listed before resumed ones. Resume one with Resume workflow run, naming its `contextId` and supplying `input`.'
+            'Every point the run is paused at, earliest first, at most 100; past 100, points not yet resumed are kept in preference to resumed ones. Resume one with Resume workflow run, naming its `contextId` and supplying `input`.'
           ),
       })
       .nullable()

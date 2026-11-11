@@ -176,8 +176,13 @@ export interface ExecuteWorkflowServiceRun {
   endedAt?: string
   durationMs?: number
   /** The execution timeout applied to the run in milliseconds; `0` means untimed. */
-  executionTimeoutMs?: number
+  executionTimeoutMs: number
 }
+
+/** A run's result before the applied timeout is stamped onto it. */
+type UnstampedTerminalResult =
+  | Omit<ExecuteWorkflowServiceRun, 'executionTimeoutMs'>
+  | ExecuteWorkflowServiceFailureResult
 
 export interface ExecuteWorkflowServiceQueued {
   ok: true
@@ -730,7 +735,7 @@ export async function executeWorkflowService(
       rejectLargeInlineOutput,
     }
 
-    const runSynchronousWorkflow = async (): Promise<ExecuteWorkflowServiceTerminalResult> => {
+    const runSynchronousWorkflow = async (): Promise<UnstampedTerminalResult> => {
       if (detachable) registerManualExecutionAborter(executionId, timeoutController.abort)
       try {
         const snapshot = new ExecutionSnapshot(

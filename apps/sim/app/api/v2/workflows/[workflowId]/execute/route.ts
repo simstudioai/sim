@@ -134,9 +134,7 @@ function presentRun(result: ExecuteWorkflowServiceRun) {
     startedAt: result.startedAt,
     endedAt: result.endedAt,
     durationMs: result.durationMs,
-    ...(result.executionTimeoutMs !== undefined
-      ? { executionTimeoutSeconds: executionTimeoutSeconds(result.executionTimeoutMs) }
-      : {}),
+    executionTimeoutSeconds: executionTimeoutSeconds(result.executionTimeoutMs),
   }
 }
 

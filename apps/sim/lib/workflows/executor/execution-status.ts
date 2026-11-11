@@ -618,7 +618,7 @@ async function readWorkflowExecutionStatus(
  */
 const MAX_PAUSED_RUN_POINTS = 100
 
-/** At most {@link MAX_PAUSED_RUN_POINTS}, unresolved points first, listed earliest registered first. */
+/** At most {@link MAX_PAUSED_RUN_POINTS}, keeping unresolved points in preference to resumed ones, earliest registered first. */
 function capPausePoints<P extends PausePoint>(points: P[]): P[] {
   const byRegistration = (a: P, b: P) => compareStrings(a.registeredAt ?? '', b.registeredAt ?? '')
   const sorted = [...points].sort(byRegistration)

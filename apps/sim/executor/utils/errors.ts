@@ -376,16 +376,19 @@ export function classifyExecutionError(
 
 /**
  * Classifies a run's persisted error message, attributing it to the failing
- * block its recorded trace names. A recorded run keeps its error only as text,
- * so a failure the text already classifies as run-level (a timeout,
- * cancellation, usage limit, or invalid input) stays unattributed, and without
- * a block this reports what the message alone supports.
+ * block its recorded trace names. A message headed by that block's name is the
+ * block's own failure and is classified with the block attached, whatever the
+ * name says. A message that does not name it stays unattributed when its text
+ * classifies as run-level (a timeout, cancellation, usage limit, or invalid
+ * input), and without a block this reports what the message alone supports.
  */
 export function classifyRecordedExecutionError(
   message: string,
   failedBlock: FailedTraceBlock | null
 ): StructuredExecutionError {
   const unattributed = classifyExecutionError(new Error(message))
-  if (!failedBlock || unattributed.code !== 'EXECUTION_FAILED') return unattributed
-  return classifyExecutionError(Object.assign(new Error(message), failedBlock))
+  if (!failedBlock) return unattributed
+  return errorNamesBlock(message, failedBlock.blockName) || unattributed.code === 'EXECUTION_FAILED'
+    ? classifyExecutionError(Object.assign(new Error(message), failedBlock))
+    : unattributed
 }

@@ -236,7 +236,7 @@ const executeSyncResponseSchema = documentedSchema(
   'ExecuteWorkflowSyncResponse',
   'Synchronous workflow execution response',
   'Completed, failed, paused, or cancelled synchronous workflow run.',
-  [RUN_RESULT_EXAMPLE]
+  [{ data: { ...RUN_RESULT_EXAMPLE.data, executionTimeoutSeconds: 3_000 } }]
 )
 
 const executeQueuedResponseSchema = documentedSchema(
@@ -244,7 +244,7 @@ const executeQueuedResponseSchema = documentedSchema(
   'ExecuteWorkflowQueuedResponse',
   'Queued workflow execution response',
   'Receipt returned for an asynchronous workflow run, or for a synchronous run still running when `waitTimeoutSeconds` elapsed.',
-  [QUEUED_RUN_EXAMPLE]
+  [{ data: { ...QUEUED_RUN_EXAMPLE.data, executionTimeoutSeconds: 5_400 } }]
 )
 
 const resumeSyncResponseSchema = documentedSchema(

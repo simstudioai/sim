@@ -4143,7 +4143,8 @@
                         "error": null,
                         "startedAt": "2026-08-09T18:04:10.000Z",
                         "endedAt": "2026-08-09T18:04:11.000Z",
-                        "durationMs": 1000
+                        "durationMs": 1000,
+                        "executionTimeoutSeconds": 3000
                       }
                     }
                   }
@@ -4188,7 +4189,8 @@
                     "value": {
                       "data": {
                         "runId": "run_8f14e45f-ceea-467f-a",
-                        "statusUrl": "https://www.sim.ai/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/runs/run_8f14e45f-ceea-467f-a"
+                        "statusUrl": "https://www.sim.ai/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/runs/run_8f14e45f-ceea-467f-a",
+                        "executionTimeoutSeconds": 5400
                       }
                     }
                   }
@@ -15071,7 +15073,6 @@
             "minimum": 0
           },
           "executionTimeoutSeconds": {
-            "description": "Execution timeout applied to this run, in seconds: the plan's timeout, lowered by `executionTimeoutSeconds` when one was requested. Null when the run has no execution timeout.",
             "anyOf": [
               {
                 "type": "number",
@@ -15080,10 +15081,19 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Execution timeout applied to this run, in seconds: the plan's timeout, lowered by `executionTimeoutSeconds` when one was requested. Null when the run has no execution timeout."
           }
         },
-        "required": ["runId", "workflowId", "status", "output", "blockOutputs", "error"],
+        "required": [
+          "runId",
+          "workflowId",
+          "status",
+          "output",
+          "blockOutputs",
+          "error",
+          "executionTimeoutSeconds"
+        ],
         "additionalProperties": false,
         "title": "Workflow run result",
         "description": "Synchronous workflow run output and in-band execution status. Run failures are reported in band, not as HTTP errors — a run that exceeds its execution timeout returns HTTP 200 with `status: \"failed\"` and `error.code: \"TIMEOUT\"`, so branch on `status`."
@@ -15113,7 +15123,8 @@
               "error": null,
               "startedAt": "2026-08-09T18:04:10.000Z",
               "endedAt": "2026-08-09T18:04:11.000Z",
-              "durationMs": 1000
+              "durationMs": 1000,
+              "executionTimeoutSeconds": 3000
             }
           }
         ]
@@ -15135,7 +15146,6 @@
             "description": "Absolute URL of the workflow run resource."
           },
           "executionTimeoutSeconds": {
-            "description": "Execution timeout applied to this run, in seconds: the plan's timeout, lowered by `executionTimeoutSeconds` when one was requested. Null when the run has no execution timeout.",
             "anyOf": [
               {
                 "type": "number",
@@ -15144,10 +15154,11 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Execution timeout applied to this run, in seconds: the plan's timeout, lowered by `executionTimeoutSeconds` when one was requested. Null when the run has no execution timeout."
           }
         },
-        "required": ["runId", "statusUrl"],
+        "required": ["runId", "statusUrl", "executionTimeoutSeconds"],
         "additionalProperties": false,
         "title": "Queued workflow run",
         "description": "Receipt returned when a workflow run is queued, or is still running when `waitTimeoutSeconds` elapsed."
@@ -15168,7 +15179,8 @@
           {
             "data": {
               "runId": "run_8f14e45f-ceea-467f-a",
-              "statusUrl": "https://www.sim.ai/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/runs/run_8f14e45f-ceea-467f-a"
+              "statusUrl": "https://www.sim.ai/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/runs/run_8f14e45f-ceea-467f-a",
+              "executionTimeoutSeconds": 5400
             }
           }
         ]
@@ -16049,7 +16061,7 @@
                     "items": {
                       "$ref": "#/components/schemas/WorkflowRunPausePoint"
                     },
-                    "description": "Every point the run is paused at, earliest first, at most 100; past 100, points not yet resumed are listed before resumed ones. Resume one with Resume workflow run, naming its `contextId` and supplying `input`."
+                    "description": "Every point the run is paused at, earliest first, at most 100; past 100, points not yet resumed are kept in preference to resumed ones. Resume one with Resume workflow run, naming its `contextId` and supplying `input`."
                   }
                 },
                 "required": [

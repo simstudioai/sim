@@ -176,6 +176,15 @@ function addRelativeTimestamps(spans: TraceSpan[], workflowStartMs: number): voi
   }
 }
 
+/** A block that succeeded and owns its children's errors, so none of them is the run's failure. */
+function isSuccessfulErrorBoundary(status: unknown, type: unknown): boolean {
+  return (
+    status === 'success' &&
+    typeof type === 'string' &&
+    SUCCESSFUL_CHILD_ERROR_BOUNDARY_BLOCK_TYPES.has(type)
+  )
+}
+
 /** Options for {@link hasUnhandledError}. */
 export interface UnhandledErrorOptions {
   /**
@@ -194,9 +203,7 @@ export interface UnhandledErrorOptions {
  */
 export function hasUnhandledError(span: TraceSpan, options?: UnhandledErrorOptions): boolean {
   if (span.status === 'error' && !span.errorHandled) return true
-  if (span.status === 'success' && SUCCESSFUL_CHILD_ERROR_BOUNDARY_BLOCK_TYPES.has(span.type)) {
-    return false
-  }
+  if (isSuccessfulErrorBoundary(span.status, span.type)) return false
   if (span.children?.length) {
     return span.children.some((child) => hasUnhandledError(child, options))
   }
@@ -232,11 +239,11 @@ function collectFailedBlockSpans(nodes: unknown, into: FailedSpanCandidate[]): v
     if (!isRecordLike(span)) continue
     const isError = span.status === 'error'
     const blockId = typeof span.blockId === 'string' ? span.blockId : null
-    const blockType = typeof span.type === 'string' ? span.type : null
+    const blockType = typeof span.type === 'string' ? span.type : undefined
     const before = into.length
-    if (!blockId || (isError && !isSubExecutionBlockType(blockType ?? undefined))) {
-      collectFailedBlockSpans(span.children, into)
-    }
+    const isBoundary =
+      isSubExecutionBlockType(blockType) || isSuccessfulErrorBoundary(span.status, blockType)
+    if (!blockId || !isBoundary) collectFailedBlockSpans(span.children, into)
     if (isError && span.errorHandled !== true && blockId && blockType && into.length === before) {
       into.push({
         block: {
@@ -259,9 +266,12 @@ function collectFailedBlockSpans(nodes: unknown, into: FailedSpanCandidate[]): v
  * that, the failure that ended first; and when neither singles one out, none, so a
  * message is never paired with another block's identity.
  *
- * The spans under a workflow or custom block are another workflow's and are not
- * descended into, so its failure is attributed to the block that ran it, as it is at
- * execution time, and a custom block's source workflow is never named to its consumer.
+ * Spans are walked as {@link hasUnhandledError} walks them, including under a block
+ * that succeeded, and the same boundaries hold: a successful boundary block's
+ * children are not its failure. The spans under a workflow or custom block are
+ * another workflow's and are not descended into, so its failure is attributed to the
+ * block that ran it, as it is at execution time, and a custom block's source workflow
+ * is never named to its consumer.
  *
  * Reads stored, untyped spans structurally and never their input or output. Null when
  * the trace has no such span, including when it was not recorded, was compacted, or is

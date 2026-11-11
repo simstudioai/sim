@@ -265,6 +265,15 @@ describe('classifyRecordedExecutionError', () => {
     expect(error.blockId).toBeUndefined()
   })
 
+  it("attributes a block's own failure even when its name reads as a run-level failure", () => {
+    const timeoutBlock = { blockId: 'block-3', blockName: 'Timeout', blockType: 'api' }
+    expect(classifyRecordedExecutionError('Timeout: upstream returned 500', timeoutBlock)).toEqual({
+      message: 'upstream returned 500',
+      code: 'BLOCK_EXECUTION_FAILED',
+      ...timeoutBlock,
+    })
+  })
+
   it('reports EXECUTION_FAILED when the trace names no block', () => {
     expect(classifyRecordedExecutionError('Lookup: upstream returned 500', null)).toEqual({
       message: 'Lookup: upstream returned 500',

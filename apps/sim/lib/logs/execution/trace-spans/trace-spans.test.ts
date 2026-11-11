@@ -1572,6 +1572,32 @@ describe('findFailedTraceBlock', () => {
     expect(findFailedTraceBlock(spans)?.blockId).toBe('inner')
   })
 
+  it('finds an unhandled failure nested under a block that succeeded', () => {
+    const spans = root([
+      span({
+        blockId: 'loop-1',
+        type: 'loop',
+        status: 'success',
+        children: [span({ blockId: 'inner', status: 'error', executionOrder: 4 })],
+      }),
+    ])
+
+    expect(findFailedTraceBlock(spans)?.blockId).toBe('inner')
+  })
+
+  it("does not attribute a successful boundary block's children", () => {
+    const spans = root([
+      span({
+        blockId: 'agent-run',
+        type: 'mothership',
+        status: 'success',
+        children: [span({ blockId: 'inner', status: 'error' })],
+      }),
+    ])
+
+    expect(findFailedTraceBlock(spans)).toBeNull()
+  })
+
   it("attributes a child workflow's failure to the workflow block that ran it", () => {
     const spans = root([
       span({

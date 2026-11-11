@@ -5635,13 +5635,13 @@ type ExecuteWorkflowResponseRef1 = {
   startedAt?: string
   endedAt?: string
   durationMs?: number
-  executionTimeoutSeconds?: number | null
+  executionTimeoutSeconds: number | null
 }
 
 type ExecuteWorkflowResponseRef2 = {
   runId: string
   statusUrl: string
-  executionTimeoutSeconds?: number | null
+  executionTimeoutSeconds: number | null
 }
 
 export type ExecuteWorkflowResponse =

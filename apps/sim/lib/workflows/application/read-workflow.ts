@@ -30,6 +30,10 @@ export interface ReadWorkflowInput {
  * JSON Schema for the `input` an API run of the active deployment accepts, or
  * null when the workflow has no active deployment or it has no API entry point.
  *
+ * Read from the active version row rather than gated on the workflow's
+ * `isDeployed` flag, so the two can never disagree; an undeployed workflow
+ * costs one indexed lookup that finds no active version.
+ *
  * Reading a workflow never depended on its deployment, so a deployment that
  * cannot be read, or a schema of an unexpected shape, reports null rather than
  * failing the read.
@@ -91,9 +95,7 @@ export const readWorkflow = defineAuthorizedWorkflowUseCase({
     }
     const [folderPath, inputSchema] = await Promise.all([
       loadWorkflowFolderPath(context.workspaceId, workflow.folderId),
-      workflow.isDeployed
-        ? loadDeployedApiInputSchema(context.workflowId, context.workspaceId)
-        : Promise.resolve(null),
+      loadDeployedApiInputSchema(context.workflowId, context.workspaceId),
     ])
     const inputs = extractInputFieldsFromBlocks(snapshot.normalizedData?.blocks ?? {})
     logger.info('Read workflow', {
