@@ -7,10 +7,15 @@ import { jsonResponse } from '@sim/testing/helpers/http'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const hoisted = vi.hoisted(() => ({
+  mint: vi.fn(async ({ subject }: { subject: string }) => `token-for:${subject}`),
+}))
+
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/credentials/workload-identity/issuer', () => ({
+  isWorkloadIdentityConfigured: async () => true,
   MAX_WORKLOAD_IDENTITY_TOKEN_TTL_SECONDS: 3600,
-  mintWorkloadIdentityToken: async ({ subject }: { subject: string }) => `token-for:${subject}`,
+  mintWorkloadIdentityToken: hoisted.mint,
 }))
 
 import { credential } from '@sim/db/schema'
@@ -18,6 +23,7 @@ import {
   resolveDatabricksCredentialToken,
   verifyAndEncryptDatabricksCredential,
 } from '@/lib/credentials/databricks-service-account.server'
+import { WorkloadIdentityNotConfiguredError } from '@/lib/credentials/workload-identity/subject'
 import { DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 
 const owner = { workspaceId: 'ws-1', actorUserId: 'user-1' }
@@ -123,6 +129,15 @@ describe('saving a keyless Databricks connection', () => {
       grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
       scope: 'all-apis',
     })
+  })
+
+  it('reconnects to a keyless refusal with its code when signing stops mid-save', async () => {
+    principalTrusting(true)
+    hoisted.mint.mockRejectedValueOnce(new WorkloadIdentityNotConfiguredError())
+
+    await expect(
+      verifyAndEncryptDatabricksCredential(JSON.stringify(config), reconnectOwner)
+    ).rejects.toMatchObject({ detailCode: 'WORKLOAD_IDENTITY_NOT_CONFIGURED' })
   })
 
   it('refuses a federation policy that trusts any Sim subject, so no other workspace can use it', async () => {

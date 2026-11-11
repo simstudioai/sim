@@ -6,22 +6,24 @@ import { z } from 'zod'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { validateDatabricksWorkspaceHost } from '@/lib/core/security/input-validation'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
-import { parseServiceAccountConfig } from '@/lib/credentials/service-account-config'
+import { failureClause, parseServiceAccountConfig } from '@/lib/credentials/service-account-config'
 import {
   providerFailureCode,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
 import { WORKLOAD_IDENTITY_AUDIENCES } from '@/lib/credentials/workload-identity/audiences'
 import {
+  isWorkloadIdentityConfigured,
   MAX_WORKLOAD_IDENTITY_TOKEN_TTL_SECONDS,
   mintWorkloadIdentityToken,
   type WorkloadIdentityOwner,
 } from '@/lib/credentials/workload-identity/issuer'
 import {
   bindWorkloadIdentitySubject,
+  KeylessCredentialRefusedError,
   newWorkloadIdentitySubject,
   type WorkloadIdentityCredentialOwner,
-  WorkloadIdentitySubjectError,
+  WorkloadIdentityNotConfiguredError,
 } from '@/lib/credentials/workload-identity/subject'
 import { DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 
@@ -229,20 +231,13 @@ function bindSubject(
   subjectProof: string | undefined,
   owner: WorkloadIdentityCredentialOwner
 ): string {
-  try {
-    return bindWorkloadIdentitySubject({
-      provider: 'databricks',
-      owner,
-      storedSubject: readStoredSubject(owner.storedSecret),
-      subject,
-      subjectProof,
-    })
-  } catch (error) {
-    if (error instanceof WorkloadIdentitySubjectError) {
-      throw new DatabricksCredentialError(error.message)
-    }
-    throw error
-  }
+  return bindWorkloadIdentitySubject({
+    provider: 'databricks',
+    owner,
+    storedSubject: readStoredSubject(owner.storedSecret),
+    subject,
+    subjectProof,
+  })
 }
 
 /** Proves a configuration by calling the workspace's SCIM `Me` with the resolved token. */
@@ -276,6 +271,8 @@ async function verifyWorkspaceIdentity(
       config.host
     )
   } catch (error) {
+    // A keyless refusal already names its cause and code; wrapping it would lose both.
+    if (error instanceof KeylessCredentialRefusedError) throw error
     throw new DatabricksCredentialError(
       `Could not verify the Databricks credential: ${getErrorMessage(error, 'Unknown error')}`
     )
@@ -305,8 +302,9 @@ async function assertPolicyPinsSubject(
       error.status !== undefined &&
       providerFailureCode(error.status) === 'invalid_credentials'
     if (refused) return
+    if (error instanceof KeylessCredentialRefusedError) throw error
     throw new DatabricksCredentialError(
-      `Sim could not confirm the federation policy limits this service principal to this credential: ${getErrorMessage(error, 'Unknown error')}. Try again.`
+      `Sim could not confirm the federation policy limits this service principal to this credential: ${failureClause(error)}. Try again.`
     )
   }
   throw new DatabricksCredentialError(
@@ -333,6 +331,11 @@ export async function verifyAndEncryptDatabricksCredential(
   const submitted = parsed.data
   let config: DatabricksCredentialConfig
   if (submitted.authType === 'oidc_federation') {
+    if (!(await isWorkloadIdentityConfigured())) {
+      throw new WorkloadIdentityNotConfiguredError(
+        'Use a personal access token or a service principal OAuth secret.'
+      )
+    }
     const { subject, subjectProof, ...rest } = submitted
     config = { ...rest, subject: bindSubject(subject, subjectProof, owner) }
   } else {

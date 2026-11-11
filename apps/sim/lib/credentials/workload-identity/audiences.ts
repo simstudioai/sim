@@ -1,3 +1,11 @@
+import { SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/credentials/token-service-accounts/descriptors'
+import {
+  AWS_SERVICE_ACCOUNT_PROVIDER_ID,
+  DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
+  GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
+} from '@/lib/oauth/types'
+
 /** Relying parties that trust Sim's workload-identity issuer. */
 export const WORKLOAD_IDENTITY_PROVIDERS = [
   'aws',
@@ -8,6 +16,87 @@ export const WORKLOAD_IDENTITY_PROVIDERS = [
 ] as const
 
 export type WorkloadIdentityProvider = (typeof WORKLOAD_IDENTITY_PROVIDERS)[number]
+
+/** The service-account provider ID each relying party's keyless credential is created under. */
+const WORKLOAD_IDENTITY_SERVICE_ACCOUNT_PROVIDER_IDS = {
+  aws: AWS_SERVICE_ACCOUNT_PROVIDER_ID,
+  databricks: DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
+  snowflake: SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
+  microsoft: MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
+  google: GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+} as const satisfies Record<WorkloadIdentityProvider, string>
+
+export type WorkloadIdentityServiceAccountProviderId =
+  (typeof WORKLOAD_IDENTITY_SERVICE_ACCOUNT_PROVIDER_IDS)[WorkloadIdentityProvider]
+
+/**
+ * What each provider's keyless `serviceAccountJson` holds besides the issued
+ * `subject` and `subjectProof`: its `authType`, and the values the customer
+ * supplies from their own cloud setup.
+ */
+export const WORKLOAD_IDENTITY_KEYLESS_CONFIGS: Record<
+  WorkloadIdentityProvider,
+  {
+    authType: string
+    requiredFields: readonly string[]
+    optionalFields: readonly string[]
+    /** Where a keyless credential works, when that is narrower than the provider. */
+    scope?: string
+  }
+> = {
+  aws: {
+    authType: 'oidc_role',
+    requiredFields: ['roleArn'],
+    optionalFields: ['stsRegion', 'sessionDurationSeconds'],
+  },
+  databricks: {
+    authType: 'oidc_federation',
+    requiredFields: ['host', 'clientId'],
+    optionalFields: [],
+  },
+  snowflake: { authType: 'workload_identity', requiredFields: ['host'], optionalFields: [] },
+  microsoft: {
+    authType: 'federated',
+    requiredFields: ['tenantId', 'clientId'],
+    optionalFields: ['environmentUrl'],
+  },
+  google: {
+    authType: 'workload_identity',
+    requiredFields: ['projectNumber', 'poolId', 'providerId', 'serviceAccountEmail'],
+    optionalFields: [],
+    scope:
+      'Keyless works only for Google Cloud services such as BigQuery and Vertex AI, not Google Workspace (Gmail, Drive, Sheets, Calendar, and the like), which need a JSON key with domain-wide delegation.',
+  },
+}
+
+/** Every service-account provider ID that can hold a keyless credential. */
+export const WORKLOAD_IDENTITY_SERVICE_ACCOUNT_PROVIDER_ID_LIST = WORKLOAD_IDENTITY_PROVIDERS.map(
+  (provider) => WORKLOAD_IDENTITY_SERVICE_ACCOUNT_PROVIDER_IDS[provider]
+) as [WorkloadIdentityServiceAccountProviderId, ...WorkloadIdentityServiceAccountProviderId[]]
+
+const PROVIDER_BY_SERVICE_ACCOUNT_PROVIDER_ID: ReadonlyMap<string, WorkloadIdentityProvider> =
+  new Map(
+    WORKLOAD_IDENTITY_PROVIDERS.map((provider) => [
+      WORKLOAD_IDENTITY_SERVICE_ACCOUNT_PROVIDER_IDS[provider],
+      provider,
+    ])
+  )
+
+/** Whether a service-account provider can hold a keyless credential. */
+export function isWorkloadIdentityServiceAccountProviderId(
+  providerId: string | null | undefined
+): providerId is WorkloadIdentityServiceAccountProviderId {
+  return providerId != null && PROVIDER_BY_SERVICE_ACCOUNT_PROVIDER_ID.has(providerId)
+}
+
+/** The relying party a keyless service-account provider ID trusts Sim through. */
+export function workloadIdentityProviderFor(
+  providerId: WorkloadIdentityServiceAccountProviderId
+): WorkloadIdentityProvider {
+  const provider = PROVIDER_BY_SERVICE_ACCOUNT_PROVIDER_ID.get(providerId)
+  if (!provider) throw new Error(`No workload identity provider for ${providerId}`)
+  return provider
+}
 
 /**
  * Relying parties that expect one audience for every credential. Google expects

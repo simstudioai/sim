@@ -28,7 +28,7 @@ import {
   bindWorkloadIdentitySubject,
   newWorkloadIdentitySubject,
   type WorkloadIdentityCredentialOwner,
-  WorkloadIdentitySubjectError,
+  WorkloadIdentityNotConfiguredError,
 } from '@/lib/credentials/workload-identity/subject'
 
 /**
@@ -326,20 +326,13 @@ function bindSubject(
   subjectProof: string | undefined,
   owner: WorkloadIdentityCredentialOwner
 ): string {
-  try {
-    return bindWorkloadIdentitySubject({
-      provider: 'google',
-      owner,
-      storedSubject: readStoredSubject(owner.storedSecret),
-      subject,
-      subjectProof,
-    })
-  } catch (error) {
-    if (error instanceof WorkloadIdentitySubjectError) {
-      throw new GoogleWorkloadIdentityError(error.message)
-    }
-    throw error
-  }
+  return bindWorkloadIdentitySubject({
+    provider: 'google',
+    owner,
+    storedSubject: readStoredSubject(owner.storedSecret),
+    subject,
+    subjectProof,
+  })
 }
 
 export interface GoogleWorkloadIdentitySaveResult {
@@ -367,9 +360,7 @@ export async function verifyAndEncryptGoogleWorkloadIdentityCredential(
   )
   if (!parsed.success) throw new GoogleWorkloadIdentityError(parsed.message)
   if (!(await isWorkloadIdentityConfigured())) {
-    throw new GoogleWorkloadIdentityError(
-      'Keyless connections are not available on this deployment. Use a JSON key.'
-    )
+    throw new WorkloadIdentityNotConfiguredError('Use a JSON key.')
   }
   const submitted = parsed.data
   const config: GoogleWorkloadIdentityConfig = {

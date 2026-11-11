@@ -6,23 +6,18 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { z } from 'zod'
 import { env } from '@/lib/core/config/env'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { TOKEN_SERVICE_ACCOUNT_SECRET_TYPE } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
-  SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
-  TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
-} from '@/lib/credentials/token-service-accounts/descriptors'
-import type { WorkloadIdentityProvider } from '@/lib/credentials/workload-identity/audiences'
+  WORKLOAD_IDENTITY_SERVICE_ACCOUNT_PROVIDER_ID_LIST,
+  type WorkloadIdentityProvider,
+} from '@/lib/credentials/workload-identity/audiences'
 import type { WorkloadIdentityOwner } from '@/lib/credentials/workload-identity/issuer'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbTransaction } from '@/lib/db/types'
-import {
-  AWS_SERVICE_ACCOUNT_PROVIDER_ID,
-  DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
-  GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
-  MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
-} from '@/lib/oauth/types'
 
 const logger = createLogger('WorkloadIdentitySubject')
 
@@ -51,10 +46,69 @@ export interface WorkloadIdentityCredentialOwner extends WorkloadIdentityOwner {
   storedSecret?: Record<string, unknown> | null
 }
 
-export class WorkloadIdentitySubjectError extends Error {
-  constructor(message: string) {
-    super(message)
+/** Why a keyless credential was refused; every surface reports it as `error.details.code`. */
+type KeylessCredentialErrorCode =
+  /** This deployment has no workload-identity signing key; use a key-based credential. */
+  | 'WORKLOAD_IDENTITY_NOT_CONFIGURED'
+  /** The proof is more than a day old; request a new subject. */
+  | 'WORKLOAD_IDENTITY_PROOF_EXPIRED'
+  /** The proof was issued to another user, workspace, or provider, or was altered. */
+  | 'WORKLOAD_IDENTITY_PROOF_INVALID'
+  /** No subject was submitted and the credential holds none to keep. */
+  | 'WORKLOAD_IDENTITY_SUBJECT_REQUIRED'
+  /** Another live credential already holds the subject; request a new one. */
+  | 'WORKLOAD_IDENTITY_SUBJECT_IN_USE'
+  /** A sibling credential could not be read, so the subject's uniqueness is unknown. */
+  | 'WORKLOAD_IDENTITY_SUBJECT_UNVERIFIABLE'
+
+/** Refusals caused by another credential's state rather than by the request itself. */
+const KEYLESS_CONFLICT_CODES: ReadonlySet<KeylessCredentialErrorCode> = new Set([
+  'WORKLOAD_IDENTITY_SUBJECT_IN_USE',
+  'WORKLOAD_IDENTITY_SUBJECT_UNVERIFIABLE',
+])
+
+/**
+ * A keyless credential Sim refused. It travels as an orchestration failure, so
+ * every surface maps its status the usual way (`409` for a conflict with
+ * another credential, otherwise `400`) and adds `detailCode` as `details.code`.
+ */
+export class KeylessCredentialRefusedError extends OrchestrationError {
+  constructor(
+    message: string,
+    readonly detailCode: KeylessCredentialErrorCode
+  ) {
+    super(KEYLESS_CONFLICT_CODES.has(detailCode) ? 'conflict' : 'validation', message)
+    this.name = 'KeylessCredentialRefusedError'
+  }
+}
+
+/** A submitted or stored subject that cannot be bound to the credential being saved. */
+export class WorkloadIdentitySubjectError extends KeylessCredentialRefusedError {
+  constructor(
+    message: string,
+    detailCode: Exclude<
+      KeylessCredentialErrorCode,
+      'WORKLOAD_IDENTITY_NOT_CONFIGURED'
+    > = 'WORKLOAD_IDENTITY_PROOF_INVALID'
+  ) {
+    super(message, detailCode)
     this.name = 'WorkloadIdentitySubjectError'
+  }
+}
+
+/**
+ * This deployment has no usable signing key, so it cannot issue or verify
+ * keyless credentials.
+ *
+ * @param remedy The provider's key-based alternative, as one sentence.
+ */
+export class WorkloadIdentityNotConfiguredError extends KeylessCredentialRefusedError {
+  constructor(remedy = 'Use a key- or token-based credential.') {
+    super(
+      `Keyless connections are not available on this deployment. ${remedy}`,
+      'WORKLOAD_IDENTITY_NOT_CONFIGURED'
+    )
+    this.name = 'WorkloadIdentityNotConfiguredError'
   }
 }
 
@@ -151,7 +205,13 @@ export function verifyWorkloadIdentitySubject(
   if (separator <= 0) throw invalid()
   const expiresAt = Number(subjectProof.slice(0, separator))
   const signature = subjectProof.slice(separator + 1)
-  if (!Number.isSafeInteger(expiresAt) || expiresAt <= now) throw invalid()
+  if (!Number.isSafeInteger(expiresAt)) throw invalid()
+  if (expiresAt <= now) {
+    throw new WorkloadIdentitySubjectError(
+      'This trust setup has expired. Start the keyless connection again to get a new subject.',
+      'WORKLOAD_IDENTITY_PROOF_EXPIRED'
+    )
+  }
   if (!subject.startsWith(subjectPrefix(owner))) throw invalid()
   if (!safeCompare(signature, sign(provider, owner, userId, subject, expiresAt))) throw invalid()
 }
@@ -175,23 +235,20 @@ export function bindWorkloadIdentitySubject(input: {
   const { provider, owner, storedSubject, subject, subjectProof } = input
   if (!subject || subject === storedSubject) {
     if (storedSubject) return storedSubject
-    throw new WorkloadIdentitySubjectError('Start a keyless connection to get a trust setup first.')
+    throw new WorkloadIdentitySubjectError(
+      'Start a keyless connection to get a trust setup first.',
+      'WORKLOAD_IDENTITY_SUBJECT_REQUIRED'
+    )
   }
   if (!subjectProof) {
-    throw new WorkloadIdentitySubjectError('Start a keyless connection to get a trust setup first.')
+    throw new WorkloadIdentitySubjectError(
+      'Start a keyless connection to get a trust setup first.',
+      'WORKLOAD_IDENTITY_SUBJECT_REQUIRED'
+    )
   }
   verifyWorkloadIdentitySubject(provider, owner, owner.actorUserId, subject, subjectProof)
   return subject
 }
-
-/** Providers whose stored secret can hold a bound subject at `config.subject`. */
-const KEYLESS_PROVIDER_IDS = [
-  AWS_SERVICE_ACCOUNT_PROVIDER_ID,
-  DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
-  SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
-  MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
-  GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
-]
 
 /** The part of a keyless provider's stored secret that can hold a bound subject. */
 const storedSubjectSchema = z.object({
@@ -246,7 +303,7 @@ async function assertNoOtherCredentialHolds(
     .where(
       and(
         resourceScopeCondition(credential, input.scope),
-        inArray(credential.providerId, KEYLESS_PROVIDER_IDS),
+        inArray(credential.providerId, WORKLOAD_IDENTITY_SERVICE_ACCOUNT_PROVIDER_ID_LIST),
         isNull(credential.revokedAt),
         input.credentialId ? ne(credential.id, input.credentialId) : undefined
       )
@@ -259,12 +316,14 @@ async function assertNoOtherCredentialHolds(
         credentialId: row.id,
       })
       throw new WorkloadIdentitySubjectError(
-        `Sim could not read another keyless credential in ${scopeNoun(input.scope)}, so it cannot confirm this trust setup is unused. Ask an admin to reconnect or delete the broken keyless credential, then try again.`
+        `Sim could not read another keyless credential in ${scopeNoun(input.scope)}, so it cannot confirm this trust setup is unused. Ask an admin to reconnect or delete the broken keyless credential, then try again.`,
+        'WORKLOAD_IDENTITY_SUBJECT_UNVERIFIABLE'
       )
     }
     if (storedSubject === input.subject) {
       throw new WorkloadIdentitySubjectError(
-        `Another credential in ${scopeNoun(input.scope)} already uses this trust setup. Start the keyless connection again.`
+        `Another credential in ${scopeNoun(input.scope)} already uses this trust setup. Start the keyless connection again.`,
+        'WORKLOAD_IDENTITY_SUBJECT_IN_USE'
       )
     }
   }

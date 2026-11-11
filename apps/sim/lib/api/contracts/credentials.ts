@@ -555,6 +555,36 @@ export const createWorkspaceCredentialContract = defineRouteContract({
   },
 })
 
+/**
+ * The trust setup a keyless credential is created from, shared by the connect
+ * dialog's contract and the public `createCredentialWorkloadIdentitySubject`
+ * operation so the two cannot describe the same grant differently.
+ */
+export const workloadIdentitySubjectGrantShape = {
+  issuer: z
+    .string()
+    .describe('OpenID Connect issuer URL to register as the identity provider the cloud trusts.'),
+  audience: z
+    .string()
+    .optional()
+    .describe(
+      "The `aud` claim the cloud must accept. Absent for Google Cloud, whose audience is each credential's own workload identity pool provider."
+    ),
+  subject: z
+    .string()
+    .describe(
+      'The exact `sub` claim the trust configuration must allow; unique to one credential.'
+    ),
+  subjectProof: z
+    .string()
+    .describe(
+      'Opaque proof submitted with `subject` when the credential is created. Bound to the requesting user, workspace, and provider.'
+    ),
+  expiresAt: z
+    .string()
+    .describe('ISO 8601 timestamp after which `subjectProof` can no longer create a credential.'),
+} as const
+
 export const prepareWorkloadIdentityContract = defineRouteContract({
   method: 'POST',
   path: '/api/credentials/workload-identity',
@@ -571,18 +601,7 @@ export const prepareWorkloadIdentityContract = defineRouteContract({
       z.object({ available: z.literal(false) }),
       z.object({
         available: z.literal(true),
-        /** Register this URL as the OpenID Connect issuer the cloud trusts. */
-        issuer: z.string(),
-        /**
-         * The `aud` the cloud must accept (AWS client ID, Databricks policy audience). Absent for
-         * Google, whose audience is each credential's own workload identity provider.
-         */
-        audience: z.string().optional(),
-        /** The exact `sub` the role's trust policy must allow. */
-        subject: z.string(),
-        /** Opaque proof submitted with the credential; binds the subject to its creator. */
-        subjectProof: z.string(),
-        expiresAt: z.string(),
+        ...workloadIdentitySubjectGrantShape,
         /** The reconnected credential is keyless (Snowflake, Microsoft app, and Google only). */
         reconnectsKeyless: z.literal(true).optional(),
       }),
