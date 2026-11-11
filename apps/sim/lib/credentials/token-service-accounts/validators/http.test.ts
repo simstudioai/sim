@@ -129,7 +129,8 @@ describe('tokenCheckValidator', () => {
 })
 
 describe('tokenCheckValidator with a typed host', () => {
-  const secureFetch = inputValidationMockFns.mockSecureFetchWithValidation
+  const validateUrl = inputValidationMockFns.mockValidateUrlWithDNS
+  const pinnedFetch = inputValidationMockFns.mockSecureFetchWithPinnedIP
   const validateHost = tokenCheckValidator({
     serviceLabel: 'Example',
     domain: ({ domain }) => {
@@ -145,17 +146,30 @@ describe('tokenCheckValidator with a typed host', () => {
   })
 
   beforeEach(() => {
-    secureFetch.mockReset()
+    validateUrl.mockReset()
+    validateUrl.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.7',
+      originalHostname: 'tools.example.com',
+    })
+    pinnedFetch.mockReset()
   })
 
   it('verifies at the normalized host through the guarded egress and stores that host', async () => {
-    secureFetch.mockResolvedValue(jsonResponse({ ok: true }))
+    pinnedFetch.mockResolvedValue(jsonResponse({ ok: true }))
 
     await expect(
       validateHost({ apiToken: 'good', domain: ' Tools.Example.com ' })
     ).resolves.toMatchObject({ normalizedDomain: 'tools.example.com' })
-    expect(secureFetch).toHaveBeenCalledWith(
+    expect(validateUrl).toHaveBeenCalledWith(
       'https://tools.example.com/api/me',
+      'url',
+      'configuredEndpoint',
+      expect.anything()
+    )
+    expect(pinnedFetch).toHaveBeenCalledWith(
+      'https://tools.example.com/api/me',
+      '203.0.113.7',
       expect.objectContaining({ profile: 'configuredEndpoint', maxRedirects: 0 })
     )
   })
@@ -174,22 +188,41 @@ describe('tokenCheckValidator with a typed host', () => {
     await expect(
       validateHost({ apiToken: 'good', domain: 'evil.example.com@tools.example.com' })
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
-    expect(secureFetch).not.toHaveBeenCalled()
+    expect(validateUrl).not.toHaveBeenCalled()
+    expect(pinnedFetch).not.toHaveBeenCalled()
+  })
+
+  it('reports a host the egress policy refuses as the user input, not a retryable outage', async () => {
+    validateUrl.mockResolvedValue({ isValid: false, error: 'url resolves to a private address' })
+
+    await expect(
+      validateHost({ apiToken: 'good', domain: 'grafana.internal' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials', status: 400 })
+    expect(pinnedFetch).not.toHaveBeenCalled()
+  })
+
+  it('reports a host that cannot be reached as the provider being unavailable', async () => {
+    pinnedFetch.mockRejectedValue(new Error('connect ECONNREFUSED'))
+
+    await expect(
+      validateHost({ apiToken: 'good', domain: 'tools.example.com' })
+    ).rejects.toMatchObject({ code: 'provider_unavailable', status: 502 })
   })
 
   it.each([
     [
       'Node (code on cause)',
-      new Error('fetch failed', {
+      new Error('lookup failed', {
         cause: Object.assign(new Error('getaddrinfo ENOTFOUND'), { code: 'ENOTFOUND' }),
       }),
     ],
-    [
-      'Bun (code on the error)',
-      Object.assign(new TypeError('fetch failed'), { code: 'ENOTFOUND' }),
-    ],
-  ])('reports a host that does not exist as not found under %s', async (_runtime, error) => {
-    secureFetch.mockRejectedValue(error)
+    ['Bun (code on the error)', Object.assign(new Error('lookup failed'), { code: 'ENOTFOUND' })],
+  ])('reports a host that does not exist as not found under %s', async (_runtime, cause) => {
+    validateUrl.mockResolvedValue({
+      isValid: false,
+      error: 'url hostname could not be resolved',
+      cause,
+    })
 
     await expect(
       validateHost({ apiToken: 'good', domain: 'tools.exmaple.com' })

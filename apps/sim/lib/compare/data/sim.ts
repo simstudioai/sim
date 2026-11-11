@@ -134,14 +134,19 @@ export const simProfile: CompetitorProfile = {
   facts: {
     platform: {
       builderType: {
-        value: 'Visual drag-and-drop canvas, natural-language (Chat), or code (API/SDK)',
+        value: 'Visual drag-and-drop canvas, natural-language (Chat), or code (REST API and CLI)',
         shortValue: 'Visual canvas, chat, or code',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/introduction',
-            label: 'Sim Docs: Introduction (visual, natural-language, and API/SDK building)',
-            asOf: '2026-07-08',
+            label: 'Sim Docs: Introduction (visual, natural-language, and API building)',
+            asOf: '2026-11-10',
+          },
+          {
+            url: 'https://docs.sim.ai/cli',
+            label: 'Sim Docs: CLI',
+            asOf: '2026-11-10',
           },
         ],
       },
@@ -155,8 +160,8 @@ export const simProfile: CompetitorProfile = {
         sources: [
           {
             url: 'https://docs.sim.ai/introduction',
-            label: 'Sim Docs: Introduction (visual, natural-language, and API/SDK building)',
-            asOf: '2026-07-08',
+            label: 'Sim Docs: Introduction (visual, natural-language, and API building)',
+            asOf: '2026-11-10',
           },
         ],
       },
