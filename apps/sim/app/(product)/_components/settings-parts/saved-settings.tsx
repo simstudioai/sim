@@ -1,9 +1,9 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
-import { Switch } from '@sim/emcn/switch'
+import { SwitchRow } from '@/app/(product)/_components/settings-parts/switch-row'
 import { useBooleanSetting, useSavedSettingsRead } from '@/platform/lib/data/preferences'
 
 interface SavedSettingsSectionProps {
@@ -30,8 +30,12 @@ interface BooleanRowProps {
 export function BooleanRow({ setting, label, description }: BooleanRowProps) {
   const { checked, disabled, set } = useBooleanSetting(setting)
   return (
-    <SettingsRow label={label} description={description}>
-      <Switch label={label} checked={checked} disabled={disabled} onCheckedChange={set} />
-    </SettingsRow>
+    <SwitchRow
+      label={label}
+      description={description}
+      checked={checked}
+      disabled={disabled}
+      onCheckedChange={set}
+    />
   )
 }

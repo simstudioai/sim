@@ -4,10 +4,10 @@ import { useState } from 'react'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { SettingsSection } from '@sim/emcn/settings-section'
-import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toast } from '@/lib/toast/sink'
 import { FieldStack, Muted } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { SettingsRead } from '@/app/(product)/_components/settings-parts/settings-read'
 import {
   describeSsoPolicy,
   SSO_POLICY_OPTIONS,
@@ -21,7 +21,8 @@ import {
  * identity provider never locks the organization out of its own settings.
  */
 export function RequireSso({ organizationId }: { organizationId: string }) {
-  const { data, error, isFetching, refetch } = useOrganizationSsoPolicy(organizationId)
+  const policy = useOrganizationSsoPolicy(organizationId)
+  const { data } = policy
   const updatePolicy = useUpdateOrganizationSsoPolicy()
   const [confirmingEnable, setConfirmingEnable] = useState(false)
 
@@ -41,30 +42,26 @@ export function RequireSso({ organizationId }: { organizationId: string }) {
   return (
     <SettingsSection title='Sign-in requirement'>
       <FieldStack>
-        {data ? (
-          <>
-            <SegmentedControl
-              label='Allowed sign-in methods'
-              options={SSO_POLICY_OPTIONS.map((option) => ({ ...option, disabled }))}
-              value={data.requireSso ? 'sso-only' : 'any'}
-              onSelect={(value) => {
-                if (value === 'sso-only') setConfirmingEnable(true)
-                else void turnOff()
-              }}
-            />
-            <Muted>{describeSsoPolicy(data)}</Muted>
-            <Muted>
-              Owners can always sign in with a password, so a misconfigured identity provider never
-              locks the organization out.
-            </Muted>
-          </>
-        ) : error ? (
-          <FailureNotice
-            message={getErrorMessage(error, 'Failed to load the sign-in requirement')}
-            retrying={isFetching}
-            onRetry={() => void refetch()}
-          />
-        ) : null}
+        <SettingsRead query={policy} failureMessage='Failed to load the sign-in requirement'>
+          {(saved) => (
+            <>
+              <SegmentedControl
+                label='Allowed sign-in methods'
+                options={SSO_POLICY_OPTIONS.map((option) => ({ ...option, disabled }))}
+                value={saved.requireSso ? 'sso-only' : 'any'}
+                onSelect={(value) => {
+                  if (value === 'sso-only') setConfirmingEnable(true)
+                  else void turnOff()
+                }}
+              />
+              <Muted>{describeSsoPolicy(saved)}</Muted>
+              <Muted>
+                Owners can always sign in with a password, so a misconfigured identity provider
+                never locks the organization out.
+              </Muted>
+            </>
+          )}
+        </SettingsRead>
       </FieldStack>
       <ConfirmDialog
         target={confirmingEnable}

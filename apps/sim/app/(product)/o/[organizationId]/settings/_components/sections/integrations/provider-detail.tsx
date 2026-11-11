@@ -7,7 +7,6 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SearchField } from '@sim/emcn/search-field'
 import { SettingsSection } from '@sim/emcn/settings-section'
-import { RowList } from '@sim/emcn/settings-section/row-list'
 import { FailureNotice } from '@sim/emcn/status'
 import { Tooltip } from '@sim/emcn/tooltip'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -17,6 +16,7 @@ import { useQueryStates } from 'nuqs'
 import {
   DetailHeader,
   Muted,
+  ResourceList,
   SectionStack,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { SourceSetup } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/source-setup-host'
@@ -239,7 +239,7 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
             />
           ) : sources.data ? (
             <>
-              <RowList>
+              <ResourceList>
                 {listed?.map((source) => (
                   <ActivityRow
                     density='comfortable'
@@ -252,7 +252,7 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
                     )}
                   />
                 ))}
-              </RowList>
+              </ResourceList>
               {!listed?.length && !sources.hasNextPage && (
                 <EmptyState
                   title={

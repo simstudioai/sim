@@ -7,7 +7,7 @@ import {
   type OrganizationSsoPolicy,
   updateOrganizationSsoPolicyContract,
 } from '@/lib/api/contracts/organization'
-import { ssoKeys } from '@/ee/sso/hooks/sso'
+import { ssoKeys } from '@/hooks/queries/utils/sso-keys'
 
 export const SSO_POLICY_STALE_TIME = 60 * 1000
 

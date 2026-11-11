@@ -21,6 +21,7 @@ import {
 import { resolveLegacyRequestLink } from '@/platform/lib/data/legacy-request-link'
 import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
 import { requireSessionViewer } from '@/platform/lib/data/server-read'
+import { resolveLiveSetting } from '@/platform/lib/data/settings-navigation'
 import { readWorkspaceShellOrganizationId } from '@/platform/lib/data/shell-scope'
 import { workspaceRootHref } from '@/platform/lib/workspace-navigation'
 
@@ -270,6 +271,28 @@ export async function followProductRoute(
   if (!target) return
   if (target.permanent) permanentRedirect(target.href)
   redirect(target.href)
+}
+
+/** Settings routes beside the sections' catch-all, which gate themselves. */
+const SETTINGS_ROUTES_BESIDE_SECTIONS = ['billing/plans']
+
+/**
+ * Whether a document request opens a Settings section this viewer may not open, which the shell
+ * answers as not found. The page streams inside the shell's Suspense boundary after the status has
+ * been sent, so a section's own `notFound()` would reach the browser as a 200 with the not-found
+ * body; the shell decides before anything streams, as it does for a redirect. A section's own gate
+ * and subpaths still answer inside the page, and a client navigation, which has no status, there.
+ */
+export function isClosedSettingsSection(
+  organization: PlatformOrganization,
+  location: ProductLocation
+): boolean {
+  if (!isSettingsPath(organization, location.pathname)) return false
+  const rest = location.pathname.slice(surfaceHref(organization, '/settings').length + 1)
+  if (!rest || SETTINGS_ROUTES_BESIDE_SECTIONS.some((route) => `${rest}/`.startsWith(`${route}/`)))
+    return false
+  const [key] = decodePathSegments(rest.split('/')) ?? []
+  return !key || !resolveLiveSetting(key, organization)
 }
 
 /**

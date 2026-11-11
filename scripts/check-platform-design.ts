@@ -26,11 +26,14 @@ import {
   hasAsciiEllipsis,
   helperCopy,
   inFixtureBranch,
+  isEmptyInSurface,
   isFixtureModeBranch,
   isHandBack,
   isHandConfirm,
+  isHandSave,
   isLoadingCopy,
   isNativeTitle,
+  isSwitchInRow,
   isUnownedLoadFailure,
   titleCaseWords,
 } from './platform-source-rules'
@@ -290,6 +293,8 @@ const inRouteTree = (file: string) => file.startsWith(PRODUCT_ROUTES)
 const PRODUCT_ROOT_LAYOUT = `${PRODUCT_ROUTES}layout.tsx`
 /** `DirectoryBack`, the page-level way back, whose chip carries the back glyph. */
 const BACK_OWNER = `${PRODUCT_ROUTES}_components/resource-directory/resource-directory.tsx`
+/** The shared settings parts, where `SettingsSaveBar`, `SwitchRow` and `SettingsList` compose their primitives. */
+const SETTINGS_PARTS = `${PRODUCT_ROUTES}_components/settings-parts/`
 /** The one table cell whose width is a caller's value, carried to its CSS as a custom property. */
 const COLUMN_WIDTH_OWNER = `${shared}components/data-display/data-display`
 /** The calendar day column, which places each event by its time through an inline style. */
@@ -1154,7 +1159,7 @@ function checkJs(file: string, content: string) {
         'failure-owner',
         null,
         node,
-        'Show a failed read through FailureNotice (or QueryFailure), which pairs it with Retry'
+        'Show a failed read through FailureNotice (or QueryFailure, or SettingsRead in Settings), which pairs it with Retry'
       )
     if (inPlatform && authoredCopy && hasAsciiEllipsis(node))
       reportFileOnce('copy-ellipsis', null, node, 'Write the ellipsis as … in product copy')
@@ -1171,6 +1176,26 @@ function checkJs(file: string, content: string) {
           location(node),
           'Go back through DirectoryBack on a page or DetailHeader in Settings, labelled with a bare noun'
         )
+      if (!file.startsWith(SETTINGS_PARTS)) {
+        if (isHandSave(node) && !grants('SAVE_BAR_MIGRATIONS', file))
+          report(
+            'save-owner',
+            location(node),
+            'Commit a settings draft through SettingsSaveBar, which owns Discard, Save and the leave guard'
+          )
+        if (isSwitchInRow(node) && !grants('SWITCH_ROW_MIGRATIONS', file))
+          report(
+            'switch-row',
+            location(node),
+            'Put an on-or-off setting in SwitchRow, not a Switch in a SettingsRow'
+          )
+        if (isEmptyInSurface(node) && !grants('EMPTY_SURFACE_MIGRATIONS', file))
+          report(
+            'empty-in-surface',
+            location(node),
+            'Render an empty list as SettingsList with `empty`, which puts EmptyState in place of the surface'
+          )
+      }
       const role = handRole(node)
       if ((role === 'tab' || role === 'tablist') && !grants('TAB_OWNERS', file))
         report(

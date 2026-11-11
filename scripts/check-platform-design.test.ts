@@ -1250,6 +1250,63 @@ it('fails the ownership and copy rules: confirm-owner, copy-case, copy-ellipsis,
   }
 }, 30_000)
 
+it('fails the settings part rules: save-owner, switch-row, empty-in-surface, outside the settings parts', () => {
+  const { root, put, run } = productFixture()
+  const view =
+    'app/(product)/o/[organizationId]/settings/_components/sections/digest/digest-section.tsx'
+  const parts = 'app/(product)/_components/settings-parts/save-bar.tsx'
+  const source = `import { Button } from '@sim/emcn/button'
+      import { EmptyState } from '@sim/emcn/empty-state'
+      import { SettingsRow, SettingsSection, SettingsSurface } from '@sim/emcn/settings-section'
+      import { SaveActions } from '@sim/emcn/settings-section/save-actions'
+      import { Switch } from '@sim/emcn/switch'
+      export function Digest({ on, rows, set }: { on: boolean; rows: string[]; set: () => void }) {
+        return <>
+          <SaveActions dirty={on} onDiscard={set} />
+          <Button onClick={set}>Discard</Button>
+          <SettingsRow label='Daily digest' description='Send a summary each morning'>
+            <Switch label='Daily digest' checked={on} onCheckedChange={set} />
+          </SettingsRow>
+          <SettingsSection title='Digests'>
+            {rows.length ? rows.map((row) => <p key={row}>{row}</p>) : <EmptyState title='No digests yet' />}
+          </SettingsSection>
+          <SettingsSurface><div><EmptyState title='No digests yet' /></div></SettingsSurface>
+          <Button onClick={set}>Discard draft</Button>
+          <SettingsRow label='Schedule' description='When the digest is sent'><div><Switch label='Schedule' /></div></SettingsRow>
+          <EmptyState title='No digests yet' />
+        </>
+      }`
+  try {
+    put(view, source)
+    put(parts, source)
+    const result = run()
+    expect(result.status).toBe(1)
+    for (const finding of [
+      `${view}:8 [save-owner]`,
+      `${view}:9 [save-owner]`,
+      `${view}:11 [switch-row]`,
+      `${view}:14 [empty-in-surface]`,
+      `${view}:16 [empty-in-surface]`,
+    ])
+      expect(result.output).toContain(finding)
+    expect(result.output.match(/\[save-owner\]/g)).toHaveLength(2)
+    expect(result.output.match(/\[switch-row\]/g)).toHaveLength(1)
+    expect(result.output.match(/\[empty-in-surface\]/g)).toHaveLength(2)
+    expect(result.output).not.toContain(`${parts}:`)
+
+    writeAllowlists(root, {
+      SAVE_BAR_MIGRATIONS: { [view]: 'The fixture keeps its save row to prove a grant' },
+      SWITCH_ROW_MIGRATIONS: { [view]: 'The fixture keeps its switch row to prove a grant' },
+      EMPTY_SURFACE_MIGRATIONS: { [view]: 'The fixture keeps its empty surface to prove a grant' },
+    })
+    const granted = run()
+    for (const rule of ['save-owner', 'switch-row', 'empty-in-surface'])
+      expect(granted.output).not.toContain(`[${rule}]`)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}, 30_000)
+
 it('fails [page-overflow] for a hand-written row bleed, and passes a padded scroller or a sized bleed', () => {
   const { root, put, run } = productFixture()
   const sheet = 'app/(product)/o/[organizationId]/home/_components/digest/digest.module.css'

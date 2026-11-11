@@ -10,7 +10,7 @@ import {
   removeOrganizationDomainContract,
   verifyOrganizationDomainContract,
 } from '@/lib/api/contracts/organization'
-import { ssoKeys } from '@/ee/sso/hooks/sso'
+import { ssoKeys } from '@/hooks/queries/utils/sso-keys'
 
 export type DomainsResponse = OrganizationDomains
 

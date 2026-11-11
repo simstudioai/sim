@@ -206,7 +206,6 @@
     "./search-field/menu-search-field": "./src/components/search-field/menu-search-field.tsx",
     "./segmented-control": "./src/components/segmented-control/segmented-control.tsx",
     "./settings-section": "./src/components/settings-section/settings-section.tsx",
-    "./settings-section/row-list": "./src/components/settings-section/row-list.tsx",
     "./settings-section/save-actions": "./src/components/settings-section/save-actions.tsx",
     "./stack": "./src/components/stack/stack.tsx",
     "./status": "./src/components/status/status.tsx",
