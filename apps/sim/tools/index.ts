@@ -5,10 +5,7 @@ import { describeError, getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isPlainRecord, isRecordLike, toRecord } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
-import { ApiClientError } from '@/lib/api/client/errors'
-import { requestJson } from '@/lib/api/client/request'
 import type { FunctionExecuteBody } from '@/lib/api/contracts'
-import { oauthTokenPostContract } from '@/lib/api/contracts/oauth-connections'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import type { InternalSandboxProfile } from '@/lib/auth/internal'
 import {
@@ -1699,47 +1696,6 @@ function getPrivateToolMetadataPolicy(toolId: string): PrivateToolMetadataPolicy
 }
 
 /**
- * Resolves a credential token from the browser through `POST /api/auth/oauth/token`,
- * authenticated by the session cookie. Server-side execution resolves in-process
- * through `resolveExecutorCredentialToken` instead; this HTTP path exists only
- * because the browser holds no server credentials.
- */
-async function fetchCredentialTokenFromRoute(params: {
-  requestId: string
-  toolId: string
-  toolLabel: string
-  credentialId: string
-  workflowId?: string
-  impersonateEmail?: string
-  scopes?: string[]
-  callerUserId?: string
-}): Promise<CredentialTokenPayload> {
-  const { requestId, toolId, toolLabel, credentialId, workflowId } = params
-
-  try {
-    return await requestJson(oauthTokenPostContract, {
-      query: { userId: params.callerUserId },
-      headers: {},
-      body: {
-        credentialId,
-        toolId,
-        ...(workflowId ? { workflowId } : {}),
-        ...(params.impersonateEmail ? { impersonateEmail: params.impersonateEmail } : {}),
-        ...(params.scopes ? { scopes: params.scopes } : {}),
-      },
-    })
-  } catch (error: unknown) {
-    const status = error instanceof ApiClientError ? error.status : undefined
-    logger.error(`Token fetch failed for ${toolId}:`, {
-      requestId,
-      status,
-      error: getErrorMessage(error),
-    })
-    throw new Error(`Failed to obtain credential for ${toolLabel}: ${getErrorMessage(error)}`)
-  }
-}
-
-/**
  * Runs private-provenance tools against an isolated registry. Unavailable authenticated lineage
  * marks the parent unknown without replacing the tool's functional result; malformed metadata is
  * rejected inside the transport consumer and never committed to the parent.
@@ -2065,50 +2021,33 @@ async function executeToolImplementation(
         const credentialTool = tool
         const resolveCredential = async (signal?: AbortSignal): Promise<void> => {
           signal?.throwIfAborted()
-          let data: CredentialTokenPayload
-          if (typeof window === 'undefined') {
-            /**
-             * Dynamic import for the same client-bundle reason as the workflow_executor
-             * runner below: the resolver pulls the db/audit dependency graph, which must
-             * never enter the client-bundled tool registry.
-             */
-            const { resolveExecutorCredentialToken } = await import(
-              '@/executor/utils/credential-token'
-            )
-            data = await waitWithAbort(
-              resolveExecutorCredentialToken({
-                requestId,
-                credentialId,
-                userId,
-                workflowId,
-                executionId: scope.executionId,
-                toolId,
-                toolLabel,
-                scopes: providerScopes,
-                impersonateEmail,
-                enforceCredentialAccess,
-                executorDelegationOrigin: executionContext?.executorDelegationOrigin,
-                ...(operationContext?.copilotToolExecution
-                  ? { copilotExecutionContext: operationContext }
-                  : {}),
-              }),
-              signal
-            )
-          } else {
-            data = await waitWithAbort(
-              fetchCredentialTokenFromRoute({
-                requestId,
-                toolId,
-                toolLabel,
-                credentialId,
-                workflowId,
-                impersonateEmail,
-                scopes: providerScopes,
-                callerUserId: userId && enforceCredentialAccess ? userId : undefined,
-              }),
-              signal
-            )
-          }
+          /**
+           * Dynamic import for the same client-bundle reason as the workflow_executor
+           * runner below: the resolver pulls the db/audit dependency graph, which must
+           * never enter the client-bundled tool registry.
+           */
+          const { resolveExecutorCredentialToken } = await import(
+            '@/executor/utils/credential-token'
+          )
+          const data: CredentialTokenPayload = await waitWithAbort(
+            resolveExecutorCredentialToken({
+              requestId,
+              credentialId,
+              userId,
+              workflowId,
+              executionId: scope.executionId,
+              toolId,
+              toolLabel,
+              scopes: providerScopes,
+              impersonateEmail,
+              enforceCredentialAccess,
+              executorDelegationOrigin: executionContext?.executorDelegationOrigin,
+              ...(operationContext?.copilotToolExecution
+                ? { copilotExecutionContext: operationContext }
+                : {}),
+            }),
+            signal
+          )
 
           signal?.throwIfAborted()
 

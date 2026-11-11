@@ -356,8 +356,8 @@ export async function resolveCredentialToken(
       if (!authz.ok) {
         return { ok: false, status: 403, error: authz.error || 'Unauthorized' }
       }
-      // A saved secret never leaves the server; only in-process execution may resolve it.
-      if (auth.authType === AuthType.SESSION) {
+      // A saved secret never leaves the server: only server-side (internal JWT) callers may resolve it.
+      if (auth.authType !== AuthType.INTERNAL_JWT) {
         return {
           ok: false,
           status: 403,
