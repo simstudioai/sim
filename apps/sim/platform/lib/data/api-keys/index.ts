@@ -10,4 +10,3 @@ export {
   useUpdateWorkspaceApiKeySettings,
 } from '@/hooks/queries/api-keys'
 export { useSettingsSearch } from '@/hooks/use-settings-search'
-export { useReadOnlyApiKeysEnabled } from '@/platform/lib/data/api-keys/access'

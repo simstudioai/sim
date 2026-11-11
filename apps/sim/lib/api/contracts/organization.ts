@@ -566,8 +566,6 @@ const organizationSurfaceResponseSchema = z.object({
     projects: z.boolean(),
     /** Platform UI held for its design pass, shown only while this is on. */
     'platform-preview': z.boolean(),
-    /** Whether the create-key flows offer read-only access. */
-    'api-key-read-only': z.boolean(),
   }),
   /** Settings sections the viewer may reach, from the same rule the legacy settings sidebar uses. */
   settingsSections: z.array(z.string().min(1)),

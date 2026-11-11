@@ -91,7 +91,6 @@ const BUILDER_SURFACE = {
     'mothership-memory-spaces': false,
     projects: false,
     'platform-preview': false,
-    'api-key-read-only': false,
   },
   settingsSections: [],
 } satisfies PlatformOrganization

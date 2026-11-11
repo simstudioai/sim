@@ -13,7 +13,6 @@ import {
   createLogger,
   DAY_MS,
   useCreateApiKey,
-  useReadOnlyApiKeysEnabled,
 } from '@/platform/lib/data/api-keys'
 
 const logger = createLogger('CreateApiKeyModal')
@@ -65,7 +64,7 @@ export function CreateApiKeyModal({
   const [keyType, setKeyType] = useState<KeyType>(defaultKeyType)
   const [access, setAccess] = useState<ApiKeyAccessLevel>('write')
   const [expiry, setExpiry] = useState<ExpiryOption>('never')
-  const canChooseAccess = useReadOnlyApiKeysEnabled() && !fullAccessOnly
+  const canChooseAccess = !fullAccessOnly
   const [created, setCreated] = useState<CreatedApiKey | null>(null)
   const canCreate =
     keyType === 'personal' ? allowPersonalApiKeys : canManageWorkspaceKeys && Boolean(workspaceId)

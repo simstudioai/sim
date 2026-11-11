@@ -15,7 +15,6 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type ApiKeyAccessLevel, DAY_MS } from '@/lib/api/contracts/api-keys'
-import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import { type CreatedApiKey, useCreateApiKey } from '@/hooks/queries/api-keys'
 
 const logger = createLogger('CreateApiKeyModal')
@@ -54,7 +53,6 @@ export function CreateApiKeyModal({
   const [newKey, setNewKey] = useState<CreatedApiKey | null>(null)
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
   const createApiKeyMutation = useCreateApiKey()
-  const readOnlyKeysEnabled = useFeatureFlag('api-key-read-only')
 
   /**
    * The form is reset when the modal OPENS, not when this component mounts: it
@@ -92,7 +90,7 @@ export function CreateApiKeyModal({
       const data = await createApiKeyMutation.mutateAsync({
         keyType: 'personal',
         name: trimmedName,
-        access: readOnlyKeysEnabled ? access : 'write',
+        access,
         expiresAt: expiresAtFor(expiry),
       })
 
@@ -138,17 +136,15 @@ export function CreateApiKeyModal({
             autoComplete='off'
             required
           />
-          {readOnlyKeysEnabled && (
-            <ChipModalField type='custom' title='Access'>
-              <ChipButtonGroup
-                value={access}
-                onValueChange={(value) => setAccess(value as ApiKeyAccessLevel)}
-              >
-                <ChipButtonGroupItem value='write'>Full access</ChipButtonGroupItem>
-                <ChipButtonGroupItem value='read'>Read only</ChipButtonGroupItem>
-              </ChipButtonGroup>
-            </ChipModalField>
-          )}
+          <ChipModalField type='custom' title='Access'>
+            <ChipButtonGroup
+              value={access}
+              onValueChange={(value) => setAccess(value as ApiKeyAccessLevel)}
+            >
+              <ChipButtonGroupItem value='write'>Full access</ChipButtonGroupItem>
+              <ChipButtonGroupItem value='read'>Read only</ChipButtonGroupItem>
+            </ChipButtonGroup>
+          </ChipModalField>
           <ChipModalField
             type='dropdown'
             title='Expires'

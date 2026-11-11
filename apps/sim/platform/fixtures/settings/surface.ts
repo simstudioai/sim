@@ -72,7 +72,6 @@ export function settingsSurface(scenario: Scenario, plan: PreviewPlan): Platform
       'mothership-memory-spaces': platformAdmin,
       projects: true,
       'platform-preview': true,
-      'api-key-read-only': true,
     },
   }
   return { ...surface, settingsSections: previewSettingsSections(surface) }

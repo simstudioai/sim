@@ -22,7 +22,7 @@ import {
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { authMock, authMockFns } from '@sim/testing'
-import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { featureFlagsMock } from '@sim/testing/mocks/feature-flags.mock'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
@@ -60,7 +60,6 @@ const expiredKey = `sk-sim-fixture-${generateId()}`
 
 let readPersonalKey = ''
 let readWorkspaceKey = ''
-let readOnlyKeysEnabled = false
 
 type RouteHandler = (request: NextRequest, context: { params: Promise<never> }) => Promise<Response>
 
@@ -176,9 +175,6 @@ describe('read-only and expiring API keys in PostgreSQL', () => {
       displayName: 'Topic',
       fieldType: 'text',
     })
-    featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
-      async (flag) => flag === 'api-key-read-only' && readOnlyKeysEnabled
-    )
     await db.insert(apiKey).values([
       {
         id: generateId(),
@@ -231,22 +227,6 @@ describe('read-only and expiring API keys in PostgreSQL', () => {
     expect(after).toHaveLength(before.length)
   })
 
-  it('refuses to create a read-only key while the api-key-read-only flag is off', async () => {
-    const before = await db.select({ id: apiKey.id }).from(apiKey).where(eq(apiKey.userId, userId))
-    const personal = await call(createPersonalKey, '/api/users/me/api-keys', {
-      body: { name: `Flag off personal ${generateId()}`, access: 'read' },
-    })
-    expect(personal.status).toBe(400)
-    expect(personal.body).toEqual({ error: 'Read-only API keys are not available yet' })
-    const scoped = await call(createWorkspaceKey, `/api/workspaces/${workspaceId}/api-keys`, {
-      body: { name: `Flag off workspace ${generateId()}`, access: 'read' },
-      params: { id: workspaceId },
-    })
-    expect(scoped.status).toBe(400)
-    const after = await db.select({ id: apiKey.id }).from(apiKey).where(eq(apiKey.userId, userId))
-    expect(after).toHaveLength(before.length)
-  })
-
   it('reserves the delegation key-name prefix', async () => {
     const created = await call(createPersonalKey, '/api/users/me/api-keys', {
       body: { name: `mothership-delegation:${userId}`, access: 'write' },
@@ -255,7 +235,6 @@ describe('read-only and expiring API keys in PostgreSQL', () => {
   })
 
   it('mints read-only personal and workspace keys that report their access and expiry', async () => {
-    readOnlyKeysEnabled = true
     const expiresAt = new Date(Date.now() + 30 * DAY_MS).toISOString()
     const personal = await call(createPersonalKey, '/api/users/me/api-keys', {
       body: { name: `Read personal ${generateId()}`, access: 'read', expiresAt },
