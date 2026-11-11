@@ -122,7 +122,7 @@ function DatabricksAccountForm({
   }
 
   const federationCommand =
-    authType === 'oidc_federation' && keyless.trust
+    authType === 'oidc_federation' && keyless.trust?.audience
       ? buildFederationPolicyCommand(
           keyless.trust.issuer,
           keyless.trust.audience,

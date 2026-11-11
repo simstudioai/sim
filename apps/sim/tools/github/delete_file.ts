@@ -1,4 +1,5 @@
 import type { DeleteFileParams, DeleteFileResponse } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteFileTool: ToolConfig<DeleteFileParams, DeleteFileResponse> = {
@@ -7,6 +8,7 @@ export const deleteFileTool: ToolConfig<DeleteFileParams, DeleteFileResponse> = 
   description:
     'Delete a file from a GitHub repository. Requires the file SHA. This operation cannot be undone through the API.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -153,6 +155,7 @@ export const deleteFileV2Tool: ToolConfig<DeleteFileParams, any> = {
   name: deleteFileTool.name,
   description: deleteFileTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: deleteFileTool.params,
   request: deleteFileTool.request,
 

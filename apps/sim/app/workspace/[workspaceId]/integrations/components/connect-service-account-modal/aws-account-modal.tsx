@@ -147,7 +147,7 @@ function AwsAccountForm({
   }
 
   const trustPolicy =
-    authType === 'oidc_role' && keyless.trust
+    authType === 'oidc_role' && keyless.trust?.audience
       ? buildTrustPolicy(
           keyless.trust.issuer,
           keyless.trust.audience,

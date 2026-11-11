@@ -1,4 +1,5 @@
 import type { MergePRParams, MergeResultResponse } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const mergePRTool: ToolConfig<MergePRParams, MergeResultResponse> = {
@@ -6,6 +7,7 @@ export const mergePRTool: ToolConfig<MergePRParams, MergeResultResponse> = {
   name: 'GitHub Merge Pull Request',
   description: 'Merge a pull request in a GitHub repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -131,6 +133,7 @@ export const mergePRV2Tool: ToolConfig<MergePRParams, any> = {
   name: mergePRTool.name,
   description: mergePRTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: mergePRTool.params,
   request: mergePRTool.request,
 

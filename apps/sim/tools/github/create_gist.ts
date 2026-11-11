@@ -1,3 +1,4 @@
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface CreateGistParams {
@@ -34,6 +35,7 @@ export const createGistTool: ToolConfig<CreateGistParams, CreateGistResponse> = 
   name: 'GitHub Create Gist',
   description: 'Create a new gist with one or more files',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     description: {
@@ -153,6 +155,7 @@ export const createGistV2Tool: ToolConfig<CreateGistParams, any> = {
   name: createGistTool.name,
   description: createGistTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: createGistTool.params,
   request: createGistTool.request,
 

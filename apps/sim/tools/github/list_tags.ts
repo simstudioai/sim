@@ -1,4 +1,5 @@
 import type { ListTagsParams, TagsListResponse } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listTagsTool: ToolConfig<ListTagsParams, TagsListResponse> = {
@@ -7,6 +8,7 @@ export const listTagsTool: ToolConfig<ListTagsParams, TagsListResponse> = {
   description:
     'List tags for a GitHub repository. Returns tag names with their commit SHA and download URLs.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -131,6 +133,7 @@ export const listTagsV2Tool: ToolConfig<ListTagsParams, any> = {
   name: listTagsTool.name,
   description: listTagsTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listTagsTool.params,
   request: listTagsTool.request,
 

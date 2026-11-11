@@ -1,6 +1,7 @@
 import { truncate } from '@sim/utils/string'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
 import type { FileContentResponse, GetFileContentParams } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getFileContentTool: ToolConfig<GetFileContentParams, FileContentResponse> = {
@@ -9,6 +10,7 @@ export const getFileContentTool: ToolConfig<GetFileContentParams, FileContentRes
   description:
     'Get the content of a file from a GitHub repository. Supports files up to 1MB. Content is returned decoded and human-readable.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -170,6 +172,7 @@ export const getFileContentV2Tool: ToolConfig<GetFileContentParams, any> = {
   name: getFileContentTool.name,
   description: getFileContentTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getFileContentTool.params,
   request: getFileContentTool.request,
 

@@ -331,7 +331,9 @@ export interface ToolConfig<P = any, R = any> {
   postProcess?: (
     result: R extends ToolResponse ? R : ToolResponse,
     params: P,
-    executeTool: (toolId: string, params: Record<string, any>) => Promise<ToolResponse>
+    executeTool: (toolId: string, params: Record<string, any>) => Promise<ToolResponse>,
+    /** The run's abort signal, the same one the tool's own request used. */
+    context?: { signal?: AbortSignal }
   ) => Promise<R extends ToolResponse ? R : ToolResponse>
 
   // Response handling

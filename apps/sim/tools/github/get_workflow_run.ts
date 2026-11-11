@@ -6,6 +6,7 @@ import {
   USER_OUTPUT,
   WORKFLOW_RUN_OUTPUT_PROPERTIES,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getWorkflowRunTool: ToolConfig<GetWorkflowRunParams, WorkflowRunResponse> = {
@@ -14,6 +15,7 @@ export const getWorkflowRunTool: ToolConfig<GetWorkflowRunParams, WorkflowRunRes
   description:
     'Get detailed information about a specific workflow run by ID. Returns status, conclusion, timing, and links to the run.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -106,6 +108,7 @@ export const getWorkflowRunV2Tool: ToolConfig<GetWorkflowRunParams, any> = {
   name: getWorkflowRunTool.name,
   description: getWorkflowRunTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getWorkflowRunTool.params,
   request: getWorkflowRunTool.request,
 

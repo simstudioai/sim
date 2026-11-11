@@ -2,7 +2,7 @@ import { Calendar } from '@sim/emcn/icons'
 import { GithubIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector } from '@/blocks/utils'
+import { createVersionedToolSelector, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /** Reviewers can be named individually or by team slug; either identifies the request. */
@@ -369,7 +369,7 @@ export const GitHubBlock: BlockConfig = {
   },
   triggerAllowed: true,
   hideFromToolbar: true,
-  sunset: { status: 'legacy', replacedBy: 'github_v2' },
+  sunset: { status: 'legacy', replacedBy: 'github_v3' },
   subBlocks: [
     {
       id: 'operation',
@@ -2436,10 +2436,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
 export const GitHubV2Block: BlockConfig = {
   ...GitHubBlock,
-  sunset: undefined,
+  sunset: { status: 'legacy', replacedBy: 'github_v3' },
   type: 'github_v2',
   name: 'GitHub',
-  hideFromToolbar: false,
+  hideFromToolbar: true,
   integrationType: IntegrationType.DevOps,
   tools: {
     ...GitHubBlock.tools,
@@ -2479,6 +2479,20 @@ export const GitHubV2Block: BlockConfig = {
     commit_message: { type: 'string', description: 'Latest commit message' },
     commit_author: { type: 'string', description: 'Author of the latest commit' },
   },
+}
+
+export const GitHubV3Block: BlockConfig = {
+  ...GitHubV2Block,
+  type: 'github_v3',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(GitHubV2Block, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'github-token',
+    title: 'GitHub Credential',
+  }),
 }
 
 export const GitHubBlockMeta = {

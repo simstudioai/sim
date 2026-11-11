@@ -17,6 +17,15 @@ export type TokenServiceAccountValidationCode =
   /** The egress policy refused the typed host (a private address, or plain http). */
   | 'host_not_allowed'
   | 'provider_unavailable'
+  /** The provider requires a one-time user consent before it issues tokens (DocuSign JWT Grant). */
+  | 'consent_required'
+  /** The credential authenticated, but the account it pins is not one its user belongs to. */
+  | 'account_not_found'
+  /**
+   * The credential works, but not for this service or option: a keyless Google Cloud credential
+   * asked for a Workspace service or to impersonate a user (domain-wide delegation).
+   */
+  | 'unsupported_use'
 
 export class TokenServiceAccountValidationError extends Error {
   constructor(
@@ -118,7 +127,7 @@ const PROVIDER_FETCH_TIMEOUT_MS = 10_000
  */
 export function isHostNotFound(error: unknown): boolean {
   const failure = error as { code?: unknown; cause?: { code?: unknown } } | undefined
-  return (failure?.code ?? failure?.cause?.code) === 'ENOTFOUND'
+  return failure?.code === 'ENOTFOUND' || failure?.cause?.code === 'ENOTFOUND'
 }
 
 export async function fetchProvider(
@@ -153,7 +162,10 @@ export async function fetchProvider(
  * error pages, truncated responses) to `provider_unavailable` instead of an
  * unhandled SyntaxError that would surface as a generic 500.
  */
-export async function parseProviderJson<T>(res: Response, step: string): Promise<T> {
+export async function parseProviderJson<T>(
+  res: { json(): Promise<unknown> },
+  step: string
+): Promise<T> {
   try {
     return (await res.json()) as T
   } catch {

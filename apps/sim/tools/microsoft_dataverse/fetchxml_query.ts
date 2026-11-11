@@ -4,7 +4,10 @@ import type {
   DataverseFetchXmlQueryResponse,
 } from '@/tools/microsoft_dataverse/types'
 import { DATAVERSE_RECORDS_ARRAY_OUTPUT } from '@/tools/microsoft_dataverse/types'
-import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
+import {
+  DATAVERSE_OAUTH_CONFIG,
+  getDataverseRequestBaseUrl,
+} from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseFetchXmlQuery')
@@ -19,7 +22,7 @@ export const dataverseFetchXmlQueryTool: ToolConfig<
     'Execute a FetchXML query against a Microsoft Dataverse table. FetchXML supports aggregation, grouping, linked-entity joins, and complex filtering beyond OData capabilities.',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'microsoft-dataverse' },
+  oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',
 
   params: {
@@ -52,7 +55,7 @@ export const dataverseFetchXmlQueryTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      const baseUrl = getDataverseRequestBaseUrl(params)
       const encodedFetchXml = encodeURIComponent(params.fetchXml)
       return `${baseUrl}/api/data/v9.2/${params.entitySetName.trim()}?fetchXml=${encodedFetchXml}`
     },

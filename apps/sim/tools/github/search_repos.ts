@@ -3,6 +3,7 @@ import {
   REPO_FULL_OUTPUT_PROPERTIES,
   USER_FULL_OUTPUT_PROPERTIES,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface SearchReposParams {
@@ -44,6 +45,7 @@ export const searchReposTool: ToolConfig<SearchReposParams, SearchReposResponse>
   description:
     'Search for repositories across GitHub. Use qualifiers like language:python, stars:>1000, topic:react, user:owner, org:name',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     q: {
@@ -184,6 +186,7 @@ export const searchReposV2Tool: ToolConfig<SearchReposParams, any> = {
   name: searchReposTool.name,
   description: searchReposTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: searchReposTool.params,
   request: searchReposTool.request,
 

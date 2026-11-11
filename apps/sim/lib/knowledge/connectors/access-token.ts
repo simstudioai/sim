@@ -29,6 +29,11 @@ export interface ConnectorAccessToken {
   cloudId?: string
   /** The trusted site domain belonging to the credential's cloud id. */
   domain?: string
+  /**
+   * The provider API base a minted service-account token is bound to (a
+   * DocuSign JWT Grant credential's account). Never present for OAuth.
+   */
+  instanceUrl?: string
   /** Server-only capability bound to this credential and the connector's declared scopes. */
   getDelegatedAccessToken?: (subject: string, signal?: AbortSignal) => Promise<string>
 }
@@ -139,14 +144,11 @@ export async function resolveConnectorAccessToken(params: {
     requestId,
     connectorServiceAccountScopes(auth, params.accessMode),
     subject,
-    ...(githubRepositoryScope || params.signal
-      ? [
-          {
-            ...(githubRepositoryScope ? { githubRepositoryScope } : {}),
-            ...(params.signal ? { signal: params.signal } : {}),
-          },
-        ]
-      : [])
+    {
+      service: auth.provider,
+      ...(githubRepositoryScope ? { githubRepositoryScope } : {}),
+      ...(params.signal ? { signal: params.signal } : {}),
+    }
   )
   if (!bundle?.accessToken) return null
 
@@ -190,6 +192,7 @@ export async function resolveConnectorAccessToken(params: {
     ...(bundle.cloudId
       ? { cloudId: bundle.cloudId, ...(bundle.domain ? { domain: bundle.domain } : {}) }
       : {}),
+    ...(bundle.instanceUrl ? { instanceUrl: bundle.instanceUrl } : {}),
   }
 }
 
@@ -232,6 +235,7 @@ export function syncContextForToken(token: ConnectorAccessToken): Record<string,
           ...(token.domain ? { credentialDomain: token.domain } : {}),
         }
       : {}),
+    ...(token.instanceUrl ? { credentialInstanceUrl: token.instanceUrl } : {}),
     ...(token.getDelegatedAccessToken
       ? { getDelegatedAccessToken: token.getDelegatedAccessToken }
       : {}),

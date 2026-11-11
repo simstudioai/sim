@@ -4,7 +4,10 @@ import type {
   DataverseGetRecordResponse,
 } from '@/tools/microsoft_dataverse/types'
 import { DATAVERSE_RECORD_OUTPUT } from '@/tools/microsoft_dataverse/types'
-import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
+import {
+  DATAVERSE_OAUTH_CONFIG,
+  getDataverseRequestBaseUrl,
+} from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseGetRecord')
@@ -19,7 +22,7 @@ export const dataverseGetRecordTool: ToolConfig<
     'Retrieve a single record from a Microsoft Dataverse table by its ID. Supports $select and $expand OData query options.',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'microsoft-dataverse' },
+  oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',
 
   params: {
@@ -63,7 +66,7 @@ export const dataverseGetRecordTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      const baseUrl = getDataverseRequestBaseUrl(params)
       const queryParts: string[] = []
       if (params.select) queryParts.push(`$select=${encodeURIComponent(params.select)}`)
       if (params.expand) queryParts.push(`$expand=${encodeURIComponent(params.expand)}`)

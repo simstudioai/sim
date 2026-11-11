@@ -25,6 +25,8 @@ interface KeylessSetupInput {
   workspaceId?: string
   organizationId?: string
   credentialId?: string
+  /** False when the dialog cannot offer keyless at all (a Google Workspace service). */
+  enabled?: boolean
 }
 
 /**
@@ -40,22 +42,26 @@ export function useKeylessSetup({
   workspaceId,
   organizationId,
   credentialId,
+  enabled = true,
 }: KeylessSetupInput) {
   const [sessionKey] = useState(() => generateShortId())
   const [subjectChoice, setSubjectChoice] = useState<TrustSubjectChoice>(
     credentialId ? 'keep' : 'new'
   )
-  const workspaceScoped = Boolean(workspaceId) && !organizationId
+  const workspaceScoped = enabled && Boolean(workspaceId) && !organizationId
   const setup = useWorkloadIdentitySetup({
     workspaceId,
     provider,
     sessionKey,
     enabled: workspaceScoped,
+    credentialId,
   })
   const trust = setup.data?.available ? setup.data : undefined
   return {
     /** Undefined while this deployment's support is still loading. */
     available: workspaceScoped ? setup.data?.available : false,
+    /** The credential being reconnected is keyless (reported for Snowflake and Google only). */
+    reconnectsKeyless: Boolean(setup.data?.available && setup.data.reconnectsKeyless),
     isReconnect: Boolean(credentialId),
     subjectChoice,
     setSubjectChoice,
@@ -76,10 +82,15 @@ export function keylessSubjectFields(setup: KeylessSetup) {
 
 interface KeylessTrustFieldsProps {
   setup: KeylessSetup
+  /** The credential's own audience, for a provider without a fixed one (Google). */
+  audience?: string
 }
 
 /** Reconnect choice plus the issuer, audience, and subject the customer configures. */
-export function KeylessTrustFields({ setup }: KeylessTrustFieldsProps) {
+export function KeylessTrustFields({
+  setup,
+  audience = setup.trust?.audience,
+}: KeylessTrustFieldsProps) {
   return (
     <>
       {setup.isReconnect && (
@@ -114,12 +125,14 @@ export function KeylessTrustFields({ setup }: KeylessTrustFieldsProps) {
             value={setup.trust.issuer}
             copyLabel='Copy issuer'
           />
-          <ChipModalField
-            type='copy'
-            title='Audience'
-            value={setup.trust.audience}
-            copyLabel='Copy audience'
-          />
+          {audience && (
+            <ChipModalField
+              type='copy'
+              title='Audience'
+              value={audience}
+              copyLabel='Copy audience'
+            />
+          )}
           <ChipModalField
             type='copy'
             title='Subject'
@@ -140,6 +153,12 @@ interface SavedConnectionSubmitInput {
   credentialId?: string
   onCreated?: (credentialId: string) => void
   onClose: () => void
+  /**
+   * Copy for a shared verification code (`invalid_credentials`, …) the
+   * provider reports by code rather than with its own message; undefined
+   * keeps the server's message.
+   */
+  messageForCode?: (code: string) => string | undefined
 }
 
 /**
@@ -154,6 +173,7 @@ export function useSavedConnectionSubmit({
   credentialId,
   onCreated,
   onClose,
+  messageForCode,
 }: SavedConnectionSubmitInput) {
   const [error, setError] = useState<string | null>(null)
   const createCredential = useCreateScopedCredential()
@@ -194,10 +214,15 @@ export function useSavedConnectionSubmit({
         setError('A credential with that name already exists. Choose a different display name.')
         return
       }
+      const codeMessage =
+        isApiClientError(submitError) && submitError.code
+          ? messageForCode?.(submitError.code)
+          : undefined
       setError(
-        isApiClientError(submitError) && submitError.message
-          ? submitError.message
-          : 'Could not verify the credential. Check the details and try again.'
+        codeMessage ??
+          (isApiClientError(submitError) && submitError.message
+            ? submitError.message
+            : 'Could not verify the credential. Check the details and try again.')
       )
     }
   }

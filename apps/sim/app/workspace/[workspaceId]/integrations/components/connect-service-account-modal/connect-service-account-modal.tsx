@@ -4,6 +4,7 @@ import { type ComponentType, useState } from 'react'
 import {
   ChipModal,
   ChipModalBody,
+  ChipModalDescription,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
@@ -25,9 +26,14 @@ import {
   type ClientCredentialAccountProviderId,
   getClientCredentialAccountDescriptor,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
+import {
+  GOOGLE_KEYLESS_SERVICES,
+  googleKeylessOffer,
+} from '@/lib/credentials/google-workload-identity'
 import type { ServiceAccountSecretFields } from '@/lib/credentials/service-account-secret'
 import {
   getTokenServiceAccountDescriptor,
+  SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
   type TokenServiceAccountProviderId,
 } from '@/lib/credentials/token-service-accounts/descriptors'
 import { getServiceAccountCoverageSentence } from '@/lib/integrations/credential-display'
@@ -36,6 +42,7 @@ import {
   AWS_SERVICE_ACCOUNT_PROVIDER_ID,
   DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
@@ -43,7 +50,20 @@ import {
 import { AwsAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/aws-account-modal'
 import { ClientCredentialAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/client-credential-account-modal'
 import { DatabricksAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/databricks-account-modal'
+import {
+  buildGoogleKeylessConfig,
+  EMPTY_GOOGLE_KEYLESS_INPUT,
+  GoogleKeylessFields,
+  type GoogleKeylessInput,
+  isGoogleKeylessInputComplete,
+} from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/google-keyless-fields'
+import {
+  useKeylessSetup,
+  useSavedConnectionSubmit,
+} from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/keyless-connection'
+import { MicrosoftAppAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/microsoft-app-account-modal'
 import { OracleDatabaseAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/oracle-database-account-modal'
+import { SnowflakeAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/snowflake-account-modal'
 import { TokenServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/token-service-account-modal'
 import { ConnectSlackBotModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-slack-bot-modal/connect-slack-bot-modal'
 import { withBrandIcon } from '@/blocks/brand-icon'
@@ -62,6 +82,7 @@ export type ServiceAccountProviderId =
   | typeof ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof AWS_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID
   | TokenServiceAccountProviderId
   | ClientCredentialAccountProviderId
 
@@ -144,6 +165,11 @@ interface ConnectServiceAccountModalProps {
   credentialDisplayName?: string
   /** Existing description, used to seed reconnect-capable modals. */
   credentialDescription?: string
+  /**
+   * The OAuth service the dialog was opened for (`google-bigquery`). A Google service account
+   * offers keyless setup only for a Google Cloud service.
+   */
+  oauthServiceId?: string
   /** Called with the new credential id after a successful create (token-paste providers). */
   onCreated?: (credentialId: string) => void
   onSubmitCredentials?: (
@@ -179,6 +205,7 @@ export function ConnectServiceAccountModal({
   credentialId,
   credentialDisplayName,
   credentialDescription,
+  oauthServiceId,
   onCreated,
   onSubmitCredentials,
   submitPending,
@@ -186,6 +213,21 @@ export function ConnectServiceAccountModal({
   if (serviceAccountProviderId === DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID) {
     return (
       <DatabricksAccountModal
+        open={open}
+        onOpenChange={onOpenChange}
+        workspaceId={workspaceId}
+        organizationId={organizationId}
+        serviceIcon={serviceIcon}
+        credentialId={credentialId}
+        initialDisplayName={credentialDisplayName}
+        initialDescription={credentialDescription}
+        onCreated={onCreated}
+      />
+    )
+  }
+  if (serviceAccountProviderId === MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID) {
+    return (
+      <MicrosoftAppAccountModal
         open={open}
         onOpenChange={onOpenChange}
         workspaceId={workspaceId}
@@ -239,6 +281,23 @@ export function ConnectServiceAccountModal({
         workspaceId={workspaceId}
         organizationId={organizationId}
         descriptor={clientCredentialDescriptor}
+        serviceName={serviceName}
+        serviceIcon={serviceIcon}
+        credentialId={credentialId}
+        initialDisplayName={credentialDisplayName}
+        initialDescription={credentialDescription}
+        onCreated={onCreated}
+      />
+    )
+  }
+  // A caller that saves the fields itself (a connect draft) takes the token only.
+  if (serviceAccountProviderId === SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID && !onSubmitCredentials) {
+    return (
+      <SnowflakeAccountModal
+        open={open}
+        onOpenChange={onOpenChange}
+        workspaceId={workspaceId}
+        organizationId={organizationId}
         serviceName={serviceName}
         serviceIcon={serviceIcon}
         credentialId={credentialId}
@@ -328,6 +387,7 @@ export function ConnectServiceAccountModal({
       credentialId={credentialId}
       initialDisplayName={credentialDisplayName}
       initialDescription={credentialDescription}
+      oauthServiceId={oauthServiceId}
       onCreated={onCreated}
     />
   )
@@ -560,12 +620,20 @@ function OciApiKeyServiceAccountModal({
   )
 }
 
+interface GoogleServiceAccountModalProps extends ProviderModalProps {
+  oauthServiceId?: string
+}
+
+type GoogleAuthType = 'json_key' | 'workload_identity'
+
 /**
  * Google service-account flow. Accepts the raw JSON key (paste or drag/drop)
  * and validates against the shared `serviceAccountJsonSchema` so the same
- * shape errors render here as in the server route.
+ * shape errors render here as in the server route. For a Google Cloud service
+ * (or a keyless credential being reconnected) on a deployment that can sign
+ * workload-identity tokens, it also offers keyless Workload Identity Federation.
  */
-function GoogleServiceAccountModal(props: ProviderModalProps) {
+function GoogleServiceAccountModal(props: GoogleServiceAccountModalProps) {
   if (!props.open) return null
   return (
     <GoogleServiceAccountModalForm
@@ -585,8 +653,36 @@ function GoogleServiceAccountModalForm({
   credentialId,
   initialDisplayName,
   initialDescription,
+  oauthServiceId,
   onCreated,
-}: ProviderModalProps) {
+}: GoogleServiceAccountModalProps) {
+  const cloudService = Boolean(oauthServiceId && GOOGLE_KEYLESS_SERVICES.has(oauthServiceId))
+  const keyless = useKeylessSetup({
+    provider: 'google',
+    workspaceId,
+    organizationId,
+    credentialId,
+    enabled: cloudService || Boolean(credentialId),
+  })
+  const keylessSubmit = useSavedConnectionSubmit({
+    providerId: GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+    workspaceId,
+    organizationId,
+    credentialId,
+    onCreated,
+    onClose: () => onOpenChange(false),
+  })
+  const keylessOffer = googleKeylessOffer({
+    oauthServiceId,
+    available: Boolean(keyless.available),
+    reconnectsKeyless: keyless.reconnectsKeyless,
+  })
+  const offerKeyless = keylessOffer === 'offer'
+  const [selectedAuthType, setSelectedAuthType] = useState<GoogleAuthType | null>(null)
+  const authType: GoogleAuthType = offerKeyless
+    ? (selectedAuthType ?? (keyless.reconnectsKeyless ? 'workload_identity' : 'json_key'))
+    : 'json_key'
+  const [keylessInput, setKeylessInput] = useState<GoogleKeylessInput>(EMPTY_GOOGLE_KEYLESS_INPUT)
   const [jsonInput, setJsonInput] = useState('')
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
@@ -675,8 +771,15 @@ function GoogleServiceAccountModalForm({
     }
   }
 
-  const isPending = createCredential.isPending || updateCredential.isPending
-  const isDisabled = !jsonInput.trim() || isPending
+  const isPending =
+    createCredential.isPending || updateCredential.isPending || keylessSubmit.isPending
+  const cloudOnly = keylessOffer === 'cloud_only'
+  const isDisabled =
+    cloudOnly ||
+    (authType === 'workload_identity'
+      ? isPending || !keyless.ready || !isGoogleKeylessInputComplete(keylessInput)
+      : !jsonInput.trim() || isPending)
+  const submitError = authType === 'workload_identity' ? keylessSubmit.error : error
 
   return (
     <ChipModal
@@ -688,39 +791,91 @@ function GoogleServiceAccountModalForm({
         Add {serviceName} service account
       </ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField
-          type='textarea'
-          title='JSON key'
-          value={jsonInput}
-          onChange={(value) => {
-            setJsonInput(value)
-            if (uploadedFileName) setUploadedFileName(null)
-            if (error) setError(null)
-            maybeFillDisplayNameFromJson(value)
-          }}
-          placeholder='Paste your service account JSON key here'
-          minHeight={120}
-          required
-        />
+        {offerKeyless && (
+          <ChipModalField
+            type='dropdown'
+            title='Authentication'
+            value={authType}
+            onChange={(value) => {
+              setSelectedAuthType(value as GoogleAuthType)
+              setError(null)
+              keylessSubmit.clearError()
+            }}
+            options={[
+              { value: 'json_key', label: 'JSON key' },
+              {
+                value: 'workload_identity',
+                label: 'Workload Identity Federation (keyless, via Sim OIDC)',
+              },
+            ]}
+            required
+            hint={
+              authType === 'workload_identity'
+                ? 'No key is stored. Sim signs a short-lived token your workload identity provider trusts, then impersonates the service account. Google Cloud APIs only, without domain-wide delegation.'
+                : undefined
+            }
+          />
+        )}
 
-        <ChipModalField
-          type='file'
-          title='Or upload a file'
-          accept='.json'
-          label={
-            uploadedFileName
-              ? `Uploaded ${uploadedFileName} — click or drop to replace`
-              : 'Drag & drop a .json file, or click to browse'
-          }
-          onChange={handleFileUpload}
-        />
+        {authType === 'workload_identity' && (
+          <GoogleKeylessFields
+            input={keylessInput}
+            onChange={(next) => {
+              setKeylessInput(next)
+              keylessSubmit.clearError()
+            }}
+            setup={keyless}
+          />
+        )}
+
+        {cloudOnly && (
+          <ChipModalDescription>
+            This keyless credential works only with Google Cloud services (BigQuery, Vertex AI).
+            Reconnect it from one of those integrations or from the credential’s own page.
+          </ChipModalDescription>
+        )}
+
+        {authType === 'json_key' && !cloudOnly && (
+          <>
+            <ChipModalField
+              type='textarea'
+              title='JSON key'
+              value={jsonInput}
+              onChange={(value) => {
+                setJsonInput(value)
+                if (uploadedFileName) setUploadedFileName(null)
+                if (error) setError(null)
+                maybeFillDisplayNameFromJson(value)
+              }}
+              placeholder='Paste your service account JSON key here'
+              minHeight={120}
+              required
+            />
+
+            <ChipModalField
+              type='file'
+              title='Or upload a file'
+              accept='.json'
+              label={
+                uploadedFileName
+                  ? `Uploaded ${uploadedFileName} — click or drop to replace`
+                  : 'Drag & drop a .json file, or click to browse'
+              }
+              onChange={handleFileUpload}
+            />
+          </>
+        )}
 
         <ChipModalField
           type='input'
           title='Display name'
           value={displayName}
           onChange={setDisplayName}
-          placeholder='Auto-populated from client_email'
+          placeholder={
+            authType === 'workload_identity'
+              ? 'Defaults to the service account email'
+              : 'Auto-populated from client_email'
+          }
           autoComplete='off'
         />
 
@@ -734,7 +889,7 @@ function GoogleServiceAccountModalForm({
           minHeight={80}
         />
 
-        <ChipModalError>{error}</ChipModalError>
+        <ChipModalError>{submitError}</ChipModalError>
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}
@@ -745,8 +900,24 @@ function GoogleServiceAccountModalForm({
           },
         ]}
         primaryAction={{
-          label: isPending ? 'Adding...' : 'Add service account',
-          onClick: handleSubmit,
+          label: isPending
+            ? authType === 'workload_identity'
+              ? 'Verifying...'
+              : 'Adding...'
+            : 'Add service account',
+          onClick: () => {
+            if (authType === 'json_key') {
+              void handleSubmit()
+              return
+            }
+            if (!isDisabled) {
+              void keylessSubmit.submit({
+                config: buildGoogleKeylessConfig(keylessInput, keyless),
+                displayName,
+                description,
+              })
+            }
+          },
           disabled: isDisabled,
         }}
       />

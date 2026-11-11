@@ -3,7 +3,7 @@ import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/pri
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   ATLASSIAN_PRODUCTS,
-  getServiceAccountRequiredFields,
+  getMissingServiceAccountFields,
 } from '@/lib/credentials/service-account-fields'
 import { WORKLOAD_IDENTITY_PROVIDERS } from '@/lib/credentials/workload-identity/audiences'
 import type { OAuthProvider } from '@/lib/oauth/types'
@@ -237,14 +237,12 @@ export function refineCredentialCreate(
   }
 
   if (data.type === 'service_account') {
-    for (const field of getServiceAccountRequiredFields(data.providerId)) {
-      if (!data[field]) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `${field} is required for ${data.providerId ?? 'service account'} credentials`,
-          path: [field],
-        })
-      }
+    for (const field of getMissingServiceAccountFields(data.providerId, data)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${field} is required for ${data.providerId ?? 'service account'} credentials`,
+        path: [field],
+      })
     }
     return
   }
@@ -563,6 +561,8 @@ export const prepareWorkloadIdentityContract = defineRouteContract({
   body: z.object({
     workspaceId: workspaceIdSchema,
     provider: z.enum(WORKLOAD_IDENTITY_PROVIDERS),
+    /** The credential being reconnected, so the dialog opens on its current mode. */
+    credentialId: z.string().min(1).max(255).optional(),
   }),
   response: {
     mode: 'json',
@@ -573,13 +573,18 @@ export const prepareWorkloadIdentityContract = defineRouteContract({
         available: z.literal(true),
         /** Register this URL as the OpenID Connect issuer the cloud trusts. */
         issuer: z.string(),
-        /** The `aud` the cloud must accept (AWS client ID, Databricks policy audience). */
-        audience: z.string(),
+        /**
+         * The `aud` the cloud must accept (AWS client ID, Databricks policy audience). Absent for
+         * Google, whose audience is each credential's own workload identity provider.
+         */
+        audience: z.string().optional(),
         /** The exact `sub` the role's trust policy must allow. */
         subject: z.string(),
         /** Opaque proof submitted with the credential; binds the subject to its creator. */
         subjectProof: z.string(),
         expiresAt: z.string(),
+        /** The reconnected credential is keyless (Snowflake, Microsoft app, and Google only). */
+        reconnectsKeyless: z.literal(true).optional(),
       }),
     ]),
   },

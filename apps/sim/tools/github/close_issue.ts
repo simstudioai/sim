@@ -1,5 +1,6 @@
 import type { CloseIssueParams, IssueResponse } from '@/tools/github/types'
 import { ISSUE_OUTPUT_PROPERTIES, LABEL_OUTPUT, USER_OUTPUT } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const closeIssueTool: ToolConfig<CloseIssueParams, IssueResponse> = {
@@ -7,6 +8,7 @@ export const closeIssueTool: ToolConfig<CloseIssueParams, IssueResponse> = {
   name: 'GitHub Close Issue',
   description: 'Close an issue in a GitHub repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -120,6 +122,7 @@ export const closeIssueV2Tool: ToolConfig<CloseIssueParams, any> = {
   name: closeIssueTool.name,
   description: closeIssueTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: closeIssueTool.params,
   request: closeIssueTool.request,
 

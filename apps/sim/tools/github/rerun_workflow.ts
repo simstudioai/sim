@@ -1,4 +1,5 @@
 import type { RerunWorkflowParams, RerunWorkflowResponse } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rerunWorkflowTool: ToolConfig<RerunWorkflowParams, RerunWorkflowResponse> = {
@@ -7,6 +8,7 @@ export const rerunWorkflowTool: ToolConfig<RerunWorkflowParams, RerunWorkflowRes
   description:
     'Rerun a workflow run. Optionally enable debug logging for the rerun. Returns 201 Created on success.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {

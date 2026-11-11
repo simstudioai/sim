@@ -1,6 +1,7 @@
 import { truncate } from '@sim/utils/string'
 import type { CreateIssueCommentParams, IssueCommentResponse } from '@/tools/github/types'
 import { COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const issueCommentTool: ToolConfig<CreateIssueCommentParams, IssueCommentResponse> = {
@@ -8,6 +9,7 @@ export const issueCommentTool: ToolConfig<CreateIssueCommentParams, IssueComment
   name: 'GitHub Issue Comment Creator',
   description: 'Create a comment on a GitHub issue',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {

@@ -1,3 +1,4 @@
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface StarRepoParams {
@@ -23,6 +24,7 @@ export const starRepoTool: ToolConfig<StarRepoParams, StarRepoResponse> = {
   name: 'GitHub Star Repository',
   description: 'Star a repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -93,6 +95,7 @@ export const starRepoV2Tool: ToolConfig<StarRepoParams, any> = {
   name: starRepoTool.name,
   description: starRepoTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: starRepoTool.params,
   request: starRepoTool.request,
 

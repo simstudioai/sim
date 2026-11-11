@@ -21,6 +21,7 @@ import {
   AWS_SERVICE_ACCOUNT_PROVIDER_ID,
   DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
   type OAuthServiceMetadata,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -146,6 +147,26 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
           secret: true,
           multiline: true,
           hint: 'JSON object with host and authType: "personal_access_token" (token) or "service_principal" (clientId, clientSecret). Keyless "oidc_federation" connections are created from the Databricks connect dialog, which issues the trusted subject.',
+        },
+      ],
+    }
+  }
+  if (providerId === MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID) {
+    return {
+      name: 'Microsoft app credential',
+      description:
+        'Use Microsoft Entra ID, SharePoint, Dataverse, and Dynamics 365 as an app registration (app-only), with a client secret, a certificate, or a keyless federated credential that trusts Sim.',
+      docsUrl: 'https://docs.sim.ai/integrations/microsoft-app-credentials',
+      fields: [
+        {
+          id: 'serviceAccountJson',
+          label: 'Credential configuration',
+          placeholder:
+            '{"authType":"client_secret","tenantId":"...","clientId":"...","clientSecret":"..."}',
+          required: true,
+          secret: true,
+          multiline: true,
+          hint: 'JSON object with tenantId, clientId, optional environmentUrl (Dataverse and Dynamics 365), and authType: "client_secret" (clientSecret) or "certificate" (privateKey, certificate as PEM). Keyless "federated" credentials are created from the Microsoft connect dialog, which issues the trusted subject.',
         },
       ],
     }

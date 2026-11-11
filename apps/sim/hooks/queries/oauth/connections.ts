@@ -88,6 +88,10 @@ async function fetchOAuthConnections(signal?: AbortSignal): Promise<ServiceInfo[
         }
       }
 
+      // A service with no OAuth flow is never connected by an account: its id can
+      // still share a prefix with a sign-in provider's (`github-token` and `github`).
+      if (service.authType === 'service_account') return service
+
       const connectionWithScopes = connections.find((conn: OAuthConnectionResponse) => {
         if (!conn.baseProvider || !service.providerId.startsWith(conn.baseProvider)) {
           return false

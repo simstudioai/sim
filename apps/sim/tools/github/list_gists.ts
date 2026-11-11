@@ -1,4 +1,5 @@
 import { GIST_FILES_OUTPUT, GIST_OUTPUT_PROPERTIES, GIST_OWNER_OUTPUT } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface ListGistsParams {
@@ -35,6 +36,7 @@ export const listGistsTool: ToolConfig<ListGistsParams, ListGistsResponse> = {
   name: 'GitHub List Gists',
   description: 'List gists for a user or the authenticated user',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     username: {
@@ -162,6 +164,7 @@ export const listGistsV2Tool: ToolConfig<ListGistsParams, any> = {
   name: listGistsTool.name,
   description: listGistsTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listGistsTool.params,
   request: listGistsTool.request,
 

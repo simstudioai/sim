@@ -1,5 +1,6 @@
 import type { ListPRsParams, PRListResponse } from '@/tools/github/types'
 import { BRANCH_REF_OUTPUT, PR_SUMMARY_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listPRsTool: ToolConfig<ListPRsParams, PRListResponse> = {
@@ -7,6 +8,7 @@ export const listPRsTool: ToolConfig<ListPRsParams, PRListResponse> = {
   name: 'GitHub List Pull Requests',
   description: 'List pull requests in a GitHub repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -158,6 +160,7 @@ export const listPRsV2Tool: ToolConfig<ListPRsParams, any> = {
   name: listPRsTool.name,
   description: listPRsTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listPRsTool.params,
   request: listPRsTool.request,
 

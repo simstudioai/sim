@@ -30,7 +30,17 @@ export const bitbucketListWorkspacesTool: ToolConfig<
   name: 'Bitbucket List Workspaces',
   description: 'List Bitbucket Cloud workspaces available to the authenticated account',
   version: '1.0.0',
-  oauth: { required: true, provider: 'bitbucket', requiredScopes: ['account'] },
+  /**
+   * Lists the workspaces of the person who connected the account, so it needs a
+   * person's OAuth account. A saved access token belongs to a workspace, project,
+   * or repository rather than a person, so it is turned away before any request.
+   */
+  oauth: {
+    required: true,
+    provider: 'bitbucket',
+    requiredScopes: ['account'],
+    credentialKind: 'oauth',
+  },
   params: {
     sort: {
       type: 'string',

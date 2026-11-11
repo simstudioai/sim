@@ -106,6 +106,16 @@ export interface ClientCredentialAccountDescriptor {
   /** Sim setup guide, docked bottom-left of the connect modal. */
   docsUrl: string
   /**
+   * Builds the provider's one-time consent URL from the values in the connect
+   * modal, for providers whose grant fails with `consent_required` until a user
+   * approves the app (DocuSign JWT Grant). `redirectUri` is the Sim origin the
+   * modal is open on. Returns `undefined` when the values can't form one.
+   */
+  consentUrl?: (
+    values: Partial<Record<ClientCredentialAccountFieldId, string>>,
+    redirectUri: string
+  ) => string | undefined
+  /**
    * Optional one-line caveat, rendered under the `orgId` field of the connect modal. A descriptor
    * without an `orgId` field puts its guidance in a field `hint` instead.
    */
@@ -125,6 +135,7 @@ export const ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID = 'oracle-fusion-service-
 export const GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID = 'greenhouse-service-account' as const
 export const JAMA_SERVICE_ACCOUNT_PROVIDER_ID = 'jama-service-account' as const
 export const HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID = 'helpscout-service-account' as const
+export const DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID = 'docusign-service-account' as const
 
 /** Permissions requested when connecting a Manage Vanta application. */
 export const VANTA_PERMISSION_OPTIONS = [
@@ -150,6 +161,7 @@ export type ClientCredentialAccountProviderId =
   | typeof GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof JAMA_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID
 
 /**
  * Exact account-specific SuiteTalk origin accepted by NetSuite's OAuth and
@@ -385,6 +397,63 @@ export function resolveZohoDeskDataCenter(rawDataCenter?: string): {
   return { id, ...ZOHO_DESK_DATA_CENTERS[id] }
 }
 
+/**
+ * DocuSign's two account systems. Each environment has its own authentication
+ * service and its own eSignature REST hosts, and a token from one is never
+ * accepted by the other, so the credential stores which one it belongs to and
+ * nothing a caller types can change it.
+ * @see https://developers.docusign.com/platform/auth/jwt/jwt-get-token/
+ */
+export const DOCUSIGN_ENVIRONMENTS = {
+  demo: { authHost: 'account-d.docusign.com', label: 'Developer (demo)' },
+  production: { authHost: 'account.docusign.com', label: 'Production' },
+} as const satisfies Record<string, { authHost: string; label: string }>
+
+export type DocuSignEnvironment = keyof typeof DOCUSIGN_ENVIRONMENTS
+
+/** Resolves a stored environment value, or `undefined` when it is not exactly one of the two. */
+export function resolveDocuSignEnvironment(
+  value: string | undefined
+): DocuSignEnvironment | undefined {
+  const trimmed = value?.trim()
+  return trimmed && Object.hasOwn(DOCUSIGN_ENVIRONMENTS, trimmed)
+    ? (trimmed as DocuSignEnvironment)
+    : undefined
+}
+
+/** DocuSign integration keys, user IDs, and account IDs are all GUIDs. */
+export const DOCUSIGN_GUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** An unencrypted PEM RSA private key, in the PKCS#1 form DocuSign generates or PKCS#8. */
+const DOCUSIGN_PRIVATE_KEY_REGEX =
+  /^-----BEGIN (RSA )?PRIVATE KEY-----[\s\S]+-----END (RSA )?PRIVATE KEY-----$/
+
+/** Scopes a JWT Grant credential requests; `impersonation` is what JWT consent covers. */
+export const DOCUSIGN_JWT_SCOPES = 'signature impersonation'
+
+/**
+ * The one-time consent URL the impersonated user opens to let the integration
+ * key act as them. DocuSign requires a `redirect_uri` registered on the key;
+ * the JWT flow ignores the `code` it receives.
+ * @see https://developers.docusign.com/platform/auth/jwt/jwt-get-token/
+ */
+function buildDocuSignConsentUrl(
+  integrationKey: string,
+  environment: string | undefined,
+  redirectUri: string
+): string | undefined {
+  const resolved = resolveDocuSignEnvironment(environment)
+  const key = integrationKey.trim()
+  if (!resolved || !DOCUSIGN_GUID_REGEX.test(key)) return undefined
+  const params = new URLSearchParams({
+    response_type: 'code',
+    scope: DOCUSIGN_JWT_SCOPES,
+    client_id: key,
+    redirect_uri: redirectUri,
+  })
+  return `https://${DOCUSIGN_ENVIRONMENTS[resolved].authHost}/oauth/auth?${params.toString()}`
+}
+
 export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
   ClientCredentialAccountProviderId,
   ClientCredentialAccountDescriptor
@@ -416,6 +485,69 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/jama',
     helpText:
       'Create API credentials in your Jama profile. Your account needs REST API access and a Named Creator license.',
+  },
+  [DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'DocuSign',
+    connectNoun: 'JWT Grant app',
+    fields: [
+      {
+        id: 'dataCenter',
+        label: 'Environment',
+        placeholder: 'Select an environment',
+        secret: false,
+        options: (Object.keys(DOCUSIGN_ENVIRONMENTS) as DocuSignEnvironment[]).map((id) => ({
+          value: id,
+          label: DOCUSIGN_ENVIRONMENTS[id].label,
+        })),
+        hint: 'Where the integration key was created. Keys start in the developer environment until they go live.',
+      },
+      {
+        id: 'clientId',
+        label: 'Integration key',
+        placeholder: '00000000-0000-0000-0000-000000000000',
+        secret: false,
+        hintPattern: DOCUSIGN_GUID_REGEX,
+        hintNormalize: (value) => value.trim(),
+        hintMessage: 'Expected the integration key GUID from Apps and Keys.',
+      },
+      {
+        id: 'username',
+        label: 'Impersonated user ID',
+        placeholder: '00000000-0000-0000-0000-000000000000',
+        secret: false,
+        hintPattern: DOCUSIGN_GUID_REGEX,
+        hintNormalize: (value) => value.trim(),
+        hintMessage: 'Expected the User ID GUID from Apps and Keys, not an email address.',
+        hint: 'Every call runs as this user, with their DocuSign permissions.',
+      },
+      {
+        id: 'privateKey',
+        label: 'RSA private key',
+        placeholder: '-----BEGIN RSA PRIVATE KEY-----',
+        secret: true,
+        multiline: true,
+        hintPattern: DOCUSIGN_PRIVATE_KEY_REGEX,
+        hintNormalize: (value) => value.trim(),
+        hintMessage:
+          'Expected the full PEM private key from the RSA keypair, including its BEGIN and END lines.',
+      },
+      {
+        id: 'orgId',
+        label: 'Account ID',
+        placeholder: "Defaults to the user's default account",
+        secret: false,
+        optional: true,
+        hintPattern: DOCUSIGN_GUID_REGEX,
+        hintNormalize: (value) => value.trim(),
+        hintMessage: 'Expected the API Account ID GUID from Apps and Keys.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/docusign-service-account',
+    helpText:
+      "Only needed when the user belongs to more than one account and the one to use isn't their default.",
+    consentUrl: (values, redirectUri) =>
+      buildDocuSignConsentUrl(values.clientId ?? '', values.dataCenter, redirectUri),
   },
   [RAMP_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: RAMP_SERVICE_ACCOUNT_PROVIDER_ID,

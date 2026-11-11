@@ -1,4 +1,5 @@
 import type { PRResponse, UpdatePRParams } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updatePRTool: ToolConfig<UpdatePRParams, PRResponse> = {
@@ -6,6 +7,7 @@ export const updatePRTool: ToolConfig<UpdatePRParams, PRResponse> = {
   name: 'GitHub Update Pull Request',
   description: 'Update an existing pull request in a GitHub repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {

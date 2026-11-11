@@ -95,7 +95,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   gamma_v2: 'Gamma',
   gauge: 'Gauge',
   generic_webhook: 'Webhook Trigger',
-  github_v2: 'GitHub',
+  github_v3: 'GitHub',
   gitlab_v2: 'GitLab',
   gmail_v2: 'Gmail',
   gong: 'Gong',

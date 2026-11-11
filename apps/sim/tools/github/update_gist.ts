@@ -1,3 +1,4 @@
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface UpdateGistParams {
@@ -31,6 +32,7 @@ export const updateGistTool: ToolConfig<UpdateGistParams, UpdateGistResponse> = 
   description:
     'Update a gist description or files. To delete a file, set its value to null in files object',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     gist_id: {
@@ -138,6 +140,7 @@ export const updateGistV2Tool: ToolConfig<UpdateGistParams, any> = {
   name: updateGistTool.name,
   description: updateGistTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: updateGistTool.params,
   request: updateGistTool.request,
 

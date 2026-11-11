@@ -563,6 +563,7 @@ export function CredentialSelector({
           }
           serviceName={serviceAccountTarget.serviceName}
           serviceIcon={serviceAccountTarget.serviceIcon}
+          oauthServiceId={serviceId}
           onCreated={(newCredentialId) => {
             setStoreValue(newCredentialId)
             refetchCredentials()

@@ -17,6 +17,7 @@ export const docusignListEnvelopesTool: InternalToolConfig<
   oauth: {
     required: true,
     provider: 'docusign',
+    authoritativeParams: ['instanceUrl'],
   },
 
   params: {
@@ -25,6 +26,12 @@ export const docusignListEnvelopesTool: InternalToolConfig<
       required: true,
       visibility: 'hidden',
       description: 'DocuSign OAuth access token',
+    },
+    instanceUrl: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'DocuSign account API base bound to a JWT Grant credential',
     },
     fromDate: {
       type: 'string',
@@ -61,6 +68,7 @@ export const docusignListEnvelopesTool: InternalToolConfig<
   operation: {
     input: (params) => ({
       accessToken: params.accessToken,
+      instanceUrl: params.instanceUrl,
       fromDate: params.fromDate,
       toDate: params.toDate,
       envelopeStatus: params.envelopeStatus,

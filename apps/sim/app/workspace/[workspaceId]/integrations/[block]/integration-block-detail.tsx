@@ -355,6 +355,7 @@ function IntegrationBlockDetailContent({ integration, workspaceId }: Integration
           atlassianProduct={oauthService?.providerId === 'confluence' ? 'confluence' : 'jira'}
           serviceName={serviceAccountTarget.serviceName}
           serviceIcon={serviceAccountTarget.serviceIcon}
+          oauthServiceId={oauthService?.providerId}
         />
       )}
       <div

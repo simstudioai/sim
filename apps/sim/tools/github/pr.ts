@@ -19,6 +19,7 @@ import type {
   PullRequestV2Response,
 } from '@/tools/github/types'
 import { PR_BRANCH_REF_OUTPUT, PR_FILE_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 type GitHubPullRequest = Omit<GitHubPullRequestV2Output, 'files'>
@@ -220,6 +221,7 @@ export const prTool: ToolConfig<PROperationParams, PullRequestResponse> = {
   name: 'GitHub PR Reader',
   description: 'Fetch PR details including diff and files changed',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: PR_PARAMS,
 
@@ -330,6 +332,7 @@ export const prV2Tool: ToolConfig<PRV2OperationParams, PullRequestV2Response> = 
   name: prTool.name,
   description: prTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: {
     ...PR_PARAMS,
     includeFiles: {

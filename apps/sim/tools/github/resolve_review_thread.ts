@@ -2,6 +2,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { GITHUB_GRAPHQL_URL, githubGraphQlHeaders, readGraphQlData } from '@/tools/github/graphql'
 import { requiredBoolean, requiredString } from '@/tools/github/response-parsers'
 import type { ResolveReviewThreadParams, ResolveReviewThreadResponse } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const CONTEXT = 'GitHub resolve review thread response'
@@ -25,6 +26,7 @@ export const resolveReviewThreadTool: ToolConfig<
   name: 'GitHub Resolve Review Thread',
   description: 'Mark a pull request review thread as resolved.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     threadId: {

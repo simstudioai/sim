@@ -2308,7 +2308,9 @@ async function executeToolImplementation(
       let finalResult = result
       if (tool.postProcess && result.success && !skipPostProcess) {
         try {
-          finalResult = await tool.postProcess(result, contextParams, executeNestedTool)
+          finalResult = await tool.postProcess(result, contextParams, executeNestedTool, {
+            signal: effectiveSignal,
+          })
         } catch (error) {
           logger.error(`Post-processing error for ${toolId}`, {
             requestId,
@@ -2401,7 +2403,9 @@ async function executeToolImplementation(
     let finalResult = result
     if (tool.postProcess && result.success && !skipPostProcess) {
       try {
-        finalResult = await tool.postProcess(result, contextParams, executeNestedTool)
+        finalResult = await tool.postProcess(result, contextParams, executeNestedTool, {
+          signal: effectiveSignal,
+        })
       } catch (error) {
         const normalizedError = toError(error)
         logger.error(

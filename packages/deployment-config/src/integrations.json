@@ -10129,7 +10129,7 @@
       "updatedAt": "2026-11-06"
     },
     {
-      "type": "github_v2",
+      "type": "github_v3",
       "slug": "github",
       "name": "GitHub",
       "description": "Interact with GitHub or trigger workflows from GitHub events",
@@ -10546,11 +10546,12 @@
         }
       ],
       "triggerCount": 11,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "github-token",
       "category": "tools",
       "integrationType": "devops",
       "tags": ["version-control", "ci-cd"],
-      "updatedAt": "2026-10-20"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "gitlab_v2",
