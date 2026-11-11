@@ -1,6 +1,6 @@
+import { resolveEnvironmentProxy } from '@sim/security/environment-proxy'
 import { type Agent, type Dispatcher, ProxyAgent, request } from 'undici/index.js'
 import { resolveCurrentOutboundRoute } from '@/lib/core/network/context.server'
-import { resolveEnvironmentProxy } from '@/lib/core/network/environment-proxy.server'
 import { createGatewayDispatcher } from '@/lib/core/network/gateway.server'
 import { OutboundRoutingError } from '@/lib/core/network/routing'
 import type { EgressProfile } from '@/lib/core/security/egress/profiles'

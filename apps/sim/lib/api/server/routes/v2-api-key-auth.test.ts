@@ -199,6 +199,28 @@ describe('v2 API key authentication', () => {
     )
   })
 
+  it('refuses a personal key whose owner row is gone as invalid, expired or not', async () => {
+    for (const expiresAt of [null, new Date(Date.now() - 1)]) {
+      queueTableRows(schemaMock.apiKey, [
+        {
+          id: 'key-orphan',
+          userId: 'user-gone',
+          workspaceId: null,
+          type: 'personal',
+          access: 'write',
+          expiresAt,
+          userBanned: null,
+          userSuspendedAt: null,
+        },
+      ])
+      const refusal = await authenticateV2ApiKey({ apiKey: 'orphan', bearer: null }).catch(
+        (error: unknown) => error
+      )
+      expect(refusal).toBeInstanceOf(V2ApiKeyUnauthenticatedError)
+      expect((refusal as V2ApiKeyUnauthenticatedError).message).toBe('Invalid API key')
+    }
+  })
+
   it('propagates auth-store failures instead of converting them to invalid credentials', async () => {
     const failure = new Error('database unavailable')
     dbChainMockFns.limit.mockRejectedValueOnce(failure)

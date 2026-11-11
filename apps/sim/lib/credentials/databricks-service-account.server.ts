@@ -290,13 +290,14 @@ async function assertPolicyPinsSubject(
 
 /**
  * Validates the submitted configuration, proves it by calling the workspace's
- * SCIM `Me` endpoint with the resolved token, and returns the encrypted blob
- * plus the identity Databricks reports.
+ * SCIM `Me` endpoint with the resolved token, and returns the encrypted blob,
+ * the identity Databricks reports, and the keyless subject it newly binds, if
+ * any (a reconnect keeping its stored subject binds none).
  */
 export async function verifyAndEncryptDatabricksCredential(
   serialized: string,
   owner: WorkloadIdentityCredentialOwner
-): Promise<{ encryptedServiceAccountKey: string; identity: string }> {
+): Promise<{ encryptedServiceAccountKey: string; identity: string; newSubject?: string }> {
   const parsed = parseServiceAccountConfig(
     serialized,
     submittedConfigSchema,
@@ -325,7 +326,14 @@ export async function verifyAndEncryptDatabricksCredential(
   const { encrypted } = await encryptSecret(
     JSON.stringify({ type: DATABRICKS_CREDENTIAL_SECRET_TYPE, config })
   )
-  return { encryptedServiceAccountKey: encrypted, identity }
+  return {
+    encryptedServiceAccountKey: encrypted,
+    identity,
+    ...(config.authType === 'oidc_federation' &&
+    config.subject !== readStoredSubject(owner.storedSecret)
+      ? { newSubject: config.subject }
+      : {}),
+  }
 }
 
 /**
