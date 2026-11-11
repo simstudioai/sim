@@ -17,6 +17,7 @@ import { portOpen } from './detect'
 import {
   type EnvFile,
   type EnvTarget,
+  envValueRefusal,
   generateSecret,
   isPlaceholder,
   isTruthy,
@@ -50,7 +51,14 @@ function sameEnvValue(a: EnvFile, b: EnvFile, key: string): boolean {
   return a.verbatim.get(key) === b.verbatim.get(key)
 }
 
-const MANUAL_MIRROR = 'it contains a $ reference, so copy it and the variables it uses by hand'
+/** Why doctor cannot copy `key` out of `file` for the user, or `undefined` when it can. */
+function mirrorBlocker(file: EnvFile, key: string, value: string): string | undefined {
+  if (holdsReference(file, key)) {
+    return 'it contains a $ reference, so copy it and the variables it uses by hand'
+  }
+  const refusal = envValueRefusal(value)
+  return refusal && `${refusal}, so copy it by hand`
+}
 
 export type CheckGroup = 'files' | 'schema' | 'consistency' | 'coherence' | 'live'
 export type CheckStatus = 'pass' | 'warn' | 'fail' | 'skip'
@@ -166,7 +174,7 @@ function checkFiles(ctx: CheckContext): Finding[] {
               const value = ctx.env.sim.vars.get(key)
               // Skip placeholders so seeding never copies an .env.example stub
               // into the new file (matches autofixForMissing).
-              if (value && !isPlaceholder(value) && !holdsReference(ctx.env.sim, key)) {
+              if (value && !isPlaceholder(value) && !mirrorBlocker(ctx.env.sim, key, value)) {
                 values[key] = value
               }
             }
@@ -188,9 +196,10 @@ function autofixForMissing(
     target !== 'sim' &&
     (SHARED_KEYS as readonly string[]).includes(key) &&
     simValue &&
-    !isPlaceholder(simValue) &&
-    !holdsReference(ctx.env.sim, key)
+    !isPlaceholder(simValue)
   ) {
+    // A generated secret would differ from the app's, so a value doctor can't copy gets no fix.
+    if (mirrorBlocker(ctx.env.sim, key, simValue)) return undefined
     return () => writeEnvValues(target, { [key]: simValue })
   }
   if (MIN_32_KEYS.has(key)) {
@@ -288,15 +297,15 @@ function checkConsistency(ctx: CheckContext): Finding[] {
       const realtimeValue = realtime.vars.get(key)
       if (!simValue || !realtimeValue) continue
       if (!sameEnvValue(sim, realtime, key)) {
-        const manual = holdsReference(sim, key)
+        const blocker = mirrorBlocker(sim, key, simValue)
         findings.push({
           group: 'consistency',
           status: 'fail',
           message: `${key} differs between apps/sim/.env and apps/realtime/.env`,
-          fix: manual
-            ? `mirror the apps/sim/.env value: ${MANUAL_MIRROR}`
+          fix: blocker
+            ? `mirror the apps/sim/.env value: ${blocker}`
             : 'doctor --fix mirrors the apps/sim/.env value',
-          autofix: manual ? undefined : () => writeEnvValues('realtime', { [key]: simValue }),
+          autofix: blocker ? undefined : () => writeEnvValues('realtime', { [key]: simValue }),
         })
       }
     }
@@ -305,16 +314,16 @@ function checkConsistency(ctx: CheckContext): Finding[] {
     const simDsn = sim.vars.get('DATABASE_URL')
     const dbDsn = db.vars.get('DATABASE_URL')
     if (simDsn && dbDsn && !sameEnvValue(sim, db, 'DATABASE_URL')) {
-      const manual = holdsReference(sim, 'DATABASE_URL')
+      const blocker = mirrorBlocker(sim, 'DATABASE_URL', simDsn)
       findings.push({
         group: 'consistency',
         status: 'fail',
         message:
           'DATABASE_URL differs between apps/sim/.env and packages/db/.env — migrations would hit a different database',
-        fix: manual
-          ? `mirror the apps/sim/.env value: ${MANUAL_MIRROR}`
+        fix: blocker
+          ? `mirror the apps/sim/.env value: ${blocker}`
           : 'doctor --fix mirrors the apps/sim/.env value',
-        autofix: manual ? undefined : () => writeEnvValues('db', { DATABASE_URL: simDsn }),
+        autofix: blocker ? undefined : () => writeEnvValues('db', { DATABASE_URL: simDsn }),
       })
     }
   }

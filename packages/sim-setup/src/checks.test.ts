@@ -88,7 +88,7 @@ describe('doctor --fix on env files', () => {
     realtime: path.join(fakeRoot, 'apps/realtime/.env'),
     db: path.join(fakeRoot, 'packages/db/.env'),
   }
-  const referencingDsn = 'postgresql://${DB_USER}@localhost/sim'
+  const referencingDsn = `postgresql://\${DB_USER}@localhost/sim`
 
   function writeFiles(contents: Record<keyof typeof files, string>) {
     for (const [target, content] of Object.entries(contents)) {
@@ -111,25 +111,46 @@ describe('doctor --fix on env files', () => {
     ['a different URL', 'DATABASE_URL=postgresql://other@localhost/sim\n'],
     [
       'the reference escaped into a literal',
-      'DATABASE_URL="postgresql://\\${DB_USER}@localhost/sim"\n',
+      `DATABASE_URL="postgresql://\\\${DB_USER}@localhost/sim"\n`,
     ],
-  ])(
-    'reports a ${VAR} DATABASE_URL against %s and leaves it for a hand copy',
-    async (_, dbFile) => {
-      writeFiles({
-        sim: `DB_USER=alice\nDATABASE_URL=${referencingDsn}\n`,
-        realtime: '',
-        db: dbFile,
-      })
+  ])('reports a $VAR DATABASE_URL against %s and leaves it for a hand copy', async (_, dbFile) => {
+    writeFiles({
+      sim: `DB_USER=alice\nDATABASE_URL=${referencingDsn}\n`,
+      realtime: '',
+      db: dbFile,
+    })
 
-      const finding = await fixConsistency()
+    const finding = await fixConsistency()
 
-      expect(finding).toMatchObject({ status: 'fail', autofix: undefined })
-      expect(readFileSync(files.db, 'utf8')).toBe(dbFile)
-    }
-  )
+    expect(finding).toMatchObject({ status: 'fail', autofix: undefined })
+    expect(readFileSync(files.db, 'utf8')).toBe(dbFile)
+  })
 
-  it('accepts a ${VAR} DATABASE_URL written the same way in both files', async () => {
+  it('leaves a shared secret it cannot copy unset rather than generating a different one', async () => {
+    const secret = `BETTER_AUTH_SECRET=\${AUTH_SECRET_BASE}0123456789abcdef0123456789abcdef`
+    writeFiles({
+      sim: `${secret}\n`,
+      realtime: 'DATABASE_URL=postgresql://localhost/sim\n',
+      db: '',
+    })
+
+    for (const finding of await runChecks(loadCheckContext(false), ['schema'])) finding.autofix?.()
+
+    expect(readFileSync(files.realtime, 'utf8')).not.toContain('BETTER_AUTH_SECRET')
+  })
+
+  it('reports a value it cannot write instead of aborting the other fixes', async () => {
+    const unwritable = 'DATABASE_URL="postgresql://u:p\\$x\\y@localhost/sim"\n'
+    const dbFile = 'DATABASE_URL=postgresql://other@localhost/sim\n'
+    writeFiles({ sim: unwritable, realtime: '', db: dbFile })
+
+    const finding = await fixConsistency()
+
+    expect(finding).toMatchObject({ status: 'fail', autofix: undefined })
+    expect(readFileSync(files.db, 'utf8')).toBe(dbFile)
+  })
+
+  it('accepts a $VAR DATABASE_URL written the same way in both files', async () => {
     const line = `DATABASE_URL=${referencingDsn}\n`
     writeFiles({ sim: `DB_USER=alice\n${line}`, realtime: '', db: line })
 

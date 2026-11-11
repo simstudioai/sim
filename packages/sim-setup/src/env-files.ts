@@ -113,24 +113,34 @@ export function readEnvFile(target: EnvTarget): EnvFile {
  * expand `$NAME` even inside single quotes, and the one spelling all four read as a
  * literal `$` is `\$` inside double quotes.
  */
-function formatEnvValue(key: string, value: string): string {
-  if (/[\r\n]/.test(value)) {
-    throw new Error(`${key} cannot be written to an environment file: it contains a line break`)
-  }
+function spellEnvValue(value: string): { text: string } | { refusal: string } {
+  if (/[\r\n]/.test(value)) return { refusal: 'it contains a line break' }
   if (value.includes('$')) {
     if (/["\\`]/.test(value)) {
-      throw new Error(
-        `${key} cannot be written to an environment file: it mixes $ with a double quote, backslash, or backtick`
-      )
+      return { refusal: 'it mixes $ with a double quote, backslash, or backtick' }
     }
-    return `"${value.replaceAll('$', '\\$')}"`
+    return { text: `"${value.replaceAll('$', '\\$')}"` }
   }
-  if (value === value.trim() && !value.includes('#') && !/^["'`]/.test(value)) return value
-  if (!value.includes("'")) return `'${value}'`
-  if (!/["\\`]/.test(value)) return `"${value}"`
-  throw new Error(
-    `${key} cannot be written to an environment file: it mixes quotes with a # or edge whitespace`
-  )
+  if (value === value.trim() && !value.includes('#') && !/^["'`]/.test(value)) {
+    return { text: value }
+  }
+  if (!value.includes("'")) return { text: `'${value}'` }
+  if (!/["\\`]/.test(value)) return { text: `"${value}"` }
+  return { refusal: 'it mixes quotes with a # or edge whitespace' }
+}
+
+/** Why `upsertEnv` cannot write `value` so every loader reads it back unchanged, if it cannot. */
+export function envValueRefusal(value: string): string | undefined {
+  const spelling = spellEnvValue(value)
+  return 'refusal' in spelling ? spelling.refusal : undefined
+}
+
+function formatEnvValue(key: string, value: string): string {
+  const spelling = spellEnvValue(value)
+  if ('refusal' in spelling) {
+    throw new Error(`${key} cannot be written to an environment file: ${spelling.refusal}`)
+  }
+  return spelling.text
 }
 
 /**
