@@ -19,6 +19,7 @@ import {
   readProviderErrorSnippet,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
+import { zendeskApiTokenCredential } from '@/tools/zendesk/types'
 
 const MINT_STEP = 'zendesk_token_mint'
 const IDENTITY_STEP = 'zendesk_users_me'
@@ -190,7 +191,7 @@ export async function mintZendeskServiceAccountToken(
     if (!email || !fields.apiToken) {
       throw refuse('invalid_credentials', 400, MINT_STEP, 'agent email or API token is missing')
     }
-    const basic = Buffer.from(`${email}/token:${fields.apiToken}`).toString('base64')
+    const basic = zendeskApiTokenCredential(email, fields.apiToken)
     minted = {
       accessToken: basic,
       expiresInSeconds: API_TOKEN_LIFETIME_SECONDS,

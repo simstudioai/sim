@@ -33,6 +33,15 @@ export interface ZendeskAuthParams {
 }
 
 /**
+ * The Basic credential a Zendesk API token signs in with: `{email}/token:{apiToken}`, base64
+ * encoded. A saved credential stores exactly this, so saved and inline sign-ins never differ.
+ * @see https://developer.zendesk.com/api-reference/introduction/security-and-auth/
+ */
+export function zendeskApiTokenCredential(email: string, apiToken: string): string {
+  return Buffer.from(`${email}/token:${apiToken}`).toString('base64')
+}
+
+/**
  * The Authorization header a Zendesk request sends. A saved credential resolves to either an
  * OAuth bearer token or the already-encoded API-token Basic credential; without one, the
  * block's own email and API token sign in exactly as before.
@@ -43,7 +52,7 @@ export function zendeskAuthorization(params: ZendeskAuthParams): string {
       ? `Basic ${params.accessToken}`
       : `Bearer ${params.accessToken}`
   }
-  return `Basic ${Buffer.from(`${params.email}/token:${params.apiToken}`).toString('base64')}`
+  return `Basic ${zendeskApiTokenCredential(params.email ?? '', params.apiToken ?? '')}`
 }
 
 /** Hidden params a saved Zendesk credential fills; every Zendesk tool declares them. */
