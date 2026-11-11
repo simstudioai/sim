@@ -10,9 +10,9 @@
  * Beyond aliasing `global -> globalThis` for UMD-style fallbacks inside the
  * bundles, this file only answers the one name the bundler can leave dangling
  * (see below). All other runtime surface (`console`, `TextEncoder`,
- * `TextDecoder`, timers) is installed by the worker via `ivm.Callback` /
- * `ivm.Reference` bridges to Node's native implementations — no hand-rolled
- * polyfill logic lives in the isolate.
+ * `TextDecoder`, `btoa`, `atob`, timers) is installed by the worker via
+ * `ivm.Callback` / `ivm.Reference` bridges to Node's native implementations —
+ * no hand-rolled polyfill logic lives in the isolate.
  */
 
 const g: typeof globalThis & {

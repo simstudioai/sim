@@ -49,6 +49,37 @@ describe('sandbox bundles', () => {
     expect(await zip.file('word/document.xml')?.async('string')).toContain('R&amp;D &lt;ok&gt;')
   })
 
+  it('docx encodes and decodes base64 through the btoa/atob the worker provides', async () => {
+    const context = createBareSandboxContext()
+    evaluateSandboxBundle(
+      readFileSync(new URL('./docx.cjs', import.meta.url), 'utf-8'),
+      'docx',
+      context
+    )
+    const pngBase64 =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=='
+
+    const packed: unknown = await vm.runInContext(
+      `(async () => {
+        const docx = globalThis.__bundles.docx;
+        const doc = new docx.Document({
+          protection: { type: 'readOnly', password: 'secret' },
+          sections: [{ children: [new docx.Paragraph({ children: [
+            new docx.ImageRun({ type: 'png', data: 'data:image/png;base64,${pngBase64}', transformation: { width: 10, height: 10 } }),
+          ] })] }],
+        });
+        return docx.Packer.toBase64String(doc);
+      })()`,
+      context
+    )
+
+    const zip = await JSZip.loadAsync(packed as string, { base64: true })
+    expect(await zip.file('word/settings.xml')?.async('string')).toMatch(
+      /<w:documentProtection[^>]*w:hash="[^"]+"/
+    )
+    expect(zip.file('word/media/image1.png')).not.toBeNull()
+  })
+
   it('pdf-lib evaluates in a bare context and exposes the pdf-generate surface', () => {
     const pdfLib = loadCheckedInBundle('pdf-lib')
     expect(typeof pdfLib.PDFDocument).toBe('function')

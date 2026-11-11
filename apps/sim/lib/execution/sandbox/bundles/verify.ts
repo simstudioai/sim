@@ -2,10 +2,10 @@ import vm from 'node:vm'
 import type { SandboxBundleName } from '@/lib/execution/sandbox/types'
 
 /**
- * A context shaped like the isolated-vm worker's: timers, `console`, and the
- * text codecs, but no `require`, `process`, `Buffer`, `atob`, or `btoa` of its
- * own. Code that reaches for any other Node or browser global fails here the
- * same way it fails inside the isolate.
+ * A context shaped like the isolated-vm worker's task mode: timers, `console`,
+ * the text codecs, and `btoa`/`atob`, but no `require`, `process`, or `Buffer`
+ * of its own. Code that reaches for any other Node or browser global fails here
+ * the same way it fails inside the isolate.
  */
 export function createBareSandboxContext(): vm.Context {
   const context: Record<string, unknown> = {
@@ -17,6 +17,8 @@ export function createBareSandboxContext(): vm.Context {
     console,
     TextEncoder,
     TextDecoder,
+    btoa,
+    atob,
   }
   context.globalThis = context
   return vm.createContext(context)
