@@ -198,6 +198,23 @@ describe('getting a Databricks token for a run', () => {
     })
   })
 
+  it('reports a token reply cut off mid-body as the provider being unavailable, not a bad credential', async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"error":"invalid_cl'))
+        controller.error(new Error('socket hang up'))
+      },
+    })
+    fetch.mockResolvedValue(
+      new Response(body, { status: 401, headers: { 'Content-Type': 'application/json' } })
+    )
+
+    await expect(resolveDatabricksCredentialToken('cred-1')).rejects.toMatchObject({
+      code: 'provider_unavailable',
+      logDetail: { reason: 'Databricks token response could not be read' },
+    })
+  })
+
   it('reports a token reply without a token as the provider misbehaving, not a bad credential', async () => {
     fetch.mockResolvedValue(jsonResponse({}, 200))
 

@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { validateDatabricksWorkspaceHost } from '@/lib/core/security/input-validation'
-import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
+import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { parseServiceAccountConfig } from '@/lib/credentials/service-account-config'
 import {
   providerFailureCode,
@@ -151,10 +151,15 @@ async function requestWorkspaceToken(
     label: 'Databricks token response',
   }).catch((error: unknown) => {
     if (error instanceof SyntaxError) return {}
-    throw new DatabricksCredentialError(
-      'Databricks token response exceeded the size limit',
-      response.status
-    )
+    signal?.throwIfAborted()
+    if (isPayloadSizeLimitError(error)) {
+      throw new DatabricksCredentialError(
+        'Databricks token response exceeded the size limit',
+        response.status
+      )
+    }
+    // An interrupted body says nothing about the credential, whatever the status line was.
+    throw new DatabricksCredentialError('Databricks token response could not be read', 502)
   })) as {
     access_token?: unknown
     error_description?: unknown
