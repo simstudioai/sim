@@ -11,7 +11,6 @@ export interface WorkspaceFeatureFlags {
   'mothership-computer-use'?: boolean
   'mothership-memory-spaces'?: boolean
   projects?: boolean
-  'api-key-read-only'?: boolean
 }
 
 const FeatureFlagsContext = createContext<WorkspaceFeatureFlags | null>(null)
