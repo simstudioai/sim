@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { isRetryableNetworkError } from '@/lib/core/errors/retryable-infrastructure'
 import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 import {
   type AwsSessionCredentials,
@@ -112,16 +113,6 @@ export async function resolveAuthorizedAwsCredential(
 }
 
 const THROTTLING_ERROR_NAMES = new Set(['Throttling', 'ThrottlingException'])
-const NETWORK_ERROR_CODES = new Set([
-  'ECONNRESET',
-  'ECONNREFUSED',
-  'EPIPE',
-  'ETIMEDOUT',
-  'EHOSTUNREACH',
-  'ENETUNREACH',
-  'ENOTFOUND',
-  'EAI_AGAIN',
-])
 
 /**
  * Whether resolving a credential failed because AWS was briefly unavailable rather
@@ -138,7 +129,7 @@ function isTransientAwsFailure(error: unknown): boolean {
     status === 429 ||
     (typeof status === 'number' && status >= 500) ||
     error.name === 'TimeoutError' ||
-    NETWORK_ERROR_CODES.has(String(error.code))
+    isRetryableNetworkError(error)
   )
 }
 

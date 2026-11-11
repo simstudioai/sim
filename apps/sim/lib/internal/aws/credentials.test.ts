@@ -178,6 +178,13 @@ describe('withAwsCredential', () => {
       Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' }),
       503,
     ],
+    [
+      'the request handler wrapped a dropped socket',
+      new Error('Request failed', {
+        cause: Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' }),
+      }),
+      503,
+    ],
     ['the role denies the session', stsFailure('AccessDenied', 403), 403],
     ['STS rejects the identity token', sdkFailure(InvalidIdentityTokenException), 403],
     ['the identity token expired', sdkFailure(ExpiredTokenException), 403],
