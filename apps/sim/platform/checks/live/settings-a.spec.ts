@@ -170,7 +170,9 @@ test('links: create, find, open, edit and delete on the Platform', async ({ page
   await expect(dialog).toHaveCount(0)
   await page.getByLabel('Search links').fill(name)
   await expect(page).toHaveURL(new RegExp(`search=${name}`))
-  await expect(page.getByRole('button', { name, exact: true })).toBeVisible()
+  // At Settings' width the row's button also reads the facts its hidden columns would hold.
+  const row = page.getByRole('button').filter({ has: page.getByText(name, { exact: true }) })
+  await expect(row).toBeVisible()
 
   await context.route('https://example.com/**', (route) =>
     route.fulfill({ status: 200, contentType: 'text/html', body: 'Destination stand-in' })
@@ -180,7 +182,7 @@ test('links: create, find, open, edit and delete on the Platform', async ({ page
     (request) => new URL(request.url()).pathname === `/sim/${name}`
   )
   const opened = context.waitForEvent('page')
-  await page.getByRole('button', { name, exact: true }).click()
+  await row.click()
   await resolved
   await expect(await opened).toHaveURL('https://example.com/')
   await (await opened).close()

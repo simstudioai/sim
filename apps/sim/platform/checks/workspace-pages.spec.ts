@@ -9,6 +9,18 @@ function main(page: Page) {
   return page.locator('main:visible')
 }
 
+/**
+ * A record's bar: the outermost block holding its Back navigation and not its heading, so a wrapper
+ * around Back cannot stand in for the bar.
+ */
+function recordBar(page: Page, back: string) {
+  return main(page)
+    .locator('div')
+    .filter({ has: page.getByRole('navigation', { name: `${back} navigation` }) })
+    .filter({ hasNot: page.getByRole('heading', { level: 1 }) })
+    .first()
+}
+
 /** Record every DOM state of the content region while `action` runs. */
 async function watchFrames(page: Page, action: () => Promise<void>) {
   await page.evaluate(() => {
@@ -208,7 +220,7 @@ test('a record keeps its identifiers in its facts, and the rail line spans only 
   await page.goto(fixtureUrl('/workspace/it/issues/IT-136?state=full'))
   const facts = page.getByRole('complementary', { name: 'Facts' })
   await expect(facts.locator('dd', { hasText: /^IT-136$/ })).toBeVisible()
-  const bar = main(page).getByRole('navigation', { name: 'Issues navigation' }).locator('xpath=..')
+  const bar = recordBar(page, 'Issues')
   await expect(bar).toContainText('Approve')
   await expect(bar).not.toContainText('IT-136')
   const rail = await facts.evaluate((aside) => {
@@ -246,9 +258,7 @@ test('a run opens its trace and selected step, with its execution ID among its f
   const executionId = new URL(page.url()).pathname.split('/').at(-1) ?? ''
   const runFacts = main(page).getByLabel('Run facts')
   await expect(runFacts.locator('dd', { hasText: new RegExp(`^${executionId}$`) })).toBeVisible()
-  await expect(
-    main(page).getByRole('navigation', { name: 'Logs navigation' }).locator('xpath=..')
-  ).not.toContainText(executionId)
+  await expect(recordBar(page, 'Logs')).not.toContainText(executionId)
   const trace = main(page).getByRole('list', { name: /steps$/ })
   await trace.getByRole('button', { name: /search_knowledge/ }).click()
   await expect(main(page).getByRole('region', { name: 'search_knowledge step' })).toContainText(

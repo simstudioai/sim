@@ -49,19 +49,23 @@ test('Links: header, Chrome install, columns, and a list that reads on as it scr
     )
     await signIn(page, memberEmail(), liveRoute('/settings/links'))
     await expect(page.getByRole('heading', { level: 1, name: 'Links' })).toBeVisible()
-    const columnWidth = async (name: string) =>
-      (await page.getByRole('columnheader', { name, exact: true }).boundingBox())?.width ?? 0
-    const destination = await columnWidth('Destination')
-    for (const other of ['Name', 'Description', 'Created by', 'Access', 'Updated'])
-      expect(destination, `Destination is wider than ${other}`).toBeGreaterThan(
-        await columnWidth(other)
-      )
+    // Settings' column is narrower than the table's wide layout: Name and Destination stay, and
+    // what the wide-only columns hold reads under each name instead.
+    await expect(page.getByRole('columnheader', { name: 'Name', exact: true })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: 'Destination', exact: true })).toBeVisible()
+    for (const wideOnly of ['Description', 'Created by', 'Access', 'Updated'])
+      await expect(page.getByRole('columnheader', { name: wideOnly, exact: true })).toBeHidden()
 
     const store = context.waitForEvent('page')
     await page.getByRole('button', { name: 'Install Sim for Chrome' }).click()
     await expect(await store).toHaveURL(/chromewebstore\.google\.com/)
 
     await expect(rowFor(page, 'handbook')).toBeVisible()
+    await expect(
+      rowFor(page, 'handbook')
+        .getByText('The company handbook', { exact: true })
+        .filter({ visible: true })
+    ).toHaveCount(1)
     const pages: string[] = []
     page.on('request', (request) => {
       if (request.url().includes('/sim-links') && request.url().includes('cursor='))
