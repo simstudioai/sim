@@ -34,6 +34,7 @@ import { AWS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
  * sessions resolved from them stay out of block outputs, logs, and model input,
  * with two exceptions: an S3 presigned URL made with temporary credentials
  * carries the temporary access key ID and session token (never the secret), and
+ * stops working when that session ends, so its expiry can't outlast the session;
  * operations whose purpose is to issue AWS credentials (STS assume role and get
  * session token, IAM create access key) return the credentials they issue, as
  * the same operations do with inline keys. Using a credential therefore includes
@@ -126,6 +127,8 @@ export interface AwsSessionCredentials {
   accessKeyId: string
   secretAccessKey: string
   sessionToken?: string
+  /** When an STS session ends; long-lived access keys have none. */
+  expiration?: Date
 }
 
 /** STS lives in every partition; a role's partition decides the default endpoint. */
@@ -153,6 +156,7 @@ function toSessionCredentials(credentials: Credentials | undefined): AwsSessionC
     accessKeyId: credentials.AccessKeyId,
     secretAccessKey: credentials.SecretAccessKey,
     sessionToken: credentials.SessionToken,
+    ...(credentials.Expiration ? { expiration: credentials.Expiration } : {}),
   }
 }
 

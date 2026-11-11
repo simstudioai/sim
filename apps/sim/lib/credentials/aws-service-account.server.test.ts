@@ -26,6 +26,7 @@ import { AssumeRoleWithWebIdentityCommand, GetCallerIdentityCommand } from '@aws
 import { credential } from '@sim/db/schema'
 import {
   getAwsCredentialConfig,
+  resolveAwsSessionCredentials,
   verifyAndEncryptAwsCredential,
 } from '@/lib/credentials/aws-service-account.server'
 import { WorkloadIdentityNotConfiguredError } from '@/lib/credentials/workload-identity/subject'
@@ -153,5 +154,32 @@ describe('loading a saved AWS credential for a run', () => {
     await expect(getAwsCredentialConfig('cred-1', { workspaceId: 'ws-1' })).rejects.toThrow(
       'AWS credential is unavailable'
     )
+  })
+})
+
+describe("resolving a run's AWS session", () => {
+  const owner = { workspaceId: 'ws-1' }
+  const options = { roleSessionName: 'sim-exec-1' }
+  const expiration = new Date('2030-01-01T01:00:00.000Z')
+
+  beforeEach(() => hoisted.send.mockReset())
+
+  it.each([
+    { authType: 'oidc_role', roleArn: ROLE_ARN, subject: SUBJECT },
+    {
+      authType: 'assume_role',
+      roleArn: ROLE_ARN,
+      accessKeyId: 'AKIAEXAMPLEKEY01',
+      secretAccessKey: 'stored-secret',
+    },
+  ] as const)('reports when a $authType session ends', async (config) => {
+    hoisted.send.mockResolvedValue({ Credentials: { ...session, Expiration: expiration } })
+
+    await expect(resolveAwsSessionCredentials(config, owner, options)).resolves.toEqual({
+      accessKeyId: 'ASIATEMP',
+      secretAccessKey: 'secret',
+      sessionToken: 'token',
+      expiration,
+    })
   })
 })

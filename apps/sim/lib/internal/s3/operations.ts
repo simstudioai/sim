@@ -28,6 +28,7 @@ import type { AwsS3ListObjectsBody } from '@/lib/api/contracts/tools/aws/s3-list
 import type { AwsS3PresignedUrlBody } from '@/lib/api/contracts/tools/aws/s3-presigned-url'
 import type { AwsS3PutObjectBody } from '@/lib/api/contracts/tools/aws/s3-put-object'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { awsSessionExpiration } from '@/lib/internal/aws/credentials'
 import { createS3Client, type S3ConnectionConfig } from '@/lib/internal/s3/client'
 import { S3OperationError } from '@/lib/internal/s3/errors'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
@@ -281,6 +282,17 @@ export async function executeS3ListObjects(input: AwsS3ListObjectsBody, signal?:
 }
 
 export async function executeS3PresignedUrl(input: AwsS3PresignedUrlBody, signal?: AbortSignal) {
+  const now = Date.now()
+  const sessionExpiration = awsSessionExpiration(input.accessKeyId)
+  if (sessionExpiration) {
+    const sessionSeconds = Math.floor((sessionExpiration.getTime() - now) / 1000)
+    if (input.expiresIn > sessionSeconds) {
+      throw new S3OperationError(
+        `This presigned URL would stop working when the AWS role session that signs it ends, in ${sessionSeconds} seconds. Set an expiry of ${sessionSeconds} seconds or less, or give the credential a longer session duration.`,
+        400
+      )
+    }
+  }
   return withS3Client(input, async (client) => {
     signal?.throwIfAborted()
     const command =
@@ -299,7 +311,7 @@ export async function executeS3PresignedUrl(input: AwsS3PresignedUrlBody, signal
         url,
         method: input.method,
         expiresIn: input.expiresIn,
-        expiresAt: new Date(Date.now() + input.expiresIn * 1000).toISOString(),
+        expiresAt: new Date(now + input.expiresIn * 1000).toISOString(),
       },
     }
   })

@@ -52,6 +52,18 @@ export function awsClientCredentials(
 }
 
 /**
+ * When the STS session behind `accessKeyId` ends, or undefined for long-lived
+ * keys. Anything signed with a session, like an S3 presigned URL, stops
+ * working at this time whatever expiry it asked for.
+ */
+export function awsSessionExpiration(accessKeyId: string): Date | undefined {
+  const session = sessionStorage.getStore()
+  return session?.sessionToken && session.accessKeyId === accessKeyId
+    ? session.expiration
+    : undefined
+}
+
+/**
  * SDK client settings for a client built from an operation's key fields: its region,
  * {@link awsClientCredentials}, and the request handler that honors `HTTPS_PROXY`.
  */
