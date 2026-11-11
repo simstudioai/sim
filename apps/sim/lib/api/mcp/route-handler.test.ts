@@ -97,12 +97,15 @@ describe('Sim MCP tools', () => {
   it('serves a read through the v2 route with the MCP credential and audience', async () => {
     const result = await callTool('call_read_operation', { operation: 'getMeta' })
     expect(result.isError).toBeFalsy()
-    expect(JSON.parse(result.content[0].text)).toEqual({
+    expect(JSON.parse(result.content[0].text)).toMatchObject({
       data: {
         v2Enabled: true,
         keyType: 'personal',
         expiresAt: null,
         scopes: ['api:read', 'api:write', 'search:read'],
+        keyId: 'key-1',
+        userId: 'user-1',
+        workspaceId: null,
       },
     })
     expect(v2RouteMocks.authenticate).toHaveBeenCalledTimes(2)

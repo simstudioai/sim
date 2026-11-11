@@ -57,6 +57,8 @@ describe('cli-auth approval store', () => {
         scope: 'copilot',
         workspaceId: null,
         workspaceBound: false,
+        access: 'write',
+        expiresInDays: null,
       })
       // NX lock on the mint key; TTL matches the approval so they expire together
       // and a failed cleanup can't leave a re-mintable window. Record not deleted here.

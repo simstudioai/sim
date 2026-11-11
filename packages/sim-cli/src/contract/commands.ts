@@ -20,6 +20,16 @@ const ACCESS_REQUEST_COLUMNS: ColumnSpec[] = [
   { header: 'created', path: 'createdAt', format: 'timestamp' },
 ]
 
+const WORKSPACE_FIELDS: ColumnSpec[] = [
+  { header: 'id' },
+  { header: 'name' },
+  { header: 'color' },
+  { header: 'logo', path: 'logoUrl' },
+  { header: 'members', path: 'memberCount' },
+  { header: 'created', path: 'createdAt', format: 'timestamp' },
+  { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+]
+
 const FILE_SHARE_FIELDS: ColumnSpec[] = [
   { header: 'shared', path: 'isActive', format: 'bool' },
   { header: 'URL', path: 'url' },
@@ -1523,15 +1533,20 @@ export const CLI_CONTRACT: CliContract = {
     // `mode` is not a field of the strict v2 workspace schema, so it rendered
     // an em-dash on every call; `color` and `logoUrl` are returned and were the
     // two the record left out.
-    fields: [
-      { header: 'id' },
-      { header: 'name' },
-      { header: 'color' },
-      { header: 'logo', path: 'logoUrl' },
-      { header: 'members', path: 'memberCount' },
-      { header: 'created', path: 'createdAt', format: 'timestamp' },
-      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
-    ],
+    fields: WORKSPACE_FIELDS,
+  },
+  updateWorkspace: {
+    profileWorkspacePath: true,
+    fields: WORKSPACE_FIELDS,
+    // Body strings are sent as typed, so this flag cannot send JSON null; the
+    // literal "null" fails the path-or-HTTPS rule with a 400 rather than
+    // storing anything. Clearing stays an API and MCP capability.
+    flags: {
+      logoUrl: {
+        describe:
+          'New workspace logo: a root-relative path (starting with /) or an https:// URL. To remove the logo, send logoUrl: null through the API or MCP',
+      },
+    },
   },
   listWorkspaceMembers: {
     command: 'workspaces members list',

@@ -2060,6 +2060,7 @@ export type CreateCredentialConnectionBody =
 
 type CreateCredentialConnectionResponseRef0 = {
   authorizationUrl: string
+  draftId: string
   expiresAt: string
 }
 
@@ -6663,6 +6664,14 @@ type GetMetaResponseRef0 = {
   keyType: 'personal' | 'workspace' | 'oauth_access_token'
   expiresAt: string | null
   scopes: Array<'api:read' | 'api:write' | 'search:read'>
+  keyId: string | null
+  userId: string | null
+  workspaceId: string | null
+  links: {
+    openapi: string
+    docs: string
+    mcp: string
+  }
 }
 
 export type GetMetaResponse = {
@@ -15944,6 +15953,32 @@ type UpdateWorkflowVersionResponseRef0 = {
 
 export type UpdateWorkflowVersionResponse = {
   data: UpdateWorkflowVersionResponseRef0
+}
+
+/** `PATCH /api/v2/workspaces/[workspaceId]` */
+export type UpdateWorkspaceParams = {
+  workspaceId: string
+}
+
+export type UpdateWorkspaceQuery = Record<string, unknown>
+
+export type UpdateWorkspaceBody = {
+  name?: string
+  logoUrl?: string | null
+}
+
+type UpdateWorkspaceResponseRef0 = {
+  id: string
+  name: string
+  color: string
+  logoUrl: string | null
+  memberCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdateWorkspaceResponse = {
+  data: UpdateWorkspaceResponseRef0
 }
 
 /** `PUT /api/v2/workspaces/[workspaceId]/fork/exclusions` */
@@ -25242,6 +25277,23 @@ export const V2_OPERATIONS = {
       description: {
         kind: 'string',
         describe: 'New release note for the deployment version, or null to clear it.',
+      },
+    },
+  },
+  updateWorkspace: {
+    method: 'PATCH',
+    path: '/api/v2/workspaces/[workspaceId]',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace to update.' },
+    responseMode: 'json',
+    summary: 'Update workspace',
+    workspaceKeyUnsupported: true,
+    body: {
+      name: { kind: 'string', describe: 'New workspace display name.' },
+      logoUrl: {
+        kind: 'string',
+        describe:
+          'New workspace logo URL: a root-relative path (starting with /) or an https:// URL. Send null to remove the logo.',
       },
     },
   },
