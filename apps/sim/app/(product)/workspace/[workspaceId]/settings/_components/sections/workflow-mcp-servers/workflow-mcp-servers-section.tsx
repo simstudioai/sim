@@ -3,33 +3,34 @@
 import { useState } from 'react'
 import { ActivityRow } from '@sim/emcn/activity-row'
 import { Button } from '@sim/emcn/button'
-import { EmptyState } from '@sim/emcn/empty-state'
 import { Icon } from '@sim/emcn/icon'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SearchField } from '@sim/emcn/search-field'
-import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
-import { FailureNotice } from '@sim/emcn/status'
-import { getErrorMessage } from '@sim/utils/errors'
+import { SettingsRow } from '@sim/emcn/settings-section'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
 import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   ResourceList,
   SectionStack,
   SectionToolbar,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { SettingsRead } from '@/app/(product)/_components/settings-parts/settings-read'
 import { CreateMcpServerModal } from '@/app/(product)/workspace/[workspaceId]/_components/create-mcp-server-modal/create-mcp-server-modal'
 import type { WorkspaceSettingsSectionProps } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
 import { ServerDetail } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/workflow-mcp-servers/server-detail'
 import {
   createLogger,
+  mcpServerIdParam,
   useDeleteWorkflowMcpServer,
   useDeployedWorkflows,
-  useMcpServerIdParam,
   useMcpServerTabParam,
   useSettingsSearch,
   useWorkflowMcpServers,
   type WorkflowMcpServer,
 } from '@/platform/lib/data/mcp'
+import { useSettingsSubview } from '@/platform/lib/data/settings-subview'
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
+import { plural } from '@/platform/shared/plural'
 
 const logger = createLogger('WorkflowMcpServers')
 
@@ -42,19 +43,20 @@ export default function WorkflowMcpServersSection({ workspaceId }: WorkspaceSett
   const canChangeVisibility = permission === 'admin'
   const serversQuery = useWorkflowMcpServers(workspaceId)
   const servers = serversQuery.data ?? []
-  const deployed = useDeployedWorkflows(workspaceId)
   const deleteServer = useDeleteWorkflowMcpServer()
   const [search, setSearch] = useSettingsSearch()
-  const [selectedServerId, setSelectedServerId] = useMcpServerIdParam()
+  const subview = useSettingsSubview({ idParam: mcpServerIdParam.key })
+  const selectedServerId = subview.id
   const [, setServerTab] = useMcpServerTabParam()
   const [adding, setAdding] = useState(false)
+  const deployed = useDeployedWorkflows(workspaceId, { enabled: adding })
   const [serverToDelete, setServerToDelete] = useState<WorkflowMcpServer | null>(null)
   const [deletingServers, setDeletingServers] = useState<ReadonlySet<string>>(() => new Set())
 
   /** Closing replaces the URL, so Back leaves the section rather than reopening the server. */
   const closeServer = () => {
     void setServerTab(null, { history: 'replace' })
-    void setSelectedServerId(null, { history: 'replace' })
+    subview.close()
   }
 
   const confirmDelete = async ({ id: serverId }: WorkflowMcpServer) => {
@@ -80,7 +82,7 @@ export default function WorkflowMcpServersSection({ workspaceId }: WorkspaceSett
       onClose={() => setServerToDelete(null)}
       title='Delete MCP server'
       description={({ name }) =>
-        `Are you sure you want to delete ${name}? This action cannot be undone.`
+        `Clients connected to ${name} lose its tools. This action cannot be undone.`
       }
       confirmLabel='Delete'
       pendingLabel='Deleting…'
@@ -114,68 +116,72 @@ export default function WorkflowMcpServersSection({ workspaceId }: WorkspaceSett
 
   const query = search.trim().toLowerCase()
   const filtered = servers.filter((server) => server.name.toLowerCase().includes(query))
+  const addServer = canManage ? (
+    <Button size='compact' icon='I074' onClick={() => setAdding(true)}>
+      Add server
+    </Button>
+  ) : undefined
 
   return (
     <SectionStack>
       <SettingsPageHeader />
-      <SectionToolbar
-        grow={
-          <SearchField
-            label='Search servers'
-            placeholder='Search servers…'
-            value={search}
-            onValueChange={setSearch}
-          />
-        }
-      />
-      <SettingsSection title='Servers'>
-        {serversQuery.error ? (
-          <FailureNotice
-            message={getErrorMessage(serversQuery.error, 'Failed to load MCP servers')}
-            retrying={serversQuery.isFetching}
-            onRetry={() => void serversQuery.refetch()}
-          />
-        ) : serversQuery.isPending ? null : servers.length === 0 ? (
-          <EmptyState
-            title='No MCP servers configured'
-            description={canManage ? 'Add a server to get started.' : undefined}
-          />
-        ) : filtered.length === 0 ? (
-          <EmptyState title='No matching servers' />
-        ) : (
-          <ResourceList>
-            {filtered.map((server) => {
-              const count = server.toolCount || 0
-              return (
-                <ActivityRow
-                  key={server.id}
-                  leading={<Icon name='I126' />}
-                  title={server.name}
-                  detail={`${count} tool${count !== 1 ? 's' : ''}`}
-                  textMetadata={server.isPublic ? 'Public' : undefined}
-                  onOpen={() => {
-                    // A lingering tab from a dead deep link must not retarget the next server.
-                    void setServerTab(null)
-                    void setSelectedServerId(server.id)
-                  }}
-                />
-              )
-            })}
-          </ResourceList>
-        )}
-        {canManage && (
-          <SettingsRow label='New MCP server' description='Serve deployed workflows as MCP tools'>
-            <Button
-              size='compact'
-              icon='I074'
-              disabled={serversQuery.isPending}
-              onClick={() => setAdding(true)}
+      <SettingsRead query={serversQuery} failureMessage='Couldn’t load MCP servers'>
+        {(loaded) => (
+          <>
+            {loaded.length > 0 && (
+              <SectionToolbar
+                grow={
+                  <SearchField
+                    label='Search servers'
+                    placeholder='Search servers…'
+                    value={search}
+                    onValueChange={setSearch}
+                  />
+                }
+              />
+            )}
+            <SettingsList
+              title='Servers'
+              empty={
+                loaded.length === 0
+                  ? {
+                      title: 'No MCP servers yet',
+                      description: canManage ? 'Serve deployed workflows as MCP tools' : undefined,
+                      action: addServer,
+                    }
+                  : filtered.length === 0
+                    ? { title: 'No matching servers' }
+                    : undefined
+              }
             >
-              Add server
-            </Button>
-          </SettingsRow>
+              <ResourceList>
+                {filtered.map((server) => (
+                  <ActivityRow
+                    key={server.id}
+                    leading={<Icon name='I126' />}
+                    title={server.name}
+                    detail={plural(server.toolCount || 0, 'tool')}
+                    textMetadata={server.isPublic ? 'Public' : undefined}
+                    onOpen={() => {
+                      // A lingering tab from a dead deep link must not retarget the next server.
+                      void setServerTab(null)
+                      subview.open(server.id)
+                    }}
+                  />
+                ))}
+              </ResourceList>
+              {addServer && (
+                <SettingsRow
+                  label='New MCP server'
+                  description='Serve deployed workflows as MCP tools'
+                >
+                  {addServer}
+                </SettingsRow>
+              )}
+            </SettingsList>
+          </>
         )}
-      </SettingsSection>
+      </SettingsRead>
       {adding && (
         <CreateMcpServerModal
           workspaceId={workspaceId}

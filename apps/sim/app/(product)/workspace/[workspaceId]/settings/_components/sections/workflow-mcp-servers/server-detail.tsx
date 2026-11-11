@@ -11,11 +11,11 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import { getErrorMessage } from '@sim/utils/errors'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
 import {
   ActionRow,
   DetailHeader,
   FieldStack,
-  Muted,
   Preformatted,
   SectionStack,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
@@ -97,28 +97,9 @@ export function ServerDetail({
       title={detail.data?.server.name ?? listed.name}
     >
       {canManage && detail.data && (
-        <>
-          <Button size='compact' onClick={() => setDialog({ kind: 'edit-server' })}>
-            Edit server
-          </Button>
-          <Button
-            size='compact'
-            variant='primary'
-            icon='I074'
-            disabled={availableWorkflows.length === 0}
-            disabledReason={
-              availableWorkflows.length === 0 && deployedWorkflows.length > 0
-                ? 'All deployed workflows have been added to this server.'
-                : undefined
-            }
-            onClick={() => setDialog({ kind: 'add-workflow' })}
-          >
-            Add workflows
-          </Button>
-          <Button size='compact' variant='quiet' destructive disabled={deleting} onClick={onDelete}>
-            {deleting ? 'Deleting…' : 'Delete'}
-          </Button>
-        </>
+        <Button size='compact' onClick={() => setDialog({ kind: 'edit-server' })}>
+          Edit server
+        </Button>
       )}
     </DetailHeader>
   )
@@ -164,7 +145,6 @@ export function ServerDetail({
           <MetadataFields
             label='Server details'
             fields={[
-              { id: 'name', label: 'Server name', value: server.name },
               { id: 'transport', label: 'Transport', value: 'Streamable-HTTP' },
               { id: 'access', label: 'Access', value: server.isPublic ? 'Public' : 'Private' },
               ...(description
@@ -221,7 +201,7 @@ export function ServerDetail({
               label='Configuration'
               description={
                 client === 'codex' && server.isPublic
-                  ? 'Add this to ~/.codex/config.toml.'
+                  ? 'Add this to ~/.codex/config.toml'
                   : undefined
               }
             >
@@ -249,8 +229,8 @@ export function ServerDetail({
                 label='API key'
                 description={
                   client === 'codex'
-                    ? 'Add this to ~/.codex/config.toml and set the SIM_API_KEY environment variable with an existing API key.'
-                    : 'Replace $SIM_API_KEY with your API key.'
+                    ? 'Add this to ~/.codex/config.toml and set SIM_API_KEY to an existing API key'
+                    : 'Replace $SIM_API_KEY with your API key'
                 }
               >
                 {canManage && (
@@ -263,50 +243,86 @@ export function ServerDetail({
           </>
         )}
       </SettingsSection>
+      {canManage && (
+        <SettingsSection title='Manage server'>
+          <SettingsRow
+            label='Delete server'
+            description='Stop serving these workflows to every connected client'
+          >
+            <Button variant='quiet' destructive disabled={deleting} onClick={onDelete}>
+              Delete
+            </Button>
+          </SettingsRow>
+        </SettingsSection>
+      )}
     </SectionStack>
   )
 
+  const addWorkflows = canManage ? (
+    <Button
+      size='compact'
+      icon='I074'
+      disabled={availableWorkflows.length === 0}
+      disabledReason={
+        deployedWorkflows.length === 0
+          ? 'Deploy a workflow first'
+          : 'Every deployed workflow is on this server'
+      }
+      onClick={() => setDialog({ kind: 'add-workflow' })}
+    >
+      Add workflows
+    </Button>
+  ) : undefined
+
   const workflows = (
-    <SettingsSection title={`Workflows (${tools.length})`}>
-      {tools.length === 0 ? (
-        <FieldStack>
-          <Muted>No workflows added yet. Add a deployed workflow to serve it as a tool.</Muted>
-        </FieldStack>
-      ) : (
-        tools.map((tool) => (
-          <SettingsRow
-            key={tool.id}
-            label={tool.toolName}
-            description={tool.toolDescription || 'No description'}
-          >
-            {canManage && (
-              <ActionMenu
-                label={`${tool.toolName} actions`}
-                actions={[
-                  {
-                    id: 'edit',
-                    label: 'Edit',
-                    onSelect: () => setDialog({ kind: 'edit-tool', tool }),
-                  },
-                  {
-                    id: 'remove',
-                    label: 'Remove',
-                    destructive: true,
-                    disabled: deleteTool.isPending,
-                    onSelect: () => setDialog({ kind: 'remove-tool', tool }),
-                  },
-                ]}
-              />
-            )}
-          </SettingsRow>
-        ))
+    <SettingsList
+      title='Workflows'
+      empty={
+        tools.length === 0
+          ? {
+              title: 'No workflows yet',
+              description: 'Add a deployed workflow to serve it as a tool',
+              action: addWorkflows,
+            }
+          : undefined
+      }
+    >
+      {tools.map((tool) => (
+        <SettingsRow
+          key={tool.id}
+          label={tool.toolName}
+          description={tool.toolDescription || 'No description'}
+        >
+          {canManage && (
+            <ActionMenu
+              label={`${tool.toolName} actions`}
+              icon='I108'
+              align='end'
+              actions={[
+                {
+                  id: 'edit',
+                  label: 'Edit',
+                  onSelect: () => setDialog({ kind: 'edit-tool', tool }),
+                },
+                {
+                  id: 'remove',
+                  label: 'Remove',
+                  destructive: true,
+                  separatorBefore: true,
+                  disabled: deleteTool.isPending,
+                  onSelect: () => setDialog({ kind: 'remove-tool', tool }),
+                },
+              ]}
+            />
+          )}
+        </SettingsRow>
+      ))}
+      {addWorkflows && (
+        <SettingsRow label='New workflow tool' description='Serve another deployed workflow'>
+          {addWorkflows}
+        </SettingsRow>
       )}
-      {deployed.isSuccess && deployedWorkflows.length === 0 && (
-        <FieldStack>
-          <Muted>Deploy a workflow first to add it to this server.</Muted>
-        </FieldStack>
-      )}
-    </SettingsSection>
+    </SettingsList>
   )
 
   return (
@@ -354,7 +370,7 @@ export function ServerDetail({
         onClose={closeDialog}
         title='Remove workflow'
         description={(tool) =>
-          `Are you sure you want to remove ${tool.toolName} from this server? The workflow will remain deployed and can be added back later.`
+          `${tool.toolName} leaves this server. The workflow stays deployed and can be added back later.`
         }
         confirmLabel='Remove'
         pendingLabel='Removing…'

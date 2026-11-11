@@ -1,23 +1,23 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { type ComponentProps, useState } from 'react'
 import { ActivityRow } from '@sim/emcn/activity-row'
 import { Button } from '@sim/emcn/button'
-import { EmptyState } from '@sim/emcn/empty-state'
 import { useFeedbackExpiry } from '@sim/emcn/feedback/use-feedback-expiry'
 import { Icon } from '@sim/emcn/icon'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SearchField } from '@sim/emcn/search-field'
-import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
-import { FailureNotice } from '@sim/emcn/status'
+import { SettingsRow } from '@sim/emcn/settings-section'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toast } from '@/lib/toast/sink'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
 import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   ResourceList,
   SectionStack,
   SectionToolbar,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { SettingsRead } from '@/app/(product)/_components/settings-parts/settings-read'
 import { McpServerFormModal } from '@/app/(product)/workspace/[workspaceId]/_components/mcp-server-form/mcp-server-form'
 import type { WorkspaceSettingsSectionProps } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
 import { McpServerDetail } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/mcp/mcp-server-detail'
@@ -30,59 +30,99 @@ import {
 import {
   createLogger,
   type McpServer,
-  type McpTool,
+  mcpServerIdParam,
   useAllowedMcpDomains,
   useAvailableEnvVarKeys,
   useCreateMcpServer,
   useDeleteMcpServer,
-  useForceRefreshMcpTools,
   useMcpOauthPopup,
-  useMcpServerIdParam,
   useMcpServers,
+  useMcpServerToolsProbe,
   useMcpToolsQuery,
   useRefreshMcpServer,
   useSettingsSearch,
   useStoredMcpTools,
   useUpdateMcpServer,
 } from '@/platform/lib/data/mcp'
+import { useSettingsSubview } from '@/platform/lib/data/settings-subview'
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
+import { plural } from '@/platform/shared/plural'
 
 const logger = createLogger('McpSettings')
 
 interface ServerRowStatus {
   connecting: boolean
   refreshing: boolean
-  loadingTools: boolean
-  discoveryError: string | null
 }
 
-/** The row's status after its transport: what is happening to it now, or what it offers. */
-function describeServer(server: McpServer, tools: McpTool[], status: ServerRowStatus): string {
-  // A connected server with last-known tools keeps its count through a transient probe failure.
-  const showDiscoveryError =
-    Boolean(status.discoveryError) &&
-    tools.length === 0 &&
-    server.connectionStatus !== 'error' &&
-    server.connectionStatus !== 'disconnected'
+/**
+ * The row's status after its transport: what is happening to it now, or what it offers. The count
+ * is the one stored at the server's last discovery, so the list probes no server.
+ */
+function describeServer(server: McpServer, status: ServerRowStatus): string {
   const state = server.managedConnectorId
     ? 'Managed by Connected accounts'
     : status.connecting
       ? 'Waiting for authorization…'
       : status.refreshing
         ? 'Refreshing…'
-        : status.loadingTools && tools.length === 0
-          ? null
-          : showDiscoveryError && status.discoveryError
-            ? status.discoveryError
-            : getServerToolsLabel(tools, server.connectionStatus, server.lastError, server.authType)
-  const transport = formatTransportLabel(server.transport)
-  return state ? `${transport} · ${state}` : transport
+        : server.connectionStatus === 'error' || server.connectionStatus === 'disconnected'
+          ? getServerToolsLabel([], server.connectionStatus, server.lastError, server.authType)
+          : plural(server.toolCount ?? 0, 'tool')
+  return `${formatTransportLabel(server.transport)} · ${state}`
+}
+
+interface McpServerViewProps
+  extends Omit<
+    ComponentProps<typeof McpServerDetail>,
+    'discoveredTools' | 'storedTools' | 'toolsState' | 'onRetryTools'
+  > {
+  workspaceId: string
+}
+
+/**
+ * The open server's detail with its tool reads, which load only while it is open: the workspace's
+ * discovered tools, where workflows use them, and a fresh discovery of this server alone each time
+ * it opens, by a click or a shared link.
+ */
+function McpServerView({ workspaceId, ...detail }: McpServerViewProps) {
+  const { server, canEdit } = detail
+  const { data: discoveredTools = [], toolsStateByServer } = useMcpToolsQuery(workspaceId)
+  const { data: storedTools = [] } = useStoredMcpTools(workspaceId)
+  const probe = useMcpServerToolsProbe(workspaceId, server.id, {
+    enabled: canEdit && !server.managedConnectorId,
+  })
+  const discovery = toolsStateByServer.get(server.id)
+  return (
+    <McpServerDetail
+      server={detail.server}
+      servers={detail.servers}
+      canEdit={detail.canEdit}
+      authorizing={detail.authorizing}
+      deleting={detail.deleting}
+      refresh={detail.refresh}
+      onBack={detail.onBack}
+      onRefresh={detail.onRefresh}
+      onEdit={detail.onEdit}
+      onDelete={detail.onDelete}
+      onAuthorize={detail.onAuthorize}
+      discoveredTools={discoveredTools}
+      storedTools={storedTools}
+      toolsState={{
+        isLoading: Boolean(discovery?.isLoading) || (probe.isFetching && !discovery),
+        isFetching: Boolean(discovery?.isFetching) || probe.isFetching,
+        error: probe.error ?? discovery?.error ?? null,
+      }}
+      onRetryTools={() => void probe.refetch()}
+    />
+  )
 }
 
 /** The workspace's MCP servers, whose tools workflows and agents call. */
 export default function McpSection({ workspaceId }: WorkspaceSettingsSectionProps) {
   const { canMutate: canEdit, permission } = useWorkspaceSettingsSection(workspaceId, 'mcp')
-  const [selectedServerId, setSelectedServerId] = useMcpServerIdParam()
+  const subview = useSettingsSubview({ idParam: mcpServerIdParam.key })
+  const selectedServerId = subview.id
   const [search, setSearch] = useSettingsSearch()
   const [adding, setAdding] = useState(false)
   const [editingServerId, setEditingServerId] = useState<string | null>(null)
@@ -92,11 +132,6 @@ export default function McpSection({ workspaceId }: WorkspaceSettingsSectionProp
 
   const serversQuery = useMcpServers(workspaceId)
   const servers = serversQuery.data ?? []
-  const { data: discoveredTools = [], toolsStateByServer } = useMcpToolsQuery(workspaceId)
-  const { data: storedTools = [], refetch: refetchStoredTools } = useStoredMcpTools(workspaceId, {
-    enabled: selectedServerId !== null,
-  })
-  const { mutate: forceRefreshTools } = useForceRefreshMcpTools()
   const createServer = useCreateMcpServer()
   const deleteServer = useDeleteMcpServer()
   const refreshServer = useRefreshMcpServer()
@@ -109,40 +144,16 @@ export default function McpSection({ workspaceId }: WorkspaceSettingsSectionProp
     : undefined
   const { connectingServers, startOauthForServer } = useMcpOauthPopup({ workspaceId })
 
-  // A deep link opens a server whose tools may be stale, so they are probed as a click would.
-  const initialServerId = useRef(selectedServerId)
-  const refreshedDeepLink = useRef(false)
-  useEffect(() => {
-    if (refreshedDeepLink.current || !initialServerId.current) return
-    refreshedDeepLink.current = true
-    if (canEdit) forceRefreshTools(workspaceId)
-    void refetchStoredTools()
-  }, [canEdit, workspaceId, forceRefreshTools, refetchStoredTools])
-
   useFeedbackExpiry(
     refreshServer.isSuccess || refreshServer.isError ? refreshServer.submittedAt : null,
     refreshServer.reset
   )
 
-  const toolsByServer = new Map<string, McpTool[]>()
-  for (const tool of discoveredTools) {
-    toolsByServer.set(tool.serverId, [...(toolsByServer.get(tool.serverId) ?? []), tool])
-  }
-
-  const openServer = (serverId: string) => {
-    void setSelectedServerId(serverId)
-    if (canEdit) forceRefreshTools(workspaceId)
-    void refetchStoredTools()
-  }
-
-  /** Closing replaces the URL, so Back leaves the section rather than reopening the server. */
-  const closeServer = () => void setSelectedServerId(null, { history: 'replace' })
-
   const confirmDelete = async (serverId: string) => {
     setDeletingServers((previous) => new Set(previous).add(serverId))
     try {
       await deleteServer.mutateAsync({ workspaceId, serverId })
-      if (selectedServerId === serverId) closeServer()
+      if (selectedServerId === serverId) subview.close()
       logger.info('Removed MCP server', { serverId })
     } catch (error) {
       logger.error('Failed to remove MCP server', { error })
@@ -176,7 +187,7 @@ export default function McpSection({ workspaceId }: WorkspaceSettingsSectionProp
       target={serverToDeleteId}
       onClose={() => setServerToDeleteId(null)}
       title='Delete MCP server'
-      description={`Are you sure you want to delete ${serverToDelete?.name || 'this server'}? This action cannot be undone.`}
+      description={`${serverToDelete?.name || 'This server'} and its tools leave the workspace, and workflows using them stop working. This action cannot be undone.`}
       confirmLabel='Delete'
       pendingLabel='Deleting…'
       onConfirm={confirmDelete}
@@ -227,14 +238,11 @@ export default function McpSection({ workspaceId }: WorkspaceSettingsSectionProp
     const currentRefresh = refreshServer.variables?.serverId === selectedServer.id
     return (
       <>
-        <McpServerDetail
+        <McpServerView
           key={selectedServer.id}
+          workspaceId={workspaceId}
           server={selectedServer}
           servers={servers}
-          discoveredTools={discoveredTools}
-          storedTools={storedTools}
-          toolsState={toolsStateByServer.get(selectedServer.id)}
-          onRetryTools={() => forceRefreshTools(workspaceId)}
           canEdit={canEdit}
           authorizing={connectingServers.has(selectedServer.id)}
           deleting={deletingServers.has(selectedServer.id)}
@@ -243,7 +251,7 @@ export default function McpSection({ workspaceId }: WorkspaceSettingsSectionProp
             connectionStatus: currentRefresh ? refreshServer.data?.status : undefined,
             workflowsUpdated: currentRefresh ? refreshServer.data?.workflowsUpdated : undefined,
           })}
-          onBack={closeServer}
+          onBack={subview.close}
           onRefresh={() => void refresh(selectedServer.id)}
           onEdit={() => setEditingServerId(selectedServer.id)}
           onDelete={() => setServerToDeleteId(selectedServer.id)}
@@ -257,79 +265,79 @@ export default function McpSection({ workspaceId }: WorkspaceSettingsSectionProp
 
   const query = search.trim().toLowerCase()
   const filtered = servers.filter((server) => server.name.toLowerCase().includes(query))
+  const addServer = canEdit ? (
+    <Button size='compact' icon='I074' onClick={() => setAdding(true)}>
+      Add server
+    </Button>
+  ) : undefined
 
   return (
     <SectionStack>
       <SettingsPageHeader />
-      <SectionToolbar
-        grow={
-          <SearchField
-            label='Search servers'
-            placeholder='Search servers…'
-            value={search}
-            onValueChange={setSearch}
-          />
-        }
-      />
-      <SettingsSection title='Servers'>
-        {serversQuery.error ? (
-          <FailureNotice
-            message={getErrorMessage(serversQuery.error, 'Failed to load MCP servers')}
-            retrying={serversQuery.isFetching}
-            onRetry={() => void serversQuery.refetch()}
-          />
-        ) : serversQuery.isPending ? null : servers.length === 0 ? (
-          <EmptyState
-            title='No MCP servers configured'
-            description={canEdit ? 'Add a server to get started.' : undefined}
-          />
-        ) : filtered.length === 0 ? (
-          <EmptyState title='No matching servers' />
-        ) : (
-          <ResourceList>
-            {filtered.map((server) => {
-              const tools = toolsByServer.get(server.id) ?? []
-              const toolsState = toolsStateByServer.get(server.id)
-              return (
-                <ActivityRow
-                  key={server.id}
-                  leading={
-                    server.managedConnectorId ? (
-                      <Icon providerId={server.managedConnectorId} />
-                    ) : (
-                      <Icon name='I126' />
-                    )
-                  }
-                  title={server.name || 'Unnamed server'}
-                  detail={describeServer(server, tools, {
-                    connecting: connectingServers.has(server.id),
-                    refreshing:
-                      refreshServer.isPending && refreshServer.variables?.serverId === server.id,
-                    loadingTools: Boolean(toolsState?.isLoading || toolsState?.isFetching),
-                    discoveryError: toolsState?.error ? getErrorMessage(toolsState.error) : null,
-                  })}
-                  onOpen={() => openServer(server.id)}
-                />
-              )
-            })}
-          </ResourceList>
-        )}
-        {canEdit && (
-          <SettingsRow
-            label='New MCP server'
-            description='Connect an MCP server your workflows can call'
-          >
-            <Button
-              size='compact'
-              icon='I074'
-              disabled={serversQuery.isPending}
-              onClick={() => setAdding(true)}
+      <SettingsRead query={serversQuery} failureMessage='Couldn’t load MCP servers'>
+        {(loaded) => (
+          <>
+            {loaded.length > 0 && (
+              <SectionToolbar
+                grow={
+                  <SearchField
+                    label='Search servers'
+                    placeholder='Search servers…'
+                    value={search}
+                    onValueChange={setSearch}
+                  />
+                }
+              />
+            )}
+            <SettingsList
+              title='Servers'
+              empty={
+                loaded.length === 0
+                  ? {
+                      title: 'No MCP servers yet',
+                      description: canEdit
+                        ? 'Connect an MCP server your workflows can call'
+                        : undefined,
+                      action: addServer,
+                    }
+                  : filtered.length === 0
+                    ? { title: 'No matching servers' }
+                    : undefined
+              }
             >
-              Add server
-            </Button>
-          </SettingsRow>
+              <ResourceList>
+                {filtered.map((server) => (
+                  <ActivityRow
+                    key={server.id}
+                    leading={
+                      server.managedConnectorId ? (
+                        <Icon providerId={server.managedConnectorId} />
+                      ) : (
+                        <Icon name='I126' />
+                      )
+                    }
+                    title={server.name || 'Unnamed server'}
+                    detail={describeServer(server, {
+                      connecting: connectingServers.has(server.id),
+                      refreshing:
+                        refreshServer.isPending && refreshServer.variables?.serverId === server.id,
+                    })}
+                    onOpen={() => subview.open(server.id)}
+                  />
+                ))}
+              </ResourceList>
+              {addServer && (
+                <SettingsRow
+                  label='New MCP server'
+                  description='Connect an MCP server your workflows can call'
+                >
+                  {addServer}
+                </SettingsRow>
+              )}
+            </SettingsList>
+          </>
         )}
-      </SettingsSection>
+      </SettingsRead>
       {serverForm}
       {deleteConfirmation}
     </SectionStack>

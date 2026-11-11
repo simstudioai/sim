@@ -102,15 +102,6 @@ export function McpServerDetail({
             <Button size='compact' onClick={onEdit}>
               Edit
             </Button>
-            <Button
-              size='compact'
-              variant='quiet'
-              destructive
-              disabled={deleting}
-              onClick={onDelete}
-            >
-              {deleting ? 'Deleting…' : 'Delete'}
-            </Button>
           </>
         )}
       </DetailHeader>
@@ -119,7 +110,6 @@ export function McpServerDetail({
           <MetadataFields
             label='Server details'
             fields={[
-              { id: 'name', label: 'Server name', value: name },
               {
                 id: 'transport',
                 label: 'Transport',
@@ -158,9 +148,7 @@ export function McpServerDetail({
           </SettingsRow>
         )}
       </SettingsSection>
-      <SettingsSection
-        title={tools.length === 0 && toolsState?.isLoading ? 'Tools' : `Tools (${tools.length})`}
-      >
+      <SettingsSection title='Tools'>
         {tools.length === 0 && toolsState?.isLoading ? null : tools.length === 0 &&
           toolsState?.error ? (
           <FieldStack>
@@ -180,6 +168,18 @@ export function McpServerDetail({
           ))
         )}
       </SettingsSection>
+      {manageable && (
+        <SettingsSection title='Manage server'>
+          <SettingsRow
+            label='Delete server'
+            description='Remove this server and its tools from the workspace'
+          >
+            <Button variant='quiet' destructive disabled={deleting} onClick={onDelete}>
+              Delete
+            </Button>
+          </SettingsRow>
+        </SettingsSection>
+      )}
     </SectionStack>
   )
 }

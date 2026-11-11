@@ -25,12 +25,6 @@ export const mcpServerIdParam = {
   parser: parseAsString,
 } as const
 
-/** Opening a server is a destination → push to history; clear on close. */
-export const mcpServerIdUrlKeys = {
-  history: 'push',
-  clearOnDefault: true,
-} as const
-
 /**
  * `fork-id` deep-links the Forks settings tab to a specific fork's detail
  * sub-view (mirrors `mcpServerId` on the MCP tab).

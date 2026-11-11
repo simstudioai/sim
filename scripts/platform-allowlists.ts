@@ -1176,9 +1176,7 @@ const EMPTY_SURFACE_MIGRATIONS: ReasonedAllowlist = granted(SETTINGS_PAGE_LANE, 
   `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/sources-view.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/members/members-panel.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/security/security-section.tsx`,
-  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/mcp/mcp-section.tsx`,
   `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/sandboxes/sandboxes-section.tsx`,
-  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/workflow-mcp-servers/workflow-mcp-servers-section.tsx`,
 ])
 
 export const PLATFORM_ALLOWLISTS = {

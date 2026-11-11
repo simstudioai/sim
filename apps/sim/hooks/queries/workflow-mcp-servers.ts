@@ -423,11 +423,11 @@ async function fetchDeployedWorkflows(
 /**
  * Hook to fetch deployed workflows for a workspace
  */
-export function useDeployedWorkflows(workspaceId: string) {
+export function useDeployedWorkflows(workspaceId: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: workflowMcpServerKeys.deployedWorkflows(workspaceId),
     queryFn: ({ signal }) => fetchDeployedWorkflows(workspaceId, signal),
-    enabled: !!workspaceId,
+    enabled: !!workspaceId && (options?.enabled ?? true),
     staleTime: WORKFLOW_MCP_DEPLOYED_WORKFLOWS_STALE_TIME,
   })
 }
