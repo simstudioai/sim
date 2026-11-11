@@ -5,6 +5,7 @@ import {
   datadogHeaders,
   datadogPathSegment,
 } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getSloTool: ToolConfig<GetSloParams, GetSloResponse> = {
@@ -12,6 +13,7 @@ export const getSloTool: ToolConfig<GetSloParams, GetSloResponse> = {
   name: 'Datadog Get SLO',
   description: 'Get the configuration of a single service level objective by ID.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     sloId: {

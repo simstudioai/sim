@@ -128,7 +128,12 @@ export interface ToolResponse {
 }
 
 /** A field of a resolved saved credential that can fill a tool param. */
-export type CredentialParamSource = 'accessToken' | 'domain' | 'providerWorkspaceId'
+export type CredentialParamSource =
+  | 'accessToken'
+  | 'domain'
+  | 'providerWorkspaceId'
+  /** Datadog's application key, a secret sent beside the API key. */
+  | 'applicationKey'
 
 export interface OAuthConfig {
   required: boolean // Whether this tool requires OAuth authentication

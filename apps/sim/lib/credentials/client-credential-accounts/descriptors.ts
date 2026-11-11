@@ -11,6 +11,7 @@
  */
 
 import { CROWDSTRIKE_CLOUDS, type CrowdStrikeCloud } from '@/tools/crowdstrike/types'
+import { DATADOG_SITES, type DatadogSite } from '@/tools/datadog/types'
 
 /** Discriminator stored inside every encrypted client-credential secret blob. */
 export const CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE = 'client_credential_account' as const
@@ -139,6 +140,7 @@ export const JAMA_SERVICE_ACCOUNT_PROVIDER_ID = 'jama-service-account' as const
 export const HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID = 'helpscout-service-account' as const
 export const DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID = 'docusign-service-account' as const
 export const CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID = 'crowdstrike-service-account' as const
+export const DATADOG_SERVICE_ACCOUNT_PROVIDER_ID = 'datadog-service-account' as const
 
 /** Permissions requested when connecting a Manage Vanta application. */
 export const VANTA_PERMISSION_OPTIONS = [
@@ -166,6 +168,7 @@ export type ClientCredentialAccountProviderId =
   | typeof JAMA_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof DATADOG_SERVICE_ACCOUNT_PROVIDER_ID
 
 /**
  * Exact account-specific SuiteTalk origin accepted by NetSuite's OAuth and
@@ -468,6 +471,19 @@ const CROWDSTRIKE_CLOUD_LABELS: Record<CrowdStrikeCloud, string> = {
   'us-gov-2': 'US-GOV-2',
 }
 
+/** Datadog sites as the legacy block's dropdown names them. */
+const DATADOG_SITE_LABELS: Record<DatadogSite, string> = {
+  'datadoghq.com': 'US1 (datadoghq.com)',
+  'us3.datadoghq.com': 'US3 (us3.datadoghq.com)',
+  'us5.datadoghq.com': 'US5 (us5.datadoghq.com)',
+  'datadoghq.eu': 'EU (datadoghq.eu)',
+  'ap1.datadoghq.com': 'AP1 (ap1.datadoghq.com)',
+  'ap2.datadoghq.com': 'AP2 (ap2.datadoghq.com)',
+  'uk1.datadoghq.com': 'UK1 (uk1.datadoghq.com)',
+  'ddog-gov.com': 'US1-FED (ddog-gov.com)',
+  'us2.ddog-gov.com': 'US2-FED (us2.ddog-gov.com)',
+}
+
 export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
   ClientCredentialAccountProviderId,
   ClientCredentialAccountDescriptor
@@ -499,6 +515,36 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/jama',
     helpText:
       'Create API credentials in your Jama profile. Your account needs REST API access and a Named Creator license.',
+  },
+  [DATADOG_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: DATADOG_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Datadog',
+    connectNoun: 'API key pair',
+    fields: [
+      {
+        id: 'dataCenter',
+        label: 'Site',
+        placeholder: 'Select a site',
+        secret: false,
+        options: DATADOG_SITES.map((site) => ({ value: site, label: DATADOG_SITE_LABELS[site] })),
+        hint: 'The site in the address you sign in to Datadog with.',
+      },
+      {
+        id: 'clientId',
+        label: 'API key',
+        placeholder: 'Paste the API key',
+        secret: true,
+        hint: 'Create keys in Datadog under Organization Settings > API Keys and Application Keys.',
+      },
+      {
+        id: 'clientSecret',
+        label: 'Application key',
+        placeholder: 'Paste the application key',
+        secret: true,
+        hint: 'Workflows act with this key and its scopes. Datadog checks it on the first request that needs it.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/datadog',
   },
   [CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID,

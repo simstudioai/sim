@@ -6,6 +6,7 @@ import {
   datadogPathSegment,
   splitCommaList,
 } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const addIncidentTodoTool: ToolConfig<AddIncidentTodoParams, AddIncidentTodoResponse> = {
@@ -14,6 +15,7 @@ export const addIncidentTodoTool: ToolConfig<AddIncidentTodoParams, AddIncidentT
   description:
     'Add a follow-up task (todo) to an incident. Requires the Incident Management `incident_write` permission; the Incidents API is in public beta.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     incidentId: {

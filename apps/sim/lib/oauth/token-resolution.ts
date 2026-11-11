@@ -437,6 +437,7 @@ export async function resolveCredentialToken(
             cloudId: result.cloudId,
             domain: result.domain,
             providerWorkspaceId: result.providerWorkspaceId,
+            applicationKey: result.applicationKey,
             instanceUrl: result.instanceUrl,
             apiDomain: result.apiDomain,
             authStyle: result.authStyle,

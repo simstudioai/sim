@@ -121,6 +121,8 @@ const oauthTokenResponseSchema = z.object({
   cloudId: z.string().optional(),
   domain: z.string().optional(),
   providerWorkspaceId: z.string().optional(),
+  /** Datadog — the application key sent beside the API key (`accessToken`). */
+  applicationKey: z.string().optional(),
   realmId: z.string().optional(),
   quickBooksEnvironment: z.enum(['sandbox', 'production']).optional(),
   authStyle: z.enum(['x-api-token', 'snowflake-workload-identity']).optional(),

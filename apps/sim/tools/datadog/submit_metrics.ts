@@ -5,6 +5,7 @@ import type {
   SubmitMetricsResponse,
 } from '@/tools/datadog/types'
 import { datadogErrorMessage, parseJsonParam, resolveDatadogSite } from '@/tools/datadog/utils'
+import { DATADOG_API_KEY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 /**
@@ -24,6 +25,7 @@ export const submitMetricsTool: ToolConfig<SubmitMetricsParams, SubmitMetricsRes
   description:
     'Submit custom metrics to Datadog. Use for tracking application performance, business metrics, or custom monitoring data.',
   version: '1.0.0',
+  oauth: DATADOG_API_KEY_CREDENTIAL_OAUTH,
 
   params: {
     series: {

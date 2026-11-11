@@ -3989,6 +3989,88 @@ describe('Internal Route Trust', () => {
     })
   })
 
+  describe('saved key-pair credentials (application key)', () => {
+    const toolId = 'test_saved_key_pair_credential'
+    const keyPairTool = {
+      id: toolId,
+      name: 'Saved Key Pair Fixture',
+      description: 'Takes inline keys or a saved key-pair credential',
+      version: '1.0.0',
+      oauth: tokenCredentialOAuth('coda', {
+        apiKey: 'accessToken',
+        applicationKey: 'applicationKey',
+        site: 'domain',
+      }),
+      params: {
+        apiKey: { type: 'string', required: true, visibility: 'user-only' },
+        applicationKey: { type: 'string', required: true, visibility: 'user-only' },
+        site: { type: 'string', required: false, visibility: 'user-only' },
+      },
+      request: {
+        url: (params: Record<string, unknown>) => `https://api.${params.site}/api/v1/monitor`,
+        method: 'GET' as const,
+        headers: (params: Record<string, unknown>) => ({
+          'DD-API-KEY': String(params.apiKey),
+          'DD-APPLICATION-KEY': String(params.applicationKey),
+        }),
+      },
+      transformResponse: async () => ({ success: true, output: {} }),
+    }
+
+    beforeEach(() => {
+      ;(tools as Record<string, unknown>)[toolId] = keyPairTool
+    })
+    afterEach(() => {
+      Reflect.deleteProperty(tools, toolId)
+    })
+
+    it('sends the saved application key beside the saved API key, overriding caller values', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-api-key',
+        applicationKey: 'saved-application-key',
+        credentialType: 'service_account',
+        domain: 'datadoghq.eu',
+      })
+
+      const result = await executeTool(toolId, {
+        credential: 'saved-credential',
+        applicationKey: 'caller-application-key',
+        site: 'attacker.example.net',
+      })
+
+      expect(result.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        'https://api.datadoghq.eu/api/v1/monitor',
+        expect.anything(),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'dd-api-key': 'saved-api-key',
+            'dd-application-key': 'saved-application-key',
+          }),
+        })
+      )
+    })
+
+    it('fails closed when the credential carries no application key', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-api-key',
+        credentialType: 'service_account',
+        domain: 'datadoghq.eu',
+      })
+
+      const result = await executeTool(toolId, {
+        credential: 'saved-credential',
+        applicationKey: 'caller-application-key',
+      })
+
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringContaining('needs a saved credential with a Datadog application key'),
+      })
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    })
+  })
+
   it.each(['oauth', 'managed_oauth', undefined])(
     'rejects %s credentials for Slack Lists before calling Slack',
     async (credentialType) => {

@@ -1,5 +1,6 @@
 import type { ListSlosParams, ListSlosResponse } from '@/tools/datadog/types'
 import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listSlosTool: ToolConfig<ListSlosParams, ListSlosResponse> = {
@@ -8,6 +9,7 @@ export const listSlosTool: ToolConfig<ListSlosParams, ListSlosResponse> = {
   description:
     'List service level objectives, optionally filtered by IDs, name, tags, or underlying metrics query.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     ids: {

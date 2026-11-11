@@ -1,6 +1,7 @@
 import { DatadogIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 /**
  * Normalizes a `switch` sub-block value. Switches serialize their state as the
@@ -33,6 +34,8 @@ function datadogNumber(value: unknown): number | undefined {
 
 export const DatadogBlock: BlockConfig = {
   type: 'datadog',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'datadog_v2' },
   name: 'Datadog',
   description: 'Monitor infrastructure, applications, and logs with Datadog',
   authMode: AuthMode.ApiKey,
@@ -2625,3 +2628,18 @@ export const DatadogBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const DatadogV2Block: BlockConfig = {
+  ...DatadogBlock,
+  type: 'datadog_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    DatadogBlock,
+    { id: 'credential', type: 'oauth-input', serviceId: 'datadog', title: 'Datadog Credential' },
+    // The API key shows in every operation and the application key only where it is sent,
+    // and the site is optional; one credential carries all three, in every operation.
+    { condition: null, required: true }
+  ),
+}

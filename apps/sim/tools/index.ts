@@ -603,6 +603,7 @@ const CREDENTIAL_FIELD_LABELS: Record<CredentialParamSource, string> = {
   accessToken: 'token',
   domain: 'host',
   providerWorkspaceId: 'workspace ID',
+  applicationKey: 'Datadog application key',
 }
 
 /**
@@ -2069,6 +2070,7 @@ async function executeToolImplementation(
             await registerAssistantCredentialSecrets(resolvedSecretTraceRegistry, [
               data.accessToken,
               data.idToken,
+              data.applicationKey,
             ])
           }
           authorizedServiceAccountCredential =

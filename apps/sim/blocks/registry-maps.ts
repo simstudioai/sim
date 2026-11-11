@@ -77,7 +77,7 @@ import { CrunchbaseBlock, CrunchbaseBlockMeta, CrunchbaseV2Block } from '@/block
 import { CursorBlock, CursorBlockMeta, CursorV2Block, CursorV3Block } from '@/blocks/blocks/cursor'
 import { DagsterBlock, DagsterBlockMeta } from '@/blocks/blocks/dagster'
 import { DatabricksBlock, DatabricksBlockMeta, DatabricksV2Block } from '@/blocks/blocks/databricks'
-import { DatadogBlock, DatadogBlockMeta } from '@/blocks/blocks/datadog'
+import { DatadogBlock, DatadogBlockMeta, DatadogV2Block } from '@/blocks/blocks/datadog'
 import { DatagmaBlock, DatagmaBlockMeta } from '@/blocks/blocks/datagma'
 import { DaytonaBlock, DaytonaBlockMeta, DaytonaV2Block } from '@/blocks/blocks/daytona'
 import { DeploymentsBlock } from '@/blocks/blocks/deployments'
@@ -568,6 +568,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   databricks: DatabricksBlock,
   databricks_v2: DatabricksV2Block,
   datadog: DatadogBlock,
+  datadog_v2: DatadogV2Block,
   datagma: DatagmaBlock,
   daytona: DaytonaBlock,
   daytona_v2: DaytonaV2Block,

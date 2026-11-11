@@ -3,6 +3,7 @@ import {
   CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE,
   type ClientCredentialAccountProviderId,
   CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID,
+  DATADOG_SERVICE_ACCOUNT_PROVIDER_ID,
   DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID,
   FIVETRAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -22,6 +23,7 @@ import {
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { mintBoxServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/box'
 import { mintCrowdStrikeServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/crowdstrike'
+import { mintDatadogServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/datadog'
 import { mintDocuSignServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/docusign'
 import { mintFivetranServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/fivetran'
 import { mintGreenhouseServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/greenhouse'
@@ -117,11 +119,16 @@ export interface ClientCredentialAccountMintResult {
    */
   apiDomain?: string
   /**
-   * The region, site, or tenant the token is bound to (a CrowdStrike cloud),
-   * forwarded to tools as the credential's `domain`, which fills the tool param
-   * that picks the provider host.
+   * The region, site, or tenant the token is bound to (a CrowdStrike cloud or
+   * Datadog site), forwarded to tools as the credential's `domain`, which fills
+   * the tool param that picks the provider host.
    */
   domain?: string
+  /**
+   * Datadog only — the application key every Datadog read sends beside the API
+   * key (`accessToken`). A secret, handled like the token.
+   */
+  applicationKey?: string
   /** Scopes granted to the app, when the provider reports them. */
   grantedScopes?: string[]
   identity?: ClientCredentialAccountIdentity
@@ -170,6 +177,7 @@ const CLIENT_CREDENTIAL_ACCOUNT_MINTERS: Record<
   [HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID]: mintHelpScoutServiceAccountToken,
   [DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID]: mintDocuSignServiceAccountToken,
   [CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID]: mintCrowdStrikeServiceAccountToken,
+  [DATADOG_SERVICE_ACCOUNT_PROVIDER_ID]: mintDatadogServiceAccountToken,
 }
 
 export function getClientCredentialAccountMinter(

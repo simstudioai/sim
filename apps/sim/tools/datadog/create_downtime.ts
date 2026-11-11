@@ -9,6 +9,7 @@ import {
   resolveDatadogSite,
   splitCommaList,
 } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createDowntimeTool: ToolConfig<CreateDowntimeParams, CreateDowntimeResponse> = {
@@ -16,6 +17,7 @@ export const createDowntimeTool: ToolConfig<CreateDowntimeParams, CreateDowntime
   name: 'Datadog Create Downtime',
   description: 'Schedule a downtime to suppress monitor notifications during maintenance windows.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     scope: {

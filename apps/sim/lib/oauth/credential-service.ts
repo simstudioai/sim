@@ -547,6 +547,8 @@ export interface ServiceAccountTokenResult {
   /** Atlassian and domain-scoped token providers (e.g. Shopify) — the site/store domain. */
   domain?: string
   providerWorkspaceId?: string
+  /** Datadog only — the application key sent beside the API key (`accessToken`). */
+  applicationKey?: string
   /** Salesforce or NetSuite — the provider origin the token must be used against. */
   instanceUrl?: string
   /**
@@ -738,6 +740,7 @@ async function resolveClientCredentialAccountToken(
         instanceUrl: mint.instanceUrl,
         apiDomain: mint.apiDomain,
         domain: mint.domain,
+        applicationKey: mint.applicationKey,
       }
       if (!usesSharedToken)
         clientCredentialTokenCache.set(cacheIdentity, {

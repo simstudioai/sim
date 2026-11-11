@@ -33,6 +33,7 @@ import { CrowdStrikeBlock, CrowdStrikeV2Block } from '@/blocks/blocks/crowdstrik
 import { CrunchbaseBlock, CrunchbaseV2Block } from '@/blocks/blocks/crunchbase'
 import { CursorV2Block, CursorV3Block } from '@/blocks/blocks/cursor'
 import { DatabricksBlock, DatabricksV2Block } from '@/blocks/blocks/databricks'
+import { DatadogBlock, DatadogV2Block } from '@/blocks/blocks/datadog'
 import { DaytonaBlock, DaytonaV2Block } from '@/blocks/blocks/daytona'
 import { DevinBlock, DevinV2Block } from '@/blocks/blocks/devin'
 import { DiscordBlock, DiscordV2Block } from '@/blocks/blocks/discord'
@@ -142,6 +143,8 @@ const VERSIONS: Array<{
   secretIds: readonly string[]
   /** Replaced connection fields the legacy block never required (a host defaulting to the vendor's). */
   optionalIds?: readonly string[]
+  /** An operation that shows every replaced field, for a legacy block that shows some only there. */
+  legacyOperation?: string
 }> = [
   {
     legacy: AppConfigBlock,
@@ -350,6 +353,13 @@ const VERSIONS: Array<{
   { legacy: DevinBlock, successor: DevinV2Block, secretIds: ['apiKey'] },
   { legacy: OktaBlock, successor: OktaV2Block, secretIds: ['apiKey'] },
   {
+    legacy: DatadogBlock,
+    successor: DatadogV2Block,
+    secretIds: ['apiKey', 'applicationKey', 'site'],
+    optionalIds: ['applicationKey', 'site'],
+    legacyOperation: 'datadog_get_monitor',
+  },
+  {
     legacy: CrowdStrikeBlock,
     successor: CrowdStrikeV2Block,
     secretIds: ['clientId', 'clientSecret', 'cloud'],
@@ -419,27 +429,35 @@ function missingRequiredFields(block: BlockState): string {
   }
 }
 
-describe.each(VERSIONS)('$legacy.type legacy block', ({ legacy, secretIds, optionalIds = [] }) => {
-  beforeEach(() => {
-    vi.spyOn(blocks, 'getBlock').mockReturnValue(legacy)
-  })
+describe.each(VERSIONS)(
+  '$legacy.type legacy block',
+  ({ legacy, secretIds, optionalIds = [], legacyOperation }) => {
+    beforeEach(() => {
+      vi.spyOn(blocks, 'getBlock').mockReturnValue(legacy)
+    })
 
-  it('serializes its inline secrets exactly as before', () => {
-    const params = serialize(buildBlock(legacy, valuesFor(secretIds, 'inline')))
+    it('serializes its inline secrets exactly as before', () => {
+      const params = serialize(
+        buildBlock(legacy, {
+          ...(legacyOperation ? { operation: legacyOperation } : {}),
+          ...valuesFor(secretIds, 'inline'),
+        })
+      )
 
-    for (const id of secretIds) expect(params[id]).toBe(`inline-${id}`)
-    expect(params.oauthCredential).toBeUndefined()
-  })
+      for (const id of secretIds) expect(params[id]).toBe(`inline-${id}`)
+      expect(params.oauthCredential).toBeUndefined()
+    })
 
-  it('still requires its inline secrets', () => {
-    const requiredIds = secretIds.filter((id) => !optionalIds.includes(id))
-    const message = missingRequiredFields(buildBlock(legacy, {}))
-    const titles = fieldTitles(legacy, requiredIds)
+    it('still requires its inline secrets', () => {
+      const requiredIds = secretIds.filter((id) => !optionalIds.includes(id))
+      const message = missingRequiredFields(buildBlock(legacy, {}))
+      const titles = fieldTitles(legacy, requiredIds)
 
-    expect(titles).toHaveLength(requiredIds.length)
-    for (const title of titles) expect(message).toContain(title)
-  })
-})
+      expect(titles).toHaveLength(requiredIds.length)
+      for (const title of titles) expect(message).toContain(title)
+    })
+  }
+)
 
 describe.each(VERSIONS)('$successor.type credential-only block', ({ successor, secretIds }) => {
   beforeEach(() => {

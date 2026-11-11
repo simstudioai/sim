@@ -5,6 +5,7 @@ import type {
   EventPriority,
 } from '@/tools/datadog/types'
 import { datadogErrorMessage, resolveDatadogSite } from '@/tools/datadog/utils'
+import { DATADOG_API_KEY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse> = {
@@ -13,6 +14,7 @@ export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse>
   description:
     'Post an event to the Datadog event stream. Use for deployment notifications, alerts, or any significant occurrences.',
   version: '1.0.0',
+  oauth: DATADOG_API_KEY_CREDENTIAL_OAUTH,
 
   params: {
     title: {

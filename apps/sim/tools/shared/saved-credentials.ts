@@ -128,6 +128,23 @@ export const CROWDSTRIKE_CREDENTIAL_OAUTH = clientCredentialOAuth(
   ['clientId', 'clientSecret']
 )
 
+/**
+ * Credential policy for every Datadog tool that sends both keys. A saved
+ * Datadog key pair fills the API key, the application key, and the site the
+ * tools build their host from.
+ */
+export const DATADOG_CREDENTIAL_OAUTH = tokenCredentialOAuth('datadog', {
+  apiKey: 'accessToken',
+  applicationKey: 'applicationKey',
+  site: 'domain',
+})
+
+/** Credential policy for the Datadog intake tools, which send only the API key. */
+export const DATADOG_API_KEY_CREDENTIAL_OAUTH = tokenCredentialOAuth('datadog', {
+  apiKey: 'accessToken',
+  site: 'domain',
+})
+
 /** Token credential policies for tools that take an inline key or a saved token credential. */
 export const AFFINITY_CREDENTIAL_OAUTH = tokenCredentialOAuth('affinity', { apiKey: 'accessToken' })
 export const AGENTMAIL_CREDENTIAL_OAUTH = tokenCredentialOAuth('agentmail', {
@@ -385,6 +402,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   crunchbase: CRUNCHBASE_CREDENTIAL_OAUTH,
   cursor: CURSOR_CREDENTIAL_OAUTH,
   databricks: DATABRICKS_CREDENTIAL_OAUTH,
+  datadog: DATADOG_CREDENTIAL_OAUTH,
   daytona: DAYTONA_CREDENTIAL_OAUTH,
   devin: DEVIN_CREDENTIAL_OAUTH,
   discord: DISCORD_CREDENTIAL_OAUTH,

@@ -1,6 +1,7 @@
 import { filterUndefined } from '@sim/utils/object'
 import type { LogEntry, SendLogsParams, SendLogsResponse } from '@/tools/datadog/types'
 import { datadogErrorMessage, parseJsonParam, resolveDatadogSite } from '@/tools/datadog/utils'
+import { DATADOG_API_KEY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendLogsTool: ToolConfig<SendLogsParams, SendLogsResponse> = {
@@ -8,6 +9,7 @@ export const sendLogsTool: ToolConfig<SendLogsParams, SendLogsResponse> = {
   name: 'Datadog Send Logs',
   description: 'Send log entries to Datadog for centralized logging and analysis.',
   version: '1.0.0',
+  oauth: DATADOG_API_KEY_CREDENTIAL_OAUTH,
 
   params: {
     logs: {

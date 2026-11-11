@@ -5,6 +5,7 @@ import type {
   ListDowntimesResponse,
 } from '@/tools/datadog/types'
 import { datadogErrorMessage, resolveDatadogSite } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listDowntimesTool: ToolConfig<ListDowntimesParams, ListDowntimesResponse> = {
@@ -12,6 +13,7 @@ export const listDowntimesTool: ToolConfig<ListDowntimesParams, ListDowntimesRes
   name: 'Datadog List Downtimes',
   description: 'List all scheduled downtimes in Datadog.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     currentOnly: {

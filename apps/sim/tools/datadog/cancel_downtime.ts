@@ -1,5 +1,6 @@
 import type { CancelDowntimeParams, CancelDowntimeResponse } from '@/tools/datadog/types'
 import { datadogErrorMessage, datadogPathSegment, resolveDatadogSite } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const cancelDowntimeTool: ToolConfig<CancelDowntimeParams, CancelDowntimeResponse> = {
@@ -7,6 +8,7 @@ export const cancelDowntimeTool: ToolConfig<CancelDowntimeParams, CancelDowntime
   name: 'Datadog Cancel Downtime',
   description: 'Cancel a scheduled downtime.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     downtimeId: {

@@ -11,6 +11,8 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Datadog](https://datadoghq.com/) to send or query telemetry, manage monitors and incidents, and inspect observability data from a workflow. The actions below also cover dashboards, SLOs, synthetic tests, and security signals.
+
+Connect Datadog once as a Datadog credential: choose your site, then add an API key and an application key from **Organization Settings > API Keys and Application Keys**. Sim checks the API key when you save the credential. The application key is checked by the first action that needs it, so a key scoped to only the permissions your workflows use works. Workflows built with the earlier Datadog block keep the keys and site they entered in the block.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]

@@ -40,6 +40,7 @@ import {
   CrunchbaseIcon,
   CursorIcon,
   DatabricksIcon,
+  DatadogIcon,
   DaytonaIcon,
   DevinIcon,
   DiscordIcon,
@@ -1659,6 +1660,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'fivetran',
+  },
+  datadog: {
+    name: 'Datadog',
+    icon: DatadogIcon,
+    services: {
+      datadog: {
+        name: 'Datadog',
+        description: 'Monitor infrastructure, applications, and logs with Datadog.',
+        providerId: 'datadog',
+        serviceAccountProviderId: 'datadog-service-account',
+        authType: 'service_account',
+        icon: DatadogIcon,
+        baseProviderIcon: DatadogIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'datadog',
   },
   crowdstrike: {
     name: 'CrowdStrike',
