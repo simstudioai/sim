@@ -93,7 +93,7 @@ function rememberToken(key: string, token: CachedToken): void {
  * Exchanges client credentials for an access token with the client
  * credentials grant at ZoomInfo's token endpoint, credentials in HTTP Basic
  * auth as ZoomInfo recommends, redirects refused. A refusal throws
- * {@link ZoomInfoTokenError}; the endpoint consumes no credits.
+ * {@link ZoomInfoTokenError}.
  *
  * @see https://docs.zoominfo.com/docs/client-credentials-flow
  */

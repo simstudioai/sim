@@ -16,7 +16,7 @@ Use [ZoomInfo](https://www.zoominfo.com/) to search company and contact data, en
 
 **Search Intent** returns companies researching selected topics, signal scores, and recommended contacts. **Search News** filters by category, source URL, or publication date.
 
-Connect ZoomInfo once as a ZoomInfo credential: create a client credentials app in the ZoomInfo Developer Portal, choose the integration user it acts as, and add its client ID and client secret. Sim checks the credential by requesting a token, which uses no credits, and requests a new token before each one expires. Every call acts as the app's integration user with the scopes configured on the app, and data calls consume credits as usual. Workflows built with the earlier ZoomInfo block keep the client ID and secret they entered in the block.
+Connect ZoomInfo once as a ZoomInfo credential: create a client credentials app in the ZoomInfo Developer Portal, choose the integration user it acts as, and add its client ID and client secret. Sim checks the credential by requesting a token, without calling a data endpoint, and requests a new token before each one expires. Every call acts as the app's integration user with the scopes configured on the app, and data calls consume credits as usual. Workflows built with the earlier ZoomInfo block keep the client ID and secret they entered in the block.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]

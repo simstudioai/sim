@@ -11,7 +11,7 @@ export const ZOOMINFO_TOKEN_URL = `${ZOOMINFO_API_BASE}/oauth/v1/token`
 export const zoomInfoAuthSchema = z.object({
   clientId: z.string().min(1, 'clientId is required').optional(),
   clientSecret: z.string().min(1, 'clientSecret is required').optional(),
-  accessToken: z.string().min(1).optional(),
+  accessToken: z.string().min(1).max(16_384).optional(),
 })
 
 export const zoomInfoProviderRequestSchema = zoomInfoAuthSchema.extend({

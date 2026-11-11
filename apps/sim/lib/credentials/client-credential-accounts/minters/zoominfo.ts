@@ -36,8 +36,8 @@ function assertCredentialText(value: string, label: string): void {
  * acts as the app's integration user with the app's configured scopes; its
  * lifetime comes from `expires_in`.
  *
- * The connect-time check is the mint alone: the token endpoint consumes no
- * credits, and every data endpoint does, so none is called to verify.
+ * The connect-time check is the mint alone, so connecting calls no data
+ * endpoint that could consume credits.
  *
  * @see https://docs.zoominfo.com/docs/client-credentials-flow
  */
