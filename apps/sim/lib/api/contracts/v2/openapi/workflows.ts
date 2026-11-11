@@ -47,6 +47,7 @@ import {
   v2ExportWorkflowContract,
   v2GetWorkflowContract,
   v2GetWorkflowDeploymentContract,
+  v2GetWorkflowOutlineContract,
   v2GetWorkflowRunContract,
   v2GetWorkflowStateContract,
   v2GetWorkflowVersionContract,
@@ -56,6 +57,7 @@ import {
   v2ListWorkflowsContract,
   v2ListWorkflowTriggersContract,
   v2ListWorkflowVersionsContract,
+  v2ListWorkspaceSchedulesContract,
   v2MoveWorkflowsContract,
   v2RelocateWorkflowFolderContract,
   v2ReplaceWorkflowStateContract,
@@ -345,6 +347,48 @@ const declaredRoutes = [
         'Workflow state response',
         'The editable draft graph of a workflow.',
         [{ data: WORKFLOW_GRAPH_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2GetWorkflowOutlineContract,
+    workflowOperation({
+      applicationOperation: workflowOperations.read,
+      operationId: 'getWorkflowOutline',
+      summary: 'Get workflow outline',
+      description:
+        'Read the saved draft as a compact outline: connections embedded in their source blocks, loop and parallel children nested under their container, and empty values and editor-only fields omitted. Requires workspace read access, and shows nothing Get workflow state does not. The outline is read-only: it adds derived fields such as `triggerWebhookUrl` and omits positions and edge handles, so never send it to Replace workflow state; edit with Apply workflow operations or a full state from Get workflow state. This read records no audit event; `HEAD` mirrors `GET`.',
+      errors: RESOURCE_ERRORS,
+      success: jsonSuccess('The workflow draft outline.'),
+    }),
+    {
+      params: v2GetWorkflowOutlineContract.params,
+      query: v2GetWorkflowOutlineContract.query,
+      response: documentedSchema(
+        v2GetWorkflowOutlineContract.response.schema,
+        'WorkflowOutlineResponse',
+        'Workflow outline response',
+        'The compact read-only outline of a workflow draft.',
+        [
+          {
+            data: {
+              blocks: {
+                'start-1': {
+                  type: 'starter',
+                  name: 'Start',
+                  enabled: true,
+                  connections: { source: 'agent-1' },
+                },
+                'agent-1': {
+                  type: 'agent',
+                  name: 'Agent 1',
+                  enabled: true,
+                  inputs: { systemPrompt: 'Route the ticket to the right team.' },
+                },
+              },
+            },
+          },
+        ]
       ),
     }
   ),
@@ -949,7 +993,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.setTriggerEnabled,
       operationId: 'updateWorkflowTrigger',
       summary: 'Update workflow trigger',
-      description: `Enable or disable one trigger of the live deployment without redeploying. Requires workspace write access. Enabling resets \`failedCount\`, schedules the next run, and clears any polling backoff; a schedule whose cron expression is invalid or has no future runs returns \`400\`. A permission group that blocks webhook triggers returns \`403\` when a member it governs enables a polling, internal-event, or webhook trigger; a workspace API key is not governed by permission groups, as with every other capability. Disabling a completed schedule marks it disabled. A block with several live rows switches them together. Requesting the current state changes nothing.\n\nDisabling only stops Sim from accepting the trigger; nothing is removed at the provider. A disable lasts until the next deploy or version activation, which re-enables every trigger, the same way it clears a trigger that disabled itself after repeated failures. Deliveries to a disabled webhook receive \`404\`, and some providers disable their subscription after repeated failures, which requires a redeploy to restore.`,
+      description: `Enable or disable one trigger of the live deployment without redeploying. Requires workspace write access. Enabling resets \`failedCount\`, schedules the next run, and clears any polling backoff; a schedule whose cron expression is invalid or has no future runs returns \`400\`. A permission group that blocks webhook triggers returns \`403\` when a member it governs enables a polling, internal-event, or webhook trigger; a workspace API key is not governed by permission groups, as with every other capability. Disabling a completed schedule marks it disabled. A block with several live rows switches them together. Requesting the current state changes nothing.\n\nDisabling only stops Sim from accepting the trigger; nothing is removed at the provider. A disable lasts until the next deploy or version activation, which re-enables every trigger, the same way it clears a trigger that disabled itself after repeated failures. Deliveries to a disabled webhook receive \`404\`, and some providers disable their subscription after repeated failures, which requires a redeploy to restore.\n\nA schedule's cron expression and timezone cannot be changed here: deploy computes them from the schedule block, and a deployed version is never edited. Change the block's schedule fields in the draft with Apply workflow operations, then deploy.`,
       errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The trigger after the update.'),
     }),
@@ -971,6 +1015,47 @@ const declaredRoutes = [
               failedCount: 0,
               nextRunAt: '2026-08-10T09:00:00.000Z',
             },
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ListWorkspaceSchedulesContract,
+    workflowOperation({
+      applicationOperation: workflowOperations.readTriggers,
+      operationId: 'listWorkspaceSchedules',
+      summary: 'List workspace schedules',
+      description:
+        "List the schedules every deployed workflow in a workspace runs, including disabled ones, with their timing and failure counts. Requires workspace read access. These are the same schedules List workflow triggers reports for each workflow; a workflow that is not deployed has none. To change a schedule's timing, edit its schedule block in the draft and deploy; to pause or resume one, use Update workflow trigger.",
+      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      success: jsonSuccess('A page of schedules.'),
+    }),
+    {
+      query: v2ListWorkspaceSchedulesContract.query,
+      response: documentedSchema(
+        v2ListWorkspaceSchedulesContract.response.schema,
+        'WorkspaceScheduleListResponse',
+        'Workspace schedule list response',
+        'A cursor-paginated page of the schedules deployed workflows run.',
+        [
+          {
+            data: [
+              {
+                workflowId: WORKFLOW_ID,
+                workflowName: WORKFLOW_EXAMPLE.name,
+                blockId: WORKFLOW_TRIGGER_EXAMPLE.blockId,
+                enabled: true,
+                status: 'active',
+                failedCount: 0,
+                lastFailedAt: null,
+                nextRunAt: '2026-08-10T09:00:00.000Z',
+                lastRanAt: '2026-08-10T08:00:00.000Z',
+                cronExpression: '0 * * * *',
+                timezone: 'UTC',
+              },
+            ],
+            nextCursor: null,
           },
         ]
       ),

@@ -595,6 +595,109 @@
         }
       }
     },
+    "/api/v2/workflows/{workflowId}/outline": {
+      "get": {
+        "operationId": "getWorkflowOutline",
+        "summary": "Get workflow outline",
+        "description": "Read the saved draft as a compact outline: connections embedded in their source blocks, loop and parallel children nested under their container, and empty values and editor-only fields omitted. Requires workspace read access, and shows nothing Get workflow state does not. The outline is read-only: it adds derived fields such as `triggerWebhookUrl` and omits positions and edge handles, so never send it to Replace workflow state; edit with Apply workflow operations or a full state from Get workflow state. This read records no audit event; `HEAD` mirrors `GET`.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "workflows.read",
+        "x-oauth-scope": "api:read",
+        "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workflow draft outline.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowOutlineResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "blocks": {
+                          "start-1": {
+                            "type": "starter",
+                            "name": "Start",
+                            "enabled": true,
+                            "connections": {
+                              "source": "agent-1"
+                            }
+                          },
+                          "agent-1": {
+                            "type": "agent",
+                            "name": "Agent 1",
+                            "enabled": true,
+                            "inputs": {
+                              "systemPrompt": "Route the ticket to the right team."
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/workflows/{workflowId}/operations": {
       "post": {
         "operationId": "applyWorkflowOperations",
@@ -2669,7 +2772,7 @@
       "patch": {
         "operationId": "updateWorkflowTrigger",
         "summary": "Update workflow trigger",
-        "description": "Enable or disable one trigger of the live deployment without redeploying. Requires workspace write access. Enabling resets `failedCount`, schedules the next run, and clears any polling backoff; a schedule whose cron expression is invalid or has no future runs returns `400`. A permission group that blocks webhook triggers returns `403` when a member it governs enables a polling, internal-event, or webhook trigger; a workspace API key is not governed by permission groups, as with every other capability. Disabling a completed schedule marks it disabled. A block with several live rows switches them together. Requesting the current state changes nothing.\n\nDisabling only stops Sim from accepting the trigger; nothing is removed at the provider. A disable lasts until the next deploy or version activation, which re-enables every trigger, the same way it clears a trigger that disabled itself after repeated failures. Deliveries to a disabled webhook receive `404`, and some providers disable their subscription after repeated failures, which requires a redeploy to restore.\n\nOAuth scope: `api:write`.",
+        "description": "Enable or disable one trigger of the live deployment without redeploying. Requires workspace write access. Enabling resets `failedCount`, schedules the next run, and clears any polling backoff; a schedule whose cron expression is invalid or has no future runs returns `400`. A permission group that blocks webhook triggers returns `403` when a member it governs enables a polling, internal-event, or webhook trigger; a workspace API key is not governed by permission groups, as with every other capability. Disabling a completed schedule marks it disabled. A block with several live rows switches them together. Requesting the current state changes nothing.\n\nDisabling only stops Sim from accepting the trigger; nothing is removed at the provider. A disable lasts until the next deploy or version activation, which re-enables every trigger, the same way it clears a trigger that disabled itself after repeated failures. Deliveries to a disabled webhook receive `404`, and some providers disable their subscription after repeated failures, which requires a redeploy to restore.\n\nA schedule's cron expression and timezone cannot be changed here: deploy computes them from the schedule block, and a deployed version is never edited. Change the block's schedule fields in the draft with Apply workflow operations, then deploy.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.triggers.set_enabled",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -2709,7 +2812,7 @@
         ],
         "requestBody": {
           "required": true,
-          "description": "Enable or disable one trigger of the live deployment.",
+          "description": "Enable or disable one trigger of the live deployment. A schedule's timing is not set here: it comes from the deployed schedule block, so edit that block in the draft and deploy.",
           "content": {
             "application/json": {
               "schema": {
@@ -2792,6 +2895,153 @@
           },
           "423": {
             "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/schedules": {
+      "get": {
+        "operationId": "listWorkspaceSchedules",
+        "summary": "List workspace schedules",
+        "description": "List the schedules every deployed workflow in a workspace runs, including disabled ones, with their timing and failure counts. Requires workspace read access. These are the same schedules List workflow triggers reports for each workflow; a workflow that is not deployed has none. To change a schedule's timing, edit its schedule block in the draft and deploy; to pause or resume one, use Update workflow trigger.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "workflows.triggers.read",
+        "x-oauth-scope": "api:read",
+        "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace whose schedules should be listed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace whose schedules should be listed."
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum schedules to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum schedules to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result.",
+            "schema": {
+              "default": "createdAt",
+              "description": "Field used to sort the result.",
+              "type": "string",
+              "enum": ["createdAt"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "desc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of schedules.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceScheduleListResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": [
+                        {
+                          "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                          "workflowName": "Customer support triage",
+                          "blockId": "blk_01J8ZK3QW4M6X2R9T7B5C0V4",
+                          "enabled": true,
+                          "status": "active",
+                          "failedCount": 0,
+                          "lastFailedAt": null,
+                          "nextRunAt": "2026-08-10T09:00:00.000Z",
+                          "lastRanAt": "2026-08-10T08:00:00.000Z",
+                          "cronExpression": "0 * * * *",
+                          "timezone": "UTC"
+                        }
+                      ],
+                      "nextCursor": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -7815,6 +8065,10 @@
                     "description": "Other structured context defined by the specific error."
                   }
                 ]
+              },
+              "traceId": {
+                "description": "Identifier of this request, the same value as the `x-request-id` response header. Include it when contacting support.",
+                "type": "string"
               }
             },
             "required": ["code", "message"],
@@ -8680,6 +8934,156 @@
               "loops": {},
               "parallels": {},
               "variables": {}
+            }
+          }
+        ]
+      },
+      "WorkflowOutlineBlock": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Block type, e.g. `agent` or `slack`."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name; references to this block's outputs use it."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the block runs."
+          },
+          "inputs": {
+            "description": "Configured values keyed by field id, with empty values omitted and editor-only metadata removed. Loop and parallel containers report their iteration settings here. A webhook trigger also carries a derived `triggerWebhookUrl`, and a credential-routed trigger a derived `triggerRouting`; both are read-only.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "description": "Configured value; shape depends on the field."
+            }
+          },
+          "connections": {
+            "description": "Outgoing connections keyed by source handle: `source`, `error`, `if` / `else-if-0` / `else` for a Condition, or `route-0`, `route-1`, ... for a Router.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ],
+              "description": "Target block id, or ids when the handle fans out."
+            }
+          },
+          "nestedNodes": {
+            "description": "Blocks inside this loop or parallel container, keyed by block id.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "description": "Child block in this same outline shape."
+            }
+          },
+          "advancedMode": {
+            "description": "Whether the block shows its advanced fields.",
+            "type": "boolean"
+          },
+          "errorEnabled": {
+            "description": "Whether the block has an error output path.",
+            "type": "boolean"
+          },
+          "retry": {
+            "description": "Per-block retry configuration.",
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "description": "Whether the block retries on failure."
+              },
+              "maxTries": {
+                "type": "number",
+                "description": "Total attempts, including the first."
+              },
+              "waitBetweenTriesMs": {
+                "type": "number",
+                "description": "Delay between attempts, in milliseconds."
+              }
+            },
+            "required": ["enabled", "maxTries", "waitBetweenTriesMs"],
+            "additionalProperties": false
+          },
+          "triggerMode": {
+            "description": "Whether the block acts as the workflow trigger.",
+            "type": "boolean"
+          }
+        },
+        "required": ["type", "name", "enabled"],
+        "additionalProperties": false,
+        "title": "Workflow outline block",
+        "description": "One block of a workflow outline, with its connections embedded."
+      },
+      "WorkflowOutline": {
+        "type": "object",
+        "properties": {
+          "blocks": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WorkflowOutlineBlock"
+            },
+            "description": "Top-level blocks keyed by block id. Blocks inside a loop or parallel appear under their container's `nestedNodes`."
+          }
+        },
+        "required": ["blocks"],
+        "additionalProperties": false,
+        "title": "Workflow outline",
+        "description": "Compact read-only view of a workflow draft. Not a valid Replace workflow state body."
+      },
+      "WorkflowOutlineResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowOutline"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Workflow outline response",
+        "description": "The compact read-only outline of a workflow draft.",
+        "examples": [
+          {
+            "data": {
+              "blocks": {
+                "start-1": {
+                  "type": "starter",
+                  "name": "Start",
+                  "enabled": true,
+                  "connections": {
+                    "source": "agent-1"
+                  }
+                },
+                "agent-1": {
+                  "type": "agent",
+                  "name": "Agent 1",
+                  "enabled": true,
+                  "inputs": {
+                    "systemPrompt": "Route the ticket to the right team."
+                  }
+                }
+              }
             }
           }
         ]
@@ -12906,7 +13310,7 @@
                 "type": "null"
               }
             ],
-            "description": "Cron expression of a schedule; null for non-schedules."
+            "description": "Cron expression the deployed schedule runs on; null for non-schedules. Read-only: it is computed at deploy from the schedule block, so change it by editing the block in the draft and deploying."
           },
           "timezone": {
             "anyOf": [
@@ -12917,7 +13321,7 @@
                 "type": "null"
               }
             ],
-            "description": "IANA timezone the cron expression runs in; null for non-schedules."
+            "description": "IANA timezone the cron expression runs in; null for non-schedules. Read-only, like `cronExpression`."
           },
           "url": {
             "anyOf": [
@@ -13040,10 +13444,156 @@
         "required": ["enabled"],
         "additionalProperties": false,
         "title": "Update workflow trigger request",
-        "description": "Enable or disable one trigger of the live deployment.",
+        "description": "Enable or disable one trigger of the live deployment. A schedule's timing is not set here: it comes from the deployed schedule block, so edit that block in the draft and deploy.",
         "examples": [
           {
             "enabled": true
+          }
+        ]
+      },
+      "WorkspaceSchedule": {
+        "type": "object",
+        "properties": {
+          "blockId": {
+            "type": "string",
+            "description": "Trigger block in the deployed workflow."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the trigger currently fires."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "disabled", "completed"],
+            "description": "`disabled` after a manual disable or an automatic one following repeated failures. `completed` applies only to schedules that have no runs left."
+          },
+          "failedCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Consecutive failures since the last success; the trigger disables itself at 100. Always 0 for `webhook` and `event` triggers."
+          },
+          "lastFailedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp of the most recent counted failure, or null.",
+            "format": "date-time"
+          },
+          "nextRunAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp of the next scheduled run; null when disabled and for non-schedules.",
+            "format": "date-time"
+          },
+          "lastRanAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp of the last scheduled run; null for non-schedules.",
+            "format": "date-time"
+          },
+          "cronExpression": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cron expression the deployed schedule runs on; null for non-schedules. Read-only: it is computed at deploy from the schedule block, so change it by editing the block in the draft and deploying."
+          },
+          "workflowId": {
+            "type": "string",
+            "description": "Workflow whose live deployment runs the schedule."
+          },
+          "workflowName": {
+            "type": "string",
+            "description": "Name of that workflow."
+          },
+          "timezone": {
+            "type": "string",
+            "description": "IANA timezone the cron expression runs in. Read-only, like `cronExpression`."
+          }
+        },
+        "required": [
+          "blockId",
+          "enabled",
+          "status",
+          "failedCount",
+          "lastFailedAt",
+          "nextRunAt",
+          "lastRanAt",
+          "cronExpression",
+          "workflowId",
+          "workflowName",
+          "timezone"
+        ],
+        "additionalProperties": false,
+        "title": "Workspace schedule",
+        "description": "Health and timing of one schedule a deployed workflow in the workspace runs."
+      },
+      "WorkspaceScheduleListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceSchedule"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Workspace schedule list response",
+        "description": "A cursor-paginated page of the schedules deployed workflows run.",
+        "examples": [
+          {
+            "data": [
+              {
+                "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                "workflowName": "Customer support triage",
+                "blockId": "blk_01J8ZK3QW4M6X2R9T7B5C0V4",
+                "enabled": true,
+                "status": "active",
+                "failedCount": 0,
+                "lastFailedAt": null,
+                "nextRunAt": "2026-08-10T09:00:00.000Z",
+                "lastRanAt": "2026-08-10T08:00:00.000Z",
+                "cronExpression": "0 * * * *",
+                "timezone": "UTC"
+              }
+            ],
+            "nextCursor": null
           }
         ]
       },

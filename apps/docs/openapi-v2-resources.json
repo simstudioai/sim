@@ -14957,6 +14957,10 @@
                     "description": "Other structured context defined by the specific error."
                   }
                 ]
+              },
+              "traceId": {
+                "description": "Identifier of this request, the same value as the `x-request-id` response header. Include it when contacting support.",
+                "type": "string"
               }
             },
             "required": ["code", "message"],
@@ -20031,7 +20035,12 @@
           },
           "type": {
             "type": "string",
-            "description": "Editor control the field renders as, e.g. `short-input`."
+            "description": "Editor control the field renders as, e.g. `short-input`. Not a value type; see `valueType`."
+          },
+          "valueType": {
+            "description": "Type of value the field holds, from the block’s declared input for the field (the same type `inputDefinitions` and operation `inputs` report). Absent when the block declares no input for the field.",
+            "type": "string",
+            "enum": ["string", "number", "boolean", "json", "array", "file"]
           },
           "title": {
             "description": "Human-readable label.",

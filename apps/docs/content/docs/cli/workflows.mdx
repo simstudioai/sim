@@ -280,6 +280,24 @@ sim workflows state replace <workflowId> [options]
 
 API request and response schemas: [replaceWorkflowState](/api-reference/workflows/replaceWorkflowState).
 
+### Show a workflow’s draft as a compact read-only outline
+
+```bash
+sim workflows outline <workflowId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+API request and response schemas: [getWorkflowOutline](/api-reference/workflows/getWorkflowOutline).
+
 ### Edit a workflow’s blocks, connections and settings with a batch of operations
 
 OAuth login or personal API key required.

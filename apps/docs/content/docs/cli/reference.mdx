@@ -5101,6 +5101,37 @@ sim sandboxes update <sandboxId> [options]
 
 API request and response schemas: [updateSandbox](/api-reference/sandboxes/updateSandbox).
 
+## sim schedules
+
+List the schedules deployed workflows run across a workspace.
+
+A schedule’s timing comes from its schedule block. Edit the block with `sim workflows operations apply`, then deploy; pause or resume one with `sim workflows triggers update`.
+
+Also spelled `sim schedule`.
+
+### sim schedules list
+
+Show the timing and health of every schedule the workspace’s deployments run
+
+```bash
+sim schedules list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--sort-by <value>` | No | Field used to sort the result. Defaults to "createdAt". Accepted values: `createdAt`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "desc". Accepted values: `asc`, `desc`. |
+
+</CommandTable>
+
+API request and response schemas: [listWorkspaceSchedules](/api-reference/workflows/listWorkspaceSchedules).
+
 ## sim secrets
 
 Set and manage workspace or personal secrets.
@@ -8165,6 +8196,26 @@ sim workflows deployment update <workflowId> [options]
 </CommandTable>
 
 API request and response schemas: [updateWorkflowPublicApi](/api-reference/workflows/updateWorkflowPublicApi).
+
+### sim workflows outline
+
+Show a workflow’s draft as a compact read-only outline
+
+```bash
+sim workflows outline <workflowId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+API request and response schemas: [getWorkflowOutline](/api-reference/workflows/getWorkflowOutline).
 
 ### sim workflows state get
 
