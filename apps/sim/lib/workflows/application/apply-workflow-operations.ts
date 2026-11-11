@@ -53,6 +53,7 @@ import {
   type ValidationError,
 } from '@/lib/workflows/editing/types'
 import { preValidateCredentialInputs } from '@/lib/workflows/editing/validation'
+import { assertNoWithheldBlockType } from '@/lib/workflows/persistence/block-access-guard'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import {
   assertWorkflowGraphIdsUnclaimed,
@@ -152,10 +153,15 @@ function asGraph(value: Record<string, unknown>): Pick<WorkflowState, 'blocks' |
  */
 async function loadStoredGraph(
   workflowId: string,
-  executor?: DbOrTx
+  lockedTx?: DbOrTx
 ): Promise<Record<string, unknown>> {
-  const normalized = await loadWorkflowFromNormalizedTables(workflowId, executor)
+  const normalized = await loadWorkflowFromNormalizedTables(workflowId, lockedTx)
   if (!normalized) {
+    // The loader answers null for a failed query too. Under the row lock the
+    // workflow is known to exist, so that is the only meaning left.
+    if (lockedTx) {
+      throw new OrchestrationError('internal', `Failed to re-read workflow ${workflowId}`)
+    }
     throw new OrchestrationError('validation', `Workflow ${workflowId} has no normalized state`)
   }
   const { state, warnings } = normalizeWorkflowState({
@@ -486,6 +492,16 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
       }
 
       const nextState = { blocks: graph.blocks, edges: graph.edges }
+      /**
+       * The persistence primitive refuses a withheld block type before its row
+       * lock only for a value it was handed; a reader's graph is checked under
+       * the lock. Checking here keeps a refused batch from taking the lock and
+       * re-reading the stored graph first.
+       */
+      await assertNoWithheldBlockType(
+        { workspaceId: context.workspaceId, subjectUserId },
+        Object.values(nextState.blocks)
+      )
       const persisted = await replaceWorkflowNormalizedState({
         workflowId: context.workflowId,
         workspaceId: context.workspaceId,

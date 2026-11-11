@@ -254,9 +254,10 @@ export async function replaceWorkflowNormalizedState(
    * lock or reaches drizzle's transaction wrapper — so the thrown
    * `OrchestrationError` arrives at callers unwrapped.
    *
-   * A caller that produces its graph from a reader is unaffected: the reader
-   * composes a graph from what is already stored, and this pass covers the
-   * blocks it hands back through the inner check.
+   * A reader's graph does not exist until the lock is held, so it is checked
+   * only by the inner pass. A caller whose reader returns a graph it composed
+   * beforehand runs this check itself first, so a refused write does not take
+   * the lock.
    */
   if (typeof state !== 'function') {
     await assertNoWithheldBlockType({ workspaceId, subjectUserId }, Object.values(state.blocks))
