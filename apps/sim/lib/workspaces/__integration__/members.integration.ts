@@ -101,11 +101,14 @@ async function call(
   const response =
     method === 'PATCH' ? await updateMember(request, context) : await removeMember(request, context)
   expect(response.headers.get('cache-control')).toMatch(/no-store/)
-  return {
-    status: response.status,
-    retryAfter: response.headers.get('retry-after'),
-    body: await response.json(),
+  const body = await response.json()
+  /** Per-request, so it is checked against its header and left out of the compared body. */
+  if (body?.error) {
+    const { traceId, ...error } = body.error
+    expect(traceId).toBe(response.headers.get('x-request-id'))
+    body.error = error
   }
+  return { status: response.status, retryAfter: response.headers.get('retry-after'), body }
 }
 
 async function roleOf(target: string, scope = f.workspaceId) {
