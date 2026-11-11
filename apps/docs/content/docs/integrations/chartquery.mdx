@@ -1,0 +1,133 @@
+---
+title: ChartQuery
+description: Render charts, QR codes and barcodes as shareable images
+integration:
+  type: "chartquery"
+  color: "#FFFFFF"
+---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
+## Use the block [#usage-instructions]
+
+Turn data into images with ChartQuery: render any Chart.js v4 chart from its config, describe a chart in plain language and let ChartQuery build it from your data, or generate QR codes and barcodes. Every operation stores the image and returns public links you can put in a message, an email or a document.
+
+## Actions
+
+### ChartQuery Create Chart
+
+Render a Chart.js v4 chart (bar, line, pie, doughnut, radar, scatter and more) from its config and get public links to the image.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `config` | json | Yes | Chart.js v4 config with type, data and optional options \(e.g., \{"type":"bar","data":\{"labels":\["Jan","Feb"\],"datasets":\[\{"label":"Sales","data":\[12,19\]\}\]\}\}\) |
+| `format` | string | No | Image format: png \(default\) or svg |
+| `width` | number | No | Image width in pixels, 50 to 4000 \(e.g., 800\) |
+| `height` | number | No | Image height in pixels, 50 to 4000 \(e.g., 400\) |
+| `background` | string | No | Background color \(e.g., "#ffffff" or "transparent"\) |
+| `apiKey` | string | Yes | ChartQuery API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the stored image |
+| `renderUrl` | string | Public URL of the image itself, for an img tag, a message or a document |
+| `viewUrl` | string | Public URL of a page that shows the image |
+| `embedHtml` | string | HTML iframe snippet that embeds the image page |
+| `expiresIn` | string | How long the links stay valid, which depends on the ChartQuery plan |
+
+</ReferenceDetails>
+
+### ChartQuery Create Chart From Prompt
+
+Describe a chart in plain language, optionally with raw CSV or JSON data, and get public links to the image ChartQuery builds from it.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `prompt` | string | Yes | What to chart, 5 to 1000 characters: chart type, data, labels \(e.g., "Bar chart of Q1 revenue: Jan 12, Feb 15, Mar 9"\) |
+| `rawData` | string | No | Data to chart as CSV or JSON text \(e.g., "month,revenue\nJan,12\nFeb,15"\) |
+| `title` | string | No | Chart title, replacing the one ChartQuery would generate |
+| `format` | string | No | Image format: png \(default\) or svg |
+| `width` | number | No | Image width in pixels, 50 to 4000 \(default 1200\) |
+| `height` | number | No | Image height in pixels, 50 to 4000 \(default 600\) |
+| `apiKey` | string | Yes | ChartQuery API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the stored image |
+| `renderUrl` | string | Public URL of the image itself, for an img tag, a message or a document |
+| `viewUrl` | string | Public URL of a page that shows the image |
+| `embedHtml` | string | HTML iframe snippet that embeds the image page |
+| `expiresIn` | string | How long the links stay valid, which depends on the ChartQuery plan |
+
+</ReferenceDetails>
+
+### ChartQuery Create QR Code
+
+Generate a QR code for a URL, text, email, phone number or Wi-Fi network and get public links to the image.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `data` | string | Yes | Text or URL to encode \(e.g., "https://www.chartquery.com") |
+| `format` | string | No | Image format: svg \(default\) or png |
+| `size` | number | No | Width and height in pixels \(default 200\) |
+| `color` | string | No | Color of the QR modules as a hex value \(e.g., "#4f46e5"\) |
+| `background` | string | No | Background color as a hex value, or "transparent" |
+| `apiKey` | string | Yes | ChartQuery API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the stored image |
+| `renderUrl` | string | Public URL of the image itself, for an img tag, a message or a document |
+| `viewUrl` | string | Public URL of a page that shows the image |
+| `embedHtml` | string | HTML iframe snippet that embeds the image page |
+| `expiresIn` | string | How long the links stay valid, which depends on the ChartQuery plan |
+
+</ReferenceDetails>
+
+### ChartQuery Create Barcode
+
+Generate a barcode (Code 128, EAN-13, UPC-A, ITF-14, Code 39 and more) and get public links to the image.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `data` | string | Yes | Value to encode; must match the barcode type \(e.g., "4006381333931" for EAN-13\) |
+| `barcodeType` | string | No | Barcode type: code128 \(default\), ean13, ean8, upca, upce, itf14, itf, code39 or code93 |
+| `format` | string | No | Image format: svg \(default\) or png |
+| `showText` | boolean | No | Whether to print the encoded value under the bars |
+| `apiKey` | string | Yes | ChartQuery API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the stored image |
+| `renderUrl` | string | Public URL of the image itself, for an img tag, a message or a document |
+| `viewUrl` | string | Public URL of a page that shows the image |
+| `embedHtml` | string | HTML iframe snippet that embeds the image page |
+| `expiresIn` | string | How long the links stay valid, which depends on the ChartQuery plan |
+
+</ReferenceDetails>
+
+

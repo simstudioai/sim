@@ -10459,3 +10459,16 @@ export function PlaneIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+/** ChartQuery logo, as used by the ChartQuery block. */
+export function ChartQueryIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox='-1 -1 20 20.16' fill='none' xmlns='http://www.w3.org/2000/svg' {...props}>
+      <title>ChartQuery</title>
+      <path
+        d='M0 5.7H4.5V18.08H0V5.7ZM13.5 10.2H18V18.08H13.5V10.2ZM6.75 0.08H11.25V18.08H6.75V0.08Z'
+        fill='#4AB3C7'
+      />
+    </svg>
+  )
+}

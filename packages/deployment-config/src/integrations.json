@@ -4402,6 +4402,42 @@
       "updatedAt": "2026-10-14"
     },
     {
+      "type": "chartquery",
+      "slug": "chartquery",
+      "name": "ChartQuery",
+      "description": "Render charts, QR codes and barcodes as shareable images",
+      "longDescription": "Turn data into images with ChartQuery: render any Chart.js v4 chart from its config, describe a chart in plain language and let ChartQuery build it from your data, or generate QR codes and barcodes. Every operation stores the image and returns public links you can put in a message, an email or a document.",
+      "bgColor": "#FFFFFF",
+      "iconName": "ChartQueryIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/chartquery",
+      "operations": [
+        {
+          "name": "Create Chart",
+          "description": "Render a Chart.js v4 chart (bar, line, pie, doughnut, radar, scatter and more) from its config and get public links to the image."
+        },
+        {
+          "name": "Create Chart From Prompt",
+          "description": "Describe a chart in plain language, optionally with raw CSV or JSON data, and get public links to the image ChartQuery builds from it."
+        },
+        {
+          "name": "Create QR Code",
+          "description": "Generate a QR code for a URL, text, email, phone number or Wi-Fi network and get public links to the image."
+        },
+        {
+          "name": "Create Barcode",
+          "description": "Generate a barcode (Code 128, EAN-13, UPC-A, ITF-14, Code 39 and more) and get public links to the image."
+        }
+      ],
+      "operationCount": 4,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "analytics",
+      "tags": ["data-analytics", "image-generation", "automation"],
+      "updatedAt": "2026-11-11"
+    },
+    {
       "type": "checkr_v2",
       "slug": "checkr",
       "name": "Checkr",

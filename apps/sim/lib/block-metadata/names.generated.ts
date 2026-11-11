@@ -34,6 +34,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   calcom: 'Cal.com',
   calendly_v2: 'Calendly',
   cbinsights: 'CB Insights',
+  chartquery: 'ChartQuery',
   checkr_v2: 'Checkr',
   circleback_v2: 'Circleback',
   clay: 'Clay',

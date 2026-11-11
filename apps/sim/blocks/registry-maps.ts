@@ -41,6 +41,7 @@ import { BufferBlock, BufferBlockMeta, BufferV2Block } from '@/blocks/blocks/buf
 import { CalComBlock, CalComBlockMeta } from '@/blocks/blocks/calcom'
 import { CalendlyBlock, CalendlyBlockMeta, CalendlyV2Block } from '@/blocks/blocks/calendly'
 import { CbInsightsBlock, CbInsightsBlockMeta } from '@/blocks/blocks/cbinsights'
+import { ChartQueryBlock, ChartQueryBlockMeta } from '@/blocks/blocks/chartquery'
 import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
 import { CheckrBlock, CheckrBlockMeta, CheckrV2Block } from '@/blocks/blocks/checkr'
 import { CirclebackBlock, CirclebackBlockMeta, CirclebackV2Block } from '@/blocks/blocks/circleback'
@@ -524,6 +525,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   calendly: CalendlyBlock,
   calendly_v2: CalendlyV2Block,
   cbinsights: CbInsightsBlock,
+  chartquery: ChartQueryBlock,
   chat_trigger: ChatTriggerBlock,
   checkr: CheckrBlock,
   checkr_v2: CheckrV2Block,
@@ -1011,6 +1013,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   calcom: CalComBlockMeta,
   calendly: CalendlyBlockMeta,
   cbinsights: CbInsightsBlockMeta,
+  chartquery: ChartQueryBlockMeta,
   checkr: CheckrBlockMeta,
   circleback: CirclebackBlockMeta,
   clay: ClayBlockMeta,
