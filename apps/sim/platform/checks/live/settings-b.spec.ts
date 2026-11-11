@@ -104,8 +104,8 @@ test.describe('governance settings', () => {
         const body = await response.text().catch(() => '')
         if (body.includes(clientSecret)) leaks.push(response.url())
       })
-      const document = await page.goto(liveRoute(`/settings/sso?provider=${providerId}`))
-      const html = (await document?.text()) ?? ''
+      const opened = await page.goto(liveRoute(`/settings/sso?provider=${providerId}`))
+      const html = (await opened?.text()) ?? ''
       expect(html, 'the document did not carry the seeded provider').toContain(providerId)
       expect(html).not.toContain(clientSecret)
 
