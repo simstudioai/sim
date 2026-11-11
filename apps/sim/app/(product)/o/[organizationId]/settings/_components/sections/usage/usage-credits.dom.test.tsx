@@ -27,13 +27,13 @@ afterEach(() => {
   container.remove()
 })
 
-it('paints nothing while the credits are still loading', () => {
+it('paints only the heading while the credits are still loading', () => {
   const pending = {
     dimmed: false,
     failed: false,
     retry: () => undefined,
     chart: { loaded: false, used: 0, limit: null, bars: [], series: [], seriesTotals: [] },
   } as unknown as ReturnType<typeof useUsageOverview>
-  act(() => root.render(<UsageCredits overview={pending} />))
-  expect(container.textContent).toBe('')
+  act(() => root.render(<UsageCredits label='This month' overview={pending} />))
+  expect(container.textContent).toBe('This month')
 })

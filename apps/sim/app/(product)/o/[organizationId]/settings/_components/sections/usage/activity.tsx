@@ -1,7 +1,7 @@
 'use client'
 
-import type { ReactNode } from 'react'
 import { Avatar } from '@sim/emcn/avatar'
+import { Button } from '@sim/emcn/button'
 import { BarChart, TrendChart } from '@sim/emcn/chart/charts'
 import { DataTable, MetricGroup, TableLabel } from '@sim/emcn/data-display'
 import { EmptyState } from '@sim/emcn/empty-state'
@@ -9,11 +9,6 @@ import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { Pagination } from '@sim/emcn/pagination'
 import { FailureNotice } from '@sim/emcn/status'
-import {
-  DetailHeader,
-  SectionToolbar,
-} from '@/app/(product)/_components/settings-parts/settings-parts'
-import { UsageBlock } from '@/app/(product)/o/[organizationId]/settings/_components/sections/usage/usage-block'
 import styles from '@/app/(product)/o/[organizationId]/settings/_components/sections/usage/usage-section.module.css'
 import {
   type OrganizationUsageWindowKey,
@@ -31,7 +26,8 @@ interface ActivityOverviewProps {
 
 function SummaryView({ summary }: { summary: ReturnType<typeof useActivitySummary> }) {
   return (
-    <UsageBlock title='Activity'>
+    <section className={styles.block} aria-label='Activity'>
+      <h2 data-type='T093'>Activity</h2>
       {summary.failed ? (
         <FailureNotice message='Couldn’t load activity.' onRetry={summary.retry} />
       ) : summary.pending ? null : (
@@ -45,14 +41,14 @@ function SummaryView({ summary }: { summary: ReturnType<typeof useActivitySummar
                 series={summary.outcomeSeries}
               />
               <p className={styles.quiet} data-type='T060'>
-                Other includes cancelled, paused, and unfinished runs
+                Other includes cancelled, paused, and unfinished runs.
               </p>
             </div>
             <TrendChart title='Chat runs' points={summary.chatPoints} />
           </div>
         </>
       )}
-    </UsageBlock>
+    </section>
   )
 }
 
@@ -91,13 +87,7 @@ const COLUMNS_BY_DIMENSION = {
   ],
 } as const
 
-interface ActivityPanelProps {
-  organizationId: string
-  /** The period menu a drilled-into workspace shows under its own header. */
-  period?: ReactNode
-}
-
-export function ActivityPanel({ organizationId, period }: ActivityPanelProps) {
+export function ActivityPanel({ organizationId }: { organizationId: string }) {
   const view = useUsageView()
   const { window, workspace, activityDimension, activitySort, activityPage, setState } = view
   const workspaceId = workspace ?? undefined
@@ -111,32 +101,30 @@ export function ActivityPanel({ organizationId, period }: ActivityPanelProps) {
     activityPage,
     workspaceId
   )
-  const header = workspace && (
-    <>
-      <DetailHeader
-        backLabel='Activity'
-        title={summary.workspaceName ?? 'Workspace activity'}
-        onBack={() =>
-          void setState({ workspace: null, activityDimension: 'workspace', activityPage: 0 })
-        }
-      />
-      {period && <SectionToolbar>{period}</SectionToolbar>}
-    </>
-  )
+  const toAllWorkspaces = () =>
+    void setState({ workspace: null, activityDimension: 'workspace', activityPage: 0 })
   if (workspace && summary.unavailable)
     return (
-      <>
-        {header}
-        <EmptyState title='Workspace unavailable' />
-      </>
+      <EmptyState
+        title='Workspace unavailable.'
+        action={<Button onClick={toAllWorkspaces}>All workspaces</Button>}
+      />
     )
   const member = activityDimension === 'member'
   return (
     <>
-      {header}
+      {workspace && (
+        <div className={styles.toolbar}>
+          <Button variant='quiet' icon='I093' onClick={toAllWorkspaces}>
+            All workspaces
+          </Button>
+          <span data-type='T067'>{summary.workspaceName ?? 'Workspace activity'}</span>
+        </div>
+      )}
       <SummaryView summary={summary} />
-      <UsageBlock title='Breakdown'>
-        <SectionToolbar>
+      <section className={styles.block} aria-label='Breakdown'>
+        <h2 data-type='T093'>Breakdown</h2>
+        <div className={styles.toolbar}>
           <ChoiceMenu
             label='Group activity by'
             options={ACTIVITY_DIMENSIONS}
@@ -158,11 +146,11 @@ export function ActivityPanel({ organizationId, period }: ActivityPanelProps) {
               }
             />
           )}
-        </SectionToolbar>
+        </div>
         {breakdown.failed ? (
           <FailureNotice message='Couldn’t load the breakdown.' onRetry={breakdown.retry} />
         ) : !breakdown.rows ? null : breakdown.rows.length === 0 ? (
-          <EmptyState title='No activity in this period' />
+          <EmptyState title='No activity in this period.' />
         ) : (
           <DataTable
             title='Activity breakdown'
@@ -221,7 +209,7 @@ export function ActivityPanel({ organizationId, period }: ActivityPanelProps) {
             onPageChange={(page) => void setState({ activityPage: page - 1 })}
           />
         )}
-      </UsageBlock>
+      </section>
     </>
   )
 }

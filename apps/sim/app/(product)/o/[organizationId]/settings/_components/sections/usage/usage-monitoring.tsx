@@ -1,16 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Button } from '@sim/emcn/button'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { DateRangePicker } from '@sim/emcn/picker/date-picker'
 import { ScrollArea } from '@sim/emcn/scroll-area'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import Link from 'next/link'
 import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
-import {
-  ActionRow,
-  DetailHeader,
-  SectionToolbar,
-} from '@/app/(product)/_components/settings-parts/settings-parts'
+import { ActionRow, DetailHeader } from '@/app/(product)/_components/settings-parts/settings-parts'
 import {
   type CreditsTarget,
   ManageCreditsModal,
@@ -20,12 +18,12 @@ import {
   ActivityOverview,
   ActivityPanel,
 } from '@/app/(product)/o/[organizationId]/settings/_components/sections/usage/activity'
-import { PeriodPicker } from '@/app/(product)/o/[organizationId]/settings/_components/sections/usage/period-picker'
 import { UsageConsumers } from '@/app/(product)/o/[organizationId]/settings/_components/sections/usage/usage-consumers'
 import { UsageCredits } from '@/app/(product)/o/[organizationId]/settings/_components/sections/usage/usage-credits'
 import { UsageCalendar } from '@/app/(product)/o/[organizationId]/settings/_components/sections/usage/usage-heatmap'
 import styles from '@/app/(product)/o/[organizationId]/settings/_components/sections/usage/usage-section.module.css'
 import {
+  exportUsageCsv,
   type UsageBreakdownDimension,
   useUsageBreakdown,
   useUsageOverview,
@@ -37,7 +35,10 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
   const organizationId = organization.organization.id
   const { hosted, features } = organization.deployment
   const view = useUsageView()
-  const { window, tab, workspace, expanded, startDate, endDate, setState } = view
+  const { window, tab, workspace, expanded, startDate, endDate, periodLabel, setState } = view
+  const periodId = useId()
+  const [choosingRange, setChoosingRange] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [creditsTarget, setCreditsTarget] = useState<CreditsTarget | null>(null)
 
   const isOverview = tab === OVERVIEW_TAB
@@ -74,17 +75,6 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
   })
   const models = useUsageBreakdown(organizationId, window, 'model', { enabled: isOverview })
 
-  const period = (
-    <PeriodPicker
-      options={view.periodOptions}
-      value={view.currentPeriod}
-      customValue={view.customPeriod}
-      range={startDate && endDate ? { start: startDate, end: endDate } : null}
-      onPreset={view.selectPeriod}
-      onRange={view.applyRange}
-    />
-  )
-
   if (isWorkspaceDetail && workspace) {
     return (
       <>
@@ -97,8 +87,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
             <Button render={<Link href={view.auditLogsHref(workspace)} />}>Open logs</Button>
           )}
         </DetailHeader>
-        <SectionToolbar>{period}</SectionToolbar>
-        <UsageCredits overview={workspaceOverview} />
+        <UsageCredits label={periodLabel} overview={workspaceOverview} />
         <UsageCalendar
           organizationId={organizationId}
           timezone={window.timezone}
@@ -115,30 +104,44 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
     )
   }
 
-  // A workspace drilled into from Activity is a sub-view with its own header.
-  if (tab === 'activity' && workspace)
-    return <ActivityPanel organizationId={organizationId} period={period} />
-
   return (
     <>
       <SettingsPageHeader />
-      <SectionToolbar
-        grow={
-          <ScrollArea label='Insights views' axis='horizontal'>
-            <SegmentedControl
-              label='Insights views'
-              options={USAGE_TABS}
-              value={tab}
-              onSelect={view.selectTab}
+      <div className={styles.toolbar}>
+        <ScrollArea label='Insights views' axis='horizontal'>
+          <SegmentedControl
+            label='Insights views'
+            options={USAGE_TABS}
+            value={tab}
+            onSelect={view.selectTab}
+          />
+        </ScrollArea>
+        <div className={styles.actions}>
+          <ChoiceMenu
+            id={periodId}
+            label='Period'
+            options={view.periodOptions}
+            value={choosingRange ? 'Custom range' : view.currentPeriod}
+            onValueChange={(label) => setChoosingRange(view.selectPeriod(label))}
+          />
+          {(choosingRange || view.preset === 'custom') && (
+            <DateRangePicker
+              label='Custom range'
+              labelHidden
+              open={choosingRange}
+              onOpenChange={(open) => {
+                setChoosingRange(open)
+                if (!open && view.preset !== 'custom') document.getElementById(periodId)?.focus()
+              }}
+              value={startDate && endDate ? { start: startDate, end: endDate } : null}
+              onValueChange={(range) => range !== null && view.applyRange(range.start, range.end)}
             />
-          </ScrollArea>
-        }
-      >
-        {period}
-      </SectionToolbar>
+          )}
+        </div>
+      </div>
       {isOverview ? (
         <>
-          <UsageCredits overview={overview} />
+          <UsageCredits label={periodLabel} overview={overview} />
           <UsageCalendar organizationId={organizationId} timezone={window.timezone} />
           <div className={styles.cards}>
             <UsageConsumers
@@ -162,6 +165,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
               }
             />
           </div>
+          <ActivityOverview organizationId={organizationId} window={window} />
         </>
       ) : tab === 'activity' ? (
         <ActivityPanel organizationId={organizationId} />
@@ -186,6 +190,16 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
       <ActionRow>
         <Button render={<Link href={view.eventsHref} />} variant='quiet'>
           All events
+        </Button>
+        <Button
+          disabled={exporting}
+          onClick={async () => {
+            setExporting(true)
+            await exportUsageCsv(organizationId, window)
+            setExporting(false)
+          }}
+        >
+          Export
         </Button>
       </ActionRow>
       {canManageCredits && creditsTarget && (

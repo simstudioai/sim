@@ -1094,6 +1094,8 @@ const BACK_OWNERS: ReasonedAllowlist = {
       `${ORGANIZATION_ROUTES}people/_components/person/person.tsx`,
     ]
   ),
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/usage/activity.tsx`]:
+    "Usage's workspace drill-in is held for the design owner's pass (P13)",
 }
 
 /**

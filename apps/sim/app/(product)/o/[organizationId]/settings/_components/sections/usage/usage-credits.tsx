@@ -6,14 +6,18 @@ import styles from '@/app/(product)/o/[organizationId]/settings/_components/sect
 import type { useUsageOverview } from '@/platform/lib/data/usage'
 import { LOCALE } from '@/platform/shared/time'
 
-/**
- * Headline, allowance and the source-stacked credit chart for the toolbar's period. The chart titles
- * the group: the period is already named by the menu above it.
- */
-export function UsageCredits({ overview }: { overview: ReturnType<typeof useUsageOverview> }) {
+/** Headline, allowance and the source-stacked credit chart for one window. */
+export function UsageCredits({
+  label,
+  overview,
+}: {
+  label: string
+  overview: ReturnType<typeof useUsageOverview>
+}) {
   const { chart } = overview
   return (
-    <div className={styles.block} data-dimmed={overview.dimmed || undefined}>
+    <section className={styles.block} aria-label={label} data-dimmed={overview.dimmed || undefined}>
+      <h2 data-type='T093'>{label}</h2>
       {chart.loaded && (
         <div className={styles.figure}>
           <span data-type='T102'>{chart.used.toLocaleString(LOCALE)}</span>
@@ -42,6 +46,6 @@ export function UsageCredits({ overview }: { overview: ReturnType<typeof useUsag
           hideEmptySeries
         />
       )}
-    </div>
+    </section>
   )
 }
