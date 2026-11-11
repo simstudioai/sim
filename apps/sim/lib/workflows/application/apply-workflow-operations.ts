@@ -492,12 +492,7 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
       }
 
       const nextState = { blocks: graph.blocks, edges: graph.edges }
-      /**
-       * The persistence primitive refuses a withheld block type before its row
-       * lock only for a value it was handed; a reader's graph is checked under
-       * the lock. Checking here keeps a refused batch from taking the lock and
-       * re-reading the stored graph first.
-       */
+      // The write below passes a reader, which the primitive checks only under the lock.
       await assertNoWithheldBlockType(
         { workspaceId: context.workspaceId, subjectUserId },
         Object.values(nextState.blocks)

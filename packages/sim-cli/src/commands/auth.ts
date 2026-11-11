@@ -402,8 +402,9 @@ function parseExpiresIn(value: string | undefined): number | undefined {
  * An explicit method selects the credential type: OAuth never falls back to
  * an API key, and API-key login skips OAuth discovery. With no method selected,
  * OAuth is preferred, with the pairing-code handoff used for remote terminals,
- * a server without the provider, or an `--expires-in` only an API key honors. An unreachable server remains
- * an error rather than being mistaken for one that lacks the feature.
+ * a server without the provider, or an `--expires-in` only an API key honors.
+ * An unreachable server remains an error rather than being mistaken for one
+ * that lacks the feature.
  *
  * `--callback-port` overrides the remote-session guess, because naming the port
  * is how someone with an SSH tunnel says the loopback redirect does reach them.

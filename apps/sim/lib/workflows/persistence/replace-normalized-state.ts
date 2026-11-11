@@ -255,9 +255,7 @@ export async function replaceWorkflowNormalizedState(
    * `OrchestrationError` arrives at callers unwrapped.
    *
    * A reader's graph does not exist until the lock is held, so it is checked
-   * only by the inner pass. A caller whose reader returns a graph it composed
-   * beforehand runs this check itself first, so a refused write does not take
-   * the lock.
+   * only by the inner pass.
    */
   if (typeof state !== 'function') {
     await assertNoWithheldBlockType({ workspaceId, subjectUserId }, Object.values(state.blocks))

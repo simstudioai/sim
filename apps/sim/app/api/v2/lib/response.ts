@@ -256,14 +256,14 @@ export function v2UploadDataPlaneError(): NextResponse {
  * reading only the message knows which field to fix; `details` keeps every
  * issue with its slice-relative path. A message that already leads with its
  * field label (`enabled: expected one of ...`) drops it, so the field is named
- * once.
+ * once. The CLI parses this prefix to restate it as a flag (`retypeApiError`).
  */
 export function v2ValidationError(error: ZodError, slice?: RequestSlice): NextResponse {
   const path = (error.issues[0]?.path ?? []).map(String)
-  const fieldLabel = `${path.at(-1)}: `
+  const fieldLabel = path.length > 0 ? `${path.at(-1)}: ` : null
   const issueMessage = getValidationErrorMessage(error, 'Invalid request')
   const message =
-    path.length > 0 && issueMessage.startsWith(fieldLabel)
+    fieldLabel && issueMessage.startsWith(fieldLabel)
       ? issueMessage.slice(fieldLabel.length)
       : issueMessage
   const location = [slice, ...path].filter((part) => part !== undefined && part !== '').join('.')
