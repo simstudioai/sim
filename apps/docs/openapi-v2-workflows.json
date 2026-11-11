@@ -15071,7 +15071,7 @@
             "minimum": 0
           },
           "executionTimeoutSeconds": {
-            "description": "Execution timeout applied to this run, in seconds: the plan's timeout, lowered by `executionTimeoutSeconds` when one was requested. Null when the run has no execution timeout. Reported by Execute workflow; absent on resume responses.",
+            "description": "Execution timeout applied to this run, in seconds: the plan's timeout, lowered by `executionTimeoutSeconds` when one was requested. Null when the run has no execution timeout.",
             "anyOf": [
               {
                 "type": "number",
@@ -15135,7 +15135,7 @@
             "description": "Absolute URL of the workflow run resource."
           },
           "executionTimeoutSeconds": {
-            "description": "Execution timeout applied to this run, in seconds: the plan's timeout, lowered by `executionTimeoutSeconds` when one was requested. Null when the run has no execution timeout. Reported by Execute workflow; absent on resume responses.",
+            "description": "Execution timeout applied to this run, in seconds: the plan's timeout, lowered by `executionTimeoutSeconds` when one was requested. Null when the run has no execution timeout.",
             "anyOf": [
               {
                 "type": "number",
@@ -16210,12 +16210,84 @@
           }
         ]
       },
+      "WorkflowResumeResult": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "description": "Unique workflow run identifier.",
+            "examples": ["run_8f14e45f-ceea-467f-a"]
+          },
+          "workflowId": {
+            "type": "string",
+            "description": "Workflow that produced the run."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["completed", "failed", "paused", "cancelled"],
+            "description": "Terminal or paused run status."
+          },
+          "output": {
+            "description": "Workflow output, including partial output on failure."
+          },
+          "blockOutputs": {
+            "anyOf": [
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "description": "Output value produced by one workflow block."
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Outputs of the blocks named by `selectedOutputs`, keyed by those selector strings exactly as sent, or null when none were requested. `output` stays the final workflow output regardless. Selectors whose block did not run or whose path is absent are omitted (an unknown block is a `400` instead); failed runs include the outputs of the blocks that did run."
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExecutionError"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Structured execution failure, or null when none occurred."
+          },
+          "startedAt": {
+            "description": "ISO 8601 timestamp when execution started.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "endedAt": {
+            "description": "ISO 8601 timestamp when execution ended.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "durationMs": {
+            "description": "Execution duration in milliseconds.",
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": ["runId", "workflowId", "status", "output", "blockOutputs", "error"],
+        "additionalProperties": false,
+        "title": "Workflow resume result",
+        "description": "Synchronous resumed run output and in-band execution status. Run failures are reported in band, not as HTTP errors, so branch on `status`."
+      },
       "ResumeWorkflowSyncResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/WorkflowRunResult"
+            "$ref": "#/components/schemas/WorkflowResumeResult"
           }
         },
         "required": ["data"],
@@ -16255,18 +16327,6 @@
             "type": "string",
             "format": "uri",
             "description": "Absolute URL of the workflow run resource."
-          },
-          "executionTimeoutSeconds": {
-            "description": "Execution timeout applied to this run, in seconds: the plan's timeout, lowered by `executionTimeoutSeconds` when one was requested. Null when the run has no execution timeout. Reported by Execute workflow; absent on resume responses.",
-            "anyOf": [
-              {
-                "type": "number",
-                "exclusiveMinimum": 0
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "queuePosition": {
             "description": "Current queue position, when available.",

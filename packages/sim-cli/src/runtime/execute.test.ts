@@ -283,12 +283,12 @@ describe('a list whose contract caps its page below the CLI default', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(process.stderr, 'write').mockReturnValue(true)
 
-    await executeOperation(
-      'listPausedRuns',
-      CLI_CONTRACT.listPausedRuns!,
-      V2_OPERATIONS.listPausedRuns,
-      [{ limit: '30' }, leaf('listPausedRuns')]
-    )
+    const commandSpec = CLI_CONTRACT.listPausedRuns
+    if (!commandSpec) throw new Error('listPausedRuns has no CLI command')
+    await executeOperation('listPausedRuns', commandSpec, V2_OPERATIONS.listPausedRuns, [
+      { limit: '30' },
+      leaf('listPausedRuns'),
+    ])
 
     expect(request).toHaveBeenCalledTimes(2)
     expect(request.mock.calls.map(([, options]) => options.query.limit)).toEqual([25, 25])

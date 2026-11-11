@@ -13679,13 +13679,11 @@ type ResumeWorkflowResponseRef1 = {
   startedAt?: string
   endedAt?: string
   durationMs?: number
-  executionTimeoutSeconds?: number | null
 }
 
 type ResumeWorkflowResponseRef2 = {
   runId: string
   statusUrl: string
-  executionTimeoutSeconds?: number | null
   queuePosition?: number
 }
 

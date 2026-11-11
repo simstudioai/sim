@@ -1559,6 +1559,26 @@ describe('findFailedTraceBlock', () => {
     })
   })
 
+  it("never names a block from a custom block's source workflow", () => {
+    const spans = root([
+      span({
+        blockId: 'custom-1',
+        name: 'Enrich lead',
+        type: 'custom_block_abc123',
+        status: 'error',
+        executionOrder: 1,
+        childExecutionId: 'source-run',
+        children: [span({ blockId: 'source-block', status: 'error', executionOrder: 9 })],
+      }),
+    ])
+
+    expect(findFailedTraceBlock(spans)).toEqual({
+      blockId: 'custom-1',
+      blockName: 'Enrich lead',
+      blockType: 'custom_block_abc123',
+    })
+  })
+
   it('names no block when the trace is absent or unreadable', () => {
     expect(findFailedTraceBlock(undefined)).toBeNull()
     expect(findFailedTraceBlock({ ref: 'externalized' })).toBeNull()

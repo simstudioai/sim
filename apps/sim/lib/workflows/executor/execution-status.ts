@@ -698,12 +698,15 @@ async function readRunBlockNames(
  * part of a point.
  *
  * A caller that already loaded the paused record's `pause_points` passes them as
- * `pausePoints` and the record is not read again.
+ * `pausePoints` and the record is not read again. A caller that lists only some
+ * points passes `only`, applied before the cap so the points it keeps are never
+ * crowded out by ones it would discard.
  */
 export async function readPausedRunPoints(input: {
   workflowId: string
   executionId: string
   pausePoints?: unknown
+  only?: (point: PausePoint) => boolean
 }): Promise<PausedRunPoint[] | null> {
   const { workflowId, executionId } = input
   const row =
@@ -742,7 +745,8 @@ export async function readPausedRunPoints(input: {
     }))
   )
 
-  const points = capPausePoints(PauseResumeManager.mapPausePoints(row.pausePoints, queuePositions))
+  const mapped = PauseResumeManager.mapPausePoints(row.pausePoints, queuePositions)
+  const points = capPausePoints(input.only ? mapped.filter(input.only) : mapped)
   const baseBlockId = (point: PausePoint) => extractBaseBlockId(point.blockId ?? point.contextId)
   const names = await readRunBlockNames(workflowId, executionId, [
     ...new Set(points.map(baseBlockId)),

@@ -357,6 +357,34 @@ describe("the workspace's paused-run list", () => {
     ])
   })
 
+  it('lists a legacy run whose pause points are stored as an array', async () => {
+    const runId = generateId()
+    await db.insert(pausedExecutions).values({
+      id: generateId(),
+      workflowId,
+      executionId: runId,
+      executionSnapshot: {},
+      pausePoints: [
+        {
+          contextId: 'legacy-approval',
+          blockId: 'approval',
+          registeredAt: new Date().toISOString(),
+          resumeStatus: 'paused',
+          snapshotReady: true,
+          response: {},
+        },
+      ],
+      totalPauseCount: 1,
+      status: 'paused',
+    })
+
+    const page = await listRuns(owner, { includeOutput: false })
+    const listed = page.runs.find((entry) => entry.runId === runId)
+    expect(listed?.points).toEqual([
+      expect.objectContaining({ contextId: 'legacy-approval', kind: 'human', status: 'paused' }),
+    ])
+  })
+
   it('pages through the waiting runs without repeating one', async () => {
     await pausedRun()
     await pausedRun()

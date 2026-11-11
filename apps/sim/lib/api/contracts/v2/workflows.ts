@@ -1740,8 +1740,8 @@ export const v2ExecuteWorkflowBodySchema = z
 export type V2ExecuteWorkflowBody = z.input<typeof v2ExecuteWorkflowBodySchema>
 
 /**
- * The execution timeout a run was admitted under, in seconds. Optional because
- * the resume responses share these schemas and do not report it.
+ * The execution timeout a run was admitted under, in seconds. Execute workflow
+ * only: the resume responses are built from these schemas with it omitted.
  */
 const v2AppliedExecutionTimeoutSchema = z
   .number()
@@ -1749,7 +1749,7 @@ const v2AppliedExecutionTimeoutSchema = z
   .nullable()
   .optional()
   .describe(
-    "Execution timeout applied to this run, in seconds: the plan's timeout, lowered by `executionTimeoutSeconds` when one was requested. Null when the run has no execution timeout. Reported by Execute workflow; absent on resume responses."
+    "Execution timeout applied to this run, in seconds: the plan's timeout, lowered by `executionTimeoutSeconds` when one was requested. Null when the run has no execution timeout."
   )
 
 /**
@@ -1863,6 +1863,7 @@ export const v2ResumeWorkflowBodySchema = z
 export type V2ResumeWorkflowBody = z.input<typeof v2ResumeWorkflowBodySchema>
 
 export const v2ResumeWorkflowQueuedSchema = v2ExecuteWorkflowQueuedSchema
+  .omit({ executionTimeoutSeconds: true })
   .extend({
     queuePosition: z
       .number()
@@ -1878,7 +1879,16 @@ export const v2ResumeWorkflowQueuedSchema = v2ExecuteWorkflowQueuedSchema
   })
 export type V2ResumeWorkflowQueued = z.output<typeof v2ResumeWorkflowQueuedSchema>
 
-export const v2ResumeWorkflowSyncResponseSchema = v2DataResponse(v2ExecuteWorkflowDataSchema)
+const v2ResumeWorkflowDataSchema = v2ExecuteWorkflowDataSchema
+  .omit({ executionTimeoutSeconds: true })
+  .meta({
+    id: 'WorkflowResumeResult',
+    title: 'Workflow resume result',
+    description:
+      'Synchronous resumed run output and in-band execution status. Run failures are reported in band, not as HTTP errors, so branch on `status`.',
+  })
+
+export const v2ResumeWorkflowSyncResponseSchema = v2DataResponse(v2ResumeWorkflowDataSchema)
 export const v2ResumeWorkflowQueuedResponseSchema = v2DataResponse(v2ResumeWorkflowQueuedSchema)
 
 export const v2ResumeWorkflowResponseSchema = z

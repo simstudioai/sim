@@ -3,7 +3,7 @@ import { isUserFile } from '@/lib/core/utils/user-file'
 import { createSpanFromLog } from '@/lib/logs/execution/trace-spans/factory'
 import { groupIterationBlocks } from '@/lib/logs/execution/trace-spans/iteration-grouping'
 import type { TraceSpan } from '@/lib/logs/types'
-import { isWorkflowBlockType } from '@/executor/constants'
+import { isSubExecutionBlockType } from '@/executor/constants'
 import type { BlockLog, ExecutionResult } from '@/executor/types'
 
 /**
@@ -223,9 +223,10 @@ export interface FailedTraceBlock {
 /**
  * The block a recorded run failed in, read back from its persisted trace spans:
  * the last-executed span with an error nothing handled, which is the block the
- * executor's own classification names from its block logs. A child workflow's
- * spans are not descended into, so its failure is attributed to the workflow
- * block that ran it, as it is at execution time.
+ * executor's own classification names from its block logs. The spans under a
+ * workflow or custom block are another workflow's and are not descended into, so
+ * its failure is attributed to the block that ran it, as it is at execution
+ * time, and a custom block's source workflow is never named to its consumer.
  *
  * Reads stored, untyped spans structurally and never their input or output.
  * Null when the trace has no such span, including when it was not recorded,
@@ -251,7 +252,7 @@ export function findFailedTraceBlock(spans: unknown): FailedTraceBlock | null {
           }
         }
       }
-      if (!blockId || (isError && !isWorkflowBlockType(blockType ?? undefined))) {
+      if (!blockId || (isError && !isSubExecutionBlockType(blockType ?? undefined))) {
         visit(span.children)
       }
     }

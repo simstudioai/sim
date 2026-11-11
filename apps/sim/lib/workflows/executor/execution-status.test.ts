@@ -14,6 +14,7 @@ vi.mock('@/lib/workflows/executor/paused-execution-metadata', () => ({
 }))
 
 import { FunctionalOutputsUnavailableError } from '@/lib/logs/execution/functional-outputs'
+import { isWaitingHumanPausePoint } from '@/lib/workflows/executor/execution-state'
 import {
   getWorkflowExecutionStatus,
   readPausedRunPoints,
@@ -703,5 +704,36 @@ describe('readPausedRunPoints cap', () => {
     expect(points).toHaveLength(100)
     expect(points?.at(-1)).toMatchObject({ contextId: 'current', status: 'paused' })
     expect(points?.filter((point) => point.status === 'paused')).toHaveLength(1)
+  })
+
+  it('selects the points a caller lists before capping, so time pauses cannot crowd them out', async () => {
+    const pausePoints: Record<string, unknown> = {}
+    for (let i = 0; i < 100; i++) {
+      pausePoints[`timer-${i}`] = {
+        contextId: `timer-${i}`,
+        blockId: 'wait',
+        registeredAt: new Date(Date.UTC(2026, 0, 1, 0, 0, i)).toISOString(),
+        resumeStatus: 'paused',
+        pauseKind: 'time',
+      }
+    }
+    pausePoints.approval = {
+      contextId: 'approval',
+      blockId: 'approval',
+      registeredAt: '2026-02-01T00:00:00.000Z',
+      resumeStatus: 'paused',
+      pauseKind: 'human',
+    }
+    queueTableRows(schemaMock.resumeQueue, [])
+    queueTableRows(schemaMock.workflowExecutionLogs, [])
+
+    const points = await readPausedRunPoints({
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      pausePoints,
+      only: isWaitingHumanPausePoint,
+    })
+
+    expect(points).toEqual([expect.objectContaining({ contextId: 'approval', kind: 'human' })])
   })
 })
