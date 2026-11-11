@@ -286,7 +286,8 @@ export async function executeWorkflowJob(
         /**
          * The version this run executes, loaded once: the core runs this same version's
          * blocks, so a deploy landing mid-setup cannot pair one version's variables with
-         * another's graph.
+         * another's graph. A pinned version runs with only its own snapshot, as a sync run
+         * of it does, never the editor's current variables.
          */
         const pinnedDeploymentVersionId = payload.pinnedDeploymentVersionId
         const deployedState = await withDatabaseReadRetry(
@@ -328,7 +329,9 @@ export async function executeWorkflowJob(
           metadata,
           workflow,
           payload.input,
-          resolveDeployedRunVariables(deployedState, workflow.variables),
+          pinnedDeploymentVersionId
+            ? (deployedState.variables ?? {})
+            : resolveDeployedRunVariables(deployedState, workflow.variables),
           []
         )
 

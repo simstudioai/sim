@@ -47,8 +47,9 @@ COPY --chown=pii:pii --chmod=755 docker/pii-entrypoint.sh ./
 # copies the image's /tmp into a bind volume mounted at a VOLUME path. The
 # VOLUME line stays below the model download, which stages wheels in /tmp.
 # tldextract (pulled in by Presidio) caches the Public Suffix List under
-# $HOME/.cache by default; point it at /tmp so it caches instead of
-# refetching the list on every start.
+# $HOME/.cache by default, which the read-only root cannot write; point it at
+# the writable /tmp volume. That volume is per task, so each task fetches the
+# list once.
 ENV PYTHONDONTWRITEBYTECODE=1 \
     TLDEXTRACT_CACHE=/tmp/tldextract
 RUN chmod 1777 /tmp
