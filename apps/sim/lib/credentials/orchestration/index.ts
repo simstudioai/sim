@@ -48,7 +48,7 @@ import {
 } from '@/lib/credentials/service-account-secret'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import {
-  assertWorkloadIdentitySubjectUnclaimed,
+  assertReconnectedSubjectUnclaimed,
   WorkloadIdentitySubjectError,
 } from '@/lib/credentials/workload-identity/subject'
 import { invalidateEffectiveDecryptedEnvCache } from '@/lib/environment/utils'
@@ -316,7 +316,7 @@ export async function updateCredentialRecord(
 
     let rotatedSlackBotUserId: string | undefined
     let rotatedAuditMetadata: Record<string, string> | undefined
-    let rotatedWorkloadIdentitySubject: string | undefined
+    let rotatedKeylessSecret: string | undefined
     if (hasRotationSecret) {
       const providerId = params.credential.providerId ?? ''
 
@@ -458,7 +458,7 @@ export async function updateCredentialRecord(
         updates.encryptedServiceAccountKey = secret.encryptedServiceAccountKey
         rotatedSlackBotUserId = secret.botUserId
         rotatedAuditMetadata = secret.auditMetadata
-        rotatedWorkloadIdentitySubject = secret.newWorkloadIdentitySubject
+        if (needsStoredBoundSubject) rotatedKeylessSecret = secret.encryptedServiceAccountKey
 
         if (needsStoredIdentity) {
           const previousIdentity = deriveStoredDisplayName(storedBlob)
@@ -521,12 +521,12 @@ export async function updateCredentialRecord(
     }
 
     updates.updatedAt = new Date()
-    if (rotatedWorkloadIdentitySubject) {
-      const subject = rotatedWorkloadIdentitySubject
+    if (rotatedKeylessSecret) {
+      const rotatedSecret = rotatedKeylessSecret
       try {
         await db.transaction(async (tx) => {
-          await assertWorkloadIdentitySubjectUnclaimed(tx, {
-            subject,
+          await assertReconnectedSubjectUnclaimed(tx, {
+            rotatedSecret,
             scope: resourceScopeFromOwner(params.credential),
             credentialId: params.credentialId,
           })

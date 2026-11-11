@@ -34,6 +34,8 @@ const originalFetch = globalThis.fetch
 
 /** Subjects the fixture service principal's federation policy pins. */
 const pinnedSubjects = new Set<string>()
+/** Runs once inside the next token exchange, while a save is still verifying. */
+let duringVerification: (() => Promise<void>) | undefined
 
 function grant() {
   const issued = issueWorkloadIdentitySubject('databricks', owner, userId)
@@ -102,6 +104,9 @@ describe('reusing a keyless trust setup', () => {
     vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
       const target = typeof input === 'string' || input instanceof URL ? String(input) : input.url
       if (target === `https://${HOST}/oidc/v1/token`) {
+        const interleaved = duringVerification
+        duringVerification = undefined
+        await interleaved?.()
         const subjectToken = new URLSearchParams(String(init?.body)).get('subject_token') ?? ''
         const subject = subjectToken.replace(/^token-for:/, '')
         return pinnedSubjects.has(subject)
@@ -155,6 +160,22 @@ describe('reusing a keyless trust setup', () => {
 
     expect((await reconnect(credentialId, keyless())).success).toBe(true)
     expect((await reconnect(credentialId, keyless(setup))).success).toBe(true)
+  })
+
+  it('re-checks a kept subject under the lock when the credential moved off it during verification', async () => {
+    const original = grant()
+    const mover = await create('Mover', keyless(original))
+    const moverId = mover.credential?.id ?? ''
+    const moved = grant()
+    duringVerification = async () => {
+      expect((await reconnect(moverId, keyless(moved))).success).toBe(true)
+      expect((await create('Claimer', keyless(original))).success).toBe(true)
+    }
+
+    const stale = await reconnect(moverId, keyless())
+
+    expect(duringVerification).toBeUndefined()
+    expect(stale).toMatchObject({ success: false, errorCode: 'conflict' })
   })
 
   it('lets only one of two concurrent creates of one subject through', async () => {

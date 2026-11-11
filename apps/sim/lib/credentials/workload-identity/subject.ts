@@ -3,7 +3,7 @@ import { credential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
-import { and, inArray, isNull, ne } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { z } from 'zod'
 import { env } from '@/lib/core/config/env'
 import type { ResourceScope } from '@/lib/core/resource-scope'
@@ -183,30 +183,19 @@ async function readStoredSubject(encrypted: string): Promise<string | undefined 
   }
 }
 
-/**
- * Refuses a subject that another live credential of the same owner already
- * holds. A proof stays valid for a day and is not tied to one credential, so
- * without this a member removed from a keyless credential could save a second
- * credential with the same subject and keep assuming the customer's role.
- *
- * The subject lives only inside each credential's encrypted secret, so this
- * decrypts the owner's keyless credentials (one owner holds few) rather than
- * relying on a unique index. It runs inside the transaction that writes the
- * credential: the advisory lock holds concurrent saves of one subject until
- * commit, so the later save sees the earlier row. A sibling whose secret cannot
- * be read might hold the subject, so it refuses the save rather than skip it.
- *
- * @param credentialId The credential being reconnected, which may keep its own subject.
- */
-export async function assertWorkloadIdentitySubjectUnclaimed(
+function lockSubject(tx: DbTransaction, subject: string): Promise<void> {
+  return acquireAdvisoryXactLock(
+    tx,
+    'workload_identity_subject',
+    `workload-identity-subject:${subject}`
+  )
+}
+
+/** Throws unless no live keyless credential of the owner other than `credentialId` holds `subject`. */
+async function assertNoOtherCredentialHolds(
   tx: DbTransaction,
   input: { subject: string; scope: ResourceScope; credentialId?: string }
 ): Promise<void> {
-  await acquireAdvisoryXactLock(
-    tx,
-    'workload_identity_subject',
-    `workload-identity-subject:${input.subject}`
-  )
   const rows = await tx
     .select({
       id: credential.id,
@@ -239,4 +228,61 @@ export async function assertWorkloadIdentitySubjectUnclaimed(
       )
     }
   }
+}
+
+/**
+ * Refuses a subject that another live credential of the same owner already
+ * holds. A proof stays valid for a day and is not tied to one credential, so
+ * without this a member removed from a keyless credential could save a second
+ * credential with the same subject and keep assuming the customer's role.
+ *
+ * The subject lives only inside each credential's encrypted secret, so this
+ * decrypts the owner's keyless credentials (one owner holds few) rather than
+ * relying on a unique index. It runs inside the transaction that writes the
+ * credential: the advisory lock holds concurrent saves of one subject until
+ * commit, so the later save sees the earlier row. A sibling whose secret cannot
+ * be read might hold the subject, so it refuses the save rather than skip it.
+ */
+export async function assertWorkloadIdentitySubjectUnclaimed(
+  tx: DbTransaction,
+  input: { subject: string; scope: ResourceScope }
+): Promise<void> {
+  await lockSubject(tx, input.subject)
+  await assertNoOtherCredentialHolds(tx, input)
+}
+
+/**
+ * The reconnect counterpart of {@link assertWorkloadIdentitySubjectUnclaimed},
+ * run in the transaction that writes `rotatedSecret` onto `credentialId`.
+ *
+ * Whether the reconnect keeps the credential's subject is decided here, from
+ * the row as it stands under the lock, not from the secret read before
+ * provider verification: while that verification ran, another reconnect could
+ * have moved this credential to a different subject and a second credential
+ * could have claimed the old one, so writing it back unchecked would leave two
+ * credentials holding it. Locks the subject first, then the credential row; no
+ * path takes a subject lock while holding a credential row, so the order cannot
+ * deadlock.
+ */
+export async function assertReconnectedSubjectUnclaimed(
+  tx: DbTransaction,
+  input: { rotatedSecret: string; scope: ResourceScope; credentialId: string }
+): Promise<void> {
+  const subject = await readStoredSubject(input.rotatedSecret)
+  if (!subject) return
+  await lockSubject(tx, subject)
+  const [current] = await tx
+    .select({ encryptedServiceAccountKey: credential.encryptedServiceAccountKey })
+    .from(credential)
+    .where(eq(credential.id, input.credentialId))
+    .for('update')
+  const currentSubject = current?.encryptedServiceAccountKey
+    ? await readStoredSubject(current.encryptedServiceAccountKey)
+    : undefined
+  if (currentSubject === subject) return
+  await assertNoOtherCredentialHolds(tx, {
+    subject,
+    scope: input.scope,
+    credentialId: input.credentialId,
+  })
 }
