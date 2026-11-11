@@ -149,7 +149,13 @@ async function requestWorkspaceToken(
   const payload = (await readResponseJsonWithLimit(response, {
     maxBytes: MAX_RESPONSE_BYTES,
     label: 'Databricks token response',
-  }).catch(() => ({}))) as {
+  }).catch((error: unknown) => {
+    if (error instanceof SyntaxError) return {}
+    throw new DatabricksCredentialError(
+      'Databricks token response exceeded the size limit',
+      response.status
+    )
+  })) as {
     access_token?: unknown
     error_description?: unknown
     error?: unknown

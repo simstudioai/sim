@@ -189,6 +189,15 @@ describe('getting a Databricks token for a run', () => {
     })
   })
 
+  it('reports a token reply over the size cap as oversized, not as a refused request', async () => {
+    fetch.mockResolvedValue(jsonResponse({ access_token: 't'.repeat(1024 * 1024) }, 200))
+
+    await expect(resolveDatabricksCredentialToken('cred-1')).rejects.toMatchObject({
+      code: 'provider_unavailable',
+      logDetail: { reason: 'Databricks token response exceeded the size limit' },
+    })
+  })
+
   it('reports a token reply without a token as the provider misbehaving, not a bad credential', async () => {
     fetch.mockResolvedValue(jsonResponse({}, 200))
 
