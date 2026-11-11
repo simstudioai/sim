@@ -5,11 +5,15 @@ import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const hoisted = vi.hoisted(() => ({ send: vi.fn() }))
+const hoisted = vi.hoisted(() => ({
+  send: vi.fn(),
+  mint: vi.fn(async ({ subject }: { subject: string }) => `token-for:${subject}`),
+}))
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/credentials/workload-identity/issuer', () => ({
-  mintWorkloadIdentityToken: async ({ subject }: { subject: string }) => `token-for:${subject}`,
+  isWorkloadIdentityConfigured: async () => true,
+  mintWorkloadIdentityToken: hoisted.mint,
 }))
 vi.mock('@aws-sdk/client-sts', async (importActual) => ({
   ...(await importActual<typeof import('@aws-sdk/client-sts')>()),
@@ -24,6 +28,7 @@ import {
   getAwsCredentialConfig,
   verifyAndEncryptAwsCredential,
 } from '@/lib/credentials/aws-service-account.server'
+import { WorkloadIdentityNotConfiguredError } from '@/lib/credentials/workload-identity/subject'
 import { AWS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 
 const ROLE_ARN = 'arn:aws:iam::123456789012:role/sim-workflows'
@@ -85,6 +90,29 @@ describe('saving a keyless AWS role', () => {
       verifyAndEncryptAwsCredential(keylessReconnect.serialized, keylessReconnect.owner)
     ).rejects.toThrow(/sub/)
     expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
+  })
+
+  it('reads a provider message that ends in a period as one sentence', async () => {
+    hoisted.send.mockRejectedValue(
+      Object.assign(new Error('Not authorized to perform sts:AssumeRoleWithWebIdentity.'), {
+        name: 'AccessDenied',
+      })
+    )
+
+    await expect(
+      verifyAndEncryptAwsCredential(keylessReconnect.serialized, keylessReconnect.owner)
+    ).rejects.toThrow(
+      'Sim could not assume this role: Not authorized to perform sts:AssumeRoleWithWebIdentity. Check that'
+    )
+  })
+
+  it('reconnects to a keyless refusal with its code when signing stops mid-save', async () => {
+    roleTrusting(true)
+    hoisted.mint.mockRejectedValueOnce(new WorkloadIdentityNotConfiguredError())
+
+    await expect(
+      verifyAndEncryptAwsCredential(keylessReconnect.serialized, keylessReconnect.owner)
+    ).rejects.toMatchObject({ detailCode: 'WORKLOAD_IDENTITY_NOT_CONFIGURED' })
   })
 
   it('does not save when the any-subject check cannot be completed', async () => {

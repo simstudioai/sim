@@ -107,6 +107,7 @@ export const createServiceAccountCredentialUseCase = defineAuthorizedWorkspaceUs
     })
     if (!result.success) {
       if (result.providerUnavailable) throw new CredentialProviderUnavailableError()
+      if (result.keylessRefusal) throw result.keylessRefusal
       switch (result.errorCode) {
         case 'validation':
         case 'not_found':

@@ -85,7 +85,7 @@ describe('workload identity subjects', () => {
     ).toThrow(WorkloadIdentitySubjectError)
   })
 
-  it('refuses an expired proof', () => {
+  it('refuses an expired proof with a code that says to request a new subject', () => {
     const grant = issueWorkloadIdentitySubject('aws', owner, 'user-1', now)
     const later = now + 24 * 60 * 60 * 1000 + 1
 
@@ -98,7 +98,7 @@ describe('workload identity subjects', () => {
         grant.subjectProof,
         later
       )
-    ).toThrow(WorkloadIdentitySubjectError)
+    ).toThrow(expect.objectContaining({ detailCode: 'WORKLOAD_IDENTITY_PROOF_EXPIRED' }))
   })
 
   it('refuses a tampered or malformed proof', () => {
@@ -113,7 +113,7 @@ describe('workload identity subjects', () => {
     ]) {
       expect(() =>
         verifyWorkloadIdentitySubject('aws', owner, 'user-1', grant.subject, proof, now)
-      ).toThrow(WorkloadIdentitySubjectError)
+      ).toThrow(expect.objectContaining({ detailCode: 'WORKLOAD_IDENTITY_PROOF_INVALID' }))
     }
   })
 })

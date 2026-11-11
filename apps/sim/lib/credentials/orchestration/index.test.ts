@@ -24,7 +24,9 @@ const {
   mockGetClientCredentialAccountDescriptor,
   mockDeleteConnectionCredential,
   mockDeleteOrphanedOAuthAccount,
+  mockAssertReconnectedSubjectUnclaimed,
 } = vi.hoisted(() => ({
+  mockAssertReconnectedSubjectUnclaimed: vi.fn(),
   mockVerifyAndBuildServiceAccountSecret: vi.fn(),
   mockIsClientCredentialAccountProviderId: vi.fn(() => false),
   // Only a descriptor carrying `defaultAuthMethod` is multi-grant; single-grant
@@ -51,6 +53,12 @@ vi.mock('@/lib/credentials/service-account-secret', () => ({
   verifyAndBuildServiceAccountSecret: mockVerifyAndBuildServiceAccountSecret,
   ServiceAccountSecretError: class ServiceAccountSecretError extends Error {},
 }))
+vi.mock('@/lib/credentials/workload-identity/subject', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/credentials/workload-identity/subject')>()
+  mockAssertReconnectedSubjectUnclaimed.mockImplementation(actual.assertReconnectedSubjectUnclaimed)
+  return { ...actual, assertReconnectedSubjectUnclaimed: mockAssertReconnectedSubjectUnclaimed }
+})
 vi.mock('@/lib/credentials/client-credential-accounts/descriptors', () => ({
   CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS: {},
   isClientCredentialAccountProviderId: mockIsClientCredentialAccountProviderId,
@@ -406,6 +414,62 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 
+  it('reports a refused keyless rebuild with its stable code', async () => {
+    mockCredential()
+    mockStoredBlob({ type: 'service_account', client_email: OLD_EMAIL })
+    const { WorkloadIdentityNotConfiguredError } = await import(
+      '@/lib/credentials/workload-identity/subject'
+    )
+    const refusal = new WorkloadIdentityNotConfiguredError()
+    mockVerifyAndBuildServiceAccountSecret.mockRejectedValue(refusal)
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      serviceAccountJson: '{}',
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      errorCode: 'validation',
+      keylessRefusal: refusal,
+    })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('reports a reconnect onto a subject another credential holds with the create code', async () => {
+    mockCredential()
+    mockStoredBlob({ type: 'google_workload_identity_v1', config: { subject: 'sim:old' } })
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'google-service-account',
+      encryptedServiceAccountKey: 'rotated-cipher',
+      displayName: OLD_EMAIL,
+      auditMetadata: {},
+      principal: null,
+    })
+    const { WorkloadIdentitySubjectError } = await import(
+      '@/lib/credentials/workload-identity/subject'
+    )
+    const refusal = new WorkloadIdentitySubjectError(
+      'Another credential already uses this trust setup.',
+      'WORKLOAD_IDENTITY_SUBJECT_IN_USE'
+    )
+    mockAssertReconnectedSubjectUnclaimed.mockRejectedValueOnce(refusal)
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      serviceAccountJson: '{"authType":"workload_identity"}',
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      errorCode: 'conflict',
+      keylessRefusal: refusal,
+    })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
   it('conceals managed OAuth credentials from the ordinary update path', async () => {
     mockCredential({ type: 'managed_oauth' })
 
@@ -577,6 +641,32 @@ describe('createServiceAccountCredential', () => {
     })
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     expect(mockGetCredentialActorContext).toHaveBeenCalledWith('credential-1', 'user-1', {})
+  })
+
+  it('carries a refused keyless credential’s code into the create result', async () => {
+    const { WorkloadIdentitySubjectError } = await import(
+      '@/lib/credentials/workload-identity/subject'
+    )
+    const refusal = new WorkloadIdentitySubjectError(
+      'This trust setup has expired.',
+      'WORKLOAD_IDENTITY_PROOF_EXPIRED'
+    )
+    mockVerifyAndBuildServiceAccountSecret.mockRejectedValue(refusal)
+
+    const result = await createServiceAccountCredential({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      providerId: 'aws-service-account',
+      displayName: 'AWS (keyless)',
+      serviceAccountJson: '{"authType":"oidc_role"}',
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      errorCode: 'validation',
+      keylessRefusal: refusal,
+    })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
   it('returns an accessible credential for an exact non-token secret replay', async () => {

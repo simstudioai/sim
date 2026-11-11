@@ -475,6 +475,7 @@ describe('destructive operations are gated', () => {
     'completeKnowledgeImport',
     'completeTableImport',
     'createCredentialConnection',
+    'createCredentialWorkloadIdentitySubject',
     'createCustomTool',
     'createFile',
     'createFileFolder',

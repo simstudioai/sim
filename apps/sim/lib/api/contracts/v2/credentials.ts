@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   atlassianProductSchema,
   quickBooksOAuthClientConfigSchema,
+  workloadIdentitySubjectGrantShape,
   workspaceCredentialRoleSchema,
 } from '@/lib/api/contracts/credentials'
 import {
@@ -23,6 +24,7 @@ import {
   getMissingServiceAccountFields,
   SERVICE_ACCOUNT_REQUIRED_FIELDS,
 } from '@/lib/credentials/service-account-fields'
+import { WORKLOAD_IDENTITY_SERVICE_ACCOUNT_PROVIDER_ID_LIST } from '@/lib/credentials/workload-identity/audiences'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 
 /** Public credentials are authenticated connections, never raw environment secrets. */
@@ -158,6 +160,19 @@ export const v2ServiceAccountCredentialProviderSchema = z
       .min(1)
       .max(20)
       .describe('Create-body fields accepted by this provider. Secret fields are write-only.'),
+    keyless: z
+      .object({
+        authType: z.string().describe('The `authType` of the keyless `serviceAccountJson`.'),
+        requiredConfigFields: z.array(z.string()).describe('Fields you add to `keylessConfig`.'),
+        optionalConfigFields: z
+          .array(z.string())
+          .describe('Fields `keylessConfig` may also carry.'),
+      })
+      .strict()
+      .optional()
+      .describe(
+        'Present when this deployment can create a keyless credential for the provider. Start one with Create workload identity subject.'
+      ),
   })
   .strict()
 
@@ -401,6 +416,57 @@ export const v2CreateCredentialConnectionContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2CreateCredentialConnectionResponseSchema,
+  },
+})
+
+const v2CreateCredentialWorkloadIdentitySubjectBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that will own the keyless credential.'),
+    providerId: z
+      .enum(WORKLOAD_IDENTITY_SERVICE_ACCOUNT_PROVIDER_ID_LIST)
+      .describe(
+        'Service-account provider the keyless credential will be created under; pass the same value to Create service-account credential. The response and List credential providers name the fields its keyless configuration needs.'
+      ),
+  })
+  .strict()
+const v2CredentialWorkloadIdentitySubjectSchema = z
+  .object({
+    ...workloadIdentitySubjectGrantShape,
+    expiresAt: v2TimestampSchema.describe(
+      workloadIdentitySubjectGrantShape.expiresAt.description ?? 'Proof expiry.'
+    ),
+    keylessConfig: z
+      .object({
+        authType: z.string().describe("The provider's keyless authentication type."),
+        subject: workloadIdentitySubjectGrantShape.subject,
+        subjectProof: workloadIdentitySubjectGrantShape.subjectProof,
+      })
+      .strict()
+      .describe(
+        'Prefilled keyless `serviceAccountJson`: add `requiredConfigFields`, then send it to Create service-account credential.'
+      ),
+    requiredConfigFields: z
+      .array(z.string())
+      .describe(
+        'Fields from your cloud setup that `keylessConfig` still needs, such as roleArn or host.'
+      ),
+    optionalConfigFields: z.array(z.string()).describe('Fields `keylessConfig` may also carry.'),
+  })
+  .meta({
+    id: 'V2CredentialWorkloadIdentitySubject',
+    title: 'Credential workload identity subject',
+    description:
+      'The issuer, audience, and subject a cloud trust configuration pins, and the proof that attaches the subject to a new keyless credential.',
+  })
+
+export const v2CreateCredentialWorkloadIdentitySubjectContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/credentials/workload-identity/subjects',
+  query: noInputSchema,
+  body: v2CreateCredentialWorkloadIdentitySubjectBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2CredentialWorkloadIdentitySubjectSchema),
   },
 })
 

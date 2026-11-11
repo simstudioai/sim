@@ -1,8 +1,6 @@
 import { CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS } from '@/lib/credentials/client-credential-accounts/descriptors'
-import {
-  SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
-  TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS,
-} from '@/lib/credentials/token-service-accounts/descriptors'
+import { TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS } from '@/lib/credentials/token-service-accounts/descriptors'
+import { isWorkloadIdentityServiceAccountProviderId } from '@/lib/credentials/workload-identity/audiences'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   AWS_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -79,12 +77,22 @@ export const FALLBACK_SERVICE_ACCOUNT_REQUIRED_FIELDS: readonly ServiceAccountFi
   'serviceAccountJson',
 ]
 
+/** Every keyless credential is one JSON configuration carrying its subject and proof. */
+const KEYLESS_REQUIRED_FIELDS: readonly ServiceAccountFieldId[] = ['serviceAccountJson']
+
 /**
- * Token providers that also accept a keyless JSON configuration in place of
- * their token fields. The keyless builder validates the configuration itself.
+ * The create-body fields a keyless (workload identity) credential sends in
+ * place of the provider's required fields, or `undefined` for a provider with
+ * no keyless mode. For most keyless providers this is their only field; for
+ * Snowflake it replaces the token fields. The keyless builder validates the
+ * configuration itself.
  */
-const KEYLESS_ALTERNATIVE_REQUIRED_FIELDS: Record<string, readonly ServiceAccountFieldId[]> = {
-  [SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID]: ['serviceAccountJson'],
+function getKeylessServiceAccountFields(
+  providerId: string | null | undefined
+): readonly ServiceAccountFieldId[] | undefined {
+  return isWorkloadIdentityServiceAccountProviderId(providerId)
+    ? KEYLESS_REQUIRED_FIELDS
+    : undefined
 }
 
 function getServiceAccountRequiredFields(
@@ -104,10 +112,7 @@ export function getMissingServiceAccountFields(
   providerId: string | null | undefined,
   provided: Partial<Record<ServiceAccountFieldId, unknown>>
 ): ServiceAccountFieldId[] {
-  const keyless =
-    providerId && Object.hasOwn(KEYLESS_ALTERNATIVE_REQUIRED_FIELDS, providerId)
-      ? KEYLESS_ALTERNATIVE_REQUIRED_FIELDS[providerId]
-      : undefined
+  const keyless = getKeylessServiceAccountFields(providerId)
   if (keyless?.every((field) => provided[field])) return []
   return getServiceAccountRequiredFields(providerId).filter((field) => !provided[field])
 }

@@ -1,6 +1,16 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import type { z } from 'zod'
 
 const MAX_CONFIG_BYTES = 64 * 1024
+
+/**
+ * A failure's message without its closing punctuation, so it can sit inside a
+ * sentence that adds the remedy — a provider message that already ends in a
+ * period would otherwise print two.
+ */
+export function failureClause(error: unknown): string {
+  return getErrorMessage(error, 'Unknown error').replace(/[.\s]+$/, '')
+}
 
 /**
  * Parses a service-account configuration submitted as JSON (the connect modal's

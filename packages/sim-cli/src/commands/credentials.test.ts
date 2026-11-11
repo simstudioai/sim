@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { SimApiError } from '../http/client'
 import { buildGeneratedCommands } from '../runtime/build'
 import { attachCredentialCommands } from './credentials'
 
@@ -186,5 +187,230 @@ describe('credentials update --name', () => {
       '--name and --display-name are the same field; pass one, not both'
     )
     expect(mockRequest).not.toHaveBeenCalled()
+  })
+})
+
+describe('keyless credentials', () => {
+  const subject = 'sim:workspace:ws_local:credential:abcdef0123456789'
+  const issued = {
+    issuer: 'https://sim.example.com/oidc/workload',
+    audience: 'snowflakecomputing.com',
+    subject,
+    subjectProof: '1781965031000.signature',
+    expiresAt: '2026-11-11T20:15:00.000Z',
+    keylessConfig: {
+      authType: 'workload_identity',
+      subject,
+      subjectProof: '1781965031000.signature',
+    },
+    requiredConfigFields: ['host'],
+    optionalConfigFields: [],
+  }
+  const snowflake = {
+    type: 'service_account',
+    providerId: 'snowflake-service-account',
+    available: true,
+    requiresClientGeneratedCredentialId: false,
+    fields: [
+      { id: 'domain', required: true },
+      { id: 'apiToken', required: true, secret: true },
+      { id: 'serviceAccountJson', required: false, secret: true },
+    ],
+    keyless: {
+      authType: 'workload_identity',
+      requiredConfigFields: ['host'],
+      optionalConfigFields: [],
+    },
+  }
+  const keylessConfig = { ...issued.keylessConfig, host: 'myorg-myaccount.snowflakecomputing.com' }
+  let log: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    output.format = 'json'
+    mockRequest.mockReset()
+    log = vi.spyOn(console, 'log').mockImplementation(() => {})
+  })
+
+  it('prints the issued subject as the API data, ready to feed into creation', async () => {
+    mockRequest.mockResolvedValue({ data: issued })
+
+    await program().parseAsync([
+      'node',
+      'sim',
+      'credentials',
+      'keyless-subject',
+      'snowflake-service-account',
+    ])
+
+    expect(mockRequest).toHaveBeenCalledWith('/api/v2/credentials/workload-identity/subjects', {
+      method: 'POST',
+      body: { workspaceId: 'ws_local', providerId: 'snowflake-service-account' },
+    })
+    expect(JSON.parse(String(log.mock.calls[0][0]))).toEqual(issued)
+  })
+
+  it('refuses a provider with no keyless mode before calling the API', async () => {
+    const root = program()
+    const keylessSubject = root.commands
+      .find((command) => command.name() === 'credentials')
+      ?.commands.find((command) => command.name() === 'keyless-subject')
+    // exitOverride is not inherited by added subcommands; set it where the argument is parsed.
+    keylessSubject?.exitOverride().configureOutput({ writeErr: () => {} })
+
+    await expect(
+      root.parseAsync(['node', 'sim', 'credentials', 'keyless-subject', 'zoom-service-account'])
+    ).rejects.toThrow(
+      "command-argument value 'zoom-service-account' is invalid for argument 'providerId'. Allowed choices are aws-service-account, databricks-service-account, snowflake-service-account, microsoft-app-service-account, google-service-account."
+    )
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  it('creates a keyless Snowflake credential from the completed keylessConfig alone', async () => {
+    mockRequest
+      .mockResolvedValueOnce({ data: [snowflake], nextCursor: null })
+      .mockResolvedValueOnce({ data: { id: 'credential-1' } })
+
+    await program().parseAsync([
+      'node',
+      'sim',
+      'credentials',
+      'create',
+      'snowflake-service-account',
+      '--name',
+      'Snowflake (keyless)',
+      '--credentials',
+      JSON.stringify(keylessConfig),
+    ])
+
+    const [, createRequest] = mockRequest.mock.calls[1]
+    expect(JSON.parse(createRequest.body.credentials)).toEqual({
+      serviceAccountJson: JSON.stringify(keylessConfig),
+    })
+  })
+
+  const configOnly = (providerId: string) => ({
+    type: 'service_account',
+    providerId,
+    available: true,
+    requiresClientGeneratedCredentialId: false,
+    fields: [{ id: 'serviceAccountJson', required: true, secret: true }],
+    keyless: { authType: 'oidc_role', requiredConfigFields: ['roleArn'], optionalConfigFields: [] },
+  })
+
+  async function createWith(provider: object, providerId: string, credentials: unknown) {
+    mockRequest
+      .mockResolvedValueOnce({ data: [provider], nextCursor: null })
+      .mockResolvedValueOnce({ data: { id: 'credential-1' } })
+    await program().parseAsync([
+      'node',
+      'sim',
+      'credentials',
+      'create',
+      providerId,
+      '--name',
+      'Credential',
+      '--credentials',
+      JSON.stringify(credentials),
+    ])
+    const [, createRequest] = mockRequest.mock.calls[1]
+    return JSON.parse(createRequest.body.credentials)
+  }
+
+  it.each([
+    ['aws-service-account', { serviceAccountJson: '{"authType":"access_keys"}' }],
+    ['google-service-account', { serviceAccountJson: '{"type":"service_account"}' }],
+  ])(
+    'sends %s fields that already name serviceAccountJson unchanged',
+    async (providerId, fields) => {
+      expect(await createWith(configOnly(providerId), providerId, fields)).toEqual(fields)
+    }
+  )
+
+  it('sends Snowflake token fields unchanged', async () => {
+    const fields = { domain: 'myorg-myaccount.snowflakecomputing.com', apiToken: 'pat' }
+    expect(await createWith(snowflake, 'snowflake-service-account', fields)).toEqual(fields)
+  })
+
+  it.each([
+    [
+      'a keylessConfig carrying its subject and proof',
+      { authType: 'workload_identity', projectNumber: '1', subject, subjectProof: 'p' },
+    ],
+    [
+      'an object with the catalog’s keyless authType',
+      { authType: 'oidc_role', roleArn: 'arn:aws:iam::123456789012:role/Sim' },
+    ],
+  ])('wraps %s as serviceAccountJson', async (_label, configuration) => {
+    expect(
+      await createWith(configOnly('aws-service-account'), 'aws-service-account', configuration)
+    ).toEqual({ serviceAccountJson: JSON.stringify(configuration) })
+  })
+
+  it('reads any other object as fields, so a raw key file is reported, not wrapped', async () => {
+    mockRequest.mockResolvedValueOnce({
+      data: [configOnly('google-service-account')],
+      nextCursor: null,
+    })
+
+    await expect(
+      program().parseAsync([
+        'node',
+        'sim',
+        'credentials',
+        'create',
+        'google-service-account',
+        '--name',
+        'Google',
+        '--credentials',
+        '{"type":"service_account","client_email":"sa@p.iam.gserviceaccount.com"}',
+      ])
+    ).rejects.toThrow('unsupported field "type" for google-service-account')
+  })
+
+  it('still reports a misspelled Snowflake field instead of wrapping it', async () => {
+    mockRequest.mockResolvedValueOnce({ data: [snowflake], nextCursor: null })
+
+    await expect(
+      program().parseAsync([
+        'node',
+        'sim',
+        'credentials',
+        'create',
+        'snowflake-service-account',
+        '--name',
+        'Snowflake',
+        '--credentials',
+        '{"Domain":"myorg-myaccount.snowflakecomputing.com"}',
+      ])
+    ).rejects.toThrow('unsupported field "Domain" for snowflake-service-account')
+    expect(mockRequest).toHaveBeenCalledTimes(1)
+  })
+
+  it('names the command that issues a new subject when a proof is refused', async () => {
+    mockRequest
+      .mockResolvedValueOnce({ data: [snowflake], nextCursor: null })
+      .mockRejectedValueOnce(
+        new SimApiError('This trust setup has expired.', 400, 'BAD_REQUEST', {
+          code: 'WORKLOAD_IDENTITY_PROOF_EXPIRED',
+        })
+      )
+
+    const failure = program().parseAsync([
+      'node',
+      'sim',
+      'credentials',
+      'create',
+      'snowflake-service-account',
+      '--name',
+      'Snowflake (keyless)',
+      '--credentials',
+      JSON.stringify(keylessConfig),
+    ])
+
+    await expect(failure).rejects.toMatchObject({
+      message: expect.stringContaining('sim credentials keyless-subject snowflake-service-account'),
+      code: 'BAD_REQUEST',
+      details: { code: 'WORKLOAD_IDENTITY_PROOF_EXPIRED' },
+    })
   })
 })

@@ -9,6 +9,7 @@ import {
 } from '@/lib/api/contracts/v2/catalog'
 import {
   v2CreateCredentialConnectionContract,
+  v2CreateCredentialWorkloadIdentitySubjectContract,
   v2CreateServiceAccountCredentialContract,
   v2DeleteCredentialContract,
   v2ListCredentialProvidersContract,
@@ -604,6 +605,24 @@ const SERVICE_ACCOUNT_PROVIDER_EXAMPLE = {
 const CREDENTIAL_CONNECTION_EXAMPLE = {
   authorizationUrl: 'https://www.sim.ai/api/auth/oauth2/authorize?draftId=draft-123',
   expiresAt: '2026-06-20T14:17:11.000Z',
+} as const
+
+const WORKLOAD_IDENTITY_SUBJECT = 'sim:workspace:<workspaceId>:credential:<subjectId>'
+const WORKLOAD_IDENTITY_SUBJECT_PROOF = '<subjectProof from Create workload identity subject>'
+
+const WORKLOAD_IDENTITY_SUBJECT_EXAMPLE = {
+  issuer: 'https://www.sim.ai/oidc/workload',
+  audience: 'sts.amazonaws.com',
+  subject: WORKLOAD_IDENTITY_SUBJECT,
+  subjectProof: WORKLOAD_IDENTITY_SUBJECT_PROOF,
+  expiresAt: '2026-06-21T14:17:11.000Z',
+  keylessConfig: {
+    authType: 'oidc_role',
+    subject: WORKLOAD_IDENTITY_SUBJECT,
+    subjectProof: WORKLOAD_IDENTITY_SUBJECT_PROOF,
+  },
+  requiredConfigFields: ['roleArn'],
+  optionalConfigFields: ['stsRegion', 'sessionDurationSeconds'],
 } as const
 
 const SECRET_EXAMPLE = {
@@ -1686,7 +1705,7 @@ const declaredRoutes = [
       applicationOperation: credentialOperations.createServiceAccount,
       operationId: 'createServiceAccountCredential',
       summary: 'Create service-account credential',
-      description: `Verify and store a service-account credential. Use the fields from List credential providers, encoded as a JSON object string in \`credentials\`. Requires workspace write access. A matching source returns the existing credential with \`200\`; creation returns \`201\`. Stored secrets are omitted from the response. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Verify and store a service-account credential. Use the fields from List credential providers, encoded as a JSON object string in \`credentials\`. For a keyless AWS, Databricks, Snowflake, Microsoft app, or Google Cloud credential, call Create workload identity subject first, configure the cloud to trust it, then send its \`keylessConfig\` as \`serviceAccountJson\`. A refused keyless credential names its cause in \`details.code\`: \`409\` for \`WORKLOAD_IDENTITY_SUBJECT_IN_USE\` or \`WORKLOAD_IDENTITY_SUBJECT_UNVERIFIABLE\`, otherwise \`400\`, such as \`WORKLOAD_IDENTITY_PROOF_EXPIRED\` (request a new subject). Requires workspace write access. A matching source returns the existing credential with \`200\`; creation returns \`201\`. Stored secrets are omitted from the response. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: {
         byStatus: {
@@ -1710,6 +1729,20 @@ const declaredRoutes = [
             displayName: 'Zoom automation',
             credentials:
               '{"clientId":"YOUR_CLIENT_ID","clientSecret":"YOUR_CLIENT_SECRET","orgId":"YOUR_ACCOUNT_ID"}',
+          },
+          {
+            workspaceId: WORKSPACE_ID,
+            type: 'service_account',
+            providerId: 'aws-service-account',
+            displayName: 'AWS production (keyless)',
+            credentials: JSON.stringify({
+              serviceAccountJson: JSON.stringify({
+                authType: 'oidc_role',
+                roleArn: 'arn:aws:iam::123456789012:role/SimWorkflows',
+                subject: WORKLOAD_IDENTITY_SUBJECT_EXAMPLE.subject,
+                subjectProof: WORKLOAD_IDENTITY_SUBJECT_EXAMPLE.subjectProof,
+              }),
+            }),
           },
         ]
       ),
@@ -1761,6 +1794,34 @@ const declaredRoutes = [
         'Create credential connection response',
         'Short-lived Sim browser entrypoint and its expiry.',
         [{ data: CREDENTIAL_CONNECTION_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2CreateCredentialWorkloadIdentitySubjectContract,
+    resourceOperation('Credentials', {
+      applicationOperation: credentialOperations.prepareWorkloadIdentity,
+      operationId: 'createCredentialWorkloadIdentitySubject',
+      summary: 'Create workload identity subject',
+      description: `Start a keyless credential. Returns the issuer, audience, and a fresh subject to configure in the cloud's trust policy, plus \`keylessConfig\`: a prefilled \`serviceAccountJson\` whose \`subjectProof\` is valid for 24 hours and only for the requesting user. Add the \`requiredConfigFields\`, then call Create service-account credential with the same \`providerId\`; Sim verifies the trust while saving. Google Cloud has no fixed audience: it is the credential's own pool provider. Without keyless support the deployment returns \`400\` with \`details.code\` \`WORKLOAD_IDENTITY_NOT_CONFIGURED\`. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'A subject and proof for one new keyless credential.' },
+    }),
+    {
+      query: v2CreateCredentialWorkloadIdentitySubjectContract.query,
+      body: documentedSchema(
+        v2CreateCredentialWorkloadIdentitySubjectContract.body,
+        'CreateCredentialWorkloadIdentitySubjectRequest',
+        'Create workload identity subject request',
+        'Workspace that will own the keyless credential and the service-account provider it will be created under.',
+        [{ workspaceId: WORKSPACE_ID, providerId: 'aws-service-account' }]
+      ),
+      response: documentedSchema(
+        v2CreateCredentialWorkloadIdentitySubjectContract.response.schema,
+        'CreateCredentialWorkloadIdentitySubjectResponse',
+        'Create workload identity subject response',
+        'Trust values to configure in the cloud, and the proof to submit when creating the credential.',
+        [{ data: WORKLOAD_IDENTITY_SUBJECT_EXAMPLE }]
       ),
     }
   ),

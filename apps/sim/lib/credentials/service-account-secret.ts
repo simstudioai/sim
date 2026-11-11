@@ -56,7 +56,10 @@ import {
 } from '@/lib/credentials/token-service-accounts/descriptors'
 import type { TokenServiceAccountSecretBlob } from '@/lib/credentials/token-service-accounts/secret-blob'
 import { getTokenServiceAccountValidator } from '@/lib/credentials/token-service-accounts/server'
-import type { WorkloadIdentityCredentialOwner } from '@/lib/credentials/workload-identity/subject'
+import {
+  KeylessCredentialRefusedError,
+  type WorkloadIdentityCredentialOwner,
+} from '@/lib/credentials/workload-identity/subject'
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -281,6 +284,7 @@ async function buildGoogleWorkloadIdentitySecret(
   try {
     result = await verifyAndEncryptGoogleWorkloadIdentityCredential(serviceAccountJson, owner)
   } catch (error) {
+    if (error instanceof KeylessCredentialRefusedError) throw error
     if (error instanceof GoogleWorkloadIdentityError) {
       throw new ServiceAccountSecretError(error.message)
     }
@@ -313,6 +317,7 @@ async function buildAwsServiceAccountSecret(
   try {
     result = await verifyAndEncryptAwsCredential(fields.serviceAccountJson, fields.owner)
   } catch (error) {
+    if (error instanceof KeylessCredentialRefusedError) throw error
     if (error instanceof AwsCredentialError) throw new ServiceAccountSecretError(error.message)
     throw new ServiceAccountSecretError(
       `Could not verify the AWS credential: ${getErrorMessage(error, 'Unknown error')}`
@@ -339,6 +344,7 @@ async function buildDatabricksServiceAccountSecret(
   try {
     result = await verifyAndEncryptDatabricksCredential(fields.serviceAccountJson, fields.owner)
   } catch (error) {
+    if (error instanceof KeylessCredentialRefusedError) throw error
     if (error instanceof DatabricksCredentialError) {
       throw new ServiceAccountSecretError(error.message)
     }
@@ -368,6 +374,7 @@ async function buildMicrosoftAppServiceAccountSecret(
   try {
     result = await verifyAndEncryptMicrosoftAppCredential(fields.serviceAccountJson, fields.owner)
   } catch (error) {
+    if (error instanceof KeylessCredentialRefusedError) throw error
     if (error instanceof MicrosoftAppCredentialError) {
       throw new ServiceAccountSecretError(error.message)
     }

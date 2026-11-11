@@ -380,6 +380,99 @@ describe('verifyAndBuildServiceAccountSecret', () => {
     expect(result.principal).toBeNull()
   })
 
+  it.each([
+    [
+      'aws-service-account',
+      { authType: 'oidc_role', roleArn: 'arn:aws:iam::123456789012:role/SimWorkflows' },
+      'Use access keys.',
+    ],
+    [
+      'databricks-service-account',
+      {
+        authType: 'oidc_federation',
+        host: 'dbc-abc123.cloud.databricks.com',
+        clientId: '11111111-2222-3333-4444-555555555555',
+      },
+      'Use a personal access token or a service principal OAuth secret.',
+    ],
+    [
+      'snowflake-service-account',
+      { authType: 'workload_identity', host: 'myorg-myaccount.snowflakecomputing.com' },
+      'Use a programmatic access token.',
+    ],
+    [
+      'microsoft-app-service-account',
+      {
+        authType: 'federated',
+        tenantId: '11111111-2222-3333-4444-555555555555',
+        clientId: '66666666-7777-8888-9999-000000000000',
+      },
+      'Use a client secret or certificate.',
+    ],
+    [
+      'google-service-account',
+      {
+        authType: 'workload_identity',
+        projectNumber: '123456789012',
+        poolId: 'sim-pool',
+        providerId: 'sim-provider',
+        serviceAccountEmail: 'sim-workflows@my-project.iam.gserviceaccount.com',
+      },
+      'Use a JSON key.',
+    ],
+  ])(
+    'refuses a keyless %s credential where this deployment cannot sign',
+    async (providerId, configuration, remedy) => {
+      await expect(
+        verifyAndBuildServiceAccountSecret(providerId, {
+          serviceAccountJson: JSON.stringify(configuration),
+          owner: { workspaceId: 'ws-1', actorUserId: 'user-1' },
+        })
+      ).rejects.toMatchObject({
+        code: 'validation',
+        detailCode: 'WORKLOAD_IDENTITY_NOT_CONFIGURED',
+        message: `Keyless connections are not available on this deployment. ${remedy}`,
+      })
+    }
+  )
+
+  it.each([
+    [
+      'aws-service-account',
+      { authType: 'oidc_role', roleArn: 'arn:aws:iam::123456789012:role/SimWorkflows' },
+      { type: 'aws_credential_v1' },
+    ],
+    [
+      'databricks-service-account',
+      {
+        authType: 'oidc_federation',
+        host: 'dbc-abc123.cloud.databricks.com',
+        clientId: '11111111-2222-3333-4444-555555555555',
+      },
+      { type: 'databricks_credential_v1' },
+    ],
+  ])(
+    'refuses reconnecting a keyless %s credential where this deployment cannot sign',
+    async (providerId, configuration, secret) => {
+      await expect(
+        verifyAndBuildServiceAccountSecret(providerId, {
+          serviceAccountJson: JSON.stringify(configuration),
+          owner: {
+            workspaceId: 'ws-1',
+            actorUserId: 'user-1',
+            storedSecret: {
+              ...secret,
+              config: {
+                ...configuration,
+                subject: 'sim:workspace:ws-1:credential:abcdef0123456789',
+              },
+            },
+          },
+        })
+      ).rejects.toMatchObject({ detailCode: 'WORKLOAD_IDENTITY_NOT_CONFIGURED' })
+    }
+  )
+
   it('throws when client-credential required fields are missing, without minting', async () => {
     await expect(
       verifyAndBuildServiceAccountSecret('zoom-service-account', {
