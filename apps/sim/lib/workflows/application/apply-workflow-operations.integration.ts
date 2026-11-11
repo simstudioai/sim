@@ -176,9 +176,10 @@ async function whileRowLocked(
 }
 
 /**
- * Waits until `count` sessions are blocked behind the holder. Throws as soon as
- * an apply settles first, reporting only the settled ones: the rest are queued
- * on the lock this caller holds, so awaiting them would hang.
+ * Waits until `count` sessions are queued behind the holder, directly or
+ * behind another waiter. Throws as soon as an apply settles first, reporting
+ * only the settled ones: the rest are queued on the lock this caller holds, so
+ * awaiting them would hang.
  */
 function waitForBlocked(holderPid: number, count: number, applies: PendingApply[]): Promise<void> {
   return runOutsideTransactionContext(async () => {
@@ -191,9 +192,15 @@ function waitForBlocked(holderPid: number, count: number, applies: PendingApply[
             .join('; ')}`
         )
       }
-      const [row] = await db.execute<{ blocked: number }>(
-        sql`SELECT count(*)::int AS blocked FROM pg_stat_activity WHERE ${holderPid} = ANY(pg_blocking_pids(pid))`
-      )
+      // Followers queue behind the first waiter's tuple lock, not the holder, so walk the chain.
+      const [row] = await db.execute<{ blocked: number }>(sql`
+        WITH RECURSIVE queued(pid) AS (
+          SELECT pid FROM pg_stat_activity WHERE ${holderPid} = ANY(pg_blocking_pids(pid))
+          UNION
+          SELECT activity.pid FROM pg_stat_activity activity
+          JOIN queued ON queued.pid = ANY(pg_blocking_pids(activity.pid))
+        )
+        SELECT count(*)::int AS blocked FROM queued`)
       if ((row?.blocked ?? 0) >= count) return
       await sleep(25)
     }
