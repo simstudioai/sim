@@ -4293,7 +4293,7 @@ describe('Internal Route Trust', () => {
 
       expect(result).toMatchObject({
         success: false,
-        error: expect.stringContaining('needs a saved credential with a Datadog application key'),
+        error: expect.stringContaining('needs a saved credential with an application key'),
       })
       expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
     })

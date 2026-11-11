@@ -625,10 +625,10 @@ interface HostedKeyInjectionResult {
 }
 
 const CREDENTIAL_FIELD_LABELS: Record<CredentialParamSource, string> = {
-  accessToken: 'token',
-  domain: 'host',
-  providerWorkspaceId: 'workspace ID',
-  applicationKey: 'Datadog application key',
+  accessToken: 'a token',
+  domain: 'a host',
+  providerWorkspaceId: 'a workspace ID',
+  applicationKey: 'an application key',
 }
 
 /**
@@ -646,7 +646,7 @@ function applyCredentialParams(
     const value = credential[source]
     if (typeof value !== 'string' || value.length === 0) {
       throw new Error(
-        `${tool.name} needs a saved credential with a ${CREDENTIAL_FIELD_LABELS[source]}`
+        `${tool.name} needs a saved credential with ${CREDENTIAL_FIELD_LABELS[source]}`
       )
     }
     params[param] = value
