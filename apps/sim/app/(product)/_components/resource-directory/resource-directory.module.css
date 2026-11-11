@@ -38,6 +38,3 @@
   align-items: center;
   gap: var(--ui-action-gap);
 }
-.back {
-  margin-inline: calc(-1 * var(--ui-row-inset));
-}

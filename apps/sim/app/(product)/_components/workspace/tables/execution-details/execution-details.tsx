@@ -146,7 +146,7 @@ interface ExecutionContentProps {
 
 /**
  * The run as the Logs adapter maps it, with what a table cell's run adds to the Logs page: the
- * legacy level, the workflow as a link, the failure with Troubleshoot in Chat, the workflow's input
+ * legacy level, the workflow as a link, the failure with Troubleshoot in chat, the workflow's input
  * and output on the overview, Open in Logs, and a trace tab with its summary and filter.
  */
 function ExecutionContent({ log, run, workspaceId, traceShown }: ExecutionContentProps) {
@@ -215,7 +215,7 @@ function ExecutionContent({ log, run, workspaceId, traceShown }: ExecutionConten
                   })
                 }
               >
-                Troubleshoot in Chat
+                Troubleshoot in chat
               </Button>
             ) : undefined
           }
@@ -278,7 +278,7 @@ interface ExecutionDetailsPanelProps {
 
 /**
  * A workflow cell's run through the Logs page's adapter and run pieces: its facts, failure and
- * Troubleshoot in Chat, input and output, files and cost, and the trace with each step's data. A
+ * Troubleshoot in chat, input and output, files and cost, and the trace with each step's data. A
  * run still going reads again as it does on Logs. The run's canvas snapshot stays on the Logs
  * page, which Open in Logs reaches. Escape closes it.
  */

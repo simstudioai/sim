@@ -92,8 +92,8 @@ export function HomeDashboard({
                   <p data-type='T048'>{prompt}</p>
                 </div>
                 <ActionMenu
-                  label='Customize home'
-                  heading='Customize home'
+                  label='Customize Home'
+                  heading='Customize Home'
                   icon='I108'
                   align='end'
                   actions={customizable.map((widget) => ({
@@ -127,13 +127,13 @@ export function HomeDashboard({
                 />
               )}
               {view.recents.status === 'ready' && view.recents.items.length > 0 && (
-                <div className={styles.recents}>
+                <PageOverflow>
                   <RecentItems
                     label='Recents'
                     items={view.recents.items}
                     onRemove={actions.removeRecent}
                   />
-                </div>
+                </PageOverflow>
               )}
               {view.getStarted.length > 0 && <GetStarted steps={view.getStarted} />}
               <div className={styles.columns}>

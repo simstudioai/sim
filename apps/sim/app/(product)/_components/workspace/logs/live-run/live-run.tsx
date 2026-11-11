@@ -210,7 +210,7 @@ export function LiveRun({ workspaceId, executionId, back }: LiveRunProps) {
               size='compact'
               onClick={() => commands.troubleshoot(executionId, run.workflow.name)}
             >
-              Troubleshoot in Chat
+              Troubleshoot in chat
             </Button>
           )}
           {stoppable && workflowId && commands.canStop && (

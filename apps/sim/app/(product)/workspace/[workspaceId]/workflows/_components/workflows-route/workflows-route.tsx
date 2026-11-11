@@ -891,9 +891,9 @@ export function WorkflowsRoute({ workspaceId }: WorkflowsRouteProps) {
 
   const empty = searching ? (
     <WorkspaceEmpty
-      title={noResults(search, false).title}
-      description={noResults(search, false).description}
-      action={{ label: noResults(search, false).action, onClick: () => setSearch('') }}
+      title={noResults(search, false, 'workflows').title}
+      description={noResults(search, false, 'workflows').description}
+      action={{ label: noResults(search, false, 'workflows').action, onClick: () => setSearch('') }}
     />
   ) : folderId ? (
     <WorkspaceEmpty title='This folder is empty' />

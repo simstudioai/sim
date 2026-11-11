@@ -797,10 +797,10 @@ export function TableList({ workspaceId }: TableListProps) {
   const empty =
     searching || filtered ? (
       <WorkspaceEmpty
-        title={noResults(search, filtered).title}
-        description={noResults(search, filtered).description}
+        title={noResults(search, filtered, 'tables').title}
+        description={noResults(search, filtered, 'tables').description}
         action={{
-          label: noResults(search, filtered).action,
+          label: noResults(search, filtered, 'tables').action,
           onClick: () => {
             setSearch('')
             clearFilters()

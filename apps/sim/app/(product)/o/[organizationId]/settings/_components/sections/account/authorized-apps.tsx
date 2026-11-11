@@ -40,11 +40,7 @@ export function AuthorizedApps() {
       />
       {list.status === 'pending' ? null : list.apps.length === 0 ? (
         <EmptyState
-          title={
-            list.term
-              ? `No matching apps for “${list.term}”`
-              : 'No apps have access to your account'
-          }
+          title={list.term ? 'No matching apps' : 'No apps have access to your account'}
         />
       ) : (
         <DataTable

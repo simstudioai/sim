@@ -5,6 +5,7 @@ import { ActivityRow } from '@sim/emcn/activity-row'
 import { Icon } from '@sim/emcn/icon'
 import { Modal } from '@sim/emcn/modal'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { PageOverflow } from '@sim/emcn-platform/page-column'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type SkillDraft, SkillFields } from '@/app/(product)/_components/skill-fields/skill-fields'
 import { IntegrationTemplates } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-capabilities/integration-capabilities'
@@ -49,18 +50,20 @@ export function WorkspaceCapabilities({
       {skills.length > 0 && (
         <section className={styles.section} aria-label='Skills'>
           <h2 data-type='T093'>Skills</h2>
-          <ul className={styles.links}>
-            {skills.map((entry) => (
-              <ActivityRow
-                key={entry.name}
-                leading={<Icon name='I044' />}
-                title={entry.name}
-                detail={entry.description}
-                textMetadata={installed.has(entry.name) ? 'Added' : undefined}
-                onOpen={() => setOpen({ skill: entry, installed: installed.get(entry.name) })}
-              />
-            ))}
-          </ul>
+          <PageOverflow>
+            <ul className={styles.links}>
+              {skills.map((entry) => (
+                <ActivityRow
+                  key={entry.name}
+                  leading={<Icon name='I044' />}
+                  title={entry.name}
+                  detail={entry.description}
+                  textMetadata={installed.has(entry.name) ? 'Added' : undefined}
+                  onOpen={() => setOpen({ skill: entry, installed: installed.get(entry.name) })}
+                />
+              ))}
+            </ul>
+          </PageOverflow>
         </section>
       )}
       <IntegrationTemplates templates={templates} />

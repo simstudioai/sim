@@ -190,7 +190,7 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
       {permissionGroups.length === 0 ? (
         <EmptyState title='No permission groups yet' description='Create a group to get started.' />
       ) : filtered.length === 0 ? (
-        <EmptyState title={`No matching groups for “${params.search}”`} />
+        <EmptyState title='No matching groups' />
       ) : (
         <SettingsSection title={`Permission groups ${permissionGroups.length}`}>
           <ResourceList>

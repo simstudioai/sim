@@ -11,6 +11,7 @@ import { Modal } from '@sim/emcn/modal'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { SearchField } from '@sim/emcn/search-field'
 import { FailureNotice } from '@sim/emcn/status'
+import { PageOverflow } from '@sim/emcn-platform/page-column'
 import { ConnectorApiKeyField } from '@/app/(product)/_components/connector-api-key-field/connector-api-key-field'
 import { OAuthConnectModal } from '@/app/(product)/_components/oauth-connect-modal/oauth-connect-modal'
 import { ServiceAccountModal } from '@/app/(product)/_components/service-account-modal/service-account-modal'
@@ -89,22 +90,22 @@ export function AddConnectorModal({
           onValueChange={form.setSearchTerm}
         />
         {form.filteredEntries.length > 0 ? (
-          <ul ref={sourceList} className={styles.sources} aria-label='Sources'>
-            {form.filteredEntries.map(([type, source]) => (
-              <ActivityRow
-                key={type}
-                leading={<Icon providerId={connectorMark(type)} />}
-                title={source.name}
-                detail={source.description}
-                onOpen={() => form.selectType(type)}
-              />
-            ))}
-          </ul>
+          <PageOverflow>
+            <ul ref={sourceList} className={styles.sources} aria-label='Sources'>
+              {form.filteredEntries.map(([type, source]) => (
+                <ActivityRow
+                  key={type}
+                  leading={<Icon providerId={connectorMark(type)} />}
+                  title={source.name}
+                  detail={source.description}
+                  onOpen={() => form.selectType(type)}
+                />
+              ))}
+            </ul>
+          </PageOverflow>
         ) : (
           <p className={styles.empty} data-type='T060'>
-            {form.entries.length === 0
-              ? 'No connectors are available.'
-              : `No matching sources for “${form.searchTerm.trim()}”`}
+            {form.entries.length === 0 ? 'No connectors are available.' : 'No matching sources'}
           </p>
         )}
       </Modal>

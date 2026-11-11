@@ -1,6 +1,5 @@
 .table {
   min-inline-size: 0;
-  margin-inline: calc(-1 * var(--ui-row-inset));
   container: run-list / inline-size;
 }
 .header,

@@ -105,7 +105,7 @@ export function AddMembersModal({
             </Button>
           </ActionRow>
           {filtered.length === 0 ? (
-            <Muted>{`No matching members for “${search}”`}</Muted>
+            <Muted>No matching members</Muted>
           ) : (
             <div ref={scrollRef} className={styles.memberPicker}>
               {filtered.map((member) => (

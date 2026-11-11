@@ -143,7 +143,7 @@ describe('terminal console store', () => {
     })
   })
 
-  describe("a block error's Fix in Chat", () => {
+  describe("a block error's Fix in chat", () => {
     function failBlock(executionId: string) {
       const shown: Array<{ message: string; action?: { label: string; onClick: () => void } }> = []
       const disconnect = connectToastSink({
@@ -174,13 +174,13 @@ describe('terminal console store', () => {
       useTerminalConsoleStore.getState().setChatHandoff(handOff)
 
       const [toast] = failBlock('exec-fix-1')
-      expect(toast.action?.label).toBe('Fix in Chat')
+      expect(toast.action?.label).toBe('Fix in chat')
       toast.action?.onClick()
 
       expect(handOff).toHaveBeenCalledWith('Model refused\n\nError in Agent.\n\nPlease fix this.')
     })
 
-    it('offers no Fix in Chat where the viewer cannot start a chat', () => {
+    it('offers no Fix in chat where the viewer cannot start a chat', () => {
       useTerminalConsoleStore.getState().setChatHandoff(null)
 
       const [toast] = failBlock('exec-fix-2')

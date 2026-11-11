@@ -235,7 +235,7 @@ const HELPER_COPY_OWNERS: ReasonedAllowlist = {
     'Tags a workspace member among the allowed senders: a value, not a subtitle',
   [`${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/inbox/inbox-settings.tsx#Change email address`]:
     'Irreversible consequence: the old address stops receiving email at once',
-  [`${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/secrets/secret-detail.tsx#Show value in logs and Chat`]:
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/secrets/secret-detail.tsx#Show value in logs and chat`]:
     "Security: who can read the secret's value once it shows in runs",
   [`${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/teammates/invite-teammates-modal.tsx#Emails`]:
     'Why invites are blocked, or the seat warning when invites exceed the open seats',
@@ -251,6 +251,15 @@ const FRAMES_OUTSIDE_SURFACE: ReasonedAllowlist = {
     "Home's dashboard frame sizes the composer it hosts",
   [`${system}components/page-column/page-column.module.css`]:
     'The page column measures the composer docked beneath it',
+}
+/** Row bleeds (`page-overflow`) a `PageOverflow` wrapper cannot express yet. */
+const ROW_BLEED_OWNERS: ReasonedAllowlist = {
+  [`${ORGANIZATION_ROUTES}home/_components/activity-list/activity-list.module.css`]:
+    "The scroll viewport is bounded by its section's height; a wrapper would break that min-block-size chain",
+  [`${ORGANIZATION_ROUTES}home/_components/home-workspaces/home-workspaces.module.css`]:
+    "The scroll viewport is bounded by its section's height; a wrapper would break that min-block-size chain",
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/billing/billing.module.css`]:
+    'Pending the settings lane: wrap the invoice list in PageOverflow once its edits land',
 }
 /** Pages that measure their own chrome for a table's scroller, or theme React Flow through its variables. */
 const LOCAL_TOKEN_OWNERS: ReasonedAllowlist = {
@@ -1171,6 +1180,7 @@ export const PLATFORM_ALLOWLISTS = {
   ALERT_OWNERS,
   FRAMES_OUTSIDE_SURFACE,
   LOCAL_TOKEN_OWNERS,
+  ROW_BLEED_OWNERS,
   serverSeamHelpers,
   platformHostModules,
   seamHelpers,

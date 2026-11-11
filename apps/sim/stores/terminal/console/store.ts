@@ -318,7 +318,7 @@ const notifyBlockError = ({
     toast.error(displayName, {
       description: errorMessage,
       action: chatHandoff
-        ? { label: 'Fix in Chat', onClick: () => chatHandoff(copilotMessage) }
+        ? { label: 'Fix in chat', onClick: () => chatHandoff(copilotMessage) }
         : undefined,
     })
   } catch (notificationError) {

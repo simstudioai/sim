@@ -21,7 +21,6 @@
 }
 .table {
   min-inline-size: 0;
-  margin-inline: calc(-1 * var(--ui-row-inset));
   container: resource-table / inline-size;
 }
 /* The Logs run list's lanes: a flexible name, then fixed lanes that line up from row to row. */

@@ -96,7 +96,7 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
             />
           ) : (
             <EmptyState
-              title='No people found'
+              title='No matching people'
               description='Try another name, title, email address, or department.'
               action={<Button onClick={directory.clearFilters}>Clear search</Button>}
             />

@@ -41,7 +41,7 @@ export function CommandPalette({ groups, label, onSelect }: CommandPaletteProps)
         <Autocomplete.Input ref={queryEdges} aria-label={label} placeholder={`${label}…`} />
       </div>
       <Autocomplete.Empty className={styles.empty} data-type='T052'>
-        No results found
+        No results
       </Autocomplete.Empty>
       <Autocomplete.List ref={scrollEdges} aria-label='Search results' className={styles.results}>
         {(group: CommandGroup) => (

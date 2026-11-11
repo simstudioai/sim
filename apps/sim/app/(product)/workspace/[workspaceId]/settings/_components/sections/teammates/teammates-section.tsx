@@ -243,9 +243,7 @@ export default function TeammatesSection({ workspaceId }: WorkspaceSettingsSecti
           onRetry={() => void permissions.refetch()}
         />
       ) : visible.length === 0 ? (
-        <EmptyState
-          title={term ? `No teammates found matching “${searchTerm}”` : 'No teammates yet'}
-        />
+        <EmptyState title={term ? 'No matching teammates' : 'No teammates yet'} />
       ) : (
         <SettingsSection title={`Teammates ${teammates.length}`}>
           {visible.map((teammate) => (

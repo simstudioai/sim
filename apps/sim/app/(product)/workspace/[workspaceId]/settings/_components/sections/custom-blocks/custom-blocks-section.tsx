@@ -139,7 +139,7 @@ export default function CustomBlocksSection({ workspaceId }: WorkspaceSettingsSe
             description={canCreate ? 'Create a block to publish a workflow as a block.' : undefined}
           />
         ) : filtered.length === 0 ? (
-          <EmptyState title={`No blocks found matching "${search}"`} />
+          <EmptyState title='No matching blocks' />
         ) : (
           <ResourceList>
             {filtered.map((block) => {

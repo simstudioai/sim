@@ -1,10 +1,9 @@
-/* The catalog's rows reach past the text edge by the row inset, so their hover surface frames them. */
+/* PageOverflow reaches the catalog's rows past the text edge, so their hover surface frames them. */
 .catalog {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   min-inline-size: 0;
   margin: 0;
-  margin-inline: calc(-1 * var(--ui-row-inset));
   padding: 0;
   gap: var(--ui-list-gap);
   list-style: none;

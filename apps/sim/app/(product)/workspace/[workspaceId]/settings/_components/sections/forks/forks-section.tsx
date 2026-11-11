@@ -235,7 +235,7 @@ export default function ForksSection({ workspaceId }: WorkspaceSettingsSectionPr
                 ))
               ) : (
                 <EmptyState
-                  title={query ? `No forks found matching "${searchTerm.trim()}"` : 'No forks yet'}
+                  title={query ? 'No matching forks' : 'No forks yet'}
                   description={query ? undefined : 'Create a fork to get started.'}
                 />
               )}

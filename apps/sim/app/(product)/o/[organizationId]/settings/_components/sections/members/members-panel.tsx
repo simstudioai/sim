@@ -89,7 +89,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
           onRetry={roster.retry}
         />
       ) : noMatches ? (
-        <EmptyState title={`No matching members for “${search.trim()}”`} />
+        <EmptyState title='No matching members' />
       ) : (
         <>
           {(!searching || visible.members.length + visible.invitations.length > 0) && (

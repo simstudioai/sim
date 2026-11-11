@@ -1,5 +1,6 @@
 import { ActivityRow } from '@sim/emcn/activity-row'
 import { Icon } from '@sim/emcn/icon'
+import { PageOverflow } from '@sim/emcn-platform/page-column'
 import { BrandMark } from '@/app/(product)/_components/brand-mark/brand-mark'
 import { IntegrationUsageText } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-usage/integration-usage'
 import styles from '@/app/(product)/o/[organizationId]/integrations/_components/resource-list/resource-list.module.css'
@@ -19,11 +20,13 @@ export function AppGroup({ title, apps, onNavigate }: AppGroupProps) {
   return (
     <section className={styles.group} aria-label={title}>
       <h2 data-type='T059'>{title}</h2>
-      <ul className={styles.rows}>
-        {apps.map((app) => (
-          <AppEntry key={app.id} app={app} onNavigate={onNavigate} />
-        ))}
-      </ul>
+      <PageOverflow>
+        <ul className={styles.rows}>
+          {apps.map((app) => (
+            <AppEntry key={app.id} app={app} onNavigate={onNavigate} />
+          ))}
+        </ul>
+      </PageOverflow>
     </section>
   )
 }
@@ -101,37 +104,43 @@ export function ResourceGroup({
   return (
     <section className={styles.group} aria-label={title}>
       <h2 data-type='T059'>{title}</h2>
-      <ul className={styles.rows}>
-        {entries.map((resource) =>
-          'kind' in resource ? (
-            resource.kind === 'credential' ? (
-              <ActivityRow
-                key={resource.id}
-                leading={
-                  resource.appId ? <BrandMark providerId={resource.appId} /> : <Icon name='I137' />
-                }
-                title={resource.name}
-                detail={credentialDescription(resource)}
-                onOpen={() => onOpen(resource)}
-              />
+      <PageOverflow>
+        <ul className={styles.rows}>
+          {entries.map((resource) =>
+            'kind' in resource ? (
+              resource.kind === 'credential' ? (
+                <ActivityRow
+                  key={resource.id}
+                  leading={
+                    resource.appId ? (
+                      <BrandMark providerId={resource.appId} />
+                    ) : (
+                      <Icon name='I137' />
+                    )
+                  }
+                  title={resource.name}
+                  detail={credentialDescription(resource)}
+                  onOpen={() => onOpen(resource)}
+                />
+              ) : (
+                <ActivityRow
+                  key={resource.id}
+                  href={resourceHref(resource)}
+                  onNavigate={(event) => {
+                    event.preventDefault()
+                    onOpen(resource)
+                  }}
+                  leading={<Icon name={resource.kind === 'skill' ? 'I044' : 'I126'} />}
+                  title={resource.name}
+                  detail={resource.description}
+                />
+              )
             ) : (
-              <ActivityRow
-                key={resource.id}
-                href={resourceHref(resource)}
-                onNavigate={(event) => {
-                  event.preventDefault()
-                  onOpen(resource)
-                }}
-                leading={<Icon name={resource.kind === 'skill' ? 'I044' : 'I126'} />}
-                title={resource.name}
-                detail={resource.description}
-              />
+              <AppEntry key={resource.id} app={resource} onNavigate={onNavigate} />
             )
-          ) : (
-            <AppEntry key={resource.id} app={resource} onNavigate={onNavigate} />
-          )
-        )}
-      </ul>
+          )}
+        </ul>
+      </PageOverflow>
     </section>
   )
 }
@@ -150,21 +159,23 @@ export function LiveGroup({ title, glyph, rows, onOpen }: LiveGroupProps) {
   return (
     <section className={styles.group} aria-label={title}>
       <h2 data-type='T059'>{title}</h2>
-      <ul className={styles.rows}>
-        {rows.map((row) => (
-          <ActivityRow
-            key={row.id}
-            href={row.href}
-            onNavigate={(event) => {
-              event.preventDefault()
-              onOpen(row)
-            }}
-            leading={<Icon name={glyph} />}
-            title={row.name}
-            detail={row.description}
-          />
-        ))}
-      </ul>
+      <PageOverflow>
+        <ul className={styles.rows}>
+          {rows.map((row) => (
+            <ActivityRow
+              key={row.id}
+              href={row.href}
+              onNavigate={(event) => {
+                event.preventDefault()
+                onOpen(row)
+              }}
+              leading={<Icon name={glyph} />}
+              title={row.name}
+              detail={row.description}
+            />
+          ))}
+        </ul>
+      </PageOverflow>
     </section>
   )
 }

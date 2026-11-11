@@ -137,7 +137,7 @@ export function ByokKeyManager({
   return (
     <>
       {visibleSections.length === 0 ? (
-        <EmptyState title={`No providers found matching "${searchTerm}"`} />
+        <EmptyState title='No matching providers' />
       ) : (
         visibleSections.map((section) => (
           <SettingsSection key={section.label} title={section.label}>

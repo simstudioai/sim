@@ -190,8 +190,8 @@ export function ResourceDetails({
         <ConfirmDialog
           target={deleting}
           onClose={() => setDeleting(false)}
-          title={`Delete ${noun}`}
-          description={`This removes ${resource.name} from your integrations.`}
+          title={`Delete ${resource.name}`}
+          description={`This removes the ${noun} from your integrations.`}
           confirmLabel='Delete'
           pendingLabel='Deleting…'
           onConfirm={() => {

@@ -97,8 +97,8 @@ export function ManualCredentialDetail({
         <ConfirmDialog
           target={action === 'delete'}
           onClose={() => setAction(null)}
-          title='Delete credential'
-          description={`People and workflows using ${resource.name} will lose access.`}
+          title={`Delete ${resource.name}`}
+          description='People and workflows using this credential will lose access.'
           confirmLabel='Delete'
           pendingLabel='Deleting…'
           onConfirm={onRemove}

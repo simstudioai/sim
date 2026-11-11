@@ -816,7 +816,7 @@ export function KnowledgeList({ workspaceId }: KnowledgeListProps) {
         ? { status: 'pending' }
         : { status: 'ready' }
 
-  const copy = noResults(search, filtered)
+  const copy = noResults(search, filtered, 'knowledge bases')
   const empty =
     searching || filtered ? (
       <WorkspaceEmpty

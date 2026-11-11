@@ -3,7 +3,7 @@
  *
  * The editor's shortcuts and its block-error chat handoff. Failure modes: shortcuts the command list
  * and canvas menu advertise doing nothing in the editor, a viewer without edit access creating a
- * workflow, and a block error's "Fix in Chat" offered where chat is withheld.
+ * workflow, and a block error's "Fix in chat" offered where chat is withheld.
  */
 import { act } from 'react'
 import { terminalConsoleMockFns } from '@sim/testing/mocks/terminal-console.mock'
@@ -108,7 +108,7 @@ describe('EditorShortcuts', () => {
 })
 
 describe('BlockErrorChatHandoff', () => {
-  it("routes a block error's Fix in Chat to a new chat", () => {
+  it("routes a block error's Fix in chat to a new chat", () => {
     render(<BlockErrorChatHandoff />)
     const handOff = setChatHandoff.mock.calls[0]?.[0] as ((message: string) => void) | undefined
     handOff?.('Model refused')

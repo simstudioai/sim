@@ -3,6 +3,7 @@
 import type { ComponentProps } from 'react'
 import { Avatar } from '@sim/emcn/avatar'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { PageOverflow } from '@sim/emcn-platform/page-column'
 import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
 import { workspacePath } from '@/lib/navigation/paths'
@@ -166,50 +167,52 @@ export function ChangelogFeed({ data, read, empty, older }: ChangelogFeedProps) 
           {days.map(({ day, entries }) => (
             <section key={day} className={styles.day} aria-label={dayLabel(day, today, yesterday)}>
               <h2 data-type='T059'>{dayLabel(day, today, yesterday)}</h2>
-              <ol className={styles.entries}>
-                {entries.map((entry) => (
-                  <li key={entry.id} className={styles.entry}>
-                    <div className={styles.heading}>
-                      <h3 data-type='T059'>
-                        <Link href={detailHref(entry.id)} className={styles.target}>
-                          {entry.title}
-                        </Link>
-                      </h3>
-                      <time
-                        className={styles.time}
-                        data-type='T052'
-                        dateTime={new Date(entry.appliedAt).toISOString()}
-                      >
-                        {formatClockTime(entry.appliedAt, timeZone)}
-                      </time>
-                    </div>
-                    <p className={styles.description} data-type='T050'>
-                      {entry.description}
-                    </p>
-                    {(entry.contributor || entry.issueId || entry.version) && (
-                      <div className={styles.attribution} data-type='T052'>
-                        {entry.contributor && (
-                          <span className={styles.person}>
-                            <Avatar
-                              name={entry.contributor.name}
-                              src={entry.contributor.src}
-                              size='inline'
-                              decorative
-                            />
-                            {entry.contributor.name}
-                          </span>
-                        )}
-                        {entry.version && <span>{`v${entry.version}`}</span>}
-                        {entry.issueId && (
-                          <Link href={issueHref(entry.issueId)} className={styles.issue}>
-                            {entry.issueId}
+              <PageOverflow>
+                <ol className={styles.entries}>
+                  {entries.map((entry) => (
+                    <li key={entry.id} className={styles.entry}>
+                      <div className={styles.heading}>
+                        <h3 data-type='T059'>
+                          <Link href={detailHref(entry.id)} className={styles.target}>
+                            {entry.title}
                           </Link>
-                        )}
+                        </h3>
+                        <time
+                          className={styles.time}
+                          data-type='T052'
+                          dateTime={new Date(entry.appliedAt).toISOString()}
+                        >
+                          {formatClockTime(entry.appliedAt, timeZone)}
+                        </time>
                       </div>
-                    )}
-                  </li>
-                ))}
-              </ol>
+                      <p className={styles.description} data-type='T050'>
+                        {entry.description}
+                      </p>
+                      {(entry.contributor || entry.issueId || entry.version) && (
+                        <div className={styles.attribution} data-type='T052'>
+                          {entry.contributor && (
+                            <span className={styles.person}>
+                              <Avatar
+                                name={entry.contributor.name}
+                                src={entry.contributor.src}
+                                size='inline'
+                                decorative
+                              />
+                              {entry.contributor.name}
+                            </span>
+                          )}
+                          {entry.version && <span>{`v${entry.version}`}</span>}
+                          {entry.issueId && (
+                            <Link href={issueHref(entry.issueId)} className={styles.issue}>
+                              {entry.issueId}
+                            </Link>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              </PageOverflow>
             </section>
           ))}
           {matches.length > revealed || !older ? (

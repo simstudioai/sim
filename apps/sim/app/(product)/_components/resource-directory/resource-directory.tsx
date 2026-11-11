@@ -1,6 +1,6 @@
 import type { ComponentProps, ReactNode, Ref } from 'react'
 import { Chip } from '@sim/emcn/button'
-import { PageColumn } from '@sim/emcn-platform/page-column'
+import { PageColumn, PageOverflow } from '@sim/emcn-platform/page-column'
 import type Link from 'next/link'
 import styles from '@/app/(product)/_components/resource-directory/resource-directory.module.css'
 
@@ -57,10 +57,12 @@ interface DirectoryBackProps {
 }
 export function DirectoryBack({ href, label, onNavigate }: DirectoryBackProps) {
   return (
-    <nav aria-label={`${label} navigation`} className={styles.back}>
-      <Chip href={href} icon='I093' onNavigate={onNavigate}>
-        {label}
-      </Chip>
-    </nav>
+    <PageOverflow>
+      <nav aria-label={`${label} navigation`}>
+        <Chip href={href} icon='I093' onNavigate={onNavigate}>
+          {label}
+        </Chip>
+      </nav>
+    </PageOverflow>
   )
 }

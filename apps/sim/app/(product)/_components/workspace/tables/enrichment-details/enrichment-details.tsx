@@ -6,6 +6,7 @@ import { OverflowText } from '@sim/emcn/overflow-text'
 import { PropertyList } from '@sim/emcn/property-list'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
+import { PageOverflow } from '@sim/emcn-platform/page-column'
 import { formatDuration } from '@sim/utils/formatting'
 import styles from '@/app/(product)/_components/workspace/tables/enrichment-details/enrichment-details.module.css'
 import {
@@ -166,55 +167,57 @@ function CascadeTab({ detail }: { detail: EnrichmentRunDetail }) {
         </span>
         {detail.totalCost > 0 && <span>{costLabel(detail.totalCost)}</span>}
       </p>
-      <ol className={styles.cascade} aria-label='Provider cascade'>
-        {buildCascadeRows(detail.providers).map(({ outcome, offsetPct, widthPct }) => {
-          const ran = didRun(outcome)
-          return (
-            <li
-              key={outcome.id}
-              className={styles.provider}
-              data-matched={outcome.status === 'matched' || undefined}
-              data-ran={ran || undefined}
-            >
-              <span className={styles.providerLine}>
-                <span className={styles.providerMark} aria-hidden='true'>
-                  <Icon providerId={outcome.id} />
-                </span>
-                <span className={styles.providerName} data-type='T060'>
-                  <OverflowText text={outcome.label}>{outcome.label}</OverflowText>
-                </span>
-                <span className={styles.providerMeta} data-type='T052'>
-                  <span>{PROVIDER_STATUS_LABEL[outcome.status]}</span>
-                  {outcome.cost > 0 && <span>{costLabel(outcome.cost)}</span>}
-                  {ran && <span>{durationLabel(outcome.durationMs)}</span>}
-                </span>
-              </span>
-              <svg
-                className={styles.timeline}
-                role='img'
-                aria-label={`${outcome.label}: ${durationLabel(outcome.durationMs)}`}
+      <PageOverflow>
+        <ol className={styles.cascade} aria-label='Provider cascade'>
+          {buildCascadeRows(detail.providers).map(({ outcome, offsetPct, widthPct }) => {
+            const ran = didRun(outcome)
+            return (
+              <li
+                key={outcome.id}
+                className={styles.provider}
+                data-matched={outcome.status === 'matched' || undefined}
+                data-ran={ran || undefined}
               >
-                <line className={styles.track} x1='0' x2='100%' y1='50%' y2='50%' />
-                {widthPct > 0 && (
-                  <rect
-                    className={styles.bar}
-                    x={`${offsetPct}%`}
-                    y='0'
-                    width={`${widthPct}%`}
-                    height='100%'
-                    rx='2'
-                  />
-                )}
-              </svg>
-              {outcome.error && (
-                <span className={styles.providerError} data-type='T052'>
-                  {outcome.error}
+                <span className={styles.providerLine}>
+                  <span className={styles.providerMark} aria-hidden='true'>
+                    <Icon providerId={outcome.id} />
+                  </span>
+                  <span className={styles.providerName} data-type='T060'>
+                    <OverflowText text={outcome.label}>{outcome.label}</OverflowText>
+                  </span>
+                  <span className={styles.providerMeta} data-type='T052'>
+                    <span>{PROVIDER_STATUS_LABEL[outcome.status]}</span>
+                    {outcome.cost > 0 && <span>{costLabel(outcome.cost)}</span>}
+                    {ran && <span>{durationLabel(outcome.durationMs)}</span>}
+                  </span>
                 </span>
-              )}
-            </li>
-          )
-        })}
-      </ol>
+                <svg
+                  className={styles.timeline}
+                  role='img'
+                  aria-label={`${outcome.label}: ${durationLabel(outcome.durationMs)}`}
+                >
+                  <line className={styles.track} x1='0' x2='100%' y1='50%' y2='50%' />
+                  {widthPct > 0 && (
+                    <rect
+                      className={styles.bar}
+                      x={`${offsetPct}%`}
+                      y='0'
+                      width={`${widthPct}%`}
+                      height='100%'
+                      rx='2'
+                    />
+                  )}
+                </svg>
+                {outcome.error && (
+                  <span className={styles.providerError} data-type='T052'>
+                    {outcome.error}
+                  </span>
+                )}
+              </li>
+            )
+          })}
+        </ol>
+      </PageOverflow>
     </div>
   )
 }

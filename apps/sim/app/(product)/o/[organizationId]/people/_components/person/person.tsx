@@ -6,7 +6,7 @@ import { Button } from '@sim/emcn/button'
 import { useClipboard } from '@sim/emcn/feedback/use-clipboard'
 import { Icon } from '@sim/emcn/icon'
 import { FailureNotice } from '@sim/emcn/status'
-import { PageColumn } from '@sim/emcn-platform/page-column'
+import { PageColumn, PageOverflow } from '@sim/emcn-platform/page-column'
 import Link from 'next/link'
 import { ProfileUnavailable } from '@/app/(product)/o/[organizationId]/people/_components/people-page/profile-unavailable'
 import styles from '@/app/(product)/o/[organizationId]/people/_components/person/person.module.css'
@@ -115,20 +115,22 @@ interface PersonRowsProps {
 function PersonRows({ originQuery, people }: PersonRowsProps) {
   const peoplePath = usePeoplePath()
   return (
-    <ul className={styles.list}>
-      {people.map((person) => (
-        <li key={person.memberId}>
-          <Link
-            href={personHref(peoplePath, person.memberId, originQuery)}
-            className={styles.row}
-            aria-label={`Open ${person.name}`}
-          >
-            <PersonIdentity person={person} />
-            <Icon name='I032' />
-          </Link>
-        </li>
-      ))}
-    </ul>
+    <PageOverflow>
+      <ul className={styles.list}>
+        {people.map((person) => (
+          <li key={person.memberId}>
+            <Link
+              href={personHref(peoplePath, person.memberId, originQuery)}
+              className={styles.row}
+              aria-label={`Open ${person.name}`}
+            >
+              <PersonIdentity person={person} />
+              <Icon name='I032' />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </PageOverflow>
   )
 }
 

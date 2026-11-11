@@ -5,6 +5,7 @@ import { ActivityRow } from '@sim/emcn/activity-row'
 import { Icon } from '@sim/emcn/icon'
 import { CountedLabel } from '@sim/emcn/overflow-text/counted-label'
 import { Stack } from '@sim/emcn/stack'
+import { PageOverflow } from '@sim/emcn-platform/page-column'
 import { useHomePrompt } from '@/app/(product)/_components/session/composer-host'
 import styles from '@/app/(product)/o/[organizationId]/integrations/_components/integration-capabilities/integration-capabilities.module.css'
 import { ResourceEditor } from '@/app/(product)/o/[organizationId]/integrations/_components/resource-editor/resource-editor'
@@ -45,18 +46,20 @@ export function IntegrationCapabilities({
       {catalog.skills.length > 0 && (
         <section className={styles.section} aria-label='Skills'>
           <h2 data-type='T093'>Skills</h2>
-          <ul className={styles.links}>
-            {catalog.skills.map((entry) => (
-              <ActivityRow
-                key={entry.name}
-                leading={<Icon name='I044' />}
-                title={entry.name}
-                detail={entry.description}
-                textMetadata={installed.has(entry.name) ? 'Added' : undefined}
-                onOpen={() => setSkill(entry)}
-              />
-            ))}
-          </ul>
+          <PageOverflow>
+            <ul className={styles.links}>
+              {catalog.skills.map((entry) => (
+                <ActivityRow
+                  key={entry.name}
+                  leading={<Icon name='I044' />}
+                  title={entry.name}
+                  detail={entry.description}
+                  textMetadata={installed.has(entry.name) ? 'Added' : undefined}
+                  onOpen={() => setSkill(entry)}
+                />
+              ))}
+            </ul>
+          </PageOverflow>
         </section>
       )}
       <IntegrationTemplates templates={catalog.templates} />
@@ -96,27 +99,29 @@ export function IntegrationTemplates({ templates }: IntegrationTemplatesProps) {
       <h2 data-type='T093'>
         <CountedLabel label='Agent templates' count={templates.length} />
       </h2>
-      <ul className={styles.links}>
-        {templates.map((entry) => (
-          <ActivityRow
-            key={`${entry.title}:${entry.prompt}`}
-            title={entry.title}
-            detail={entry.prompt}
-            leading={
-              <Stack
-                label='Integrations used'
-                items={entry.integrations.map((integration) => ({
-                  id: integration.id,
-                  label: integration.name,
-                  content: <Icon providerId={integration.id} label={integration.name} />,
-                }))}
-              />
-            }
-            disabled={!preparePrompt}
-            onOpen={() => preparePrompt?.(entry.prompt)}
-          />
-        ))}
-      </ul>
+      <PageOverflow>
+        <ul className={styles.links}>
+          {templates.map((entry) => (
+            <ActivityRow
+              key={`${entry.title}:${entry.prompt}`}
+              title={entry.title}
+              detail={entry.prompt}
+              leading={
+                <Stack
+                  label='Integrations used'
+                  items={entry.integrations.map((integration) => ({
+                    id: integration.id,
+                    label: integration.name,
+                    content: <Icon providerId={integration.id} label={integration.name} />,
+                  }))}
+                />
+              }
+              disabled={!preparePrompt}
+              onOpen={() => preparePrompt?.(entry.prompt)}
+            />
+          ))}
+        </ul>
+      </PageOverflow>
     </section>
   )
 }

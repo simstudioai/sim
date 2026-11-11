@@ -8,7 +8,7 @@
 .dashboard {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  padding-block: var(--ui-page-heading-inset, 4rem) 1.5rem;
+  padding-block: var(--ui-page-heading-inset, 4rem) var(--spacing-24);
 }
 /* The host page's canvas shows through, so the composer's row does not read as a band. */
 .dashboard > [data-platform-ui] {
@@ -73,10 +73,6 @@
 .sections {
   display: grid;
   gap: var(--ui-product-section-gap);
-}
-.recents {
-  min-inline-size: 0;
-  margin-inline: calc(-1 * var(--ui-row-inset));
 }
 .columns {
   display: grid;

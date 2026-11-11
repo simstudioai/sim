@@ -152,7 +152,7 @@ async function organizationSectionChecks() {
             await search.fill('Audit probe')
             await expect(page.getByText(description)).toBeVisible()
             await search.fill('zzzz-nothing')
-            await expect(page.getByText('No matching audit logs for “zzzz-nothing”')).toBeVisible()
+            await expect(page.getByText('No matching audit logs')).toBeVisible()
             await expect(page.getByText(description)).toHaveCount(0)
           })
         }

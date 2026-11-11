@@ -1,7 +1,7 @@
 .prose {
   display: grid;
   gap: var(--ui-content-gap);
-  max-inline-size: var(--container-760);
+  max-inline-size: var(--container-reading);
   color: var(--ui-ink);
   overflow-wrap: anywhere;
 }

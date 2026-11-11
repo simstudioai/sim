@@ -235,10 +235,8 @@ export function GroupProviders({ data, actions, renderSlackSetup }: GroupProvide
       <ConfirmDialog
         target={removing}
         onClose={() => setRemoving(undefined)}
-        title='Remove provider'
-        description={({ name }) =>
-          `Remove ${name} and its connected accounts from the organization?`
-        }
+        title={({ name }) => `Remove ${name}`}
+        description='This removes the provider and its connected accounts from the organization.'
         confirmLabel='Remove'
         pendingLabel='Removing…'
         onConfirm={(provider) => actions.removeProvider(provider)}

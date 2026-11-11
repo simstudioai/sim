@@ -1,6 +1,7 @@
 import { ActivityRow } from '@sim/emcn/activity-row'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { CountedLabel } from '@sim/emcn/overflow-text/counted-label'
+import { PageOverflow } from '@sim/emcn-platform/page-column'
 import { BrandMark } from '@/app/(product)/_components/brand-mark/brand-mark'
 import styles from '@/app/(product)/o/[organizationId]/integrations/_components/credential-list/credential-list.module.css'
 import { credentialDescription } from '@/platform/lib/integrations/credential-display'
@@ -34,27 +35,29 @@ export function CredentialList({
         <CountedLabel label='Connected credentials' count={credentials.length} />
       </h2>
       {credentials.length > 0 ? (
-        <ul className={styles.list}>
-          {credentials.map((credential) =>
-            credentialHref ? (
-              <ActivityRow
-                key={credential.id}
-                leading={<BrandMark providerId={providerId} />}
-                title={credential.displayName}
-                detail={credentialDescription(credential)}
-                href={credentialHref(credential)}
-              />
-            ) : (
-              <ActivityRow
-                key={credential.id}
-                leading={<BrandMark providerId={providerId} />}
-                title={credential.displayName}
-                detail={credentialDescription(credential)}
-                onOpen={() => onOpen(credential)}
-              />
-            )
-          )}
-        </ul>
+        <PageOverflow>
+          <ul className={styles.list}>
+            {credentials.map((credential) =>
+              credentialHref ? (
+                <ActivityRow
+                  key={credential.id}
+                  leading={<BrandMark providerId={providerId} />}
+                  title={credential.displayName}
+                  detail={credentialDescription(credential)}
+                  href={credentialHref(credential)}
+                />
+              ) : (
+                <ActivityRow
+                  key={credential.id}
+                  leading={<BrandMark providerId={providerId} />}
+                  title={credential.displayName}
+                  detail={credentialDescription(credential)}
+                  onOpen={() => onOpen(credential)}
+                />
+              )
+            )}
+          </ul>
+        </PageOverflow>
       ) : (
         <EmptyState title='No connected credentials' />
       )}

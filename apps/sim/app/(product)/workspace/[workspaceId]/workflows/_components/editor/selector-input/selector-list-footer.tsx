@@ -71,7 +71,7 @@ export function selectorPickerSearch(
           : list.hasMore
             ? 'No options loaded'
             : searching
-              ? 'No matching options found'
+              ? 'No matching options'
               : 'No options available',
     footer: (
       <SelectorListFooter

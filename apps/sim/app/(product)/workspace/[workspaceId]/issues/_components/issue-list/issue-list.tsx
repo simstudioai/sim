@@ -5,6 +5,7 @@ import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { SearchField } from '@sim/emcn/search-field'
+import { PageOverflow } from '@sim/emcn-platform/page-column'
 import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
 import { workspacePath } from '@/lib/navigation/paths'
@@ -175,31 +176,35 @@ export function IssueList({ data, read }: IssueListProps) {
                 )}
               </header>
               {group.open && (
-                <ul className={styles.rows} aria-label={group.label}>
-                  {group.shown.map((issue) => {
-                    const qualifier = issueQualifier(issue.state)
-                    return (
-                      <li key={issue.id}>
-                        <Link href={rowHref(issue.id)} className={styles.row}>
-                          <span className={styles.id} data-type='T050'>
-                            {issue.id}
-                          </span>
-                          <span className={styles.title} data-type='T043'>
-                            <OverflowText
-                              text={qualifier ? `${issue.title} ${qualifier}` : issue.title}
-                            >
-                              {issue.title}
-                              {qualifier && <span className={styles.qualifier}> {qualifier}</span>}
-                            </OverflowText>
-                          </span>
-                          <span className={styles.created} data-type='T050'>
-                            {formatRelativeTime(issue.createdAt, data.referenceTime)}
-                          </span>
-                        </Link>
-                      </li>
-                    )
-                  })}
-                </ul>
+                <PageOverflow>
+                  <ul className={styles.rows} aria-label={group.label}>
+                    {group.shown.map((issue) => {
+                      const qualifier = issueQualifier(issue.state)
+                      return (
+                        <li key={issue.id}>
+                          <Link href={rowHref(issue.id)} className={styles.row}>
+                            <span className={styles.id} data-type='T050'>
+                              {issue.id}
+                            </span>
+                            <span className={styles.title} data-type='T043'>
+                              <OverflowText
+                                text={qualifier ? `${issue.title} ${qualifier}` : issue.title}
+                              >
+                                {issue.title}
+                                {qualifier && (
+                                  <span className={styles.qualifier}> {qualifier}</span>
+                                )}
+                              </OverflowText>
+                            </span>
+                            <span className={styles.created} data-type='T050'>
+                              {formatRelativeTime(issue.createdAt, data.referenceTime)}
+                            </span>
+                          </Link>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </PageOverflow>
               )}
             </section>
           ))}

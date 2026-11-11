@@ -76,7 +76,7 @@ export interface ConsoleEntryLocation {
   index: number
 }
 
-/** Opens a new chat seeded with `message`, as the editor's "Fix in Chat" does. */
+/** Opens a new chat seeded with `message`, as the editor's "Fix in chat" does. */
 export type ChatHandoff = (message: string) => void
 
 export interface ConsoleStore {
@@ -96,7 +96,7 @@ export interface ConsoleStore {
   _hasHydrated: boolean
   /**
    * Set by the mounted editor while the viewer can start a chat; a block error's toast offers
-   * "Fix in Chat" only then.
+   * "Fix in chat" only then.
    */
   chatHandoff: ChatHandoff | null
   setChatHandoff: (handoff: ChatHandoff | null) => void

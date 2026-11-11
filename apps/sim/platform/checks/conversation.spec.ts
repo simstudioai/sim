@@ -11,11 +11,11 @@ test('Home can hide, undo, disconnect and reconnect widgets without losing the r
     'data-edges',
     'end'
   )
-  const customize = page.getByRole('button', { name: 'Customize home' })
+  const customize = page.getByRole('button', { name: 'Customize Home' })
   await customize.hover()
-  await expect(page.getByRole('tooltip', { name: 'Customize home' })).toBeVisible()
+  await expect(page.getByRole('tooltip', { name: 'Customize Home' })).toBeVisible()
   await customize.click()
-  await expect(page.getByRole('tooltip', { name: 'Customize home' })).toHaveCount(0)
+  await expect(page.getByRole('tooltip', { name: 'Customize Home' })).toHaveCount(0)
   await page.getByRole('menuitemcheckbox', { name: 'Email' }).click()
   await expect(email).toHaveCount(0)
   await page.keyboard.press('Escape')
@@ -29,7 +29,7 @@ test('Home can hide, undo, disconnect and reconnect widgets without losing the r
   await expect(email.getByRole('button', { name: 'Gmail' })).toBeVisible()
   await email.getByRole('button', { name: 'Gmail' }).click()
   await expect(email.getByRole('button', { name: /Nina Patel/ })).toBeVisible()
-  await page.getByRole('button', { name: 'Customize home' }).click()
+  await page.getByRole('button', { name: 'Customize Home' }).click()
   await page.getByRole('menuitemcheckbox', { name: 'Email' }).click()
   await page.keyboard.press('Escape')
   await page.getByRole('link', { name: 'Review the renewal brief', exact: true }).click()

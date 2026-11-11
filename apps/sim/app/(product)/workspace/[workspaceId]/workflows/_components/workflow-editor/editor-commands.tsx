@@ -48,7 +48,7 @@ export function EditorShortcuts({ workspaceId, canEdit, onNewWorkflow }: EditorS
 }
 
 /**
- * Lets a block error's toast offer "Fix in Chat" while the editor is mounted and the viewer can
+ * Lets a block error's toast offer "Fix in chat" while the editor is mounted and the viewer can
  * start a chat, handing the error to a new chat as the terminal's row menu does.
  */
 export function BlockErrorChatHandoff() {

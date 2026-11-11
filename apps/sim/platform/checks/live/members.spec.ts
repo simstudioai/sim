@@ -111,7 +111,7 @@ test('removal holds on its disclosure, keeps the dialog on failure, then removes
         .getByRole('button', { name: /^Actions for/ })
         .click()
       await page.getByRole('menuitem', { name: 'Remove', exact: true }).click()
-      const dialog = page.getByRole('dialog', { name: 'Remove team member' })
+      const dialog = page.getByRole('dialog', { name: 'Remove Live removable' })
       const confirm = dialog.getByRole('button', { name: 'Remove', exact: true })
       await expect(confirm).toBeEnabled()
 

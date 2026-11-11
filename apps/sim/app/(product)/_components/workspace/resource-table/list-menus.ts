@@ -128,13 +128,13 @@ export function filterSummary(
 }
 
 /**
- * What a list says when a search or filter matched nothing. Search spans every folder and filters
- * only the open one; saying so stops a reader going looking elsewhere for themselves.
+ * What a list of `noun` says when a search or filter matched nothing. Search spans every folder and
+ * filters only the open one; saying so stops a reader going looking elsewhere for themselves.
  */
-export function noResults(search: string, filtered: boolean) {
+export function noResults(search: string, filtered: boolean, noun: string) {
   const term = search.trim()
   return {
-    title: term ? `No results for “${term}”` : 'No results',
+    title: `No matching ${noun}`,
     description: term
       ? 'Searched every folder in this workspace.'
       : 'Filters apply to this folder only.',

@@ -202,10 +202,11 @@ test('shared creation needs a recipient and deletion affects only the confirmed 
   ).toBeVisible()
   const savedEditor = editor
   await savedEditor.getByRole('button', { name: 'Delete skill', exact: true }).click()
-  const confirmation = page.getByRole('dialog', { name: 'Delete skill', exact: true })
-  await expect(confirmation).toContainText(
-    'This removes Daily account brief from your integrations.'
-  )
+  const confirmation = page.getByRole('dialog', {
+    name: 'Delete Daily account brief',
+    exact: true,
+  })
+  await expect(confirmation).toContainText('This removes the skill from your integrations.')
   await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(savedEditor).toBeVisible()
   await savedEditor.getByRole('button', { name: 'Delete skill', exact: true }).click()
