@@ -91,7 +91,7 @@ To rotate the PAT, supply its replacement in source settings. A blank token reta
 
 After an admin configures a source in **Non-admin token** mode, a job can [read its revision](/api-reference/organizations/getSearchSourcePermissions) and [replace both CSVs](/api-reference/organizations/replaceSearchSourcePermissions). Copy `SIM_ORG_ID` and `SIM_SOURCE_ID` from the source settings URL: `/o/<organizationId>/settings/integrations/sources/<sourceId>`. Set `SIM_BASE_URL` to your Sim origin (for hosted Sim, `https://www.sim.ai`).
 
-Store an organization admin's [personal Sim API key](/api-reference/authentication) as a [masked, protected GitLab CI variable](https://docs.gitlab.com/ci/variables/) named `SIM_API_KEY`. A personal key inherits its owner's access. This endpoint can only read the revision or replace both CSVs; it cannot change the GitLab PAT, host, or project.
+Store an organization admin's [personal Sim API key](/api-reference/authentication) with [**Full access**](/api-reference/authentication#key-access) as a [masked, protected GitLab CI variable](https://docs.gitlab.com/ci/variables/) named `SIM_API_KEY`. A personal key inherits its owner's access; a read-only key can read the revision but not replace the CSVs. This endpoint can only read the revision or replace both CSVs; it cannot change the GitLab PAT, host, or project.
 
 This example runs on a schedule against a protected branch. Replace `./ci/export-gitlab-permissions` with your existing export command. It must write a fresh, complete `users.csv` and `project-permissions.csv` and exit nonzero if it cannot finish.
 

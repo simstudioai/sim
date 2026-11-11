@@ -160,7 +160,7 @@ export const GET = withRouteHandler(
     }
   ) => {
     const { workflowId: requestedWorkflowId } = await context.params
-    const access = await validateWorkflowAccess(request, requestedWorkflowId, false)
+    const access = await validateWorkflowAccess(request, requestedWorkflowId)
     if (access.error) {
       return NextResponse.json({ error: access.error.message }, { status: access.error.status })
     }
