@@ -16,10 +16,6 @@ import { v2CaughtOrchestrationError, v2Error } from '@/app/api/v2/lib/response'
  * `get-public-workspace` and `list-public-workspace-members` already uses, so
  * the two responses are byte-identical.
  */
-function isWorkspaceBusyError(error: unknown): error is WorkspaceBusyError {
-  return error instanceof WorkspaceBusyError
-}
-
 export const v2WorkspaceErrorPolicies = {
   concealWorkspaceAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Workspace not found',
@@ -35,7 +31,13 @@ export const v2WorkspaceErrorPolicies = {
     render(error) {
       if (error instanceof WorkspaceBillingAccountRemovalError)
         return v2Error('CONFLICT', error.message)
-      if (isRetryableTransactionError(error) || findCause(error, isWorkspaceBusyError))
+      if (
+        isRetryableTransactionError(error) ||
+        findCause(
+          error,
+          (cause): cause is WorkspaceBusyError => cause instanceof WorkspaceBusyError
+        )
+      )
         return v2Error('SERVICE_UNAVAILABLE', 'The workspace is busy; retry in a moment')
       return v2CaughtOrchestrationError(error)
     },

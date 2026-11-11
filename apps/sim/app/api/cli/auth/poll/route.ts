@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { pollCliAuthContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import {
+  apiKeyCreationErrorStatus,
   performCreatePersonalApiKey,
   performCreateWorkspaceApiKey,
 } from '@/lib/api-key/orchestration'
@@ -83,7 +84,7 @@ async function mintForGrant(
   if (!result.success || !result.key) {
     return {
       ok: false,
-      status: result.errorCode === 'conflict' ? 409 : 500,
+      status: apiKeyCreationErrorStatus(result.errorCode),
       message: result.error ?? 'Failed to generate API key',
     }
   }
