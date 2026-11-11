@@ -1,8 +1,10 @@
+import { createHash } from 'node:crypto'
 import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
+import { LRUCache } from 'lru-cache'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
-import type { CrowdStrikeBaseParams, CrowdStrikeCloud } from '@/tools/crowdstrike/types'
+import type { CrowdStrikeCloud, CrowdStrikeInlineCredentials } from '@/tools/crowdstrike/types'
 
 export type JsonRecord = Record<string, unknown>
 
@@ -17,6 +19,11 @@ const CLOUD_BASE_URLS: Record<CrowdStrikeCloud, string> = {
 
 export function getCloudBaseUrl(cloud: CrowdStrikeCloud): string {
   return CLOUD_BASE_URLS[cloud]
+}
+
+/** Narrows an untrusted value to one of the Falcon clouds in {@link CLOUD_BASE_URLS}. */
+export function isCrowdStrikeCloud(value: unknown): value is CrowdStrikeCloud {
+  return typeof value === 'string' && Object.hasOwn(CLOUD_BASE_URLS, value)
 }
 
 export function getStringArray(value: unknown): string[] {
@@ -175,11 +182,47 @@ async function readFalconJson(response: Response): Promise<unknown> {
   }
 }
 
+/** Falcon's documented lifetime for an access token, used when `expires_in` is unusable. */
+const CROWDSTRIKE_TOKEN_LIFETIME_SECONDS = 30 * 60
+const INLINE_TOKEN_EXPIRY_BUFFER_MS = 60_000
+
+/** A token response's `expires_in`, or Falcon's standard 30-minute lifetime when it is unusable. */
+export function getTokenLifetimeSeconds(expiresIn: unknown): number {
+  return typeof expiresIn === 'number' && Number.isFinite(expiresIn) && expiresIn > 0
+    ? expiresIn
+    : CROWDSTRIKE_TOKEN_LIFETIME_SECONDS
+}
+
+/**
+ * Tokens minted for inline (legacy block) credentials, keyed by cloud, client
+ * id, and a hash of the secret, so a rotated secret or another cloud never
+ * reuses one. Each entry lives until a minute before Falcon's `expires_in`.
+ */
+const inlineTokenCache = new LRUCache<string, string>({
+  max: 100,
+  ttlResolution: 0,
+  perf: { now: () => Date.now() },
+})
+
+function inlineTokenCacheKey(params: CrowdStrikeInlineCredentials): string {
+  const secretHash = createHash('sha256').update(params.clientSecret).digest('hex')
+  return `${params.cloud}:${params.clientId}:${secretHash}`
+}
+
+/** Drops a cached inline token Falcon rejected, so the next request mints a fresh one. */
+export function invalidateAccessToken(params: CrowdStrikeInlineCredentials): void {
+  inlineTokenCache.delete(inlineTokenCacheKey(params))
+}
+
 export async function getAccessToken(
-  params: CrowdStrikeBaseParams,
+  params: CrowdStrikeInlineCredentials,
   signal?: AbortSignal
 ): Promise<string> {
   signal?.throwIfAborted()
+  const cacheKey = inlineTokenCacheKey(params)
+  const cached = inlineTokenCache.get(cacheKey)
+  if (cached) return cached
+
   const baseUrl = getCloudBaseUrl(params.cloud)
   const response = await fetch(`${baseUrl}/oauth2/token`, {
     method: 'POST',
@@ -209,6 +252,10 @@ export async function getAccessToken(
     throw new CrowdStrikeAuthError('CrowdStrike authentication did not return an access token', 502)
   }
 
+  const ttl = Math.floor(
+    getTokenLifetimeSeconds(data.expires_in) * 1000 - INLINE_TOKEN_EXPIRY_BUFFER_MS
+  )
+  if (ttl > 0) inlineTokenCache.set(cacheKey, data.access_token, { ttl })
   return data.access_token
 }
 

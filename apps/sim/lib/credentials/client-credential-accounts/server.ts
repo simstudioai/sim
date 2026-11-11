@@ -2,6 +2,7 @@ import {
   BOX_SERVICE_ACCOUNT_PROVIDER_ID,
   CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE,
   type ClientCredentialAccountProviderId,
+  CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID,
   DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID,
   FIVETRAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -20,6 +21,7 @@ import {
   ZOOM_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { mintBoxServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/box'
+import { mintCrowdStrikeServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/crowdstrike'
 import { mintDocuSignServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/docusign'
 import { mintFivetranServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/fivetran'
 import { mintGreenhouseServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/greenhouse'
@@ -48,7 +50,7 @@ export interface ClientCredentialAccountFields {
   /**
    * Provider-specific org identifier (Zoom Account ID, Box Enterprise ID,
    * Salesforce My Domain host, Zoho Desk organization ID, NetSuite SuiteTalk
-   * origin, or an Oracle EPM environment URL).
+   * origin, an Oracle EPM environment URL, or a CrowdStrike member CID).
    */
   orgId: string
   /**
@@ -114,6 +116,12 @@ export interface ClientCredentialAccountMintResult {
    * {@link instanceUrl} because the two reach different tool params.
    */
   apiDomain?: string
+  /**
+   * The region, site, or tenant the token is bound to (a CrowdStrike cloud),
+   * forwarded to tools as the credential's `domain`, which fills the tool param
+   * that picks the provider host.
+   */
+  domain?: string
   /** Scopes granted to the app, when the provider reports them. */
   grantedScopes?: string[]
   identity?: ClientCredentialAccountIdentity
@@ -161,6 +169,7 @@ const CLIENT_CREDENTIAL_ACCOUNT_MINTERS: Record<
   [GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID]: mintGreenhouseServiceAccountToken,
   [HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID]: mintHelpScoutServiceAccountToken,
   [DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID]: mintDocuSignServiceAccountToken,
+  [CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID]: mintCrowdStrikeServiceAccountToken,
 }
 
 export function getClientCredentialAccountMinter(

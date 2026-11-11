@@ -2,6 +2,7 @@ import type {
   CrowdStrikeQueryIndicatorsParams,
   CrowdStrikeQueryIndicatorsResponse,
 } from '@/tools/crowdstrike/types'
+import { CROWDSTRIKE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const crowdstrikeQueryIndicatorsTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const crowdstrikeQueryIndicatorsTool: InternalToolConfig<
   description:
     'Search custom CrowdStrike Falcon indicators of compromise (IOCs) with a Falcon Query Language filter and return their IDs (GET /iocs/queries/indicators/v1). Requires the "IOC Management: Read" API scope.',
   version: '1.0.0',
+  oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -32,6 +34,12 @@ export const crowdstrikeQueryIndicatorsTool: InternalToolConfig<
       required: true,
       visibility: 'user-only',
       description: 'CrowdStrike Falcon cloud region',
+    },
+    accessToken: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Access token minted from the selected CrowdStrike credential',
     },
     filter: {
       type: 'string',
@@ -74,6 +82,7 @@ export const crowdstrikeQueryIndicatorsTool: InternalToolConfig<
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,
+      accessToken: params.accessToken,
       filter: params.filter,
       limit: params.limit,
       offset: params.offset,

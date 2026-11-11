@@ -36,6 +36,7 @@ import {
   CodaIcon,
   ConfluenceIcon,
   ConvexIcon,
+  CrowdStrikeIcon,
   CrunchbaseIcon,
   CursorIcon,
   DatabricksIcon,
@@ -1658,6 +1659,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'fivetran',
+  },
+  crowdstrike: {
+    name: 'CrowdStrike',
+    icon: CrowdStrikeIcon,
+    services: {
+      crowdstrike: {
+        name: 'CrowdStrike',
+        description:
+          'Investigate and respond to CrowdStrike Falcon alerts, hosts, IOCs, and vulnerabilities.',
+        providerId: 'crowdstrike',
+        serviceAccountProviderId: 'crowdstrike-service-account',
+        authType: 'service_account',
+        icon: CrowdStrikeIcon,
+        baseProviderIcon: CrowdStrikeIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'crowdstrike',
   },
   vanta: {
     name: 'Vanta',

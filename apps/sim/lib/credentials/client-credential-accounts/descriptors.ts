@@ -10,6 +10,8 @@
  * lives in `@/lib/credentials/client-credential-accounts/server`.
  */
 
+import { CROWDSTRIKE_CLOUDS, type CrowdStrikeCloud } from '@/tools/crowdstrike/types'
+
 /** Discriminator stored inside every encrypted client-credential secret blob. */
 export const CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE = 'client_credential_account' as const
 
@@ -136,6 +138,7 @@ export const GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID = 'greenhouse-service-accoun
 export const JAMA_SERVICE_ACCOUNT_PROVIDER_ID = 'jama-service-account' as const
 export const HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID = 'helpscout-service-account' as const
 export const DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID = 'docusign-service-account' as const
+export const CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID = 'crowdstrike-service-account' as const
 
 /** Permissions requested when connecting a Manage Vanta application. */
 export const VANTA_PERMISSION_OPTIONS = [
@@ -162,6 +165,7 @@ export type ClientCredentialAccountProviderId =
   | typeof HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof JAMA_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID
 
 /**
  * Exact account-specific SuiteTalk origin accepted by NetSuite's OAuth and
@@ -454,6 +458,16 @@ function buildDocuSignConsentUrl(
   return `https://${DOCUSIGN_ENVIRONMENTS[resolved].authHost}/oauth/auth?${params.toString()}`
 }
 
+/** Falcon cloud names as the Falcon console shows them, keyed by the block's cloud ids. */
+const CROWDSTRIKE_CLOUD_LABELS: Record<CrowdStrikeCloud, string> = {
+  'us-1': 'US-1',
+  'us-2': 'US-2',
+  'us-3': 'US-3',
+  'eu-1': 'EU-1',
+  'us-gov-1': 'US-GOV-1',
+  'us-gov-2': 'US-GOV-2',
+}
+
 export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
   ClientCredentialAccountProviderId,
   ClientCredentialAccountDescriptor
@@ -485,6 +499,47 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/jama',
     helpText:
       'Create API credentials in your Jama profile. Your account needs REST API access and a Named Creator license.',
+  },
+  [CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'CrowdStrike',
+    connectNoun: 'API client',
+    fields: [
+      {
+        id: 'dataCenter',
+        label: 'Cloud',
+        placeholder: 'Select a cloud',
+        secret: false,
+        options: CROWDSTRIKE_CLOUDS.map((cloud) => ({
+          value: cloud,
+          label: CROWDSTRIKE_CLOUD_LABELS[cloud],
+        })),
+        hint: 'The Falcon cloud your console signs in to.',
+      },
+      {
+        id: 'clientId',
+        label: 'Client ID',
+        placeholder: 'Paste the client ID',
+        secret: false,
+        hint: 'Create the API client in Falcon under Support and resources > API clients and keys, with the scopes your workflows need.',
+      },
+      {
+        id: 'clientSecret',
+        label: 'Client secret',
+        placeholder: 'Paste the client secret',
+        secret: true,
+      },
+      {
+        id: 'orgId',
+        label: 'Member CID',
+        placeholder: 'Only for an MSSP parent CID',
+        secret: false,
+        optional: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/crowdstrike',
+    helpText:
+      'Leave blank unless the API client belongs to a parent CID and every call should act on one child CID.',
   },
   [DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID,

@@ -2,6 +2,7 @@ import type {
   CrowdStrikeExecuteRtrCommandParams,
   CrowdStrikeExecuteRtrCommandResponse,
 } from '@/tools/crowdstrike/types'
+import { CROWDSTRIKE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const crowdstrikeExecuteRtrCommandTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const crowdstrikeExecuteRtrCommandTool: InternalToolConfig<
   description:
     'Run a read-only Real Time Response command in an open CrowdStrike Falcon session (POST /real-time-response/entities/command/v1). baseCommand names the family only (cat, cd, clear, csrutil, env, eventlog, filehash, getsid, help, history, ifconfig, ipconfig, ls, mount, netstat, ps, reg, users); subcommands go in commandString. Host-modifying commands need the Active Responder or Admin endpoints. Requires the "Real time response: Read" API scope.',
   version: '1.0.0',
+  oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -32,6 +34,12 @@ export const crowdstrikeExecuteRtrCommandTool: InternalToolConfig<
       required: true,
       visibility: 'user-only',
       description: 'CrowdStrike Falcon cloud region',
+    },
+    accessToken: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Access token minted from the selected CrowdStrike credential',
     },
     sessionId: {
       type: 'string',
@@ -61,6 +69,7 @@ export const crowdstrikeExecuteRtrCommandTool: InternalToolConfig<
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,
+      accessToken: params.accessToken,
       commandString: params.commandString,
       operation: 'crowdstrike_execute_rtr_command',
       sessionId: params.sessionId,

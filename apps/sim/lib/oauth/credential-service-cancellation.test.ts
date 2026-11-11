@@ -84,3 +84,19 @@ describe('client credential cancellation isolation', () => {
     ).resolves.toEqual({ accessToken: token.accessToken })
   })
 })
+
+describe('client credential token cache', () => {
+  it('serves the region a token was minted for along with the cached token', async () => {
+    const mint = vi.fn<clientAccounts.ClientCredentialAccountMinter>()
+    mint.mockResolvedValue({ ...token, domain: 'eu-1' })
+    vi.spyOn(clientAccounts, 'getClientCredentialAccountMinter').mockReturnValue(mint)
+
+    for (let call = 0; call < 2; call++) {
+      queueTableRows(credential, [storedCredential])
+      await expect(
+        resolveServiceAccountToken('ramp-cached-region', RAMP_SERVICE_ACCOUNT_PROVIDER_ID)
+      ).resolves.toMatchObject({ accessToken: token.accessToken, domain: 'eu-1' })
+    }
+    expect(mint).toHaveBeenCalledTimes(1)
+  })
+})

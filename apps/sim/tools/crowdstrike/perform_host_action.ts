@@ -2,6 +2,7 @@ import type {
   CrowdStrikePerformHostActionParams,
   CrowdStrikePerformHostActionResponse,
 } from '@/tools/crowdstrike/types'
+import { CROWDSTRIKE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const crowdstrikePerformHostActionTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const crowdstrikePerformHostActionTool: InternalToolConfig<
   description:
     'Act on CrowdStrike Falcon hosts (POST /devices/entities/devices-actions/v2). Actions: contain, lift_containment, hide_host, unhide_host, detection_suppress, detection_unsuppress. contain network-isolates the host so it can only reach the Falcon cloud; hide_host removes the host record from the console. Both are immediately disruptive. Up to 100 host IDs per call. Requires the "Hosts: Write" API scope.',
   version: '1.0.0',
+  oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -32,6 +34,12 @@ export const crowdstrikePerformHostActionTool: InternalToolConfig<
       required: true,
       visibility: 'user-only',
       description: 'CrowdStrike Falcon cloud region',
+    },
+    accessToken: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Access token minted from the selected CrowdStrike credential',
     },
     actionName: {
       type: 'string',
@@ -54,6 +62,7 @@ export const crowdstrikePerformHostActionTool: InternalToolConfig<
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,
+      accessToken: params.accessToken,
       deviceIds: params.deviceIds,
       operation: 'crowdstrike_perform_host_action',
     }),

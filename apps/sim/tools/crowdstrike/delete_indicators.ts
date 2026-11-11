@@ -2,6 +2,7 @@ import type {
   CrowdStrikeDeleteIndicatorsParams,
   CrowdStrikeDeleteIndicatorsResponse,
 } from '@/tools/crowdstrike/types'
+import { CROWDSTRIKE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const crowdstrikeDeleteIndicatorsTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const crowdstrikeDeleteIndicatorsTool: InternalToolConfig<
   description:
     'Permanently delete custom CrowdStrike Falcon indicators of compromise (DELETE /iocs/entities/indicators/v1). Cannot be undone; deleting a blocking indicator removes that protection from every host, and a broad filter can delete far more than intended. Supply an ID list or a filter, never both -- CrowdStrike lets a filter silently override the IDs, so this tool rejects that instead. Requires the "IOC Management: Write" API scope.',
   version: '1.0.0',
+  oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -32,6 +34,12 @@ export const crowdstrikeDeleteIndicatorsTool: InternalToolConfig<
       required: true,
       visibility: 'user-only',
       description: 'CrowdStrike Falcon cloud region',
+    },
+    accessToken: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Access token minted from the selected CrowdStrike credential',
     },
     indicatorIds: {
       type: 'json',
@@ -59,6 +67,7 @@ export const crowdstrikeDeleteIndicatorsTool: InternalToolConfig<
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,
+      accessToken: params.accessToken,
       comment: params.comment,
       filter: params.filter,
       indicatorIds: params.indicatorIds,

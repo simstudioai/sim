@@ -57,6 +57,30 @@ export function tokenCredentialOAuth(
   } as const satisfies OAuthConfig
 }
 
+/**
+ * Credential policy for a tool that takes an API client's id and secret
+ * inline, mints its own token from them, and also accepts a saved
+ * client-credential account. With a credential selected, the executor fills
+ * the tool's hidden `accessToken` with the token minted from the saved account,
+ * plus every other mapped param (a cloud, site, or tenant the account is bound
+ * to); the inline secrets in `tokenReplacesParams` are then never read.
+ */
+export function clientCredentialOAuth<const Replaced extends readonly string[]>(
+  provider: OAuthService,
+  credentialParams: Readonly<Record<string, CredentialParamSource>>,
+  tokenReplacesParams: Replaced
+) {
+  const filled = { accessToken: 'accessToken', ...credentialParams } as const
+  return {
+    required: false,
+    provider,
+    credentialKind: 'service-account',
+    credentialParams: filled,
+    tokenReplacesParams,
+    credentialSuppliedParams: [...Object.keys(filled), ...tokenReplacesParams],
+  } as const satisfies OAuthConfig
+}
+
 /** Whether a subblock is the saved-credential picker `withSavedCredential` inserts. */
 export function isSavedCredentialPicker(
   subBlock: Pick<SubBlockConfig, 'type' | 'credentialKind' | 'canonicalParamId'>
@@ -92,6 +116,17 @@ export const DATABRICKS_CREDENTIAL_OAUTH = tokenCredentialOAuth('databricks', {
   apiKey: 'accessToken',
   host: 'domain',
 })
+
+/**
+ * Credential policy for every CrowdStrike tool. A saved CrowdStrike API client
+ * resolves to a token minted at its Falcon cloud; the credential fills the
+ * token and that cloud, and the token replaces the inline client id and secret.
+ */
+export const CROWDSTRIKE_CREDENTIAL_OAUTH = clientCredentialOAuth(
+  'crowdstrike',
+  { cloud: 'domain' },
+  ['clientId', 'clientSecret']
+)
 
 /** Token credential policies for tools that take an inline key or a saved token credential. */
 export const AFFINITY_CREDENTIAL_OAUTH = tokenCredentialOAuth('affinity', { apiKey: 'accessToken' })
@@ -346,6 +381,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   clerk: CLERK_CREDENTIAL_OAUTH,
   cloudflare: CLOUDFLARE_CREDENTIAL_OAUTH,
   convex: CONVEX_CREDENTIAL_OAUTH,
+  crowdstrike: CROWDSTRIKE_CREDENTIAL_OAUTH,
   crunchbase: CRUNCHBASE_CREDENTIAL_OAUTH,
   cursor: CURSOR_CREDENTIAL_OAUTH,
   databricks: DATABRICKS_CREDENTIAL_OAUTH,

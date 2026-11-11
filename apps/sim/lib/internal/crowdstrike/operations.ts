@@ -5,6 +5,7 @@ import { truncate } from '@sim/utils/string'
 import type { CrowdstrikeQueryBody } from '@/lib/api/contracts/tools/crowdstrike'
 import {
   buildUrl,
+  CrowdStrikeAuthError,
   type CrowdStrikeCallResult,
   callCrowdStrike,
   getAccessToken,
@@ -20,6 +21,7 @@ import {
   getSpotlightPagination,
   getStringArray,
   getStringResources,
+  invalidateAccessToken,
 } from '@/lib/internal/crowdstrike/client'
 import {
   normalizeAffectedEntity,
@@ -31,6 +33,7 @@ import {
 } from '@/lib/internal/crowdstrike/normalizers'
 import type {
   CrowdStrikeActionParameter,
+  CrowdStrikeInlineCredentials,
   CrowdStrikeQuerySensorsParams,
   CrowdStrikeSensorAggregateBucket,
   CrowdStrikeSensorAggregateResult,
@@ -1000,13 +1003,31 @@ export async function executeCrowdStrikeOperation(
   }
 }
 
+function inlineCredentials(body: CrowdstrikeQueryBody): CrowdStrikeInlineCredentials {
+  if (!body.clientId || !body.clientSecret) {
+    throw new CrowdStrikeAuthError('CrowdStrike Client ID and Client Secret are required', 400)
+  }
+  return { clientId: body.clientId, clientSecret: body.clientSecret, cloud: body.cloud }
+}
+
+/**
+ * Runs one CrowdStrike operation against `body.cloud`. A token minted from a
+ * saved credential (`accessToken`) is used as is; inline credentials mint a
+ * token, or reuse one cached for them, and a 401 drops that cached token so the
+ * next request mints again.
+ */
 export async function executeCrowdStrikeRequest(
   body: CrowdstrikeQueryBody,
   signal?: AbortSignal
 ): Promise<OperationResult> {
   signal?.throwIfAborted()
   const baseUrl = getCloudBaseUrl(body.cloud)
-  const accessToken = await getAccessToken(body, signal)
+  let accessToken = body.accessToken
+  let inline: CrowdStrikeInlineCredentials | undefined
+  if (!accessToken) {
+    inline = inlineCredentials(body)
+    accessToken = await getAccessToken(inline, signal)
+  }
   signal?.throwIfAborted()
 
   logger.info('CrowdStrike request', {
@@ -1014,13 +1035,12 @@ export async function executeCrowdStrikeRequest(
     operation: body.operation,
   })
 
-  if (
+  const result =
     body.operation === 'crowdstrike_query_sensors' ||
     body.operation === 'crowdstrike_get_sensor_details' ||
     body.operation === 'crowdstrike_get_sensor_aggregates'
-  ) {
-    return executeSensorOperation(body, baseUrl, accessToken, signal)
-  }
-
-  return executeCrowdStrikeOperation(body, baseUrl, accessToken, signal)
+      ? await executeSensorOperation(body, baseUrl, accessToken, signal)
+      : await executeCrowdStrikeOperation(body, baseUrl, accessToken, signal)
+  if (inline && !result.ok && result.status === 401) invalidateAccessToken(inline)
+  return result
 }

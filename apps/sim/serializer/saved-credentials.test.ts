@@ -29,6 +29,7 @@ import { CloudTrailBlock, CloudTrailV2Block } from '@/blocks/blocks/cloudtrail'
 import { CloudWatchBlock, CloudWatchV2Block } from '@/blocks/blocks/cloudwatch'
 import { CodePipelineBlock, CodePipelineV2Block } from '@/blocks/blocks/codepipeline'
 import { ConvexBlock, ConvexV2Block } from '@/blocks/blocks/convex'
+import { CrowdStrikeBlock, CrowdStrikeV2Block } from '@/blocks/blocks/crowdstrike'
 import { CrunchbaseBlock, CrunchbaseV2Block } from '@/blocks/blocks/crunchbase'
 import { CursorV2Block, CursorV3Block } from '@/blocks/blocks/cursor'
 import { DatabricksBlock, DatabricksV2Block } from '@/blocks/blocks/databricks'
@@ -348,6 +349,12 @@ const VERSIONS: Array<{
   { legacy: EmailBisonBlock, successor: EmailBisonV2Block, secretIds: ['apiKey'] },
   { legacy: DevinBlock, successor: DevinV2Block, secretIds: ['apiKey'] },
   { legacy: OktaBlock, successor: OktaV2Block, secretIds: ['apiKey'] },
+  {
+    legacy: CrowdStrikeBlock,
+    successor: CrowdStrikeV2Block,
+    secretIds: ['clientId', 'clientSecret', 'cloud'],
+    optionalIds: ['cloud'],
+  },
   {
     legacy: InfisicalBlock,
     successor: InfisicalV2Block,

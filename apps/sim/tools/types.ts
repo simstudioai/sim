@@ -154,6 +154,13 @@ export interface OAuthConfig {
    * operation instead (AWS session keys) leave it unset.
    */
   credentialParams?: Readonly<Record<string, CredentialParamSource>>
+  /**
+   * Inline secrets a saved client-credential account replaces with the token
+   * it mints (`credentialParams.accessToken`): the tool authenticates with the
+   * token and never reads them. Listed in `credentialSuppliedParams` too.
+   * Built by `clientCredentialOAuth`.
+   */
+  tokenReplacesParams?: readonly string[]
   /** Token-response fields that must replace any caller-supplied tool parameter of the same name. */
   authoritativeParams?: readonly (
     | 'apiDomain'

@@ -587,6 +587,7 @@ describe('ordinary tool credential binding', () => {
     ['vanta', 'vanta-service-account'],
     ['ramp', 'ramp-service-account'],
     ['greenhouse', 'greenhouse-service-account'],
+    ['crowdstrike', 'crowdstrike-service-account'],
     ['google-email', 'google-service-account'],
     ['jira', 'atlassian-service-account'],
     ['confluence', 'atlassian-service-account'],
