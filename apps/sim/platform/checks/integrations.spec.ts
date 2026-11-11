@@ -38,7 +38,10 @@ test('app discovery preserves editable installed skills and sends templates to t
   if (!removeBox || !saveBox) throw new Error('Skill footer controls are not visible')
   expect(removeBox.x + removeBox.width).toBeLessThan(saveBox.x)
   await remove.click()
-  const confirmation = page.getByRole('dialog', { name: 'Remove skill', exact: true })
+  const confirmation = page.getByRole('dialog', {
+    name: 'Remove fetch-secret-for-runtime',
+    exact: true,
+  })
   await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(remove).toBeFocused()
   await expect(field).toHaveValue(updated)
@@ -519,6 +522,7 @@ test('Dataverse retains an immutable environment binding when reconnecting a nam
   await page.goto(fixtureUrl('/integrations/microsoft_dataverse?state=full'))
   const main = page.getByRole('main')
   await main.getByRole('button', { name: 'Connect integration', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Connect with OAuth', exact: true }).click()
   const connect = page.getByRole('dialog', { name: 'Connect Microsoft Dataverse', exact: true })
   await connect
     .getByRole('textbox', { name: 'Display name', exact: true })

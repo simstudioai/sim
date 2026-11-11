@@ -1541,7 +1541,11 @@ try {
           await sql`select name, url from sim_link where organization_id=${organizationId}`
         assert.equal(row?.name, 'qa-draft')
         assert.equal(row?.url, destination)
-        const link = draft.getByRole('row').filter({ hasText: 'qa-draft' })
+        // The row opens from its own target: a text cell's tooltip host stacks above it.
+        const link = draft
+          .getByRole('row')
+          .getByRole('button')
+          .filter({ has: draft.getByText('qa-draft', { exact: true }) })
         await expect(link).toBeVisible()
         await screenshot('create-link-saved', draft)
         const opened = browserContext.waitForEvent('page')
