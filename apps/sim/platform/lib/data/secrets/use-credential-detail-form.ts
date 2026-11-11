@@ -6,13 +6,12 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { filterUndefined } from '@sim/utils/object'
 import { toast } from '@/lib/toast/sink'
 import { useUpdateWorkspaceCredential, type WorkspaceCredential } from '@/hooks/queries/credentials'
-import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 
 const logger = createLogger('CredentialDetailForm')
 
 /**
  * A second editor on the same detail page (a secret's value), folded into the form's one dirty
- * state, save and unsaved-changes guard.
+ * state and save.
  */
 interface CredentialDetailFormSection {
   isDirty: boolean
@@ -35,8 +34,9 @@ interface UseCredentialDetailFormParams {
 }
 
 /**
- * A credential detail page's editable metadata: drafts seeded from the credential, dirty tracking,
- * an admin-only save and the shared unsaved-changes guard, with `section` folded into all three.
+ * A credential detail page's editable metadata: drafts seeded from the credential, dirty tracking
+ * and an admin-only save, with `section` folded into both. The page's `SettingsSaveBar` registers
+ * the draft with the Settings leave guard.
  */
 export function useCredentialDetailForm({
   credential,
@@ -105,12 +105,6 @@ export function useCredentialDetailForm({
     section?.discard()
   }, [isSaving, section])
 
-  const guard = useSettingsUnsavedGuard({
-    isDirty,
-    navigationBlocked: isSaving,
-    onDiscard: discard,
-  })
-
   const save = useCallback(async () => {
     if (!credential || isSaving) return
     const submitted = draft
@@ -169,6 +163,5 @@ export function useCredentialDetailForm({
     save,
     discard,
     isSaving,
-    guardBack: guard.guardBack,
   }
 }

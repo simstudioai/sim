@@ -1119,7 +1119,7 @@ const TAB_OWNERS: ReasonedAllowlist = {
 const ALERT_OWNERS: ReasonedAllowlist = {
   [`${PRODUCT_ROUTES}_components/organization-menu/organization-menu.tsx`]:
     "The menu's inline rename Input names this message in its describedBy; a TextField would add a visible label row",
-  [`${PRODUCT_ROUTES}_components/secrets-editor/secrets-editor.tsx`]:
+  [`${PRODUCT_ROUTES}_components/secrets-editor/secret-row.tsx`]:
     "A secret row's message spans the row's grid of bare Inputs, which have no error slot; InlineNotice cannot take that grid placement",
   [`${PRODUCT_ROUTES}workspace/[workspaceId]/_components/custom-tool-editor/custom-tool-editor.tsx`]:
     "The schema and code editors have no error slot; their message sits inline in the editor's action bar beside Generate",
@@ -1133,7 +1133,6 @@ const SETTINGS_PAGE_LANE = 'Predates the shared settings part; the page lane mig
 
 /** Hand-built Save and Discard (`save-owner`), until the page adopts `SettingsSaveBar`. */
 const SAVE_BAR_MIGRATIONS: ReasonedAllowlist = granted(SETTINGS_PAGE_LANE, [
-  `${PRODUCT_ROUTES}_components/secrets-editor/secrets-editor.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/access-control/group-detail.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/data-retention/policy-detail.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/source-connections.tsx`,
@@ -1141,7 +1140,6 @@ const SAVE_BAR_MIGRATIONS: ReasonedAllowlist = granted(SETTINGS_PAGE_LANE, [
   `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/source-secrets.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/sso/provider-form.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/whitelabeling/whitelabeling-section.tsx`,
-  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/secrets/secret-detail.tsx`,
 ])
 
 /** A `Switch` in a `SettingsRow` (`switch-row`), until the page adopts `SwitchRow`. */
@@ -1158,7 +1156,6 @@ const SWITCH_ROW_MIGRATIONS: ReasonedAllowlist = granted(SETTINGS_PAGE_LANE, [
   `${ORGANIZATION_ROUTES}settings/_components/sections/privacy/privacy-section.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/sso/scim-panel.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/terminal/terminal-section.tsx`,
-  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/secrets/secret-detail.tsx`,
 ])
 
 /** An `EmptyState` inside a settings surface (`empty-in-surface`), until the page adopts `SettingsList`. */

@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkspaceCredential } from '@/lib/api/contracts/credentials'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import { useCredentialDetailForm } from '@/platform/lib/data/secrets/use-credential-detail-form'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
@@ -39,6 +40,12 @@ const credential: WorkspaceCredential = {
 function CredentialEditor() {
   const { data } = useWorkspaceCredential(credential.id)
   const form = useCredentialDetailForm({ credential: data ?? null, isAdmin: true })
+  // The page registers the draft through its SettingsSaveBar, which this stands in for.
+  useSettingsUnsavedGuard({
+    isDirty: form.isDirty,
+    navigationBlocked: form.isSaving,
+    onDiscard: form.discard,
+  })
   return (
     <>
       <input
