@@ -31,8 +31,9 @@ const DESTINATION_PARAM =
   /(host|hostname|domain|endpoint|url|uri|origin|server|region|instance|shop|account|site|org|tenant|workspace|team|subdomain|space|cluster|environment|location|project)(name|slug|id)?$/i
 
 /**
- * Destination-named params of operation-backed tools that are request data, not the host
+ * Destination-named params of internal-operation tools that are request data, not the host
  * the credential goes to: each operation sends its token only to the vendor's fixed API.
+ * Only the operation branch reads it; a request tool's URL is probed instead.
  */
 const OPERATION_PAYLOAD_PARAMS: Readonly<Record<string, readonly string[]>> = {
   // The page the remote browser opens; the token goes to api.browser-use.com.
@@ -166,9 +167,8 @@ export function hostSteeringParams(tool: ExecutableToolConfig): HostSteeringResu
     }
   }
   if (!probed) {
-    const payload = new Set(OPERATION_PAYLOAD_PARAMS[tool.id] ?? [])
     return {
-      params: stringParams.filter((name) => DESTINATION_PARAM.test(name) && !payload.has(name)),
+      params: stringParams.filter((name) => DESTINATION_PARAM.test(name)),
       probed: false,
     }
   }
