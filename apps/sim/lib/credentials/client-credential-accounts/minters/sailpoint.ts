@@ -5,6 +5,7 @@ import type {
   ClientCredentialAccountMintResult,
 } from '@/lib/credentials/client-credential-accounts/server'
 import {
+  isHostNotFound,
   providerFailureCode,
   providerFailureReason,
   requireClientSecret,
@@ -63,6 +64,13 @@ export async function mintSailPointServiceAccountToken(
           tenant: host,
         }
       )
+    }
+    if (isHostNotFound(error)) {
+      throw new TokenServiceAccountValidationError('site_not_found', 400, {
+        step: STEP,
+        reason: 'tenant host does not resolve',
+        tenant: host,
+      })
     }
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step: STEP,

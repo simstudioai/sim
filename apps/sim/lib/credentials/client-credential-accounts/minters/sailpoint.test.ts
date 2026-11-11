@@ -64,6 +64,10 @@ describe('SailPoint API client token exchange', () => {
     'http://acme.api.identitynow.com',
     'a.b.api.identitynow.com',
     'acme.api.identitynowgov.com',
+    'api',
+    'api.identitynow.com',
+    'https://api.identitynow.com/',
+    'api.api.identitynow.com',
   ])('refuses the tenant %j before sending the secret anywhere', async (orgId) => {
     await expect(mintSailPointServiceAccountToken({ ...FIELDS, orgId })).rejects.toMatchObject({
       code: 'invalid_credentials',
@@ -87,6 +91,31 @@ describe('SailPoint API client token exchange', () => {
 
   it('treats a network failure or refused redirect as a provider failure', async () => {
     mockFetch.mockRejectedValue(new TypeError('fetch failed: unexpected redirect'))
+
+    await expect(mintSailPointServiceAccountToken(FIELDS)).rejects.toMatchObject({
+      code: 'provider_unavailable',
+    })
+  })
+
+  it('reports a tenant whose host does not resolve as a wrong tenant, not an outage', async () => {
+    mockFetch.mockRejectedValue(
+      new TypeError('fetch failed', {
+        cause: Object.assign(new Error('getaddrinfo'), { code: 'ENOTFOUND' }),
+      })
+    )
+
+    await expect(mintSailPointServiceAccountToken(FIELDS)).rejects.toMatchObject({
+      code: 'site_not_found',
+      status: 400,
+    })
+  })
+
+  it('keeps a transient DNS failure a provider failure', async () => {
+    mockFetch.mockRejectedValue(
+      new TypeError('fetch failed', {
+        cause: Object.assign(new Error('getaddrinfo'), { code: 'EAI_AGAIN' }),
+      })
+    )
 
     await expect(mintSailPointServiceAccountToken(FIELDS)).rejects.toMatchObject({
       code: 'provider_unavailable',

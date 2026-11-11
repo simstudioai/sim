@@ -10,8 +10,8 @@
  * lives in `@/lib/credentials/client-credential-accounts/server`.
  */
 
-import { CROWDSTRIKE_CLOUDS, type CrowdStrikeCloud } from '@/tools/crowdstrike/types'
-import { DATADOG_SITES, type DatadogSite } from '@/tools/datadog/types'
+import { CROWDSTRIKE_CLOUDS } from '@/tools/crowdstrike/types'
+import { DATADOG_SITE_LABELS, DATADOG_SITES } from '@/tools/datadog/types'
 
 /** Discriminator stored inside every encrypted client-credential secret blob. */
 export const CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE = 'client_credential_account' as const
@@ -414,23 +414,29 @@ export const SAILPOINT_API_HOST_REGEX =
 
 const SAILPOINT_TENANT_LABEL_REGEX = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
 const SAILPOINT_UI_HOST_REGEX = /^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.identitynow\.com$/
+/** `api.identitynow.com` is SailPoint's API domain itself, so `api` never names a tenant. */
+const SAILPOINT_API_DOMAIN_AS_TENANT = 'api.api.identitynow.com'
 
 /**
  * Normalizes a SailPoint tenant name, API host, UI host, or https URL of either
  * to the tenant's API host (`{tenant}.api.identitynow.com`), the domain
  * SailPoint documents for API calls and token requests. Returns `undefined`
  * for anything else (other domains, credentials, ports, more than one tenant
- * label) rather than throwing, so the connect modal's format hint and the
- * minter share one admission rule.
+ * label, or `api`, SailPoint's own API domain) rather than throwing, so the
+ * connect modal's format hint and the minter share one admission rule.
  * @see https://developer.sailpoint.com/docs/api/authentication
  */
 export function normalizeSailPointTenantHost(rawTenant: string): string | undefined {
-  const trimmed = rawTenant.trim().toLowerCase()
-  if (!trimmed) return undefined
-  if (SAILPOINT_TENANT_LABEL_REGEX.test(trimmed)) return `${trimmed}.api.identitynow.com`
+  const host = toSailPointApiHost(rawTenant.trim().toLowerCase())
+  return host === SAILPOINT_API_DOMAIN_AS_TENANT ? undefined : host
+}
+
+function toSailPointApiHost(tenant: string): string | undefined {
+  if (!tenant) return undefined
+  if (SAILPOINT_TENANT_LABEL_REGEX.test(tenant)) return `${tenant}.api.identitynow.com`
   let parsed: URL
   try {
-    parsed = new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`)
+    parsed = new URL(tenant.includes('://') ? tenant : `https://${tenant}`)
   } catch {
     return undefined
   }
@@ -497,29 +503,6 @@ function buildDocuSignConsentUrl(
     redirect_uri: redirectUri,
   })
   return `https://${DOCUSIGN_ENVIRONMENTS[resolved].authHost}/oauth/auth?${params.toString()}`
-}
-
-/** Falcon cloud names as the Falcon console shows them, keyed by the block's cloud ids. */
-const CROWDSTRIKE_CLOUD_LABELS: Record<CrowdStrikeCloud, string> = {
-  'us-1': 'US-1',
-  'us-2': 'US-2',
-  'us-3': 'US-3',
-  'eu-1': 'EU-1',
-  'us-gov-1': 'US-GOV-1',
-  'us-gov-2': 'US-GOV-2',
-}
-
-/** Datadog sites as the legacy block's dropdown names them. */
-const DATADOG_SITE_LABELS: Record<DatadogSite, string> = {
-  'datadoghq.com': 'US1 (datadoghq.com)',
-  'us3.datadoghq.com': 'US3 (us3.datadoghq.com)',
-  'us5.datadoghq.com': 'US5 (us5.datadoghq.com)',
-  'datadoghq.eu': 'EU (datadoghq.eu)',
-  'ap1.datadoghq.com': 'AP1 (ap1.datadoghq.com)',
-  'ap2.datadoghq.com': 'AP2 (ap2.datadoghq.com)',
-  'uk1.datadoghq.com': 'UK1 (uk1.datadoghq.com)',
-  'ddog-gov.com': 'US1-FED (ddog-gov.com)',
-  'us2.ddog-gov.com': 'US2-FED (us2.ddog-gov.com)',
 }
 
 export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
@@ -648,10 +631,8 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
         label: 'Cloud',
         placeholder: 'Select a cloud',
         secret: false,
-        options: CROWDSTRIKE_CLOUDS.map((cloud) => ({
-          value: cloud,
-          label: CROWDSTRIKE_CLOUD_LABELS[cloud],
-        })),
+        // The Falcon console names each cloud by its id in upper case (US-1, US-GOV-1).
+        options: CROWDSTRIKE_CLOUDS.map((cloud) => ({ value: cloud, label: cloud.toUpperCase() })),
         hint: 'The Falcon cloud your console signs in to.',
       },
       {

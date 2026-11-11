@@ -11,8 +11,7 @@ import {
   TokenServiceAccountValidationError,
   throwForProviderResponse,
 } from '@/lib/credentials/token-service-accounts/errors'
-import { DATADOG_SITES, type DatadogSite } from '@/tools/datadog/types'
-import { datadogApiUrl } from '@/tools/datadog/utils'
+import { datadogApiUrl, isDatadogSite } from '@/tools/datadog/utils'
 
 const STEP = 'datadog_key_check'
 /** Datadog keys do not expire on their own; the TTL only bounds the local token cache. */
@@ -33,10 +32,6 @@ function assertKey(value: string, label: string): void {
   ) {
     throw invalidCredentials(`${label} is invalid`)
   }
-}
-
-function isDatadogSite(value: unknown): value is DatadogSite {
-  return typeof value === 'string' && (DATADOG_SITES as readonly string[]).includes(value)
 }
 
 /**
