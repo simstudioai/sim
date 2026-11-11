@@ -4,6 +4,10 @@ import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/aut
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { loadWorkflowReadSnapshot } from '@/lib/workflows/queries'
+import {
+  type CopilotWorkflowState,
+  sanitizeForCopilot,
+} from '@/lib/workflows/sanitization/json-sanitizer'
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 
 export interface ReadWorkflowGraphInput {
@@ -67,3 +71,17 @@ export async function loadWorkflowGraph(context: {
     variables: variables ?? {},
   }
 }
+
+/**
+ * Reads a workflow's draft as a compact read-only outline, under the same
+ * authorization and loader as {@link readWorkflowGraph}. It carries derived
+ * fields graph writes reject, so it is never a write body.
+ */
+export const readWorkflowOutline = defineAuthorizedWorkflowUseCase({
+  operation: workflowOperations.read,
+  resolveContext: resolvePrincipalWorkflowContext<ReadWorkflowGraphInput>,
+  async execute({ context }): Promise<CopilotWorkflowState> {
+    const { blocks, edges, loops, parallels } = await loadWorkflowGraph(context)
+    return sanitizeForCopilot({ blocks, edges, loops, parallels })
+  },
+})

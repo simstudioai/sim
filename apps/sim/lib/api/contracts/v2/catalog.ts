@@ -115,7 +115,17 @@ const catalogCredentialConditionSchema = z.object({
 export const v2BlockFieldSchema = z
   .object({
     id: z.string().describe('Field identifier, and the key its value is stored under.'),
-    type: z.string().describe('Editor control the field renders as, e.g. `short-input`.'),
+    type: z
+      .string()
+      .describe(
+        'Editor control the field renders as, e.g. `short-input`. Not a value type; see `valueType`.'
+      ),
+    valueType: z
+      .enum(['string', 'number', 'boolean', 'json', 'array', 'file'])
+      .optional()
+      .describe(
+        'Type of value the field holds, from the block’s declared input for the field (the same type `inputDefinitions` and operation `inputs` report). Absent when the block declares no input for the field.'
+      ),
     title: z.string().optional().describe('Human-readable label.'),
     required: z
       .boolean()

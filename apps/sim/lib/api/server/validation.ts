@@ -91,8 +91,16 @@ interface RouteContextWithParams {
     | Record<string, string | string[] | undefined>
 }
 
+/** The request part a validation failure came from, named as OpenAPI's parameter `in`. */
+export type RequestSlice = 'path' | 'query' | 'header' | 'body'
+
 export interface ParseRequestOptions {
   validationErrorResponse?: (error: z.ZodError) => NextResponse<unknown>
+  /**
+   * Like `validationErrorResponse`, but also told which request part failed, so
+   * the renderer can name it. Takes precedence when both are set.
+   */
+  validationErrorResponseBySlice?: (error: z.ZodError, slice: RequestSlice) => NextResponse<unknown>
   invalidJsonResponse?: () => NextResponse<unknown>
   payloadTooLargeResponse?: () => NextResponse<unknown>
   invalidJson?: 'response' | 'throw'
@@ -347,39 +355,44 @@ export async function parseRequest<C extends AnyApiRouteContract, TContext>(
   if (options?.rejectDuplicateQueryValues) {
     const duplicated = duplicateQueryValueValidationError(rawQuery)
     if (duplicated) {
-      return { success: false, response: projectValidationError(duplicated, options) }
+      return {
+        success: false,
+        response: projectValidationError(duplicated, 'query', options),
+      }
     }
   }
 
   if (options?.rejectBlankQueryValues) {
     const blank = blankQueryValueValidationError(rawQuery)
     if (blank) {
-      return { success: false, response: projectValidationError(blank, options) }
+      return { success: false, response: projectValidationError(blank, 'query', options) }
     }
   }
 
   const params = contract.params
-    ? validateRequestSchema(contract.params, rawParams, options)
+    ? validateRequestSchema(contract.params, rawParams, 'path', options)
     : undefined
   if (params && !params.success) return params
 
   const query = contract.query
-    ? validateRequestSchema(contract.query, rawQuery, options)
+    ? validateRequestSchema(contract.query, rawQuery, 'query', options)
     : undefined
   if (query && !query.success) return query
 
   const headers = contract.headers
-    ? validateRequestSchema(contract.headers, rawHeaders, options)
+    ? validateRequestSchema(contract.headers, rawHeaders, 'header', options)
     : undefined
   if (headers && !headers.success) return headers
 
-  const parsedBody = contract.body ? validateRequestSchema(contract.body, body, options) : undefined
+  const parsedBody = contract.body
+    ? validateRequestSchema(contract.body, body, 'body', options)
+    : undefined
   if (parsedBody && !parsedBody.success) return parsedBody
 
   const nulBytes =
-    rejectNulBytes(params?.data, options) ??
-    rejectNulBytes(query?.data, options) ??
-    rejectNulBytes(parsedBody?.data, options)
+    rejectNulBytes(params?.data, 'path', options) ??
+    rejectNulBytes(query?.data, 'query', options) ??
+    rejectNulBytes(parsedBody?.data, 'body', options)
   if (nulBytes) return nulBytes
 
   return {
@@ -400,18 +413,23 @@ export async function parseRequest<C extends AnyApiRouteContract, TContext>(
  */
 function rejectNulBytes(
   data: unknown,
+  slice: RequestSlice,
   options?: ParseRequestOptions
 ): { success: false; response: NextResponse<unknown> } | null {
   const error = nulByteValidationError(data)
   if (!error) return null
-  return { success: false, response: projectValidationError(error, options) }
+  return { success: false, response: projectValidationError(error, slice, options) }
 }
 
 /** Renders a validation failure through the caller's envelope when it supplies one. */
 function projectValidationError(
   error: z.ZodError,
+  slice: RequestSlice,
   options?: ParseRequestOptions
 ): NextResponse<unknown> {
+  if (options?.validationErrorResponseBySlice) {
+    return options.validationErrorResponseBySlice(error, slice)
+  }
   return options?.validationErrorResponse
     ? options.validationErrorResponse(error)
     : validationErrorResponse(error)
@@ -420,13 +438,14 @@ function projectValidationError(
 function validateRequestSchema<S extends ApiSchema>(
   schema: S,
   data: unknown,
+  slice: RequestSlice,
   options?: ParseRequestOptions
 ): ValidationResult<S> {
   const result = schema.safeParse(data)
   if (!result.success) {
     return {
       success: false,
-      response: projectValidationError(result.error, options),
+      response: projectValidationError(result.error, slice, options),
       error: result.error,
     }
   }

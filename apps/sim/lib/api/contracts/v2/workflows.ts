@@ -1344,11 +1344,15 @@ const v2WorkflowTriggerSchema = z
     cronExpression: z
       .string()
       .nullable()
-      .describe('Cron expression of a schedule; null for non-schedules.'),
+      .describe(
+        'Cron expression the deployed schedule runs on; null for non-schedules. Read-only: it is computed at deploy from the schedule block, so change it by editing the block in the draft and deploying.'
+      ),
     timezone: z
       .string()
       .nullable()
-      .describe('IANA timezone the cron expression runs in; null for non-schedules.'),
+      .describe(
+        'IANA timezone the cron expression runs in; null for non-schedules. Read-only, like `cronExpression`.'
+      ),
     url: z
       .string()
       .url()
@@ -1403,7 +1407,8 @@ const v2UpdateWorkflowTriggerBodySchema = z
   .meta({
     id: 'UpdateWorkflowTriggerRequest',
     title: 'Update workflow trigger request',
-    description: 'Enable or disable one trigger of the live deployment.',
+    description:
+      "Enable or disable one trigger of the live deployment. A schedule's timing is not set here: it comes from the deployed schedule block, so edit that block in the draft and deploy.",
     examples: [{ enabled: true }],
   })
 
@@ -1416,6 +1421,58 @@ export const v2UpdateWorkflowTriggerContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2WorkflowTriggerSchema),
+  },
+})
+
+const v2WorkspaceScheduleSortFields = ['createdAt'] as const
+
+/** One schedule the live deployments of a workspace run. */
+const v2WorkspaceScheduleSchema = v2WorkflowTriggerSchema
+  .pick({
+    blockId: true,
+    enabled: true,
+    status: true,
+    failedCount: true,
+    lastFailedAt: true,
+    nextRunAt: true,
+    lastRanAt: true,
+    cronExpression: true,
+  })
+  .extend({
+    workflowId: z.string().describe('Workflow whose live deployment runs the schedule.'),
+    workflowName: z.string().describe('Name of that workflow.'),
+    timezone: z
+      .string()
+      .describe('IANA timezone the cron expression runs in. Read-only, like `cronExpression`.'),
+  })
+  .strict()
+  .meta({
+    id: 'WorkspaceSchedule',
+    title: 'Workspace schedule',
+    description: 'Health and timing of one schedule a deployed workflow in the workspace runs.',
+  })
+export type V2WorkspaceSchedule = z.output<typeof v2WorkspaceScheduleSchema>
+
+const v2ListWorkspaceSchedulesQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace whose schedules should be listed.'),
+    ...v2PaginationFields({ description: 'Maximum schedules to return per page.' }),
+    ...v2SortFields(v2WorkspaceScheduleSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
+  })
+  .strict()
+  .meta({
+    id: 'ListWorkspaceSchedulesQuery',
+    title: 'List workspace schedules query',
+    description: 'Workspace, page size, cursor, and ordering for listing schedules.',
+  })
+
+export const v2ListWorkspaceSchedulesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/schedules',
+  query: v2ListWorkspaceSchedulesQuerySchema,
+  response: {
+    mode: 'json',
+    schema: v2CursorListResponse(v2WorkspaceScheduleSchema),
   },
 })
 
@@ -3274,6 +3331,81 @@ export const v2GetWorkflowStateContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2WorkflowGraphSchema),
+  },
+})
+
+/**
+ * One block of the outline. Nested blocks are published open, as the catalog
+ * does for nested tool outputs: a self-referential schema publishes as an
+ * anonymous recursive `$ref` no generated client can name.
+ */
+const v2WorkflowOutlineBlockSchema = z
+  .object({
+    type: z.string().describe('Block type, e.g. `agent` or `slack`.'),
+    name: z.string().describe("Display name; references to this block's outputs use it."),
+    enabled: z.boolean().describe('Whether the block runs.'),
+    inputs: z
+      .record(z.string(), z.unknown().describe('Configured value; shape depends on the field.'))
+      .optional()
+      .describe(
+        'Configured values keyed by field id, with empty values omitted and editor-only metadata removed. Loop and parallel containers report their iteration settings here. A webhook trigger also carries a derived `triggerWebhookUrl`, and a credential-routed trigger a derived `triggerRouting`; both are read-only.'
+      ),
+    connections: z
+      .record(
+        z.string(),
+        z
+          .union([z.string(), z.array(z.string())])
+          .describe('Target block id, or ids when the handle fans out.')
+      )
+      .optional()
+      .describe(
+        'Outgoing connections keyed by source handle: `source`, `error`, `if` / `else-if-0` / `else` for a Condition, or `route-0`, `route-1`, ... for a Router.'
+      ),
+    nestedNodes: z
+      .record(z.string(), z.unknown().describe('Child block in this same outline shape.'))
+      .optional()
+      .describe('Blocks inside this loop or parallel container, keyed by block id.'),
+    advancedMode: z.boolean().optional().describe('Whether the block shows its advanced fields.'),
+    errorEnabled: z.boolean().optional().describe('Whether the block has an error output path.'),
+    retry: z
+      .object({
+        enabled: z.boolean().describe('Whether the block retries on failure.'),
+        maxTries: z.number().describe('Total attempts, including the first.'),
+        waitBetweenTriesMs: z.number().describe('Delay between attempts, in milliseconds.'),
+      })
+      .optional()
+      .describe('Per-block retry configuration.'),
+    triggerMode: z.boolean().optional().describe('Whether the block acts as the workflow trigger.'),
+  })
+  .meta({
+    id: 'WorkflowOutlineBlock',
+    title: 'Workflow outline block',
+    description: 'One block of a workflow outline, with its connections embedded.',
+  })
+
+const v2WorkflowOutlineSchema = z
+  .object({
+    blocks: z
+      .record(z.string(), v2WorkflowOutlineBlockSchema)
+      .describe(
+        "Top-level blocks keyed by block id. Blocks inside a loop or parallel appear under their container's `nestedNodes`."
+      ),
+  })
+  .meta({
+    id: 'WorkflowOutline',
+    title: 'Workflow outline',
+    description:
+      'Compact read-only view of a workflow draft. Not a valid Replace workflow state body.',
+  })
+
+export const v2GetWorkflowOutlineContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflows/[workflowId]/outline',
+  query: noInputSchema,
+  params: v2WorkflowIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2WorkflowOutlineSchema),
   },
 })
 

@@ -183,6 +183,12 @@ const GROUP_DOCUMENTATION: Record<string, GroupDocumentation> = {
     description: 'Manage reusable dependency sets for Function blocks.',
     related: [['Function sandboxes', '/workflows/blocks/function#sandboxes']],
   },
+  schedules: {
+    description: 'List the schedules deployed workflows run across a workspace.',
+    notes: [
+      'A schedule’s timing comes from its schedule block. Edit the block with `sim workflows operations apply`, then deploy; pause or resume one with `sim workflows triggers update`.',
+    ],
+  },
   secrets: {
     description: 'Set and manage workspace or personal secrets.',
     notes: [
@@ -390,7 +396,7 @@ const GROUP_SECTIONS: Record<string, readonly CommandSection[]> = {
       title: 'Workflows',
       prefixes: ['list', 'get', 'create', 'update', 'duplicate', 'move', 'mv', 'delete', 'restore'],
     },
-    { title: 'Draft state and edits', prefixes: ['state', 'operations', 'variables'] },
+    { title: 'Draft state and edits', prefixes: ['state', 'outline', 'operations', 'variables'] },
     {
       title: 'Deployments and versions',
       prefixes: [

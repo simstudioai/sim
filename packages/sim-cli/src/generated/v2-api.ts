@@ -5870,6 +5870,7 @@ export type GetBlockQuery = {
 type GetBlockResponseRef0 = {
   id: string
   type: string
+  valueType?: 'string' | 'number' | 'boolean' | 'json' | 'array' | 'file'
   title?: string
   required?: boolean
   requiredWhen?: GetBlockResponseRef1
@@ -7893,6 +7894,38 @@ type GetWorkflowMcpServerResponseRef0 = {
 
 export type GetWorkflowMcpServerResponse = {
   data: GetWorkflowMcpServerResponseRef0
+}
+
+/** `GET /api/v2/workflows/[workflowId]/outline` */
+export type GetWorkflowOutlineParams = {
+  workflowId: string
+}
+
+export type GetWorkflowOutlineQuery = Record<string, unknown>
+
+type GetWorkflowOutlineResponseRef0 = {
+  type: string
+  name: string
+  enabled: boolean
+  inputs?: Record<string, unknown>
+  connections?: Record<string, string | Array<string>>
+  nestedNodes?: Record<string, unknown>
+  advancedMode?: boolean
+  errorEnabled?: boolean
+  retry?: {
+    enabled: boolean
+    maxTries: number
+    waitBetweenTriesMs: number
+  }
+  triggerMode?: boolean
+}
+
+type GetWorkflowOutlineResponseRef1 = {
+  blocks: Record<string, GetWorkflowOutlineResponseRef0>
+}
+
+export type GetWorkflowOutlineResponse = {
+  data: GetWorkflowOutlineResponseRef1
 }
 
 /** `GET /api/v2/workflows/[workflowId]/runs/[runId]` */
@@ -11149,6 +11182,34 @@ type ListWorkspacesResponseRef0 = {
 
 export type ListWorkspacesResponse = {
   data: Array<ListWorkspacesResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/schedules` */
+export type ListWorkspaceSchedulesQuery = {
+  workspaceId: string
+  limit?: number
+  cursor?: string
+  sortBy?: 'createdAt'
+  sortOrder?: 'asc' | 'desc'
+}
+
+type ListWorkspaceSchedulesResponseRef0 = {
+  blockId: string
+  enabled: boolean
+  status: 'active' | 'disabled' | 'completed'
+  failedCount: number
+  lastFailedAt: string | null
+  nextRunAt: string | null
+  lastRanAt: string | null
+  cronExpression: string | null
+  workflowId: string
+  workflowName: string
+  timezone: string
+}
+
+export type ListWorkspaceSchedulesResponse = {
+  data: Array<ListWorkspaceSchedulesResponseRef0>
   nextCursor: string | null
 }
 
@@ -19905,6 +19966,14 @@ export const V2_OPERATIONS = {
     summary: 'Get workflow MCP server',
     workspaceKeyUnsupported: true,
   },
+  getWorkflowOutline: {
+    method: 'GET',
+    path: '/api/v2/workflows/[workflowId]/outline',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Get workflow outline',
+  },
   getWorkflowRun: {
     method: 'GET',
     path: '/api/v2/workflows/[workflowId]/runs/[runId]',
@@ -22752,6 +22821,43 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listWorkspaceSchedules: {
+    method: 'GET',
+    path: '/api/v2/schedules',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List workspace schedules',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose schedules should be listed.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum schedules to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['createdAt'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
       },
     },
   },

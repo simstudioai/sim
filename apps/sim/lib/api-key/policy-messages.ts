@@ -12,4 +12,4 @@ export const PERSONAL_KEY_DENIED = 'Personal API keys are not allowed for this w
 export const API_KEY_EXPIRED = 'API key has expired'
 
 export const READ_ONLY_API_KEY_DENIED =
-  'This API key is read-only and cannot perform this operation'
+  'This API key is read-only and cannot perform this operation. Use a full-access API key.'
