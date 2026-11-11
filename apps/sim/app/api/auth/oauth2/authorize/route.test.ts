@@ -53,6 +53,8 @@ vi.mock('@/lib/oauth/quickbooks-state', () => ({
   createQuickBooksOAuthState: mocks.createQuickBooksState,
 }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { OAUTH_LINK_UNAVAILABLE_ERROR } from '@/lib/credentials/draft-constants'
 import { GET as routeGET } from '@/app/api/auth/oauth2/authorize/route'
 
 const GET = (req: NextRequest) => routeGET(req, { params: Promise.resolve({}) })
@@ -456,6 +458,20 @@ describe('OAuth2 authorize route', () => {
 
     expect(mocks.launchConnection).toHaveBeenCalledOnce()
     expect(response.headers.get('location')).toBe('https://provider.example/authorize')
+  })
+
+  it('tells a user who cannot open a draft to sign in as its creator, without saying whether it exists', async () => {
+    mocks.launchConnection.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'OAuth connection link is invalid or expired')
+    )
+
+    const response = await GET(request({ draftId: 'someone-elses-draft' }))
+
+    const location = new URL(response.headers.get('location') ?? '')
+    expect(`${location.origin}${location.pathname}`).toBe(`${BASE_URL}/oauth/credential-connected`)
+    expect(Object.fromEntries(location.searchParams)).toEqual({
+      error: OAUTH_LINK_UNAVAILABLE_ERROR,
+    })
   })
 
   it.each([

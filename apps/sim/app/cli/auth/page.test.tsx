@@ -42,4 +42,26 @@ describe('CliAuthPage signed-out bounce', () => {
       `NEXT_REDIRECT:/signup?callbackUrl=${EXPECTED_CALLBACK}`
     )
   })
+
+  it('keeps a requested read-only, expiring platform key through the bounce', async () => {
+    const error = await CliAuthPage({
+      searchParams: Promise.resolve({
+        request: REQUEST,
+        challenge: CHALLENGE,
+        pairing: PAIRING,
+        scope: 'platform',
+        access: 'read',
+        expires: '30',
+      }),
+    }).catch((e: unknown) => e)
+
+    const location = new URL(
+      String((error as Error).message).replace('NEXT_REDIRECT:', ''),
+      'https://sim.test'
+    )
+    const callback = new URL(location.searchParams.get('callbackUrl') ?? '', 'https://sim.test')
+    expect(callback.searchParams.get('scope')).toBe('platform')
+    expect(callback.searchParams.get('access')).toBe('read')
+    expect(callback.searchParams.get('expires')).toBe('30')
+  })
 })

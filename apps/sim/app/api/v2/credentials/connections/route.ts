@@ -23,9 +23,10 @@ export const POST = defineV2JsonRoute({
   errorPolicy: credentialConnectionErrorPolicy,
   mapInput: ({ body }) => body,
   useCase: createCredentialConnection,
-  present: ({ authorizationUrl, expiresAt }) => ({
+  present: ({ authorizationUrl, draftId, expiresAt }) => ({
     data: {
       authorizationUrl,
+      draftId,
       expiresAt: expiresAt.toISOString(),
     },
   }),

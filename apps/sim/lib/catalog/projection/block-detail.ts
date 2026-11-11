@@ -161,6 +161,36 @@ function authorableSubBlocks(block: BlockConfig): SubBlockConfig[] {
   return fields.filter((subBlock) => !subBlock.hideFromCopilot)
 }
 
+/**
+ * Projects a field and attaches its value type from the block's declared input
+ * for it, through the same {@link declaredInputFor} lookup
+ * {@link computeOperationLevelInputs} uses. A field the block
+ * declares no input for gets no `valueType`: its editor `type` alone does not
+ * say what value it holds.
+ */
+function projectField(
+  subBlock: SubBlockConfig,
+  declaredInputs?: BlockConfig['inputs']
+): CatalogSubBlock {
+  const projected = projectSubBlock(subBlock)
+  const declared = declaredInputFor(subBlock, declaredInputs)
+  if (declared) projected.valueType = declared.type
+  return projected
+}
+
+/** The block input a field writes: declared under its id, else under its `canonicalParamId`. */
+function declaredInputFor(
+  subBlock: SubBlockConfig,
+  declaredInputs: BlockConfig['inputs'] = {}
+): BlockConfig['inputs'][string] | undefined {
+  return (
+    declaredInputs[subBlock.id] ??
+    (subBlock.canonicalParamId !== undefined
+      ? declaredInputs[subBlock.canonicalParamId]
+      : undefined)
+  )
+}
+
 /** Whether a condition gates its field on a specific operation being selected. */
 function operationGate(subBlock: SubBlockConfig): { values: string[] } | undefined {
   const condition = normalizeCondition(subBlock.condition)
@@ -181,7 +211,8 @@ function operationGate(subBlock: SubBlockConfig): { values: string[] } | undefin
  */
 export function splitFieldsByOperation(
   subBlocks: SubBlockConfig[],
-  inputDefinitions: Record<string, CatalogInputDefinition> = {}
+  inputDefinitions: Record<string, CatalogInputDefinition> = {},
+  declaredInputs: BlockConfig['inputs'] = {}
 ): {
   commonFields: CatalogSubBlock[]
   operationFields: Record<string, CatalogSubBlock[]>
@@ -190,7 +221,7 @@ export function splitFieldsByOperation(
   const operationFields: Record<string, CatalogSubBlock[]> = {}
 
   for (const subBlock of subBlocks) {
-    const projected = projectSubBlock(subBlock)
+    const projected = projectField(subBlock, declaredInputs)
     const gate = operationGate(subBlock)
 
     if (gate) {
@@ -257,9 +288,7 @@ export function computeOperationLevelInputs(
   for (const subBlock of authorableSubBlocks(block)) {
     const gate = operationGate(subBlock)
     if (!gate) continue
-    const definition =
-      inputs[subBlock.id] ??
-      (subBlock.canonicalParamId !== undefined ? inputs[subBlock.canonicalParamId] : undefined)
+    const definition = declaredInputFor(subBlock, inputs)
     if (!definition) continue
     for (const operationId of gate.values) {
       operationInputs[operationId] ??= {}
@@ -417,7 +446,7 @@ function projectCustomBlockDetail(block: BlockConfig): CatalogBlockDetail {
   )
   return {
     ...summaryWithSunsetFirst(block),
-    inputSchema: visibleFields.map(projectSubBlock),
+    inputSchema: visibleFields.map((subBlock) => projectField(subBlock, block.inputs)),
     operationInputSchema: {},
     inputDefinitions: {},
     operations: {},
@@ -440,7 +469,8 @@ export function projectBlockDetail(
   const inputDefinitions = computeBlockLevelInputs(block, hidden)
   const { commonFields, operationFields } = splitFieldsByOperation(
     authorableSubBlocks(block),
-    inputDefinitions
+    inputDefinitions,
+    block.inputs
   )
 
   const tools: CatalogToolDetail[] = []

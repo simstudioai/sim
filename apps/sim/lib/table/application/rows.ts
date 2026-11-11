@@ -506,9 +506,10 @@ async function throwValidationResponse(
 }
 
 /**
- * A structured row query cancelled by its own `statement_timeout`: the query shape costs more than
- * the table's size allows. Sorting or range-filtering on a stored column reads every row's data, so it is the
- * caller's to narrow, and retrying the same query only times out again.
+ * A structured row query cancelled by its own `statement_timeout`. Sorting or range-filtering on a
+ * stored column reads every candidate row's full data, so on a large table the query only finishes
+ * when that data happens to be cached. The fix is the caller's (narrow the query), so this is a 400
+ * with an actionable message rather than an opaque 500.
  */
 function rethrowReadQueryError(error: unknown, tableId: string): never {
   if (getPostgresCancellationReason(error) === 'statement_timeout') {

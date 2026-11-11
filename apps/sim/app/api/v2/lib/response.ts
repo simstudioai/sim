@@ -1,3 +1,4 @@
+import { getRequestContext } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import type { ZodError } from 'zod'
 import {
@@ -7,7 +8,7 @@ import {
 } from '@/lib/api/contracts/v2/error-codes'
 import { REFILTERED_CURSOR_MESSAGE, UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { type CursorKey, INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
-import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
+import { getValidationErrorMessage, type RequestSlice, serializeZodIssues } from '@/lib/api/server'
 import { ADMISSION_RETRY_AFTER_SECONDS } from '@/lib/core/admission/transient-failure'
 import {
   ContentDeliveryUnobservedError,
@@ -192,14 +193,25 @@ interface V2ErrorOptions {
   omitRetryAfter?: boolean
 }
 
-/** `{ error: { code, message, details? } }`. */
+/**
+ * `{ error: { code, message, details?, traceId? } }`.
+ *
+ * `traceId` is the id the route handler stamps on the `x-request-id` response
+ * header, repeated in the body so a caller that only logs the body can still
+ * quote it to support. Absent outside a route handler's request context.
+ */
 export function v2Error(
   code: V2ErrorCode,
   message: string,
   options: V2ErrorOptions = {}
 ): NextResponse {
-  const error: { code: V2ErrorCode; message: string; details?: unknown } = { code, message }
+  const error: { code: V2ErrorCode; message: string; details?: unknown; traceId?: string } = {
+    code,
+    message,
+  }
   if (options.details !== undefined) error.details = options.details
+  const traceId = getRequestContext()?.requestId
+  if (traceId) error.traceId = traceId
   const status = options.status ?? V2_ERROR_STATUS_BY_CODE[code]
   const retryAfterSeconds = options.omitRetryAfter
     ? undefined
@@ -237,9 +249,18 @@ export function v2UploadDataPlaneError(): NextResponse {
   return v2Error('INTERNAL_ERROR', 'Internal server error')
 }
 
-/** Render a contract `ZodError` as the v2 error envelope. */
-export function v2ValidationError(error: ZodError): NextResponse {
-  return v2Error('BAD_REQUEST', getValidationErrorMessage(error, 'Invalid request'), {
+/**
+ * Render a contract `ZodError` as the v2 error envelope. The message is the
+ * first issue's, prefixed with where it failed (`body.limit: ...`) so a caller
+ * reading only the message knows which field to fix; `details` keeps every
+ * issue with its slice-relative path.
+ */
+export function v2ValidationError(error: ZodError, slice?: RequestSlice): NextResponse {
+  const message = getValidationErrorMessage(error, 'Invalid request')
+  const location = [slice, ...(error.issues[0]?.path ?? []).map(String)]
+    .filter((part) => part !== undefined && part !== '')
+    .join('.')
+  return v2Error('BAD_REQUEST', location ? `${location}: ${message}` : message, {
     details: serializeZodIssues(error),
   })
 }

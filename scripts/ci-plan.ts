@@ -20,6 +20,7 @@ interface QueryResult {
   data?: {
     packages: { items: { name: string; path: string }[] }
     affectedTasks: { items: ChangedTask[] }
+    docsSite: { items: { fullName: string }[] }
   }
 }
 const root = process.cwd()
@@ -29,6 +30,7 @@ const suites: { http: Suite[]; production: Suite[] } = JSON.parse(
 const sourceBase = process.argv[2]
 let files: string[] = []
 let tasks: ChangedTask[] = []
+let docsSiteChanged = false
 let base = sourceBase
 let fallback: string | undefined
 
@@ -80,6 +82,7 @@ try {
   if (
     result.errors?.length ||
     !Array.isArray(result.data?.affectedTasks?.items) ||
+    !Array.isArray(result.data?.docsSite?.items) ||
     !Array.isArray(result.data?.packages?.items)
   )
     throw new Error('Turborepo did not return a complete task plan')
@@ -98,6 +101,7 @@ try {
     )
   )
     throw new Error('Malformed task attribution')
+  docsSiteChanged = result.data.docsSite.items.some((task) => task.fullName === 'docs#build')
 } catch (error) {
   fallback = String(error)
 }
@@ -108,7 +112,7 @@ const http = suites.http.filter((suite) => affected(suite.task))
 const production = suites.production.filter((suite) => affected(suite.task))
 const desktopLive = affected('ci:desktop-live')
 const appTest = affected('test')
-const docsSite = fallback !== undefined || selected.has('docs#build')
+const docsSite = fallback !== undefined || docsSiteChanged
 const docsPlatform = affected('ci:e2e-docs-platform')
 const docsGroups = docsSite
   ? ['http', 'corpus', 'chromium', 'webkit']

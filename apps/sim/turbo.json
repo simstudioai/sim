@@ -6,7 +6,7 @@
       "inputs": [
         "$TURBO_DEFAULT$",
         "!app/workspace/**",
-        "!app/(landing)/**",
+        "!app/[(]landing[)]/**",
         "!app/api/**",
         "!content/**",
         "!public/library/**",
@@ -157,7 +157,7 @@
     "ci:e2e-seo": {
       "dependsOn": ["ci:server", "ci:ui"],
       "inputs": [
-        "app/(landing)/**",
+        "app/[(]landing[)]/**",
         "content/**",
         "public/library/**",
         "scripts/test-landing-seo-e2e.ts"

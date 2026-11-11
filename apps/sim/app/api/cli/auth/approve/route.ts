@@ -28,8 +28,9 @@ const logger = createLogger('CliAuthApproveAPI')
  *
  * That makes the approval record the sole carrier of the decision. The poll body
  * is a request id and a secret and nothing else, so it cannot assert a scope, a
- * workspace, or a binding of its own — a refusal here writes no record, and a
- * poll driven directly against the same request id answers `pending` forever.
+ * workspace, a binding, an access level, or a lifetime of its own — a refusal
+ * here writes no record, and a poll driven directly against the same request id
+ * answers `pending` forever.
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const session = await getSession()
@@ -43,11 +44,28 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   const parsed = await parseRequest(approveCliAuthContract, request, {})
   if (!parsed.success) return parsed.response
 
-  const { request: requestId, challenge, scope, workspaceId, bindKeyToWorkspace } = parsed.data.body
+  const {
+    request: requestId,
+    challenge,
+    scope,
+    workspaceId,
+    bindKeyToWorkspace,
+    access,
+    expiresInDays,
+  } = parsed.data.body
 
   if ((workspaceId || bindKeyToWorkspace) && scope !== 'platform') {
     return NextResponse.json(
       { error: 'workspaceId is only valid for the platform scope' },
+      { status: 400 }
+    )
+  }
+
+  // A copilot key has no access level or expiry to set; accepting either would
+  // record a consent the mint cannot honor.
+  if ((access !== 'write' || expiresInDays !== undefined) && scope !== 'platform') {
+    return NextResponse.json(
+      { error: 'access and expiresInDays are only valid for the platform scope' },
       { status: 400 }
     )
   }
@@ -135,12 +153,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     scope,
     workspaceId,
     workspaceBound: bindKeyToWorkspace,
+    access,
+    expiresInDays,
   })
   logger.info('Recorded CLI authorization approval', {
     userId: session.user.id,
     scope,
     workspaceId: workspaceId ?? null,
     workspaceBound: bindKeyToWorkspace,
+    access,
+    expiresInDays: expiresInDays ?? null,
   })
 
   return NextResponse.json({ ok: true })

@@ -310,6 +310,7 @@ import {
   v2ExportWorkflowContract,
   v2GetWorkflowContract,
   v2GetWorkflowDeploymentContract,
+  v2GetWorkflowOutlineContract,
   v2GetWorkflowRunContract,
   v2GetWorkflowStateContract,
   v2GetWorkflowVersionContract,
@@ -320,6 +321,7 @@ import {
   v2ListWorkflowsContract,
   v2ListWorkflowTriggersContract,
   v2ListWorkflowVersionsContract,
+  v2ListWorkspaceSchedulesContract,
   v2MoveWorkflowsContract,
   v2PreviewWorkflowImportContract,
   v2RelocateWorkflowFolderContract,
@@ -362,6 +364,7 @@ import {
   v2ListWorkspaceMembersContract,
   v2ListWorkspacesContract,
   v2RemoveWorkspaceMemberContract,
+  v2UpdateWorkspaceContract,
   v2UpdateWorkspaceMemberContract,
 } from '@/lib/api/contracts/v2/workspaces'
 import type { V2McpOperation } from '@/lib/api/mcp/types'
@@ -1419,7 +1422,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2GetMetaContract,
     summary: 'Get API status',
     description:
-      'Get the calling credential’s type, expiry, and API scopes. Requires a valid API key or OAuth access token. `v2Enabled` is true whenever this endpoint is served; the response does not enumerate resource permissions.\n\nOAuth scope: `api:read`.',
+      'Get the calling credential’s type, identity, expiry, and API scopes, plus links to the OpenAPI document, API docs, and Sim MCP server. Requires a valid API key or OAuth access token. `v2Enabled` is true whenever this endpoint is served; the response does not enumerate resource permissions.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/meta/route').then((route) => route.GET),
   },
   getNextKnowledgeTagSlot: {
@@ -1661,6 +1664,14 @@ export const V2_MCP_OPERATIONS = {
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/workflow-mcp-servers/[serverId]/route').then((route) => route.GET),
+  },
+  getWorkflowOutline: {
+    contract: v2GetWorkflowOutlineContract,
+    summary: 'Get workflow outline',
+    description:
+      'Read the saved draft as a compact outline: connections embedded in their source blocks, loop and parallel children nested under their container, and empty values and editor-only fields omitted. Requires workspace read access, and reveals nothing Get workflow state does not: its derived fields, such as `triggerWebhookUrl`, are computed from values that state already returns. The outline is read-only: it adds those derived fields and omits positions and edge handles, so never send it to Replace workflow state; edit with Apply workflow operations or a full state from Get workflow state. This read records no audit event; `HEAD` mirrors `GET`.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/workflows/[workflowId]/outline/route').then((route) => route.GET),
   },
   getWorkflowRun: {
     contract: v2GetWorkflowRunContract,
@@ -2280,6 +2291,13 @@ export const V2_MCP_OPERATIONS = {
     description:
       'List active workspaces available to the calling credential. Personal API keys and OAuth tokens see accessible workspaces that permit user-held API credentials; a workspace API key sees only its bound workspace. Results use cursor pagination.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/workspaces/route').then((route) => route.GET),
+  },
+  listWorkspaceSchedules: {
+    contract: v2ListWorkspaceSchedulesContract,
+    summary: 'List workspace schedules',
+    description:
+      "List the schedules every deployed workflow in a workspace runs, including disabled ones, with their timing and failure counts. Requires workspace read access. These are the same schedules List workflow triggers reports for each workflow; a workflow that is not deployed has none. To change a schedule's timing, edit its schedule block in the draft and deploy; to pause or resume one, use Update workflow trigger.\n\nOAuth scope: `api:read`.",
+    handler: () => import('@/app/api/v2/schedules/route').then((route) => route.GET),
   },
   moveFileItems: {
     contract: v2MoveFileItemsContract,
@@ -3023,7 +3041,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2UpdateWorkflowTriggerContract,
     summary: 'Update workflow trigger',
     description:
-      'Enable or disable one trigger of the live deployment without redeploying. Requires workspace write access. Enabling resets `failedCount`, schedules the next run, and clears any polling backoff; a schedule whose cron expression is invalid or has no future runs returns `400`. A permission group that blocks webhook triggers returns `403` when a member it governs enables a polling, internal-event, or webhook trigger; a workspace API key is not governed by permission groups, as with every other capability. Disabling a completed schedule marks it disabled. A block with several live rows switches them together. Requesting the current state changes nothing.\n\nDisabling only stops Sim from accepting the trigger; nothing is removed at the provider. A disable lasts until the next deploy or version activation, which re-enables every trigger, the same way it clears a trigger that disabled itself after repeated failures. Deliveries to a disabled webhook receive `404`, and some providers disable their subscription after repeated failures, which requires a redeploy to restore.\n\nOAuth scope: `api:write`.',
+      "Enable or disable one trigger of the live deployment without redeploying. Requires workspace write access. Enabling resets `failedCount`, schedules the next run, and clears any polling backoff; a schedule whose cron expression is invalid or has no future runs returns `400`. A permission group that blocks webhook triggers returns `403` when a member it governs enables a polling, internal-event, or webhook trigger; a workspace API key is not governed by permission groups, as with every other capability. Disabling a completed schedule marks it disabled. A block with several live rows switches them together. Requesting the current state changes nothing.\n\nDisabling only stops Sim from accepting the trigger; nothing is removed at the provider. A disable lasts until the next deploy or version activation, which re-enables every trigger, the same way it clears a trigger that disabled itself after repeated failures. Deliveries to a disabled webhook receive `404`, and some providers disable their subscription after repeated failures, which requires a redeploy to restore.\n\nA schedule's cron expression and timezone cannot be changed here: deploy computes them from the schedule block, and a deployed version is never edited. Change the block's schedule fields in the draft with Apply workflow operations, then deploy.\n\nOAuth scope: `api:write`.",
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/triggers/[blockId]/route').then(
         (route) => route.PATCH
@@ -3038,6 +3056,15 @@ export const V2_MCP_OPERATIONS = {
       import('@/app/api/v2/workflows/[workflowId]/versions/[version]/route').then(
         (route) => route.PATCH
       ),
+  },
+  updateWorkspace: {
+    contract: v2UpdateWorkspaceContract,
+    summary: 'Update workspace',
+    description:
+      'Rename a workspace or change its logo. Omitted fields remain unchanged; send `logoUrl: null` to remove the logo. Requires workspace Admin access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/route').then((route) => route.PATCH),
   },
   updateWorkspaceForkExclusions: {
     contract: v2UpdateWorkspaceForkExclusionsContract,

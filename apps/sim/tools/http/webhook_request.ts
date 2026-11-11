@@ -1,6 +1,7 @@
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { generateId } from '@sim/utils/id'
 import type { RequestResponse, WebhookRequestParams } from '@/tools/http/types'
+import { toHttpToolResponse } from '@/tools/http/utils'
 import type { ToolConfig } from '@/tools/types'
 
 /**
@@ -76,24 +77,11 @@ export const webhookRequestTool: ToolConfig<WebhookRequestParams, RequestRespons
   transformResponse: async (response: Response) => {
     const contentType = response.headers.get('content-type') || ''
 
-    const headers: Record<string, string> = {}
-    response.headers.forEach((value, key) => {
-      headers[key] = value
-    })
-
     const data = await (contentType.includes('application/json')
       ? response.json()
       : response.text())
 
-    return {
-      success: response.ok,
-      output: {
-        data,
-        status: response.status,
-        headers,
-      },
-      error: undefined,
-    }
+    return toHttpToolResponse(response, data)
   },
 
   outputs: {

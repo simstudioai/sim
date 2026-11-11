@@ -24,10 +24,8 @@ import {
   NoWorkspaceAccessError,
 } from '@/lib/core/application'
 import { captureServerEvent } from '@/lib/posthog/server'
-import {
-  updateWorkspace,
-  workspaceUpdateOperations,
-} from '@/lib/workspaces/application/update-workspace'
+import { workspaceUpdateOperations } from '@/lib/workspaces/application/operations'
+import { updateWorkspace } from '@/lib/workspaces/application/update-workspace'
 import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
 import { presentWorkspace } from '@/lib/workspaces/response'
 

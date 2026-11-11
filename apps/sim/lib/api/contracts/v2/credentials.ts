@@ -390,6 +390,11 @@ export const v2CredentialConnectionAuthorizationSchema = z
       .string()
       .url('authorizationUrl must be an absolute URL')
       .describe('Short-lived Sim browser URL that starts the OAuth authorization flow.'),
+    draftId: z
+      .string()
+      .describe(
+        'ID of the pending connection behind authorizationUrl. Only the user who created it can complete it.'
+      ),
     expiresAt: v2TimestampSchema.describe('ISO 8601 timestamp when the connection link expires.'),
   })
   .meta({

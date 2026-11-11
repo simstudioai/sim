@@ -28,6 +28,7 @@ const GROUP_ALIASES: Readonly<Record<string, string>> = {
   logs: 'log',
   'mcp-servers': 'mcp-server',
   sandboxes: 'sandbox',
+  schedules: 'schedule',
   secrets: 'secret',
   skills: 'skill',
   tables: 'table',

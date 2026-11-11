@@ -1,5 +1,6 @@
 import { AuthLinkButton as ChipLink, AuthStatusContent as StatusPageContent } from '@sim/auth-ui'
 import type { Metadata } from 'next'
+import { OAUTH_LINK_UNAVAILABLE_ERROR } from '@/lib/credentials/draft-constants'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { AuthShell as LogoShell } from '@/app/(auth)/components'
 
@@ -27,7 +28,9 @@ export default async function CredentialConnectedPage({
         description={
           connected
             ? 'The credential is ready to use. You can close this tab and return to the app that started the connection.'
-            : 'The credential could not be connected. Return to the app that started the connection and try again.'
+            : error === OAUTH_LINK_UNAVAILABLE_ERROR
+              ? 'This connection link has expired or belongs to a different Sim account. Sign in as the account that created the link, or create a new one.'
+              : 'The credential could not be connected. Return to the app that started the connection and try again.'
         }
       >
         <ChipLink variant='primary' href={APP_ENTRY_PATH}>

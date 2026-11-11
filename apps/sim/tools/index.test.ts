@@ -5543,20 +5543,21 @@ describe('HTTP tools report the real HTTP outcome', () => {
     Reflect.deleteProperty(tools, 'webhook_request')
   })
 
-  it.each([
+  const httpTools = [
     ['http_request', { url: 'https://api.example.com/orders', method: 'POST', body: {} }],
     ['webhook_request', { url: 'https://api.example.com/hooks', body: {} }],
-  ])(
+  ] as const
+
+  function respondWith(body: unknown) {
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      toSecureFetchResponse(Response.json(body, { headers: { 'x-request-id': 'req-123' } }))
+    )
+  }
+
+  it.each(httpTools)(
     '%s treats a 200 whose body has top-level status and data as a success',
     async (toolId, params) => {
-      mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
-        toSecureFetchResponse(
-          Response.json(
-            { status: 'success', data: { orderId: 'A-1001' } },
-            { headers: { 'x-request-id': 'req-123' } }
-          )
-        )
-      )
+      respondWith({ status: 'success', data: { orderId: 'A-1001' } })
 
       const result = await executeTool(toolId, params, { skipPostProcess: true })
 
@@ -5568,6 +5569,38 @@ describe('HTTP tools report the real HTTP outcome', () => {
           headers: expect.objectContaining({ 'x-request-id': 'req-123' }),
         },
       })
+    }
+  )
+
+  it.each(httpTools)(
+    '%s keeps unwrapping a 200 body with success, status, and data',
+    async (toolId, params) => {
+      respondWith({ success: true, status: 'ok', data: { orderId: 'A-1001' } })
+
+      const result = await executeTool(toolId, params, { skipPostProcess: true })
+
+      expect(result, result.error).toMatchObject({
+        success: true,
+        output: { status: 'ok', data: { orderId: 'A-1001' }, headers: {} },
+      })
+    }
+  )
+
+  it.each([
+    ...httpTools.map(
+      ([toolId, params]) => [toolId, params, 'Out of stock', 'Out of stock'] as const
+    ),
+    ...httpTools.map(
+      ([toolId, params]) => [toolId, params, { code: 'OOS' }, '{"code":"OOS"}'] as const
+    ),
+  ])(
+    '%s keeps failing a 200 body that reports success: false',
+    async (toolId, params, error, expectedError) => {
+      respondWith({ success: false, status: 'error', data: null, error })
+
+      const result = await executeTool(toolId, params, { skipPostProcess: true })
+
+      expect(result).toMatchObject({ success: false, error: expectedError })
     }
   )
 })

@@ -91,8 +91,6 @@ describe('buildDocxFromContent', () => {
   })
 
   it('strips control characters that would make the package unopenable', async () => {
-    // The docx package writes run text into the XML verbatim, so a forbidden
-    // character reaching it produces invalid XML 1.0 rather than a rendering bug.
     const buffer = await buildDocxFromContent(`before${String.fromCharCode(8)}after`)
     const xml = await readDocumentXml(buffer)
 

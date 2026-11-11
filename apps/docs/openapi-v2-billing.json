@@ -601,6 +601,10 @@
                     "description": "Other structured context defined by the specific error."
                   }
                 ]
+              },
+              "traceId": {
+                "description": "Identifier of this request, the same value as the `x-request-id` response header. Include it when contacting support.",
+                "type": "string"
               }
             },
             "required": ["code", "message"],

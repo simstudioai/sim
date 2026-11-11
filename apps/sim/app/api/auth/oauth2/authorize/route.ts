@@ -25,7 +25,10 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { launchScopedCredentialConnection } from '@/lib/credentials/application/launch-scoped-credential-connection'
-import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-constants'
+import {
+  OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM,
+  OAUTH_LINK_UNAVAILABLE_ERROR,
+} from '@/lib/credentials/draft-constants'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { decryptQuickBooksOAuthClientConfig } from '@/lib/oauth/quickbooks-client-config'
 import { QUICKBOOKS_AUTHORIZATION_URL } from '@/lib/oauth/quickbooks-constants'
@@ -229,9 +232,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }).catch((error: unknown) => {
       if (!(error instanceof OrchestrationError)) throw error
       logger.warn('Rejected OAuth connection draft', { userId, draftId, code: error.code })
-      return null
+      return error
     })
-    if (!launched) {
+    if (launched instanceof OrchestrationError) {
+      // A draft is looked up by its id and the signed-in user together, so one
+      // that is unknown, expired, or another account's all read as not found.
+      // The reason names every case and does not say which one applied.
+      if (launched.code === 'not_found') {
+        const unavailableUrl = new URL('/oauth/credential-connected', baseUrl)
+        unavailableUrl.searchParams.set('error', OAUTH_LINK_UNAVAILABLE_ERROR)
+        return NextResponse.redirect(unavailableUrl)
+      }
       return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=oauth_link_invalid`)
     }
     const { draft } = launched

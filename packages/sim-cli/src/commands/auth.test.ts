@@ -33,6 +33,8 @@ const mocks = vi.hoisted(() => ({
       scope: 'platform' | 'copilot'
       workspaceBound?: boolean
       workspaceId?: string
+      access?: 'read' | 'write' | null
+      expiresAt?: string | null
     }>
   >(async () => ({
     id: 'key-id',
@@ -326,6 +328,45 @@ describe('login command', () => {
     await expect(login()).rejects.toThrow('Invalid workspace id')
 
     expect(mocks.writeConfigProfile).not.toHaveBeenCalled()
+    expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
+  })
+
+  it('stores nothing when a read-only request comes back as a full-access key', async () => {
+    setInteractive(false)
+    mocks.pollForKey.mockResolvedValue({
+      id: 'key-id',
+      apiKey: 'sim-key',
+      scope: 'platform',
+      workspaceBound: false,
+      workspaceId: 'ws_1',
+      access: null,
+      expiresAt: null,
+    })
+
+    await expect(login('--read-only')).rejects.toThrow(
+      'issued a full-access key, not the key requested'
+    )
+
+    expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
+    expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain(
+      'API key key-id was created but could not be stored safely'
+    )
+  })
+
+  it('stores nothing when the issued expiry is not the one requested', async () => {
+    setInteractive(false)
+    mocks.pollForKey.mockResolvedValue({
+      id: 'key-id',
+      apiKey: 'sim-key',
+      scope: 'platform',
+      workspaceBound: false,
+      workspaceId: 'ws_1',
+      access: 'write',
+      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+    })
+
+    await expect(login('--expires-in', '30')).rejects.toThrow('not the key requested')
+
     expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
   })
 

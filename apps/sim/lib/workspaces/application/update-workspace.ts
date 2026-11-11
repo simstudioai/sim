@@ -6,12 +6,16 @@ import {
   NoWorkspaceAccessError,
   type WorkspaceUseCaseAuditEntry,
 } from '@/lib/core/application'
-import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   loadActiveWorkspaceApplicationContext,
   resolveActiveWorkspaceApplicationContext,
 } from '@/lib/workspaces/application/context'
+import { workspaceUpdateOperations } from '@/lib/workspaces/application/operations'
+import {
+  countPublicWorkspaceMembers,
+  type PublicWorkspaceDetail,
+} from '@/lib/workspaces/public-queries'
 import {
   applyWorkspaceUpdate,
   readWorkspaceIdentityRecord,
@@ -19,41 +23,6 @@ import {
   type WorkspaceUpdatePatch,
   type WorkspaceUpdateResult,
 } from '@/lib/workspaces/update'
-
-export const workspaceUpdateOperations = {
-  // permission-group-exempt: workspace administration has no module capability; the admin role is the gate, as it was before this operation existed
-  update: defineWorkspaceOperation({
-    id: 'workspaces.update',
-    minimumRole: 'admin',
-    capability: 'none',
-    workspaceApiKey: 'deny',
-    principalKinds: ['session'],
-  }),
-  // permission-group-exempt: reading the workspace's own name and logo, which every member already sees in the workspace switcher
-  readIdentity: defineWorkspaceOperation({
-    id: 'workspaces.identity.read',
-    minimumRole: 'read',
-    capability: 'none',
-    contentDelivery: 'none',
-    workspaceApiKey: 'deny',
-    principalKinds: ['delegated'],
-    delegatedServices: ['copilot'],
-  }),
-  /**
-   * Name and logo only. Billing payer and the personal-key policy stay on
-   * {@link workspaceUpdateOperations.update}, which Copilot cannot reach.
-   */
-  // permission-group-exempt: same admin-role gate as the full workspace update, narrowed to presentation fields
-  updateIdentity: defineWorkspaceOperation({
-    id: 'workspaces.identity.update',
-    minimumRole: 'admin',
-    capability: 'none',
-    contentDelivery: 'none',
-    workspaceApiKey: 'deny',
-    principalKinds: ['delegated'],
-    delegatedServices: ['copilot'],
-  }),
-} as const
 
 export const workspaceIdentityPatchSchema = updateWorkspaceBodySchema
   .pick({ name: true, logoUrl: true })
@@ -132,8 +101,29 @@ export const updateWorkspaceIdentity = defineAuthorizedWorkspaceUseCase({
     const parsed = workspaceIdentityPatchSchema.safeParse(input.patch)
     if (!parsed.success) throw new OrchestrationError('validation', parsed.error.issues[0].message)
     const patch = { name: parsed.data.name, logoUrl: parsed.data.logoUrl }
+    // Counted before the write, never after or alongside it: a failed count
+    // after the commit would report a persisted rename as failed and skip its
+    // audit. A rename does not change membership, so the earlier count holds.
+    const memberCount = await countPublicWorkspaceMembers({
+      id: context.workspaceId,
+      organizationId: context.workspaceOrganizationId,
+    })
     const result = await applyWorkspaceUpdate(context.workspaceId, patch)
-    return { ...result, patch, identity: presentIdentity(result.updated) }
+    const { id, name, color, logoUrl, createdAt, updatedAt } = result.updated
+    return {
+      ...result,
+      patch,
+      identity: presentIdentity(result.updated),
+      workspace: {
+        id,
+        name,
+        color,
+        logoUrl,
+        memberCount,
+        createdAt,
+        updatedAt,
+      } satisfies PublicWorkspaceDetail,
+    }
   },
   projectAudit: ({ result }) => projectUpdateAudit(result.patch, result),
 })
