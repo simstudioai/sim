@@ -15,7 +15,6 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type ApiKeyAccessLevel, DAY_MS } from '@/lib/api/contracts/api-keys'
-import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { type CreatedApiKey, useCreateApiKey } from '@/hooks/queries/api-keys'
 
 const logger = createLogger('CreateApiKeyModal')
@@ -75,8 +74,7 @@ export function CreateApiKeyModal({
   const [newKey, setNewKey] = useState<CreatedApiKey | null>(null)
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
   const createApiKeyMutation = useCreateApiKey()
-  const readOnlyKeysEnabled = useFeatureFlag('api-key-read-only')
-  const canChooseAccess = !fullAccessOnly && readOnlyKeysEnabled
+  const canChooseAccess = !fullAccessOnly
 
   /**
    * The form is seeded when the modal OPENS, not when this component mounts.

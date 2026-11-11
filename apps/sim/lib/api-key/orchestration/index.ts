@@ -9,7 +9,6 @@ import { and, eq } from 'drizzle-orm'
 import { DAY_MS } from '@/lib/api/contracts/api-keys'
 import { createApiKey, createWorkspaceApiKey } from '@/lib/api-key/auth'
 import { hashApiKey } from '@/lib/api-key/crypto'
-import { isReadOnlyApiKeyCreationEnabled } from '@/lib/api-key/feature-flag'
 import { DELEGATION_KEY_NAME_PREFIX } from '@/lib/api-key/reserved-names'
 import { PlatformEvents } from '@/lib/core/telemetry'
 
@@ -70,16 +69,13 @@ type ResolvedIssueSettings =
   | { ok: false; error: string }
 
 /** Validates what a caller asked a new key to be, before anything is written. */
-async function resolveIssueSettings(
+function resolveIssueSettings(
   params: ApiKeyIssueSettings & { name: string }
-): Promise<ResolvedIssueSettings> {
+): ResolvedIssueSettings {
   if (params.name.startsWith(DELEGATION_KEY_NAME_PREFIX)) {
     return { ok: false, error: `API key names may not start with "${DELEGATION_KEY_NAME_PREFIX}"` }
   }
   const access = params.access ?? 'write'
-  if (access === 'read' && !(await isReadOnlyApiKeyCreationEnabled())) {
-    return { ok: false, error: 'Read-only API keys are not available yet' }
-  }
   const expiry = resolveApiKeyExpiry(params.expiresAt)
   if (!expiry.ok) return expiry
   return { ok: true, access, expiresAt: expiry.expiresAt }
@@ -131,7 +127,7 @@ export interface PerformCreatePersonalApiKeyResult {
 export async function performCreatePersonalApiKey(
   params: PerformCreatePersonalApiKeyParams
 ): Promise<PerformCreatePersonalApiKeyResult> {
-  const settings = await resolveIssueSettings(params)
+  const settings = resolveIssueSettings(params)
   if (!settings.ok) return { success: false, errorCode: 'validation', error: settings.error }
   const { access, expiresAt } = settings
   try {
@@ -216,7 +212,7 @@ export async function performCreatePersonalApiKey(
 export async function performCreateWorkspaceApiKey(
   params: PerformCreateWorkspaceApiKeyParams
 ): Promise<PerformCreateWorkspaceApiKeyResult> {
-  const settings = await resolveIssueSettings(params)
+  const settings = resolveIssueSettings(params)
   if (!settings.ok) return { success: false, errorCode: 'validation', error: settings.error }
   const { access, expiresAt } = settings
   try {
