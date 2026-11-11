@@ -1939,7 +1939,7 @@ const declaredRoutes = [
               v2Enabled: true,
               keyType: 'personal',
               expiresAt: null,
-              scopes: ['api:read', 'api:write'],
+              scopes: ['api:read', 'api:write', 'search:read'],
             },
           },
         ]
