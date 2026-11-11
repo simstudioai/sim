@@ -506,8 +506,8 @@ async function throwValidationResponse(
 }
 
 /**
- * A read cancelled by its own `statement_timeout`: the query shape costs more than the table's
- * size allows. Sorting or range-filtering on a stored column reads every row's data, so it is the
+ * A structured row query cancelled by its own `statement_timeout`: the query shape costs more than
+ * the table's size allows. Sorting or range-filtering on a stored column reads every row's data, so it is the
  * caller's to narrow, and retrying the same query only times out again.
  */
 function rethrowReadQueryError(error: unknown, tableId: string): never {
@@ -574,7 +574,7 @@ export const listTableRows = defineAuthorizedTableUseCase({
         nextCursor: result.nextCursor,
       }
     } catch (error) {
-      rethrowReadQueryError(error, context.table.id)
+      rethrowQueryValidation(error)
     }
   },
 })
@@ -743,7 +743,7 @@ export const searchTableRows = defineAuthorizedTableUseCase({
       )
       return { table: context.table, ...result }
     } catch (error) {
-      rethrowReadQueryError(error, context.table.id)
+      rethrowQueryValidation(error)
     }
   },
 })
