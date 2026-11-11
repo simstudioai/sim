@@ -1,5 +1,11 @@
 import { generateId } from '@sim/utils/id'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   addInboxSenderContract,
@@ -31,8 +37,8 @@ export const inboxKeys = {
   senders: () => [...inboxKeys.all, 'sender'] as const,
   senderList: (workspaceId: string) => [...inboxKeys.senders(), workspaceId] as const,
   tasks: () => [...inboxKeys.all, 'task'] as const,
-  taskList: (workspaceId: string, status?: string, cursor?: string, limit?: number) =>
-    [...inboxKeys.tasks(), workspaceId, status ?? 'all', cursor ?? '', limit ?? ''] as const,
+  taskList: (workspaceId: string, status?: string) =>
+    [...inboxKeys.tasks(), workspaceId, status ?? 'all'] as const,
 }
 
 type InboxTaskStatusFilter = InboxTaskStatus
@@ -56,7 +62,7 @@ async function fetchInboxSenders(
 
 async function fetchInboxTasks(
   workspaceId: string,
-  opts: { status?: InboxTaskStatusFilter; cursor?: string; limit?: number },
+  opts: { status?: InboxTaskStatusFilter; cursor?: string },
   signal?: AbortSignal
 ): Promise<InboxTasksResponseBody> {
   return requestJson(listInboxTasksContract, {
@@ -64,7 +70,6 @@ async function fetchInboxTasks(
     query: {
       status: opts.status && opts.status !== 'all' ? opts.status : undefined,
       cursor: opts.cursor,
-      limit: opts.limit,
     },
     signal,
   })
@@ -88,13 +93,15 @@ export function useInboxSenders(workspaceId: string) {
   })
 }
 
-export function useInboxTasks(
-  workspaceId: string,
-  opts: { status?: InboxTaskStatusFilter; cursor?: string; limit?: number } = {}
-) {
-  return useQuery({
-    queryKey: inboxKeys.taskList(workspaceId, opts.status, opts.cursor, opts.limit),
-    queryFn: ({ signal }) => fetchInboxTasks(workspaceId, opts, signal),
+/** The workspace's email tasks, newest first, a page at a time. */
+export function useInboxTasks(workspaceId: string, opts: { status?: InboxTaskStatusFilter } = {}) {
+  return useInfiniteQuery({
+    queryKey: inboxKeys.taskList(workspaceId, opts.status),
+    queryFn: ({ pageParam, signal }) =>
+      fetchInboxTasks(workspaceId, { status: opts.status, cursor: pageParam }, signal),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.pagination.hasMore ? (lastPage.pagination.nextCursor ?? undefined) : undefined,
     enabled: Boolean(workspaceId),
     staleTime: INBOX_TASK_LIST_STALE_TIME,
     placeholderData: keepPreviousData,

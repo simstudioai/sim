@@ -1159,7 +1159,6 @@ const SWITCH_ROW_MIGRATIONS: ReasonedAllowlist = granted(SETTINGS_PAGE_LANE, [
   `${ORGANIZATION_ROUTES}settings/_components/sections/privacy/privacy-section.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/sso/scim-panel.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/terminal/terminal-section.tsx`,
-  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/inbox/inbox-enable-toggle.tsx`,
   `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/secrets/secret-detail.tsx`,
 ])
 
