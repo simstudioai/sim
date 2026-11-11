@@ -397,9 +397,11 @@ export const validateDaytonaServiceAccount = tokenCheckValidator({
 
 /**
  * Listing one session of the organization is the tools' own read on their host and auth: 200
- * proves the key and its access to that organization. Devin answers an unknown key, or a key
- * from another organization, with a problem+json 403, so a 403 rejects. The id must survive
- * URL encoding unchanged, so it can never steer the tools' unencoded path.
+ * proves the key and its access to that organization (it needs `ViewOrgSessions`). Devin
+ * answers an invalid key with 401, and both a key outside the organization and one without the
+ * permission with the same problem+json 403; nothing documented tells those two apart, so a
+ * 403 rejects. The id must survive URL encoding unchanged, so it can never steer the tools'
+ * unencoded path.
  */
 export const validateDevinServiceAccount = tokenCheckValidator({
   serviceLabel: 'Devin',
