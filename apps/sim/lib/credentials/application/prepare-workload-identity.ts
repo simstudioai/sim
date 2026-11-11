@@ -5,6 +5,7 @@ import { decryptSecret } from '@/lib/core/security/encryption'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import { isGoogleWorkloadIdentitySecret } from '@/lib/credentials/google-workload-identity'
+import { isKeylessMicrosoftAppSecret } from '@/lib/credentials/microsoft-app-service-account.server'
 import { isKeylessSnowflakeSecret } from '@/lib/credentials/snowflake-service-account.server'
 import { SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
@@ -16,7 +17,10 @@ import {
   isWorkloadIdentityConfigured,
 } from '@/lib/credentials/workload-identity/issuer'
 import { issueWorkloadIdentitySubject } from '@/lib/credentials/workload-identity/subject'
-import { GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
+import {
+  GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
+} from '@/lib/oauth/types'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export interface PrepareWorkloadIdentityInput {
@@ -51,6 +55,10 @@ const MIXED_MODE_PROVIDERS: Partial<
     providerId: SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
     isKeyless: isKeylessSnowflakeSecret,
   },
+  microsoft: {
+    providerId: MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
+    isKeyless: isKeylessMicrosoftAppSecret,
+  },
   google: {
     providerId: GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
     isKeyless: isGoogleWorkloadIdentitySecret,
@@ -58,7 +66,7 @@ const MIXED_MODE_PROVIDERS: Partial<
 }
 
 /**
- * Whether a Snowflake or Google credential in this workspace, which this person
+ * Whether a Snowflake, Microsoft app, or Google credential in this workspace, which this person
  * administers, is keyless. Only that one bit leaves the stored secret, and only
  * for someone allowed to reconnect the credential.
  */

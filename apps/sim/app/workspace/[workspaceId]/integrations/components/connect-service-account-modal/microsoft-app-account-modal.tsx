@@ -89,9 +89,16 @@ function MicrosoftAppAccountForm({
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
   const [description, setDescription] = useState(initialDescription ?? '')
 
-  // Keyless is the default wherever this deployment supports it.
-  const authType: MicrosoftAuthType =
-    selectedAuthType ?? (keyless.available ? 'federated' : 'client_secret')
+  // A reconnect opens on keyless only for a keyless credential, which has a subject to keep; a
+  // new connection defaults to keyless wherever this deployment supports it.
+  const defaultAuthType: MicrosoftAuthType = credentialId
+    ? keyless.reconnectsKeyless
+      ? 'federated'
+      : 'client_secret'
+    : keyless.available
+      ? 'federated'
+      : 'client_secret'
+  const authType: MicrosoftAuthType = selectedAuthType ?? defaultAuthType
   const disabled =
     isPending ||
     !tenantId.trim() ||

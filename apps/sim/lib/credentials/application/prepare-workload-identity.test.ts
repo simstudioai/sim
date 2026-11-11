@@ -59,7 +59,7 @@ function reconnecting(
   encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: JSON.stringify(secret) })
 }
 
-function prepare(provider: 'snowflake' | 'google' = 'snowflake') {
+function prepare(provider: 'snowflake' | 'google' | 'microsoft' = 'snowflake') {
   return prepareWorkloadIdentity.execute({
     principal,
     input: { workspaceId: 'workspace-1', provider, credentialId: 'cred-1' },
@@ -152,5 +152,49 @@ describe('preparing a Google service account reconnect', () => {
     reconnecting(keylessSecret)
     expect(await prepare('google')).not.toHaveProperty('reconnectsKeyless')
     expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
+  })
+})
+
+describe('preparing a Microsoft app credential reconnect', () => {
+  const microsoft = { providerId: 'microsoft-app-service-account' }
+  const appConfig = {
+    tenantId: '11111111-2222-3333-4444-555555555555',
+    clientId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+  }
+
+  beforeEach(() => {
+    workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext.mockResolvedValue({
+      workspaceId: 'workspace-1',
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'user-1',
+    })
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
+  })
+
+  it('opens a federated credential on keyless', async () => {
+    reconnecting(
+      {
+        type: 'microsoft_app_credential_v1',
+        config: {
+          ...appConfig,
+          authType: 'federated',
+          subject: 'sim:workspace:workspace-1:credential:abcdef0123456789',
+        },
+      },
+      microsoft
+    )
+    await expect(prepare('microsoft')).resolves.toMatchObject({ reconnectsKeyless: true })
+  })
+
+  it.each([
+    { authType: 'client_secret', clientSecret: 'value' },
+    { authType: 'certificate', privateKey: 'key', certificate: 'cert' },
+  ])('opens a $authType credential on its keyed mode', async (mode) => {
+    reconnecting(
+      { type: 'microsoft_app_credential_v1', config: { ...appConfig, ...mode } },
+      microsoft
+    )
+    expect(await prepare('microsoft')).not.toHaveProperty('reconnectsKeyless')
   })
 })

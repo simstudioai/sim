@@ -583,7 +583,7 @@ export const prepareWorkloadIdentityContract = defineRouteContract({
         /** Opaque proof submitted with the credential; binds the subject to its creator. */
         subjectProof: z.string(),
         expiresAt: z.string(),
-        /** The reconnected credential is keyless (Snowflake and Google only). */
+        /** The reconnected credential is keyless (Snowflake, Microsoft app, and Google only). */
         reconnectsKeyless: z.literal(true).optional(),
       }),
     ]),

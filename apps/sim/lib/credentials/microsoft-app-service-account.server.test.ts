@@ -2,7 +2,13 @@
  * @vitest-environment node
  */
 
-import { createHash, createPublicKey, generateKeyPairSync, X509Certificate } from 'node:crypto'
+import {
+  createHash,
+  createPublicKey,
+  createSign,
+  generateKeyPairSync,
+  X509Certificate,
+} from 'node:crypto'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
@@ -24,57 +30,70 @@ import {
 import { issueWorkloadIdentitySubject } from '@/lib/credentials/workload-identity/subject'
 import { MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 
-/** A throwaway self-signed test certificate (CN=sim-test-app) and its key; not used anywhere real. */
-const TEST_CERTIFICATE = [
-  '-----BEGIN CERTIFICATE-----',
-  'MIIC8DCCAdigAwIBAgIUQscAay/pQghX1nRRknLCHHuel/EwDQYJKoZIhvcNAQEL',
-  'BQAwFzEVMBMGA1UEAwwMc2ltLXRlc3QtYXBwMCAXDTI2MTExMDIzNDY1NVoYDzIx',
-  'MjYxMDE3MjM0NjU1WjAXMRUwEwYDVQQDDAxzaW0tdGVzdC1hcHAwggEiMA0GCSqG',
-  'SIb3DQEBAQUAA4IBDwAwggEKAoIBAQCWiZIqbXoaCMuDVJK8lAWogeXpcfbmlCAm',
-  'MnPJNSz751gOsfbHMOBLRaQp5fPqjqNodFw72R4Dpa4aETco5l4JlLUrRToK+y4m',
-  'BCDMN6vwyS+4GTJmO2nX1yvEEhYtHphqg/htnVxRoSzB08G0Bb/64CHe0X+DWs6M',
-  'CHtfyC9YTG+oc8S8N6Cw1BKV4o+v1C0yEDTjK77qS6YdulAVMjBfhz1cIBLzU/Uy',
-  '0Fzm7TAE/9h6gHODYxLW2POJeLPQ7uZBzT6uBDL4wYDWrk1iUK2TuTO+6GouKvoU',
-  'tYv2N4i7KKXur5wpbxDlNWUzBp0B4ozgR0K83Qteq02RShAoiyElAgMBAAGjMjAw',
-  'MB0GA1UdDgQWBBTVLn0q75C2SHJFPqk4VfXcvH9YWjAPBgNVHRMBAf8EBTADAQH/',
-  'MA0GCSqGSIb3DQEBCwUAA4IBAQBw3E87CJJs23t9GKlsh35nuVoHzXyJQXwjn32G',
-  'B6W87h58n/RnrBRRbCzwrGjXHlu6XsT2pwlBKdEezikaajmJhmYAVOSPbvHalnXt',
-  'TqpY9uvRl/RLnyEe36Y+BrYlr2MoWdsR8etj4aepBzJ8gxq6/tpHiq8ijqR2peCV',
-  'QZ/9UuoT8fub9DDxMMrwMmGT8hHGOvTh6342yl6EQkKLgV0klUDtfJLA5wPiitTZ',
-  'pdq7nWlDBGpX5MF1WumpW4CM30s7VAi+HuJZSI1AGg0akTfvcyirDUS/GtUoTwq0',
-  '/l8LVPe6TsEitCqMpetndCmQ1Y/2TN56MV5Ce1YSkqtYZxi3',
-  '-----END CERTIFICATE-----',
-].join('\n')
-const TEST_PRIVATE_KEY = [
-  '-----BEGIN PRIVATE KEY-----',
-  'MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQCWiZIqbXoaCMuD',
-  'VJK8lAWogeXpcfbmlCAmMnPJNSz751gOsfbHMOBLRaQp5fPqjqNodFw72R4Dpa4a',
-  'ETco5l4JlLUrRToK+y4mBCDMN6vwyS+4GTJmO2nX1yvEEhYtHphqg/htnVxRoSzB',
-  '08G0Bb/64CHe0X+DWs6MCHtfyC9YTG+oc8S8N6Cw1BKV4o+v1C0yEDTjK77qS6Yd',
-  'ulAVMjBfhz1cIBLzU/Uy0Fzm7TAE/9h6gHODYxLW2POJeLPQ7uZBzT6uBDL4wYDW',
-  'rk1iUK2TuTO+6GouKvoUtYv2N4i7KKXur5wpbxDlNWUzBp0B4ozgR0K83Qteq02R',
-  'ShAoiyElAgMBAAECggEASV7H1NIC/wlmV54y3qKul1CohD09f2iWusdAU8MNJ8G7',
-  '0329r5wM1eMdfiZL2fingFOmWK0byd9Imf/mCJMvJjBKlMpq3ctK1NCSQ7amoPcN',
-  'wQbW36j5j2+aLzg5gsg0tUWZIaPeyRJrRBU3hcx/o4D2QSmOorDxlqLTrv1cxgXL',
-  'SlnXPZqAHG6oJl8xLjWnb57ju3Y/qCGLCKAEkiCwVXosEOtxpTZmQc5a7SVVoFI0',
-  'oZCZyL8vhp96tKPg/Lm3BmontxS+B58QCfMRJs+6SXIZzUa07NjlHjz8PnXVqzVK',
-  'pf510iOW+yO+rtBb0CA6oHai5MN39c4xNxR0mvFryQKBgQDTc6Wr6pQFQ9NN/INf',
-  'sJIjRrF6wy2iIscjyUjymyhsKxAFtxs0iVVhZUqxCpfPLH80S6qYodVDf+S9KSN9',
-  'EI1Yjda4Py9MWtfWYB5smPMprcqQS/UsM0tsRZImmT7r1cES5vVUiN5SQrSqV5cb',
-  'GbhHfSRnYiwzDci81SHXBE4iewKBgQC2QJfn70t/amJVB1YeXrRL8urHL5KxWYAn',
-  '6JtiPHXg8ZajUav/zBugUeKaFqUmEedlXe9UlDChf4PzRxk0PwFE3a1Z+XaX0KsC',
-  '0rx6ZNsofbllX51z+CpxI930SFtuUsd2FmKmg6+PPz7BeQJDsbrpQ0Khr8ELaAed',
-  'ydk8DDHI3wKBgQCiudYeZmlBYAAGfTSQ+G6ObUH6SqgcpY0BUk8sPRGvpLgw3cg2',
-  '9xVY3b3MX22SxxihozWHPsvDpXHfzP/9qDZOluFOa3m31hVSaigfxNklExTXVU05',
-  'lcQOb7/YqoiMr7RlGo5kXuxQ+/rTOJMWDQYPJhRU521CYPJBt/fR5ANJbwKBgQCk',
-  'IcXsRdBbPmayJrpC/Y0n/Ou9WLWmbHEC//O347VRUKEWEj5xTtLubfBCTvSKNYOM',
-  'Aa3BIPgu6VTe6f/j0n4FFBLDPeu0y2LHVxwQqfXJIHivuA1n3G30mJWSIvvcfkZN',
-  'rdlIFr4rpoyQ1rbYWh53ZnCChnK3IAgD7T1rW5wWRwKBgQC2z0nf+2BAGkTYJcIr',
-  '7L36kA9k5jno2jWyYmtRmQJr3IN7BFLexor6n4Q/nLIrZrstOgq84Sh3rAhTTh+i',
-  'k4YG+ftqbkRwp7RKDpJ3s7mAC0qgNNKhnZAbDEDpmOV79sYch8v1UXw07q2mM5Hj',
-  'xS26LDt+YfIj/cwD+QkcBvZfwA==',
-  '-----END PRIVATE KEY-----',
-].join('\n')
+/** DER type-length-value, for the one self-signed certificate below. */
+function der(tag: number, ...parts: Buffer[]): Buffer {
+  const content = Buffer.concat(parts)
+  const length =
+    content.length < 0x80
+      ? Buffer.from([content.length])
+      : content.length < 0x100
+        ? Buffer.from([0x81, content.length])
+        : Buffer.from([0x82, content.length >> 8, content.length & 0xff])
+  return Buffer.concat([Buffer.from([tag]), length, content])
+}
+
+function derOid(oid: string): Buffer {
+  const [first, second, ...rest] = oid.split('.').map(Number)
+  const bytes = [first * 40 + second]
+  for (const arc of rest) {
+    const septets = [arc & 0x7f]
+    for (let value = arc >> 7; value > 0; value >>= 7) septets.unshift((value & 0x7f) | 0x80)
+    bytes.push(...septets)
+  }
+  return der(0x06, Buffer.from(bytes))
+}
+
+function derUtcTime(date: Date): Buffer {
+  const text = date.toISOString().replace(/[-:T]/g, '').slice(2, 14)
+  return der(0x17, Buffer.from(`${text}Z`))
+}
+
+/**
+ * A self-signed RSA certificate (CN=sim-test-app) generated for this test run,
+ * so no key material is committed.
+ */
+function generateTestCertificate(): { certificate: string; privateKey: string } {
+  const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+  const sha256WithRsa = der(0x30, derOid('1.2.840.113549.1.1.11'), der(0x05))
+  const name = der(
+    0x30,
+    der(0x31, der(0x30, derOid('2.5.4.3'), der(0x0c, Buffer.from('sim-test-app'))))
+  )
+  const now = Date.now()
+  const tbs = der(
+    0x30,
+    der(0xa0, der(0x02, Buffer.from([0x02]))),
+    der(0x02, Buffer.from([0x01])),
+    sha256WithRsa,
+    name,
+    der(0x30, derUtcTime(new Date(now - 86_400_000)), derUtcTime(new Date(now + 365 * 86_400_000))),
+    name,
+    publicKey.export({ type: 'spki', format: 'der' })
+  )
+  const signature = createSign('sha256').update(tbs).sign(privateKey)
+  const certificate = der(0x30, tbs, sha256WithRsa, der(0x03, Buffer.from([0x00]), signature))
+  const pem = (label: string, body: Buffer) =>
+    `-----BEGIN ${label}-----\n${body
+      .toString('base64')
+      .match(/.{1,64}/g)
+      ?.join('\n')}\n-----END ${label}-----`
+  return {
+    certificate: pem('CERTIFICATE', certificate),
+    privateKey: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+  }
+}
+
+const { certificate: TEST_CERTIFICATE, privateKey: TEST_PRIVATE_KEY } = generateTestCertificate()
 
 const TENANT = '11111111-2222-3333-4444-555555555555'
 const CLIENT_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'

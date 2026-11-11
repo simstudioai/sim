@@ -56,14 +56,27 @@ const POOL_OR_PROVIDER_ID_PATTERN = /^(?!gcp-)[a-z0-9-]{4,32}$/
 const SERVICE_ACCOUNT_EMAIL_PATTERN =
   /^[a-z][-a-z0-9]{4,28}[a-z0-9]@[a-z][-a-z0-9]{4,28}[a-z0-9]\.iam\.gserviceaccount\.com$/
 
+/**
+ * A Google Cloud project number: digits only, no leading zero, up to 20 digits
+ * (`123456789012`). The project ID (`my-project`) is not accepted.
+ */
 export function isGoogleProjectNumber(value: string): boolean {
   return PROJECT_NUMBER_PATTERN.test(value)
 }
 
+/**
+ * A workload identity pool or provider ID: 4-32 lowercase letters, digits, or
+ * hyphens, not starting with the reserved `gcp-` prefix.
+ */
 export function isGoogleWorkloadIdentityId(value: string): boolean {
   return POOL_OR_PROVIDER_ID_PATTERN.test(value)
 }
 
+/**
+ * A user-managed service account email, `<account-id>@<project-id>.iam.gserviceaccount.com`,
+ * where both IDs are 6-30 characters of lowercase letters, digits, and hyphens,
+ * start with a letter, and end with a letter or digit.
+ */
 export function isGoogleServiceAccountEmail(value: string): boolean {
   return SERVICE_ACCOUNT_EMAIL_PATTERN.test(value)
 }

@@ -1215,6 +1215,22 @@ describe('Google service-account token minting', () => {
     expect(JSON.stringify(loggedCalls('error'))).not.toContain('xxxx')
   })
 
+  it('signs the same JSON-key request whether or not the caller names its service', async () => {
+    queueTableRows(credential, [row])
+    await getServiceAccountToken('credential-1', [driveScope], 'member@example.com')
+    queueTableRows(credential, [row])
+    await getServiceAccountToken('credential-1', [driveScope], 'member@example.com', {
+      service: 'google-drive',
+    })
+
+    const [withoutService, withService] = fetchMock.mock.calls.map(([url, init]) => [
+      String(url),
+      String(init?.body),
+    ])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(withService).toEqual(withoutService)
+  })
+
   describe('a keyless credential', () => {
     const keylessSecret = {
       decrypted: JSON.stringify({
