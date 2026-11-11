@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { Button } from '@sim/emcn/button'
 import { PageOverflow } from '@sim/emcn-platform/page-column'
 import Link from 'next/link'
+import { useSettingsHeading } from '@/app/(product)/_components/settings-parts/settings-page'
 import styles from '@/app/(product)/_components/settings-parts/settings-parts.module.css'
 
 interface ChildrenProps {
@@ -91,7 +92,10 @@ interface DetailHeaderContent {
 type DetailHeaderProps = DetailHeaderContent &
   ({ backHref: string; onBack?: never } | { onBack: () => void; backHref?: never })
 
-/** A sub-view's way back, title and actions. */
+/**
+ * A sub-view's way back, title and actions. It takes the place of the page's `SettingsPageHeader`,
+ * so it renders the page's heading.
+ */
 export function DetailHeader({
   backLabel,
   backHref,
@@ -100,6 +104,7 @@ export function DetailHeader({
   description,
   children,
 }: DetailHeaderProps) {
+  const heading = useSettingsHeading()
   return (
     <header className={styles.detailHeader}>
       <div className={styles.back}>
@@ -114,7 +119,15 @@ export function DetailHeader({
       </div>
       <div className={styles.detailTitleRow}>
         <div className={styles.detailTitle}>
-          <h2 data-type='T093'>{title}</h2>
+          {heading.level === 'h1' ? (
+            <h1 id={heading.id} data-type='T093'>
+              {title}
+            </h1>
+          ) : (
+            <h2 id={heading.id} data-type='T093'>
+              {title}
+            </h2>
+          )}
           {description && (
             <p className={styles.muted} data-type='T060'>
               {description}

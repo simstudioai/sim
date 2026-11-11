@@ -7,6 +7,7 @@ import { DateRangePicker } from '@sim/emcn/picker/date-picker'
 import { ScrollArea } from '@sim/emcn/scroll-area'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import Link from 'next/link'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import { ActionRow, DetailHeader } from '@/app/(product)/_components/settings-parts/settings-parts'
 import {
   type CreditsTarget,
@@ -105,6 +106,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
 
   return (
     <>
+      <SettingsPageHeader />
       <div className={styles.toolbar}>
         <ScrollArea label='Insights views' axis='horizontal'>
           <SegmentedControl

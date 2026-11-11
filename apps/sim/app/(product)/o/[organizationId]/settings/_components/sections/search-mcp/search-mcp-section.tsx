@@ -6,6 +6,7 @@ import { CopyButton } from '@sim/emcn/button/copy-button'
 import { CopyField } from '@sim/emcn/field/value-fields'
 import { Select } from '@sim/emcn/picker/select'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   FieldStack,
   Muted,
@@ -89,45 +90,48 @@ export default function SearchMcpSection({ organization }: SettingsSectionProps)
   const [client, setClient] = useState<(typeof CLIENTS)[number]>(CLIENTS[0])
   const endpoint = `${getBaseUrl()}/api/mcp/search/organizations/${encodeURIComponent(organization.organization.id)}`
   return (
-    <SettingsSection title='Connection'>
-      {organization.viewer.canUseSearchMcp ? (
-        <>
-          <SettingsRow label='App' description='Select the app to connect' field>
-            <Select
-              label='MCP app'
-              value={client.value}
-              options={CLIENTS}
-              onValueChange={(value) => {
-                const selection = CLIENTS.find((item) => item.value === value)
-                if (selection) setClient(selection)
-              }}
-            />
-          </SettingsRow>
-          <ConnectionInstructions key={client.value} client={client} endpoint={endpoint} />
-        </>
-      ) : (
-        <Muted>
-          Your organization’s policy disables Sim Search MCP access. Contact an organization admin
-          to enable it.
-        </Muted>
-      )}
-      <SettingsRow label='Setup guide' description='Read the Search MCP documentation'>
-        <Button
-          size='compact'
-          render={
-            <a
-              aria-label='Search MCP documentation'
-              href='https://docs.sim.ai/search/mcp'
-              target='_blank'
-              rel='noreferrer'
-            >
-              Docs
-            </a>
-          }
-        >
-          Docs
-        </Button>
-      </SettingsRow>
-    </SettingsSection>
+    <>
+      <SettingsPageHeader />
+      <SettingsSection title='Connection'>
+        {organization.viewer.canUseSearchMcp ? (
+          <>
+            <SettingsRow label='App' description='Select the app to connect' field>
+              <Select
+                label='MCP app'
+                value={client.value}
+                options={CLIENTS}
+                onValueChange={(value) => {
+                  const selection = CLIENTS.find((item) => item.value === value)
+                  if (selection) setClient(selection)
+                }}
+              />
+            </SettingsRow>
+            <ConnectionInstructions key={client.value} client={client} endpoint={endpoint} />
+          </>
+        ) : (
+          <Muted>
+            Your organization’s policy disables Sim Search MCP access. Contact an organization admin
+            to enable it.
+          </Muted>
+        )}
+        <SettingsRow label='Setup guide' description='Read the Search MCP documentation'>
+          <Button
+            size='compact'
+            render={
+              <a
+                aria-label='Search MCP documentation'
+                href='https://docs.sim.ai/search/mcp'
+                target='_blank'
+                rel='noreferrer'
+              >
+                Docs
+              </a>
+            }
+          >
+            Docs
+          </Button>
+        </SettingsRow>
+      </SettingsSection>
+    </>
   )
 }

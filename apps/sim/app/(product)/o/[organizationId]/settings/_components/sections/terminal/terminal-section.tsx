@@ -5,6 +5,7 @@ import { Select } from '@sim/emcn/picker/select'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   DESKTOP_ZOOM_PERCENTS,
   type DesktopAppearanceTheme,
@@ -82,8 +83,14 @@ export default function TerminalSection() {
     setPreferences
   )
 
-  if (failed) return <FailureNotice message='Could not load terminal settings' onRetry={retry} />
-  if (!data) return null
+  if (failed)
+    return (
+      <>
+        <SettingsPageHeader />
+        <FailureNotice message='Could not load terminal settings' onRetry={retry} />
+      </>
+    )
+  if (!data) return <SettingsPageHeader />
 
   const { preferences } = data
   const theme = preferences.terminalTheme
@@ -97,50 +104,53 @@ export default function TerminalSection() {
   ]
 
   return (
-    <SettingsSection title='General'>
-      <SettingsRow
-        label={ENABLED_LABEL}
-        description='Chat can run commands in a terminal on this computer'
-      >
-        <Switch
+    <>
+      <SettingsPageHeader />
+      <SettingsSection title='General'>
+        <SettingsRow
           label={ENABLED_LABEL}
-          checked={preferences.terminalEnabled}
-          disabled={togglePending}
-          onCheckedChange={(checked) => void setEnabled(checked)}
-        />
-      </SettingsRow>
-      <SettingsRow label='Theme' description='Select the terminal’s color theme' field>
-        <SearchableSelect
-          label='Terminal theme'
-          labelHidden
-          searchLabel='Search themes'
-          placeholder='Select theme'
-          options={themeOptions}
-          value={typeof theme === 'string' ? theme : theme.id}
-          disabled={profilePending || builtInThemePending}
-          onValueChange={(next) => {
-            const builtIn = BUILT_INS.find((option) => option.value === next)
-            if (builtIn) {
-              void setTheme(builtIn.value)
-              return
-            }
-            const profile = profiles.find(({ id }) => id === next)
-            if (profile) void selectProfile(profile)
-          }}
-        />
-      </SettingsRow>
-      <SettingsRow label='Default zoom' description='Text size for new terminal sessions' field>
-        <Select
-          label='Terminal default zoom'
-          options={ZOOM_OPTIONS}
-          value={String(preferences.terminalDefaultZoom)}
-          disabled={zoomPending}
-          onValueChange={(value) => {
-            const zoom = Number.parseInt(value, 10)
-            if (isDesktopZoomPercent(zoom)) void setDefaultZoom(zoom)
-          }}
-        />
-      </SettingsRow>
-    </SettingsSection>
+          description='Chat can run commands in a terminal on this computer'
+        >
+          <Switch
+            label={ENABLED_LABEL}
+            checked={preferences.terminalEnabled}
+            disabled={togglePending}
+            onCheckedChange={(checked) => void setEnabled(checked)}
+          />
+        </SettingsRow>
+        <SettingsRow label='Theme' description='Select the terminal’s color theme' field>
+          <SearchableSelect
+            label='Terminal theme'
+            labelHidden
+            searchLabel='Search themes'
+            placeholder='Select theme'
+            options={themeOptions}
+            value={typeof theme === 'string' ? theme : theme.id}
+            disabled={profilePending || builtInThemePending}
+            onValueChange={(next) => {
+              const builtIn = BUILT_INS.find((option) => option.value === next)
+              if (builtIn) {
+                void setTheme(builtIn.value)
+                return
+              }
+              const profile = profiles.find(({ id }) => id === next)
+              if (profile) void selectProfile(profile)
+            }}
+          />
+        </SettingsRow>
+        <SettingsRow label='Default zoom' description='Text size for new terminal sessions' field>
+          <Select
+            label='Terminal default zoom'
+            options={ZOOM_OPTIONS}
+            value={String(preferences.terminalDefaultZoom)}
+            disabled={zoomPending}
+            onValueChange={(value) => {
+              const zoom = Number.parseInt(value, 10)
+              if (isDesktopZoomPercent(zoom)) void setDefaultZoom(zoom)
+            }}
+          />
+        </SettingsRow>
+      </SettingsSection>
+    </>
   )
 }

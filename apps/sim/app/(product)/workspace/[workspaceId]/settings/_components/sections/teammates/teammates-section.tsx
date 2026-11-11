@@ -14,6 +14,7 @@ import { FailureNotice } from '@sim/emcn/status'
 import { Tooltip } from '@sim/emcn/tooltip'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   SectionStack,
   SectionToolbar,
@@ -207,6 +208,7 @@ export default function TeammatesSection({ workspaceId }: WorkspaceSettingsSecti
 
   return (
     <SectionStack>
+      <SettingsPageHeader />
       <SectionToolbar
         grow={
           <SearchField

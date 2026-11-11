@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
 import { SecretsEditor } from '@/app/(product)/_components/secrets-editor/secrets-editor'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import type { WorkspaceSettingsSectionProps } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
 import { SecretDetail } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/secrets/secret-detail'
 import { usePlatformHref } from '@/platform/lib/platform-href'
@@ -24,15 +25,18 @@ export default function SecretsSection({ workspaceId, subpath }: WorkspaceSettin
       />
     )
   return (
-    <SecretsEditor
-      scope={{
-        kind: 'workspace',
-        workspaceId,
-        onViewDetails: (id) =>
-          router.push(
-            hrefFor(workspacePath(workspaceId, `settings/secrets/${encodeURIComponent(id)}`))
-          ),
-      }}
-    />
+    <>
+      <SettingsPageHeader />
+      <SecretsEditor
+        scope={{
+          kind: 'workspace',
+          workspaceId,
+          onViewDetails: (id) =>
+            router.push(
+              hrefFor(workspacePath(workspaceId, `settings/secrets/${encodeURIComponent(id)}`))
+            ),
+        }}
+      />
+    </>
   )
 }

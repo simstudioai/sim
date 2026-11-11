@@ -10,6 +10,7 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toast } from '@/lib/toast/sink'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   ActionRow,
   FieldStack,
@@ -210,6 +211,7 @@ export default function SecuritySection({ organization }: SettingsSectionProps) 
   const organizationId = organization.organization.id
   return (
     <SectionStack>
+      <SettingsPageHeader />
       {(deployment.hosted || deployment.features.sessionPolicies) && (
         <SessionPolicySection
           key={organizationId}

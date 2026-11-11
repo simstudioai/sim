@@ -1,20 +1,9 @@
-/* Every settings page reads at Paper's settings column, narrower than the dashboard's page column. */
+/* The settings body centers in the page column, under the breadcrumb. */
 .content {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-24);
-  max-inline-size: var(--container-app-settings);
-  margin-inline: auto;
-  padding-block: var(--spacing-24) var(--spacing-32);
-}
-
-.heading {
   display: grid;
-  gap: var(--spacing-8);
-}
-
-.heading p {
-  color: var(--ui-secondary);
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  padding-block: var(--spacing-24) var(--spacing-32);
 }
 
 .breadcrumb {
@@ -45,9 +34,6 @@
   flex: none;
   block-size: var(--spacing-stroke-default);
   margin-block-end: calc(-1 * var(--spacing-stroke-default));
-}
-[data-desktop] .content {
-  gap: var(--spacing-20);
 }
 @media (max-width: 48rem) {
   .breadcrumb {

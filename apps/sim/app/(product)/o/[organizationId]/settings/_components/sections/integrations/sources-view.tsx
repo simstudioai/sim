@@ -14,6 +14,7 @@ import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   ActionRow,
   FieldStack,
@@ -76,7 +77,10 @@ export function SourcesView({ initial, subpath }: SourcesViewProps) {
     return source ? (
       <ProviderConnections source={source} data={data} update={update} href={href} />
     ) : (
-      <EmptyState title='Source unavailable' />
+      <>
+        <SettingsPageHeader />
+        <EmptyState title='Source unavailable' />
+      </>
     )
   }
   if (kind === 'sources') {
@@ -91,14 +95,20 @@ export function SourcesView({ initial, subpath }: SourcesViewProps) {
         update={update}
       />
     ) : (
-      <EmptyState title='Connection unavailable' />
+      <>
+        <SettingsPageHeader />
+        <EmptyState title='Connection unavailable' />
+      </>
     )
   }
   if (kind === 'secrets')
     return data.secretMode === 'organization' ? (
       <SecretSettings data={data} href={href()} update={update} />
     ) : (
-      <EmptyState title='Organization secrets are unavailable' />
+      <>
+        <SettingsPageHeader />
+        <EmptyState title='Organization secrets are unavailable' />
+      </>
     )
   const needle = query.trim().toLowerCase()
   const visible = data.sources.filter(
@@ -117,6 +127,7 @@ export function SourcesView({ initial, subpath }: SourcesViewProps) {
       : data.sources.find((source) => source.id === editor.id)?.name)
   return (
     <SectionStack>
+      <SettingsPageHeader />
       <SectionToolbar
         grow={
           <SearchField

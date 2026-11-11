@@ -94,7 +94,7 @@ interface OrganizationSettingsSectionProps extends SettingsSectionProps {
   section: ClientSettingsSectionKey
 }
 
-/** The open section's body. It paints nothing while its code loads, under the page's heading. */
+/** The open section, which renders its own header. It paints nothing while its code loads. */
 export function OrganizationSettingsSection({
   section,
   fixture,

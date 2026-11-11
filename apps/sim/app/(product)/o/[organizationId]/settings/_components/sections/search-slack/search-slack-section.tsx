@@ -1,5 +1,6 @@
 import { HydrationBoundary } from '@tanstack/react-query'
 import { notFound } from 'next/navigation'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
 import { LiveSlackConnections } from '@/app/(product)/o/[organizationId]/settings/_components/sections/search-slack/live-slack-connections'
 import { readSlackManifest } from '@/platform/lib/data/settings-slack'
@@ -17,25 +18,31 @@ export default async function SearchSlackSection({ organization, query }: Settin
     ])
     const fixture = await loadSlackSettings(readScenario(query.state))
     return (
-      <FixtureSlackConnections
-        initial={fixture.inventory}
-        prospective={fixture.prospective}
-        manifest={readSlackManifest(fixture.origin)}
-        botManifests={Object.fromEntries(
-          fixture.inventory.bots.map((bot) => [
-            bot.id,
-            readSlackManifest(fixture.origin, bot.displayName),
-          ])
-        )}
-      />
+      <>
+        <SettingsPageHeader />
+        <FixtureSlackConnections
+          initial={fixture.inventory}
+          prospective={fixture.prospective}
+          manifest={readSlackManifest(fixture.origin)}
+          botManifests={Object.fromEntries(
+            fixture.inventory.bots.map((bot) => [
+              bot.id,
+              readSlackManifest(fixture.origin, bot.displayName),
+            ])
+          )}
+        />
+      </>
     )
   }
   const organizationId = organization.organization.id
   // Loaded only on live data: the reader imports the database, which fixture previews run without.
   const { prefetchSlackSearch } = await import('@/platform/lib/data/prefetch-slack-search')
   return (
-    <HydrationBoundary state={await prefetchSlackSearch(organizationId)}>
-      <LiveSlackConnections organizationId={organizationId} />
-    </HydrationBoundary>
+    <>
+      <SettingsPageHeader />
+      <HydrationBoundary state={await prefetchSlackSearch(organizationId)}>
+        <LiveSlackConnections organizationId={organizationId} />
+      </HydrationBoundary>
+    </>
   )
 }

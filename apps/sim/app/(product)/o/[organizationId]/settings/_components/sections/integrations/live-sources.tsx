@@ -12,6 +12,7 @@ import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   ActionRow,
   Muted,
@@ -126,6 +127,7 @@ export function LiveSources() {
       mirroredAccessAvailable={searchAccess.sourceMirrored}
     >
       <SectionStack>
+        <SettingsPageHeader />
         <SectionToolbar
           grow={
             <SearchField

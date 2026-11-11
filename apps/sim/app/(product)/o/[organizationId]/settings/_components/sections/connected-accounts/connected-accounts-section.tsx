@@ -1,3 +1,4 @@
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
 import { LiveCredentialGroups } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/live-credential-groups'
 import { readScenario } from '@/platform/lib/navigation'
@@ -15,13 +16,21 @@ export default async function ConnectedAccountsSection({
       import('@/platform/fixtures'),
     ])
     const data = await loadCredentialGroupsData(readScenario(query.state))
-    return <FixtureCredentialGroups data={data} />
+    return (
+      <>
+        <SettingsPageHeader />
+        <FixtureCredentialGroups data={data} />
+      </>
+    )
   }
   const organizationId = organization.organization.id
   const tab = typeof query.tab === 'string' ? query.tab : 'providers'
   const { readCredentialGroups } = await import('@/platform/lib/data/credential-groups')
   const { data, management } = await readCredentialGroups(organizationId, tab, query)
   return (
-    <LiveCredentialGroups organizationId={organizationId} data={data} management={management} />
+    <>
+      <SettingsPageHeader />
+      <LiveCredentialGroups organizationId={organizationId} data={data} management={management} />
+    </>
   )
 }

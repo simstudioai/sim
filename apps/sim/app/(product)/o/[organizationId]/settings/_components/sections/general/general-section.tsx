@@ -1,6 +1,7 @@
 import { Button } from '@sim/emcn/button'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import Link from 'next/link'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import { DetailHeader } from '@/app/(product)/_components/settings-parts/settings-parts'
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
 import {
@@ -63,6 +64,7 @@ export default function GeneralSection(props: SettingsSectionProps) {
   }
   return (
     <>
+      <SettingsPageHeader />
       <PreferencesSection fixture={fixture} />
       <SettingsSection title='Privacy'>
         <SettingsRow

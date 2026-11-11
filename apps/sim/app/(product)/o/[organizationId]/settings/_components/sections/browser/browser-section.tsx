@@ -9,6 +9,7 @@ import { FailureNotice } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
 import { useQueryStates } from 'nuqs'
 import { toast } from '@/lib/toast/sink'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import { PasswordsView } from '@/app/(product)/o/[organizationId]/settings/_components/sections/browser/passwords-view'
 import {
   browserParsers,
@@ -150,6 +151,7 @@ function BrowserSettings({
 
   return (
     <>
+      <SettingsPageHeader />
       <SettingsSection title='General'>
         <SettingsRow
           label={ENABLED_LABEL}
@@ -270,8 +272,14 @@ export default function BrowserSection() {
   const openImport = params.browserImport === '1'
   const showPasswords = params.browserView === 'passwords' || openImport
 
-  if (failed) return <FailureNotice message='Could not load browser settings' onRetry={retry} />
-  if (!data) return null
+  if (failed)
+    return (
+      <>
+        <SettingsPageHeader />
+        <FailureNotice message='Could not load browser settings' onRetry={retry} />
+      </>
+    )
+  if (!data) return showPasswords ? null : <SettingsPageHeader />
 
   const setPreferences = (preferences: DesktopPreferences) =>
     setData((current) => current && { ...current, preferences })

@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
 import { LiveAdminPanel } from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/live-admin-panel'
 import { readScenario } from '@/platform/lib/navigation'
@@ -14,7 +15,17 @@ export default async function AdminSection({ organization, query }: SettingsSect
       import('@/platform/fixtures'),
     ])
     const example = await loadAdminExample(readScenario(query.state))
-    return <FixtureAdminPanel example={example} />
+    return (
+      <>
+        <SettingsPageHeader />
+        <FixtureAdminPanel example={example} />
+      </>
+    )
   }
-  return <LiveAdminPanel benchmarkAvailable={organization.navFlags.benchmark} />
+  return (
+    <>
+      <SettingsPageHeader />
+      <LiveAdminPanel benchmarkAvailable={organization.navFlags.benchmark} />
+    </>
+  )
 }

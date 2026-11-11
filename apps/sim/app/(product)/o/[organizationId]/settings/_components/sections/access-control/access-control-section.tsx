@@ -13,6 +13,7 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   ResourceList,
   SectionStack,
@@ -132,14 +133,17 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
     ? permissionGroups.find((group) => group.id === params.groupId)
     : undefined
 
-  if (groups.isPending) return null
+  if (groups.isPending) return params.groupId ? null : <SettingsPageHeader />
   if (groups.error && groups.data === undefined) {
     return (
-      <FailureNotice
-        message={getErrorMessage(groups.error, 'Failed to load permission groups')}
-        retrying={groups.isFetching}
-        onRetry={() => void groups.refetch()}
-      />
+      <>
+        <SettingsPageHeader />
+        <FailureNotice
+          message={getErrorMessage(groups.error, 'Failed to load permission groups')}
+          retrying={groups.isFetching}
+          onRetry={() => void groups.refetch()}
+        />
+      </>
     )
   }
 
@@ -180,6 +184,7 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
 
   return (
     <SectionStack>
+      <SettingsPageHeader />
       {refreshError}
       {workspacesError}
       <SearchField

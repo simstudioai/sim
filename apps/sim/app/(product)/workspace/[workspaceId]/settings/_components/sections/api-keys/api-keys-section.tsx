@@ -12,6 +12,7 @@ import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toast } from '@/lib/toast/sink'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   SectionStack,
   SectionToolbar,
@@ -201,6 +202,7 @@ export default function ApiKeysSection({ workspaceId }: WorkspaceSettingsSection
 
   return (
     <SectionStack>
+      <SettingsPageHeader />
       <SectionToolbar
         grow={
           <SearchField

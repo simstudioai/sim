@@ -10,6 +10,7 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toast } from '@/lib/toast/sink'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   ResourceList,
   SectionStack,
@@ -84,19 +85,33 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
   const canMakeSelectedPrimary =
     selectedProvider !== undefined && canMakeProviderPrimary(providerList, selectedProvider)
   const openDomains = () => void setParams({ tab: 'domains' })
+  /** A provider's detail or a second provider's form replaces the page header with its own. */
+  const showsProvider =
+    tab === 'sign-in' &&
+    (providers.isLoading
+      ? Boolean(requestedProvider || createProvider)
+      : selectedProvider !== undefined || (Boolean(createProvider) && providerList.length > 0))
 
-  if (billingEnabled && billing.isLoading) return null
+  if (billingEnabled && billing.isLoading) return showsProvider ? null : <SettingsPageHeader />
   if (billingEnabled && billing.data === undefined && billing.error) {
     return (
-      <FailureNotice
-        message={getErrorMessage(billing.error, 'Failed to load organization access')}
-        retrying={billing.isFetching}
-        onRetry={() => void billing.refetch()}
-      />
+      <>
+        <SettingsPageHeader />
+        <FailureNotice
+          message={getErrorMessage(billing.error, 'Failed to load organization access')}
+          retrying={billing.isFetching}
+          onRetry={() => void billing.refetch()}
+        />
+      </>
     )
   }
   if (billingEnabled && !billing.data?.data.hasEnterprisePlan) {
-    return <EmptyState title='Single sign-on is available on Enterprise plans only.' />
+    return (
+      <>
+        <SettingsPageHeader />
+        <EmptyState title='Single sign-on is available on Enterprise plans only.' />
+      </>
+    )
   }
 
   const providerCountByDomain = new Map<string, number>()
@@ -107,6 +122,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
 
   return (
     <SectionStack>
+      {!showsProvider && <SettingsPageHeader />}
       {billing.error != null && (
         <FailureNotice
           message={getErrorMessage(billing.error, 'Failed to refresh organization access')}
