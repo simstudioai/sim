@@ -1,5 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { HttpError } from '@/lib/core/utils/http-error'
+import type { FailedTraceBlock } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { ExecutionContext, ExecutionResult } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -372,7 +373,7 @@ export function classifyExecutionError(
  */
 export function classifyRecordedExecutionError(
   message: string,
-  failedBlock: { blockId: string; blockName: string; blockType: string } | null
+  failedBlock: FailedTraceBlock | null
 ): StructuredExecutionError {
   const unattributed = classifyExecutionError(new Error(message))
   if (!failedBlock || unattributed.code !== 'EXECUTION_FAILED') return unattributed

@@ -621,12 +621,11 @@ const MAX_PAUSED_RUN_POINTS = 100
 /** At most {@link MAX_PAUSED_RUN_POINTS}, unresolved points first, listed earliest registered first. */
 function capPausePoints<P extends PausePoint>(points: P[]): P[] {
   const byRegistration = (a: P, b: P) => compareStrings(a.registeredAt ?? '', b.registeredAt ?? '')
-  if (points.length <= MAX_PAUSED_RUN_POINTS) return points.sort(byRegistration)
-  const unresolved = points.filter((point) => point.resumeStatus !== 'resumed')
-  const resumed = points.filter((point) => point.resumeStatus === 'resumed')
-  return [...unresolved.sort(byRegistration), ...resumed.sort(byRegistration)]
-    .slice(0, MAX_PAUSED_RUN_POINTS)
-    .sort(byRegistration)
+  const sorted = [...points].sort(byRegistration)
+  if (sorted.length <= MAX_PAUSED_RUN_POINTS) return sorted
+  const unresolved = sorted.filter((point) => point.resumeStatus !== 'resumed')
+  const resumed = sorted.filter((point) => point.resumeStatus === 'resumed')
+  return [...unresolved, ...resumed].slice(0, MAX_PAUSED_RUN_POINTS).sort(byRegistration)
 }
 
 /** One pause point of a paused run, as a caller reading the run may see it. */
