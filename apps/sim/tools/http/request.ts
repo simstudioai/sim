@@ -1,6 +1,11 @@
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import type { RequestParams, RequestResponse } from '@/tools/http/types'
-import { getCredentialHeaderNames, getDefaultHeaders, processUrl } from '@/tools/http/utils'
+import {
+  getCredentialHeaderNames,
+  getDefaultHeaders,
+  processUrl,
+  toHttpToolResponse,
+} from '@/tools/http/utils'
 import { transformTable } from '@/tools/shared/table'
 import type { ToolConfig } from '@/tools/types'
 
@@ -181,11 +186,6 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
   transformResponse: async (response: Response) => {
     const contentType = response.headers.get('content-type') || ''
 
-    const headers: Record<string, string> = {}
-    response.headers.forEach((value, key) => {
-      headers[key] = value
-    })
-
     const responseText = await readResponseTextWithLimit(response, {
       maxBytes: MAX_HTTP_RESPONSE_BODY_BYTES,
       label: 'HTTP Request response body',
@@ -193,15 +193,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
     })
     const data = contentType.includes('application/json') ? JSON.parse(responseText) : responseText
 
-    return {
-      success: response.ok,
-      output: {
-        data,
-        status: response.status,
-        headers,
-      },
-      error: undefined, // Errors are handled upstream in executeTool
-    }
+    return toHttpToolResponse(response, data)
   },
 
   outputs: {
