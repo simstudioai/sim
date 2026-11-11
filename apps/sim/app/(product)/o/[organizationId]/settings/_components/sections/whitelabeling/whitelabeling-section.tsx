@@ -1,19 +1,15 @@
 'use client'
 
 import { useId } from 'react'
-import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { FieldFrame, TextField } from '@sim/emcn/field'
 import { FileField } from '@sim/emcn/field/file-field'
 import { Input } from '@sim/emcn/field/inputs'
 import { SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
+import { SettingsSaveBar } from '@/app/(product)/_components/settings-parts/save-bar'
 import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
-import {
-  ActionRow,
-  FieldStack,
-  SectionStack,
-} from '@/app/(product)/_components/settings-parts/settings-parts'
+import { FieldStack, SectionStack } from '@/app/(product)/_components/settings-parts/settings-parts'
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
 import styles from '@/app/(product)/o/[organizationId]/settings/_components/sections/whitelabeling/whitelabeling-section.module.css'
 import { useWhitelabelForm } from '@/platform/lib/data/whitelabeling'
@@ -37,6 +33,7 @@ interface ColorFieldProps {
   onChange: (value: string) => void
 }
 
+/** A hex color field with a preview swatch: `TextField` has no trailing slot, so it composes `FieldFrame` and `Input`. */
 function ColorField({ label, placeholder, value, valid, onChange }: ColorFieldProps) {
   const id = useId()
   const error = valid ? undefined : 'Must be a valid hex color (e.g. #33c482)'
@@ -176,16 +173,7 @@ function WhitelabelForm({ organizationId, settings, uploadWorkspaceId }: Whitela
             />
           </FieldStack>
         </SettingsSection>
-        <ActionRow>
-          <Button submit variant='primary' disabled={!form.dirty || form.saving}>
-            {form.saving && !form.uploading ? 'Saving…' : 'Save'}
-          </Button>
-          {form.dirty && (
-            <Button variant='quiet' disabled={form.saving} onClick={form.discard}>
-              Discard
-            </Button>
-          )}
-        </ActionRow>
+        <SettingsSaveBar dirty={form.dirty} saving={form.saving} onDiscard={form.discard} />
       </SectionStack>
     </form>
   )
@@ -202,7 +190,7 @@ export default function WhitelabelingSection({ organization }: SettingsSectionPr
       ) : read.status === 'error' || !read.settings ? (
         <FailureNotice message={read.error} onRetry={read.retry} />
       ) : !read.entitled ? (
-        <EmptyState title='Whitelabeling requires an active Enterprise plan.' />
+        <EmptyState title='Whitelabeling requires an active Enterprise plan' />
       ) : (
         <WhitelabelForm
           key={organizationId}

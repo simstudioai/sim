@@ -1,26 +1,8 @@
 .page {
-  /* Settings' breadcrumb, then the actions and options rows above the table's scroller, and their gaps. */
-  --ui-table-viewport-offset: calc(
-    var(--spacing-48) +
-    3 *
-    var(--spacing-app-control-md) +
-    4 *
-    var(--ui-product-section-gap)
-  );
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: var(--ui-product-section-gap);
-}
-.options {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--spacing-8);
-}
-.options > :first-child {
-  flex: 1 1 var(--spacing-128);
-  min-inline-size: 0;
 }
 .nameCell {
   display: grid;
