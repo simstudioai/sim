@@ -23,6 +23,7 @@ export { type OAuthConnectOptions, useOAuthConnect } from './use-oauth-connect'
 export {
   canReconnectServiceAccount,
   hasServiceAccountForm,
+  type ServiceAccountFormField,
   serviceAccountSetupKind,
   useServiceAccountForm,
 } from './use-service-account-form'

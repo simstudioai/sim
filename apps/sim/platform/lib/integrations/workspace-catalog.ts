@@ -12,7 +12,7 @@ type WorkspaceAppAccess = 'available' | 'unconfigured' | 'restricted'
 /** One connection method the deployment can complete, in the catalog's projection. */
 export type WorkspaceAppConnection = Pick<
   CredentialConnection,
-  'id' | 'kind' | 'label' | 'providerId' | 'setup' | 'requiredScopes'
+  'id' | 'kind' | 'label' | 'providerId' | 'setup' | 'requiredScopes' | 'oauthServiceId'
 > & {
   /** The Atlassian product an Atlassian service account connects for this app. */
   atlassianProduct?: 'jira' | 'confluence'
@@ -103,17 +103,20 @@ export function projectWorkspaceApp(
     docsUrl: entry.docsUrl,
     access: verdict,
     credentialProviders: [...new Set(entry.connections.map((connection) => connection.providerId))],
-    connections: connections.map(({ id, kind, label, providerId, setup, requiredScopes }) => ({
-      id,
-      kind,
-      label,
-      providerId,
-      setup,
-      requiredScopes,
-      ...(providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER
-        ? { atlassianProduct: entry.type.startsWith('confluence') ? 'confluence' : 'jira' }
-        : {}),
-    })),
+    connections: connections.map(
+      ({ id, kind, label, providerId, setup, requiredScopes, oauthServiceId }) => ({
+        id,
+        kind,
+        label,
+        providerId,
+        setup,
+        requiredScopes,
+        ...(oauthServiceId ? { oauthServiceId } : {}),
+        ...(providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER
+          ? { atlassianProduct: entry.type.startsWith('confluence') ? 'confluence' : 'jira' }
+          : {}),
+      })
+    ),
     instanceLabels: Object.fromEntries(
       entry.connections.flatMap((connection) => {
         const field = connection.fields.find((item) => INSTANCE_FIELDS.has(item.id))

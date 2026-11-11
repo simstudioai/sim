@@ -145,7 +145,7 @@ const HELPER_COPY_OWNERS: ReasonedAllowlist = {
   ),
   [`${PRODUCT_ROUTES}_components/invite-modal/invite-modal.tsx#Email addresses`]:
     'Seat warning: the state of the plan, shown only when the invites exceed the open seats',
-  [`${PRODUCT_ROUTES}_components/service-account-modal/service-account-modal.tsx#{field.label}`]:
+  [`${PRODUCT_ROUTES}_components/service-account-modal/google-service-account-modal.tsx#{field.label}`]:
     "A soft format warning, shown only while a pasted value misses the provider's usual shape",
   [`${PRODUCT_ROUTES}_components/skill-fields/skill-fields.tsx#Name`]:
     'Why a view-only skill cannot be edited; a read-only TextField has no disabledReason',

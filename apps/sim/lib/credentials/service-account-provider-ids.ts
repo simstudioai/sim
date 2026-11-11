@@ -6,6 +6,7 @@ import {
 import {
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
+  SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -85,6 +86,7 @@ export function getServiceAccountConnectNoun(providerId: string): string {
   if (providerId === AWS_SERVICE_ACCOUNT_PROVIDER_ID) return 'AWS credential'
   if (providerId === DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID) return 'Databricks connection'
   if (providerId === MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID) return 'Microsoft app credential'
+  if (providerId === SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID) return 'Snowflake connection'
   const descriptor =
     getTokenServiceAccountDescriptor(providerId) ?? getClientCredentialAccountDescriptor(providerId)
   return descriptor?.connectNoun ?? 'service account'

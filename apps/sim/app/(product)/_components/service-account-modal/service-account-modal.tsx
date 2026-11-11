@@ -1,10 +1,12 @@
 'use client'
 
-import { SelectField, TextAreaField, TextField } from '@sim/emcn/field'
-import { CopyField, SecretField } from '@sim/emcn/field/value-fields'
+import { TextAreaField, TextField } from '@sim/emcn/field'
 import { Modal } from '@sim/emcn/modal'
 import { AtlassianServiceAccountModal } from '@/app/(product)/_components/service-account-modal/atlassian-service-account-modal'
-import { GoogleServiceAccountModal } from '@/app/(product)/_components/service-account-modal/google-service-account-modal'
+import {
+  GoogleServiceAccountModal,
+  ServiceAccountFormFields,
+} from '@/app/(product)/_components/service-account-modal/google-service-account-modal'
 import { OciApiKeyModal } from '@/app/(product)/_components/service-account-modal/oci-api-key-modal'
 import { OracleDatabaseAccountModal } from '@/app/(product)/_components/service-account-modal/oracle-database-account-modal'
 import { SlackBotModal } from '@/app/(product)/_components/service-account-modal/slack-bot-modal'
@@ -30,7 +32,8 @@ interface KeyFormSubmitProps {
   submitPending?: boolean
   /**
    * An account the dialog replaces, titled Reconnect and keeping its name. With `credentialId`, a
-   * cloud configuration (AWS, Databricks) is saved onto that credential in place; otherwise
+   * cloud configuration (AWS, Databricks, Snowflake, a Microsoft app) is saved onto that credential
+   * in place; otherwise
    * `submitCredentials` replaces it.
    */
   replacedAccount?: { credentialId?: string; displayName?: string; description?: string }
@@ -42,13 +45,16 @@ interface ServiceAccountModalProps extends SetupModalProps, KeyFormSubmitProps {
   atlassianProduct?: 'jira' | 'confluence'
   /** Overrides the Atlassian setup guide, such as a search connector's own page. */
   atlassianSetupGuideUrl?: string
+  /** The OAuth service the account is for; a Google Cloud service also offers keyless setup. */
+  oauthServiceId?: string
 }
 
 /**
  * Adds a service account in place, from a workflow block's credential picker, a knowledge connector
  * or an organization's Search source, owned by the workspace or organization `scope` names, with the
  * dialog its provider needs: a pasted token, an app's client credentials, a cloud configuration
- * (AWS, Databricks, keyless sign-in included), a Google JSON key, an Atlassian API token, an OCI
+ * (AWS, Databricks, Snowflake, a Microsoft app, keyless sign-in included), a Google JSON key or
+ * keyless Google Cloud setup, an Atlassian API token, an OCI
  * signing key, an Oracle Database wallet or a custom Slack bot. The provider verifies the secret
  * before it is stored, and `onCreated` receives the new credential to select. `submitCredentials`
  * saves a pasted token or client credentials through another operation, as a member's saved Search
@@ -58,6 +64,7 @@ export function ServiceAccountModal({
   serviceAccountProviderId,
   atlassianProduct,
   atlassianSetupGuideUrl,
+  oauthServiceId,
   open,
   onOpenChange,
   scope,
@@ -90,6 +97,7 @@ export function ServiceAccountModal({
           scope={scope}
           serviceName={serviceName}
           onCreated={onCreated}
+          oauthServiceId={oauthServiceId}
         />
       )
     case 'atlassian':
@@ -184,72 +192,7 @@ function KeyFormModal({
           : undefined
       }
     >
-      {form.fields.map((field) =>
-        field.copy ? (
-          field.multiline ? (
-            <TextAreaField
-              key={field.id}
-              label={field.label}
-              value={field.value}
-              placeholder={field.placeholder}
-              viewOnly
-              spellCheck={false}
-            />
-          ) : (
-            <CopyField key={field.id} label={field.label} value={field.value} />
-          )
-        ) : field.options ? (
-          <SelectField
-            key={field.id}
-            label={field.label}
-            value={field.value}
-            onValueChange={(value) => form.setField(field.id, value)}
-            options={field.options}
-            error={field.error}
-            optional={!field.required}
-          />
-        ) : field.multiline ? (
-          <TextAreaField
-            key={field.id}
-            label={field.label}
-            value={field.value}
-            onChange={(value) => form.setField(field.id, value)}
-            placeholder={field.placeholder}
-            autoComplete='off'
-            spellCheck={false}
-            required={field.required}
-            optional={!field.required}
-            hint={field.formatWarning}
-            error={field.error}
-          />
-        ) : field.secret ? (
-          <SecretField
-            key={field.id}
-            label={field.label}
-            value={field.value}
-            onChange={(value) => form.setField(field.id, value)}
-            placeholder={field.placeholder}
-            autoComplete='new-password'
-            required={field.required}
-            optional={!field.required}
-            hint={field.formatWarning}
-            error={field.error}
-          />
-        ) : (
-          <TextField
-            key={field.id}
-            label={field.label}
-            value={field.value}
-            onChange={(value) => form.setField(field.id, value)}
-            placeholder={field.placeholder}
-            autoComplete='off'
-            required={field.required}
-            optional={!field.required}
-            hint={field.formatWarning}
-            error={field.error}
-          />
-        )
-      )}
+      <ServiceAccountFormFields fields={form.fields} onChange={form.setField} />
       <TextField
         label='Display name'
         value={form.displayName}

@@ -139,6 +139,7 @@ export function WorkspaceAppDialogs({ app, workspaceId, dialogs }: WorkspaceAppD
           scope={scope}
           serviceAccountProviderId={connecting.providerId}
           atlassianProduct={connecting.atlassianProduct}
+          oauthServiceId={connecting.oauthServiceId}
           serviceName={app.name}
           onCreated={close}
         />

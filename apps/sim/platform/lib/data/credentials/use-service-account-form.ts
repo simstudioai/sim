@@ -36,8 +36,8 @@ const CONFIG_FALLBACK = 'Could not verify the credential. Check the details and 
 
 /**
  * The dialog that adds a service account of this provider, as the legacy setup modal dispatches:
- * a pasted token, an app's client credentials and a cloud configuration (AWS, Databricks) share one
- * form, and each remaining kind has its own.
+ * a pasted token, an app's client credentials and a cloud configuration (AWS, Databricks,
+ * Snowflake, a Microsoft app) share one form, and each remaining kind has its own.
  */
 export type ServiceAccountSetupKind =
   | 'form'
@@ -80,7 +80,7 @@ export function hasServiceAccountForm(providerId: string | undefined): boolean {
 
 /**
  * Whether the shared dialog can reconnect this provider's service account in place: a cloud
- * configuration (AWS, Databricks) is saved onto the same credential.
+ * configuration (AWS, Databricks, Snowflake, a Microsoft app) is saved onto the same credential.
  */
 export function canReconnectServiceAccount(providerId: string | null | undefined): boolean {
   return Boolean(getConfigServiceAccountDescriptor(providerId ?? undefined))
@@ -191,15 +191,19 @@ export function useServiceAccountForm({
   initialDescription = '',
   reconnectCredentialId,
 }: UseServiceAccountFormOptions) {
-  const tokenDescriptor = getTokenServiceAccountDescriptor(serviceAccountProviderId)
-  const clientDescriptor = tokenDescriptor
-    ? undefined
-    : getClientCredentialAccountDescriptor(serviceAccountProviderId)
+  const pastedToken = getTokenServiceAccountDescriptor(serviceAccountProviderId)
+  // A cloud configuration (Snowflake's keyless service user beside its token) wins, unless another
+  // operation saves the fields: that one takes the token only.
   const configDescriptor =
-    tokenDescriptor || clientDescriptor
+    submitCredentials && pastedToken
       ? undefined
       : getConfigServiceAccountDescriptor(serviceAccountProviderId)
-  const descriptor = tokenDescriptor ?? clientDescriptor ?? configDescriptor
+  const tokenDescriptor = configDescriptor ? undefined : pastedToken
+  const clientDescriptor =
+    configDescriptor || tokenDescriptor
+      ? undefined
+      : getClientCredentialAccountDescriptor(serviceAccountProviderId)
+  const descriptor = configDescriptor ?? tokenDescriptor ?? clientDescriptor
   const [values, setValues] = useState<Record<string, string>>({})
   const [displayName, setDisplayName] = useState(initialDisplayName)
   const [description, setDescription] = useState(initialDescription)
@@ -278,10 +282,15 @@ export function useServiceAccountForm({
 
   const submitConfig = async (config: Record<string, string>) => {
     const owner = resourceScopeFields(scope)
-    const shared = {
-      serviceAccountJson: JSON.stringify(config),
-      displayName: displayName.trim() || undefined,
-    }
+    const bodyFields = configDescriptor?.bodyFields?.[configForm.authType]
+    const secret = bodyFields
+      ? Object.fromEntries(
+          Object.entries(bodyFields).flatMap(([fieldId, bodyField]) =>
+            config[fieldId] ? [[bodyField, config[fieldId].trim()]] : []
+          )
+        )
+      : { serviceAccountJson: JSON.stringify(config) }
+    const shared = { ...secret, displayName: displayName.trim() || undefined }
     try {
       if (reconnectCredentialId) {
         await updateCredential.mutateAsync({
@@ -308,7 +317,13 @@ export function useServiceAccountForm({
         throw new Error(
           'A credential with that name already exists. Choose a different display name.'
         )
-      throw new Error(isApiClientError(error) && error.message ? error.message : CONFIG_FALLBACK)
+      const codeMessage =
+        isApiClientError(error) && error.code
+          ? configDescriptor?.errorMessage?.(error.code, configForm.authType)
+          : undefined
+      throw new Error(
+        codeMessage ?? (isApiClientError(error) && error.message ? error.message : CONFIG_FALLBACK)
+      )
     }
   }
 

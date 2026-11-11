@@ -70,4 +70,6 @@ export interface CredentialConnection {
   requiredScopes?: readonly { id: string; label: string }[]
   fields: readonly CredentialField[]
   personalOnly?: boolean
+  /** The OAuth service a service account connects for, which decides keyless Google setup. */
+  oauthServiceId?: string
 }

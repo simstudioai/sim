@@ -5,7 +5,8 @@
  * pickers apply. Failure modes: an app the permission group denies appearing at all; an app it
  * restricts but lets the viewer request vanishing, or offering a connection; an app this
  * deployment cannot connect offering a connection; GitLab's personal token not offered; an OAuth method whose service is unconfigured
- * opening a sign-in that cannot finish; and another app's or a secret's credential counted as
+ * opening a sign-in that cannot finish; a service account connection losing the OAuth service its
+ * dialog gates keyless Google setup on; and another app's or a secret's credential counted as
  * connected.
  */
 import { describe, expect, it } from 'vitest'
@@ -105,6 +106,31 @@ describe('projectWorkspaceApp', () => {
     expect(
       projectWorkspaceApp(gitlab, verdicts('available'))?.connections.map(({ kind }) => kind)
     ).toEqual(['personal_token'])
+  })
+
+  it('keeps the OAuth service a service account connects for, which gates keyless Google setup', () => {
+    const bigquery: IntegrationCatalogEntry = {
+      ...gmail,
+      id: 'google_bigquery',
+      type: 'google_bigquery',
+      connections: [
+        {
+          id: 'google-service-account',
+          kind: 'service_account',
+          label: 'Add service account',
+          providerId: 'google-service-account',
+          setup: 'google-json',
+          oauthServiceId: 'google-bigquery',
+          fields: [],
+        },
+      ],
+    }
+    expect(projectWorkspaceApp(bigquery, verdicts('available'))?.connections).toEqual([
+      expect.objectContaining({
+        providerId: 'google-service-account',
+        oauthServiceId: 'google-bigquery',
+      }),
+    ])
   })
 })
 

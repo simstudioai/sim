@@ -373,6 +373,7 @@ export function CredentialSelector({
           scope={{ kind: 'workspace', workspaceId }}
           serviceAccountProviderId={serviceAccountTarget.serviceAccountProviderId}
           atlassianProduct={serviceAccountTarget.atlassianProduct}
+          oauthServiceId={serviceId}
           serviceName={serviceAccountTarget.serviceName}
           onCreated={(credentialId) => {
             setStoreValue(credentialId)

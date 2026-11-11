@@ -6,7 +6,11 @@ import {
   type ClientCredentialAccountField,
   getClientCredentialAccountDescriptor,
 } from '../apps/sim/lib/credentials/client-credential-accounts/descriptors'
-import { getConfigServiceAccountDescriptor } from '../apps/sim/lib/credentials/config-service-accounts/descriptors'
+import {
+  type ConfigServiceAccountDescriptor,
+  getConfigServiceAccountDescriptor,
+  getGoogleKeylessDescriptor,
+} from '../apps/sim/lib/credentials/config-service-accounts/descriptors'
 import { getServiceAccountConnectNoun } from '../apps/sim/lib/credentials/service-account-provider-ids'
 import {
   getTokenServiceAccountDescriptor,
@@ -58,6 +62,28 @@ function descriptorField(
   }
 }
 
+/** A cloud configuration's fields, each shown only for the auth types that use it. */
+function configFields(descriptor: ConfigServiceAccountDescriptor): CredentialField[] {
+  return descriptor.fields.map((field) => ({
+    id: field.id,
+    label: field.label,
+    placeholder: field.placeholder,
+    ...(field.secret ? { secret: true } : {}),
+    ...(field.multiline ? { multiline: true } : {}),
+    ...(field.optional ? { optional: true } : {}),
+    visibleWhen: { field: 'authType', values: field.authTypes },
+  }))
+}
+
+function authTypeField(descriptor: ConfigServiceAccountDescriptor): CredentialField {
+  return {
+    id: 'authType',
+    label: 'Authentication',
+    defaultValue: descriptor.keyedDefault,
+    options: descriptor.authTypes.map(({ value, label }) => ({ value, label })),
+  }
+}
+
 /**
  * A cloud configuration's auth type choice and each type's own fields. Keyless sign-in is listed as
  * a choice; the issuer, audience and subject it shows come from the live deployment, not the catalog.
@@ -65,23 +91,35 @@ function descriptorField(
 function configSetup(providerId: string): Pick<CredentialConnection, 'setup' | 'fields'> | null {
   const descriptor = getConfigServiceAccountDescriptor(providerId)
   if (!descriptor) return null
+  return { setup: 'fields', fields: [authTypeField(descriptor), ...configFields(descriptor)] }
+}
+
+const GOOGLE_JSON_KEY_FIELD: CredentialField = {
+  id: 'serviceAccountJson',
+  label: 'JSON key',
+  placeholder: 'Paste the service-account JSON key',
+  secret: true,
+  multiline: true,
+}
+
+/**
+ * A Google service account: its JSON key, and for a Google Cloud service the keyless Workload
+ * Identity Federation choice beside it. Google Workspace services never offer keyless.
+ */
+function googleSetup(
+  oauthServiceId: string | undefined
+): Pick<CredentialConnection, 'setup' | 'fields'> {
+  const keyless = getGoogleKeylessDescriptor(oauthServiceId)
+  if (!keyless) return { setup: 'google-json', fields: [GOOGLE_JSON_KEY_FIELD] }
   return {
-    setup: 'fields',
+    setup: 'google-json',
     fields: [
+      authTypeField(keyless),
       {
-        id: 'authType',
-        label: 'Authentication',
-        defaultValue: descriptor.keyedDefault,
-        options: descriptor.authTypes.map(({ value, label }) => ({ value, label })),
+        ...GOOGLE_JSON_KEY_FIELD,
+        visibleWhen: { field: 'authType', values: [keyless.keyedDefault] },
       },
-      ...descriptor.fields.map((field) => ({
-        id: field.id,
-        label: field.label,
-        placeholder: field.placeholder,
-        ...(field.secret ? { secret: true } : {}),
-        ...(field.optional ? { optional: true } : {}),
-        visibleWhen: { field: 'authType', values: field.authTypes },
-      })),
+      ...configFields(keyless),
     ],
   }
 }
@@ -89,19 +127,6 @@ function configSetup(providerId: string): Pick<CredentialConnection, 'setup' | '
 /** Bespoke requirements mirror the existing workspace connection forms. */
 function bespokeSetup(providerId: string): Pick<CredentialConnection, 'setup' | 'fields'> | null {
   switch (providerId) {
-    case GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID:
-      return {
-        setup: 'google-json',
-        fields: [
-          {
-            id: 'serviceAccountJson',
-            label: 'JSON key',
-            placeholder: 'Paste the service-account JSON key',
-            secret: true,
-            multiline: true,
-          },
-        ],
-      }
     case ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID:
       return {
         setup: 'fields',
@@ -217,21 +242,29 @@ function bespokeSetup(providerId: string): Pick<CredentialConnection, 'setup' | 
   }
 }
 
-function serviceAccountConnection(providerId: string): CredentialConnection | null {
+function serviceAccountConnection(
+  providerId: string,
+  oauthServiceId: string
+): CredentialConnection | null {
   const token = getTokenServiceAccountDescriptor(providerId)
   const client = getClientCredentialAccountDescriptor(providerId)
   const descriptor = token ?? client
-  const setup = descriptor
+  const pasted = descriptor
     ? {
         setup: 'fields' as const,
         fields: descriptor.fields.map((field) => descriptorField(field, client?.defaultAuthMethod)),
       }
-    : (configSetup(providerId) ?? bespokeSetup(providerId))
+    : null
+  const setup =
+    providerId === GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID
+      ? googleSetup(oauthServiceId)
+      : (configSetup(providerId) ?? pasted ?? bespokeSetup(providerId))
   if (!setup) return null
   return {
     id: providerId,
     kind: 'service_account',
     providerId,
+    oauthServiceId,
     label:
       providerId === SLACK_CUSTOM_BOT_PROVIDER_ID
         ? 'Set up a custom bot'
@@ -326,7 +359,7 @@ function serviceConnections(integration: CatalogSource, type: string): Credentia
     service.serviceAccountProviderId ??
     (service.authType === 'service_account' ? service.providerId : undefined)
   if (serviceAccountProviderId) {
-    const connection = serviceAccountConnection(serviceAccountProviderId)
+    const connection = serviceAccountConnection(serviceAccountProviderId, service.serviceId)
     if (connection) methods.push(connection)
   }
   return methods

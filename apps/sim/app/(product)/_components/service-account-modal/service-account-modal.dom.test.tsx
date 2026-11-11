@@ -1,8 +1,9 @@
 /**
  * @vitest-environment jsdom
  *
- * AWS and Databricks credentials, keyless sign-in included, set up from the Platform's shared
- * service-account dialog. Failure modes: the dialog renders nothing for these providers; keyless
+ * AWS, Databricks, Snowflake and Microsoft app credentials, keyless sign-in included, plus keyless
+ * Google Cloud service accounts and the GitHub, Bitbucket and DocuSign tokens, set up from the
+ * Platform's shared service-account dialog. Failure modes: the dialog renders nothing for these providers; keyless
  * sign-in is offered where the deployment or scope cannot complete it, or hidden without a reason;
  * the keyless instructions are missing or carry another subject; the submitted configuration is
  * not the one the legacy dialogs sent (wrong `authType`, a hidden auth type's secret, a dropped
@@ -46,7 +47,8 @@ interface RecordedRequest {
 let container: HTMLDivElement
 let root: Root
 let requests: RecordedRequest[]
-let keyless: typeof TRUST | { available: false }
+/** The workload-identity setup; Google's has no fixed audience. */
+let keyless: (Omit<typeof TRUST, 'audience'> & { audience?: string }) | { available: false }
 let createFailure: { status: number; body: unknown } | null
 let createdIds: string[]
 
@@ -123,6 +125,7 @@ async function open(
   options: {
     scope?: ResourceScope
     replacedAccount?: { credentialId: string; displayName: string }
+    oauthServiceId?: string
   } = {}
 ) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -137,6 +140,7 @@ async function open(
           serviceName={serviceName}
           onCreated={(id) => createdIds.push(id)}
           replacedAccount={options.replacedAccount}
+          oauthServiceId={options.oauthServiceId}
         />
       </QueryClientProvider>
     )
@@ -216,7 +220,7 @@ async function confirm(dialog: Element, text: string) {
   await settle()
 }
 
-function submittedConfig(method = 'POST') {
+function submittedBody(method = 'POST') {
   const saved = requests.filter(
     (request) =>
       request.method === method &&
@@ -224,10 +228,19 @@ function submittedConfig(method = 'POST') {
       request.path.startsWith('/api/credentials')
   )
   expect(saved).toHaveLength(1)
-  return {
-    body: saved[0].body,
-    config: JSON.parse(String(saved[0].body.serviceAccountJson)),
-  }
+  return saved[0].body
+}
+
+function submittedConfig(method = 'POST') {
+  const body = submittedBody(method)
+  return { body, config: JSON.parse(String(body.serviceAccountJson)) }
+}
+
+/** The provider each workload-identity setup request asked for. */
+function setupProviders() {
+  return requests
+    .filter((request) => request.path === '/api/credentials/workload-identity')
+    .map((request) => request.body.provider)
 }
 
 it('adds a keyless AWS role: shows what to paste into AWS and submits the signed subject', async () => {
@@ -387,4 +400,226 @@ it('reconnects in place, keeps the trusted subject by default and prefills no se
   expect(body).toMatchObject({ displayName: 'Prod role' })
   expect(config).toEqual({ authType: 'oidc_role', roleArn: ROLE_ARN })
   expect(createdIds).toEqual(['cred-old'])
+})
+
+it('adds a keyless Snowflake service user: shows the CREATE USER statement and submits a bare host', async () => {
+  keyless = { ...TRUST, audience: 'snowflakecomputing.com' }
+  const dialog = await open('snowflake-service-account', 'Snowflake')
+
+  expect(dialog.textContent).toContain('Add Snowflake connection')
+  expect(setupProviders()).toContain('snowflake')
+  expect(authTypeTrigger(dialog).textContent).toContain('Service user (keyless, via Sim OIDC)')
+  expect(labelled(dialog, 'Programmatic access token')).toBeNull()
+  expect(input(dialog, 'Audience').value).toBe('snowflakecomputing.com')
+  const statement = input(dialog, 'Service user statement').value
+  expect(statement).toContain(`ISSUER = '${TRUST.issuer}'`)
+  expect(statement).toContain(`SUBJECT = '${TRUST.subject}'`)
+
+  type(input(dialog, 'Account host'), 'https://myorg-acct.snowflakecomputing.com/console')
+  await confirm(dialog, 'Add connection')
+
+  const { body, config } = submittedConfig()
+  expect(body).toMatchObject({ type: 'service_account', providerId: 'snowflake-service-account' })
+  expect(body.apiToken).toBeUndefined()
+  expect(config).toEqual({
+    authType: 'workload_identity',
+    host: 'myorg-acct.snowflakecomputing.com',
+    subject: TRUST.subject,
+    subjectProof: TRUST.subjectProof,
+  })
+})
+
+it('adds a Snowflake programmatic access token as the token fields, never a configuration', async () => {
+  keyless = { available: false }
+  const dialog = await open('snowflake-service-account', 'Snowflake')
+
+  expect(authTypeTrigger(dialog).textContent).toContain('Programmatic access token')
+  type(input(dialog, 'Account host'), 'myorg-acct.snowflakecomputing.com')
+  type(input(dialog, 'Programmatic access token'), ' pat-secret ')
+  await confirm(dialog, 'Add connection')
+
+  const body = submittedBody()
+  expect(body).toMatchObject({
+    providerId: 'snowflake-service-account',
+    domain: 'myorg-acct.snowflakecomputing.com',
+    apiToken: 'pat-secret',
+  })
+  expect(body.serviceAccountJson).toBeUndefined()
+})
+
+it('adds a keyless Microsoft app credential for the federated credential it trusts', async () => {
+  keyless = { ...TRUST, audience: 'api://AzureADTokenExchange' }
+  const dialog = await open('microsoft-app-service-account', 'SharePoint')
+
+  expect(dialog.textContent).toContain('Add Microsoft app credential')
+  expect(setupProviders()).toContain('microsoft')
+  expect(authTypeTrigger(dialog).textContent).toContain(
+    'Federated credential (keyless, via Sim OIDC)'
+  )
+  expect(input(dialog, 'Audience').value).toBe('api://AzureADTokenExchange')
+  expect(labelled(dialog, 'Client secret')).toBeNull()
+  type(input(dialog, 'Directory (tenant) ID'), ' 11111111-1111-1111-1111-111111111111 ')
+  type(input(dialog, 'Application (client) ID'), '22222222-2222-2222-2222-222222222222')
+
+  await confirm(dialog, 'Add app credential')
+
+  expect(submittedConfig().config).toEqual({
+    authType: 'federated',
+    tenantId: '11111111-1111-1111-1111-111111111111',
+    clientId: '22222222-2222-2222-2222-222222222222',
+    subject: TRUST.subject,
+    subjectProof: TRUST.subjectProof,
+  })
+})
+
+it("adds a Microsoft app certificate with its environment URL, and only that mode's secrets", async () => {
+  keyless = { available: false }
+  const dialog = await open('microsoft-app-service-account', 'Dataverse')
+
+  expect(authTypeTrigger(dialog).textContent).toContain('Client secret')
+  type(input(dialog, 'Directory (tenant) ID'), '11111111-1111-1111-1111-111111111111')
+  type(input(dialog, 'Application (client) ID'), '22222222-2222-2222-2222-222222222222')
+  type(input(dialog, 'Client secret'), 'left-behind')
+  await chooseAuthType(dialog, 'Certificate')
+  type(
+    input(dialog, 'Dataverse or Dynamics 365 environment URL'),
+    'https://contoso.crm.dynamics.com'
+  )
+  type(input(dialog, 'Certificate'), '-----BEGIN CERTIFICATE-----\nabc\n-----END CERTIFICATE-----')
+  type(
+    input(dialog, 'Private key (unencrypted PEM)'),
+    '-----BEGIN PRIVATE KEY-----\nk\n-----END PRIVATE KEY-----'
+  )
+
+  await confirm(dialog, 'Add app credential')
+
+  expect(submittedConfig().config).toEqual({
+    authType: 'certificate',
+    tenantId: '11111111-1111-1111-1111-111111111111',
+    clientId: '22222222-2222-2222-2222-222222222222',
+    environmentUrl: 'https://contoso.crm.dynamics.com',
+    certificate: '-----BEGIN CERTIFICATE-----\nabc\n-----END CERTIFICATE-----',
+    privateKey: '-----BEGIN PRIVATE KEY-----\nk\n-----END PRIVATE KEY-----',
+  })
+})
+
+it('reconnects a Microsoft app credential on its keyed mode unless the setup reports it keyless', async () => {
+  keyless = { ...TRUST, audience: 'api://AzureADTokenExchange' }
+  const dialog = await open('microsoft-app-service-account', 'Entra ID', {
+    replacedAccount: { credentialId: 'cred-old', displayName: 'Graph app' },
+  })
+
+  expect(authTypeTrigger(dialog).textContent).toContain('Client secret')
+  expect(
+    requests.find((request) => request.path === '/api/credentials/workload-identity')?.body
+  ).toMatchObject({ provider: 'microsoft', credentialId: 'cred-old' })
+})
+
+it('adds a keyless Google Cloud service account from BigQuery, with the gcloud commands to run', async () => {
+  const { audience: _fixedAudience, ...googleTrust } = TRUST
+  keyless = googleTrust
+  const dialog = await open('google-service-account', 'Google', {
+    oauthServiceId: 'google-bigquery',
+  })
+
+  expect(authTypeTrigger(dialog).textContent).toContain('JSON key')
+  await chooseAuthType(dialog, 'Workload Identity Federation (keyless, via Sim OIDC)')
+  expect(setupProviders()).toContain('google')
+  expect(labelled(dialog, 'JSON key')).toBeNull()
+  expect(labelled(dialog, 'Audience')).toBeNull()
+  expect(button(dialog, 'Add service account').disabled).toBe(true)
+
+  type(input(dialog, 'Project number (numeric, not the project ID)'), '123456789012')
+  type(input(dialog, 'Workload identity pool ID'), 'sim-pool')
+  type(input(dialog, 'Provider ID'), 'sim-oidc')
+  type(input(dialog, 'Service account email'), 'Runner@my-project.iam.gserviceaccount.com')
+
+  expect(input(dialog, 'Audience').value).toBe(
+    'https://iam.googleapis.com/projects/123456789012/locations/global/workloadIdentityPools/sim-pool/providers/sim-oidc'
+  )
+  expect(input(dialog, 'Setup commands').value).toContain(
+    `--attribute-condition="assertion.sub=='${TRUST.subject}'"`
+  )
+  await confirm(dialog, 'Add service account')
+
+  expect(submittedConfig().config).toEqual({
+    authType: 'workload_identity',
+    projectNumber: '123456789012',
+    poolId: 'sim-pool',
+    providerId: 'sim-oidc',
+    serviceAccountEmail: 'runner@my-project.iam.gserviceaccount.com',
+    subject: TRUST.subject,
+    subjectProof: TRUST.subjectProof,
+  })
+})
+
+it('never offers keyless Google setup for a Google Workspace service', async () => {
+  const dialog = await open('google-service-account', 'Google', { oauthServiceId: 'google-drive' })
+
+  expect(dialog.querySelector('[aria-label="Authentication"]')).toBeNull()
+  expect(input(dialog, 'JSON key')).toBeTruthy()
+  expect(setupProviders()).toEqual([])
+})
+
+it.each([
+  [
+    'github-service-account',
+    'GitHub',
+    'Add personal access token',
+    { 'Personal access token': 'github_pat_abc' },
+    { apiToken: 'github_pat_abc' },
+  ],
+  [
+    'bitbucket-service-account',
+    'Bitbucket',
+    'Add access token',
+    { 'Access token': 'bb-token', Repository: 'my-workspace/my-repo' },
+    { apiToken: 'bb-token', providerWorkspaceId: 'my-workspace/my-repo' },
+  ],
+])('adds a saved %s token', async (providerId, serviceName, action, entries, expected) => {
+  const dialog = await open(providerId, serviceName)
+  for (const [label, value] of Object.entries(entries)) type(input(dialog, label), value)
+
+  await confirm(dialog, action)
+
+  expect(submittedBody()).toMatchObject({ type: 'service_account', providerId, ...expected })
+})
+
+it('adds a DocuSign JWT Grant app with its environment, key, user and RSA key', async () => {
+  const dialog = await open('docusign-service-account', 'DocuSign')
+
+  expect(dialog.textContent).toContain('Add DocuSign JWT Grant app')
+  type(input(dialog, 'Integration key'), '33333333-3333-3333-3333-333333333333')
+  type(input(dialog, 'Impersonated user ID'), '44444444-4444-4444-4444-444444444444')
+  type(
+    input(dialog, 'RSA private key'),
+    '-----BEGIN RSA PRIVATE KEY-----\nk\n-----END RSA PRIVATE KEY-----'
+  )
+  expect(button(dialog, 'Add JWT Grant app').disabled).toBe(true)
+  act(() =>
+    labelled(dialog, 'Integration key environment')?.dispatchEvent(
+      new MouseEvent('click', { bubbles: true })
+    )
+  )
+  await settle()
+  const demo = [...document.body.querySelectorAll('[role="option"]')].find(
+    (item) => item.textContent?.trim() === 'Developer (demo)'
+  )
+  if (!(demo instanceof HTMLElement)) throw new Error('No Developer (demo) option')
+  for (const type of ['pointermove', 'pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+    act(() => {
+      demo.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, button: 0 }))
+    })
+    await settle()
+  }
+
+  await confirm(dialog, 'Add JWT Grant app')
+
+  expect(submittedBody()).toMatchObject({
+    providerId: 'docusign-service-account',
+    dataCenter: 'demo',
+    clientId: '33333333-3333-3333-3333-333333333333',
+    username: '44444444-4444-4444-4444-444444444444',
+    privateKey: '-----BEGIN RSA PRIVATE KEY-----\nk\n-----END RSA PRIVATE KEY-----',
+  })
 })

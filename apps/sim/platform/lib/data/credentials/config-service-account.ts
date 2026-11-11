@@ -27,7 +27,8 @@ interface UseConfigServiceAccountFormOptions {
 }
 
 /**
- * The fields of a configuration service account (AWS, Databricks): an auth type choice, the chosen
+ * The fields of a configuration service account (AWS, Databricks, Snowflake, a Microsoft app, a
+ * keyless Google service account): an auth type choice, the chosen
  * type's own fields, and for keyless sign-in the issuer, audience, subject and trust snippet the
  * viewer pastes into their cloud, read from the same workload-identity setup the legacy dialogs
  * read. Keyless is offered only in a workspace whose deployment has a signing key; elsewhere the
@@ -51,9 +52,10 @@ export function useConfigServiceAccountForm({
     provider: descriptor?.workloadIdentityProvider ?? 'aws',
     sessionKey,
     enabled: Boolean(descriptor && workspaceId),
+    credentialId: reconnectCredentialId,
   })
 
-  if (!descriptor) return { fields: [], setField: () => {}, config: null }
+  if (!descriptor) return { fields: [], setField: () => {}, config: null, authType: '' }
 
   const keylessAvailable = workspaceId ? setup.data?.available : false
   const keylessReason = !workspaceId
@@ -62,8 +64,14 @@ export function useConfigServiceAccountForm({
       ? DEPLOYMENT_KEYLESS_REASON
       : undefined
   const keylessType = descriptor.authTypes.find((type) => type.keyless)?.value
+  const reconnectsKeyless = Boolean(setup.data?.available && setup.data.reconnectsKeyless)
+  const startsKeyless =
+    reconnectCredentialId && descriptor.reconnectReportsMode
+      ? reconnectsKeyless
+      : !descriptor.keyedFirst || reconnectsKeyless
   const authType =
-    selectedAuthType ?? (keylessAvailable && keylessType ? keylessType : descriptor.keyedDefault)
+    selectedAuthType ??
+    (keylessAvailable && keylessType && startsKeyless ? keylessType : descriptor.keyedDefault)
   const chosen = descriptor.authTypes.find((type) => type.value === authType)
   const keyless = Boolean(chosen?.keyless)
   const trust = setup.data?.available && subjectChoice === 'new' ? setup.data : undefined
@@ -115,14 +123,20 @@ export function useConfigServiceAccountForm({
 
   for (const field of descriptor.fields) {
     if (!field.authTypes.includes(authType)) continue
+    const value = values[field.id] ?? ''
+    const normalized = field.normalize?.(value) ?? value.trim()
     fields.push({
       id: field.id,
       label: field.label,
       placeholder: field.placeholder,
       secret: Boolean(field.secret),
-      multiline: false,
+      multiline: Boolean(field.multiline),
       required: !field.optional,
-      value: values[field.id] ?? '',
+      value,
+      error:
+        field.format && normalized && !field.format.pattern.test(normalized)
+          ? field.format.message
+          : undefined,
     })
   }
 
@@ -142,8 +156,12 @@ export function useConfigServiceAccountForm({
     })
   }
 
-  if (keyless && trust?.audience) {
-    const fixedTrust = { ...trust, audience: trust.audience }
+  const audience = descriptor.audience ? descriptor.audience(values) : trust?.audience
+  const snippet =
+    trust && audience !== undefined
+      ? descriptor.trustSnippet?.build({ ...trust, audience }, values)
+      : undefined
+  if (keyless && trust) {
     const copy = (id: string, label: string, value: string, multiline = false) =>
       fields.push({
         id,
@@ -156,21 +174,20 @@ export function useConfigServiceAccountForm({
         value,
       })
     copy('issuer', 'Issuer', trust.issuer)
-    copy('audience', 'Audience', fixedTrust.audience)
+    if (audience) copy('audience', 'Audience', audience)
     copy('subject', 'Subject', trust.subject)
-    copy(
-      'trustSnippet',
-      descriptor.trustSnippet.label,
-      descriptor.trustSnippet.build(fixedTrust, values),
-      true
-    )
+    if (descriptor.trustSnippet && snippet)
+      copy('trustSnippet', descriptor.trustSnippet.label, snippet, true)
   }
 
   const missingRequired = fields.some(
     (field) => field.required && !field.copy && !field.options && !field.value.trim()
   )
   const keylessReady = subjectChoice === 'keep' ? Boolean(reconnectCredentialId) : Boolean(trust)
-  const ready = chosen && !missingRequired && (!keyless || (keylessAvailable && keylessReady))
+  const ready =
+    chosen &&
+    !missingRequired &&
+    (!keyless || (keylessAvailable && keylessReady && (descriptor.keylessReady?.(values) ?? true)))
   const config = ready
     ? {
         ...buildConfigServiceAccountConfig(descriptor, authType, values),
@@ -178,5 +195,5 @@ export function useConfigServiceAccountForm({
       }
     : null
 
-  return { fields, setField, config }
+  return { fields, setField, config, authType }
 }
