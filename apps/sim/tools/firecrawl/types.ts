@@ -290,7 +290,8 @@ export interface FirecrawlCrawlParams {
   formats?: FirecrawlFormat[]
   onlyMainContent?: boolean
   prompt?: string
-  maxDiscoveryDepth?: number
+  /** Raw field text like {@link maxDepth}: a cleared field arrives as `''`. */
+  maxDiscoveryDepth?: number | string
   sitemap?: 'skip' | 'include'
   crawlEntireDomain?: boolean
   allowExternalLinks?: boolean
