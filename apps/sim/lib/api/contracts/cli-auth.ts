@@ -108,7 +108,7 @@ export const pollCliAuthContract = defineRouteContract({
           id: z.string(),
           apiKey: z.string(),
           /** The name the key is listed under in Settings → API keys. */
-          name: z.string().optional(),
+          name: z.string(),
         }),
         /**
          * Echoes what the approving user actually consented to. The CLI asked
