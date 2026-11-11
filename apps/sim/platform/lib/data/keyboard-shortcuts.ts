@@ -1,3 +1,4 @@
+import { isMacUserAgent } from '@/lib/core/utils/platform'
 import { COMMAND_DEFINITIONS, type CommandId } from '@/lib/global-commands/commands'
 
 interface ShortcutRow {
@@ -29,19 +30,19 @@ const COMMAND_ROWS: Record<CommandId, { group: 'Navigation' | 'Workflow editor';
     'clear-terminal-console': { group: 'Workflow editor', label: 'Clear console' },
   }
 
-const KEY_NAMES: Record<string, string> = {
-  Mod: '⌘ / Ctrl',
-  Alt: '⌥ / Alt',
-  Shift: 'Shift',
-  Enter: 'Enter',
-}
+/** Key names per platform: macOS writes `⌘⇧P`, the others `Ctrl+Shift+P`. */
+const KEY_NAMES = {
+  mac: { Mod: '⌘', Alt: '⌥', Shift: '⇧', Enter: '↩' },
+  other: { Mod: 'Ctrl', Alt: 'Alt', Shift: 'Shift', Enter: 'Enter' },
+} satisfies Record<'mac' | 'other', Record<string, string>>
 
-/** `Mod+Shift+P` as the reader presses it: `⌘ / Ctrl + Shift + P`. */
-function formatShortcut(shortcut: string) {
+/** `Mod+Shift+P` as the reader presses it on their platform. */
+function formatShortcut(shortcut: string, mac: boolean) {
+  const names: Record<string, string> = mac ? KEY_NAMES.mac : KEY_NAMES.other
   return shortcut
     .split('+')
-    .map((key) => KEY_NAMES[key] ?? key.toUpperCase())
-    .join(' + ')
+    .map((key) => names[key] ?? key.toUpperCase())
+    .join(mac ? '' : '+')
 }
 
 /** Keys the shell handles outside the command registry. */
@@ -50,15 +51,19 @@ const SHELL_ROWS: ShortcutRow[] = [
   { id: 'close', label: 'Close menu or dialog', keys: 'Esc' },
 ]
 
-/** Every registered keyboard shortcut, grouped as the Keyboard shortcuts settings page lists them. */
-export function keyboardShortcutGroups(): ShortcutGroup[] {
+/**
+ * Every registered keyboard shortcut, grouped as the Keyboard shortcuts settings page lists them,
+ * with the keys of the platform the reader's `userAgent` names.
+ */
+export function keyboardShortcutGroups(userAgent: string): ShortcutGroup[] {
+  const mac = isMacUserAgent(userAgent)
   const rowsIn = (group: 'Navigation' | 'Workflow editor') =>
     Object.values(COMMAND_DEFINITIONS)
       .filter((definition) => COMMAND_ROWS[definition.id].group === group)
       .map((definition) => ({
         id: definition.id,
         label: COMMAND_ROWS[definition.id].label,
-        keys: formatShortcut(definition.shortcut),
+        keys: formatShortcut(definition.shortcut, mac),
       }))
   return [
     { title: 'Navigation', rows: [...rowsIn('Navigation'), ...SHELL_ROWS] },
