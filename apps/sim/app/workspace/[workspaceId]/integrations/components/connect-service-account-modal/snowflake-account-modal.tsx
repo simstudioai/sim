@@ -301,7 +301,7 @@ function SnowflakeAccountForm({
           <ChipModalField
             type='custom'
             title='Service user'
-            hint='An admin runs this once in the account, then grants the user a role and sets it as its default role, before you save.'
+            hint='An admin runs this once in the account, then grants the user a role and sets it as its default role, before you save. Rename the user if SIM_WORKFLOWS already exists.'
           >
             {(aria) => (
               <ChipTextarea

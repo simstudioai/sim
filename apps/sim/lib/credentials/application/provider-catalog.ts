@@ -264,7 +264,7 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
           required: true,
           secret: true,
           multiline: true,
-          hint: `JSON object with authType: "access_keys" (accessKeyId, secretAccessKey) or "assume_role" (accessKeyId, secretAccessKey, roleArn, optional externalId).`,
+          hint: `JSON object with authType: "access_keys" (accessKeyId, secretAccessKey, optional stsRegion) or "assume_role" (accessKeyId, secretAccessKey, roleArn, optional externalId and stsRegion).`,
         },
       ],
     }

@@ -490,7 +490,7 @@ export async function resolveCredentialToken(
               status: 400,
               code: error.code,
               error:
-                'This credential cannot be used here. Keyless Google Cloud credentials work only with Google Cloud tools such as BigQuery and cannot impersonate a Workspace user; use a JSON key credential instead',
+                'This credential cannot be used here. Keyless Google Cloud credentials work only with Google Cloud tools such as BigQuery and cannot impersonate a Google Workspace user; use a JSON key credential instead',
             }
           }
           if (error.code === 'account_not_found') {
@@ -499,7 +499,7 @@ export async function resolveCredentialToken(
               status: 400,
               code: error.code,
               error:
-                'The credential’s user is no longer a member of its pinned account — reconnect the credential',
+                'The credential’s user is no longer a member of the Account ID set on the credential — reconnect the credential',
             }
           }
         }

@@ -355,7 +355,7 @@ async function assertRolePinsSubject(
     )
   }
   throw new AwsCredentialError(
-    `This role trusts every Sim subject. Use the trust policy shown in the dialog, whose sub condition pins ${config.subject}, so only this credential can assume the role.`
+    `This role trusts every Sim subject. Use the trust policy from Sim (the connect dialog or \`sim credentials keyless-subject\`), whose sub condition pins ${config.subject}, so only this credential can assume the role.`
   )
 }
 

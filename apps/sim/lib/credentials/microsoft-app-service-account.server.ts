@@ -181,7 +181,7 @@ export class MicrosoftAppCredentialError extends Error {
 }
 
 const FEDERATION_MISMATCH_MESSAGE =
-  'No federated credential on this app matches the issuer, subject, and audience Sim presents. Add it with the exact values shown (matching is case-sensitive). A new federated credential can take a few minutes to take effect.'
+  'No federated credential on this app matches the issuer, subject, and audience Sim presents. Add it with the exact values from Sim (the connect dialog or `sim credentials keyless-subject`) (matching is case-sensitive). A new federated credential can take a few minutes to take effect.'
 
 /**
  * Actionable copy for the Entra errors a person saving the credential can fix.
@@ -499,7 +499,7 @@ async function assertFederationPinsSubject(
     )
   }
   throw new MicrosoftAppCredentialError(
-    'This app also trusts other Sim credentials. Use a federated credential whose subject is exactly the one shown, so only this credential can use it.'
+    'This app also trusts other Sim credentials. Use a federated credential whose subject is exactly the one from Sim (the connect dialog or `sim credentials keyless-subject`), so only this credential can use it.'
   )
 }
 

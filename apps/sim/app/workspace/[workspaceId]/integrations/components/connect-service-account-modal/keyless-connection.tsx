@@ -84,12 +84,15 @@ interface KeylessTrustFieldsProps {
   setup: KeylessSetup
   /** The credential's own audience, for a provider without a fixed one (Google). */
   audience?: string
+  /** Where in the provider's console the values below are pasted. */
+  pasteHint?: string
 }
 
 /** Reconnect choice plus the issuer, audience, and subject the customer configures. */
 export function KeylessTrustFields({
   setup,
   audience = setup.trust?.audience,
+  pasteHint,
 }: KeylessTrustFieldsProps) {
   return (
     <>
@@ -124,6 +127,7 @@ export function KeylessTrustFields({
             title='Issuer'
             value={setup.trust.issuer}
             copyLabel='Copy issuer'
+            hint={pasteHint}
           />
           {audience && (
             <ChipModalField

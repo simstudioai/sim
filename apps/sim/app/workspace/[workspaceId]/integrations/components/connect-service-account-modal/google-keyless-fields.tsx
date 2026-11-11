@@ -97,9 +97,10 @@ export function GoogleKeylessFields({ input, onChange, setup }: GoogleKeylessFie
         title='Workload identity pool ID'
         value={input.poolId}
         onChange={edit('poolId')}
-        placeholder='sim'
+        placeholder='sim-pool'
         required
         autoComplete='off'
+        hint='4–32 lowercase letters, digits, or hyphens; can’t start with gcp-.'
       />
       <ChipModalField
         type='input'
@@ -109,6 +110,7 @@ export function GoogleKeylessFields({ input, onChange, setup }: GoogleKeylessFie
         placeholder='sim-oidc'
         required
         autoComplete='off'
+        hint='4–32 lowercase letters, digits, or hyphens; can’t start with gcp-.'
       />
       <ChipModalField
         type='input'
@@ -118,14 +120,14 @@ export function GoogleKeylessFields({ input, onChange, setup }: GoogleKeylessFie
         placeholder='name@project-id.iam.gserviceaccount.com'
         required
         autoComplete='off'
-        hint='Grant this service account the roles your workflows need, such as BigQuery or Vertex AI roles.'
+        hint='A user-managed service account only; default …@developer.gserviceaccount.com accounts are refused. Grant it the roles your workflows need, such as BigQuery or Vertex AI roles.'
       />
       <KeylessTrustFields setup={setup} audience={audience} />
       {commands && (
         <ChipModalField
           type='custom'
           title='Setup commands'
-          hint='They run in the project above and create the pool and an OIDC provider that accepts only this credential’s subject, then let that subject impersonate the service account.'
+          hint='They run in the project above and create the pool and an OIDC provider that accepts only this credential’s subject, then let that subject impersonate the service account. If the pool already exists, skip the first command.'
         >
           {(aria) => (
             <ChipTextarea

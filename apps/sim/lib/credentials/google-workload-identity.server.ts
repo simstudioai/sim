@@ -182,7 +182,7 @@ function isProviderOutage(status: number): boolean {
 }
 
 const STS_REFUSED_MESSAGE =
-  'Google Cloud refused Sim’s token for this workload identity provider. Check the project number, pool ID, and provider ID; that the provider is enabled and is an OIDC provider for the issuer shown, with no allowed audiences and the attribute mapping google.subject=assertion.sub; and that its attribute condition allows this credential’s subject.'
+  'Google Cloud refused Sim’s token for this workload identity provider. Check the project number, pool ID, and provider ID; that the provider is enabled and is an OIDC provider for the issuer from Sim (the connect dialog or `sim credentials keyless-subject`), with no allowed audiences and the attribute mapping google.subject=assertion.sub; and that its attribute condition allows this credential’s subject.'
 
 /** Copy for an STS refusal. Only Google's documented issuer-connection error is matched by text. */
 function stsFailureMessage(status: number, payload: Record<string, unknown>): string {
@@ -312,7 +312,7 @@ async function assertSubjectPinned(
     )
   }
   throw new GoogleWorkloadIdentityError(
-    'This service account also trusts other Sim credentials. Grant roles/iam.workloadIdentityUser to this credential’s principal:// subject only (not a principalSet for the pool), and add the attribute condition shown so the provider accepts only this subject.'
+    'This service account also trusts other Sim credentials. Grant roles/iam.workloadIdentityUser to this credential’s principal:// subject only (not a principalSet for the pool), and add the attribute condition from Sim (the connect dialog or `sim credentials keyless-subject`) so the provider accepts only this subject.'
   )
 }
 
@@ -436,7 +436,7 @@ export async function resolveGoogleWorkloadIdentityToken(
   if (input.impersonateEmail) {
     throw new TokenServiceAccountValidationError('unsupported_use', 400, {
       step: 'google_keyless_delegation',
-      reason: 'keyless Google Cloud credentials cannot impersonate a Workspace user',
+      reason: 'keyless Google Cloud credentials cannot impersonate a Google Workspace user',
     })
   }
   if (!input.service || !GOOGLE_KEYLESS_SERVICES.has(input.service)) {

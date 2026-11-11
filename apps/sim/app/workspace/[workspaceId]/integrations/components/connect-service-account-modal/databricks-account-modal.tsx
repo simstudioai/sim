@@ -223,7 +223,7 @@ function DatabricksAccountForm({
           <ChipModalField
             type='custom'
             title='Federation policy'
-            hint='An account admin runs this once, with the service principal’s numeric ID, before you save.'
+            hint='An account admin runs this once, with the service principal’s numeric ID, before you save. First sign in to the account with `databricks auth login --host <account console URL> --account-id <account ID>` (not a workspace profile or the workspace web terminal).'
           >
             {(aria) => (
               <ChipTextarea

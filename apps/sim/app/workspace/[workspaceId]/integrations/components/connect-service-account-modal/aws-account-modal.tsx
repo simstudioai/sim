@@ -259,7 +259,7 @@ function AwsAccountForm({
           <ChipModalField
             type='custom'
             title='Role trust policy'
-            hint='Add the issuer and audience above as an IAM identity provider (once per AWS account), set this as the role’s trust policy, then grant the role the permissions your workflows need.'
+            hint='Enter the Role ARN first; the policy fills in its account ID. Add the issuer and audience above as an IAM identity provider (once per AWS account), set this as the role’s trust policy, then grant the role the permissions your workflows need.'
           >
             {(aria) => (
               <ChipTextarea

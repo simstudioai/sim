@@ -224,7 +224,12 @@ function MicrosoftAppAccountForm({
           </>
         )}
 
-        {authType === 'federated' && <KeylessTrustFields setup={keyless} />}
+        {authType === 'federated' && (
+          <KeylessTrustFields
+            setup={keyless}
+            pasteHint='In the app registration, open Certificates & secrets → Federated credentials → Add credential → Other issuer, and paste these values.'
+          />
+        )}
 
         <ChipModalField
           type='input'
