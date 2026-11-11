@@ -687,7 +687,7 @@ describe('Microsoft app credential binding', () => {
         'microsoft-app-service-account',
         expect.any(Array),
         undefined,
-        { toolService: provider }
+        { service: provider }
       )
     }
   )

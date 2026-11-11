@@ -185,7 +185,12 @@ const FEDERATION_MISMATCH_MESSAGE =
 
 /**
  * Actionable copy for the Entra errors a person saving the credential can fix.
+ * AADSTS70021 (no matching federated identity record) is documented in the
+ * workload identity federation considerations, and AADSTS700213 (no matching
+ * record for the presented subject, issuer, or audience) in the August 2024
+ * breaking-changes entry; any other keyless refusal still names the mismatch.
  * @see https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes
+ * @see https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations
  * @see https://learn.microsoft.com/en-us/entra/identity-platform/reference-breaking-changes
  */
 function entraFailureMessage(aadsts: number | undefined, config: MicrosoftAppConfig): string {
@@ -207,8 +212,6 @@ function entraFailureMessage(aadsts: number | undefined, config: MicrosoftAppCon
         ? 'Microsoft Entra does not recognize this Dataverse environment in the tenant. Check the environment URL.'
         : 'Microsoft Entra does not recognize the requested resource in this tenant.'
     case 70021:
-    case 700211:
-    case 700212:
     case 700213:
       return FEDERATION_MISMATCH_MESSAGE
     default:

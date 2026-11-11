@@ -96,10 +96,11 @@ export interface CredentialTokenResolutionOptions {
   /** GitHub installation content tokens may only address one connector repository. */
   githubRepositoryScope?: GitHubInstallationRepositoryScope
   /**
-   * The OAuth service of the tool the token is for, set only from the server-validated tool
-   * policy. A Microsoft app credential mints for that service's resource and refuses any other.
+   * The OAuth service the token is for, set only from server-side policy (a tool's validated
+   * policy, a selector's or connector's own definition), never from the caller. A Microsoft app
+   * credential mints for that service's resource and refuses any other.
    */
-  toolService?: string
+  service?: string
   /**
    * Cancels supported service-account token exchanges and retry waits, and stops this caller
    * waiting on an OAuth refresh without cancelling the refresh other callers share.
@@ -751,7 +752,7 @@ const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolve
     const { resolveMicrosoftAppCredentialToken } = await import(
       '@/lib/credentials/microsoft-app-service-account.server'
     )
-    return resolveMicrosoftAppCredentialToken(credentialId, options.toolService, options.signal)
+    return resolveMicrosoftAppCredentialToken(credentialId, options.service, options.signal)
   },
   [DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId, options) => {
     const { resolveDatabricksCredentialToken } = await import(

@@ -67,11 +67,13 @@ describe('resolveConnectorAccessToken', () => {
 
     mockResolveTokenBundle.mockResolvedValueOnce({ accessToken: 'jwt-token', instanceUrl: bound })
     const jwtToken = await resolveDocuSign()
-    expect(syncContextForToken(jwtToken!)).toEqual({ credentialInstanceUrl: bound })
+    if (!jwtToken) throw new Error('Expected a JWT Grant connector token')
+    expect(syncContextForToken(jwtToken)).toEqual({ credentialInstanceUrl: bound })
 
     mockResolveTokenBundle.mockResolvedValueOnce({ accessToken: 'oauth-token' })
     const oauthToken = await resolveDocuSign()
-    expect(syncContextForToken(oauthToken!)).toEqual({})
+    if (!oauthToken) throw new Error('Expected an OAuth connector token')
+    expect(syncContextForToken(oauthToken)).toEqual({})
   })
 
   it('does not accept an undeclared key alternative on other OAuth connectors', async () => {
@@ -185,7 +187,8 @@ describe('delegated connector access', () => {
       'actor',
       'request',
       delegationAuth.adminServiceAccountScopes,
-      'admin@example.com'
+      'admin@example.com',
+      { service: 'google-drive' }
     )
     await expect(token?.getDelegatedAccessToken?.(' Employee@Example.com ')).resolves.toBe(
       'user-drive-token'
@@ -294,7 +297,8 @@ describe.each([
       'actor',
       'request',
       [directoryScope],
-      'directory.admin@example.com'
+      'directory.admin@example.com',
+      { service: auth.mode === 'oauth' ? auth.provider : undefined }
     )
     expect(token?.getDelegatedAccessToken).toBeTypeOf('function')
     await expect(token?.getDelegatedAccessToken?.(' Employee@Example.com ')).resolves.toBe(
@@ -353,7 +357,8 @@ describe('impersonation on the connector path', () => {
       'credential-owner',
       'req-1',
       OAUTH_AUTH.requiredScopes,
-      'admin@corp.com'
+      'admin@corp.com',
+      { service: 'google-drive' }
     )
   })
 })

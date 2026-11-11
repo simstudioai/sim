@@ -112,7 +112,12 @@ describe('mintDocuSignServiceAccountToken', () => {
 
   it('mints and resolves accounts on the production host when the credential says production', async () => {
     mockMint([
-      { account_id: DEFAULT_ACCOUNT, is_default: true, base_uri: 'https://na3.docusign.net' },
+      {
+        account_id: DEFAULT_ACCOUNT,
+        is_default: true,
+        account_name: 'Production',
+        base_uri: 'https://na3.docusign.net',
+      },
     ])
 
     const result = await mintDocuSignServiceAccountToken({ ...FIELDS, dataCenter: 'production' })
@@ -151,7 +156,14 @@ describe('mintDocuSignServiceAccountToken', () => {
     ['https://demo.docusign.net', 'production'],
     ['http://na3.docusign.net', 'production'],
   ])('never binds a %s base_uri to a %s credential', async (baseUri, environment) => {
-    mockMint([{ account_id: DEFAULT_ACCOUNT, is_default: true, base_uri: baseUri }])
+    mockMint([
+      {
+        account_id: DEFAULT_ACCOUNT,
+        is_default: true,
+        account_name: 'Default',
+        base_uri: baseUri,
+      },
+    ])
 
     await expect(
       mintDocuSignServiceAccountToken({ ...FIELDS, dataCenter: environment })

@@ -144,14 +144,11 @@ export async function resolveConnectorAccessToken(params: {
     requestId,
     connectorServiceAccountScopes(auth, params.accessMode),
     subject,
-    ...(githubRepositoryScope || params.signal
-      ? [
-          {
-            ...(githubRepositoryScope ? { githubRepositoryScope } : {}),
-            ...(params.signal ? { signal: params.signal } : {}),
-          },
-        ]
-      : [])
+    {
+      service: auth.provider,
+      ...(githubRepositoryScope ? { githubRepositoryScope } : {}),
+      ...(params.signal ? { signal: params.signal } : {}),
+    }
   )
   if (!bundle?.accessToken) return null
 

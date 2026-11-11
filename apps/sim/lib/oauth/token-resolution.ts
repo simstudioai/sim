@@ -412,8 +412,7 @@ export async function resolveCredentialToken(
           scopes ?? [],
           impersonateEmail,
           {
-            toolService: toolCredentialPolicy(input.toolId, input.assistantConnectedAccount)
-              ?.provider,
+            service: toolCredentialPolicy(input.toolId, input.assistantConnectedAccount)?.provider,
           }
         )
 
