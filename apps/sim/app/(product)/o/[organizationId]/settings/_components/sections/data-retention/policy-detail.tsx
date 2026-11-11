@@ -375,8 +375,9 @@ export function PolicyDetail({
         <SettingsSaveBar
           dirty={dirty}
           saving={isSaving}
-          blocked={!isOrg && draft.workspaceIds.length === 0}
-          blockedReason='Select at least one workspace'
+          blockedReason={
+            !isOrg && draft.workspaceIds.length === 0 ? 'Select at least one workspace' : undefined
+          }
           onSave={onSave}
           onDiscard={onDiscard}
         />

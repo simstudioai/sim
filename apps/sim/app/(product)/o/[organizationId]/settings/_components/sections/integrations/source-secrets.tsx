@@ -105,8 +105,11 @@ export function SecretSettings({ data, href, update }: SecretSettingsProps) {
       <SettingsSaveBar
         dirty={dirty}
         saving={false}
-        blocked={!valid}
-        blockedReason='Name each secret with letters, digits and underscores, give a new one a value, and keep names unique'
+        blockedReason={
+          valid
+            ? undefined
+            : 'Name each secret with letters, digits and underscores, give a new one a value, and keep names unique'
+        }
         onSave={() => {
           update((current) => ({ ...current, secrets: names }))
           setRows(rows.map((row) => ({ ...row, name: row.name.trim(), value: '', saved: true })))

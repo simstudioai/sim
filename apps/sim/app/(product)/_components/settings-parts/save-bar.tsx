@@ -8,7 +8,7 @@ interface SettingsSaveBarProps {
   saving: boolean
   /** Save cannot run for a reason the page already shows, such as a field's error. */
   blocked?: boolean
-  /** Why Save is blocked, for a reason the page does not already show. */
+  /** Why Save is blocked, for a reason the page does not already show. Set only while blocked: Save is disabled whenever it is set. */
   blockedReason?: string
   /** Omitted inside a `<form>` that owns validation: Save then submits it. */
   onSave?: () => void
