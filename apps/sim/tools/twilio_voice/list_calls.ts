@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { TWILIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TwilioListCallsOutput, TwilioListCallsParams } from '@/tools/twilio_voice/types'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponseContext } from '@/tools/types'
 
 const logger = createLogger('TwilioVoiceListCallsTool')
 
@@ -133,7 +133,7 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
     },
   },
 
-  transformResponse: async (response, params) => {
+  transformResponse: async (response, params, context?: ToolResponseContext) => {
     const data = await response.json()
 
     logger.info('Twilio List Calls Response:', { total: data.calls?.length || 0 })
@@ -156,6 +156,7 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
       (data.calls || []) as TwilioCallRecord[],
       RECORDINGS_FETCH_CONCURRENCY,
       async (call) => {
+        context?.signal?.throwIfAborted()
         let recordingSids: string[] = []
         const recordingsUrl = twilioApiUrl(call.subresource_uris?.recordings)
         if (recordingsUrl) {
@@ -163,6 +164,7 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
             const recordingsResponse = await fetch(recordingsUrl, {
               method: 'GET',
               headers: { Authorization: `Basic ${authToken}` },
+              signal: context?.signal,
             })
 
             if (recordingsResponse.ok) {
@@ -171,6 +173,7 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
               recordingSids = (recordingsData.recordings || []).map((rec) => rec.sid)
             }
           } catch (error) {
+            context?.signal?.throwIfAborted()
             logger.warn('Failed to fetch recordings for call', { callSid: call.sid, error })
           }
         }

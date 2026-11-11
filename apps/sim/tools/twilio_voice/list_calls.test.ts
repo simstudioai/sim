@@ -26,12 +26,13 @@ function callsPage(recordingsPaths: string[]) {
   })
 }
 
-async function listCalls(recordingsPaths: string[]) {
+async function listCalls(recordingsPaths: string[], signal?: AbortSignal) {
   if (!listCallsTool.transformResponse) throw new Error('Missing response transform')
-  return listCallsTool.transformResponse(callsPage(recordingsPaths), {
-    accountSid: 'AC123',
-    authToken: 'secret',
-  })
+  return listCallsTool.transformResponse(
+    callsPage(recordingsPaths),
+    { accountSid: 'AC123', authToken: 'secret' },
+    { signal }
+  )
 }
 
 describe('Twilio list calls recordings lookup', () => {
@@ -74,5 +75,23 @@ describe('Twilio list calls recordings lookup', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(35)
     expect(peak).toBe(10)
+  })
+
+  it('starts no queued recordings requests once the run is cancelled', async () => {
+    const controller = new AbortController()
+    fetchMock.mockImplementation(async (_url: unknown, init?: RequestInit) => {
+      controller.abort()
+      expect(init?.signal).toBe(controller.signal)
+      return jsonResponse({ recordings: [] })
+    })
+
+    await expect(
+      listCalls(
+        Array.from({ length: 35 }, (_, i) => `/Calls/CA${i}/Recordings.json`),
+        controller.signal
+      )
+    ).rejects.toThrow()
+
+    expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(10)
   })
 })

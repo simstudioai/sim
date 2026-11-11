@@ -7,6 +7,7 @@ import {
   createMockRequest,
   hybridAuthMockFns,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -36,11 +37,13 @@ vi.mock('@/lib/credentials/application/resolve-managed-oauth-token', () => ({
   resolveManagedOAuthCredentialToken: { execute: mockResolveManagedOAuthCredentialToken },
 }))
 
+import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { createQuickBooksAccountId } from '@/lib/oauth/quickbooks'
 import { GET, POST } from '@/app/api/auth/oauth/token/route'
 import { getToolMetadata } from '@/tools/metadata'
 
 const mockGetToolMetadata = vi.mocked(getToolMetadata)
+const mockCheckSessionOrInternalAuth = vi.mocked(checkSessionOrInternalAuth)
 
 describe('OAuth Token API Routes', () => {
   beforeEach(() => {
@@ -318,9 +321,9 @@ describe('OAuth Token API Routes', () => {
       })
 
       it('refuses to release the secret to a session caller', async () => {
-        hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+        mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
           success: true,
-          authType: 'session',
+          authType: AuthType.SESSION,
           userId: 'test-user-id',
         })
         mockAuthorizeCredentialUse.mockResolvedValueOnce(authorized)
@@ -329,7 +332,8 @@ describe('OAuth Token API Routes', () => {
           createMockRequest('POST', {
             credentialId: 'saved-credential-id',
             toolId: 'vanta_list_tests',
-          })
+          }),
+          createRouteContext({})
         )
 
         expect(response.status).toBe(403)
@@ -340,9 +344,9 @@ describe('OAuth Token API Routes', () => {
       })
 
       it('resolves the secret for an internal-JWT execution caller', async () => {
-        hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+        mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
           success: true,
-          authType: 'internal_jwt',
+          authType: AuthType.INTERNAL_JWT,
           userId: 'test-user-id',
         })
         mockAuthorizeCredentialUse.mockResolvedValueOnce(authorized)
@@ -352,7 +356,8 @@ describe('OAuth Token API Routes', () => {
             credentialId: 'saved-credential-id',
             toolId: 'vanta_list_tests',
             workflowId: 'workflow-id',
-          })
+          }),
+          createRouteContext({})
         )
 
         expect(response.status).toBe(200)
@@ -364,9 +369,9 @@ describe('OAuth Token API Routes', () => {
     })
 
     it('still returns an OAuth token to a session caller', async () => {
-      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
         success: true,
-        authType: 'session',
+        authType: AuthType.SESSION,
         userId: 'test-user-id',
       })
       mockAuthorizeCredentialUse.mockResolvedValueOnce({
@@ -386,7 +391,10 @@ describe('OAuth Token API Routes', () => {
         refreshed: false,
       })
 
-      const response = await POST(createMockRequest('POST', { credentialId: 'credential-id' }))
+      const response = await POST(
+        createMockRequest('POST', { credentialId: 'credential-id' }),
+        createRouteContext({})
+      )
 
       expect(response.status).toBe(200)
       await expect(response.json()).resolves.toMatchObject({
