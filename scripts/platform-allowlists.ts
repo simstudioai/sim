@@ -1029,10 +1029,6 @@ const FIXTURE_BRANCH_VIEWS: ReasonedAllowlist = {
     'usePlatformHref reads the query string only in a fixture build, chosen when the app is built',
   [`${PRODUCT_ROUTES}_components/product-shell.tsx`]:
     'The one product shell picks the fixture or live session around every page',
-  [`${ORGANIZATION_ROUTES}settings/_components/sections/preferences/preferences-section.tsx`]:
-    'A client view below a server section, which cannot pass it the fixture theme (the URL) and read-only profile as callbacks',
-  [`${ORGANIZATION_ROUTES}settings/_components/sections/privacy/cookie-preferences.tsx`]:
-    "Reads the root's consent store on live data; its fixture variant reads session choices without that runtime",
   'platform/lib/data/billing.ts':
     'The billing adapter swaps cancel and restore for the fixture settings context and hides portal and invoice links',
   'platform/lib/data/members.ts':
@@ -1151,17 +1147,10 @@ const SAVE_BAR_MIGRATIONS: ReasonedAllowlist = granted(SETTINGS_PAGE_LANE, [
 /** A `Switch` in a `SettingsRow` (`switch-row`), until the page adopts `SwitchRow`. */
 const SWITCH_ROW_MIGRATIONS: ReasonedAllowlist = granted(SETTINGS_PAGE_LANE, [
   `${PRODUCT_ROUTES}_components/access-requests/review-requests.tsx`,
-  `${PRODUCT_ROUTES}_components/consent-banner/consent-banner.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/access-control/group-detail.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/admin/admin-panel.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/browser/browser-section.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/data-drains/drain-detail.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/desktop/computer-use.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/desktop/desktop-section.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/privacy/cookie-preferences.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/privacy/privacy-section.tsx`,
   `${ORGANIZATION_ROUTES}settings/_components/sections/sso/scim-panel.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/terminal/terminal-section.tsx`,
   `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/api-keys/api-keys-section.tsx`,
   `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/custom-blocks/custom-block-detail.tsx`,
   `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/inbox/inbox-enable-toggle.tsx`,

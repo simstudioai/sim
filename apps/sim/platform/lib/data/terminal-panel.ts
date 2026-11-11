@@ -46,6 +46,7 @@ import {
 } from '@/lib/terminal/transport'
 import { toast } from '@/lib/toast/sink'
 import { useDesktopPreferenceMutation } from '@/hooks/use-desktop-preference-mutation'
+import { DESKTOP_THEME_OPTIONS } from '@/platform/lib/data/desktop/model'
 import { useSurfaceColorMode } from '@/platform/lib/data/surface-theme'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
 
@@ -221,11 +222,12 @@ export function useTerminalSession({ scopeId, visible }: { scopeId: string; visi
     checked: sameTheme(theme, appearanceTheme),
     select: () => void setTheme(theme),
   })
+  const [matchSim, light, dark] = DESKTOP_THEME_OPTIONS
   /** The terminal themes to choose from: Sim's three, then profiles imported from other apps. */
   const themes: [ReturnType<typeof themeOption>, ...ReturnType<typeof themeOption>[]] = [
-    themeOption('app', 'Default', 'app'),
-    themeOption('light', 'Sim Light', 'light'),
-    themeOption('dark', 'Sim Dark', 'dark'),
+    themeOption(matchSim.value, matchSim.label, matchSim.value),
+    themeOption(light.value, light.label, light.value),
+    themeOption(dark.value, dark.label, dark.value),
     ...availableProfiles.map((profile) =>
       themeOption(
         `profile-${profile.id}`,

@@ -24,9 +24,6 @@ export type BrowserImportProfile = Awaited<
 >[number]
 export type BrowserChromeImportResult = Awaited<ReturnType<BrowserImportApi['importFromChrome']>>
 export type BrowserImportError = NonNullable<BrowserChromeImportResult['cookies']['error']>
-export type ComputerUseAppPermission = Awaited<
-  ReturnType<NonNullable<DesktopApi['computerUse']>['listAppPermissions']>
->[number]
 
 /** The shell's zoom steps (`DESKTOP_ZOOM_PERCENTS`), which Platform may not import directly. */
 export const DESKTOP_ZOOM_PERCENTS = [
@@ -43,3 +40,13 @@ export const BROWSER_DATA_KINDS = [
   'site-data',
   'cache',
 ] as const satisfies readonly BrowserDataKind[]
+
+/**
+ * The built-in browser's and terminal's own themes, named alike on both pages. `app` follows Sim's
+ * appearance, which Preferences sets.
+ */
+export const DESKTOP_THEME_OPTIONS = [
+  { value: 'app', label: 'Match Sim' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+] as const satisfies readonly { value: DesktopAppearanceTheme; label: string }[]

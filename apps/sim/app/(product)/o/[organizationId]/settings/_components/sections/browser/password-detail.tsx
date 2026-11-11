@@ -8,7 +8,11 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { toast } from '@/lib/toast/sink'
 import { DetailHeader } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { CredentialIcon } from '@/app/(product)/o/[organizationId]/settings/_components/sections/browser/credential-icon'
-import { type BrowserCredential, getDesktopBridge } from '@/platform/lib/data/desktop'
+import {
+  type BrowserCredential,
+  getDesktopBridge,
+  useDeleteBrowserCredentials,
+} from '@/platform/lib/data/desktop'
 
 const MASK_PLACEHOLDER = '•'.repeat(12)
 
@@ -25,17 +29,17 @@ export function siteLabel(origin: string): string {
 interface PasswordDetailProps {
   credential: BrowserCredential
   onBack: () => void
-  onForgotten: (credentials: BrowserCredential[]) => void
 }
 
 /**
  * One saved login. Sim holds no plaintext until the shell hands it over after Touch ID, and copying
  * never brings the password into this page at all.
  */
-export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDetailProps) {
+export function PasswordDetail({ credential, onBack }: PasswordDetailProps) {
   const [revealed, setRevealed] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [confirmingForget, setConfirmingForget] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const deleteCredentials = useDeleteBrowserCredentials()
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const hide = () => {
@@ -44,11 +48,13 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
     setRevealed(null)
   }
 
-  // Nothing revealed may outlive this view, including a switch to another credential.
-  useEffect(() => {
-    hide()
-    return hide
-  }, [credential.id])
+  // The reveal timer may not outlive this view; another credential mounts its own (`key`).
+  useEffect(
+    () => () => {
+      if (hideTimer.current) clearTimeout(hideTimer.current)
+    },
+    []
+  )
 
   const toggleReveal = async () => {
     if (revealed !== null) {
@@ -84,17 +90,14 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
     }
   }
 
-  const forget = async () => {
-    const credentials = getDesktopBridge()?.browserCredentials
-    if (!credentials) return
+  const deletePassword = async () => {
     hide()
     try {
-      onForgotten(await credentials.forget(credential.id))
-      onBack()
+      await deleteCredentials.mutateAsync(credential.id)
     } catch {
-      toast.error('Could not forget that password')
-      return false
+      throw new Error('Could not delete that password')
     }
+    onBack()
   }
 
   const site = siteLabel(credential.origin)
@@ -104,7 +107,7 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
         backLabel='Passwords'
         onBack={onBack}
         title={site}
-        description='Saved on this device, encrypted. Chat can never read, choose, or type it.'
+        description='Encrypted on this device; Chat can never read, choose or type it'
       />
       <SettingsSection title='Login'>
         <SettingsRow
@@ -157,7 +160,7 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
       </SettingsSection>
       <SettingsSection title='Manage password'>
         <SettingsRow
-          label='Forget password'
+          label='Delete password'
           description='Delete the saved password for this site from this device'
         >
           <Button
@@ -165,20 +168,20 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
             destructive
             size='compact'
             disabled={busy}
-            onClick={() => setConfirmingForget(true)}
+            onClick={() => setConfirmingDelete(true)}
           >
-            Forget
+            Delete
           </Button>
         </SettingsRow>
       </SettingsSection>
       <ConfirmDialog
-        target={confirmingForget}
-        onClose={() => setConfirmingForget(false)}
-        title='Forget password'
+        target={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
+        title='Delete password'
         description={`Sim will delete the saved password for ${site}. Your account on that site is not affected.`}
-        confirmLabel='Forget'
-        pendingLabel='Forgetting…'
-        onConfirm={forget}
+        confirmLabel='Delete'
+        pendingLabel='Deleting…'
+        onConfirm={deletePassword}
       />
     </>
   )

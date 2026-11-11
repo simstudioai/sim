@@ -4,9 +4,10 @@ import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { Select } from '@sim/emcn/picker/select'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
-import { Switch } from '@sim/emcn/switch'
 import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
+import { SwitchRow } from '@/app/(product)/_components/settings-parts/switch-row'
 import {
+  DESKTOP_THEME_OPTIONS,
   DESKTOP_ZOOM_PERCENTS,
   type DesktopAppearanceTheme,
   type DesktopPreferences,
@@ -19,18 +20,10 @@ import {
   withSelectedProfile,
 } from '@/platform/lib/data/desktop'
 
-const BUILT_INS = [
-  { value: 'app', label: 'Default' },
-  { value: 'light', label: 'Sim Light' },
-  { value: 'dark', label: 'Sim Dark' },
-] as const satisfies readonly { value: DesktopAppearanceTheme; label: string }[]
-
 const ZOOM_OPTIONS = DESKTOP_ZOOM_PERCENTS.map((zoom) => ({
   label: `${zoom}%`,
   value: String(zoom),
 }))
-
-const ENABLED_LABEL = 'Let Chat run commands'
 
 function sourceLabel(source: TerminalThemeProfile['source']): string {
   return source === 'iterm2' ? 'iTerm2' : 'Terminal'
@@ -41,7 +34,7 @@ interface TerminalData {
   profiles: TerminalThemeProfile[]
 }
 
-/** The built-in terminal on this device. Without the desktop terminal it opens General. */
+/** The built-in terminal on this device. Without the desktop terminal it opens Preferences. */
 export default function TerminalSection() {
   const { data, setData, failed, retry } = useDesktopRead(
     async (bridge): Promise<TerminalData> => {
@@ -96,7 +89,7 @@ export default function TerminalSection() {
   const theme = preferences.terminalTheme
   const profiles = withSelectedProfile(data.profiles, theme)
   const themeOptions = [
-    ...BUILT_INS,
+    ...DESKTOP_THEME_OPTIONS,
     ...profiles.map((profile) => ({
       label: `${sourceLabel(profile.source)} · ${profile.name}`,
       value: profile.id,
@@ -106,18 +99,14 @@ export default function TerminalSection() {
   return (
     <>
       <SettingsPageHeader />
-      <SettingsSection title='General'>
-        <SettingsRow
-          label={ENABLED_LABEL}
+      <SettingsSection title='Built-in terminal'>
+        <SwitchRow
+          label='Let Chat run commands'
           description='Chat can run commands in a terminal on this computer'
-        >
-          <Switch
-            label={ENABLED_LABEL}
-            checked={preferences.terminalEnabled}
-            disabled={togglePending}
-            onCheckedChange={(checked) => void setEnabled(checked)}
-          />
-        </SettingsRow>
+          checked={preferences.terminalEnabled}
+          disabled={togglePending}
+          onCheckedChange={(checked) => void setEnabled(checked)}
+        />
         <SettingsRow label='Theme' description='Select the terminal’s color theme' field>
           <SearchableSelect
             label='Terminal theme'
@@ -128,7 +117,7 @@ export default function TerminalSection() {
             value={typeof theme === 'string' ? theme : theme.id}
             disabled={profilePending || builtInThemePending}
             onValueChange={(next) => {
-              const builtIn = BUILT_INS.find((option) => option.value === next)
+              const builtIn = DESKTOP_THEME_OPTIONS.find((option) => option.value === next)
               if (builtIn) {
                 void setTheme(builtIn.value)
                 return

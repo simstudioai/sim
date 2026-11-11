@@ -1,78 +1,65 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
-import { Switch } from '@sim/emcn/switch'
-import { toast } from '@/lib/toast/sink'
 import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
+import { SwitchRow } from '@/app/(product)/_components/settings-parts/switch-row'
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
-import { ComputerUse } from '@/app/(product)/o/[organizationId]/settings/_components/sections/desktop/computer-use'
+import {
+  ComputerUseActivity,
+  ComputerUseSettings,
+} from '@/app/(product)/o/[organizationId]/settings/_components/sections/desktop/computer-use'
 import {
   type DesktopPreferenceKey,
+  type DesktopPreferences,
   getDesktopBridge,
   getDesktopShellVersion,
+  useComputerUseStatus,
   useDesktopPreferenceMutation,
   useDesktopRead,
   useDesktopUpdateState,
 } from '@/platform/lib/data/desktop'
 
-interface PreferenceRowProps {
-  label: string
-  description: string
-  checked: boolean
-  disabled: boolean
-  onCheckedChange: (checked: boolean) => void
-}
-
-function PreferenceRow({
-  label,
-  description,
-  checked,
-  disabled,
-  onCheckedChange,
-}: PreferenceRowProps) {
-  return (
-    <SettingsRow label={label} description={description}>
-      <Switch
-        label={label}
-        checked={checked}
-        disabled={disabled}
-        onCheckedChange={onCheckedChange}
-      />
-    </SettingsRow>
-  )
-}
-
-/** Device-level settings the desktop shell owns. Outside the desktop app it opens General. */
-export default function DesktopSection({ organization }: SettingsSectionProps) {
-  const {
-    data: preferences,
-    setData: setPreferences,
-    failed,
-    retry,
-  } = useDesktopRead((bridge) => bridge.settings.getPreferences())
-  const [pendingPreference, setPendingPreference] = useState<DesktopPreferenceKey | null>(null)
+interface DesktopData {
+  preferences: DesktopPreferences
   /** Whether Sim runs chats on this device in the background; only then can sleep matter. */
-  const [runsInBackground, setRunsInBackground] = useState(false)
+  runsInBackground: boolean
+}
+
+/** Device-level settings the desktop shell owns. Outside the desktop app it opens Preferences. */
+export default function DesktopSection({ organization }: SettingsSectionProps) {
+  const { data, setData, failed, retry } = useDesktopRead(async (bridge): Promise<DesktopData> => {
+    const [preferences, device] = await Promise.all([
+      bridge.settings.getPreferences(),
+      bridge.desktopExecutor?.getDevice().catch(() => null) ?? null,
+    ])
+    return { preferences, runsInBackground: device !== null }
+  })
   const updateState = useDesktopUpdateState()
+  const computerUse = useComputerUseStatus()
+  const setPreferences = (preferences: DesktopPreferences) =>
+    setData((current) => current && { ...current, preferences })
 
-  useEffect(() => {
-    const bridge = getDesktopBridge()
-    if (!bridge) return
-    void bridge.desktopExecutor
-      ?.getDevice()
-      .then((device) => setRunsInBackground(device !== null))
-      .catch(() => setRunsInBackground(false))
-    return bridge.settings.onFullFileAccessChanged?.(setPreferences)
-  }, [setPreferences])
+  useEffect(
+    () =>
+      getDesktopBridge()?.settings.onFullFileAccessChanged?.((preferences) =>
+        setData((current) => current && { ...current, preferences })
+      ),
+    [setData]
+  )
 
+  const { pending: preferencePending, mutate: setPreference } = useDesktopPreferenceMutation(
+    (bridge, key: DesktopPreferenceKey, value: boolean) =>
+      bridge.settings.setPreference(key, value),
+    'Could not update desktop settings',
+    setPreferences
+  )
   const { pending: preventSleepPending, mutate: setPreventSleep } = useDesktopPreferenceMutation(
     async (bridge, enabled: boolean) => bridge.settings.setPreventSleepWhileRunning?.(enabled),
     'Could not update desktop settings',
     setPreferences
   )
-
   const { pending: fullFileAccessPending, mutate: setFullFileAccess } =
     useDesktopPreferenceMutation(
       async (bridge, enabled: boolean) => bridge.settings.setFullFileAccess?.(enabled),
@@ -87,32 +74,19 @@ export default function DesktopSection({ organization }: SettingsSectionProps) {
         <FailureNotice message='Could not load desktop settings' onRetry={retry} />
       </>
     )
-  if (!preferences) return <SettingsPageHeader />
+  if (!data) return <SettingsPageHeader />
 
-  const updatePreference = async (key: DesktopPreferenceKey, value: boolean) => {
-    const settings = getDesktopBridge()?.settings
-    if (!settings) return
-    setPendingPreference(key)
-    try {
-      setPreferences(await settings.setPreference(key, value))
-    } catch {
-      toast.error('Could not update desktop settings')
-    } finally {
-      setPendingPreference(null)
-    }
-  }
-
+  const { preferences } = data
   const settings = getDesktopBridge()?.settings
   const shellVersion = getDesktopShellVersion()
-  const generalPending = pendingPreference !== null
-  const notificationsDisabled =
-    !preferences.notificationsEnabled || pendingPreference === 'notificationsEnabled'
-  const supportsPreventSleep = runsInBackground && Boolean(settings?.setPreventSleepWhileRunning)
+  const notificationsOff = !preferences.notificationsEnabled
+  const supportsPreventSleep =
+    data.runsInBackground && Boolean(settings?.setPreventSleepWhileRunning)
 
   return (
     <>
       <SettingsPageHeader />
-      <ComputerUse enabled={organization.featureFlags['mothership-computer-use']} />
+      <ComputerUseActivity activeAction={computerUse.activeAction} />
       <SettingsSection title='General'>
         {shellVersion && (
           <SettingsRow label='Version' description='The desktop app version on this computer'>
@@ -123,15 +97,15 @@ export default function DesktopSection({ organization }: SettingsSectionProps) {
             </span>
           </SettingsRow>
         )}
-        <PreferenceRow
+        <SwitchRow
           label='Launch Sim at login'
           description='Open Sim when you sign in to this computer'
           checked={preferences.launchAtLogin}
-          disabled={generalPending}
-          onCheckedChange={(checked) => void updatePreference('launchAtLogin', checked)}
+          disabled={preferencePending}
+          onCheckedChange={(checked) => void setPreference('launchAtLogin', checked)}
         />
         {supportsPreventSleep && (
-          <PreferenceRow
+          <SwitchRow
             label='Prevent sleep while a chat is running'
             description='Keep this computer awake until a chat finishes'
             checked={preferences.preventSleepWhileRunning ?? true}
@@ -139,24 +113,24 @@ export default function DesktopSection({ organization }: SettingsSectionProps) {
             onCheckedChange={(checked) => void setPreventSleep(checked)}
           />
         )}
-        <PreferenceRow
-          label='Show Sim in Control Center'
-          description='Reach Sim from the menu bar'
+        <SwitchRow
+          label='Show Sim in the menu bar'
+          description='Open recent chats from an icon in the menu bar'
           checked={preferences.trayEnabled}
-          disabled={generalPending}
-          onCheckedChange={(checked) => void updatePreference('trayEnabled', checked)}
+          disabled={preferencePending}
+          onCheckedChange={(checked) => void setPreference('trayEnabled', checked)}
         />
-        <PreferenceRow
+        <SwitchRow
           label='Automatically download updates'
           description='Download new versions in the background'
           checked={preferences.autoDownloadUpdates}
-          disabled={generalPending}
-          onCheckedChange={(checked) => void updatePreference('autoDownloadUpdates', checked)}
+          disabled={preferencePending}
+          onCheckedChange={(checked) => void setPreference('autoDownloadUpdates', checked)}
         />
       </SettingsSection>
       {settings?.setFullFileAccess && (
         <SettingsSection title='Local files'>
-          <PreferenceRow
+          <SwitchRow
             label='Full file access'
             description='Sim can read and import files from any folder on this computer'
             checked={preferences.fullFileAccess ?? false}
@@ -166,30 +140,34 @@ export default function DesktopSection({ organization }: SettingsSectionProps) {
         </SettingsSection>
       )}
       <SettingsSection title='Notifications'>
-        <PreferenceRow
+        <SwitchRow
           label='Enable desktop notifications'
           description='When a run needs your attention'
           checked={preferences.notificationsEnabled}
-          disabled={generalPending}
-          onCheckedChange={(checked) => void updatePreference('notificationsEnabled', checked)}
+          disabled={preferencePending}
+          onCheckedChange={(checked) => void setPreference('notificationsEnabled', checked)}
         />
-        <PreferenceRow
+        <SwitchRow
           label='Play notification sounds'
           description='Play a sound when work finishes'
           checked={preferences.notificationSounds}
-          disabled={notificationsDisabled || generalPending}
-          onCheckedChange={(checked) => void updatePreference('notificationSounds', checked)}
+          disabled={notificationsOff || preferencePending}
+          onCheckedChange={(checked) => void setPreference('notificationSounds', checked)}
         />
-        <PreferenceRow
+        <SwitchRow
           label="Notify only when Sim isn't focused"
           description='Stay quiet while you are using Sim'
           checked={preferences.notificationsOnlyWhenUnfocused}
-          disabled={notificationsDisabled || generalPending}
+          disabled={notificationsOff || preferencePending}
           onCheckedChange={(checked) =>
-            void updatePreference('notificationsOnlyWhenUnfocused', checked)
+            void setPreference('notificationsOnlyWhenUnfocused', checked)
           }
         />
       </SettingsSection>
+      <ComputerUseSettings
+        enabled={organization.featureFlags['mothership-computer-use']}
+        computerUse={computerUse}
+      />
     </>
   )
 }

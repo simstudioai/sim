@@ -6,10 +6,9 @@ import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { Select } from '@sim/emcn/picker/select'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
-import { Switch } from '@sim/emcn/switch'
 import { useQueryStates } from 'nuqs'
-import { toast } from '@/lib/toast/sink'
 import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
+import { SwitchRow } from '@/app/(product)/_components/settings-parts/switch-row'
 import { PasswordsView } from '@/app/(product)/o/[organizationId]/settings/_components/sections/browser/passwords-view'
 import {
   browserParsers,
@@ -17,91 +16,49 @@ import {
 } from '@/app/(product)/o/[organizationId]/settings/_components/sections/browser/search-params'
 import {
   BROWSER_DATA_KINDS,
-  type BrowserCredential,
-  type BrowserDataKind,
+  DESKTOP_THEME_OPTIONS,
   DESKTOP_ZOOM_PERCENTS,
   type DesktopAppearanceTheme,
   type DesktopPreferences,
   type DesktopZoomPercent,
   getDesktopBridge,
   isDesktopZoomPercent,
-  readBrowserCredentials,
   useDesktopPreferenceMutation,
   useDesktopRead,
 } from '@/platform/lib/data/desktop'
-
-interface DataRow {
-  kind: BrowserDataKind
-  label: string
-  action: string
-  /** The row's description: what the data is. */
-  description: string
-  /** What the user actually loses, spelled out in the confirmation. */
-  consequence: string
-}
-
-/** Download history is absent: files save straight to the folder without a history record. */
-const DATA_ROWS: readonly DataRow[] = [
-  {
-    kind: 'cookies',
-    label: 'Cookies',
-    action: 'Delete cookies',
-    description: 'What keeps the browser signed in to sites',
-    consequence: 'sign the browser out of every site it is currently signed into',
-  },
-  {
-    kind: 'site-data',
-    label: 'Site data',
-    action: 'Delete site data',
-    description: 'Drafts and preferences sites store on this device',
-    consequence: 'erase the data sites have stored locally, such as drafts and preferences',
-  },
-  {
-    kind: 'cache',
-    label: 'Cached images and files',
-    action: 'Delete cached images and files',
-    description: 'Copies that make sites load faster',
-    consequence: 'free up space and make sites load more slowly the first time',
-  },
-]
-
-const THEMES = [
-  { label: 'Sim', value: 'app' },
-  { label: 'Light', value: 'light' },
-  { label: 'Dark', value: 'dark' },
-] as const satisfies readonly { label: string; value: DesktopAppearanceTheme }[]
 
 const ZOOM_OPTIONS = DESKTOP_ZOOM_PERCENTS.map((zoom) => ({
   label: `${zoom}%`,
   value: String(zoom),
 }))
 
-const ENABLED_LABEL = 'Let Chat browse the web'
-const SUGGESTIONS_LABEL = 'Search suggestions'
-
-interface BrowserData {
-  preferences: DesktopPreferences
-  credentials: BrowserCredential[]
+/** Clears every kind the browser holds: cookies, site data and cache. */
+async function clearBrowsingData() {
+  const browserAgent = getDesktopBridge()?.browserAgent
+  if (!browserAgent) throw new Error('The built-in browser is not available on this device')
+  try {
+    await browserAgent.clearBrowsingData(BROWSER_DATA_KINDS)
+  } catch {
+    throw new Error('Could not clear browsing data')
+  }
 }
 
 interface BrowserSettingsProps {
   preferences: DesktopPreferences
   setPreferences: (next: DesktopPreferences) => void
-  initialClearAll: boolean
+  initialClearing: boolean
   onOpenPasswords: () => void
-  onClearAllClosed: () => void
+  onClearClosed: () => void
 }
 
 function BrowserSettings({
   preferences,
   setPreferences,
-  initialClearAll,
+  initialClearing,
   onOpenPasswords,
-  onClearAllClosed,
+  onClearClosed,
 }: BrowserSettingsProps) {
-  const [confirming, setConfirming] = useState<DataRow | 'all' | null>(
-    initialClearAll ? 'all' : null
-  )
+  const [clearing, setClearing] = useState(initialClearing)
 
   const { pending: togglePending, mutate: setEnabled } = useDesktopPreferenceMutation(
     (bridge, enabled: boolean) => bridge.settings.setPreference('browserEnabled', enabled),
@@ -133,58 +90,38 @@ function BrowserSettings({
       setPreferences
     )
 
-  const clear = async (kinds: readonly BrowserDataKind[]) => {
-    const desktop = getDesktopBridge()
-    if (!desktop) return
-    try {
-      await desktop.browserAgent.clearBrowsingData(kinds)
-    } catch {
-      toast.error('Could not delete browsing data')
-      return false
-    }
-  }
-
   const supportsSearchSuggestions = Boolean(
     getDesktopBridge()?.settings.setBrowserSearchSuggestionsEnabled
   )
-  const target = confirming === 'all' ? null : confirming
 
   return (
     <>
       <SettingsPageHeader />
       <SettingsSection title='General'>
-        <SettingsRow
-          label={ENABLED_LABEL}
+        <SwitchRow
+          label='Let Chat browse the web'
           description='Chat can open and use sites in the built-in browser'
-        >
-          <Switch
-            label={ENABLED_LABEL}
-            checked={preferences.browserEnabled}
-            disabled={togglePending}
-            onCheckedChange={(checked) => void setEnabled(checked)}
-          />
-        </SettingsRow>
+          checked={preferences.browserEnabled}
+          disabled={togglePending}
+          onCheckedChange={(checked) => void setEnabled(checked)}
+        />
         {supportsSearchSuggestions && (
-          <SettingsRow
-            label={SUGGESTIONS_LABEL}
+          <SwitchRow
+            label='Search suggestions'
             description='Send address-bar typing to Google for live completions'
-          >
-            <Switch
-              label={SUGGESTIONS_LABEL}
-              checked={preferences.browserSearchSuggestionsEnabled ?? true}
-              disabled={searchSuggestionsPending}
-              onCheckedChange={(checked) => void setSearchSuggestionsEnabled(checked)}
-            />
-          </SettingsRow>
+            checked={preferences.browserSearchSuggestionsEnabled ?? true}
+            disabled={searchSuggestionsPending}
+            onCheckedChange={(checked) => void setSearchSuggestionsEnabled(checked)}
+          />
         )}
         <SettingsRow label='Theme' description='Select the color theme sites see' field>
           <Select
             label='Browser theme'
-            options={THEMES}
+            options={DESKTOP_THEME_OPTIONS}
             value={preferences.browserTheme}
             disabled={themePending}
             onValueChange={(value) => {
-              const theme = THEMES.find((option) => option.value === value)
+              const theme = DESKTOP_THEME_OPTIONS.find((option) => option.value === value)
               if (theme) void setTheme(theme.value)
             }}
           />
@@ -210,6 +147,8 @@ function BrowserSettings({
             {downloadDirectoryPending ? 'Choosing…' : 'Change'}
           </Button>
         </SettingsRow>
+      </SettingsSection>
+      <SettingsSection title='Browsing data'>
         <SettingsRow
           label='Passwords'
           description='Saved logins for the built-in browser, encrypted on this device'
@@ -218,56 +157,37 @@ function BrowserSettings({
             Manage
           </Button>
         </SettingsRow>
-      </SettingsSection>
-      <SettingsSection title='Browsing data'>
-        {DATA_ROWS.map((row) => (
-          <SettingsRow key={row.kind} label={row.label} description={row.description}>
-            <Button variant='quiet' destructive size='compact' onClick={() => setConfirming(row)}>
-              {row.action}
-            </Button>
-          </SettingsRow>
-        ))}
         <SettingsRow
-          label='Clear all browsing data'
+          label='Clear browsing data'
           description='Cookies, site data and cache; your Sim account and saved passwords stay'
         >
-          <Button variant='quiet' destructive size='compact' onClick={() => setConfirming('all')}>
-            Clear all
+          <Button variant='quiet' destructive size='compact' onClick={() => setClearing(true)}>
+            Clear
           </Button>
         </SettingsRow>
       </SettingsSection>
       <ConfirmDialog
-        target={confirming}
+        target={clearing}
         onClose={() => {
-          setConfirming(null)
-          onClearAllClosed()
+          setClearing(false)
+          onClearClosed()
         }}
-        title={(row) => (row === 'all' ? 'Clear all browsing data' : row.action)}
-        description={(row) =>
-          `This will ${
-            row === 'all'
-              ? 'sign the browser out of every site and erase its cookies, site data, and cache'
-              : row.consequence
-          }. Your Sim account and saved passwords are not affected.`
-        }
-        confirmLabel={target ? target.action : 'Clear all'}
-        pendingLabel={target ? 'Deleting…' : 'Clearing…'}
-        onConfirm={(row) => clear(row === 'all' ? BROWSER_DATA_KINDS : [row.kind])}
+        title='Clear browsing data'
+        description='This signs the browser out of every site and erases its cookies, the drafts and preferences sites store on this device, and cached images and files. Your Sim account and saved passwords are not affected.'
+        confirmLabel='Clear'
+        pendingLabel='Clearing…'
+        onConfirm={clearBrowsingData}
       />
     </>
   )
 }
 
-/** The built-in browser on this device. Outside the desktop app it opens General. */
+/** The built-in browser on this device. Outside the desktop app it opens Preferences. */
 export default function BrowserSection() {
   const [params, setParams] = useQueryStates(browserParsers, browserUrlKeys)
-  const { data, setData, failed, retry } = useDesktopRead(async (bridge): Promise<BrowserData> => {
-    const [preferences, credentials] = await Promise.all([
-      bridge.settings.getPreferences(),
-      readBrowserCredentials(),
-    ])
-    return { preferences, credentials }
-  })
+  const { data, setData, failed, retry } = useDesktopRead((bridge) =>
+    bridge.settings.getPreferences()
+  )
   /** Opening the import dialog opens the passwords it adds to. */
   const openImport = params.browserImport === '1'
   const showPasswords = params.browserView === 'passwords' || openImport
@@ -281,29 +201,21 @@ export default function BrowserSection() {
     )
   if (!data) return showPasswords ? null : <SettingsPageHeader />
 
-  const setPreferences = (preferences: DesktopPreferences) =>
-    setData((current) => current && { ...current, preferences })
-  const setCredentials = (credentials: BrowserCredential[]) =>
-    setData((current) => current && { ...current, credentials })
-
   if (showPasswords) {
     return (
       <PasswordsView
-        credentials={data.credentials}
         initialImportOpen={openImport}
-        onChange={setCredentials}
         onBack={() => void setParams({ browserView: null, browserImport: null })}
-        onImported={async () => setCredentials(await readBrowserCredentials())}
       />
     )
   }
   return (
     <BrowserSettings
-      preferences={data.preferences}
-      setPreferences={setPreferences}
-      initialClearAll={params.browserClear === '1'}
+      preferences={data}
+      setPreferences={setData}
+      initialClearing={params.browserClear === '1'}
       onOpenPasswords={() => void setParams({ browserView: 'passwords' }, { history: 'push' })}
-      onClearAllClosed={() => void setParams({ browserClear: null })}
+      onClearClosed={() => void setParams({ browserClear: null })}
     />
   )
 }

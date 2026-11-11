@@ -1,17 +1,20 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
-import { FailureNotice, InlineNotice } from '@sim/emcn/status'
-import { Switch } from '@sim/emcn/switch'
+import { FailureNotice, InlineNotice, StatusTag } from '@sim/emcn/status'
 import { Tooltip } from '@sim/emcn/tooltip'
 import { toast } from '@/lib/toast/sink'
+import { SwitchRow } from '@/app/(product)/_components/settings-parts/switch-row'
 import {
-  type ComputerUseAppPermission,
   getDesktopBridge,
-  useComputerUseStatus,
+  useApprovedApps,
+  type useComputerUseStatus,
+  useRevokeApp,
 } from '@/platform/lib/data/desktop'
+
+type ComputerUseState = ReturnType<typeof useComputerUseStatus>
 
 const ACTION_LABELS: Record<string, string> = {
   status: 'Checking permissions',
@@ -32,47 +35,66 @@ const PERMISSIONS = [
   {
     key: 'accessibility',
     label: 'Accessibility',
-    description: 'Accessibility allows interaction with approved apps.',
+    description: 'Lets Chat click and type in the apps you approve',
   },
   {
     key: 'screenCapture',
     label: 'Screen Recording',
-    description:
-      'Screen Recording allows screenshots. Return here after granting access to refresh the status.',
+    description: 'Lets Chat see the apps you approve; return here to refresh the status',
   },
 ] as const
 
-const ALLOW_LABEL = 'Allow Mothership to use Mac apps'
-
 /**
- * Computer Use on this Mac. The running action stays visible even after rollout or device access is
- * revoked, so it can always be stopped.
+ * The running Computer Use action, with Stop. It shows even after rollout or device access is
+ * revoked, so an action can always be stopped.
  */
-export function ComputerUse({ enabled }: { enabled: boolean }) {
-  const requestVersion = useRef(0)
+export function ComputerUseActivity({
+  activeAction,
+}: {
+  activeAction: ComputerUseState['activeAction']
+}) {
+  if (!activeAction) return null
+  return (
+    <InlineNotice
+      intent='info'
+      message={`Computer Use · ${activeAction.appName ?? 'Mac app'} · ${ACTION_LABELS[activeAction.action] ?? 'Working'}`}
+      action={
+        <Tooltip
+          label={
+            activeAction.stopShortcutAvailable ? 'Stop computer use (⌘⇧Esc)' : 'Stop computer use'
+          }
+        >
+          <Button
+            size='compact'
+            icon='I035'
+            onClick={() =>
+              void getDesktopBridge()
+                ?.computerUse?.cancel()
+                .catch(() => toast.error('Could not stop computer use'))
+            }
+          >
+            Stop
+          </Button>
+        </Tooltip>
+      }
+    />
+  )
+}
+
+interface ComputerUseSettingsProps {
+  /** The `mothership-computer-use` rollout. */
+  enabled: boolean
+  computerUse: ComputerUseState
+}
+
+/** Computer Use on this Mac: the switch, the permissions it needs and the apps it may drive. */
+export function ComputerUseSettings({ enabled, computerUse }: ComputerUseSettingsProps) {
+  const { status, activeAction, setStatus, refresh, error } = computerUse
   const bridge = getDesktopBridge()?.computerUse
-  const { status, activeAction, setStatus, refresh, error } = useComputerUseStatus()
-  const [apps, setApps] = useState<ComputerUseAppPermission[]>([])
+  const shown = Boolean(bridge && enabled && status?.supported !== false)
+  const apps = useApprovedApps(activeAction?.appName ?? null, shown)
+  const revoke = useRevokeApp()
   const [pending, setPending] = useState(false)
-
-  const refreshApps = async () => {
-    if (!bridge) return
-    const version = ++requestVersion.current
-    try {
-      const approved = await bridge.listAppPermissions()
-      if (version === requestVersion.current) setApps(approved)
-    } catch {
-      if (version === requestVersion.current) toast.error('Could not load approved apps')
-    }
-  }
-
-  useEffect(() => {
-    if (!enabled) return
-    void refreshApps()
-    return () => {
-      requestVersion.current += 1
-    }
-  }, [enabled, bridge, status?.activeAction])
 
   const update = async (action: () => Promise<void>) => {
     setPending(true)
@@ -85,104 +107,74 @@ export function ComputerUse({ enabled }: { enabled: boolean }) {
     }
   }
 
+  if (!bridge || !shown) return null
+  const approved = apps.data ?? []
   return (
     <>
-      {activeAction && (
-        <InlineNotice
-          intent='info'
-          message={`Computer Use · ${activeAction.appName ?? 'Mac app'} · ${ACTION_LABELS[activeAction.action] ?? 'Working'}`}
-          action={
-            <Tooltip
-              label={
-                activeAction.stopShortcutAvailable
-                  ? 'Stop computer use (⌘⇧Esc)'
-                  : 'Stop computer use'
-              }
-            >
-              <Button
-                size='compact'
-                icon='I035'
-                onClick={() =>
-                  void getDesktopBridge()
-                    ?.computerUse?.cancel()
-                    .catch(() => toast.error('Could not stop computer use'))
-                }
-              >
-                Stop
-              </Button>
-            </Tooltip>
+      <SettingsSection title='Computer use'>
+        <SwitchRow
+          label='Let Chat use Mac apps'
+          description='Off by default; each app asks for your approval first'
+          checked={status?.enabled ?? false}
+          disabled={pending || !status}
+          onCheckedChange={(checked) =>
+            void update(async () => setStatus(await bridge.setEnabled(checked)))
           }
         />
-      )}
-      {bridge && enabled && status?.supported !== false && (
-        <>
-          <SettingsSection title='Computer use'>
-            <SettingsRow
-              label={ALLOW_LABEL}
-              description='Off by default. Each app requires your approval. You can stop an action from the conversation or revoke an app below.'
-            >
-              <Switch
-                label={ALLOW_LABEL}
-                checked={status?.enabled ?? false}
-                disabled={pending || !status}
-                onCheckedChange={(checked) =>
-                  void update(async () => setStatus(await bridge.setEnabled(checked)))
+        {error && (
+          <FailureNotice
+            message='Could not connect to the computer helper'
+            onRetry={() => void refresh()}
+          />
+        )}
+        {PERMISSIONS.map((permission) => (
+          <SettingsRow
+            key={permission.key}
+            label={permission.label}
+            description={permission.description}
+          >
+            {status?.permissions[permission.key] ? (
+              <StatusTag label='Allowed' intent='success' />
+            ) : (
+              <Button
+                size='compact'
+                aria-label={`Open System Settings for ${permission.label}`}
+                disabled={pending || !status?.enabled}
+                onClick={() =>
+                  void update(async () => setStatus(await bridge.requestPermission(permission.key)))
                 }
-              />
-            </SettingsRow>
-            {error && (
-              <FailureNotice
-                message='Could not connect to the computer helper.'
-                onRetry={() => void refresh()}
-              />
-            )}
-            {PERMISSIONS.map((permission) => (
-              <SettingsRow
-                key={permission.key}
-                label={permission.label}
-                description={permission.description}
               >
-                {status?.permissions[permission.key] ? (
-                  <span data-type='T067'>Allowed</span>
-                ) : (
-                  <Button
-                    size='compact'
-                    aria-label={`Open System Settings for ${permission.label}`}
-                    disabled={pending || !status?.enabled}
-                    onClick={() =>
-                      void update(async () =>
-                        setStatus(await bridge.requestPermission(permission.key))
-                      )
-                    }
-                  >
-                    Open System Settings
-                  </Button>
-                )}
-              </SettingsRow>
-            ))}
-          </SettingsSection>
-          {apps.length > 0 && (
-            <SettingsSection title='Approved apps'>
-              {apps.map((app) => (
-                <SettingsRow key={app.bundleId} label={app.displayName} description={app.bundleId}>
-                  <Button
-                    size='compact'
-                    disabled={pending}
-                    onClick={() =>
-                      void update(async () => {
-                        requestVersion.current += 1
-                        await bridge.revokeApp(app.bundleId)
-                        await refreshApps()
-                      })
-                    }
-                  >
-                    Revoke
-                  </Button>
-                </SettingsRow>
-              ))}
-            </SettingsSection>
-          )}
-        </>
+                Open System Settings
+              </Button>
+            )}
+          </SettingsRow>
+        ))}
+      </SettingsSection>
+      {apps.isError && (
+        <FailureNotice
+          message='Could not load approved apps'
+          retrying={apps.isFetching}
+          onRetry={() => void apps.refetch()}
+        />
+      )}
+      {approved.length > 0 && (
+        <SettingsSection title='Approved apps'>
+          {approved.map((app) => (
+            <SettingsRow key={app.bundleId} label={app.displayName} description={app.bundleId}>
+              <Button
+                size='compact'
+                disabled={revoke.isPending}
+                onClick={() =>
+                  revoke.mutate(app.bundleId, {
+                    onError: () => toast.error('Could not revoke that app'),
+                  })
+                }
+              >
+                Revoke
+              </Button>
+            </SettingsRow>
+          ))}
+        </SettingsSection>
       )}
     </>
   )

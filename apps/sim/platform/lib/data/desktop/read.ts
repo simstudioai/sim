@@ -3,7 +3,7 @@
 import { type Dispatch, type SetStateAction, useEffect, useEffectEvent, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDesktopBridge } from '@/lib/desktop'
-import type { BrowserCredential, DesktopApi } from '@/platform/lib/data/desktop/model'
+import type { DesktopApi } from '@/platform/lib/data/desktop/model'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
@@ -16,7 +16,7 @@ interface DesktopRead<T> {
 
 /**
  * What a device settings page shows, read from the desktop shell when it opens. Outside a shell that
- * offers the page it sends the viewer to General. A failed read stays apart
+ * offers the page it sends the viewer to Preferences. A failed read stays apart
  * from a pending one, and `retry` reads again.
  */
 export function useDesktopRead<T>(
@@ -58,12 +58,4 @@ export function useDesktopRead<T>(
       setAttempt((value) => value + 1)
     },
   }
-}
-
-/** Saved browser logins, without passwords; none when this device cannot store them securely. */
-export async function readBrowserCredentials(): Promise<BrowserCredential[]> {
-  const credentials = getDesktopBridge()?.browserCredentials
-  if (!credentials) return []
-  const available = await credentials.isAvailable().catch(() => false)
-  return available ? await credentials.list().catch(() => []) : []
 }

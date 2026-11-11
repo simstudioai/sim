@@ -1,6 +1,13 @@
 export { getDesktopBridge, getDesktopShellVersion } from '@/lib/desktop'
 export { loadDesktopTerminalThemeProfiles, withSelectedProfile } from '@/lib/desktop/appearance'
 export { useBrowserImportProfiles } from '@/hooks/queries/browser-import'
+export {
+  useApprovedApps,
+  useBrowserCredentials,
+  useDeleteBrowserCredentials,
+  useRefreshBrowserCredentials,
+  useRevokeApp,
+} from '@/hooks/queries/desktop-settings'
 export { useComputerUseStatus } from '@/hooks/use-computer-use-status'
 export { useDesktopPreferenceMutation } from '@/hooks/use-desktop-preference-mutation'
 export { useDesktopUpdateGate } from '@/hooks/use-desktop-update-gate'
