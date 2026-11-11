@@ -5,7 +5,7 @@ import { ActivityRow } from '@sim/emcn/activity-row'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { Icon } from '@sim/emcn/icon'
 import { Modal } from '@sim/emcn/modal'
-import { RowList } from '@sim/emcn/settings-section/row-list'
+import { ResourceList } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { GENERIC_SECRETS_SOURCE_TYPE } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/generic-secrets'
 
 interface AddSourceModalProps {
@@ -47,7 +47,7 @@ export function AddSourceModal({
       submitOnEnter={false}
     >
       {feedback}
-      <RowList>
+      <ResourceList>
         {sources.map(({ type, name, access, availabilityStatus }) => {
           const available = access.admin || access.members
           const sourceReady = ready && !availabilityStatus
@@ -80,7 +80,7 @@ export function AddSourceModal({
           )
         })}
         {sources.length === 0 && <EmptyState title='No matching sources' />}
-      </RowList>
+      </ResourceList>
     </Modal>
   )
 }

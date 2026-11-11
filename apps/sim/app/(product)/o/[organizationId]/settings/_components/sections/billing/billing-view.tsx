@@ -12,6 +12,7 @@ import {
   BooleanRow,
   SavedSettingsSection,
 } from '@/app/(product)/_components/settings-parts/saved-settings'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
 import { AwsMarketplaceSubscription } from '@/app/(product)/o/[organizationId]/settings/_components/sections/billing/aws-marketplace'
 import styles from '@/app/(product)/o/[organizationId]/settings/_components/sections/billing/billing.module.css'
@@ -52,12 +53,19 @@ export function BillingView({
   subpath,
 }: Pick<SettingsSectionProps, 'organization' | 'subpath'>) {
   const billing = useBillingSection(organization)
-  if (billing.status === 'pending') return null
+  const creditUsage = subpath[0] === 'credit-usage'
+  if (billing.status === 'pending') return creditUsage ? null : <SettingsPageHeader />
   if (billing.status === 'error')
-    return <FailureNotice message={billing.error} onRetry={billing.retry} />
-  if (subpath[0] === 'credit-usage') return <CreditUsage available={billing.showCreditUsage} />
+    return (
+      <>
+        <SettingsPageHeader />
+        <FailureNotice message={billing.error} onRetry={billing.retry} />
+      </>
+    )
+  if (creditUsage) return <CreditUsage available={billing.showCreditUsage} />
   return (
     <>
+      <SettingsPageHeader />
       <SettingsSurface>
         <SettingsRow
           label={billing.planTitle}

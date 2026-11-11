@@ -1,3 +1,4 @@
+import { type DehydratedState, HydrationBoundary } from '@tanstack/react-query'
 import { notFound } from 'next/navigation'
 import { matchPathPattern } from '@/lib/navigation/paths'
 import {
@@ -14,10 +15,22 @@ interface LiveSettingsRouteProps {
   fixture?: true
   path: readonly string[]
   query: Record<string, string | string[] | undefined>
+  /** A browser-rendered section's first reads, which the page prefetched on live data. */
+  firstPaint?: DehydratedState | null
 }
 
-/** The section a Settings path names, once the page has answered any surface failure or redirect. */
-export function LiveSettingsRoute({ path, query, organization, fixture }: LiveSettingsRouteProps) {
+/**
+ * The section a Settings path names, once the page has answered any surface failure or redirect. A
+ * browser-rendered section's queries start from `firstPaint`, seeded before its code loads; a server
+ * section prefetches its own.
+ */
+export function LiveSettingsRoute({
+  path,
+  query,
+  organization,
+  fixture,
+  firstPaint,
+}: LiveSettingsRouteProps) {
   const [key = 'general', ...subpath] = path
   const setting = resolveLiveSetting(key, organization)
   if (!setting) notFound()
@@ -25,21 +38,22 @@ export function LiveSettingsRoute({ path, query, organization, fixture }: LiveSe
   if (subpath.length && !entry.subpaths?.some((pattern) => matchPathPattern(pattern, subpath)))
     notFound()
   const { Section } = entry
+  const section = isClientSettingsSection(setting.key) ? (
+    <OrganizationSettingsSection
+      section={setting.key}
+      fixture={fixture}
+      organization={organization}
+      subpath={subpath}
+      query={query}
+    />
+  ) : (
+    Section && (
+      <Section fixture={fixture} organization={organization} subpath={subpath} query={query} />
+    )
+  )
   return (
     <SettingsScreen title={setting.title} description={setting.description}>
-      {isClientSettingsSection(setting.key) ? (
-        <OrganizationSettingsSection
-          section={setting.key}
-          fixture={fixture}
-          organization={organization}
-          subpath={subpath}
-          query={query}
-        />
-      ) : (
-        Section && (
-          <Section fixture={fixture} organization={organization} subpath={subpath} query={query} />
-        )
-      )}
+      {firstPaint ? <HydrationBoundary state={firstPaint}>{section}</HydrationBoundary> : section}
     </SettingsScreen>
   )
 }

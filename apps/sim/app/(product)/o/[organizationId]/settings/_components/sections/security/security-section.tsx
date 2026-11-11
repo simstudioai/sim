@@ -10,8 +10,9 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toast } from '@/lib/toast/sink'
+import { SettingsSaveBar } from '@/app/(product)/_components/settings-parts/save-bar'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
-  ActionRow,
   FieldStack,
   Muted,
   SectionStack,
@@ -25,7 +26,6 @@ import {
   useRevokeOrganizationSessions,
   useUpdateOrganizationSessionPolicy,
 } from '@/platform/lib/data/security'
-import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { plural } from '@/platform/shared/plural'
 
 type SessionPolicy = NonNullable<ReturnType<typeof useOrganizationSessionPolicy>['data']>
@@ -51,11 +51,6 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
     setMaxHours(savedMax)
     setIdleHours(savedIdle)
   }
-  useSettingsUnsavedGuard({
-    isDirty: dirty,
-    navigationBlocked: updatePolicy.isPending,
-    onDiscard: discard,
-  })
 
   async function save() {
     if (updatePolicy.isPending) return
@@ -101,20 +96,12 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
           value={idleHours}
           onChange={setIdleHours}
         />
-        <ActionRow>
-          <Button
-            variant='primary'
-            disabled={!dirty || updatePolicy.isPending}
-            onClick={() => void save()}
-          >
-            {updatePolicy.isPending ? 'Saving…' : 'Save'}
-          </Button>
-          {dirty && (
-            <Button variant='quiet' disabled={updatePolicy.isPending} onClick={discard}>
-              Discard
-            </Button>
-          )}
-        </ActionRow>
+        <SettingsSaveBar
+          dirty={dirty}
+          saving={updatePolicy.isPending}
+          onSave={() => void save()}
+          onDiscard={discard}
+        />
       </FieldStack>
       <SettingsRow
         label='End all sessions'
@@ -210,6 +197,7 @@ export default function SecuritySection({ organization }: SettingsSectionProps) 
   const organizationId = organization.organization.id
   return (
     <SectionStack>
+      <SettingsPageHeader />
       {(deployment.hosted || deployment.features.sessionPolicies) && (
         <SessionPolicySection
           key={organizationId}

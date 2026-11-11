@@ -13,6 +13,7 @@ import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { toast } from '@/lib/toast/sink'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   ActionRow,
   Muted,
@@ -152,6 +153,7 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
 
   return (
     <SectionStack>
+      <SettingsPageHeader />
       <SectionToolbar
         grow={
           <SearchField

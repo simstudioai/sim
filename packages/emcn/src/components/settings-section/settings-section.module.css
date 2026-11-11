@@ -118,29 +118,3 @@
   justify-content: flex-end;
   gap: var(--spacing-8);
 }
-
-.rowList {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--ui-list-gap);
-  min-inline-size: 0;
-  margin-inline: calc(-1 * var(--ui-row-inset));
-  list-style: none;
-}
-
-.rowList[data-dividers] {
-  gap: 0;
-}
-
-/* The divider stops with the text, where the row's hover fill reaches past it. */
-.rowList[data-dividers] > * + * {
-  position: relative;
-}
-
-.rowList[data-dividers] > * + *::before {
-  position: absolute;
-  inset-block-start: 0;
-  inset-inline: var(--ui-row-inset);
-  border-block-start: var(--spacing-stroke-default) solid var(--ui-divider);
-  content: "";
-}

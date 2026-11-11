@@ -1,6 +1,7 @@
 'use client'
 
 import { RequestsPanel } from '@/app/(product)/_components/access-requests/requests-panel'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import type { WorkspaceSettingsSectionProps } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
 
@@ -9,9 +10,12 @@ export default function RequestsSection({ workspaceId }: WorkspaceSettingsSectio
   const { hostContext } = useWorkspaceSettingsSection(workspaceId, 'requests')
   const reviewer = hostContext?.viewer.isHostOrganizationAdmin
   return (
-    <RequestsPanel
-      scope={{ kind: 'workspace', workspaceId }}
-      reviewOrganizationId={(reviewer && hostContext?.hostOrganizationId) || undefined}
-    />
+    <>
+      <SettingsPageHeader />
+      <RequestsPanel
+        scope={{ kind: 'workspace', workspaceId }}
+        reviewOrganizationId={(reviewer && hostContext?.hostOrganizationId) || undefined}
+      />
+    </>
   )
 }

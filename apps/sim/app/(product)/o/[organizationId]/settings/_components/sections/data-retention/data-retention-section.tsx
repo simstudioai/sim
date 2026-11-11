@@ -8,6 +8,7 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { toError } from '@sim/utils/errors'
 import { toast } from '@/lib/toast/sink'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   ResourceList,
   SectionStack,
@@ -150,6 +151,7 @@ function RetentionForm({ initialData, organizationId, workspaceOptions }: Retent
 
   return (
     <SectionStack>
+      <SettingsPageHeader />
       <SettingsSection title='Retention policies'>
         <ResourceList>
           <ActivityRow
@@ -190,27 +192,38 @@ export default function DataRetentionSection({ organization }: SettingsSectionPr
   const { data, isLoading, isFetching, refetch } = useOrganizationRetention(organizationId)
   const workspacesQuery = useWorkspacesQuery(Boolean(organizationId))
 
-  if (isLoading || workspacesQuery.isPending) return null
+  if (isLoading || workspacesQuery.isPending) return <SettingsPageHeader />
   if (!data) {
     return (
-      <FailureNotice
-        message='Failed to load data retention settings.'
-        retrying={isFetching}
-        onRetry={() => void refetch()}
-      />
+      <>
+        <SettingsPageHeader />
+        <FailureNotice
+          message='Failed to load data retention settings.'
+          retrying={isFetching}
+          onRetry={() => void refetch()}
+        />
+      </>
     )
   }
   if (!workspacesQuery.data) {
     return (
-      <FailureNotice
-        message='Failed to load workspaces.'
-        retrying={workspacesQuery.isFetching}
-        onRetry={() => void workspacesQuery.refetch()}
-      />
+      <>
+        <SettingsPageHeader />
+        <FailureNotice
+          message='Failed to load workspaces.'
+          retrying={workspacesQuery.isFetching}
+          onRetry={() => void workspacesQuery.refetch()}
+        />
+      </>
     )
   }
   if (organization.deployment.billingEnabled && !data.isEnterprise) {
-    return <EmptyState title='Data retention is available on Enterprise plans only.' />
+    return (
+      <>
+        <SettingsPageHeader />
+        <EmptyState title='Data retention is available on Enterprise plans only.' />
+      </>
+    )
   }
   return (
     <RetentionForm

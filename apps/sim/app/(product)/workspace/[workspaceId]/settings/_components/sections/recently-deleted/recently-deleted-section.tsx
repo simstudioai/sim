@@ -14,6 +14,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
 import { workspacePath } from '@/lib/navigation/paths'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   SectionStack,
   SectionToolbar,
@@ -298,6 +299,7 @@ export default function RecentlyDeletedSection({ workspaceId }: WorkspaceSetting
 
   return (
     <SectionStack>
+      <SettingsPageHeader />
       <SectionToolbar
         grow={
           <SearchField

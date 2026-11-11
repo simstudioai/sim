@@ -9,15 +9,12 @@ import {
   type UpdateOrganizationSessionPolicyBody,
   updateOrganizationSessionPolicyContract,
 } from '@/lib/api/contracts/organization'
+import {
+  SESSION_POLICY_STALE_TIME,
+  sessionPolicyKeys,
+} from '@/hooks/queries/utils/session-policy-keys'
 
 export type SessionPolicyResponse = OrganizationSessionPolicy
-
-export const SESSION_POLICY_STALE_TIME = 60 * 1000
-
-const sessionPolicyKeys = {
-  all: ['sessionPolicy'] as const,
-  settings: (orgId: string) => [...sessionPolicyKeys.all, 'settings', orgId] as const,
-}
 
 async function fetchSessionPolicy(
   orgId: string,

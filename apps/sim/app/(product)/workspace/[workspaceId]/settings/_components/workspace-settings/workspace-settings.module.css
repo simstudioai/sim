@@ -10,13 +10,6 @@
   position: sticky;
   inset-block-start: var(--ui-page-heading-inset);
   min-inline-size: 0;
-  margin-inline-start: calc(-1 * var(--ui-row-inset));
-}
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-24);
-  min-inline-size: 0;
 }
 @media (max-width: 56rem) {
   .layout {

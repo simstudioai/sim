@@ -1,0 +1,22 @@
+/* Every settings page reads at Paper's settings column, narrower than the dashboard's page column. */
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-24);
+  inline-size: 100%;
+  max-inline-size: var(--container-app-settings);
+  min-inline-size: 0;
+}
+
+[data-desktop] .body {
+  gap: var(--spacing-20);
+}
+
+.header {
+  display: grid;
+  gap: var(--spacing-8);
+}
+
+.header p {
+  color: var(--ui-secondary);
+}

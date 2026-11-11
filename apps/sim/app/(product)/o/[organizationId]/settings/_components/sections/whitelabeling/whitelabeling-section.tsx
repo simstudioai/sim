@@ -8,6 +8,7 @@ import { FileField } from '@sim/emcn/field/file-field'
 import { Input } from '@sim/emcn/field/inputs'
 import { SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   ActionRow,
   FieldStack,
@@ -193,17 +194,23 @@ function WhitelabelForm({ organizationId, settings, uploadWorkspaceId }: Whitela
 export default function WhitelabelingSection({ organization }: SettingsSectionProps) {
   const organizationId = organization.organization.id
   const read = useWhitelabelRead(organizationId)
-  if (read.status === 'pending') return <SettingsSection title='Brand identity' />
-  if (read.status === 'error' || !read.settings)
-    return <FailureNotice message={read.error} onRetry={read.retry} />
-  if (!read.entitled)
-    return <EmptyState title='Whitelabeling requires an active Enterprise plan.' />
   return (
-    <WhitelabelForm
-      key={organizationId}
-      organizationId={organizationId}
-      settings={read.settings}
-      uploadWorkspaceId={read.uploadWorkspaceId}
-    />
+    <>
+      <SettingsPageHeader />
+      {read.status === 'pending' ? (
+        <SettingsSection title='Brand identity' />
+      ) : read.status === 'error' || !read.settings ? (
+        <FailureNotice message={read.error} onRetry={read.retry} />
+      ) : !read.entitled ? (
+        <EmptyState title='Whitelabeling requires an active Enterprise plan.' />
+      ) : (
+        <WhitelabelForm
+          key={organizationId}
+          organizationId={organizationId}
+          settings={read.settings}
+          uploadWorkspaceId={read.uploadWorkspaceId}
+        />
+      )}
+    </>
   )
 }

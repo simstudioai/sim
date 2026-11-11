@@ -8,7 +8,9 @@
  * another whose id shares its prefix; Home with a resource painting before it hands off to the
  * chat; a chat page answering a member without chat differently from Home; a bare Search URL loading without the viewer's remembered mode; a legacy workspace URL
  * reaching a renamed Settings section through a second redirect, or disclosing the organization of
- * a workspace the viewer cannot open; and a malformed path throwing instead of rendering.
+ * a workspace the viewer cannot open; a malformed path throwing instead of rendering; and a
+ * Settings section the viewer may not open streaming its not-found body as a 200, or the shell
+ * answering not found for a section, a sibling route or General the viewer may open.
  */
 import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { describe, expect, it, vi } from 'vitest'
@@ -25,6 +27,7 @@ import type { PlatformOrganization } from '@/platform/lib/data/organization-mode
 import {
   blockedWorkspaceEntryHref,
   deniedSurfaceHref,
+  isClosedSettingsSection,
   type RouteContext,
   resolveProductRedirect,
 } from '@/platform/lib/data/route-resolution'
@@ -326,5 +329,29 @@ describe('an organization the viewer can no longer open', () => {
 
   it('answers not found from one that excludes them', () => {
     expect(deniedSurfaceHref(false)).toBeNull()
+  })
+})
+
+describe('a Settings section the viewer may not open', () => {
+  const opens = (href: string, settingsSections: PlatformOrganization['settingsSections']) => {
+    const url = new URL(href, 'https://app.sim.test')
+    return isClosedSettingsSection(
+      { ...organization(), settingsSections },
+      { pathname: url.pathname, query: url.searchParams }
+    )
+  }
+
+  it('is answered by the shell before the page streams, with or without a subpath', () => {
+    expect(opens('/o/org-1/settings/billing', ['general'])).toBe(true)
+    expect(opens('/o/org-1/settings/billing/credit-usage', ['general'])).toBe(true)
+    expect(opens('/o/org-1/settings/admin', ['general', 'admin'])).toBe(true)
+    expect(opens('/o/org-1/settings/no-such-section', ['general'])).toBe(true)
+  })
+
+  it('leaves General, an open section and the routes beside the sections to the page', () => {
+    expect(opens('/o/org-1/settings', [])).toBe(false)
+    expect(opens('/o/org-1/settings/billing', ['general', 'billing'])).toBe(false)
+    expect(opens('/o/org-1/settings/billing/plans', ['general'])).toBe(false)
+    expect(opens('/o/org-1/home', [])).toBe(false)
   })
 })

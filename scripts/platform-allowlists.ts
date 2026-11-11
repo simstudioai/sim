@@ -231,6 +231,14 @@ const serverSeamHelpers: ReasonedAllowlist = {
   'lib/auth': "getSession, the viewer's session that every server read and redirect starts from",
   'lib/auth/session-response':
     'toAppSession and getActiveOrganizationId, the session shape startShellPrefetch seeds',
+  'lib/auth/sso/application/provider-settings':
+    "The SSO provider list use case, prefetched for Settings' Single sign-on",
+  'lib/core/network/application/read-organization-network':
+    "The outbound network use case, prefetched for Settings' Security",
+  'lib/organizations/application/configuration':
+    "The session policy and data retention use cases, prefetched for Settings' Security and Data retention",
+  'lib/permission-groups/application/use-cases':
+    "The permission group and workspace list use cases, prefetched for Settings' Permission groups",
   'lib/billing/application/organization-billing/get-organization-billing-summary':
     "The billing summary use case behind the billing route, prefetched for Settings' Billing",
   'lib/core/application/organization-authorization':
@@ -598,7 +606,6 @@ const seamHelpers: ReasonedAllowlist = {
       'ee/data-drains/destinations/specs',
       'ee/data-drains/hooks/data-drains',
       'ee/data-drains/labels',
-      'ee/data-drains/search-params',
       'ee/data-retention/hooks/data-retention',
       'ee/data-retention/lib/policy-draft',
       'ee/organization-usage/constants',
@@ -1118,6 +1125,71 @@ const ALERT_OWNERS: ReasonedAllowlist = {
     "The schema and code editors have no error slot; their message sits inline in the editor's action bar beside Generate",
 }
 
+/*
+ * Settings page-lane migrations. Pages that predate the shared settings parts, each granted until its
+ * page lane adopts the part the rule names; delete a page's entry in the same change that migrates it.
+ */
+const SETTINGS_PAGE_LANE = 'Predates the shared settings part; the page lane migrates'
+
+/** Hand-built Save and Discard (`save-owner`), until the page adopts `SettingsSaveBar`. */
+const SAVE_BAR_MIGRATIONS: ReasonedAllowlist = granted(SETTINGS_PAGE_LANE, [
+  `${PRODUCT_ROUTES}_components/secrets-editor/secrets-editor.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/access-control/group-detail.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/data-retention/policy-detail.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/source-connections.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/source-detail.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/source-secrets.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/sso/provider-form.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/whitelabeling/whitelabeling-section.tsx`,
+  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/custom-blocks/custom-block-detail.tsx`,
+  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/custom-tools/custom-tool-detail.tsx`,
+  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/forks/fork-sync-detail.tsx`,
+  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/sandboxes/sandbox-editor.tsx`,
+  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/secrets/secret-detail.tsx`,
+])
+
+/** A `Switch` in a `SettingsRow` (`switch-row`), until the page adopts `SwitchRow`. */
+const SWITCH_ROW_MIGRATIONS: ReasonedAllowlist = granted(SETTINGS_PAGE_LANE, [
+  `${PRODUCT_ROUTES}_components/access-requests/review-requests.tsx`,
+  `${PRODUCT_ROUTES}_components/consent-banner/consent-banner.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/access-control/group-detail.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/admin/admin-panel.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/browser/browser-section.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/data-drains/drain-detail.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/desktop/computer-use.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/desktop/desktop-section.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/privacy/cookie-preferences.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/privacy/privacy-section.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/sso/scim-panel.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/terminal/terminal-section.tsx`,
+  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/api-keys/api-keys-section.tsx`,
+  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/custom-blocks/custom-block-detail.tsx`,
+  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/inbox/inbox-enable-toggle.tsx`,
+  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/secrets/secret-detail.tsx`,
+])
+
+/** An `EmptyState` inside a settings surface (`empty-in-surface`), until the page adopts `SettingsList`. */
+const EMPTY_SURFACE_MIGRATIONS: ReasonedAllowlist = granted(SETTINGS_PAGE_LANE, [
+  `${ORGANIZATION_ROUTES}settings/_components/sections/admin/admin-directory.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/audit-logs/audit-logs-section.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/connected-accounts/group-access.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/connected-accounts/group-people.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/connected-accounts/group-providers.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/live-sources.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/provider-detail.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/source-connections.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/source-secrets.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/sources-view.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/members/members-panel.tsx`,
+  `${ORGANIZATION_ROUTES}settings/_components/sections/security/security-section.tsx`,
+  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/custom-blocks/custom-blocks-section.tsx`,
+  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/forks/fork-activity.tsx`,
+  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/forks/forks-section.tsx`,
+  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/mcp/mcp-section.tsx`,
+  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/sandboxes/sandboxes-section.tsx`,
+  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/workflow-mcp-servers/workflow-mcp-servers-section.tsx`,
+])
+
 export const PLATFORM_ALLOWLISTS = {
   LIVE_ONLY_ROUTES,
   FIXTURE_BRANCH_VIEWS,
@@ -1133,6 +1205,9 @@ export const PLATFORM_ALLOWLISTS = {
   FRAMES_OUTSIDE_SURFACE,
   LOCAL_TOKEN_OWNERS,
   ROW_BLEED_OWNERS,
+  SAVE_BAR_MIGRATIONS,
+  SWITCH_ROW_MIGRATIONS,
+  EMPTY_SURFACE_MIGRATIONS,
   serverSeamHelpers,
   platformHostModules,
   seamHelpers,

@@ -5,6 +5,7 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
 import { toast } from '@/lib/toast/sink'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
 import { ComputerUse } from '@/app/(product)/o/[organizationId]/settings/_components/sections/desktop/computer-use'
 import {
@@ -79,8 +80,14 @@ export default function DesktopSection({ organization }: SettingsSectionProps) {
       setPreferences
     )
 
-  if (failed) return <FailureNotice message='Could not load desktop settings' onRetry={retry} />
-  if (!preferences) return null
+  if (failed)
+    return (
+      <>
+        <SettingsPageHeader />
+        <FailureNotice message='Could not load desktop settings' onRetry={retry} />
+      </>
+    )
+  if (!preferences) return <SettingsPageHeader />
 
   const updatePreference = async (key: DesktopPreferenceKey, value: boolean) => {
     const settings = getDesktopBridge()?.settings
@@ -104,6 +111,7 @@ export default function DesktopSection({ organization }: SettingsSectionProps) {
 
   return (
     <>
+      <SettingsPageHeader />
       <ComputerUse enabled={organization.featureFlags['mothership-computer-use']} />
       <SettingsSection title='General'>
         {shellVersion && (

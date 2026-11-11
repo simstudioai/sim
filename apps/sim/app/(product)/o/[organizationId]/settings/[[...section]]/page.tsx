@@ -54,5 +54,13 @@ export default async function Page({
     ['/settings', ...path.map(encodeURIComponent)].join('/')
   )
   await followProductRoute(surface.organization, productLocation(pathname, query))
-  return <LiveSettingsRoute organization={surface.organization} path={path} query={query} />
+  const { prefetchSettingsSection } = await import('@/platform/lib/data/prefetch-settings')
+  return (
+    <LiveSettingsRoute
+      organization={surface.organization}
+      path={path}
+      query={query}
+      firstPaint={await prefetchSettingsSection(path, surface.organization)}
+    />
+  )
 }

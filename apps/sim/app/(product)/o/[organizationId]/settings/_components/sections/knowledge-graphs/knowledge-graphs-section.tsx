@@ -7,6 +7,7 @@ import { Icon } from '@sim/emcn/icon'
 import { Modal } from '@sim/emcn/modal'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
 import { useKnowledgeGraphs } from '@/platform/shared/knowledge-graphs'
 
@@ -16,6 +17,7 @@ export default function KnowledgeGraphsSection({ organization }: SettingsSection
   const [name, setName] = useState('')
   return (
     <>
+      <SettingsPageHeader />
       <SettingsSection title='Graphs'>
         {graphs.status === 'error' ? (
           <FailureNotice

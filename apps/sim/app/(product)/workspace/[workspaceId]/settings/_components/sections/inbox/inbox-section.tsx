@@ -3,6 +3,7 @@
 import { SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import { FieldStack, SectionStack } from '@/app/(product)/_components/settings-parts/settings-parts'
 import type { WorkspaceSettingsSectionProps } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
 import { InboxEnableToggle } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/inbox/inbox-enable-toggle'
@@ -18,38 +19,45 @@ export default function InboxSection({ workspaceId }: WorkspaceSettingsSectionPr
   const { data: config, isPending, error, isFetching, refetch } = useInboxConfig(workspaceId)
   const isAdmin = permission === 'admin'
 
-  if (isPending) return null
+  if (isPending) return <SettingsPageHeader />
 
   if (config === undefined)
     return (
-      <FailureNotice
-        message={getErrorMessage(error, 'Failed to load Inbox settings')}
-        retrying={isFetching}
-        onRetry={() => void refetch()}
-      />
+      <>
+        <SettingsPageHeader />
+        <FailureNotice
+          message={getErrorMessage(error, 'Failed to load Inbox settings')}
+          retrying={isFetching}
+          onRetry={() => void refetch()}
+        />
+      </>
     )
 
   if (locked || !config.entitled) {
-    // An administrator can still turn off an inbox the plan no longer includes.
-    if (config.enabled && isAdmin)
-      return (
-        <InboxEnableToggle
-          workspaceId={workspaceId}
-          enabled={config.enabled}
-          address={config.address}
-        />
-      )
     return (
-      <UpgradeNotice
-        title='Sim Mailer requires an active Max plan'
-        description='Upgrade to Max and ensure billing is active to receive tasks via email and let Sim work on your behalf.'
-        canUpgrade={isAdmin}
-      />
+      <>
+        <SettingsPageHeader />
+        {config.enabled && isAdmin ? (
+          // An administrator can still turn off an inbox the plan no longer includes.
+          <InboxEnableToggle
+            workspaceId={workspaceId}
+            enabled={config.enabled}
+            address={config.address}
+          />
+        ) : (
+          <UpgradeNotice
+            title='Sim Mailer requires an active Max plan'
+            description='Upgrade to Max and ensure billing is active to receive tasks via email and let Sim work on your behalf.'
+            canUpgrade={isAdmin}
+          />
+        )}
+      </>
     )
   }
 
   return (
     <SectionStack>
+      <SettingsPageHeader />
       {canMutate && (
         <InboxEnableToggle
           workspaceId={workspaceId}

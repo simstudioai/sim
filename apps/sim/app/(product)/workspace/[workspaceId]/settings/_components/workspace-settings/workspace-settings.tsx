@@ -1,10 +1,15 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
+import { PageOverflow } from '@sim/emcn-platform/page-column'
 import { notFound, useRouter } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
 import { RequestAccessModal } from '@/app/(product)/_components/request-access-modal/request-access-modal'
 import { SettingsNavigation } from '@/app/(product)/_components/settings-navigation/settings-navigation'
+import {
+  SettingsBody,
+  SettingsPageHeader,
+} from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   LiveWorkspacePage,
   WorkspaceEmpty,
@@ -83,7 +88,9 @@ interface LiveWorkspaceSettingsProps {
 
 /**
  * The workspace's Settings tab on live data: its sections in the organization Settings navigation's
- * pattern beside the open section. A section the viewer may not open answers as not found.
+ * pattern beside the open section, which renders in the same settings body as organization
+ * Settings. The workspace's name is the tab's `h1`, so the section's header is an `h2`. A section
+ * the viewer may not open answers as not found.
  */
 export function LiveWorkspaceSettings({
   workspaceId,
@@ -122,21 +129,23 @@ export function LiveWorkspaceSettings({
       {entry && (
         <div className={styles.layout}>
           <div className={styles.navigation}>
-            <SettingsNavigation section={section} groups={groups} />
+            <PageOverflow>
+              <SettingsNavigation section={section} groups={groups} />
+            </PageOverflow>
           </div>
-          <section className={styles.section} aria-labelledby='workspace-settings-title'>
-            <h2 id='workspace-settings-title' data-type='T093'>
-              {entry.title}
-            </h2>
+          <SettingsBody title={entry.title} description={entry.description} headingLevel='h2'>
             {entry.restrictedBy ? (
-              <RestrictedSection
-                workspaceId={workspaceId}
-                restriction={settings.restriction(entry.restrictedBy)}
-              />
+              <>
+                <SettingsPageHeader />
+                <RestrictedSection
+                  workspaceId={workspaceId}
+                  restriction={settings.restriction(entry.restrictedBy)}
+                />
+              </>
             ) : (
               children
             )}
-          </section>
+          </SettingsBody>
         </div>
       )}
     </LiveWorkspacePage>

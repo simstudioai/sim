@@ -99,3 +99,9 @@
   padding: 0;
   border: 0;
 }
+
+.listSection {
+  display: grid;
+  gap: var(--spacing-12);
+  min-inline-size: 0;
+}

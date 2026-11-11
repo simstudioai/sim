@@ -10,23 +10,44 @@ const WORKSPACE_SETTINGS = [
   {
     label: 'Workspace',
     items: [
-      { key: 'teammates', title: 'Teammates', icon: 'I133', mutate: 'admin' },
+      {
+        key: 'teammates',
+        title: 'Teammates',
+        icon: 'I133',
+        description: 'Invite people to this workspace and manage their access',
+        mutate: 'admin',
+      },
       {
         key: 'secrets',
         title: 'Secrets',
         icon: 'I137',
+        description: 'Store the keys and tokens your workflows use',
         mutate: 'write',
         restrictedBy: 'hideSecretsTab',
       },
-      { key: 'byok', title: 'BYOK', icon: 'I128', mutate: 'admin', hostedOnly: true },
+      {
+        key: 'byok',
+        title: 'BYOK',
+        icon: 'I128',
+        description: 'Use your own model provider keys in this workspace',
+        mutate: 'admin',
+        hostedOnly: true,
+      },
       {
         key: 'sandboxes',
         title: 'Sandboxes',
         icon: 'I107',
+        description: 'Choose the packages and tools your Function blocks can use',
         mutate: 'admin',
         restrictedBy: 'hideSandboxesTab',
       },
-      { key: 'requests', title: 'Requests', icon: 'I073', mutate: 'read' },
+      {
+        key: 'requests',
+        title: 'Requests',
+        icon: 'I073',
+        description: 'Review requests for access in this workspace',
+        mutate: 'read',
+      },
     ],
   },
   {
@@ -36,6 +57,7 @@ const WORKSPACE_SETTINGS = [
         key: 'custom-tools',
         title: 'Custom tools',
         icon: 'I127',
+        description: 'Build tools your agents can call',
         mutate: 'write',
         restrictedBy: 'disableCustomTools',
       },
@@ -43,10 +65,17 @@ const WORKSPACE_SETTINGS = [
         key: 'mcp',
         title: 'MCP tools',
         icon: 'I126',
+        description: 'Connect MCP servers and use their tools in workflows',
         mutate: 'write',
         restrictedBy: 'disableMcpTools',
       },
-      { key: 'workflow-mcp-servers', title: 'MCP servers', icon: 'I118', mutate: 'write' },
+      {
+        key: 'workflow-mcp-servers',
+        title: 'MCP servers',
+        icon: 'I118',
+        description: 'Serve your deployed workflows as MCP tools',
+        mutate: 'write',
+      },
     ],
   },
   {
@@ -56,6 +85,7 @@ const WORKSPACE_SETTINGS = [
         key: 'api-keys',
         title: 'Sim API keys',
         icon: 'I041',
+        description: 'Manage the keys your apps use to call the Sim API',
         mutate: 'admin',
         restrictedBy: 'hideApiKeysTab',
       },
@@ -68,17 +98,36 @@ const WORKSPACE_SETTINGS = [
         key: 'inbox',
         title: 'Sim Mailer',
         icon: 'I106',
+        description: 'Send tasks to this workspace by email',
         mutate: 'admin',
         restrictedBy: 'hideInboxTab',
       },
-      { key: 'recently-deleted', title: 'Recently deleted', icon: 'I053', mutate: 'write' },
+      {
+        key: 'recently-deleted',
+        title: 'Recently deleted',
+        icon: 'I053',
+        description: 'Restore deleted work before it is removed for good',
+        mutate: 'write',
+      },
     ],
   },
   {
     label: 'Enterprise',
     items: [
-      { key: 'forks', title: 'Workspace forks', icon: 'I129', mutate: 'admin' },
-      { key: 'custom-blocks', title: 'Custom blocks', icon: 'I025', mutate: 'admin' },
+      {
+        key: 'forks',
+        title: 'Workspace forks',
+        icon: 'I129',
+        description: 'Copy this workspace and keep its forks in sync',
+        mutate: 'admin',
+      },
+      {
+        key: 'custom-blocks',
+        title: 'Custom blocks',
+        icon: 'I025',
+        description: 'Publish deployed workflows as reusable blocks',
+        mutate: 'admin',
+      },
     ],
   },
 ] as const satisfies readonly {
@@ -87,6 +136,8 @@ const WORKSPACE_SETTINGS = [
     key: string
     title: string
     icon: IconName
+    /** The line under the section's title, in Paper's voice: sentence case, no closing period. */
+    description: string
     /** The workspace permission that may change what the section shows. */
     mutate: 'read' | 'write' | 'admin'
     /** The permission-group flag that hides the section. */
@@ -136,6 +187,7 @@ export interface WorkspaceSettingsGateInput {
 export interface WorkspaceSetting {
   key: WorkspaceSettingsKey
   title: string
+  description: string
   icon: IconName
   /** The viewer's workspace permission allows the section's changes. */
   canMutate: boolean
@@ -158,7 +210,7 @@ function selfHostedOverride(
 function resolveEntry(
   item: WorkspaceSettingDefinition,
   input: WorkspaceSettingsGateInput
-): Omit<WorkspaceSetting, 'key' | 'title' | 'icon' | 'canMutate'> | null {
+): Omit<WorkspaceSetting, 'key' | 'title' | 'description' | 'icon' | 'canMutate'> | null {
   const { hostContext, permissionConfig, requestable } = input
   const hosted = hostContext.deployment?.hosted ?? true
   const restrictedBy = 'restrictedBy' in item ? item.restrictedBy : undefined
@@ -199,6 +251,7 @@ export function resolveWorkspaceSettings(input: WorkspaceSettingsGateInput) {
           {
             key: item.key,
             title: item.title,
+            description: item.description,
             icon: item.icon,
             canMutate: !gate.locked && rank >= PERMISSION_RANK[item.mutate],
             ...gate,

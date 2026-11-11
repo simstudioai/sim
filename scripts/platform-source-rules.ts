@@ -160,11 +160,12 @@ export function isLoadingCopy(node: ts.Node): boolean {
 const LOAD_FAILURE_COPY =
   /^(?:couldn[’']t|could not|failed to|unable to|can[’']t|cannot) (?:load|read|fetch|retrieve|open)\b/i
 /** The components that own a failed read's message and its Retry. */
-const FAILURE_OWNERS = new Set(['FailureNotice', 'QueryFailure'])
+const FAILURE_OWNERS = new Set(['FailureNotice', 'QueryFailure', 'SettingsRead'])
 
 /**
  * JSX text or an attribute value that reports a failed read anywhere but the failure owner
- * (`FailureNotice` from `@sim/emcn/status`, or `QueryFailure`), which pairs it with Retry.
+ * (`FailureNotice` from `@sim/emcn/status`, `QueryFailure`, or Settings' `SettingsRead`), which pairs
+ * it with Retry.
  */
 export function isUnownedLoadFailure(node: ts.Node): boolean {
   const rendered = renderedText(node)
@@ -240,6 +241,53 @@ export function isHandBack(node: ts.Node): boolean {
   return (
     (tagName(node) === 'Button' || tagName(node) === 'Chip') && (icon === 'I093' || icon === 'I140')
   )
+}
+
+/** The JSX element that encloses `node`, past the fragments, expressions and callbacks between them. */
+function enclosingElement(node: ts.Node): ts.JsxElement | undefined {
+  const own = ts.isJsxOpeningElement(node) ? node.parent : node
+  return ts.findAncestor(own.parent, ts.isJsxElement)
+}
+
+/**
+ * A settings draft's Save and Discard built by hand: `SaveActions` used directly, or a `Button`
+ * reading Discard. `SettingsSaveBar` owns both, with the draft's leave guard.
+ */
+export function isHandSave(node: ts.Node): boolean {
+  if (ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node))
+    return tagName(node) === 'SaveActions'
+  return (
+    ts.isJsxElement(node) &&
+    tagName(node.openingElement) === 'Button' &&
+    node.children.every((child) => ts.isJsxText(child)) &&
+    node.children
+      .map((child) => child.getText())
+      .join('')
+      .trim() === 'Discard'
+  )
+}
+
+/** A `Switch` placed in a `SettingsRow`, the on-or-off row that `SwitchRow` owns. */
+export function isSwitchInRow(node: ts.Node): boolean {
+  if (!ts.isJsxSelfClosingElement(node) && !ts.isJsxOpeningElement(node)) return false
+  if (tagName(node) !== 'Switch') return false
+  const row = enclosingElement(node)
+  return row !== undefined && tagName(row.openingElement) === 'SettingsRow'
+}
+
+/** Elements that draw a settings surface around their children. */
+const SURFACES = new Set(['SettingsSurface', 'SettingsSection'])
+
+/**
+ * An `EmptyState` drawn inside a settings surface, where its own inset sets its text inside the rows'
+ * edge. An empty list's `EmptyState` takes the surface's place (`SettingsList`).
+ */
+export function isEmptyInSurface(node: ts.Node): boolean {
+  if (!ts.isJsxSelfClosingElement(node) && !ts.isJsxOpeningElement(node)) return false
+  if (tagName(node) !== 'EmptyState') return false
+  for (let element = enclosingElement(node); element; element = enclosingElement(element))
+    if (SURFACES.has(tagName(element.openingElement))) return true
+  return false
 }
 
 /** The roles an EMCN primitive owns: tabs (`ContentTabs`) and alerts (`InlineNotice`, `FailureNotice`). */

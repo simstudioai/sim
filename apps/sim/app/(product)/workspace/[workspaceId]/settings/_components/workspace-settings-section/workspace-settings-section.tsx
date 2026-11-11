@@ -97,7 +97,7 @@ interface WorkspaceSettingsSectionViewProps extends WorkspaceSettingsSectionProp
   section: WorkspaceSettingsKey
 }
 
-/** The open section's body. It paints nothing while its code loads, under the section's heading. */
+/** The open section, which renders its own header. It paints nothing while its code loads. */
 export function WorkspaceSettingsSection({
   section,
   workspaceId,

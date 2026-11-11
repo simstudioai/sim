@@ -6941,17 +6941,6 @@
         },
         "params": {}
       },
-      "./settings-section/row-list": {
-        "names": ["RowList"],
-        "props": {
-          "RowList": {
-            "children": ["‹ReactNode›"],
-            "dividers": ["false", "true"],
-            "label": ["‹string›"]
-          }
-        },
-        "params": {}
-      },
       "./settings-section/save-actions": {
         "names": ["SaveActions"],
         "props": {
@@ -7165,7 +7154,6 @@
           "[data-emcn] [data-destructive-quiet]",
           "[data-emcn] [data-destructive-quiet]:not(:disabled,[data-disabled],[aria-disabled=\"true\"]):is(:hover,:active,[data-highlighted])",
           "[data-emcn] [data-plot=\"home-activity\"]",
-          "[data-emcn] [data-row-rhythm=\"dividers\"]",
           "[data-emcn] [data-scroll-axis=\"horizontal\"]",
           "[data-emcn] [data-scroll-axis=\"horizontal\"]:dir(rtl)",
           "[data-emcn] [data-scroll-axis]",
@@ -7199,7 +7187,6 @@
           "[data-emcn] [data-destructive-quiet]": "7e4a6653cc69",
           "[data-emcn] [data-destructive-quiet]:not(:disabled,[data-disabled],[aria-disabled=\"true\"]):is(:hover,:active,[data-highlighted])": "323f6096302d",
           "[data-emcn] [data-plot=\"home-activity\"]": "c1080149c143",
-          "[data-emcn] [data-row-rhythm=\"dividers\"]": "c26b2013ea4e",
           "[data-emcn] [data-scroll-axis=\"horizontal\"]": "3a8b9baad7bc",
           "[data-emcn] [data-scroll-axis=\"horizontal\"]:dir(rtl)": "2f65b5091d1a",
           "[data-emcn] [data-scroll-axis]": "7860f738dc6a",
@@ -8804,7 +8791,6 @@
         "identity": "5cf9a7df48d2",
         "leading": "24b833d041c1",
         "row": "f29cd0540329",
-        "rowList": "55839e98011f",
         "saveActions": "2733ab722020",
         "section": "be2d93b83867",
         "surface": "4c3cb87aa5a2"
@@ -8954,9 +8940,8 @@
       "src/components/search-field/search-field.tsx": "d6732b61b027",
       "src/components/segmented-control/segmented-control.module.css": "b618f87caf6c",
       "src/components/segmented-control/segmented-control.tsx": "08d99a232a85",
-      "src/components/settings-section/row-list.tsx": "084863a247f2",
       "src/components/settings-section/save-actions.tsx": "a59ba2dd043d",
-      "src/components/settings-section/settings-section.module.css": "82cb531ecc8f",
+      "src/components/settings-section/settings-section.module.css": "fa646cb00a3c",
       "src/components/settings-section/settings-section.tsx": "8b8bf9c52cd8",
       "src/components/stack/stack.module.css": "d60c765f4c2c",
       "src/components/stack/stack.tsx": "9c1282860523",
@@ -8979,7 +8964,7 @@
       "src/lib/feedback.ts": "8287d6e713f6",
       "src/lib/navigation.ts": "fa93ff5fc75e",
       "src/styles.d.ts": "0690f4a3ca87",
-      "src/styles/component-roles.css": "17614d16af32",
+      "src/styles/component-roles.css": "a0f5daad458a",
       "src/styles/fonts.css": "774daa03402e",
       "src/styles/generated/tokens.css": "e1780fff1bb0",
       "src/styles/generated/typography.css": "4cf1459129a1",

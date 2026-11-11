@@ -12,6 +12,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { workspaceEntry } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   SectionStack,
   SectionToolbar,
@@ -178,6 +179,7 @@ export default function ForksSection({ workspaceId }: WorkspaceSettingsSectionPr
       />
     ) : (
       <SectionStack>
+        <SettingsPageHeader />
         <SectionToolbar
           grow={
             <SearchField

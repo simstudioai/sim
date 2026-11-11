@@ -1,6 +1,6 @@
 import { type ReactNode, Suspense } from 'react'
 import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { loginHref, WORKSPACES_PATH } from '@/lib/navigation/paths'
 import { resolveLiveDestinations } from '@/app/(product)/_components/destinations'
 import { LiveComposerHost } from '@/app/(product)/_components/live-shell/live-composer-host'
@@ -13,6 +13,7 @@ import { startShellPrefetch } from '@/platform/lib/data/prefetch-shell'
 import { LiveProviders } from '@/platform/lib/data/providers'
 import {
   followProductRoute,
+  isClosedSettingsSection,
   type ProductLocation,
   readDocumentLocation,
 } from '@/platform/lib/data/route-resolution'
@@ -45,7 +46,8 @@ async function retiredOrganizationHref({
  * organization layout's gates, in its order, against data read in process. Each gate decides
  * before anything product-shaped renders. The page below streams inside the Suspense boundary, so a
  * redirect it raised would paint this shell first; the document's own route resolution
- * (`followProductRoute`) runs here instead, and answers with one HTTP redirect.
+ * (`followProductRoute`) runs here instead, and answers with one HTTP redirect, as does a Settings
+ * section the viewer may not open, with one 404 (`isClosedSettingsSection`).
  */
 export async function LiveShell({
   telemetry,
@@ -87,6 +89,7 @@ export async function LiveShell({
     location && followProductRoute(organization, location),
     shellPrefetch.finish(organization),
   ])
+  if (location && isClosedSettingsSection(organization, location)) notFound()
 
   return (
     <LiveProviders

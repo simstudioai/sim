@@ -39,7 +39,7 @@ beforeEach(() => {
   client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Number.POSITIVE_INFINITY } },
   })
-  // `sessionPolicyKeys` is private to its hook module; this is its settings key for `org-a`.
+  // `sessionPolicyKeys.settings('org-a')`: a view's test reads hooks only through the data seam.
   client.setQueryData(['sessionPolicy', 'settings', 'org-a'], SAVED)
   container = document.createElement('div')
   document.body.appendChild(container)

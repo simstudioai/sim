@@ -6,6 +6,7 @@ import { Icon } from '@sim/emcn/icon'
 import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
 import { useDeletedChats, useRestoreChat } from '@/platform/shared/recently-deleted'
 
@@ -32,6 +33,7 @@ export default function RecentlyDeletedSection({ organization }: SettingsSection
   const deleted = useDeletedChats(organizationId)
   return (
     <>
+      <SettingsPageHeader />
       <SearchField
         label='Search deleted chats'
         placeholder='Search deleted chats'

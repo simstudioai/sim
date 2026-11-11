@@ -24,4 +24,3 @@ export {
   SOURCE_OPTIONS,
 } from '@/ee/data-drains/labels'
 export { useSettingsSearch } from '@/hooks/use-settings-search'
-export { useDataDrainParam } from '@/platform/shared/data-drains/params'

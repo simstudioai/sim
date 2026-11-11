@@ -10,6 +10,7 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toast } from '@/lib/toast/sink'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   ResourceList,
   SectionStack,
@@ -160,24 +161,30 @@ export default function SandboxesSection({ workspaceId }: WorkspaceSettingsSecti
     }
   }
 
-  if (isPending) return null
+  if (isPending) return selectedId === null ? <SettingsPageHeader /> : null
 
   if (data === undefined)
     return (
-      <FailureNotice
-        message={getErrorMessage(error, 'Failed to load sandboxes')}
-        retrying={isFetching}
-        onRetry={() => void refetch()}
-      />
+      <>
+        <SettingsPageHeader />
+        <FailureNotice
+          message={getErrorMessage(error, 'Failed to load sandboxes')}
+          retrying={isFetching}
+          onRetry={() => void refetch()}
+        />
+      </>
     )
 
   if (locked || !data.entitled)
     return (
-      <UpgradeNotice
-        title={SANDBOX_UPGRADE_TITLE}
-        description={SANDBOX_UPGRADE_DESCRIPTION}
-        canUpgrade={permission === 'admin'}
-      />
+      <>
+        <SettingsPageHeader />
+        <UpgradeNotice
+          title={SANDBOX_UPGRADE_TITLE}
+          description={SANDBOX_UPGRADE_DESCRIPTION}
+          canUpgrade={permission === 'admin'}
+        />
+      </>
     )
 
   if (isEditing)
@@ -223,6 +230,7 @@ export default function SandboxesSection({ workspaceId }: WorkspaceSettingsSecti
 
   return (
     <SectionStack>
+      <SettingsPageHeader />
       <SectionToolbar
         grow={
           <SearchField

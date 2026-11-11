@@ -5,6 +5,7 @@ import { SearchField } from '@sim/emcn/search-field'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   Muted,
   SectionStack,
@@ -101,6 +102,7 @@ export default function ByokSection({ workspaceId }: WorkspaceSettingsSectionPro
 
   return (
     <SectionStack>
+      <SettingsPageHeader />
       <SectionToolbar
         grow={
           <SearchField

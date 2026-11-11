@@ -9,16 +9,13 @@ import {
   type UpdateOrganizationDataRetentionBody,
   updateOrganizationDataRetentionContract,
 } from '@/lib/api/contracts/organization'
-
-export const DATA_RETENTION_STALE_TIME = 60 * 1000
+import {
+  DATA_RETENTION_STALE_TIME,
+  dataRetentionKeys,
+} from '@/hooks/queries/utils/data-retention-keys'
 
 export type RetentionValues = OrganizationRetentionValues
 export type DataRetentionResponse = OrganizationDataRetention
-
-export const dataRetentionKeys = {
-  all: ['dataRetention'] as const,
-  settings: (orgId: string) => [...dataRetentionKeys.all, 'settings', orgId] as const,
-}
 
 async function fetchDataRetention(
   orgId: string,

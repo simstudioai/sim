@@ -10,6 +10,7 @@ import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
+import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   ResourceList,
   SectionStack,
@@ -79,20 +80,26 @@ export default function CustomBlocksSection({ workspaceId }: WorkspaceSettingsSe
   }, [unknownBlock, setSelectedBlockId])
 
   // The list read also answers the entitlement, so a deep link never flashes the list first.
-  if (access.isPending) return null
+  if (access.isPending) return selectedBlockId === null ? <SettingsPageHeader /> : null
 
   if (access.data === undefined)
     return (
-      <FailureNotice
-        message={getErrorMessage(access.error, 'Failed to load custom block access')}
-        retrying={access.isFetching}
-        onRetry={() => void access.refetch()}
-      />
+      <>
+        <SettingsPageHeader />
+        <FailureNotice
+          message={getErrorMessage(access.error, 'Failed to load custom block access')}
+          retrying={access.isFetching}
+          onRetry={() => void access.refetch()}
+        />
+      </>
     )
 
   if (!access.data)
     return (
-      <EmptyState title='Custom blocks require an Enterprise plan. Contact your admin to enable them.' />
+      <>
+        <SettingsPageHeader />
+        <EmptyState title='Custom blocks require an Enterprise plan. Contact your admin to enable them.' />
+      </>
     )
 
   if (isCreating || (selectedBlock && canAdmin))
@@ -115,6 +122,7 @@ export default function CustomBlocksSection({ workspaceId }: WorkspaceSettingsSe
 
   return (
     <SectionStack>
+      <SettingsPageHeader />
       <SectionToolbar
         grow={
           <SearchField

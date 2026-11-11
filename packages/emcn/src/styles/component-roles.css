@@ -412,10 +412,6 @@
   white-space: nowrap;
 }
 
-[data-emcn] [data-row-rhythm="dividers"] {
-  --ui-row-block: var(--spacing-8);
-}
-
 [data-emcn] {
   --ui-motion-spinner: 1s;
 }

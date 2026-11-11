@@ -5,9 +5,8 @@ import { ActivityRow } from '@sim/emcn/activity-row'
 import { Icon } from '@sim/emcn/icon'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
-import { RowList } from '@sim/emcn/settings-section/row-list'
 import { FailureNotice, Spinner, StatusText } from '@sim/emcn/status'
-import { Muted } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { Muted, ResourceList } from '@/app/(product)/_components/settings-parts/settings-parts'
 import {
   ConnectorRecovery,
   MemberEnrollment,
@@ -66,7 +65,7 @@ export function ConnectorsRail({
         // A rail is too narrow for an EmptyState block, as a dialog's picker is.
         <Muted>No connected sources yet.</Muted>
       ) : (
-        <RowList label='Connected sources'>
+        <ResourceList label='Connected sources'>
           {connectors.map((connector) => {
             const meta = CONNECTOR_META_REGISTRY[connector.connectorType]
             const name = meta?.name ?? connector.connectorType
@@ -128,7 +127,7 @@ export function ConnectorsRail({
               </Fragment>
             )
           })}
-        </RowList>
+        </ResourceList>
       )}
     </aside>
   )
