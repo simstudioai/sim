@@ -405,7 +405,15 @@ const GROUP_SECTIONS: Record<string, readonly CommandSection[]> = {
     },
     {
       title: 'Run and inspect',
-      prefixes: ['run', 'runs list', 'runs get', 'runs wait', 'runs resume', 'runs cancel'],
+      prefixes: [
+        'run',
+        'runs list',
+        'runs paused',
+        'runs get',
+        'runs wait',
+        'runs resume',
+        'runs cancel',
+      ],
     },
     { title: 'Chat deployments', prefixes: ['chat status', 'chat publish', 'chat unpublish'] },
     { title: 'Export and import', prefixes: ['export', 'import-preview', 'import'] },

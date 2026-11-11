@@ -5635,11 +5635,13 @@ type ExecuteWorkflowResponseRef1 = {
   startedAt?: string
   endedAt?: string
   durationMs?: number
+  executionTimeoutSeconds?: number | null
 }
 
 type ExecuteWorkflowResponseRef2 = {
   runId: string
   statusUrl: string
+  executionTimeoutSeconds?: number | null
 }
 
 export type ExecuteWorkflowResponse =
@@ -5851,6 +5853,11 @@ type GetBillingStatusResponseRef0 = {
     limitBytes: number
     percentUsed: number
   } | null
+  limits: {
+    maxSyncExecutionTimeoutSeconds: number | null
+    maxAsyncExecutionTimeoutSeconds: number | null
+    maxConcurrentExecutions: number | null
+  }
 }
 
 export type GetBillingStatusResponse = {
@@ -7742,6 +7749,12 @@ type GetWorkflowResponseRef0 = {
 }
 
 type GetWorkflowResponseRef1 = {
+  type: string
+  properties?: Record<string, unknown>
+  required?: Array<string>
+}
+
+type GetWorkflowResponseRef2 = {
   id: string
   webUrl: string
   name: string
@@ -7756,10 +7769,11 @@ type GetWorkflowResponseRef1 = {
   updatedAt: string
   variables: Record<string, unknown>
   inputs: Array<GetWorkflowResponseRef0>
+  inputSchema: GetWorkflowResponseRef1 | null
 }
 
 export type GetWorkflowResponse = {
-  data: GetWorkflowResponseRef1
+  data: GetWorkflowResponseRef2
 }
 
 /** `GET /api/v2/workflows/[workflowId]/deployments/chat` */
@@ -9981,6 +9995,61 @@ type ListOrganizationWorkspacesResponseRef0 = {
 
 export type ListOrganizationWorkspacesResponse = {
   data: Array<ListOrganizationWorkspacesResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/workflows/runs/paused` */
+export type ListPausedRunsQuery = {
+  workspaceId: string
+  includeOutput?: boolean
+  limit?: number
+  cursor?: string
+  sortBy?: 'pausedAt'
+  sortOrder?: 'asc' | 'desc'
+}
+
+type ListPausedRunsResponseRef0 = {
+  runId: string
+  workflowId: string
+  workflowName: string
+  pausedAt: string
+  points: Array<ListPausedRunsResponseRef1>
+}
+
+type ListPausedRunsResponseRef1 = {
+  contextId: string
+  blockId: string
+  blockName: string | null
+  kind: 'human' | 'time'
+  status: 'paused' | 'queued' | 'resuming' | 'resumed' | 'failed'
+  registeredAt: string | null
+  resumeAt: string | null
+  parallel: {
+    parallelId: string
+    branchIndex: number
+    branchTotal: number | null
+  } | null
+  loop: {
+    loopId: string
+    iteration: number
+  } | null
+  inputFields: Array<ListPausedRunsResponseRef2> | null
+  display: unknown | null
+  queuePosition: number | null
+}
+
+type ListPausedRunsResponseRef2 = {
+  name: string
+  label: string
+  type: string
+  description?: string
+  placeholder?: string
+  required: boolean
+  options?: Array<unknown>
+}
+
+export type ListPausedRunsResponse = {
+  data: Array<ListPausedRunsResponseRef0>
   nextCursor: string | null
 }
 
@@ -13610,11 +13679,13 @@ type ResumeWorkflowResponseRef1 = {
   startedAt?: string
   endedAt?: string
   durationMs?: number
+  executionTimeoutSeconds?: number | null
 }
 
 type ResumeWorkflowResponseRef2 = {
   runId: string
   statusUrl: string
+  executionTimeoutSeconds?: number | null
   queuePosition?: number
 }
 
@@ -21576,6 +21647,47 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listPausedRuns: {
+    method: 'GET',
+    path: '/api/v2/workflows/runs/paused',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List paused workflow runs',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose paused runs should be listed.',
+      },
+      includeOutput: {
+        kind: 'boolean',
+        describe: "Include each pause point's reviewer `display` content when true.",
+      },
+      limit: {
+        kind: 'integer',
+        default: 10,
+        describe:
+          'Maximum runs to return per page. A page also ends early once it holds 100 pause points, so it can return fewer runs while `nextCursor` is set. Must be a whole number from 1 to 25. Defaults to 10.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['pausedAt'] as const,
+        default: 'pausedAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
       },
     },
   },

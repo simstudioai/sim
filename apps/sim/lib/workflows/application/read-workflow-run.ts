@@ -17,6 +17,7 @@ import {
 } from '@/lib/workflows/executor/execution-run-files'
 import {
   getProjectedWorkflowExecutionStatus,
+  projectPausedRunPoints,
   readPausedRunPoints,
 } from '@/lib/workflows/executor/execution-status'
 
@@ -85,7 +86,13 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
         viewerUserId: logProjectionSubjectUserId(principal),
       })
       if (!projected) throw new OrchestrationError('not_found', 'Run not found')
-      const { status, projection, stateExecutionId, pausePoints: loadedPausePoints } = projected
+      const {
+        status,
+        projection,
+        stateExecutionId,
+        pausePoints: loadedPausePoints,
+        failedBlock,
+      } = projected
 
       /**
        * A run whose `blockOutputs` the viewer's group withholds joins the same
@@ -156,31 +163,19 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
        * `contextId`, not only the earliest one `paused` summarizes. Read from the
        * execution whose state answered the status, so a resume attempt reporting its
        * parent's pause lists the parent's points.
-       *
-       * A point's `display` is what the block rendered from upstream outputs, so it
-       * follows `finalOutput`'s gating: withheld unless output was asked for and the
-       * viewer's group shows execution data. `inputFields` are resolved before the
-       * pause is captured, so a label or description can carry upstream values too:
-       * they are withheld from a viewer whose group hides execution data.
-       *
-       * permission-group-enforced: logs.trace_spans
        */
-      const showsDisplay = input.includeOutput && !projection.hideTraceSpans
       const pausePoints = status.paused
-        ? (
+        ? projectPausedRunPoints(
             (await readPausedRunPoints({
               workflowId: context.workflowId,
               executionId: stateExecutionId,
               pausePoints: loadedPausePoints ?? undefined,
-            })) ?? []
-          ).map((point) => ({
-            ...point,
-            display: showsDisplay ? point.display : null,
-            inputFields: projection.hideTraceSpans ? null : point.inputFields,
-          }))
+            })) ?? [],
+            { projection, includeOutput: input.includeOutput }
+          )
         : null
 
-      return { ...status, files, pausePoints }
+      return { ...status, files, pausePoints, failedBlock }
     } catch (error) {
       if (error instanceof FunctionalOutputsUnavailableError) {
         throw new OrchestrationError('conflict', FUNCTIONAL_OUTPUTS_UNAVAILABLE_MESSAGE)

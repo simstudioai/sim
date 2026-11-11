@@ -175,6 +175,8 @@ export interface ExecuteWorkflowServiceRun {
   startedAt?: string
   endedAt?: string
   durationMs?: number
+  /** The execution timeout applied to the run in milliseconds; `0` means untimed. */
+  executionTimeoutMs?: number
 }
 
 export interface ExecuteWorkflowServiceQueued {
@@ -182,6 +184,8 @@ export interface ExecuteWorkflowServiceQueued {
   queued: true
   executionId: string
   jobId: string
+  /** The execution timeout the queued run will run under in milliseconds; `0` means untimed. */
+  executionTimeoutMs: number
 }
 
 export interface ExecuteWorkflowServiceStream {
@@ -201,6 +205,8 @@ export interface ExecuteWorkflowServicePendingRun {
   /** Resolves once the run can be found by its id; never, when its log could not start. */
   logged: Promise<void>
   cancel: () => void
+  /** The execution timeout applied to the run in milliseconds; `0` means untimed. */
+  executionTimeoutMs: number
 }
 
 export interface ExecuteWorkflowServiceFailureResult {
@@ -495,7 +501,13 @@ export async function executeWorkflowService(
           executionId,
         })
       }
-      return { ok: true, queued: true, executionId, jobId: enqueue.jobId }
+      return {
+        ok: true,
+        queued: true,
+        executionId,
+        jobId: enqueue.jobId,
+        executionTimeoutMs: preprocessResult.executionTimeout.async,
+      }
     }
 
     const processedInput = input
@@ -696,9 +708,8 @@ export async function executeWorkflowService(
       executionMode: 'sync',
     }
 
-    const timeoutController = createTimeoutAbortController(
-      preprocessResult.executionTimeout?.[executionType]
-    )
+    const executionTimeoutMs = preprocessResult.executionTimeout?.[executionType] ?? 0
+    const timeoutController = createTimeoutAbortController(executionTimeoutMs)
     let requestAborted = false
     const abortFromRequest = () => {
       requestAborted = true
@@ -938,7 +949,10 @@ export async function executeWorkflowService(
       }
     }
 
-    const pending = runSynchronousWorkflow()
+    const pending = runSynchronousWorkflow().then(
+      (result): ExecuteWorkflowServiceTerminalResult =>
+        result.ok ? { ...result, executionTimeoutMs } : result
+    )
     if (mode === 'sync-result-stream') {
       /** Keep the claim until the pending run can prove whether durable ownership exists. */
       executionIdClaimTransferred = true
@@ -948,6 +962,7 @@ export async function executeWorkflowService(
         pending: pending.finally(settleExecutionIdClaim),
         logged: loggingSession.whenLogStarted(),
         cancel: abortFromRequest,
+        executionTimeoutMs,
       }
     }
 

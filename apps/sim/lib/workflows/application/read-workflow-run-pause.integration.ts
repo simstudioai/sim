@@ -2,7 +2,8 @@
  * A deployed run that pauses at a human-in-the-loop block, executed in-process against real
  * PostgreSQL: the pause's reviewer content is stored and read back with the run's resolved
  * secret redacted, and the run detail withholds that content on the same terms as the run's
- * output, while the pause's input fields stay readable.
+ * output, while the pause's input fields stay readable. The workspace's paused-run list shows
+ * each point on exactly the same terms.
  */
 import { db } from '@sim/db'
 import {
@@ -29,6 +30,7 @@ import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { executeWorkflowOperation } from '@/lib/workflows/application/execute-workflow'
+import { listPausedRuns } from '@/lib/workflows/application/list-paused-runs'
 import { readWorkflowRun } from '@/lib/workflows/application/read-workflow-run'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import type { PausePoint } from '@/executor/types'
@@ -312,5 +314,63 @@ describe('a deployed run paused at a human-in-the-loop block', () => {
         inputFields: INPUT_FIELDS,
       }),
     ])
+  })
+})
+
+describe("the workspace's paused-run list", () => {
+  function listRuns(
+    principal: typeof owner,
+    options: { includeOutput: boolean; limit?: number; cursorKeys?: (string | number)[] }
+  ) {
+    return listPausedRuns.execute({
+      principal,
+      input: {
+        workspaceId,
+        includeOutput: options.includeOutput,
+        sortOrder: 'desc',
+        limit: options.limit ?? 25,
+        cursorKeys: options.cursorKeys,
+      },
+    })
+  }
+
+  it('lists a run waiting on a human with the points its run detail shows', async () => {
+    const runId = await pausedRun()
+
+    const [page, run] = await Promise.all([
+      listRuns(owner, { includeOutput: true }),
+      readRun(owner, runId, { includeOutput: true }),
+    ])
+    const listed = page.runs.find((entry) => entry.runId === runId)
+    expect(listed).toMatchObject({ workflowId, workflowName: 'Paused run fixture' })
+    expect(listed?.points).toEqual(run.pausePoints)
+    expect(JSON.stringify(page)).not.toContain(SECRET)
+  })
+
+  it('withholds reviewer content and resolved input fields from a viewer whose group hides execution data', async () => {
+    const runId = await pausedRun()
+
+    const page = await listRuns(restricted, { includeOutput: true })
+    const listed = page.runs.find((entry) => entry.runId === runId)
+    expect(listed?.points).toEqual([
+      expect.objectContaining({ contextId: 'approval', display: null, inputFields: null }),
+    ])
+  })
+
+  it('pages through the waiting runs without repeating one', async () => {
+    await pausedRun()
+    await pausedRun()
+
+    const first = await listRuns(owner, { includeOutput: false, limit: 1 })
+    expect(first.runs).toHaveLength(1)
+    expect(first.nextCursorKeys).not.toBeNull()
+    const second = await listRuns(owner, {
+      includeOutput: false,
+      limit: 1,
+      cursorKeys: first.nextCursorKeys ?? undefined,
+    })
+    expect(second.runs).toHaveLength(1)
+    expect(second.runs[0].runId).not.toBe(first.runs[0].runId)
+    expect(second.runs[0].pausedAt.getTime()).toBeLessThanOrEqual(first.runs[0].pausedAt.getTime())
   })
 })

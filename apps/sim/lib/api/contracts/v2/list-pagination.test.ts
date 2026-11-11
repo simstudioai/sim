@@ -85,6 +85,7 @@ const PAGED_LISTS = [
   'GET /api/v2/workflows',
   'GET /api/v2/workflows/[workflowId]/runs',
   'GET /api/v2/workflows/[workflowId]/versions',
+  'GET /api/v2/workflows/runs/paused',
   'GET /api/v2/workflow-mcp-servers',
   'GET /api/v2/workspaces/[workspaceId]/members',
   'GET /api/v2/workspaces/[workspaceId]/fork/children',
@@ -340,6 +341,7 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
   ],
   'GET /api/v2/workflows/[workflowId]/runs': ['status', 'trigger', 'startDate', 'endDate', 'order'],
   'GET /api/v2/workflows/[workflowId]/versions': [],
+  'GET /api/v2/workflows/runs/paused': ['workspaceId', 'sortBy', 'sortOrder'],
   'GET /api/v2/workflow-mcp-servers': ['workspaceId', 'sortBy', 'sortOrder'],
   'GET /api/v2/chat-deployments': ['workspaceId', 'workflowId', 'isActive', 'sortBy', 'sortOrder'],
   'GET /api/v2/workspaces/[workspaceId]/members': [],
@@ -452,6 +454,10 @@ const UNBOUND_PARAMS: Record<string, Record<string, string>> = {
     details: 'Selects how much of each row is rendered, not which rows are in the sequence.',
     includeTraceSpans: 'Response shaping only; the row set and its order are unchanged.',
     includeFinalOutput: 'Response shaping only; the row set and its order are unchanged.',
+  },
+  'GET /api/v2/workflows/runs/paused': {
+    includeOutput:
+      'Response shaping only; the run set, its order, and where a page ends (counted in pause points, not bytes) are unchanged.',
   },
   'GET /api/v2/tables/[tableId]/rows': {
     workspaceId:

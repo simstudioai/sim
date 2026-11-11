@@ -119,11 +119,39 @@ export const v2BillingStatusDataSchema = z
       .describe(
         "The payer's storage consumption and quota, or null when the caller cannot manage that payer's billing. Always null for a workspace API key."
       ),
+    limits: z
+      .object({
+        maxSyncExecutionTimeoutSeconds: z
+          .number()
+          .positive()
+          .nullable()
+          .describe(
+            'Longest a synchronous run may execute, in seconds, or null when synchronous runs are not time-limited.'
+          ),
+        maxAsyncExecutionTimeoutSeconds: z
+          .number()
+          .positive()
+          .nullable()
+          .describe(
+            'Longest an asynchronous run may execute, in seconds, or null when asynchronous runs are not time-limited. `executionTimeoutSeconds` on Execute workflow can lower it, never raise it.'
+          ),
+        maxConcurrentExecutions: z
+          .number()
+          .int()
+          .positive()
+          .nullable()
+          .describe(
+            'Most runs the payer can have executing at once, across every workspace and member it funds, or null when concurrency is not limited.'
+          ),
+      })
+      .describe(
+        "The payer's plan caps on workflow runs. Visible to every caller that can read the plan, including workspace API keys."
+      ),
   })
   .meta({
     id: 'V2BillingStatus',
     title: 'Billing status',
-    description: 'Current billing standing, credit allowance, and storage quota.',
+    description: 'Current billing standing, credit allowance, storage quota, and plan limits.',
   })
 export type V2BillingStatusData = z.output<typeof v2BillingStatusDataSchema>
 

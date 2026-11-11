@@ -2,6 +2,7 @@ import {
   v2DeleteWorkflowContract,
   v2GetWorkflowContract,
   v2UpdateWorkflowContract,
+  v2WorkflowApiInputSchema,
 } from '@/lib/api/contracts/v2/workflows'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -34,7 +35,7 @@ export const GET = defineV2JsonRoute({
   errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
   mapInput: ({ params }) => ({ workflowId: params.workflowId }),
   useCase: readWorkflow,
-  present: ({ workflow, workspaceId, folderPath, inputs }) => ({
+  present: ({ workflow, workspaceId, folderPath, inputs, inputSchema }) => ({
     data: {
       id: workflow.id,
       webUrl: workspaceResourceWebUrl(getBaseUrl(), workspaceId, 'workflow', workflow.id),
@@ -48,6 +49,7 @@ export const GET = defineV2JsonRoute({
       lastRunAt: workflow.lastRunAt?.toISOString() ?? null,
       variables: (workflow.variables as Record<string, unknown> | null) ?? {},
       inputs,
+      inputSchema: inputSchema && v2WorkflowApiInputSchema.parse(inputSchema),
       createdAt: workflow.createdAt.toISOString(),
       updatedAt: workflow.updatedAt.toISOString(),
     },

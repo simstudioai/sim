@@ -2289,6 +2289,16 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'run', path: 'runId' },
     ],
   },
+  listPausedRuns: {
+    command: 'workflows runs paused',
+    describe: 'List runs waiting on human input across the workspace',
+    columns: [
+      { header: 'paused at', path: 'pausedAt', format: 'timestamp' },
+      { header: 'workflow', path: 'workflowName' },
+      { header: 'waiting points', path: 'points', format: 'count' },
+      { header: 'run', path: 'runId' },
+    ],
+  },
   cancelWorkflowRun: {
     command: 'workflows runs cancel',
     pathFlags: WORKFLOW_RUN_SCOPE,

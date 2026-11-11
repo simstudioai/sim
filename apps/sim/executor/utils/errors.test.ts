@@ -5,6 +5,7 @@ import type { ExecutionResult } from '@/executor/types'
 import {
   buildBlockExecutionError,
   classifyExecutionError,
+  classifyRecordedExecutionError,
   getExecutionErrorStatus,
   type WorkflowExecutionErrorCode,
 } from '@/executor/utils/errors'
@@ -237,5 +238,37 @@ describe('classifyExecutionError', () => {
     expect(new Set(v2ExecutionErrorSchema.shape.code.options)).toEqual(
       new Set(Object.keys(producedBy))
     )
+  })
+})
+
+describe('classifyRecordedExecutionError', () => {
+  const lookup = { blockId: 'block-1', blockName: 'Lookup', blockType: 'api' }
+
+  it('attributes a block failure to the block its trace names', () => {
+    expect(classifyRecordedExecutionError('Lookup: upstream returned 500', lookup)).toEqual({
+      message: 'upstream returned 500',
+      code: 'BLOCK_EXECUTION_FAILED',
+      ...lookup,
+    })
+  })
+
+  it('reports a child workflow block failure as CHILD_WORKFLOW_FAILED', () => {
+    const runner = { blockId: 'block-2', blockName: 'Run child', blockType: 'workflow' }
+    expect(classifyRecordedExecutionError('Run child: child failed', runner).code).toBe(
+      'CHILD_WORKFLOW_FAILED'
+    )
+  })
+
+  it('leaves a run-level timeout unattributed even when a block span errored', () => {
+    const error = classifyRecordedExecutionError('Execution timed out after 300 seconds', lookup)
+    expect(error.code).toBe('TIMEOUT')
+    expect(error.blockId).toBeUndefined()
+  })
+
+  it('reports EXECUTION_FAILED when the trace names no block', () => {
+    expect(classifyRecordedExecutionError('Lookup: upstream returned 500', null)).toEqual({
+      message: 'Lookup: upstream returned 500',
+      code: 'EXECUTION_FAILED',
+    })
   })
 })

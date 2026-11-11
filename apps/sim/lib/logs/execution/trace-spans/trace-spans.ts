@@ -1,7 +1,9 @@
+import { isRecordLike, toArray } from '@sim/utils/object'
 import { isUserFile } from '@/lib/core/utils/user-file'
 import { createSpanFromLog } from '@/lib/logs/execution/trace-spans/factory'
 import { groupIterationBlocks } from '@/lib/logs/execution/trace-spans/iteration-grouping'
 import type { TraceSpan } from '@/lib/logs/types'
+import { isWorkflowBlockType } from '@/executor/constants'
 import type { BlockLog, ExecutionResult } from '@/executor/types'
 
 /**
@@ -209,6 +211,53 @@ export function traceSpansIndicateFailure(
   options?: UnhandledErrorOptions
 ): boolean {
   return spans?.some((span) => hasUnhandledError(span, options)) ?? false
+}
+
+/** The block a recorded run failed in, as its trace names it. */
+export interface FailedTraceBlock {
+  blockId: string
+  blockName: string
+  blockType: string
+}
+
+/**
+ * The block a recorded run failed in, read back from its persisted trace spans:
+ * the last-executed span with an error nothing handled, which is the block the
+ * executor's own classification names from its block logs. A child workflow's
+ * spans are not descended into, so its failure is attributed to the workflow
+ * block that ran it, as it is at execution time.
+ *
+ * Reads stored, untyped spans structurally and never their input or output.
+ * Null when the trace has no such span, including when it was not recorded,
+ * was compacted, or is unavailable.
+ */
+export function findFailedTraceBlock(spans: unknown): FailedTraceBlock | null {
+  let failed: FailedTraceBlock | null = null
+  let failedOrder = Number.NEGATIVE_INFINITY
+  const visit = (nodes: unknown): void => {
+    for (const span of toArray<unknown>(nodes)) {
+      if (!isRecordLike(span)) continue
+      const isError = span.status === 'error'
+      const blockId = typeof span.blockId === 'string' ? span.blockId : null
+      const blockType = typeof span.type === 'string' ? span.type : null
+      if (isError && span.errorHandled !== true && blockId && blockType) {
+        const order = typeof span.executionOrder === 'number' ? span.executionOrder : -1
+        if (order >= failedOrder) {
+          failedOrder = order
+          failed = {
+            blockId,
+            blockName: typeof span.name === 'string' ? span.name : blockId,
+            blockType,
+          }
+        }
+      }
+      if (!blockId || (isError && !isWorkflowBlockType(blockType ?? undefined))) {
+        visit(span.children)
+      }
+    }
+  }
+  visit(spans)
+  return failed
 }
 
 interface DurationBearingSpan {

@@ -892,6 +892,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/workflows/move/route'),
   },
   {
+    pattern: '/api/v2/workflows/runs/paused',
+    load: () => import('@/app/api/v2/workflows/runs/paused/route'),
+  },
+  {
     pattern: '/api/v2/workspaces',
     load: () => import('@/app/api/v2/workspaces/route'),
   },

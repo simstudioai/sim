@@ -7,13 +7,35 @@ import { workflowFolderPathForId } from '@/lib/workflows/application/folders'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
+import {
+  loadDeployedWorkflowState,
+  NoActiveDeploymentError,
+} from '@/lib/workflows/persistence/utils'
 import { loadWorkflowReadSnapshot } from '@/lib/workflows/queries'
+import { resolveApiRunInputSchema } from '@/lib/workflows/triggers/run-options'
 
 const logger = createLogger('ReadWorkflow')
 
 export interface ReadWorkflowInput {
   workflowId: string
   assertedWorkspaceId?: string
+}
+
+/**
+ * JSON Schema for the `input` an API run of the active deployment accepts, or
+ * null when the workflow has no active deployment or it has no API entry point.
+ */
+async function loadDeployedApiInputSchema(
+  workflowId: string,
+  workspaceId: string
+): Promise<Record<string, unknown> | null> {
+  try {
+    const deployed = await loadDeployedWorkflowState(workflowId, workspaceId)
+    return resolveApiRunInputSchema(deployed.blocks)
+  } catch (error) {
+    if (error instanceof NoActiveDeploymentError) return null
+    throw error
+  }
 }
 
 async function loadWorkflowFolderPath(workspaceId: string, folderId: string | null) {
@@ -44,7 +66,12 @@ export const readWorkflow = defineAuthorizedWorkflowUseCase({
     if (!workflow || workflow.archivedAt || workflow.workspaceId !== context.workspaceId) {
       throw new OrchestrationError('not_found', 'Workflow not found')
     }
-    const folderPath = await loadWorkflowFolderPath(context.workspaceId, workflow.folderId)
+    const [folderPath, inputSchema] = await Promise.all([
+      loadWorkflowFolderPath(context.workspaceId, workflow.folderId),
+      workflow.isDeployed
+        ? loadDeployedApiInputSchema(context.workflowId, context.workspaceId)
+        : Promise.resolve(null),
+    ])
     const inputs = extractInputFieldsFromBlocks(snapshot.normalizedData?.blocks ?? {})
     logger.info('Read workflow', {
       workspaceId: context.workspaceId,
@@ -55,6 +82,7 @@ export const readWorkflow = defineAuthorizedWorkflowUseCase({
       workflow,
       workspaceId: context.workspaceId,
       inputs,
+      inputSchema,
       folderPath,
     }
   },

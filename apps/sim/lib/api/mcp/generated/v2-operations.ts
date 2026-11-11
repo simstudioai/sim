@@ -314,6 +314,7 @@ import {
   v2GetWorkflowStateContract,
   v2GetWorkflowVersionContract,
   v2ImportWorkflowContract,
+  v2ListPausedRunsContract,
   v2ListWorkflowFoldersContract,
   v2ListWorkflowRunsContract,
   v2ListWorkflowsContract,
@@ -1297,7 +1298,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2GetBillingStatusContract,
     summary: 'Get billing status',
     description:
-      "Get the current plan, billing standing, credit allowance, and storage quota. Pooled `credits` and `storage` are visible only to callers who can manage the payer's billing; workspace API keys receive null for both. Use List billing logs for credit history.\n\nOAuth scope: `api:read`.",
+      "Get the current plan, billing standing, credit allowance, storage quota, and plan limits on runs. Pooled `credits` and `storage` are visible only to callers who can manage the payer's billing; workspace API keys receive null for both, but every caller reads `limits`. Use List billing logs for credit history.\n\nOAuth scope: `api:read`.",
     handler: () => import('@/app/api/v2/billing/status/route').then((route) => route.GET),
   },
   getBlock: {
@@ -1630,7 +1631,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2GetWorkflowContract,
     summary: 'Get workflow',
     description:
-      'Get workflow metadata, variables, and trigger input fields from the saved draft. Requires workspace read access. Input fields may differ from the live deployment. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.',
+      'Get workflow metadata, variables, and trigger input fields from the saved draft. Requires workspace read access. Input fields may differ from the live deployment; `inputSchema` describes the `input` an API run of the active deployment accepts. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/workflows/[workflowId]/route').then((route) => route.GET),
   },
   getWorkflowChatDeployment: {
@@ -2052,6 +2053,13 @@ export const V2_MCP_OPERATIONS = {
       import('@/app/api/v2/organizations/[organizationId]/workspaces/route').then(
         (route) => route.GET
       ),
+  },
+  listPausedRuns: {
+    contract: v2ListPausedRunsContract,
+    summary: 'List paused workflow runs',
+    description:
+      "List a workspace's runs waiting on human input, with workspace read access. Each run lists the human pause points it still waits at, exactly as Get workflow run shows them; resume one with Resume workflow run. Request each point's reviewer content with `includeOutput`. Organization permission groups can hide pause fields. A page ends early, with a cursor, once it holds 100 pause points.\n\nOAuth scope: `api:read`.",
+    handler: () => import('@/app/api/v2/workflows/runs/paused/route').then((route) => route.GET),
   },
   listPermissionGroupMembers: {
     contract: v2ListPermissionGroupMembersContract,
