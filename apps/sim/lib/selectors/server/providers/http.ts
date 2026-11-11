@@ -47,11 +47,14 @@ async function readBoundedBody(response: Response): Promise<string> {
   return new TextDecoder().decode(body)
 }
 
-/** Host and path of a provider request, never its query string, which can carry tokens. */
+/**
+ * Host and path of a provider request. The query string is dropped and OData-style path
+ * arguments (`search(q='...')`) are blanked, since both can carry tokens or a user's search text.
+ */
 function providerEndpoint(input: RequestInfo | URL): string | undefined {
   try {
     const url = new URL(input instanceof Request ? input.url : input)
-    return `${url.host}${url.pathname}`
+    return `${url.host}${url.pathname.replace(/\([^/]*\)/g, '()')}`
   } catch {
     return undefined
   }
@@ -144,7 +147,13 @@ export async function fetchProviderJsonWithStatus<T>(
     }
   } catch (error) {
     if (init?.signal?.aborted) throw error
-    logProviderFailure(input, 'invalid_response', response.status)
+    logProviderFailure(
+      input,
+      error instanceof SyntaxError || error instanceof SelectorOptionsUnavailableError
+        ? 'invalid_response'
+        : 'network',
+      response.status
+    )
     if (error instanceof SelectorOptionsUnavailableError) throw error
     throw new SelectorOptionsUnavailableError()
   }

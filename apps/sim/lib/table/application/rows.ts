@@ -3,7 +3,7 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { createLogger, getRequestContext } from '@sim/logger'
-import { getPostgresErrorCode } from '@sim/utils/errors'
+import { getPostgresCancellationReason } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord, toRecord } from '@sim/utils/object'
 import {
@@ -511,12 +511,12 @@ async function throwValidationResponse(
  * caller's to narrow, and retrying the same query only times out again.
  */
 function rethrowReadQueryError(error: unknown, tableId: string): never {
-  if (getPostgresErrorCode(error) === '57014') {
+  if (getPostgresCancellationReason(error) === 'statement_timeout') {
     logger.warn('Table read hit its statement timeout', { tableId })
     throw new TableRowsValidationError(
       `The query took longer than ${READ_STATEMENT_TIMEOUT_MS / 1000} seconds and was stopped. ` +
         'Sorting or range-filtering on a column reads every row in the table, which is too slow ' +
-        'at this table size. Sort by createdAt or updatedAt, add an equality filter, or keep ' +
+        'at this table size. Sort by createdAt, add an equality filter, or keep ' +
         'fewer rows (an Expiration column deletes old rows automatically).',
       { code: 'TABLE_QUERY_TIMEOUT' }
     )

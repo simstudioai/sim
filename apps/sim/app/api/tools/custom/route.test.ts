@@ -3,6 +3,7 @@
  */
 import {
   authMockFns,
+  createRouteContext,
   hybridAuthMockFns,
   permissionsMock,
   permissionsMockFns,
@@ -131,7 +132,7 @@ describe('Custom Tools API Routes', () => {
         new MockCustomToolTitleConflictError('A tool with that title already exists')
       )
 
-      const response = await POST(saveRequest())
+      const response = await POST(saveRequest(), createRouteContext({}))
 
       expect(response.status).toBe(409)
       expect(await response.json()).toEqual({ error: 'A tool with that title already exists' })
@@ -144,7 +145,7 @@ describe('Custom Tools API Routes', () => {
         })
       )
 
-      const response = await POST(saveRequest())
+      const response = await POST(saveRequest(), createRouteContext({}))
 
       expect(response.status).toBe(409)
     })
