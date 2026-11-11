@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { clientCredentialToken } from '@sim/db/schema'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { like, or } from 'drizzle-orm'
+import { eq, like, or } from 'drizzle-orm'
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
 import {
   type CoordinatedClientTokenInput,
@@ -164,6 +164,29 @@ describe('coordinated client-credentials token against shared storage', () => {
       resolveCoordinatedClientToken(input('late-invalidation', exchange))
     ).resolves.toMatchObject({ accessToken: replacement.accessToken })
     expect(exchange).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps a token minted within the minimum age when a tool call reports it rejected', async () => {
+    const { exchange } = provider('fresh-rejection')
+    const first = await resolveCoordinatedClientToken(input('fresh-rejection', exchange))
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await invalidateCoordinatedClientToken(first.accessToken, { minimumAgeMs: 60_000 })
+      await expect(
+        resolveCoordinatedClientToken(input('fresh-rejection', exchange))
+      ).resolves.toMatchObject({ accessToken: first.accessToken })
+    }
+    expect(exchange).toHaveBeenCalledOnce()
+
+    await db
+      .update(clientCredentialToken)
+      .set({ updatedAt: new Date(Date.now() - 120_000) })
+      .where(eq(clientCredentialToken.id, applicationKey(NAMESPACE, ['fresh-rejection'])))
+    await invalidateCoordinatedClientToken(first.accessToken, { minimumAgeMs: 60_000 })
+
+    await expect(
+      resolveCoordinatedClientToken(input('fresh-rejection', exchange))
+    ).resolves.toMatchObject({ accessToken: 'fresh-rejection:token-2' })
   })
 
   it('sweeps expired failure memos', async () => {

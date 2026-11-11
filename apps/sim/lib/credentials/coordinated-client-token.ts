@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { db } from '@sim/db'
 import { clientCredentialToken } from '@sim/db/schema'
 import { isRecordLike } from '@sim/utils/object'
-import { eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, lt, sql } from 'drizzle-orm'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
@@ -80,16 +80,35 @@ export async function deleteExpiredClientTokenFailures(): Promise<void> {
     )`)
 }
 
+interface InvalidateCoordinatedClientTokenOptions {
+  /**
+   * Keeps the token when it was minted less than this long ago. For rejections that may come from
+   * the endpoint rather than the token, so a call that keeps failing cannot re-mint on every try.
+   */
+  minimumAgeMs?: number
+}
+
 /**
  * Expires a stored token the provider rejected before its stated expiry (an app reinstall, a scope
  * change, a revocation), so the next resolution mints a replacement. Only that exact token is
  * expired: a replacement another worker already minted stays in service.
  */
-export async function invalidateCoordinatedClientToken(accessToken: string): Promise<void> {
+export async function invalidateCoordinatedClientToken(
+  accessToken: string,
+  options: InvalidateCoordinatedClientTokenOptions = {}
+): Promise<void> {
+  const matchesToken = eq(clientCredentialToken.accessTokenDigest, accessTokenDigestOf(accessToken))
   await db
     .update(clientCredentialToken)
     .set({ expiresAt: new Date(0), updatedAt: new Date() })
-    .where(eq(clientCredentialToken.accessTokenDigest, accessTokenDigestOf(accessToken)))
+    .where(
+      options.minimumAgeMs
+        ? and(
+            matchesToken,
+            lt(clientCredentialToken.updatedAt, new Date(Date.now() - options.minimumAgeMs))
+          )
+        : matchesToken
+    )
 }
 
 function unavailable(step: string, reason: string): TokenServiceAccountValidationError {
@@ -194,14 +213,12 @@ export async function resolveCoordinatedClientToken(
             encryptedValue: encrypted,
             accessTokenDigest: accessTokenDigestOf(exchanged.accessToken),
             expiresAt: exchanged.expiresAt,
+            updatedAt: new Date(),
           }
           await tx
             .insert(clientCredentialToken)
             .values({ id: applicationKey, ...values })
-            .onConflictDoUpdate({
-              target: clientCredentialToken.id,
-              set: { ...values, updatedAt: new Date() },
-            })
+            .onConflictDoUpdate({ target: clientCredentialToken.id, set: values })
           await tx.delete(clientCredentialToken).where(eq(clientCredentialToken.id, failureKey))
           return {
             accessToken: exchanged.accessToken,

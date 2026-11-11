@@ -3704,14 +3704,18 @@ describe('Internal Route Trust', () => {
       Reflect.deleteProperty(tools, toolId)
     })
 
-    async function callWith(credentialType: string, status: number) {
+    async function callWith(
+      credentialType: string,
+      status: number,
+      body: unknown = { error: 'rejected' }
+    ) {
       mockResolveExecutorCredentialToken.mockResolvedValue({
         accessToken: 'shared-token',
         credentialType,
       })
       mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
         toSecureFetchResponse(
-          new Response(JSON.stringify({ error: 'rejected' }), {
+          new Response(typeof body === 'string' ? body : JSON.stringify(body), {
             status,
             headers: { 'content-type': 'application/json' },
           })
@@ -3724,12 +3728,25 @@ describe('Internal Route Trust', () => {
       const result = await callWith('service_account', 401)
 
       expect(result.success).toBe(false)
-      expect(mockInvalidateCoordinatedClientToken).toHaveBeenCalledWith('shared-token')
+      expect(mockInvalidateCoordinatedClientToken).toHaveBeenCalledWith('shared-token', {
+        minimumAgeMs: 60_000,
+      })
     })
 
     it('keeps the token for a refusal that does not reject it', async () => {
       await callWith('service_account', 403)
 
+      expect(mockInvalidateCoordinatedClientToken).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['an Atlassian scope mismatch', { code: 401, message: 'Unauthorized; scope does not match' }],
+      ['a scope mismatch in a text body', 'Unauthorized; scope does not match'],
+      ['an RFC 6750 insufficient_scope error', { error: 'insufficient_scope' }],
+    ])('keeps the token for a 401 that reports %s', async (_label, body) => {
+      const result = await callWith('service_account', 401, body)
+
+      expect(result.success).toBe(false)
       expect(mockInvalidateCoordinatedClientToken).not.toHaveBeenCalled()
     })
 
