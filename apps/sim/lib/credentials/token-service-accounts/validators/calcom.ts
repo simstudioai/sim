@@ -39,7 +39,6 @@ export async function validateCalcomServiceAccount(
         Authorization: `Bearer ${fields.apiToken}`,
         Accept: 'application/json',
       },
-      redirect: 'error',
     },
     'me'
   )

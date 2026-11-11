@@ -1,5 +1,6 @@
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { describe, expect, it, vi } from 'vitest'
+import { mintBoxServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/box'
 import type {
   TokenServiceAccountFields,
   TokenServiceAccountValidationResult,
@@ -41,5 +42,15 @@ describe('saved key checks that send the key in a custom header', () => {
     vi.stubGlobal('fetch', redirectingFetch(answer))
 
     await expect(validate(fields)).rejects.toMatchObject({ code: 'provider_unavailable' })
+  })
+})
+
+describe('client-credential mints that send the secret in the request body', () => {
+  it('Box refuses to replay its client secret to a redirect target', async () => {
+    vi.stubGlobal('fetch', redirectingFetch({ access_token: 'elsewhere', expires_in: 3600 }))
+
+    await expect(
+      mintBoxServiceAccountToken({ clientId: 'box-cid', clientSecret: 'box-secret', orgId: '1' })
+    ).rejects.toMatchObject({ code: 'provider_unavailable' })
   })
 })

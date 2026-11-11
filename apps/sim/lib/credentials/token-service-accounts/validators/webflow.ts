@@ -37,7 +37,6 @@ export async function validateWebflowServiceAccount(
         Authorization: `Bearer ${fields.apiToken}`,
         Accept: 'application/json',
       },
-      redirect: 'error',
     },
     'list_sites'
   )

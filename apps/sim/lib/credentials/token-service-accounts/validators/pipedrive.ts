@@ -42,7 +42,6 @@ export async function validatePipedriveServiceAccount(
         'x-api-token': fields.apiToken,
         Accept: 'application/json',
       },
-      redirect: 'error',
     },
     'users_me'
   )

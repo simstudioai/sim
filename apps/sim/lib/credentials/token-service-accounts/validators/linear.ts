@@ -81,7 +81,6 @@ export async function validateLinearServiceAccount(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ query: VIEWER_QUERY }),
-      redirect: 'error',
     },
     'viewer'
   )

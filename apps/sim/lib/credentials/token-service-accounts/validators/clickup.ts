@@ -39,7 +39,6 @@ export async function validateClickupServiceAccount(
         Authorization: clickupAuthorizationHeader(fields.apiToken),
         'Content-Type': 'application/json',
       },
-      redirect: 'error',
     },
     'user'
   )

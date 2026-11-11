@@ -33,7 +33,7 @@ async function probeAccessTokenHeader(apiToken: string): Promise<boolean> {
   try {
     const res = await fetchProvider(
       ME_URL,
-      { headers: { ACCESS_TOKEN: apiToken, Accept: 'application/json' }, redirect: 'error' },
+      { headers: { ACCESS_TOKEN: apiToken, Accept: 'application/json' } },
       'me-access-token-probe'
     )
     return res.ok
@@ -61,10 +61,7 @@ export async function validateWealthboxServiceAccount(
 
   const res = await fetchProvider(
     ME_URL,
-    {
-      headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
-      redirect: 'error',
-    },
+    { headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' } },
     'me'
   )
 
