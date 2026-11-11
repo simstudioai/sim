@@ -25,7 +25,8 @@
   },
   "peerDependencies": {
     "react": "^19",
-    "react-dom": "^19"
+    "react-dom": "^19",
+    "tailwindcss": "^4"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",

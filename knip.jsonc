@@ -151,6 +151,13 @@
         "script-migrations/*.ts",
         "**/*.integration.ts",
         "vitest.integration.setup.ts"
+      ],
+      // Integration tests spawn `bun <script>` with an explicit cwd (this package, or apps/sim
+      // for backfill-projects.ts); knip resolves the path from the test file's own directory.
+      "ignoreUnresolved": [
+        "scripts/push.ts",
+        "./scripts/purge-search-projection.ts",
+        "scripts/backfill-projects.ts"
       ]
     },
     // The contract audit reads this snapshot by filename.

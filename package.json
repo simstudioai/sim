@@ -200,7 +200,7 @@
     "gray-matter": "4.0.3",
     "husky": "9.1.7",
     "json-schema-to-typescript": "15.0.4",
-    "knip": "6.41.0",
+    "knip": "6.44.1",
     "lint-staged": "16.4.0",
     "opentype.js": "1.3.4",
     "pdf-lib": "1.17.1",
