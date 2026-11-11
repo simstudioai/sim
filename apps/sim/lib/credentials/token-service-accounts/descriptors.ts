@@ -2392,9 +2392,9 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/gong',
     helpText:
-      'A Gong technical administrator creates the access key and secret on the API page of the Gong company settings.',
+      'A Gong technical administrator creates the access key and secret on the API page of the Gong company settings. Sim calls https://api.gong.io; an account whose API page shows a different base URL is not supported yet.',
     invalidCredentialsHelp:
-      'Gong rejected this access key and secret. Check that they were created together, have not been revoked, and that your Gong plan includes API access.',
+      'Gong rejected this access key and secret. Check that they were created together, have not been revoked, and that your Gong plan includes API access. If the API page in Gong shows a base URL other than https://api.gong.io, that account is not supported yet.',
   },
   [SERVICENOW_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: SERVICENOW_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -2423,9 +2423,9 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/servicenow',
     helpText:
-      'Use a dedicated integration user with the roles your workflows need and without multi-factor authentication. Enter the instance host on service-now.com, servicenow.com, or servicenowservices.com; custom domains are not supported.',
+      "Use a dedicated integration user with the roles your workflows need and without multi-factor authentication. Enter the instance host on service-now.com, servicenow.com, or servicenowservices.com. If your instance uses a custom URL, enter the instance's original service-now.com address instead; custom URLs and on-premises instances are not supported.",
     invalidCredentialsHelp:
-      'ServiceNow rejected this username and password. Check them on the instance you entered, and that the user is active, not locked out, and not required to use multi-factor authentication.',
+      "ServiceNow rejected this username and password, or the instance URL is not a ServiceNow address. Enter the instance's service-now.com address (not a custom URL), and check that the user is active, not locked out, and not required to use multi-factor authentication.",
   },
 }
 
