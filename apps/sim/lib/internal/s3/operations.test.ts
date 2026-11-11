@@ -86,6 +86,7 @@ describe('S3 presigned URLs', () => {
     accessKeyId: 'ASIASESSIONKEY',
     secretAccessKey: 'session-secret',
     sessionToken: 'session-token',
+    durationSeconds: 3600,
     expiration: new Date(NOW.getTime() + 3600 * 1000),
   }
   const presign = (accessKeyId: string, expiresIn: number) =>
@@ -117,6 +118,17 @@ describe('S3 presigned URLs', () => {
       message: expect.stringMatching(/3600 seconds.*session duration/),
     })
     expect(mocks.getSignedUrl).not.toHaveBeenCalled()
+  })
+
+  it('allows the full session duration after the time spent minting the session', async () => {
+    vi.setSystemTime(NOW.getTime() + 750)
+
+    const result = await runWithAwsSession(SESSION, () => presign(SESSION.accessKeyId, 3600))
+
+    expect(mocks.getSignedUrl).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
+      expiresIn: 3600,
+    })
+    expect(result.output.expiresAt).toBe(SESSION.expiration.toISOString())
   })
 
   it('reports an expiry the role session outlives', async () => {

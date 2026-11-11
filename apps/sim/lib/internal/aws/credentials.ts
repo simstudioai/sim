@@ -39,28 +39,33 @@ import type {
 
 const sessionStorage = new AsyncLocalStorage<AwsSessionCredentials>()
 
+/** The resolved STS session that signs for `accessKeyId`, if this call has one. */
+function sessionFor(accessKeyId: string): AwsSessionCredentials | undefined {
+  const session = sessionStorage.getStore()
+  return session?.sessionToken && session.accessKeyId === accessKeyId ? session : undefined
+}
+
 /** SDK credentials for a client built from an operation's key fields. */
 export function awsClientCredentials(
   accessKeyId: string,
   secretAccessKey: string
 ): { accessKeyId: string; secretAccessKey: string; sessionToken?: string } {
-  const session = sessionStorage.getStore()
-  if (session?.sessionToken && session.accessKeyId === accessKeyId) {
-    return { accessKeyId, secretAccessKey, sessionToken: session.sessionToken }
-  }
-  return { accessKeyId, secretAccessKey }
+  const sessionToken = sessionFor(accessKeyId)?.sessionToken
+  return sessionToken
+    ? { accessKeyId, secretAccessKey, sessionToken }
+    : { accessKeyId, secretAccessKey }
 }
 
 /**
- * When the STS session behind `accessKeyId` ends, or undefined for long-lived
- * keys. Anything signed with a session, like an S3 presigned URL, stops
- * working at this time whatever expiry it asked for.
+ * How long the STS session behind `accessKeyId` lasts and when it ends, or
+ * undefined for long-lived keys. Anything signed with a session, like an S3
+ * presigned URL, stops working when it ends whatever expiry it asked for.
  */
-export function awsSessionExpiration(accessKeyId: string): Date | undefined {
-  const session = sessionStorage.getStore()
-  return session?.sessionToken && session.accessKeyId === accessKeyId
-    ? session.expiration
-    : undefined
+export function awsSessionLifetime(
+  accessKeyId: string
+): Pick<AwsSessionCredentials, 'durationSeconds' | 'expiration'> | undefined {
+  const session = sessionFor(accessKeyId)
+  return session && { durationSeconds: session.durationSeconds, expiration: session.expiration }
 }
 
 /**

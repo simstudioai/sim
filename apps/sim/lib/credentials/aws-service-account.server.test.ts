@@ -165,21 +165,33 @@ describe("resolving a run's AWS session", () => {
   beforeEach(() => hoisted.send.mockReset())
 
   it.each([
-    { authType: 'oidc_role', roleArn: ROLE_ARN, subject: SUBJECT },
     {
-      authType: 'assume_role',
-      roleArn: ROLE_ARN,
-      accessKeyId: 'AKIAEXAMPLEKEY01',
-      secretAccessKey: 'stored-secret',
+      config: { authType: 'oidc_role', roleArn: ROLE_ARN, subject: SUBJECT },
+      durationSeconds: 3600,
     },
-  ] as const)('reports when a $authType session ends', async (config) => {
-    hoisted.send.mockResolvedValue({ Credentials: { ...session, Expiration: expiration } })
+    {
+      config: {
+        authType: 'assume_role',
+        roleArn: ROLE_ARN,
+        accessKeyId: 'AKIAEXAMPLEKEY01',
+        secretAccessKey: 'stored-secret',
+        sessionDurationSeconds: 900,
+      },
+      durationSeconds: 900,
+    },
+  ] as const)(
+    'reports how long a $config.authType session lasts and when it ends',
+    async ({ config, durationSeconds }) => {
+      hoisted.send.mockResolvedValue({ Credentials: { ...session, Expiration: expiration } })
 
-    await expect(resolveAwsSessionCredentials(config, owner, options)).resolves.toEqual({
-      accessKeyId: 'ASIATEMP',
-      secretAccessKey: 'secret',
-      sessionToken: 'token',
-      expiration,
-    })
-  })
+      await expect(resolveAwsSessionCredentials(config, owner, options)).resolves.toEqual({
+        accessKeyId: 'ASIATEMP',
+        secretAccessKey: 'secret',
+        sessionToken: 'token',
+        durationSeconds,
+        expiration,
+      })
+      expect(hoisted.send.mock.calls[0][0].input.DurationSeconds).toBe(durationSeconds)
+    }
+  )
 })

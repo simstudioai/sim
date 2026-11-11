@@ -127,6 +127,8 @@ export interface AwsSessionCredentials {
   accessKeyId: string
   secretAccessKey: string
   sessionToken?: string
+  /** The STS session length Sim requested; long-lived access keys have none. */
+  durationSeconds?: number
   /** When an STS session ends; long-lived access keys have none. */
   expiration?: Date
 }
@@ -148,7 +150,10 @@ export function buildAwsRoleSessionName(label: string | undefined): string {
   return `sim-${cleaned || 'credential'}`
 }
 
-function toSessionCredentials(credentials: Credentials | undefined): AwsSessionCredentials {
+function toSessionCredentials(
+  credentials: Credentials | undefined,
+  durationSeconds: number
+): AwsSessionCredentials {
   if (!credentials?.AccessKeyId || !credentials.SecretAccessKey || !credentials.SessionToken) {
     throw new AwsCredentialError('AWS STS returned no credentials')
   }
@@ -156,6 +161,7 @@ function toSessionCredentials(credentials: Credentials | undefined): AwsSessionC
     accessKeyId: credentials.AccessKeyId,
     secretAccessKey: credentials.SecretAccessKey,
     sessionToken: credentials.SessionToken,
+    durationSeconds,
     ...(credentials.Expiration ? { expiration: credentials.Expiration } : {}),
   }
 }
@@ -190,7 +196,7 @@ export async function resolveAwsSessionCredentials(
       }),
       { abortSignal: options.signal }
     )
-    return toSessionCredentials(response.Credentials)
+    return toSessionCredentials(response.Credentials, durationSeconds)
   }
   const webIdentityToken = await mintWorkloadIdentityToken({
     subject: config.subject,
@@ -216,7 +222,7 @@ export async function resolveAwsSessionCredentials(
     }),
     { abortSignal: options.signal }
   )
-  return toSessionCredentials(response.Credentials)
+  return toSessionCredentials(response.Credentials, durationSeconds)
 }
 
 /** The auth mode a decrypted AWS secret holds, or undefined when it is not one. */
