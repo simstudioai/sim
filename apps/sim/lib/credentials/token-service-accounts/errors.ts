@@ -69,6 +69,29 @@ export function requireClientSecret(
   return clientSecret
 }
 
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/
+const CONTROL_CHARACTERS_OR_SPACE = /[\u0000- \u007f]/
+
+/**
+ * Refuses a credential value that is empty, longer than `maxBytes` in UTF-8, or holds a control
+ * character (and, with `forbidSpaces`, a space), any of which would corrupt or be cut from the
+ * header the value is sent in, as `invalid_credentials` naming the field.
+ */
+export function assertCredentialText(
+  value: string,
+  label: string,
+  step: string,
+  options: { maxBytes: number; forbidSpaces?: boolean }
+): void {
+  const forbidden = options.forbidSpaces ? CONTROL_CHARACTERS_OR_SPACE : CONTROL_CHARACTERS
+  if (!value || forbidden.test(value) || Buffer.byteLength(value, 'utf8') > options.maxBytes) {
+    throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+      step,
+      reason: `${label} is invalid`,
+    })
+  }
+}
+
 /**
  * Short, stable description of a failed best-effort provider call, for callers
  * that degrade instead of throwing. `TokenServiceAccountValidationError`'s

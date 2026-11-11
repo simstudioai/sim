@@ -4,6 +4,7 @@ import type {
   ClientCredentialAccountMintResult,
 } from '@/lib/credentials/client-credential-accounts/server'
 import {
+  assertCredentialText,
   providerFailureCode,
   providerFailureReason,
   requireClientSecret,
@@ -13,20 +14,6 @@ import { requestZoomInfoToken, ZoomInfoTokenError } from '@/lib/internal/zoominf
 
 const STEP = 'zoominfo_token_mint'
 const MAX_CREDENTIAL_BYTES = 1_024
-const FORBIDDEN_CREDENTIAL_TEXT = /[\u0000-\u001f\u007f]/
-
-function assertCredentialText(value: string, label: string): void {
-  if (
-    !value ||
-    FORBIDDEN_CREDENTIAL_TEXT.test(value) ||
-    Buffer.byteLength(value, 'utf8') > MAX_CREDENTIAL_BYTES
-  ) {
-    throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
-      step: STEP,
-      reason: `${label} is invalid`,
-    })
-  }
-}
 
 /**
  * Mints a ZoomInfo API access token for a client-credentials app through the
@@ -47,7 +34,7 @@ export async function mintZoomInfoServiceAccountToken(
 ): Promise<ClientCredentialAccountMintResult> {
   options?.signal?.throwIfAborted()
   const clientSecret = requireClientSecret(fields.clientSecret, STEP, 'ZoomInfo')
-  assertCredentialText(fields.clientId, 'client ID')
+  assertCredentialText(fields.clientId, 'client ID', STEP, { maxBytes: MAX_CREDENTIAL_BYTES })
   // A colon would end the Basic auth user and shift the rest into the password.
   if (fields.clientId.includes(':')) {
     throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
@@ -55,7 +42,7 @@ export async function mintZoomInfoServiceAccountToken(
       reason: 'client ID is invalid',
     })
   }
-  assertCredentialText(clientSecret, 'client secret')
+  assertCredentialText(clientSecret, 'client secret', STEP, { maxBytes: MAX_CREDENTIAL_BYTES })
 
   let minted: Awaited<ReturnType<typeof requestZoomInfoToken>>
   try {

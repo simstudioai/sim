@@ -6,6 +6,7 @@ import type {
   ClientCredentialAccountMintResult,
 } from '@/lib/credentials/client-credential-accounts/server'
 import {
+  assertCredentialText,
   fetchProvider,
   requireClientSecret,
   TokenServiceAccountValidationError,
@@ -18,20 +19,9 @@ const STEP = 'datadog_key_check'
 const SYNTHETIC_TOKEN_TTL_SECONDS = 3600
 const MAX_KEY_BYTES = 1_024
 const MAX_VALIDATE_RESPONSE_BYTES = 16 * 1024
-const FORBIDDEN_KEY_TEXT = /[\u0000- \u007f]/
 
 function invalidCredentials(reason: string): TokenServiceAccountValidationError {
   return new TokenServiceAccountValidationError('invalid_credentials', 400, { step: STEP, reason })
-}
-
-function assertKey(value: string, label: string): void {
-  if (
-    !value ||
-    FORBIDDEN_KEY_TEXT.test(value) ||
-    Buffer.byteLength(value, 'utf8') > MAX_KEY_BYTES
-  ) {
-    throw invalidCredentials(`${label} is invalid`)
-  }
 }
 
 /**
@@ -57,8 +47,11 @@ export async function mintDatadogServiceAccountToken(
   options?.signal?.throwIfAborted()
   const apiKey = fields.clientId.trim()
   const applicationKey = requireClientSecret(fields.clientSecret, STEP, 'Datadog').trim()
-  assertKey(apiKey, 'API key')
-  assertKey(applicationKey, 'application key')
+  assertCredentialText(apiKey, 'API key', STEP, { maxBytes: MAX_KEY_BYTES, forbidSpaces: true })
+  assertCredentialText(applicationKey, 'application key', STEP, {
+    maxBytes: MAX_KEY_BYTES,
+    forbidSpaces: true,
+  })
   const site = fields.dataCenter?.trim()
   if (!isDatadogSite(site)) throw invalidCredentials('unknown Datadog site')
 
