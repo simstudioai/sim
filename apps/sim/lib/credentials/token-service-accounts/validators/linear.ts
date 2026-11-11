@@ -115,8 +115,9 @@ export async function validateLinearServiceAccount(
 
   const payload = await parseProviderJson<LinearViewerResponse>(res, 'viewer')
   const organization = payload.data?.organization
-  // A client-credentials token acts as the app, not a person: Linear documents no viewer for
-  // that actor, so the workspace it was minted for is the identity when no viewer comes back.
+  // A client-credentials token acts as the app, not a person. Linear does not document whether an
+  // app-actor token has a viewer, so the workspace it was minted for is the identity when none
+  // comes back.
   const appActor = fields.authMethod === CLIENT_CREDENTIALS_AUTH_METHOD
   if (appActor && !payload.data?.viewer?.id && organization?.id) {
     return {

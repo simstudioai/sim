@@ -119,9 +119,9 @@ async function exchangeClientCredentials(
 }
 
 /**
- * Proves the credential signs in as a real staff member: Zendesk answers an unauthenticated
- * request to `users/me` with an anonymous user whose id is null, and an end user cannot use the
- * ticketing API the tools call.
+ * Proves the credential signs in as a real staff member. Zendesk allows anonymous callers on
+ * `users/me` but does not document that response's body, so a positive integer id is required
+ * rather than trusting any user object; an end user cannot use the ticketing API the tools call.
  */
 async function verifyStaffUser(
   base: string,

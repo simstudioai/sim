@@ -602,7 +602,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
             value: ZENDESK_AUTH_METHODS.clientCredentials,
             label: 'OAuth client (client credentials)',
           },
-          { value: ZENDESK_AUTH_METHODS.apiToken, label: 'API token' },
+          { value: ZENDESK_AUTH_METHODS.apiToken, label: 'API token (deprecated by Zendesk)' },
         ],
       },
       {
@@ -657,6 +657,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
         secret: true,
         optional: true,
         requiredForAuthMethods: [ZENDESK_AUTH_METHODS.apiToken],
+        hint: 'Zendesk has deprecated API tokens in favor of OAuth. Use an OAuth client unless you cannot create one.',
       },
     ],
     defaultAuthMethod: ZENDESK_AUTH_METHODS.clientCredentials,

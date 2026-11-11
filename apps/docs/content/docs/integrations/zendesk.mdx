@@ -17,7 +17,7 @@ Use [Zendesk](https://www.zendesk.com/) in Sim to manage tickets, users, and org
 Add a Zendesk credential under **Integrations** and pick it in the block. A credential holds your subdomain (`your-company` from `your-company.zendesk.com`) and one of two sign-ins:
 
 - **OAuth client (client credentials)**: the unique identifier and secret of a **confidential** OAuth client from Admin Center (**Apps and integrations** > **APIs** > **OAuth Clients**), plus the permissions to request (read only, or read and write). Sim requests a one-hour token with [Zendesk's client credentials grant](https://developer.zendesk.com/api-reference/ticketing/oauth/grant_type_tokens/) when a workflow needs one. Every call runs as the user the OAuth client belongs to.
-- **API token**: an agent or admin email and an [API token](https://developer.zendesk.com/api-reference/introduction/security-and-auth/). Every call runs as that agent.
+- **API token**: an agent or admin email and an [API token](https://developer.zendesk.com/api-reference/introduction/security-and-auth/). Every call runs as that agent. Zendesk has deprecated API tokens and asks customers to move to OAuth, so prefer the OAuth client.
 
 When you save, Sim checks that the credential signs in as a real agent or admin of that subdomain. Workflows that still type an email and API token into a Zendesk block keep working unchanged.
 {/* MANUAL-CONTENT-END */}
