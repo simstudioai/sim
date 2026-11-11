@@ -174,10 +174,13 @@ Rejected v2 requests use HTTP error status codes and a stable code/message envel
 {
   "error": {
     "code": "NOT_FOUND",
-    "message": "Workflow not found"
+    "message": "Workflow not found",
+    "traceId": "3f9a1c7e"
   }
 }
 ```
+
+Every response carries an `x-request-id` header, and an error repeats it as `error.traceId`. Include it when you contact support about a failed request.
 
 | Status | Meaning | Action |
 | --- | --- | --- |
@@ -195,13 +198,13 @@ Other statuses and endpoint-specific recovery are documented in each reference. 
 
 V2 validates path parameters, query strings, and bodies against the published schema. Unknown fields return `400`; for example, `?limt=20` is an error. The rule also applies to endpoints with no query parameters: omit tracking tags, cache busters, and other undeclared fields.
 
-A validation error can look like:
+The message names the first rejected field, prefixed with where it was sent (`path`, `query`, `header`, or `body`); `error.details` lists every issue. A validation error can look like:
 
 ```json
 {
   "error": {
     "code": "BAD_REQUEST",
-    "message": "Invalid request",
+    "message": "query: Unrecognized key: \"limt\"",
     "details": [
       { "code": "unrecognized_keys", "keys": ["limt"], "path": [], "message": "Unrecognized key: \"limt\"" }
     ]
