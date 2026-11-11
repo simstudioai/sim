@@ -64,14 +64,15 @@ export function useConfigServiceAccountForm({
       ? DEPLOYMENT_KEYLESS_REASON
       : undefined
   const keylessType = descriptor.authTypes.find((type) => type.keyless)?.value
-  const reconnectsKeyless = Boolean(setup.data?.available && setup.data.reconnectsKeyless)
-  const startsKeyless =
-    reconnectCredentialId && descriptor.reconnectReportsMode
-      ? reconnectsKeyless
-      : !descriptor.keyedFirst || reconnectsKeyless
-  const authType =
-    selectedAuthType ??
-    (keylessAvailable && keylessType && startsKeyless ? keylessType : descriptor.keyedDefault)
+  const storedAuthType = descriptor.authTypes.find(
+    (type) => type.value === setup.data?.reconnectAuthType && (keylessAvailable || !type.keyless)
+  )?.value
+  const startingAuthType = reconnectCredentialId
+    ? (storedAuthType ?? descriptor.keyedDefault)
+    : keylessAvailable && keylessType && !descriptor.keyedFirst
+      ? keylessType
+      : descriptor.keyedDefault
+  const authType = selectedAuthType ?? startingAuthType
   const chosen = descriptor.authTypes.find((type) => type.value === authType)
   const keyless = Boolean(chosen?.keyless)
   const trust = setup.data?.available && subjectChoice === 'new' ? setup.data : undefined

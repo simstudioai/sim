@@ -48,7 +48,9 @@ let container: HTMLDivElement
 let root: Root
 let requests: RecordedRequest[]
 /** The workload-identity setup; Google's has no fixed audience. */
-let keyless: (Omit<typeof TRUST, 'audience'> & { audience?: string }) | { available: false }
+let keyless:
+  | (Omit<typeof TRUST, 'audience'> & { audience?: string; reconnectAuthType?: string })
+  | { available: false; reconnectAuthType?: string }
 let createFailure: { status: number; body: unknown } | null
 let createdIds: string[]
 
@@ -381,6 +383,7 @@ it("shows the server's verification failure in the dialog", async () => {
 })
 
 it('reconnects in place, keeps the trusted subject by default and prefills no secret', async () => {
+  keyless = { ...TRUST, reconnectAuthType: 'oidc_role' }
   const dialog = await open('aws-service-account', 'AWS', {
     replacedAccount: { credentialId: 'cred-old', displayName: 'Prod role' },
   })
@@ -400,6 +403,16 @@ it('reconnects in place, keeps the trusted subject by default and prefills no se
   expect(body).toMatchObject({ displayName: 'Prod role' })
   expect(config).toEqual({ authType: 'oidc_role', roleArn: ROLE_ARN })
   expect(createdIds).toEqual(['cred-old'])
+})
+
+it('reopens a reconnect on the stored keyed mode even where keyless is offered', async () => {
+  keyless = { ...TRUST, reconnectAuthType: 'access_keys' }
+  const dialog = await open('aws-service-account', 'AWS', {
+    replacedAccount: { credentialId: 'cred-old', displayName: 'Prod keys' },
+  })
+
+  expect(authTypeTrigger(dialog).textContent).toContain('Access keys')
+  expect(labelled(dialog, 'Role ARN')).toBeNull()
 })
 
 it('adds a keyless Snowflake service user: shows the CREATE USER statement and submits a bare host', async () => {

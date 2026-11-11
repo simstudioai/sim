@@ -75,11 +75,6 @@ export interface ConfigServiceAccountDescriptor {
   keyedDefault: string
   /** A new credential starts on `keyedDefault` even where keyless is offered (Google). */
   keyedFirst?: boolean
-  /**
-   * The workload-identity setup reports whether a reconnected credential is keyless, so a
-   * reconnect opens on keyless only for one that is (Snowflake, Microsoft, Google).
-   */
-  reconnectReportsMode?: boolean
   fields: readonly ConfigServiceAccountField[]
   /** Whether the keyless fields are complete enough to verify, beyond each being filled in. */
   keylessReady?: (values: Readonly<Record<string, string>>) => boolean
@@ -302,7 +297,6 @@ const SNOWFLAKE: ConfigServiceAccountDescriptor = {
     },
   ],
   keyedDefault: 'programmatic_access_token',
-  reconnectReportsMode: true,
   fields: [
     {
       id: 'host',
@@ -360,7 +354,6 @@ const MICROSOFT_APP: ConfigServiceAccountDescriptor = {
     { value: 'certificate', label: 'Certificate' },
   ],
   keyedDefault: 'client_secret',
-  reconnectReportsMode: true,
   fields: [
     {
       id: 'tenantId',
@@ -442,7 +435,6 @@ const GOOGLE_KEYLESS_DESCRIPTOR: ConfigServiceAccountDescriptor = {
   ],
   keyedDefault: 'json_key',
   keyedFirst: true,
-  reconnectReportsMode: true,
   fields: [
     {
       id: 'projectNumber',
