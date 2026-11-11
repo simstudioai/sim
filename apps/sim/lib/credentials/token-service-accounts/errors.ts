@@ -23,7 +23,7 @@ export type TokenServiceAccountValidationCode =
   | 'account_not_found'
   /**
    * The credential works, but not for this service or option: a keyless Google Cloud credential
-   * asked for a Workspace service or to impersonate a user (domain-wide delegation).
+   * asked for a Google Workspace service or to impersonate a Google Workspace user (domain-wide delegation).
    */
   | 'unsupported_use'
 

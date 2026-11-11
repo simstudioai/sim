@@ -33,7 +33,7 @@ const FIELDS = {
   orgId: '',
 }
 
-const ACCESS_TOKEN = 'eyJ0eXAiOiJNVCJ9.access-token-value'
+const ACCESS_TOKEN = 'test-docusign-access-token'
 
 function userinfo(accounts: Array<Record<string, unknown>>) {
   return jsonResponse({

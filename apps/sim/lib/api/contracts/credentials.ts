@@ -5,7 +5,10 @@ import {
   ATLASSIAN_PRODUCTS,
   getMissingServiceAccountFields,
 } from '@/lib/credentials/service-account-fields'
-import { WORKLOAD_IDENTITY_PROVIDERS } from '@/lib/credentials/workload-identity/audiences'
+import {
+  WORKLOAD_IDENTITY_AUTH_TYPE_LIST,
+  WORKLOAD_IDENTITY_PROVIDERS,
+} from '@/lib/credentials/workload-identity/audiences'
 import type { OAuthProvider } from '@/lib/oauth/types'
 
 export const atlassianProductSchema = z.enum(ATLASSIAN_PRODUCTS)
@@ -560,6 +563,9 @@ export const createWorkspaceCredentialContract = defineRouteContract({
  * dialog's contract and the public `createCredentialWorkloadIdentitySubject`
  * operation so the two cannot describe the same grant differently.
  */
+/** The reconnected credential's stored auth mode, so the dialog reopens on it. */
+const reconnectAuthTypeSchema = z.enum(WORKLOAD_IDENTITY_AUTH_TYPE_LIST).optional()
+
 export const workloadIdentitySubjectGrantShape = {
   issuer: z
     .string()
@@ -598,12 +604,11 @@ export const prepareWorkloadIdentityContract = defineRouteContract({
     mode: 'json',
     schema: z.discriminatedUnion('available', [
       /** This deployment has no workload-identity signing key; offer key-based modes only. */
-      z.object({ available: z.literal(false) }),
+      z.object({ available: z.literal(false), reconnectAuthType: reconnectAuthTypeSchema }),
       z.object({
         available: z.literal(true),
         ...workloadIdentitySubjectGrantShape,
-        /** The reconnected credential is keyless (Snowflake, Microsoft app, and Google only). */
-        reconnectsKeyless: z.literal(true).optional(),
+        reconnectAuthType: reconnectAuthTypeSchema,
       }),
     ]),
   },

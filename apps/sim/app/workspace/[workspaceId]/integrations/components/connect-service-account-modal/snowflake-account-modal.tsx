@@ -135,7 +135,7 @@ function SnowflakeAccountForm({
   initialDescription,
   onCreated,
   keyless,
-}: SnowflakeAccountModalProps & { keyless: KeylessSetup }) {
+}: SnowflakeAccountModalProps & { keyless: KeylessSetup<'snowflake'> }) {
   const close = () => onOpenChange(false)
   const keylessSubmit = useSavedConnectionSubmit({
     providerId: SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -155,13 +155,10 @@ function SnowflakeAccountForm({
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
   const [description, setDescription] = useState(initialDescription ?? '')
 
-  // A reconnect opens on the credential's current mode, so a keyless connection is never
-  // turned into a token one by default; a new connection defaults to keyless wherever this
-  // deployment supports it.
+  // A reconnect opens on the credential's stored mode, so it never switches auth by default;
+  // a new connection defaults to keyless wherever this deployment supports it.
   const defaultAuthType: SnowflakeAuthType = credentialId
-    ? keyless.reconnectsKeyless
-      ? 'workload_identity'
-      : 'programmatic_access_token'
+    ? (keyless.reconnectAuthType ?? 'programmatic_access_token')
     : keyless.available
       ? 'workload_identity'
       : 'programmatic_access_token'
@@ -301,7 +298,7 @@ function SnowflakeAccountForm({
           <ChipModalField
             type='custom'
             title='Service user'
-            hint='An admin runs this once in the account, then grants the user a role and sets it as its default role, before you save.'
+            hint='An admin runs this once in the account, then grants the user a role and sets it as its default role, before you save. If SIM_WORKFLOWS already exists, change the name in the statement you run and in any follow-up GRANT or ALTER commands.'
           >
             {(aria) => (
               <ChipTextarea

@@ -23,7 +23,11 @@ import { awsClientCredentials, withAwsCredential } from '@/lib/internal/aws/cred
 function call(overrides: Partial<InternalToolOperationCall> = {}): InternalToolOperationCall {
   return {
     toolId: 'dynamodb_get',
-    input: { region: 'us-east-1', accessKeyId: 'AKIAINLINE', secretAccessKey: 'inline-secret' },
+    input: {
+      region: 'us-east-1',
+      accessKeyId: 'TESTINLINEKEYID',
+      secretAccessKey: 'inline-secret',
+    },
     headers: new Headers(),
     context: { workflowId: 'wf-1', workspaceId: 'ws-1', executionId: 'exec-1' },
     requestId: 'req-1',
@@ -43,7 +47,7 @@ describe('withAwsCredential', () => {
 
     expect(handler.mock.calls[0][0]).toBe(request)
     expect(await (response as Response).json()).toStrictEqual({
-      accessKeyId: 'AKIAINLINE',
+      accessKeyId: 'TESTINLINEKEYID',
       secretAccessKey: 'inline-secret',
     })
     expect(mockGetAwsCredentialConfig).not.toHaveBeenCalled()
@@ -117,7 +121,7 @@ describe('withAwsCredential', () => {
       sessionToken: 'session-token',
     })
     const handler = vi.fn(async () =>
-      Response.json(awsClientCredentials('AKIAOTHER', 'other-secret'))
+      Response.json(awsClientCredentials('TESTOTHERKEYID', 'other-secret'))
     )
 
     const response = await withAwsCredential(handler)(
@@ -131,7 +135,7 @@ describe('withAwsCredential', () => {
     )
 
     expect(await (response as Response).json()).toStrictEqual({
-      accessKeyId: 'AKIAOTHER',
+      accessKeyId: 'TESTOTHERKEYID',
       secretAccessKey: 'other-secret',
     })
   })

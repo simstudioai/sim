@@ -219,6 +219,18 @@ async function resolveDatabricksAccessToken(
   )
 }
 
+/** The auth mode a decrypted Databricks secret holds, or undefined when it is not one. */
+export function storedDatabricksAuthType(
+  decrypted: string
+): DatabricksCredentialConfig['authType'] | undefined {
+  try {
+    const parsed = storedSecretSchema.safeParse(JSON.parse(decrypted))
+    return parsed.success ? parsed.data.config.authType : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function readStoredSubject(storedSecret: Record<string, unknown> | null | undefined) {
   const parsed = storedSecretSchema.safeParse(storedSecret)
   return parsed.success && parsed.data.config.authType === 'oidc_federation'
@@ -308,7 +320,7 @@ async function assertPolicyPinsSubject(
     )
   }
   throw new DatabricksCredentialError(
-    `This service principal's federation policy also trusts other Sim credentials. Use the policy shown in the dialog, which matches the sub claim to ${config.subject}, so only this credential can use it.`
+    `This service principal's federation policy also trusts other Sim credentials. Use the federation policy from Sim (the connect dialog or \`sim credentials keyless-subject\`), which matches the sub claim to ${config.subject}, so only this credential can use it.`
   )
 }
 

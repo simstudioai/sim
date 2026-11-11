@@ -5,7 +5,12 @@ import { ChipModalError, ChipModalField } from '@sim/emcn'
 import { generateShortId } from '@sim/utils/id'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
-import type { WorkloadIdentityProvider } from '@/lib/credentials/workload-identity/audiences'
+import {
+  WORKLOAD_IDENTITY_KEYLESS_CONFIGS,
+  WORKLOAD_IDENTITY_PROVIDER_AUTH_TYPES,
+  type WorkloadIdentityProvider,
+  type WorkloadIdentityProviderAuthType,
+} from '@/lib/credentials/workload-identity/audiences'
 import {
   useCreateScopedCredential,
   useUpdateScopedCredential,
@@ -20,8 +25,8 @@ import {
 
 export type TrustSubjectChoice = 'keep' | 'new'
 
-interface KeylessSetupInput {
-  provider: WorkloadIdentityProvider
+interface KeylessSetupInput<P extends WorkloadIdentityProvider> {
+  provider: P
   workspaceId?: string
   organizationId?: string
   credentialId?: string
@@ -37,13 +42,13 @@ interface KeylessSetupInput {
  * reconnect the configured trust is kept by default: issuing a new subject
  * would break the role or federation policy the customer already set up.
  */
-export function useKeylessSetup({
+export function useKeylessSetup<P extends WorkloadIdentityProvider>({
   provider,
   workspaceId,
   organizationId,
   credentialId,
   enabled = true,
-}: KeylessSetupInput) {
+}: KeylessSetupInput<P>) {
   const [sessionKey] = useState(() => generateShortId())
   const [subjectChoice, setSubjectChoice] = useState<TrustSubjectChoice>(
     credentialId ? 'keep' : 'new'
@@ -57,11 +62,17 @@ export function useKeylessSetup({
     credentialId,
   })
   const trust = setup.data?.available ? setup.data : undefined
+  const storedAuthType = providerAuthType(provider, setup.data?.reconnectAuthType)
+  // A keyless credential reopens on keyless only where this deployment can still sign.
+  const reconnectAuthType =
+    storedAuthType === WORKLOAD_IDENTITY_KEYLESS_CONFIGS[provider].authType && !trust
+      ? undefined
+      : storedAuthType
   return {
     /** Undefined while this deployment's support is still loading. */
     available: workspaceScoped ? setup.data?.available : false,
-    /** The credential being reconnected is keyless (reported for Snowflake and Google only). */
-    reconnectsKeyless: Boolean(setup.data?.available && setup.data.reconnectsKeyless),
+    /** The stored mode of the credential being reconnected; a reconnect reopens on it. */
+    reconnectAuthType,
     isReconnect: Boolean(credentialId),
     subjectChoice,
     setSubjectChoice,
@@ -73,7 +84,17 @@ export function useKeylessSetup({
   }
 }
 
-export type KeylessSetup = ReturnType<typeof useKeylessSetup>
+export type KeylessSetup<P extends WorkloadIdentityProvider = WorkloadIdentityProvider> =
+  ReturnType<typeof useKeylessSetup<P>>
+
+function providerAuthType<P extends WorkloadIdentityProvider>(
+  provider: P,
+  value: string | undefined
+): WorkloadIdentityProviderAuthType<P> | undefined {
+  const modes: readonly WorkloadIdentityProviderAuthType<P>[] =
+    WORKLOAD_IDENTITY_PROVIDER_AUTH_TYPES[provider]
+  return modes.find((mode) => mode === value)
+}
 
 /** The subject fields of a keyless config: a new subject with its proof, or none to keep the stored one. */
 export function keylessSubjectFields(setup: KeylessSetup) {
@@ -84,12 +105,15 @@ interface KeylessTrustFieldsProps {
   setup: KeylessSetup
   /** The credential's own audience, for a provider without a fixed one (Google). */
   audience?: string
+  /** Where in the provider's console the values below are pasted. */
+  pasteHint?: string
 }
 
 /** Reconnect choice plus the issuer, audience, and subject the customer configures. */
 export function KeylessTrustFields({
   setup,
   audience = setup.trust?.audience,
+  pasteHint,
 }: KeylessTrustFieldsProps) {
   return (
     <>
@@ -124,6 +148,7 @@ export function KeylessTrustFields({
             title='Issuer'
             value={setup.trust.issuer}
             copyLabel='Copy issuer'
+            hint={pasteHint}
           />
           {audience && (
             <ChipModalField

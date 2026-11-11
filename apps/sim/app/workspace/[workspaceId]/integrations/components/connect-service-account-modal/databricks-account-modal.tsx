@@ -93,9 +93,14 @@ function DatabricksAccountForm({
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
   const [description, setDescription] = useState(initialDescription ?? '')
 
-  // Keyless is the default wherever this deployment supports it.
-  const authType: DatabricksAuthType =
-    selectedAuthType ?? (keyless.available ? 'oidc_federation' : 'service_principal')
+  // A reconnect opens on the credential's stored mode, so it never switches auth by default;
+  // a new connection defaults to keyless wherever this deployment supports it.
+  const defaultAuthType: DatabricksAuthType = credentialId
+    ? (keyless.reconnectAuthType ?? 'service_principal')
+    : keyless.available
+      ? 'oidc_federation'
+      : 'service_principal'
+  const authType: DatabricksAuthType = selectedAuthType ?? defaultAuthType
   const usesServicePrincipal = authType === 'service_principal' || authType === 'oidc_federation'
   const disabled =
     isPending ||
@@ -215,7 +220,7 @@ function DatabricksAccountForm({
           <ChipModalField
             type='custom'
             title='Federation policy'
-            hint='An account admin runs this once, with the service principal’s numeric ID, before you save.'
+            hint='An account admin runs this once, with the service principal’s numeric ID, before you save. First sign in to the account with `databricks auth login --host <account console URL> --account-id <account ID>` (not a workspace profile or the workspace web terminal).'
           >
             {(aria) => (
               <ChipTextarea

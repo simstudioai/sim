@@ -72,9 +72,9 @@ const KEYLESS_FLOW_HELP = [
   `The proof expires after 24 hours and works only for the user who requested it, with the same providerId. If creation reports ${[...KEYLESS_RETRY_CODES].join(', ')}, run step 1 again, trust the new subject, and retry.`,
   '',
   'Examples:',
-  '  $ sim credentials keyless-subject <providerId> --output json > subject.json',
+  '  $ sim credentials keyless-subject aws-service-account --output json > subject.json',
   `  $ jq '.keylessConfig + {"roleArn":"arn:aws:iam::123456789012:role/SimWorkflows"}' subject.json > keyless.json`,
-  '  $ sim credentials create <providerId> --name "Keyless" --credentials @keyless.json',
+  '  $ sim credentials create aws-service-account --name "Keyless" --credentials @keyless.json',
 ].join('\n')
 
 type ConnectionBody = { providerId: string; displayName: string } | { credentialId: string }

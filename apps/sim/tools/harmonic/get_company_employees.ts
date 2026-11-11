@@ -23,7 +23,7 @@ export const harmonicGetCompanyEmployeesTool: ToolConfig<
   description:
     'List person URNs for a company, filtered by role group and employment status. Pair with Batch Get People to hydrate contacts.',
   version: '1.0.0',
-  oauth: { required: true, provider: 'harmonic' },
+  oauth: { required: true, provider: 'harmonic', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.HARMONIC_ERRORS,
 
   params: {

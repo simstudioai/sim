@@ -114,9 +114,14 @@ function AwsAccountForm({
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
   const [description, setDescription] = useState(initialDescription ?? '')
 
-  // Keyless is the default wherever this deployment supports it.
-  const authType: AwsAuthType =
-    selectedAuthType ?? (keyless.available ? 'oidc_role' : 'access_keys')
+  // A reconnect opens on the credential's stored mode, so it never switches auth by default;
+  // a new connection defaults to keyless wherever this deployment supports it.
+  const defaultAuthType: AwsAuthType = credentialId
+    ? (keyless.reconnectAuthType ?? 'access_keys')
+    : keyless.available
+      ? 'oidc_role'
+      : 'access_keys'
+  const authType: AwsAuthType = selectedAuthType ?? defaultAuthType
   const needsKeys = authType === 'access_keys' || authType === 'assume_role'
   const needsRole = authType === 'oidc_role' || authType === 'assume_role'
   const disabled =
@@ -251,7 +256,7 @@ function AwsAccountForm({
           <ChipModalField
             type='custom'
             title='Role trust policy'
-            hint='Add the issuer and audience above as an IAM identity provider (once per AWS account), set this as the role’s trust policy, then grant the role the permissions your workflows need.'
+            hint='Enter the Role ARN first; the policy fills in its account ID. Add the issuer and audience above as an IAM identity provider (once per AWS account), set this as the role’s trust policy, then grant the role the permissions your workflows need.'
           >
             {(aria) => (
               <ChipTextarea

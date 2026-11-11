@@ -109,7 +109,11 @@ const personFixture = {
 describe('Harmonic authentication and registry-facing contracts', () => {
   it('uses the connected Harmonic credential only in the apikey header', () => {
     for (const tool of allTools) {
-      expect(tool.oauth).toEqual({ required: true, provider: 'harmonic' })
+      expect(tool.oauth).toEqual({
+        required: true,
+        provider: 'harmonic',
+        credentialKind: 'service-account',
+      })
       expect(tool.params.accessToken).toMatchObject({ required: true, visibility: 'hidden' })
       expect(tool.params).not.toHaveProperty('apiKey')
       const headers = tool.request.headers({ accessToken: 'team-secret' } as never)

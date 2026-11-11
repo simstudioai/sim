@@ -19,7 +19,7 @@ export const harmonicClearPeopleSavedSearchNetNewResultsTool: ToolConfig<
   description:
     'Acknowledge net-new people on a saved search so the next poll returns only fresh matches. Clearing everything requires setting the scope explicitly.',
   version: '1.0.0',
-  oauth: { required: true, provider: 'harmonic' },
+  oauth: { required: true, provider: 'harmonic', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.HARMONIC_ERRORS,
 
   params: {

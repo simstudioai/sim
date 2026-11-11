@@ -786,9 +786,9 @@ The proof expires after 24 hours and works only for the user who requested it, w
 **Examples**
 
 ```bash
-sim credentials keyless-subject <providerId> --output json > subject.json
+sim credentials keyless-subject aws-service-account --output json > subject.json
 jq '.keylessConfig + {"roleArn":"arn:aws:iam::123456789012:role/SimWorkflows"}' subject.json > keyless.json
-sim credentials create <providerId> --name "Keyless" --credentials @keyless.json
+sim credentials create aws-service-account --name "Keyless" --credentials @keyless.json
 ```
 
 API request and response schemas: [createServiceAccountCredential](/api-reference/credentials/createServiceAccountCredential).
@@ -822,9 +822,9 @@ The proof expires after 24 hours and works only for the user who requested it, w
 **Examples**
 
 ```bash
-sim credentials keyless-subject <providerId> --output json > subject.json
+sim credentials keyless-subject aws-service-account --output json > subject.json
 jq '.keylessConfig + {"roleArn":"arn:aws:iam::123456789012:role/SimWorkflows"}' subject.json > keyless.json
-sim credentials create <providerId> --name "Keyless" --credentials @keyless.json
+sim credentials create aws-service-account --name "Keyless" --credentials @keyless.json
 ```
 
 API request and response schemas: [createCredentialWorkloadIdentitySubject](/api-reference/credentials/createCredentialWorkloadIdentitySubject).

@@ -83,7 +83,8 @@ export const {ServiceName}Block: BlockConfig = {
 // Multi-line input
 { id: 'field', title: 'Label', type: 'long-input', placeholder: '...', rows: 6 }
 
-// Password input
+// Password input: only for legacy blocks or a secret with no saved-credential fit
+// (model-provider keys, hosted-key pairs); a service token uses a saved credential
 { id: 'apiKey', title: 'API Key', type: 'short-input', password: true }
 ```
 
@@ -132,6 +133,32 @@ export const {ServiceName}Block: BlockConfig = {
   serviceId: '{service}',  // Must match OAuth provider service key
   requiredScopes: getScopesForService('{service}'),  // Import from @/lib/oauth/utils
   placeholder: 'Select account',
+  required: true,
+}
+```
+
+A service-account-only picker (a saved token or key credential) instead sets
+`credentialKind: 'service-account'` and `mode: 'basic'` (no scopes), and pairs with an advanced
+twin; `isSavedCredentialPicker` matches only this shape:
+```typescript
+{
+  id: 'credential',
+  title: '{Service} Account',
+  type: 'oauth-input',
+  serviceId: '{service}',
+  credentialKind: 'service-account',
+  canonicalParamId: 'oauthCredential',
+  mode: 'basic',
+  placeholder: 'Select {Service} credential',
+  required: true,
+},
+{
+  id: 'manualCredential',
+  title: '{Service} Account',
+  type: 'short-input',
+  canonicalParamId: 'oauthCredential',
+  mode: 'advanced',
+  placeholder: 'Enter credential ID',
   required: true,
 }
 ```
@@ -695,7 +722,8 @@ outputs: {
 When creating V2 blocks (alongside legacy V1):
 
 ```typescript
-// V1 Block - mark as legacy
+// V1 Block - mark as legacy. A credential-only successor is the exception: the
+// successor keeps the legacy block's name, so neither block is renamed.
 export const ServiceBlock: BlockConfig = {
   type: 'service',
   name: 'Service (Legacy)',

@@ -343,8 +343,9 @@ async function assertNoOtherCredentialHolds(
  * be read might hold the subject, so it refuses the save rather than skip it.
  *
  * Caveats: uniqueness holds only within one owner (a subject embeds its owner,
- * so another owner's credential cannot hold it), only among live AWS and
- * Databricks keyless credentials, and only for writers that call this inside
+ * so another owner's credential cannot hold it), only among live credentials of
+ * the keyless-capable providers (`WORKLOAD_IDENTITY_SERVICE_ACCOUNT_PROVIDER_ID_LIST`:
+ * AWS, Databricks, Snowflake, Microsoft, and Google), and only for writers that call this inside
  * their write transaction. The refusal never names the sibling, which the
  * caller may not be able to see.
  */
