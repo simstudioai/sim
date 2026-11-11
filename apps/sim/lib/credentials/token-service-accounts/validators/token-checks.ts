@@ -36,6 +36,7 @@ import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
 import { getNerdGraphEndpoint, newRelicHeaders } from '@/tools/new_relic/utils'
 import { oktaHeaders } from '@/tools/okta/utils'
 import { planeApiUrl, planeHeaders } from '@/tools/plane/utils'
+import { PLANETSCALE_API_ORIGIN, planetScaleHeaders } from '@/tools/planetscale/utils'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import { getThriveBaseUrl, getThriveHeaders, THRIVE_HOSTS } from '@/tools/thrive/utils'
 import { WHATSAPP_GRAPH_VERSION } from '@/tools/whatsapp/utils'
@@ -1127,6 +1128,30 @@ export const validatePlaneServiceAccount = tokenCheckValidator({
       })
     }
     return true
+  },
+})
+
+/**
+ * Listing the organizations a service token can reach is the read PlanetScale's own docs use, sent
+ * with the `<token id>:<token>` Authorization the tools build (`planetScaleHeaders`). A bad ID or
+ * token gets 401; a JSON 403 is the vendor refusing a valid token this read. A pair the tools'
+ * header builder refuses (a colon or whitespace would split it) is refused unsent.
+ */
+export const validatePlanetScaleServiceAccount = tokenCheckValidator({
+  serviceLabel: 'PlanetScale',
+  workspaceId: ({ providerWorkspaceId }) => (providerWorkspaceId ?? '').trim(),
+  forbiddenMeansScoped: true,
+  request: ({ apiToken, providerWorkspaceId = '' }) => {
+    let headers: Record<string, string>
+    try {
+      headers = planetScaleHeaders({ serviceTokenId: providerWorkspaceId, serviceToken: apiToken })
+    } catch {
+      throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+        step: 'verify',
+        reason: 'invalid PlanetScale service token',
+      })
+    }
+    return { url: `${PLANETSCALE_API_ORIGIN}/v1/organizations`, headers }
   },
 })
 

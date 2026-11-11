@@ -128,6 +128,7 @@ import {
   PersonaIcon,
   PipedriveIcon,
   PlaneIcon,
+  PlanetScaleIcon,
   PowerBIIcon,
   ProfoundIcon,
   PulseIcon,
@@ -3471,6 +3472,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'thrive',
+  },
+  planetscale: {
+    name: 'PlanetScale',
+    icon: PlanetScaleIcon,
+    services: {
+      planetscale: {
+        name: 'PlanetScale',
+        description: 'Manage PlanetScale databases, branches, backups, and deploy requests.',
+        providerId: 'planetscale',
+        serviceAccountProviderId: 'planetscale-service-account',
+        icon: PlanetScaleIcon,
+        baseProviderIcon: PlanetScaleIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'planetscale',
   },
   higgsfield: {
     name: 'Higgsfield',

@@ -14,6 +14,7 @@ import {
   planetScaleNumber,
   planetScaleReviewSchema,
 } from '@/tools/planetscale/utils'
+import { PLANETSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 export const planetScaleReviewDeployRequestTool: ToolConfig<
@@ -24,6 +25,7 @@ export const planetScaleReviewDeployRequestTool: ToolConfig<
   name: 'PlanetScale Review Deploy Request',
   description: 'Review a deploy request (Vitess only)',
   version: '1.0.0',
+  oauth: PLANETSCALE_CREDENTIAL_OAUTH,
   params: {
     serviceTokenId: {
       type: 'string',

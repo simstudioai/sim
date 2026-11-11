@@ -28,6 +28,7 @@ import {
   validateNewRelicServiceAccount,
   validateOktaServiceAccount,
   validatePlaneServiceAccount,
+  validatePlanetScaleServiceAccount,
   validateResendServiceAccount,
   validateSupabaseServiceAccount,
   validateThriveServiceAccount,
@@ -336,6 +337,8 @@ describe('saved credentials whose connection names a host, region, or account', 
       { domain: 'evil.example.com', providerWorkspaceId: 't1' },
     ],
     ['Twilio', validateTwilioServiceAccount, { providerWorkspaceId: 'AC123/../Messages' }],
+    ['PlanetScale', validatePlanetScaleServiceAccount, { providerWorkspaceId: 'id:extra' }],
+    ['PlanetScale', validatePlanetScaleServiceAccount, { providerWorkspaceId: 'id with space' }],
   ])(
     '%s refuses a typed value that could steer the request, before sending the key',
     async (_, validate, typed) => {
@@ -447,5 +450,77 @@ describe('saved credentials whose vendor answers a restricted token in its error
 
     if (code) await expect(result).rejects.toMatchObject({ code })
     else await expect(result).resolves.toMatchObject({ principal: null })
+  })
+})
+
+describe('PlanetScale saved service token verification', () => {
+  it('lists organizations with the token ID and token sent as the tools send them', async () => {
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({ type: 'list', data: [] }))
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validatePlanetScaleServiceAccount({ apiToken: 'tok-secret', providerWorkspaceId: ' tok-id ' })
+    ).resolves.toMatchObject({
+      displayName: 'PlanetScale (tok-id)',
+      normalizedWorkspaceId: 'tok-id',
+    })
+    expect(fetch).toHaveBeenCalledWith(
+      'https://api.planetscale.com/v1/organizations',
+      expect.objectContaining({
+        method: 'GET',
+        redirect: 'error',
+        headers: expect.objectContaining({ Authorization: 'tok-id:tok-secret' }),
+      })
+    )
+  })
+
+  it('rejects a token PlanetScale answers with 401', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ code: 'unauthorized', message: 'Unauthorized' }, 401))
+    )
+
+    await expect(
+      validatePlanetScaleServiceAccount({ apiToken: 'bad', providerWorkspaceId: 'tok-id' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it('accepts a valid token that PlanetScale forbids from this read', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ code: 'forbidden', message: 'Forbidden' }, 403))
+    )
+
+    await expect(
+      validatePlanetScaleServiceAccount({ apiToken: 'scoped', providerWorkspaceId: 'tok-id' })
+    ).resolves.toMatchObject({ principal: null })
+  })
+
+  it('does not take a proxy 403 page as proof of the token', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response('<html>Forbidden</html>', {
+          status: 403,
+          headers: { 'Content-Type': 'text/html' },
+        })
+      )
+    )
+
+    await expect(
+      validatePlanetScaleServiceAccount({ apiToken: 'any', providerWorkspaceId: 'tok-id' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it('refuses a token the tools could not send, before any request', async () => {
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validatePlanetScaleServiceAccount({ apiToken: 'tok:extra', providerWorkspaceId: 'tok-id' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    expect(fetch).not.toHaveBeenCalled()
   })
 })

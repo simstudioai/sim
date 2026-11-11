@@ -92,6 +92,7 @@ export const CODA_SERVICE_ACCOUNT_PROVIDER_ID = 'coda-service-account' as const
 export const GAUGE_SERVICE_ACCOUNT_PROVIDER_ID = 'gauge-service-account' as const
 export const HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID = 'higgsfield-service-account' as const
 export const THRIVE_SERVICE_ACCOUNT_PROVIDER_ID = 'thrive-service-account' as const
+export const PLANETSCALE_SERVICE_ACCOUNT_PROVIDER_ID = 'planetscale-service-account' as const
 export const SUPABASE_SERVICE_ACCOUNT_PROVIDER_ID = 'supabase-service-account' as const
 export const INFISICAL_SERVICE_ACCOUNT_PROVIDER_ID = 'infisical-service-account' as const
 export const OKTA_SERVICE_ACCOUNT_PROVIDER_ID = 'okta-service-account' as const
@@ -221,6 +222,7 @@ export type TokenServiceAccountProviderId =
   | typeof GAUGE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof THRIVE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof PLANETSCALE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SUPABASE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof INFISICAL_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof OKTA_SERVICE_ACCOUNT_PROVIDER_ID
@@ -2339,6 +2341,31 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       'Use the API key and tenant ID from your Thrive admin settings. Region host is public.api.learn.link, or public.api.mea.learn.tech for the Middle East and Africa (staging hosts also work).',
     invalidCredentialsHelp:
       'Thrive rejected this API key. Check that the tenant ID matches the key and that the region host is the one your tenant uses.',
+  },
+  [PLANETSCALE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: PLANETSCALE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'PlanetScale',
+    tokenNoun: 'service token',
+    connectNoun: 'service token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Service token',
+        placeholder: 'Paste your PlanetScale service token',
+        secret: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Service token ID',
+        placeholder: 'Paste the service token ID',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/planetscale',
+    helpText:
+      "Create a service token on your PlanetScale organization's Service tokens page, copy its ID and token, and grant it access to the organization and databases your workflows use.",
+    invalidCredentialsHelp:
+      'PlanetScale rejected this service token. Check that the token ID and token belong together and that the token has not been deleted or expired.',
   },
 }
 

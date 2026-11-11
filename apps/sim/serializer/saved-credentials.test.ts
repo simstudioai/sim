@@ -78,6 +78,7 @@ import { OtterBlock, OtterV2Block } from '@/blocks/blocks/otter'
 import { PagerDutyBlock, PagerDutyV2Block } from '@/blocks/blocks/pagerduty'
 import { PersonaBlock, PersonaV2Block } from '@/blocks/blocks/persona'
 import { PlaneBlock, PlaneV2Block } from '@/blocks/blocks/plane'
+import { PlanetScaleBlock, PlanetScaleV2Block } from '@/blocks/blocks/planetscale'
 import { ProfoundBlock, ProfoundV2Block } from '@/blocks/blocks/profound'
 import { PulseV2Block, PulseV3Block } from '@/blocks/blocks/pulse'
 import { QuartrBlock, QuartrV2Block } from '@/blocks/blocks/quartr'
@@ -360,6 +361,11 @@ const VERSIONS: Array<{
     successor: ThriveV2Block,
     secretIds: ['tenantId', 'apiKey', 'host'],
     optionalIds: ['host'],
+  },
+  {
+    legacy: PlanetScaleBlock,
+    successor: PlanetScaleV2Block,
+    secretIds: ['serviceTokenId', 'serviceToken'],
   },
 ]
 

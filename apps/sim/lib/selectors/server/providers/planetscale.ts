@@ -1,19 +1,57 @@
-import type { ServerSelectorAttachmentMap } from '@/lib/selectors/server/types'
+import type { ServerSelectorKey } from '@/lib/selectors/manifest'
+import { SelectorConnectionUnavailableError } from '@/lib/selectors/server/errors'
+import { resolveSelectorCredentialBundle } from '@/lib/selectors/server/providers/credential-bundle'
+import type {
+  ExecuteServerSelectorArgs,
+  ServerSelectorAttachment,
+  ServerSelectorAttachmentMap,
+} from '@/lib/selectors/server/types'
 import { listPlanetScaleOptions, type PlanetScaleListingKind } from '@/tools/planetscale/listing'
+import type { PlanetScaleCredentials } from '@/tools/planetscale/types'
 
-function attachment(kind: PlanetScaleListingKind) {
+type PlanetScaleSelectorKey = Extract<ServerSelectorKey, `planetscale.${string}`>
+
+const savedCredential = {
+  kind: 'stored',
+  field: 'oauthCredential',
+  serviceIds: ['planetscale'],
+} as const
+
+/** The service token pair typed into the legacy block; the listing refuses a missing half. */
+function typedCredentials(args: ExecuteServerSelectorArgs): PlanetScaleCredentials {
   return {
+    serviceTokenId: args.context.serviceTokenId ?? '',
+    serviceToken: args.context.serviceToken ?? '',
+  }
+}
+
+/** The service token pair of an authorized saved credential: its ID and its token. */
+async function savedCredentials(args: ExecuteServerSelectorArgs): Promise<PlanetScaleCredentials> {
+  const { accessToken, providerWorkspaceId } = await resolveSelectorCredentialBundle({
+    credential: args.credential,
+    protectedValues: args.protectedValues,
+  })
+  if (!providerWorkspaceId) throw new SelectorConnectionUnavailableError()
+  return { serviceTokenId: providerWorkspaceId, serviceToken: accessToken }
+}
+
+function attachment(
+  kind: PlanetScaleListingKind,
+  credentials: (
+    args: ExecuteServerSelectorArgs
+  ) => PlanetScaleCredentials | Promise<PlanetScaleCredentials>,
+  credential?: typeof savedCredential
+): ServerSelectorAttachment {
+  return {
+    ...(credential ? { credential } : {}),
     integrationBlockTypes: ['planetscale'],
-    destination: 'fixed' as const,
-    execute: (
-      args: Parameters<ServerSelectorAttachmentMap['planetscale.databases']['execute']>[0]
-    ) =>
+    destination: 'fixed',
+    execute: async (args) =>
       listPlanetScaleOptions({
         kind,
         scope: {
-          serviceTokenId: args.context.serviceTokenId!,
-          serviceToken: args.context.serviceToken!,
-          organization: args.context.organization!,
+          ...(await credentials(args)),
+          organization: args.context.organization ?? '',
           database: args.context.database,
           branch: args.context.branch,
         },
@@ -24,13 +62,16 @@ function attachment(kind: PlanetScaleListingKind) {
 }
 
 export const planetScaleSelectorAttachments = {
-  'planetscale.databases': attachment('databases'),
-  'planetscale.branches': attachment('branches'),
-  'planetscale.backups': attachment('backups'),
-  'planetscale.deployRequests': attachment('deployRequests'),
-} satisfies ServerSelectorAttachmentMap<
-  | 'planetscale.databases'
-  | 'planetscale.branches'
-  | 'planetscale.backups'
-  | 'planetscale.deployRequests'
->
+  'planetscale.databases': attachment('databases', typedCredentials),
+  'planetscale.branches': attachment('branches', typedCredentials),
+  'planetscale.backups': attachment('backups', typedCredentials),
+  'planetscale.deployRequests': attachment('deployRequests', typedCredentials),
+  'planetscale.savedDatabases': attachment('databases', savedCredentials, savedCredential),
+  'planetscale.savedBranches': attachment('branches', savedCredentials, savedCredential),
+  'planetscale.savedBackups': attachment('backups', savedCredentials, savedCredential),
+  'planetscale.savedDeployRequests': attachment(
+    'deployRequests',
+    savedCredentials,
+    savedCredential
+  ),
+} satisfies ServerSelectorAttachmentMap<PlanetScaleSelectorKey>

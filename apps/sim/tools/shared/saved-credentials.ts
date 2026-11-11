@@ -247,6 +247,10 @@ export const PLANE_CREDENTIAL_OAUTH = tokenCredentialOAuth('plane', {
   apiKey: 'accessToken',
   baseUrl: 'domain',
 })
+export const PLANETSCALE_CREDENTIAL_OAUTH = tokenCredentialOAuth('planetscale', {
+  serviceTokenId: 'providerWorkspaceId',
+  serviceToken: 'accessToken',
+})
 export const PROFOUND_CREDENTIAL_OAUTH = tokenCredentialOAuth('profound', { apiKey: 'accessToken' })
 export const PULSE_CREDENTIAL_OAUTH = tokenCredentialOAuth('pulse', { apiKey: 'accessToken' })
 export const QUARTR_CREDENTIAL_OAUTH = tokenCredentialOAuth('quartr', { apiKey: 'accessToken' })
@@ -391,6 +395,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   pagerduty: PAGERDUTY_CREDENTIAL_OAUTH,
   persona: PERSONA_CREDENTIAL_OAUTH,
   plane: PLANE_CREDENTIAL_OAUTH,
+  planetscale: PLANETSCALE_CREDENTIAL_OAUTH,
   profound: PROFOUND_CREDENTIAL_OAUTH,
   pulse: PULSE_CREDENTIAL_OAUTH,
   quartr: QUARTR_CREDENTIAL_OAUTH,
