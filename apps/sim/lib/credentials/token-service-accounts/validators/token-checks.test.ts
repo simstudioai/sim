@@ -190,6 +190,12 @@ describe('AgentMail saved API key verification', () => {
     ['the gateway refuses with a bare Forbidden', { message: 'Forbidden' }, 403],
     ['the key is unknown', { code: 'unknown_api_key', message: 'Unauthorized' }, 401],
     ['the key has expired', { code: 'api_key_expired', message: 'Unauthorized' }, 401],
+    ['the account is suspended', { code: 'account_suspended', message: 'Forbidden' }, 403],
+    [
+      'an API gateway denies the request',
+      { Message: 'User is not authorized to access this resource with an explicit deny' },
+      403,
+    ],
   ])('rejects the key when %s', async (_case, body, status) => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(body, status)))
 
@@ -214,16 +220,38 @@ describe('New Relic saved User key verification', () => {
   it('reports a NerdGraph error answer without a user as an outage, not a bad key', async () => {
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(
-          jsonResponse({ data: { actor: null }, errors: [{ message: 'Internal Server Error' }] })
-        )
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          data: { actor: null },
+          errors: [
+            {
+              message: 'Internal Server Error',
+              extensions: { errorClass: 'INTERNAL_SERVER_ERROR' },
+            },
+          ],
+        })
+      )
     )
 
     await expect(
       validateNewRelicServiceAccount({ apiToken: 'NRAK-valid', domain: 'us' })
     ).rejects.toMatchObject({ code: 'provider_unavailable' })
+  })
+
+  it('rejects a key NerdGraph names as bad in its errors array', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          data: { actor: null },
+          errors: [{ message: 'Invalid API key', extensions: { error_code: 'BAD_API_KEY' } }],
+        })
+      )
+    )
+
+    await expect(
+      validateNewRelicServiceAccount({ apiToken: 'NRAK-bad', domain: 'us' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
   })
 
   it('still rejects a NerdGraph answer that resolves no user and reports no error', async () => {

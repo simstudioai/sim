@@ -60,30 +60,24 @@ export const validateAffinityServiceAccount = tokenCheckValidator({
   }),
 })
 
-/** AgentMail error codes that name the key itself as unusable. */
-const AGENTMAIL_REJECTED_KEY_CODES: ReadonlySet<string> = new Set([
-  'missing_authorization',
-  'invalid_token_type',
-  'unknown_api_key',
-  'api_key_expired',
-  'unauthorized',
+/**
+ * The AgentMail 403 codes its docs give for a valid key whose permissions or scope do not
+ * cover the request: https://docs.agentmail.to/knowledge-base/api-403-error
+ */
+const AGENTMAIL_SCOPED_KEY_CODES: ReadonlySet<unknown> = new Set([
+  'missing_permission',
+  'forbidden',
 ])
 
 /**
- * Listing one AgentMail inbox answers 200 for a valid key. An unknown or
- * expired key gets a coded 401 or the gateway's bare `{"message":"Forbidden"}`
- * 403; a valid key that lacks the inbox-read permission or is scoped to a pod
- * or inbox gets a 403 coded `missing_permission` or `forbidden`, and can still
- * run the tools its scope covers.
+ * Listing one AgentMail inbox answers 200 for a valid key. A valid key that lacks the
+ * inbox-read permission or is scoped to a pod or inbox gets a 403 coded `missing_permission`
+ * or `forbidden`, and can still run the tools its scope covers. Every other refusal, from
+ * the gateway's bare `{"message":"Forbidden"}` to a suspended account, rejects the key.
  */
 export const validateAgentMailServiceAccount = tokenCheckValidator({
   serviceLabel: 'AgentMail',
-  forbiddenMeansScoped: true,
-  rejectsKey: (errorBody) => {
-    const { code, message } = toRecord(errorBody)
-    if (code === undefined) return message === 'Forbidden'
-    return AGENTMAIL_REJECTED_KEY_CODES.has(String(code))
-  },
+  provesKey: (errorBody) => AGENTMAIL_SCOPED_KEY_CODES.has(toRecord(errorBody).code),
   request: ({ apiToken }) => ({
     url: 'https://api.agentmail.to/v0/inboxes?limit=1',
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
@@ -1031,12 +1025,22 @@ export const validateMem0ServiceAccount = tokenCheckValidator({
 })
 
 /**
+ * The NerdGraph error classes New Relic's own Go client retries: NerdGraph failing to
+ * answer, not a verdict on the key.
+ * https://github.com/newrelic/newrelic-client-go/blob/main/internal/http/graphql.go
+ */
+const NERDGRAPH_RETRYABLE_ERROR_CLASSES: ReadonlySet<unknown> = new Set([
+  'TIMEOUT',
+  'INTERNAL_SERVER_ERROR',
+  'SERVER_ERROR',
+])
+
+/**
  * A New Relic User API key is bound to its data center, so it is checked against the
  * NerdGraph host of the region typed with it (`us` or `eu`, stored lower-cased because
  * the tools send anything but `eu` to the US host). An unknown key, or one from the other
- * region, gets 401, so only a resolved user proves the key. A 200 whose `errors` array
- * left the user unresolved is NerdGraph failing to answer this fixed query, not a verdict
- * on the key.
+ * region, gets 401, or a 200 whose `errors` carry `BAD_API_KEY`, so only a resolved user
+ * proves the key. Only an error in a server class means NerdGraph failed to answer.
  */
 export const validateNewRelicServiceAccount = tokenCheckValidator({
   serviceLabel: 'New Relic',
@@ -1050,7 +1054,10 @@ export const validateNewRelicServiceAccount = tokenCheckValidator({
   acceptsBody: (body) => {
     const { data, errors } = toRecord(body)
     if (toRecord(toRecord(data).actor).user != null) return true
-    if (toArray(errors).length > 0) {
+    const failedToAnswer = toArray(errors).some((error) =>
+      NERDGRAPH_RETRYABLE_ERROR_CLASSES.has(toRecord(toRecord(error).extensions).errorClass)
+    )
+    if (failedToAnswer) {
       throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
         step: 'verify',
         reason: 'NerdGraph answered with errors and no user',
