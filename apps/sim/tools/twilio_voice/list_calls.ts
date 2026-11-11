@@ -1,9 +1,42 @@
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { TWILIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TwilioListCallsOutput, TwilioListCallsParams } from '@/tools/twilio_voice/types'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponseContext } from '@/tools/types'
 
 const logger = createLogger('TwilioVoiceListCallsTool')
+
+const TWILIO_API_ORIGIN = 'https://api.twilio.com'
+const RECORDINGS_FETCH_CONCURRENCY = 10
+
+interface TwilioCallRecord {
+  sid: string
+  from: string
+  to: string
+  status: string
+  direction: string
+  duration: string | null
+  price: string | null
+  price_unit: string
+  start_time: string
+  end_time: string | null
+  date_created: string
+  subresource_uris?: { recordings?: string }
+}
+
+/**
+ * Resolves a Twilio-returned path on the Twilio API origin. The saved Basic auth
+ * rides along, so any other origin is skipped.
+ */
+function twilioApiUrl(path: string | undefined): string | null {
+  if (!path) return null
+  try {
+    const url = new URL(path, TWILIO_API_ORIGIN)
+    return url.origin === TWILIO_API_ORIGIN ? url.href : null
+  } catch {
+    return null
+  }
+}
 
 export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOutput> = {
   id: 'twilio_voice_list_calls',
@@ -100,7 +133,7 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
     },
   },
 
-  transformResponse: async (response, params) => {
+  transformResponse: async (response, params, context?: ToolResponseContext) => {
     const data = await response.json()
 
     logger.info('Twilio List Calls Response:', { total: data.calls?.length || 0 })
@@ -119,23 +152,29 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
 
     const authToken = Buffer.from(`${params?.accountSid}:${params?.authToken}`).toString('base64')
 
-    const calls = await Promise.all(
-      (data.calls || []).map(async (call: any) => {
+    const calls = await mapWithConcurrency(
+      (data.calls || []) as TwilioCallRecord[],
+      RECORDINGS_FETCH_CONCURRENCY,
+      async (call) => {
+        context?.signal?.throwIfAborted()
         let recordingSids: string[] = []
-        if (call.subresource_uris?.recordings) {
+        const recordingsUrl = twilioApiUrl(call.subresource_uris?.recordings)
+        if (recordingsUrl) {
           try {
-            const recordingsUrl = `https://api.twilio.com${call.subresource_uris.recordings}`
             const recordingsResponse = await fetch(recordingsUrl, {
               method: 'GET',
               headers: { Authorization: `Basic ${authToken}` },
+              signal: context?.signal,
             })
 
             if (recordingsResponse.ok) {
-              const recordingsData = await recordingsResponse.json()
-              recordingSids = (recordingsData.recordings || []).map((rec: any) => rec.sid)
+              const recordingsData: { recordings?: Array<{ sid: string }> } =
+                await recordingsResponse.json()
+              recordingSids = (recordingsData.recordings || []).map((rec) => rec.sid)
             }
           } catch (error) {
-            logger.warn(`Failed to fetch recordings for call ${call.sid}:`, error)
+            context?.signal?.throwIfAborted()
+            logger.warn('Failed to fetch recordings for call', { callSid: call.sid, error })
           }
         }
 
@@ -153,7 +192,7 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
           dateCreated: call.date_created,
           recordingSids,
         }
-      })
+      }
     )
 
     logger.info('Transformed calls with recordings:', {

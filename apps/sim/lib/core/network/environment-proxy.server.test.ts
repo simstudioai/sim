@@ -17,21 +17,22 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 vi.mock('@sim/security/dns', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@sim/security/dns')>()
-  const records: Record<string, string> = {
-    'origin.invalid': '1.1.1.1',
-    'internal.invalid': '10.0.0.5',
+  const records: Record<string, [string, ...string[]]> = {
+    'origin.invalid': ['1.1.1.1', '93.184.216.34'],
+    'internal.invalid': ['10.0.0.5'],
+    'split.invalid': ['93.184.216.34', '169.254.169.254'],
   }
   return {
     ...actual,
     resolveHostAddresses: async (host: string) => {
-      const address = records[host]
-      if (!address) throw new Error(`No addresses for ${host}`)
-      return { addresses: [address], preferred: address }
+      const addresses = records[host]
+      if (!addresses) throw new Error(`No addresses for ${host}`)
+      return { addresses, preferred: addresses[0] }
     },
   }
 })
 
-import { resolveEnvironmentProxy } from '@/lib/core/network/environment-proxy.server'
+import { resolveEnvironmentProxy } from '@sim/security/environment-proxy'
 import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 import {
   createPinnedFetchWithDispatcher,
@@ -250,6 +251,23 @@ describe('guarded requests under HTTPS_PROXY', () => {
     expect(tunnels).toEqual([])
   })
 
+  it('refuses a name with any blocked record, since the proxy may dial any of them', async () => {
+    const guarded = createSsrfGuardedFetchWithDispatcher(options)
+    try {
+      await expect(guarded.fetch('https://split.invalid/')).rejects.toThrow(/metadata/i)
+      await expect(secureFetchWithValidation('https://split.invalid/', options)).rejects.toThrow(
+        /metadata/i
+      )
+    } finally {
+      await guarded.dispatcher.destroy()
+    }
+    expect(tunnels).toEqual([])
+
+    const response = await secureFetchWithValidation('https://origin.invalid/', options)
+    expect(await response.text()).toBe('tls reached')
+    expect(tunnels.map((tunnel) => tunnel.authority)).toEqual(['origin.invalid:443'])
+  })
+
   it('judges each redirect hop again before proxying it', async () => {
     const pinned = createPinnedFetchWithDispatcher('1.1.1.1', options)
     try {
@@ -322,6 +340,66 @@ describe('proxy selection from the environment', () => {
       env: { HTTPS_PROXY: 'http://p:3128', NO_PROXY: 'api.example.com:8443' },
       target: 'https://api.example.com/',
       proxy: 'http://p:3128/',
+    },
+    {
+      case: 'a bare NO_PROXY domain also excludes its subdomains',
+      env: { HTTPS_PROXY: 'http://p:3128', NO_PROXY: 'example.com' },
+      target: 'https://api.example.com/',
+      proxy: null,
+    },
+    {
+      case: 'a leading-dot NO_PROXY domain also excludes the apex',
+      env: { HTTPS_PROXY: 'http://p:3128', NO_PROXY: '.example.com' },
+      target: 'https://example.com/',
+      proxy: null,
+    },
+    {
+      case: 'a NO_PROXY domain does not match a longer name that merely ends with it',
+      env: { HTTPS_PROXY: 'http://p:3128', NO_PROXY: 'example.com' },
+      target: 'https://notexample.com/',
+      proxy: 'http://p:3128/',
+    },
+    {
+      case: 'a bare IPv6 NO_PROXY entry excludes that address',
+      env: { HTTP_PROXY: 'http://p:3128', NO_PROXY: 'localhost,::1' },
+      target: 'http://[::1]:3000/',
+      proxy: null,
+    },
+    {
+      case: 'an IPv6 NO_PROXY entry matches any spelling of the address',
+      env: { HTTP_PROXY: 'http://p:3128', NO_PROXY: '0:0:0:0:0:0:0:1' },
+      target: 'http://[::1]/',
+      proxy: null,
+    },
+    {
+      case: 'a bracketed IPv6 NO_PROXY entry with a port only excludes that port',
+      env: { HTTP_PROXY: 'http://p:3128', NO_PROXY: '[::1]:3000' },
+      target: 'http://[::1]:4000/',
+      proxy: 'http://p:3128/',
+    },
+    {
+      case: 'an IPv4 CIDR NO_PROXY entry excludes addresses inside the range',
+      env: { HTTPS_PROXY: 'http://p:3128', NO_PROXY: '10.0.0.0/8' },
+      target: 'https://10.20.30.40/',
+      proxy: null,
+    },
+    {
+      case: 'an IPv4 CIDR NO_PROXY entry leaves addresses outside the range proxied',
+      env: { HTTPS_PROXY: 'http://p:3128', NO_PROXY: '10.0.0.0/8' },
+      target: 'https://11.0.0.1/',
+      proxy: 'http://p:3128/',
+    },
+    {
+      case: 'an IPv6 CIDR NO_PROXY entry excludes addresses inside the range',
+      env: { HTTP_PROXY: 'http://p:3128', NO_PROXY: 'fd00::/8' },
+      target: 'http://[fd12::1]/',
+      proxy: null,
+    },
+    {
+      case: 'an empty lowercase no_proxy does not hide the uppercase one',
+      env: { HTTPS_PROXY: 'http://p:3128', no_proxy: '', NO_PROXY: 'example.com' },
+      target: 'https://example.com/',
+      proxy: null,
     },
     {
       case: 'NO_PROXY=* excludes every destination',

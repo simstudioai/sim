@@ -102,6 +102,11 @@ export interface ServiceAccountSecretResult {
   principal: ServiceAccountPrincipal | null
   /** Slack custom bot: the derived bot user id (for reaction self-drop). */
   botUserId?: string
+  /**
+   * Keyless AWS or Databricks: a subject this save binds that the credential did
+   * not already hold, which must not belong to another credential of the owner.
+   */
+  newWorkloadIdentitySubject?: string
 }
 
 /** Thrown when a service-account secret is missing or fails provider verification. */
@@ -270,6 +275,7 @@ async function buildAwsServiceAccountSecret(
     displayName: result.callerArn,
     auditMetadata: serviceAccountPrincipalMetadata(principal),
     principal,
+    newWorkloadIdentitySubject: result.newSubject,
   }
 }
 
@@ -297,6 +303,7 @@ async function buildDatabricksServiceAccountSecret(
     displayName: result.identity,
     auditMetadata: serviceAccountPrincipalMetadata(principal),
     principal,
+    newWorkloadIdentitySubject: result.newSubject,
   }
 }
 

@@ -7,7 +7,7 @@ import {
   type OAuthTokenResponse,
 } from '@/lib/api/contracts/oauth-connections'
 import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
-import type { AuthResult } from '@/lib/auth/hybrid'
+import { type AuthResult, AuthType } from '@/lib/auth/hybrid'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { InvalidManagedOAuthDelegationError } from '@/lib/credentials/application/managed-oauth-delegation'
 import { resolveManagedOAuthCredentialToken } from '@/lib/credentials/application/resolve-managed-oauth-token'
@@ -355,6 +355,15 @@ export async function resolveCredentialToken(
     if (resolved?.credentialType === 'service_account' && resolved.credentialId) {
       if (!authz.ok) {
         return { ok: false, status: 403, error: authz.error || 'Unauthorized' }
+      }
+      // A saved secret never leaves the server; only in-process execution may resolve it.
+      if (auth.authType === AuthType.SESSION) {
+        return {
+          ok: false,
+          status: 403,
+          code: 'SERVICE_ACCOUNT_SESSION_FORBIDDEN',
+          error: 'Saved credentials are resolved only during server-side execution',
+        }
       }
 
       // A saved secret is released only to a tool of its own provider, never on a bare ID.

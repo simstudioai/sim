@@ -4,6 +4,7 @@ import { generateId } from '@sim/utils/id'
 import { calculateJwkThumbprint, type JWK, SignJWT } from 'jose'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { assertWorkloadIdentitySubjectOwner } from '@/lib/credentials/workload-identity/subject'
 
 /**
  * Sim's workload-identity issuer: a minimal OpenID Connect token issuer that
@@ -194,6 +195,7 @@ export interface MintWorkloadIdentityTokenInput {
 export async function mintWorkloadIdentityToken(
   input: MintWorkloadIdentityTokenInput
 ): Promise<string> {
+  assertWorkloadIdentitySubjectOwner(input.subject, input.owner)
   const ttl = input.ttlSeconds ?? WORKLOAD_IDENTITY_TOKEN_TTL_SECONDS
   if (!Number.isInteger(ttl) || ttl <= 0 || ttl > MAX_WORKLOAD_IDENTITY_TOKEN_TTL_SECONDS) {
     throw new Error('Workload identity token lifetime must be between 1 second and an hour')

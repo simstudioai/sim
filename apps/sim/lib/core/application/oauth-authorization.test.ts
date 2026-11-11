@@ -2,6 +2,7 @@ import type { OAuthAccessTokenPrincipal, PersonalApiKeyPrincipal } from '@sim/au
 import { describe, expect, it, vi } from 'vitest'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application/authorized-workspace-use-case'
 import {
+  credentialApiScopes,
   InsufficientScopeError,
   OAuthAccessTokenExpiredError,
   ReadOnlyApiKeyError,
@@ -102,6 +103,30 @@ describe('semantic OAuth policy', () => {
     expect(() =>
       requireOAuthOperationScope({ ...readKey, access: 'write' }, unscopedOperation)
     ).not.toThrow()
+  })
+
+  it.each([
+    { case: 'a write token', credential: { ...principal, scopes: ['api:write'] } },
+    { case: 'a read token', credential: principal },
+    { case: 'a search-only token', credential: { ...principal, scopes: ['search:read'] } },
+    {
+      case: 'a read-only key',
+      credential: { kind: 'personal_api_key', userId: 'user-1', keyId: 'k-1', access: 'read' },
+    },
+    {
+      case: 'a full-access key',
+      credential: { kind: 'personal_api_key', userId: 'user-1', keyId: 'k-1', access: 'write' },
+    },
+  ] as const)('reports exactly the scopes $case can reach', ({ credential }) => {
+    const reachable = (['api:read', 'api:write', 'search:read'] as const).filter((oauthScope) => {
+      try {
+        requireOAuthOperationScope(credential, { ...writeOperation, oauthScope })
+        return true
+      } catch {
+        return false
+      }
+    })
+    expect(credentialApiScopes(credential)).toEqual(reachable)
   })
 
   it('rejects expiry before considering scope', () => {

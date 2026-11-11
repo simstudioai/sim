@@ -445,7 +445,7 @@ describe('readPausedRunPoints', () => {
     }
   })
 
-  it('returns the selected point display once, not again in every listed point', async () => {
+  it('returns the selected point display and input fields once, not again in every listed point', async () => {
     const registry = registryWithResolvedSecret()
     const executionId = await publishPausedRun([
       humanBranchPoint(0, registry),
@@ -461,9 +461,11 @@ describe('readPausedRunPoints', () => {
     expect(detail?.pausePoint.display).toEqual({
       responseStructure: [{ name: 'summary', type: 'string', value: 'Token is {{API_KEY}}' }],
     })
+    expect(detail?.pausePoint.inputFields).toHaveLength(1)
     expect(detail?.execution.pausePoints).toHaveLength(2)
     for (const point of detail?.execution.pausePoints ?? []) {
       expect(point).not.toHaveProperty('display')
+      expect(point).not.toHaveProperty('inputFields')
     }
   })
 

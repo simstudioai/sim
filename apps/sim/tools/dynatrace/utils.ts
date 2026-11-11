@@ -35,7 +35,7 @@ function normalizeEnvironmentUrl(environmentUrl: string): string {
   return environmentUrl
     .trim()
     .replace(/\/+$/, '')
-    .replace(/\/api\/v[12]$/, '')
+    .replace(/\/api\/v[12]$/i, '')
 }
 
 function buildUrl(

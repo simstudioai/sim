@@ -29,6 +29,10 @@ import {
 } from '@/lib/credentials/service-account-secret'
 import { isTokenServiceAccountProviderId } from '@/lib/credentials/token-service-accounts/descriptors'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
+import {
+  assertWorkloadIdentitySubjectUnclaimed,
+  WorkloadIdentitySubjectError,
+} from '@/lib/credentials/workload-identity/subject'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -269,6 +273,7 @@ export async function createCredentialRecord(
       : null
     let resolvedEnvOwnerUserId: string | null = null
     let resolvedEncryptedServiceAccountKey: string | null = null
+    let resolvedWorkloadIdentitySubject: string | undefined
     const extraAuditMetadata: Record<string, unknown> = {}
 
     if (type === 'oauth') {
@@ -335,6 +340,7 @@ export async function createCredentialRecord(
         resolvedEnvOwnerUserId = null
         if (!resolvedDisplayName) resolvedDisplayName = secret.displayName
         resolvedEncryptedServiceAccountKey = secret.encryptedServiceAccountKey
+        resolvedWorkloadIdentitySubject = secret.newWorkloadIdentitySubject
         Object.assign(extraAuditMetadata, secret.auditMetadata)
       } catch (error) {
         if (error instanceof ServiceAccountSecretError) {
@@ -515,6 +521,19 @@ export async function createCredentialRecord(
           providerId: resolvedProviderId,
         })
         if (innerExisting) throw new DuplicateCredentialError()
+      }
+
+      if (resolvedWorkloadIdentitySubject) {
+        try {
+          await assertWorkloadIdentitySubjectUnclaimed(tx, {
+            subject: resolvedWorkloadIdentitySubject,
+            scope,
+          })
+        } catch (error) {
+          if (error instanceof WorkloadIdentitySubjectError)
+            return failure(error.message, 'conflict')
+          throw error
+        }
       }
 
       await tx.insert(credential).values({

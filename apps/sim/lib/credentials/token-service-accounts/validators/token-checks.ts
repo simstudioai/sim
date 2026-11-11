@@ -420,7 +420,7 @@ export const validateDubServiceAccount = tokenCheckValidator({
  */
 export const validateDynatraceServiceAccount = tokenCheckValidator({
   serviceLabel: 'Dynatrace',
-  domain: ({ domain }) => normalizeHttpBaseUrl(domain).replace(/\/api\/v[12]$/, ''),
+  domain: ({ domain }) => normalizeHttpBaseUrl(domain).replace(/\/api\/v[12]$/i, ''),
   egress: 'configuredEndpoint',
   request: ({ apiToken, domain = '' }) => ({
     url: buildDynatraceUrl(domain, '/apiTokens/lookup'),

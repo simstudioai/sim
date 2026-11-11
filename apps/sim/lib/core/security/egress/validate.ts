@@ -49,6 +49,8 @@ export interface EgressValidationOptions {
   logDetails?: boolean
   /** Cancels DNS validation before a guarded connection can begin. */
   signal?: AbortSignal
+  /** Refuse when any record is refused; for transports that cannot pin (a forward proxy re-resolves). */
+  requireEveryAddress?: boolean
 }
 
 type EgressDenial = Extract<EgressDecision, { allowed: false }>
@@ -133,7 +135,7 @@ export async function validateEgressUrl(
   // Refused records are filtered rather than failing the whole host: pinning to a
   // surviving permitted address is just as safe as refusing outright, and a
   // split-horizon resolver that answers with a private record alongside the
-  // public one would otherwise be unusable.
+  // public one would otherwise be unusable. A caller that cannot pin opts out.
   let refusal: EgressDenial | undefined
   const usable = addresses.filter((address) => {
     const decision = evaluateAddress(parsed, address, policy)
@@ -141,6 +143,8 @@ export async function validateEgressUrl(
     refusal ??= decision
     return false
   })
+
+  if (refusal && options.requireEveryAddress) return fail(refusal, paramName, profile, options)
 
   if (usable.length === 0) {
     return fail(

@@ -102,7 +102,7 @@ describe('Sim MCP tools', () => {
         v2Enabled: true,
         keyType: 'personal',
         expiresAt: null,
-        scopes: ['api:read', 'api:write'],
+        scopes: ['api:read', 'api:write', 'search:read'],
       },
     })
     expect(v2RouteMocks.authenticate).toHaveBeenCalledTimes(2)

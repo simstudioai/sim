@@ -85,7 +85,8 @@ function requireValidRow(row: ApiKeyRow | undefined): ApiKeyRow {
   if (!row) throw new V2ApiKeyUnauthenticatedError()
   if (row.type === 'personal' && row.workspaceId === null) {
     if (row.userBanned === null) {
-      throw new Error(`Personal API key ${row.id} is missing its credential owner`)
+      logger.error('Personal API key is missing its credential owner', { keyId: row.id })
+      throw new V2ApiKeyUnauthenticatedError()
     }
     if (row.userBanned) throw new V2ApiKeyUnauthenticatedError()
     /**

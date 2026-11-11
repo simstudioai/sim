@@ -78,12 +78,9 @@ export function isSavedCredentialPicker(
  */
 export function credentialSuppliedParamsFor(
   oauth: Pick<OAuthConfig, 'credentialSuppliedParams'> | undefined,
-  subBlocks: readonly Pick<SubBlockConfig, 'canonicalParamId' | 'type'>[]
+  subBlocks: readonly Pick<SubBlockConfig, 'type' | 'credentialKind' | 'canonicalParamId'>[]
 ): ReadonlySet<string> {
-  const hasPicker = subBlocks.some(
-    (subBlock) => subBlock.type === 'oauth-input' && subBlock.canonicalParamId === 'oauthCredential'
-  )
-  return new Set(hasPicker ? oauth?.credentialSuppliedParams : [])
+  return new Set(subBlocks.some(isSavedCredentialPicker) ? oauth?.credentialSuppliedParams : [])
 }
 
 /**

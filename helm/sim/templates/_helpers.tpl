@@ -540,7 +540,7 @@ securityContext:
 Container-level security context with Pod Security Standards "restricted" defaults.
 User-supplied `.securityContext` values override defaults (user wins).
 `readOnlyRootFilesystem` is intentionally NOT defaulted — set it per-workload in values
-when the container can tolerate a read-only root (Next.js writes to `.next/cache`,
+when the container can tolerate a read-only root (Next.js writes to `.next/cache` and `.next/server/route-cache`,
 Postgres writes to `/var/lib/postgresql/data`, so they're left writable by default).
 Usage: {{ include "sim.containerSecurityContext" .Values.app | nindent 10 }}
 */}}

@@ -256,6 +256,11 @@ export interface ProjectedWorkflowExecutionStatus {
    * resume attempt continued. Further reads of the run's state (its pause points) use this id.
    */
   stateExecutionId: string
+  /**
+   * The state execution's raw `pause_points`, already loaded while the run is paused, so
+   * {@link readPausedRunPoints} need not read them again; null when the run is not paused.
+   */
+  pausePoints: unknown
 }
 
 /**
@@ -286,6 +291,7 @@ export async function getProjectedWorkflowExecutionStatus(
     status: projectExecutionStatus(resolved.status, projection),
     projection,
     stateExecutionId: resolved.stateExecutionId,
+    pausePoints: resolved.pausePoints,
   }
 }
 
@@ -346,6 +352,8 @@ async function readRunDeploymentVersion(
 interface ResolvedExecutionStatus {
   status: WorkflowExecutionStatusResponse
   stateExecutionId: string
+  /** The state execution's raw `pause_points`, loaded while it is paused; null otherwise. */
+  pausePoints: unknown
 }
 
 async function readWorkflowExecutionStatus(
@@ -433,6 +441,7 @@ async function readWorkflowExecutionStatus(
       return {
         status: projectQueueJob(job, { executionId, includeOutput, workflowId }, deploymentVersion),
         stateExecutionId: executionId,
+        pausePoints: null,
       }
     }
   }
@@ -455,7 +464,7 @@ async function readWorkflowExecutionStatus(
       finalOutput: null,
       blockOutputs: null,
     }
-    return { status, stateExecutionId: executionId }
+    return { status, stateExecutionId: executionId, pausePoints: null }
   }
 
   if (!logRow) {
@@ -468,6 +477,7 @@ async function readWorkflowExecutionStatus(
       ? {
           status: projectSettledResumeAttempt(executionId, resumeAttempt, run.status),
           stateExecutionId: run.stateExecutionId,
+          pausePoints: run.pausePoints,
         }
       : null
   }
@@ -539,6 +549,7 @@ async function readWorkflowExecutionStatus(
     return {
       status: { ...resource, error: null, finalOutput: null, blockOutputs: null },
       stateExecutionId: executionId,
+      pausePoints: paused ? pausedRow?.pausePoints : null,
     }
   }
 
@@ -571,6 +582,7 @@ async function readWorkflowExecutionStatus(
   return {
     status: { ...resource, error, finalOutput, blockOutputs },
     stateExecutionId: executionId,
+    pausePoints: paused ? pausedRow?.pausePoints : null,
   }
 }
 
@@ -644,22 +656,31 @@ async function readRunBlockNames(
  * they were captured; an older point's stored response was never scrubbed, so both
  * are null for it. Resume links and API-mode response status and headers are never
  * part of a point.
+ *
+ * A caller that already loaded the paused record's `pause_points` passes them as
+ * `pausePoints` and the record is not read again.
  */
 export async function readPausedRunPoints(input: {
   workflowId: string
   executionId: string
+  pausePoints?: unknown
 }): Promise<PausedRunPoint[] | null> {
   const { workflowId, executionId } = input
-  const [row] = await db
-    .select({ pausePoints: pausedExecutions.pausePoints })
-    .from(pausedExecutions)
-    .where(
-      and(
-        eq(pausedExecutions.executionId, executionId),
-        eq(pausedExecutions.workflowId, workflowId)
-      )
-    )
-    .limit(1)
+  const row =
+    input.pausePoints !== undefined
+      ? { pausePoints: input.pausePoints }
+      : (
+          await db
+            .select({ pausePoints: pausedExecutions.pausePoints })
+            .from(pausedExecutions)
+            .where(
+              and(
+                eq(pausedExecutions.executionId, executionId),
+                eq(pausedExecutions.workflowId, workflowId)
+              )
+            )
+            .limit(1)
+        )[0]
   if (!row) return null
 
   // Positions count the whole pending queue, so it is read unpaged: it holds a few columns per

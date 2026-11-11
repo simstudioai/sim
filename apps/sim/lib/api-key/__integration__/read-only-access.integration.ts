@@ -275,7 +275,7 @@ describe('read-only and expiring API keys in PostgreSQL', () => {
     for (const key of [readPersonalKey, readWorkspaceKey]) {
       const meta = await call(v2Meta, '/api/v2/meta', { key })
       expect(meta.status).toBe(200)
-      expect(meta.body).toMatchObject({ data: { scopes: ['api:read'] } })
+      expect(meta.body).toMatchObject({ data: { scopes: ['api:read', 'search:read'] } })
     }
     const personalMeta = await call(v2Meta, '/api/v2/meta', { key: readPersonalKey })
     expect(personalMeta.body).toMatchObject({ data: { expiresAt } })
@@ -417,7 +417,7 @@ describe('read-only and expiring API keys in PostgreSQL', () => {
   it('treats a key created before access levels as full access', async () => {
     const meta = await call(v2Meta, '/api/v2/meta', { key: legacyKey })
     expect(meta.body).toMatchObject({
-      data: { scopes: ['api:read', 'api:write'], expiresAt: null },
+      data: { scopes: ['api:read', 'api:write', 'search:read'], expiresAt: null },
     })
 
     const tablesBefore = await tableCount()

@@ -1,9 +1,24 @@
 import { createHmac } from 'node:crypto'
+import { credential } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
+import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
+import { z } from 'zod'
 import { env } from '@/lib/core/config/env'
+import type { ResourceScope } from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
+import { decryptSecret } from '@/lib/core/security/encryption'
 import type { WorkloadIdentityProvider } from '@/lib/credentials/workload-identity/audiences'
 import type { WorkloadIdentityOwner } from '@/lib/credentials/workload-identity/issuer'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import type { DbTransaction } from '@/lib/db/types'
+import {
+  AWS_SERVICE_ACCOUNT_PROVIDER_ID,
+  DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
+} from '@/lib/oauth/types'
+
+const logger = createLogger('WorkloadIdentitySubject')
 
 /**
  * Credential-scoped workload-identity subjects.
@@ -40,12 +55,26 @@ function ownerSegment(owner: WorkloadIdentityOwner): string {
   throw new WorkloadIdentitySubjectError('A workload identity subject needs exactly one owner')
 }
 
+function subjectPrefix(owner: WorkloadIdentityOwner): string {
+  return `sim:${ownerSegment(owner)}:credential:`
+}
+
+/** Throws unless the subject was built for this owner. */
+export function assertWorkloadIdentitySubjectOwner(
+  subject: string,
+  owner: WorkloadIdentityOwner
+): void {
+  if (!subject.startsWith(subjectPrefix(owner))) {
+    throw new WorkloadIdentitySubjectError('Workload identity subject belongs to another owner')
+  }
+}
+
 /** `sim:workspace:<id>:credential:<subjectId>` (or `sim:organization:…`). */
 function buildWorkloadIdentitySubject(owner: WorkloadIdentityOwner, subjectId: string): string {
   if (!SUBJECT_ID_PATTERN.test(subjectId)) {
     throw new WorkloadIdentitySubjectError('Invalid workload identity subject')
   }
-  return `sim:${ownerSegment(owner)}:credential:${subjectId}`
+  return `${subjectPrefix(owner)}${subjectId}`
 }
 
 function proofKey(): Buffer {
@@ -114,7 +143,7 @@ export function verifyWorkloadIdentitySubject(
   const expiresAt = Number(subjectProof.slice(0, separator))
   const signature = subjectProof.slice(separator + 1)
   if (!Number.isSafeInteger(expiresAt) || expiresAt <= now) throw invalid()
-  if (!subject.startsWith(`sim:${ownerSegment(owner)}:credential:`)) throw invalid()
+  if (!subject.startsWith(subjectPrefix(owner))) throw invalid()
   if (!safeCompare(signature, sign(provider, owner, userId, subject, expiresAt))) throw invalid()
 }
 
@@ -144,4 +173,130 @@ export function bindWorkloadIdentitySubject(input: {
   }
   verifyWorkloadIdentitySubject(provider, owner, owner.actorUserId, subject, subjectProof)
   return subject
+}
+
+/** Providers whose stored secret can hold a bound subject at `config.subject`. */
+const KEYLESS_PROVIDER_IDS = [
+  AWS_SERVICE_ACCOUNT_PROVIDER_ID,
+  DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
+]
+
+/** The part of an AWS or Databricks stored secret that can hold a bound subject. */
+const storedSubjectSchema = z.object({
+  config: z.object({ subject: z.string().optional() }),
+})
+
+/** The subject a stored secret holds, `undefined` for a keyed mode, or `null` when unreadable. */
+async function readStoredSubject(encrypted: string): Promise<string | undefined | null> {
+  try {
+    const { decrypted } = await decryptSecret(encrypted)
+    const parsed = storedSubjectSchema.safeParse(JSON.parse(decrypted))
+    return parsed.success ? parsed.data.config.subject : null
+  } catch {
+    return null
+  }
+}
+
+function lockSubject(tx: DbTransaction, subject: string): Promise<void> {
+  return acquireAdvisoryXactLock(
+    tx,
+    'workload_identity_subject',
+    `workload-identity-subject:${subject}`
+  )
+}
+
+/** Throws unless no live keyless credential of the owner other than `credentialId` holds `subject`. */
+async function assertNoOtherCredentialHolds(
+  tx: DbTransaction,
+  input: { subject: string; scope: ResourceScope; credentialId?: string }
+): Promise<void> {
+  const rows = await tx
+    .select({
+      id: credential.id,
+      displayName: credential.displayName,
+      encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
+    })
+    .from(credential)
+    .where(
+      and(
+        resourceScopeCondition(credential, input.scope),
+        inArray(credential.providerId, KEYLESS_PROVIDER_IDS),
+        isNull(credential.revokedAt),
+        input.credentialId ? ne(credential.id, input.credentialId) : undefined
+      )
+    )
+  for (const row of rows) {
+    if (!row.encryptedServiceAccountKey) continue
+    const storedSubject = await readStoredSubject(row.encryptedServiceAccountKey)
+    if (storedSubject === null) {
+      logger.warn('Unreadable keyless credential blocks a subject uniqueness check', {
+        credentialId: row.id,
+      })
+      throw new WorkloadIdentitySubjectError(
+        `Sim could not read the saved credential "${row.displayName}", so it cannot confirm this trust setup is unused. Reconnect or delete that credential, then try again.`
+      )
+    }
+    if (storedSubject === input.subject) {
+      throw new WorkloadIdentitySubjectError(
+        'Another credential already uses this trust setup. Start the keyless connection again.'
+      )
+    }
+  }
+}
+
+/**
+ * Refuses a subject that another live credential of the same owner already
+ * holds. A proof stays valid for a day and is not tied to one credential, so
+ * without this a member removed from a keyless credential could save a second
+ * credential with the same subject and keep assuming the customer's role.
+ *
+ * The subject lives only inside each credential's encrypted secret, so this
+ * decrypts the owner's keyless credentials (one owner holds few) rather than
+ * relying on a unique index. It runs inside the transaction that writes the
+ * credential: the advisory lock holds concurrent saves of one subject until
+ * commit, so the later save sees the earlier row. A sibling whose secret cannot
+ * be read might hold the subject, so it refuses the save rather than skip it.
+ */
+export async function assertWorkloadIdentitySubjectUnclaimed(
+  tx: DbTransaction,
+  input: { subject: string; scope: ResourceScope }
+): Promise<void> {
+  await lockSubject(tx, input.subject)
+  await assertNoOtherCredentialHolds(tx, input)
+}
+
+/**
+ * The reconnect counterpart of {@link assertWorkloadIdentitySubjectUnclaimed},
+ * run in the transaction that writes `rotatedSecret` onto `credentialId`.
+ *
+ * Whether the reconnect keeps the credential's subject is decided here, from
+ * the row as it stands under the lock, not from the secret read before
+ * provider verification: while that verification ran, another reconnect could
+ * have moved this credential to a different subject and a second credential
+ * could have claimed the old one, so writing it back unchecked would leave two
+ * credentials holding it. Locks the subject first, then the credential row; no
+ * path takes a subject lock while holding a credential row, so the order cannot
+ * deadlock.
+ */
+export async function assertReconnectedSubjectUnclaimed(
+  tx: DbTransaction,
+  input: { rotatedSecret: string; scope: ResourceScope; credentialId: string }
+): Promise<void> {
+  const subject = await readStoredSubject(input.rotatedSecret)
+  if (!subject) return
+  await lockSubject(tx, subject)
+  const [current] = await tx
+    .select({ encryptedServiceAccountKey: credential.encryptedServiceAccountKey })
+    .from(credential)
+    .where(eq(credential.id, input.credentialId))
+    .for('update')
+  const currentSubject = current?.encryptedServiceAccountKey
+    ? await readStoredSubject(current.encryptedServiceAccountKey)
+    : undefined
+  if (currentSubject === subject) return
+  await assertNoOtherCredentialHolds(tx, {
+    subject,
+    scope: input.scope,
+    credentialId: input.credentialId,
+  })
 }

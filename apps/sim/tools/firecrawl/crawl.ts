@@ -168,7 +168,7 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       if (params.maxConcurrency) body.maxConcurrency = Number(params.maxConcurrency)
       if (params.excludePaths) body.excludePaths = params.excludePaths
       if (params.includePaths) body.includePaths = params.includePaths
-      if (params.maxDepth != null) {
+      if (params.maxDepth != null && String(params.maxDepth).trim() !== '') {
         const requestedDepth = Number(params.maxDepth)
         if (!Number.isSafeInteger(requestedDepth) || requestedDepth < 0) {
           throw new Error('maxDepth must be a non-negative integer')
