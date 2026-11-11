@@ -489,7 +489,7 @@ export async function settingsChecks() {
           await page.goto(`${settingsUrl('admin')}?${new URLSearchParams({ q: MEMBER.email })}`)
           await page.getByRole('button', { name: `${MEMBER.email} actions` }).click()
           await page.getByRole('menuitem', { name: 'Ban', exact: true }).click()
-          const modal = dialog(page, 'Ban user')
+          const modal = dialog(page, `Ban ${MEMBER.name}`)
           const reason = modal.getByRole('textbox', { name: 'Reason' })
           await reason.fill('Spam')
           await reason.press('Enter')
@@ -551,7 +551,7 @@ export async function settingsChecks() {
           await route.continue()
         })
         await page.goto(groupUrl())
-        await page.getByRole('button', { name: 'Add', exact: true }).click()
+        await page.getByRole('button', { name: 'Add members', exact: true }).click()
         const modal = dialog(page, 'Add members')
         const search = modal.getByRole('searchbox')
         await search.fill('member')
@@ -621,7 +621,8 @@ export async function settingsChecks() {
           bodies.push(route.request().postDataJSON())
           await route.fulfill({ status: 500, json: { error: 'Stubbed: no identity provider' } })
         })
-        await page.goto(settingsUrl('sso'))
+        // The create flow is a sub-view in the URL: Add identity provider opens it.
+        await page.goto(`${settingsUrl('sso')}?createProvider=true`)
         const issuer = page.getByRole('textbox', { name: 'Issuer URL' })
         await issuer.fill('not a url')
         await page.getByRole('button', { name: 'Add provider', exact: true }).click()
@@ -664,7 +665,8 @@ export async function settingsChecks() {
           if (bodies.length === 1) await answerFirst.promise
           await route.fulfill({ status: 503, json: { error: 'Stubbed: no identity provider' } })
         })
-        await page.goto(settingsUrl('sso'))
+        const creating = `${settingsUrl('sso')}?createProvider=true`
+        await page.goto(creating)
         const providerId = page.getByRole('combobox', {
           name: 'Provider ID (permanent)',
           exact: true,
@@ -693,7 +695,7 @@ export async function settingsChecks() {
         await general.click()
         await pageTurn(page)
         assert.equal(bodies.length, 1, 'A second add went out while the first was pending')
-        await expect(page).toHaveURL(settingsUrl('sso'))
+        await expect(page).toHaveURL(creating)
         await expect(dialog(page, 'Unsaved changes')).toHaveCount(0)
 
         answerFirst.resolve()
@@ -807,16 +809,13 @@ export async function settingsChecks() {
       () =>
         withSession(ADMIN, async ({ page }) => {
           await page.goto(settingsUrl('data-retention'))
-          const openPolicy = async () => {
-            await page.getByRole('button', { name: /^Organization/ }).click()
-            return page.getByRole('combobox', { name: 'Log retention' })
-          }
-          const original = (await (await openPolicy()).textContent())?.trim() ?? ''
-          for (const [index, name] of ['5 years', original].entries()) {
-            const picker =
-              index === 0
-                ? page.getByRole('combobox', { name: 'Log retention' })
-                : await openPolicy()
+          await page.getByRole('button', { name: /^Organization/ }).click()
+          // The policy is edited in place: a save keeps its detail open on what the server stored.
+          const picker = page.getByRole('combobox', { name: 'Log retention' })
+          const original = (await picker.textContent())?.trim() ?? ''
+          const save = page.getByRole('button', { name: 'Save', exact: true })
+          await expect(save).toBeDisabled()
+          for (const name of ['5 years', original]) {
             await picker.click()
             await page.getByRole('option', { name, exact: true }).click()
             const write = page.waitForResponse(
@@ -824,10 +823,11 @@ export async function settingsChecks() {
                 pathOf(response.url()).endsWith('/data-retention') &&
                 response.request().method() !== 'GET'
             )
-            const save = page.getByRole('button', { name: 'Save', exact: true })
             await save.click()
             assert.ok((await write).ok(), 'The policy did not save')
-            await expect(page.getByRole('combobox', { name: 'Log retention' })).toBeHidden()
+            await expect(page.getByRole('button', { name: 'Discard', exact: true })).toHaveCount(0)
+            await expect(save).toBeDisabled()
+            await expect(picker).toHaveText(name)
           }
         })
     )

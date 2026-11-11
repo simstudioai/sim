@@ -61,7 +61,11 @@ export async function linksChecks() {
         assert(!columns.join().includes('Created by'), `Columns ${columns}`)
         const [nameCell, list] = [
           await row.getByRole('cell').first().boundingBox(),
-          await page.getByRole('region', { name: 'Links' }).boundingBox(),
+          // The page is a region named by its heading, and the list a region inside it.
+          await page
+            .getByRole('region', { name: 'Links' })
+            .getByRole('region', { name: 'Links' })
+            .boundingBox(),
         ]
         assert(nameCell && list, 'The row and the list are on screen')
         assert(
@@ -330,9 +334,9 @@ export async function linksChecks() {
           await page.goto(`${linksUrl}?search=removable-link`)
           await rowFor(page, 'removable-link').click({ button: 'right' })
           await menuEntry(page, 'Delete').click()
-          const modal = dialog(page, 'Delete link')
+          const modal = dialog(page, 'Delete removable-link')
           await expect(
-            modal.getByText('removable-link will stop working for everyone in your organization.')
+            modal.getByText('It will stop working for everyone in your organization.')
           ).toBeVisible()
           await modal.getByRole('button', { name: 'Delete', exact: true }).click()
           await expect(modal).toHaveCount(0)
