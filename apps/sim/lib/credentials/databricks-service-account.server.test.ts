@@ -157,6 +157,22 @@ describe('saving a keyless Databricks connection', () => {
     ).rejects.toThrow(/could not confirm/)
     expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
   })
+
+  it('asks once to try again when the any-subject check cannot reach the workspace', async () => {
+    principalTrusting(true)
+    const trusted = fetch.getMockImplementation()
+    fetch.mockImplementation(async (url: string, init: RequestInit) => {
+      const body = new URLSearchParams(String(init?.body))
+      if (url.endsWith('/oidc/v1/token') && body.get('subject_token') !== `token-for:${SUBJECT}`) {
+        throw new TypeError('fetch failed')
+      }
+      return trusted?.(url, init)
+    })
+
+    await expect(
+      verifyAndEncryptDatabricksCredential(JSON.stringify(config), reconnectOwner)
+    ).rejects.toThrow(/this credential: Could not reach the Databricks workspace\. Try again\.$/)
+  })
 })
 
 describe('getting a Databricks token for a run', () => {

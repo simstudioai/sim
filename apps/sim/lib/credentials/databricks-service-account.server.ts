@@ -154,7 +154,7 @@ async function requestWorkspaceToken(
   } catch {
     signal?.throwIfAborted()
     // A network failure, timeout, or refused redirect says nothing about the credential.
-    throw new DatabricksCredentialError('Could not reach the Databricks workspace. Try again.', 502)
+    throw new DatabricksCredentialError('Could not reach the Databricks workspace', 502)
   }
   const payload = (await readResponseJsonWithLimit(response, {
     maxBytes: MAX_RESPONSE_BYTES,
