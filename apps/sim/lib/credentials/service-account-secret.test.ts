@@ -87,6 +87,20 @@ describe('verifyAndBuildServiceAccountSecret', () => {
     })
   })
 
+  it.each([
+    ['an expiring bot token', 'xoxe.xoxb-1-abc'],
+    ['a refresh token', 'xoxe-1-abc'],
+  ])('refuses %s from token rotation, which Sim cannot refresh', async (_case, botToken) => {
+    mockFetchSlackTeamId.mockResolvedValue({ teamId: 'T1', userId: 'U_BOT', teamName: 'Acme' })
+
+    await expect(
+      verifyAndBuildServiceAccountSecret(SLACK_CUSTOM_BOT_PROVIDER_ID, {
+        signingSecret: 'sec',
+        botToken,
+      })
+    ).rejects.toThrow('token rotation')
+  })
+
   it('verifies an Atlassian token and encrypts the blob', async () => {
     mockValidateAtlassian.mockResolvedValue({
       accountId: 'acc-1',

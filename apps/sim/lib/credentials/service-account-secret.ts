@@ -195,6 +195,14 @@ async function buildSlackCustomBotSecret(
       'signingSecret and botToken are required for a custom Slack bot credential'
     )
   }
+  // Rotation-enabled apps issue `xoxe.`-prefixed access tokens that expire in 12 hours and
+  // `xoxe-` refresh tokens; refreshing needs the app's client ID and secret, which Sim
+  // never holds, so such a token would pass auth.test today and fail every run tomorrow.
+  if (/^\s*xoxe[.-]/.test(botToken)) {
+    throw new ServiceAccountSecretError(
+      'This Slack app has token rotation turned on, so its tokens expire within 12 hours and Sim cannot refresh them. Use the Bot User OAuth Token (xoxb-) of a Slack app with token rotation off.'
+    )
+  }
   let teamId: string
   let botUserId: string | undefined
   let teamName: string | undefined
