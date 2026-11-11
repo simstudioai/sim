@@ -83,7 +83,11 @@ function parseInlineRuns(line: string): ContentRun[] {
 function parseContentBlocks(content: string): ContentBlock[] {
   const blocks: ContentBlock[] = []
 
-  for (const rawLine of content.replace(/\r\n?/g, '\n').split('\n')) {
+  // Stripped before the Markdown patterns run, so a stray control character
+  // from an upstream block can't hide a heading or bullet marker. Tab, newline,
+  // and carriage return are legal XML and outside the class, so the split below
+  // is unaffected.
+  for (const rawLine of stripInvalidXmlChars(content).replace(/\r\n?/g, '\n').split('\n')) {
     const line = rawLine.trimEnd()
     if (line.trim().length === 0) continue
 
