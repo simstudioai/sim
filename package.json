@@ -165,7 +165,7 @@
     "postcss": "8.5.32",
     "prosemirror-model": "1.25.12",
     "prosemirror-state": "1.4.4",
-    "prosemirror-transform": "1.12.0",
+    "prosemirror-transform": "1.12.4",
     "prosemirror-view": "1.42.6",
     "protobufjs": "7.6.5",
     "proxy-addr": "2.0.8",
