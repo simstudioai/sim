@@ -360,7 +360,7 @@
         "class-variance-authority": "^0.7.1",
         "cmdk": "^1.0.0",
         "croner": "^9.0.0",
-        "cronstrue": "3.3.0",
+        "cronstrue": "3.38.0",
         "csv-parse": "7.0.3",
         "date-fns": "4.4.0",
         "decimal.js": "10.6.0",
@@ -2795,7 +2795,7 @@
 
     "croner": ["croner@9.1.0", "", {}, "sha512-p9nwwR4qyT5W996vBZhdvBCnMhicY5ytZkR4D1Xj0wuTDEiMnjwR57Q3RXYY/s0EpX6Ay3vgIcfaR+ewGHsi+g=="],
 
-    "cronstrue": ["cronstrue@3.3.0", "", { "bin": { "cronstrue": "bin/cli.js" } }, "sha512-iwJytzJph1hosXC09zY8F5ACDJKerr0h3/2mOxg9+5uuFObYlgK0m35uUPk4GCvhHc2abK7NfnR9oMqY0qZFAg=="],
+    "cronstrue": ["cronstrue@3.38.0", "", { "bin": { "cronstrue": "bin/cli.js" } }, "sha512-i10xR7fS4AH9LKwmt3gYdt/5lSsB2qFGSNfC8aeyYybxo48DCMz+nUrSVI4kUj8yo+SgTbMJqp/BWEem9avlcA=="],
 
     "cross-dirname": ["cross-dirname@0.1.0", "", {}, "sha512-+R08/oI0nl3vfPcqftZRpytksBXDzOUveBq/NBVx0sUp1axwzPQrKinNx5yd5sxPu8j1wIy8AfnVQ+5eFdha6Q=="],
 
