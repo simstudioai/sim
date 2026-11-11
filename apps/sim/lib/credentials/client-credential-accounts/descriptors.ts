@@ -409,8 +409,7 @@ export function resolveZohoDeskDataCenter(rawDataCenter?: string): {
 }
 
 /** A SailPoint Identity Security Cloud API host: one tenant label under `api.identitynow.com`. */
-export const SAILPOINT_API_HOST_REGEX =
-  /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.api\.identitynow\.com$/
+const SAILPOINT_API_HOST_REGEX = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.api\.identitynow\.com$/
 
 const SAILPOINT_TENANT_LABEL_REGEX = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
 const SAILPOINT_UI_HOST_REGEX = /^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.identitynow\.com$/

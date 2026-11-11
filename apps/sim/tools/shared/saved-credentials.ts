@@ -65,7 +65,7 @@ export function tokenCredentialOAuth(
  * plus every other mapped param (a cloud, site, or tenant the account is bound
  * to); the inline secrets in `tokenReplacesParams` are then never read.
  */
-export function clientCredentialOAuth<const Replaced extends readonly string[]>(
+function clientCredentialOAuth<const Replaced extends readonly string[]>(
   provider: OAuthService,
   credentialParams: Readonly<Record<string, CredentialParamSource>>,
   tokenReplacesParams: Replaced

@@ -18,7 +18,7 @@ export interface SailPointCredentials {
 }
 
 /** A token minted from a saved SailPoint credential, with the tenant host it was minted for. */
-export interface SailPointTokenCredentials {
+interface SailPointTokenCredentials {
   accessToken: string
   tenant: string
 }

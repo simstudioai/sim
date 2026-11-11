@@ -216,7 +216,7 @@ export function invalidateAccessToken(params: CrowdStrikeInlineCredentials): voi
 }
 
 /** API client credentials for one Falcon token request. */
-export interface CrowdStrikeTokenRequest extends CrowdStrikeInlineCredentials {
+interface CrowdStrikeTokenRequest extends CrowdStrikeInlineCredentials {
   /** The child CID an MSSP parent's token is locked to. */
   memberCid?: string
 }
