@@ -44,8 +44,8 @@ faq:
     a: "GitHub Copilot cloud agent, formerly coding agent, is a GitHub-native coding worker, while Sim is the open-source AI workspace for orchestrating governed agents across GitHub and other systems."
   - q: "What is the difference between PR-Agent and Sim?"
     a: "PR-Agent is a specialized pull-request assistant, while Sim is a broader AI workspace for combining pull-request review with issue triage, approvals, notifications, databases, and other workflow steps."
-  - q: "Do I need GitHub MCP to automate pull requests and issues?"
-    a: "GitHub MCP is not required for every Sim workflow because direct GitHub integration actions can handle supported operations, while MCP is useful when an agent needs broader tool discovery or repository interaction."
+  - q: "Do I need GitHub Model Context Protocol (MCP) to automate pull requests and issues?"
+    a: "GitHub Model Context Protocol (MCP) is not required for every Sim workflow because direct GitHub integration actions can handle supported operations. MCP lets agents discover and call GitHub tools when they need broader repository interaction."
   - q: "How do you prevent prompt injection in a GitHub agent?"
     a: "Sim workflows should treat issues, comments, pull-request descriptions, diffs, and repository files as untrusted data and prevent that content from changing tool permissions, revealing credentials, or bypassing approval."
   - q: "What should a GitHub AI agent log?"
@@ -100,7 +100,7 @@ Receive only the GitHub events the workflow needs, then normalize repository, is
 
 Ignore bot-authored events and attach an idempotency key based on the GitHub delivery or object identifier. This prevents a retry from creating duplicate labels, comments, or pull requests.
 
-Use the [Sim GitHub integration](https://www.sim.ai/integrations/github) for supported triggers and actions. If the workflow needs GitHub MCP for broader tool discovery, read [How to Use the GitHub MCP Server With AI Agents](https://www.sim.ai/library/github-mcp-server-ai-agents) before adding another credential path.
+Use the [Sim GitHub integration](https://www.sim.ai/integrations/github) for supported triggers and actions. GitHub Model Context Protocol (MCP) lets agents discover and call GitHub tools for broader repository interaction. If the workflow needs MCP, read [How to Use the GitHub MCP Server With AI Agents](https://www.sim.ai/library/github-mcp-server-ai-agents) before adding another credential path.
 
 ### Give the agent limited repository context
 
@@ -212,7 +212,7 @@ As of November 2026, licensing, deployment, and usage measurement differ across 
 
 ## Which related guide should you read next?
 
-- Read [How to Use the GitHub MCP Server With AI Agents](https://www.sim.ai/library/github-mcp-server-ai-agents) when the main task is connecting and securing GitHub MCP.
+- Read [How to Use the GitHub MCP Server With AI Agents](https://www.sim.ai/library/github-mcp-server-ai-agents) when the main task is connecting and securing GitHub Model Context Protocol (MCP), which lets agents discover and call GitHub tools.
 - Read [AI Coding Agents vs AI Workflow Agents](https://www.sim.ai/library/ai-coding-agents-vs-ai-workflow-agents) when deciding whether the job requires autonomous code changes or cross-system orchestration.
 - Read [Best AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026) for a broader agent-platform comparison.
 - Read [AI Agent Builders for Human Approval Workflows](https://www.sim.ai/library/best-ai-agent-builders-for-human-approval-workflows) when approval design is the primary requirement.
