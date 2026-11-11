@@ -13,6 +13,7 @@ import type {
 
 const TOKEN_INFO_URL = 'https://api.hubapi.com/oauth/v2/private-apps/get/access-token-info'
 const ACCOUNT_INFO_URL = 'https://api.hubapi.com/account-info/v3/details'
+const CONTACTS_READ_URL = 'https://api.hubapi.com/crm/v3/objects/contacts?limit=1'
 
 interface HubspotTokenInfo {
   hubId?: number
@@ -26,23 +27,45 @@ interface HubspotAccountInfo {
 }
 
 /**
+ * Last word on a key account-info refused: a one-contact read, the request
+ * HubSpot's service-key guide shows a key making. HubSpot answers a credential
+ * it does not accept with a 401 and one that lacks the object's scope with a
+ * 403, so a 200 or a JSON 403 proves the key is live. The route reports no
+ * portal, so the key is accepted without a principal.
+ */
+async function verifyViaContactsRead(
+  accessToken: string
+): Promise<TokenServiceAccountValidationResult> {
+  const res = await fetchProvider(
+    CONTACTS_READ_URL,
+    { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } },
+    'contacts_read'
+  )
+  if (!isVendorJsonForbidden(res)) await throwForProviderResponse(res, 'contacts_read')
+  await res.body?.cancel().catch(() => undefined)
+  return { displayName: 'HubSpot', principal: null, auditMetadata: {} }
+}
+
+/**
  * Fallback verification via the Account Information API, a regular REST route
- * that any HubSpot Bearer credential (service key or private app token) can
- * call. It answers a bad token with a JSON 401. A 200 proves the token is
- * live; a JSON 403 means the token authenticated but lacks account-info
- * access, still a live token. An HTML 403 is a firewall page, not HubSpot.
+ * that reports the portal. A 200 proves the token is live; a JSON 403 means the
+ * token authenticated but lacks account-info access, still a live token. An
+ * HTML 403 is a firewall page, not HubSpot. HubSpot does not document how this
+ * route answers a service key, so its 401 is settled by
+ * {@link verifyViaContactsRead} rather than taken as a rejection.
  */
 async function verifyViaAccountInfo(
   accessToken: string
 ): Promise<TokenServiceAccountValidationResult> {
   const res = await fetchProvider(
     ACCOUNT_INFO_URL,
-    {
-      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-      redirect: 'error',
-    },
+    { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } },
     'account_info'
   )
+  if (res.status === 401) {
+    await res.body?.cancel().catch(() => undefined)
+    return verifyViaContactsRead(accessToken)
+  }
   if (isVendorJsonForbidden(res)) {
     // The token is live but cannot read account info, so neither the portal
     // nor the creating user is knowable on this path.
@@ -80,9 +103,9 @@ const HUBSPOT_KEY_PREFIX = /^pat-/
  * That endpoint is documented only for private app tokens, and live probing
  * shows it returns a bare 404 (HTML) for a token it does not recognize. So a
  * 400, 403 or 404, a 401 for a `pat-` key (which may be a service key), or a
- * 200 without a portal falls back to the Account Information API, which
- * distinguishes a rejected token (JSON 401) from a live one (200/403). Any
- * other token it answers with 401 is rejected there.
+ * 200 without a portal falls back to the Account Information API, and a key
+ * that route refuses is settled by a contacts read, the route HubSpot documents
+ * for service keys. A token-info 401 for any other token is a rejection.
  *
  * The display name is `HubSpot portal {hubId}` when the portal is known — the
  * account-info `uiDomain` is the shared regional host (e.g. `app.hubspot.com`),
@@ -102,7 +125,6 @@ export async function validateHubspotServiceAccount(
         Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({ tokenKey: accessToken }),
-      redirect: 'error',
     },
     'access_token_info'
   )

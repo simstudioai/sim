@@ -4,6 +4,7 @@ import { validateHubspotServiceAccount } from '@/lib/credentials/token-service-a
 
 const TOKEN_INFO_URL = 'https://api.hubapi.com/oauth/v2/private-apps/get/access-token-info'
 const ACCOUNT_INFO_URL = 'https://api.hubapi.com/account-info/v3/details'
+const CONTACTS_URL = 'https://api.hubapi.com/crm/v3/objects/contacts?limit=1'
 
 const FIELDS = { apiToken: 'pat-na1-aaaa-bbbb' }
 
@@ -61,9 +62,12 @@ describe('validateHubspotServiceAccount', () => {
     expectFallbackCall()
   })
 
-  it('throws invalid_credentials when primary 404 and fallback returns 401', async () => {
+  it('throws invalid_credentials when primary 404 and both fallbacks return 401', async () => {
     mockFetch
       .mockResolvedValueOnce(htmlResponse(404, '<html><body>404 Not Found</body></html>'))
+      .mockResolvedValueOnce(
+        jsonResponse({ status: 'error', category: 'INVALID_AUTHENTICATION' }, 401)
+      )
       .mockResolvedValueOnce(
         jsonResponse({ status: 'error', category: 'INVALID_AUTHENTICATION' }, 401)
       )
@@ -128,19 +132,77 @@ describe('validateHubspotServiceAccount', () => {
     expectFallbackCall()
   })
 
-  it('throws invalid_credentials when both routes answer 401', async () => {
+  it('throws invalid_credentials when every route answers 401', async () => {
+    const unauthorized = () =>
+      jsonResponse({ status: 'error', category: 'INVALID_AUTHENTICATION' }, 401)
     mockFetch
-      .mockResolvedValueOnce(
-        jsonResponse({ status: 'error', category: 'INVALID_AUTHENTICATION' }, 401)
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({ status: 'error', category: 'INVALID_AUTHENTICATION' }, 401)
-      )
+      .mockResolvedValueOnce(unauthorized())
+      .mockResolvedValueOnce(unauthorized())
+      .mockResolvedValueOnce(unauthorized())
 
     await expect(validateHubspotServiceAccount(FIELDS)).rejects.toMatchObject({
       name: 'TokenServiceAccountValidationError',
       code: 'invalid_credentials',
       status: 401,
+    })
+    const [url, init] = mockFetch.mock.calls[2]
+    expect(url).toBe(CONTACTS_URL)
+    expect(init.headers.Authorization).toBe('Bearer pat-na1-aaaa-bbbb')
+  })
+
+  it.each([
+    ['reads contacts', () => jsonResponse({ results: [] })],
+    [
+      'lacks the contacts scope',
+      () => jsonResponse({ status: 'error', category: 'MISSING_SCOPES' }, 403),
+    ],
+  ])(
+    'accepts a service key that account-info refuses but that %s',
+    async (_case, contactsAnswer) => {
+      mockFetch
+        .mockResolvedValueOnce(htmlResponse(404, '<html><body>404 Not Found</body></html>'))
+        .mockResolvedValueOnce(
+          jsonResponse({ status: 'error', category: 'INVALID_AUTHENTICATION' }, 401)
+        )
+        .mockResolvedValueOnce(contactsAnswer())
+
+      await expect(validateHubspotServiceAccount(FIELDS)).resolves.toEqual({
+        displayName: 'HubSpot',
+        principal: null,
+        auditMetadata: {},
+      })
+      expect(mockFetch.mock.calls[2][0]).toBe(CONTACTS_URL)
+    }
+  )
+
+  it('does not take a firewall 403 page from the contacts read as a live key', async () => {
+    mockFetch
+      .mockResolvedValueOnce(htmlResponse(404, '<html><body>404 Not Found</body></html>'))
+      .mockResolvedValueOnce(
+        jsonResponse({ status: 'error', category: 'INVALID_AUTHENTICATION' }, 401)
+      )
+      .mockResolvedValueOnce(
+        new Response('<html>Access denied</html>', {
+          status: 403,
+          headers: { 'Content-Type': 'text/html' },
+        })
+      )
+
+    await expect(validateHubspotServiceAccount(FIELDS)).rejects.toMatchObject({
+      code: 'invalid_credentials',
+    })
+  })
+
+  it('reports an outage when the contacts read is unavailable', async () => {
+    mockFetch
+      .mockResolvedValueOnce(htmlResponse(404, '<html><body>404 Not Found</body></html>'))
+      .mockResolvedValueOnce(
+        jsonResponse({ status: 'error', category: 'INVALID_AUTHENTICATION' }, 401)
+      )
+      .mockResolvedValueOnce(jsonResponse({ status: 'error' }, 503))
+
+    await expect(validateHubspotServiceAccount(FIELDS)).rejects.toMatchObject({
+      code: 'provider_unavailable',
     })
   })
 
