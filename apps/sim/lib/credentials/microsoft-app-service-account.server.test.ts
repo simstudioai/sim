@@ -451,6 +451,20 @@ describe('getting a Microsoft app token for a run', () => {
     expect(tokens.map((request) => request.form.scope)).toEqual([`${ENVIRONMENT}/.default`])
   })
 
+  it('mints a Microsoft Graph token for Intune, shared with the other Graph services', async () => {
+    const tokens = fakeMicrosoft(fetch)
+    storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-intune')
+    await expect(
+      resolveMicrosoftAppCredentialToken('cred-intune', 'microsoft-intune')
+    ).resolves.toEqual({ accessToken: 'at:https://graph.microsoft.com/.default' })
+    storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-intune')
+    await resolveMicrosoftAppCredentialToken('cred-intune', 'microsoft-ad')
+
+    expect(tokens.map((request) => request.form.scope)).toEqual([
+      'https://graph.microsoft.com/.default',
+    ])
+  })
+
   it('refuses Dataverse for a credential saved without an environment', async () => {
     fakeMicrosoft(fetch)
     storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-graph-only')

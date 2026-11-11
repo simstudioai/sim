@@ -671,6 +671,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'microsoft-intune',
         icon: IntuneIcon,
         baseProviderIcon: MicrosoftIcon,
+        serviceAccountProviderId: 'microsoft-app-service-account',
         scopes: [
           'openid',
           'profile',

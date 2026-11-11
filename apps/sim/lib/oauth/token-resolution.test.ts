@@ -694,7 +694,7 @@ describe('Microsoft app credential binding', () => {
     }
   )
 
-  it.each(['microsoft-ad', 'sharepoint', 'microsoft-dataverse'] as const)(
+  it.each(['microsoft-ad', 'sharepoint', 'microsoft-dataverse', 'microsoft-intune'] as const)(
     'mints an app-only token for %s and tells the resolver which service it is for',
     async (provider) => {
       toolFor(provider)

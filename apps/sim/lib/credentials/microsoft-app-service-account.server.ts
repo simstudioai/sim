@@ -35,7 +35,7 @@ import { MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
  * Saved Microsoft Entra app-only credentials (OAuth 2.0 client credentials).
  *
  * One app registration serves every Microsoft service that runs without a
- * signed-in user: Microsoft Graph for Entra ID and SharePoint, and the
+ * signed-in user: Microsoft Graph for Entra ID, SharePoint, and Intune, and the
  * credential's own Dataverse environment for Dataverse and Dynamics 365. The
  * app's application permissions and the environment's application user decide
  * what it can do; Sim stores no permission list of its own.
@@ -79,7 +79,11 @@ const TENANT_DOMAIN_PATTERN =
   /^(?=.{4,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/
 
 /** The Microsoft services that may use this credential, and the resource each one calls. */
-type MicrosoftAppService = 'microsoft-ad' | 'sharepoint' | 'microsoft-dataverse'
+type MicrosoftAppService =
+  | 'microsoft-ad'
+  | 'sharepoint'
+  | 'microsoft-intune'
+  | 'microsoft-dataverse'
 
 const tenantSchema = z
   .string()
@@ -657,14 +661,19 @@ export interface MicrosoftAppCredentialToken {
 }
 
 function isMicrosoftAppService(value: string | undefined): value is MicrosoftAppService {
-  return value === 'microsoft-ad' || value === 'sharepoint' || value === 'microsoft-dataverse'
+  return (
+    value === 'microsoft-ad' ||
+    value === 'sharepoint' ||
+    value === 'microsoft-intune' ||
+    value === 'microsoft-dataverse'
+  )
 }
 
 /**
  * Resolves an executor-authorized Microsoft app credential (the executor
  * already checked the caller may use it) to a token for the service the tool
  * belongs to. The resource is decided by the tool's service, never by caller
- * params: Graph for Entra ID and SharePoint, the stored environment for
+ * params: Graph for Entra ID, SharePoint, and Intune, the stored environment for
  * Dataverse. Any other service is refused, so a Microsoft block that needs a
  * signed-in user can never receive an app-only token.
  */
