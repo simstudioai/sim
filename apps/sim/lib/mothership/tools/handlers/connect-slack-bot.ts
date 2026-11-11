@@ -5,6 +5,7 @@ import { executeCopilotCredentialUseCase } from '@/lib/mothership/application/ex
 import { ConnectSlackBotInputSchema } from '@/lib/mothership/generated/protocol'
 import type { ToolHandler } from '@/lib/mothership/tool-executor/types'
 import { requireCopilotWorkspace } from '@/lib/mothership/tools/server/workspace-scope'
+import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { buildSlackCustomBotRequestUrl } from '@/triggers/webhook-url'
 
 const logger = createLogger('ConnectSlackBot')
@@ -29,7 +30,9 @@ export const executeConnectSlackBot: ToolHandler = async (params, context) => {
         workspaceId,
         displayName,
         description,
-        storedSlackSecrets: { signingSecretEnvVar, botTokenEnvVar },
+        providerId: SLACK_CUSTOM_BOT_PROVIDER_ID,
+        signingSecret: `{{${signingSecretEnvVar}}}`,
+        botToken: `{{${botTokenEnvVar}}}`,
       }
     )
     return {
