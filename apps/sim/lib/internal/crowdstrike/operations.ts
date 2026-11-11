@@ -21,7 +21,6 @@ import {
   getSpotlightPagination,
   getStringArray,
   getStringResources,
-  invalidateAccessToken,
 } from '@/lib/internal/crowdstrike/client'
 import {
   normalizeAffectedEntity,
@@ -1013,9 +1012,7 @@ function inlineCredentials(body: CrowdstrikeQueryBody): CrowdStrikeInlineCredent
 /**
  * Runs one CrowdStrike operation against `body.cloud`. A token minted from a
  * saved credential (`accessToken`) is used as is; inline credentials mint a
- * token, or reuse one cached for them. A 401 or 403 drops that cached token so
- * the next request mints again: a rejected token, or one minted before the API
- * client was granted a scope, is never reused.
+ * new token for the request.
  */
 export async function executeCrowdStrikeRequest(
   body: CrowdstrikeQueryBody,
@@ -1023,12 +1020,7 @@ export async function executeCrowdStrikeRequest(
 ): Promise<OperationResult> {
   signal?.throwIfAborted()
   const baseUrl = getCloudBaseUrl(body.cloud)
-  let accessToken = body.accessToken
-  let inline: CrowdStrikeInlineCredentials | undefined
-  if (!accessToken) {
-    inline = inlineCredentials(body)
-    accessToken = await getAccessToken(inline, signal)
-  }
+  const accessToken = body.accessToken || (await getAccessToken(inlineCredentials(body), signal))
   signal?.throwIfAborted()
 
   logger.info('CrowdStrike request', {
@@ -1036,14 +1028,9 @@ export async function executeCrowdStrikeRequest(
     operation: body.operation,
   })
 
-  const result =
-    body.operation === 'crowdstrike_query_sensors' ||
+  return body.operation === 'crowdstrike_query_sensors' ||
     body.operation === 'crowdstrike_get_sensor_details' ||
     body.operation === 'crowdstrike_get_sensor_aggregates'
-      ? await executeSensorOperation(body, baseUrl, accessToken, signal)
-      : await executeCrowdStrikeOperation(body, baseUrl, accessToken, signal)
-  if (inline && !result.ok && (result.status === 401 || result.status === 403)) {
-    invalidateAccessToken(inline)
-  }
-  return result
+    ? executeSensorOperation(body, baseUrl, accessToken, signal)
+    : executeCrowdStrikeOperation(body, baseUrl, accessToken, signal)
 }

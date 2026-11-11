@@ -86,82 +86,33 @@ describe('CrowdStrike operations', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('reuses an inline token until Falcon rejects it, then mints a new one', async () => {
-    const body = {
-      operation: 'crowdstrike_query_sensors' as const,
-      clientId: 'cached-client',
-      clientSecret: 'cached-secret',
-      cloud: 'us-2' as const,
-    }
-    const tokenUrls: string[] = []
-    const revokedTokens = new Set<string>()
-    fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
-      if (url.endsWith('/oauth2/token')) {
-        tokenUrls.push(url)
-        return jsonResponse({ access_token: `token-${tokenUrls.length}`, expires_in: 1799 })
-      }
-      const auth = (init.headers as Record<string, string>).Authorization
-      return revokedTokens.has(auth)
-        ? jsonResponse({ errors: [{ code: 401, message: 'access denied' }] }, 401)
-        : jsonResponse({ resources: [] })
-    })
-
-    await expect(executeCrowdStrikeRequest(body)).resolves.toMatchObject({ ok: true })
-    await expect(executeCrowdStrikeRequest(body)).resolves.toMatchObject({ ok: true })
-    expect(tokenUrls).toEqual(['https://api.us-2.crowdstrike.com/oauth2/token'])
-
-    revokedTokens.add('Bearer token-1')
-    await expect(executeCrowdStrikeRequest(body)).resolves.toMatchObject({ ok: false, status: 401 })
-    await expect(executeCrowdStrikeRequest(body)).resolves.toMatchObject({ ok: true })
-    expect(tokenUrls).toHaveLength(2)
-  })
-
-  it('mints a new inline token after Falcon refuses one with 403, so a newly granted scope applies', async () => {
+  it('never sends an inline request a token Falcon has since stopped accepting', async () => {
     const body = {
       operation: 'crowdstrike_query_sensors' as const,
       clientId: 'scoped-client',
       clientSecret: 'scoped-secret',
-      cloud: 'us-1' as const,
+      cloud: 'us-2' as const,
     }
     let minted = 0
+    const refusedTokens = new Set<string>()
     fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
       if (url.endsWith('/oauth2/token')) {
         minted += 1
         return jsonResponse({ access_token: `token-${minted}`, expires_in: 1799 })
       }
       const auth = (init.headers as Record<string, string>).Authorization
-      return auth === 'Bearer token-1'
+      return refusedTokens.has(auth)
         ? jsonResponse({ errors: [{ code: 403, message: 'access denied' }] }, 403)
         : jsonResponse({ resources: [] })
     })
 
-    await expect(executeCrowdStrikeRequest(body)).resolves.toMatchObject({ ok: false, status: 403 })
     await expect(executeCrowdStrikeRequest(body)).resolves.toMatchObject({ ok: true })
-    expect(minted).toBe(2)
-  })
-
-  it('never reuses an inline token for a different secret or cloud', async () => {
-    fetchMock.mockImplementation(async (url: string) =>
-      url.endsWith('/oauth2/token')
-        ? jsonResponse({ access_token: 'token', expires_in: 1799 })
-        : jsonResponse({ resources: [] })
-    )
-    const body = {
-      operation: 'crowdstrike_query_sensors' as const,
-      clientId: 'rotating-client',
-      clientSecret: 'secret-a',
-      cloud: 'us-1' as const,
-    }
-
-    await executeCrowdStrikeRequest(body)
-    await executeCrowdStrikeRequest({ ...body, clientSecret: 'secret-b' })
-    await executeCrowdStrikeRequest({ ...body, cloud: 'eu-1' })
-
+    refusedTokens.add('Bearer token-1')
+    await expect(executeCrowdStrikeRequest(body)).resolves.toMatchObject({ ok: true })
     const tokenCalls = fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/oauth2/token'))
     expect(tokenCalls.map(([url]) => url)).toEqual([
-      'https://api.crowdstrike.com/oauth2/token',
-      'https://api.crowdstrike.com/oauth2/token',
-      'https://api.eu-1.crowdstrike.com/oauth2/token',
+      'https://api.us-2.crowdstrike.com/oauth2/token',
+      'https://api.us-2.crowdstrike.com/oauth2/token',
     ])
   })
 })

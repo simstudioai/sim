@@ -1,7 +1,5 @@
-import { createHash } from 'node:crypto'
 import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
-import { LRUCache } from 'lru-cache'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import type { CrowdStrikeCloud, CrowdStrikeInlineCredentials } from '@/tools/crowdstrike/types'
@@ -185,34 +183,12 @@ async function readFalconJson(response: Response, signal?: AbortSignal): Promise
 
 /** Falcon's documented lifetime for an access token, used when `expires_in` is unusable. */
 const CROWDSTRIKE_TOKEN_LIFETIME_SECONDS = 30 * 60
-const INLINE_TOKEN_EXPIRY_BUFFER_MS = 60_000
 
 /** A token response's `expires_in`, or Falcon's standard 30-minute lifetime when it is unusable. */
 function getTokenLifetimeSeconds(expiresIn: unknown): number {
   return typeof expiresIn === 'number' && Number.isFinite(expiresIn) && expiresIn > 0
     ? expiresIn
     : CROWDSTRIKE_TOKEN_LIFETIME_SECONDS
-}
-
-/**
- * Tokens minted for inline (legacy block) credentials, keyed by cloud, client
- * id, and a hash of the secret, so a rotated secret or another cloud never
- * reuses one. Each entry lives until a minute before Falcon's `expires_in`.
- */
-const inlineTokenCache = new LRUCache<string, string>({
-  max: 100,
-  ttlResolution: 0,
-  perf: { now: () => Date.now() },
-})
-
-function inlineTokenCacheKey(params: CrowdStrikeInlineCredentials): string {
-  const secretHash = createHash('sha256').update(params.clientSecret).digest('hex')
-  return `${params.cloud}:${params.clientId}:${secretHash}`
-}
-
-/** Drops a cached inline token Falcon rejected, so the next request mints a fresh one. */
-export function invalidateAccessToken(params: CrowdStrikeInlineCredentials): void {
-  inlineTokenCache.delete(inlineTokenCacheKey(params))
 }
 
 /** API client credentials for one Falcon token request. */
@@ -300,22 +276,16 @@ export async function requestCrowdStrikeToken(
   }
 }
 
-/** A token for inline (legacy block) credentials, reused from the cache until shortly before it lapses. */
+/**
+ * A new token for inline (legacy block) credentials, minted for every request
+ * as the legacy block always has, so a token Falcon has since revoked or
+ * rescoped is never sent again.
+ */
 export async function getAccessToken(
   params: CrowdStrikeInlineCredentials,
   signal?: AbortSignal
 ): Promise<string> {
-  signal?.throwIfAborted()
-  const cacheKey = inlineTokenCacheKey(params)
-  const cached = inlineTokenCache.get(cacheKey)
-  if (cached) return cached
-
-  const { token, expiresInSeconds } = await requestCrowdStrikeToken(params, {
-    followRedirects: true,
-    signal,
-  })
-  const ttl = Math.floor(expiresInSeconds * 1000 - INLINE_TOKEN_EXPIRY_BUFFER_MS)
-  if (ttl > 0) inlineTokenCache.set(cacheKey, token, { ttl })
+  const { token } = await requestCrowdStrikeToken(params, { followRedirects: true, signal })
   return token
 }
 
