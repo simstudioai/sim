@@ -47,7 +47,7 @@
     },
     "hubspot-service-account": {
       "integration": "hubspot",
-      "title": "Private app tokens"
+      "title": "Service keys and private app tokens"
     },
     "hubspot-setup": {
       "integration": "hubspot",

@@ -32,6 +32,7 @@ describe('validateMondayServiceAccount', () => {
       body: JSON.stringify({
         query: 'query { me { id name email } account { id name slug } }',
       }),
+      redirect: 'error',
       signal: expect.any(AbortSignal),
     })
   })

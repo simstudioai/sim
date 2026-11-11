@@ -111,13 +111,6 @@ export interface FetchProviderOptions {
   dnsFailureReason?: string
 }
 
-/**
- * Fetches a provider verification endpoint, mapping network-level failures
- * (DNS, TLS, connection reset) to `provider_unavailable` so they never escape
- * as raw undici errors — whose `cause` can carry connection details — and are
- * never blamed on the pasted token. DNS-resolution failures can optionally be
- * mapped to a different code via {@link FetchProviderOptions}.
- */
 const PROVIDER_FETCH_TIMEOUT_MS = 10_000
 
 /**
@@ -130,6 +123,18 @@ export function isHostNotFound(error: unknown): boolean {
   return failure?.code === 'ENOTFOUND' || failure?.cause?.code === 'ENOTFOUND'
 }
 
+/**
+ * Fetches a provider verification endpoint, mapping network-level failures
+ * (DNS, TLS, connection reset) to `provider_unavailable` so they never escape
+ * as raw undici errors — whose `cause` can carry connection details — and are
+ * never blamed on the pasted token. DNS-resolution failures can optionally be
+ * mapped to a different code via {@link FetchProviderOptions}.
+ *
+ * Redirects are refused (`redirect: 'error'`) unless `init` names another mode:
+ * every caller sends a secret, and fetch replays custom headers and 307/308
+ * bodies to whatever host a redirect names. A refused redirect is a network
+ * failure, so it surfaces as `provider_unavailable`.
+ */
 export async function fetchProvider(
   url: string,
   init: RequestInit,
@@ -139,7 +144,7 @@ export async function fetchProvider(
   try {
     const timeout = AbortSignal.timeout(PROVIDER_FETCH_TIMEOUT_MS)
     const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout
-    return await fetch(url, { ...init, signal })
+    return await fetch(url, { ...init, redirect: init.redirect ?? 'error', signal })
   } catch (error) {
     init.signal?.throwIfAborted()
     // Only ENOTFOUND proves the host doesn't exist; EAI_AGAIN is a transient
@@ -182,6 +187,14 @@ export interface ProviderResponse {
   status: number
   headers: { get(name: string): string | null }
   body: ReadableStream<Uint8Array> | null
+}
+
+/** Whether a 403 is the vendor's own JSON answer; an HTML one is a firewall or CDN page. */
+export function isVendorJsonForbidden(response: ProviderResponse): boolean {
+  return (
+    response.status === 403 &&
+    (response.headers.get('content-type') ?? '').includes('application/json')
+  )
 }
 
 /**

@@ -63,9 +63,24 @@ export const validateAffinityServiceAccount = tokenCheckValidator({
   }),
 })
 
-/** Listing one AgentMail inbox answers 200 for a valid key and 403 otherwise. */
+/**
+ * The AgentMail 403 codes its docs give for a valid key whose permissions or scope do not
+ * cover the request: https://docs.agentmail.to/knowledge-base/api-403-error
+ */
+const AGENTMAIL_SCOPED_KEY_CODES: ReadonlySet<unknown> = new Set([
+  'missing_permission',
+  'forbidden',
+])
+
+/**
+ * Listing one AgentMail inbox answers 200 for a valid key. A valid key that lacks the
+ * inbox-read permission or is scoped to a pod or inbox gets a 403 coded `missing_permission`
+ * or `forbidden`, and can still run the tools its scope covers. Every other refusal, from
+ * the gateway's bare `{"message":"Forbidden"}` to a suspended account, rejects the key.
+ */
 export const validateAgentMailServiceAccount = tokenCheckValidator({
   serviceLabel: 'AgentMail',
+  provesKey: (errorBody) => AGENTMAIL_SCOPED_KEY_CODES.has(toRecord(errorBody).code),
   request: ({ apiToken }) => ({
     url: 'https://api.agentmail.to/v0/inboxes?limit=1',
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
@@ -379,9 +394,11 @@ export const validateDaytonaServiceAccount = tokenCheckValidator({
 
 /**
  * Listing one session of the organization is the tools' own read on their host and auth: 200
- * proves the key and its access to that organization. Devin answers an unknown key, or a key
- * from another organization, with a problem+json 403, so a 403 rejects. The id must survive
- * URL encoding unchanged, so it can never steer the tools' unencoded path.
+ * proves the key and its access to that organization (it needs `ViewOrgSessions`). Devin
+ * answers an invalid key with 401, and both a key outside the organization and one without the
+ * permission with the same problem+json 403; nothing documented tells those two apart, so a
+ * 403 rejects. The id must survive URL encoding unchanged, so it can never steer the tools'
+ * unencoded path.
  */
 export const validateDevinServiceAccount = tokenCheckValidator({
   serviceLabel: 'Devin',
@@ -624,8 +641,11 @@ const BITBUCKET_REPOSITORY = /^[A-Za-z0-9][A-Za-z0-9_-]{0,254}\/[A-Za-z0-9_-][A-
  * Reading one repository the token can see is the request Atlassian documents for all
  * three kinds (`GET /2.0/repositories/{workspace}/{repository}` with the `repository`
  * scope): 200 with the repository, 401 for a bad token, 403 without the scope, and 404 for
- * a repository that does not exist or that the token cannot reach.
+ * a repository that does not exist or that the token cannot reach. An Atlassian API token
+ * created for Bitbucket passes the same read, since Bitbucket takes it as a Bearer token
+ * without the account email.
  * https://support.atlassian.com/bitbucket-cloud/docs/using-access-tokens/
+ * https://support.atlassian.com/bitbucket-cloud/docs/using-api-tokens/
  */
 export const validateBitbucketServiceAccount = tokenCheckValidator({
   serviceLabel: 'Bitbucket',
@@ -1008,11 +1028,22 @@ export const validateMem0ServiceAccount = tokenCheckValidator({
 })
 
 /**
+ * The NerdGraph error classes New Relic's own Go client retries: NerdGraph failing to
+ * answer, not a verdict on the key.
+ * https://github.com/newrelic/newrelic-client-go/blob/main/internal/http/graphql.go
+ */
+const NERDGRAPH_RETRYABLE_ERROR_CLASSES: ReadonlySet<unknown> = new Set([
+  'TIMEOUT',
+  'INTERNAL_SERVER_ERROR',
+  'SERVER_ERROR',
+])
+
+/**
  * A New Relic User API key is bound to its data center, so it is checked against the
  * NerdGraph host of the region typed with it (`us` or `eu`, stored lower-cased because
  * the tools send anything but `eu` to the US host). An unknown key, or one from the other
- * region, gets 401; NerdGraph can also answer 200 with an `errors` array, so only a
- * resolved user proves the key.
+ * region, gets 401, or a 200 whose `errors` carry `BAD_API_KEY`, so only a resolved user
+ * proves the key. Only an error in a server class means NerdGraph failed to answer.
  */
 export const validateNewRelicServiceAccount = tokenCheckValidator({
   serviceLabel: 'New Relic',
@@ -1023,7 +1054,20 @@ export const validateNewRelicServiceAccount = tokenCheckValidator({
     headers: { ...newRelicHeaders(apiToken), Accept: 'application/json' },
     body: JSON.stringify({ query: '{ actor { user { id } } }' }),
   }),
-  acceptsBody: (body) => toRecord(toRecord(toRecord(body).data).actor).user != null,
+  acceptsBody: (body) => {
+    const { data, errors } = toRecord(body)
+    if (toRecord(toRecord(data).actor).user != null) return true
+    const failedToAnswer = toArray(errors).some((error) =>
+      NERDGRAPH_RETRYABLE_ERROR_CLASSES.has(toRecord(toRecord(error).extensions).errorClass)
+    )
+    if (failedToAnswer) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'NerdGraph answered with errors and no user',
+      })
+    }
+    return false
+  },
 })
 
 /**

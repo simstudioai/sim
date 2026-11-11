@@ -327,21 +327,21 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
   [HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'HubSpot',
-    tokenNoun: 'private app access token',
-    connectNoun: 'private app token',
+    tokenNoun: 'service key or private app access token',
+    connectNoun: 'service key',
     fields: [
       {
         id: 'apiToken',
-        label: 'Private app access token',
+        label: 'Service key or private app token',
         placeholder: 'pat-na1-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
         secret: true,
         hintPattern: /^pat-/i,
-        hintMessage: 'HubSpot private app tokens usually start with pat-.',
+        hintMessage: 'HubSpot service keys and private app tokens usually start with pat-.',
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/hubspot-service-account',
     helpText:
-      'Tokens are tied to the super admin who created the private app; if that user is removed from the portal, some calls may start failing.',
+      'Create a service key in HubSpot under Development > Keys > Service keys (or Settings > Integrations > Service keys, depending on your account); new legacy private apps can no longer be created, but existing private app tokens keep working. If the key rotates automatically, paste the new key here after each rotation.',
   },
   [AIRTABLE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: AIRTABLE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -526,6 +526,8 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/webflow-service-account',
     helpText:
       'Site tokens expire after 365 days without API activity, and each token grants access to a single site.',
+    invalidCredentialsHelp:
+      'Webflow rejected this token, or it reaches no site. Generate a site API token in the site settings with at least the sites:read scope.',
   },
   [TRELLO_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: TRELLO_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -1866,7 +1868,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'Access token',
-        placeholder: 'Paste a workspace, project, or repository access token',
+        placeholder: 'Paste an access token or a Bitbucket API token',
         secret: true,
       },
       {
@@ -1881,9 +1883,9 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/bitbucket-service-account',
     helpText:
-      'Use a Bitbucket Cloud workspace, project, or repository access token with at least the repository scope. Enter any repository the token can read, as workspace/repository; Sim reads it once to verify the token.',
+      'Use a Bitbucket Cloud workspace, project, or repository access token with at least the repository scope, or an Atlassian API token created for Bitbucket with at least repository read (app passwords no longer work). Enter any repository the token can read, as workspace/repository; Sim reads it once to verify the token.',
     invalidCredentialsHelp:
-      'Bitbucket rejected this token. Check that it has not expired or been revoked, has the repository scope, and can read the repository you entered.',
+      'Bitbucket rejected this token. Check that it has not expired or been revoked, has repository read access, and can read the repository you entered. App passwords no longer work; use an access token or an API token created for Bitbucket.',
   },
   [GRAFANA_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: GRAFANA_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -2300,7 +2302,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/infisical',
     helpText:
-      'Use https://us.infisical.com for US Cloud, https://eu.infisical.com for EU Cloud, or your self-hosted URL. Universal Auth tokens expire with their TTL; a Token Auth token with a long TTL keeps runs working.',
+      'Use https://us.infisical.com for US Cloud, https://eu.infisical.com for EU Cloud, or your self-hosted URL. Sim does not renew the token, so it stops working when its Access Token TTL runs out: set a long Access Token TTL and Max TTL on the identity, and leave Access Token Period unset, since a periodic token expires unless it is renewed.',
     invalidCredentialsHelp:
       'Paste a machine identity access token, not a client secret or service token, and make sure the instance URL matches the region the identity lives in.',
   },
