@@ -208,14 +208,27 @@ USING (tenant_id = app_current_tenant_id());
 
 The helper returns `NULL` when the setting is missing, empty, or not a UUID, so the policy matches no rows instead of raising a cast error.
 
+A view normally reads its base tables with its owner's privileges and row-security context, not the caller's, so a policy scoped to `agent_reader` does not protect a curated view owned by an administrator. On PostgreSQL 15 or later, create agent-facing views with `security_invoker` so the policy applies to the querying role, and grant that role `SELECT` only on the base-table columns each view exposes:
+
+```sql
+CREATE VIEW agent_api.agent_memory_summary
+WITH (security_invoker = true) AS
+SELECT tenant_id, memory_id, summary, created_at
+FROM agent_memory;
+
+GRANT SELECT (tenant_id, memory_id, summary, created_at) ON agent_memory TO agent_reader;
+GRANT SELECT ON agent_api.agent_memory_summary TO agent_reader;
+```
+
 Use this tenant-isolation checklist:
 
 1. Derive tenant identity from authenticated server-side context, never from a model argument.
 2. Set tenant context locally inside the same transaction as the query when using connection pooling.
 3. Connect through a non-owner role without superuser or `BYPASSRLS` privileges.
-4. Enable and force row-level security on every tenant-scoped table the role can query.
-5. Make missing or invalid tenant context return no rows.
-6. Test with at least two tenants and confirm that neither can read or infer the other's records.
+4. Create every agent-facing view with `security_invoker = true` so row-level security evaluates the querying role.
+5. Enable and force row-level security on every tenant-scoped table the role can query.
+6. Make missing or invalid tenant context return no rows.
+7. Test with at least two tenants and confirm that neither can read or infer the other's records.
 
 PostgreSQL explains policy behavior and role exceptions in its [row security documentation](https://www.postgresql.org/docs/current/ddl-rowsecurity.html). Views and MCP tool filters can narrow the interface further, but PostgreSQL should make the final row-level access decision.
 
