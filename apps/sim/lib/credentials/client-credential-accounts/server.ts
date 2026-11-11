@@ -16,6 +16,7 @@ import {
   ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID,
   partitionClientCredentialFields,
   RAMP_SERVICE_ACCOUNT_PROVIDER_ID,
+  SAILPOINT_SERVICE_ACCOUNT_PROVIDER_ID,
   SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID,
   VANTA_SERVICE_ACCOUNT_PROVIDER_ID,
   ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -33,6 +34,7 @@ import { mintNetSuiteServiceAccountToken } from '@/lib/credentials/client-creden
 import { mintOracleEpmServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/oracle-epm'
 import { mintOracleFusionServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/oracle-fusion'
 import { mintRampServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/ramp'
+import { mintSailPointServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/sailpoint'
 import { mintSalesforceServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/salesforce'
 import { mintVantaServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/vanta'
 import { mintZohoDeskServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoho-desk'
@@ -52,7 +54,8 @@ export interface ClientCredentialAccountFields {
   /**
    * Provider-specific org identifier (Zoom Account ID, Box Enterprise ID,
    * Salesforce My Domain host, Zoho Desk organization ID, NetSuite SuiteTalk
-   * origin, an Oracle EPM environment URL, or a CrowdStrike member CID).
+   * origin, an Oracle EPM environment URL, a CrowdStrike member CID, or a
+   * SailPoint tenant).
    */
   orgId: string
   /**
@@ -119,8 +122,8 @@ export interface ClientCredentialAccountMintResult {
    */
   apiDomain?: string
   /**
-   * The region, site, or tenant the token is bound to (a CrowdStrike cloud or
-   * Datadog site), forwarded to tools as the credential's `domain`, which fills
+   * The region, site, or tenant the token is bound to (a CrowdStrike cloud,
+   * Datadog site, or SailPoint tenant API host), forwarded to tools as the credential's `domain`, which fills
    * the tool param that picks the provider host.
    */
   domain?: string
@@ -178,6 +181,7 @@ const CLIENT_CREDENTIAL_ACCOUNT_MINTERS: Record<
   [DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID]: mintDocuSignServiceAccountToken,
   [CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID]: mintCrowdStrikeServiceAccountToken,
   [DATADOG_SERVICE_ACCOUNT_PROVIDER_ID]: mintDatadogServiceAccountToken,
+  [SAILPOINT_SERVICE_ACCOUNT_PROVIDER_ID]: mintSailPointServiceAccountToken,
 }
 
 export function getClientCredentialAccountMinter(

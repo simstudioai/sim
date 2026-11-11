@@ -144,6 +144,7 @@ import {
   RipplingIcon,
   RocketlaneIcon,
   RootlyIcon,
+  SailPointIcon,
   SalesforceIcon,
   SendgridIcon,
   SentryIcon,
@@ -1660,6 +1661,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'fivetran',
+  },
+  sailpoint: {
+    name: 'SailPoint',
+    icon: SailPointIcon,
+    services: {
+      sailpoint: {
+        name: 'SailPoint',
+        description: 'Govern identities and access in SailPoint Identity Security Cloud.',
+        providerId: 'sailpoint',
+        serviceAccountProviderId: 'sailpoint-service-account',
+        authType: 'service_account',
+        icon: SailPointIcon,
+        baseProviderIcon: SailPointIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'sailpoint',
   },
   datadog: {
     name: 'Datadog',

@@ -145,6 +145,16 @@ export const DATADOG_API_KEY_CREDENTIAL_OAUTH = tokenCredentialOAuth('datadog', 
   site: 'domain',
 })
 
+/**
+ * Credential policy for every SailPoint tool. A saved SailPoint API client
+ * resolves to a token minted at its tenant; the credential fills the token and
+ * that tenant's API host, and the token replaces the inline client id and secret.
+ */
+export const SAILPOINT_CREDENTIAL_OAUTH = clientCredentialOAuth('sailpoint', { tenant: 'domain' }, [
+  'clientId',
+  'clientSecret',
+])
+
 /** Token credential policies for tools that take an inline key or a saved token credential. */
 export const AFFINITY_CREDENTIAL_OAUTH = tokenCredentialOAuth('affinity', { apiKey: 'accessToken' })
 export const AGENTMAIL_CREDENTIAL_OAUTH = tokenCredentialOAuth('agentmail', {
@@ -455,6 +465,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   rippling: RIPPLING_CREDENTIAL_OAUTH,
   rocketlane: ROCKETLANE_CREDENTIAL_OAUTH,
   rootly: ROOTLY_CREDENTIAL_OAUTH,
+  sailpoint: SAILPOINT_CREDENTIAL_OAUTH,
   sendgrid: SENDGRID_CREDENTIAL_OAUTH,
   sentry: SENTRY_CREDENTIAL_OAUTH,
   similarweb: SIMILARWEB_CREDENTIAL_OAUTH,

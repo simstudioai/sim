@@ -92,6 +92,7 @@ import { RipplingBlock, RipplingV2Block } from '@/blocks/blocks/rippling'
 import { RocketlaneBlock, RocketlaneV2Block } from '@/blocks/blocks/rocketlane'
 import { RootlyBlock, RootlyV2Block } from '@/blocks/blocks/rootly'
 import { S3Block, S3V2Block } from '@/blocks/blocks/s3'
+import { SailPointBlock, SailPointV2Block } from '@/blocks/blocks/sailpoint'
 import { SecretsManagerBlock, SecretsManagerV2Block } from '@/blocks/blocks/secrets_manager'
 import { SendGridBlock, SendGridV2Block } from '@/blocks/blocks/sendgrid'
 import { SentryBlock, SentryV2Block } from '@/blocks/blocks/sentry'
@@ -352,6 +353,11 @@ const VERSIONS: Array<{
   { legacy: EmailBisonBlock, successor: EmailBisonV2Block, secretIds: ['apiKey'] },
   { legacy: DevinBlock, successor: DevinV2Block, secretIds: ['apiKey'] },
   { legacy: OktaBlock, successor: OktaV2Block, secretIds: ['apiKey'] },
+  {
+    legacy: SailPointBlock,
+    successor: SailPointV2Block,
+    secretIds: ['tenant', 'clientId', 'clientSecret'],
+  },
   {
     legacy: DatadogBlock,
     successor: DatadogV2Block,
