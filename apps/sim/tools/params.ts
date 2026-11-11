@@ -278,6 +278,12 @@ export function createUserToolSchema(
     properties: {},
     required: [],
   }
+  // A hybrid tool takes either its inline values or a saved credential that
+  // supplies them, so Copilot may send credentialId in place of those values.
+  const savedCredentialParams =
+    surface === 'copilot' && toolConfig.oauth?.required === false
+      ? (toolConfig.oauth.credentialSuppliedParams ?? [])
+      : undefined
 
   for (const [paramId, param] of Object.entries(toolConfig.params)) {
     if (!param) continue
@@ -307,8 +313,22 @@ export function createUserToolSchema(
     }
     schema.properties[paramId] = propertySchema
 
-    if (param.required && paramId !== hostedApiKeyParam) {
+    if (
+      param.required &&
+      paramId !== hostedApiKeyParam &&
+      !savedCredentialParams?.includes(paramId)
+    ) {
       schema.required.push(paramId)
+    }
+  }
+
+  const credentialReplaces = savedCredentialParams?.filter(
+    (paramId) => paramId in schema.properties
+  )
+  if (credentialReplaces?.length) {
+    schema.properties.credentialId = {
+      type: 'string',
+      description: `Optional ID of a saved credential to use for this call, from environment/credentials.json. It supplies ${credentialReplaces.join(', ')}; without it, pass those yourself.`,
     }
   }
 

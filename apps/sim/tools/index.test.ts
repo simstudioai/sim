@@ -3987,6 +3987,36 @@ describe('Internal Route Trust', () => {
       })
       expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
     })
+
+    it('makes copilot pass credentialId or the inline values, and honors credentialId alone', async () => {
+      const _context = {
+        workspaceId: 'workspace-456',
+        userId: 'user-1',
+        copilotToolExecution: true,
+      }
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-token',
+        credentialType: 'service_account',
+        domain: 'api.example.com',
+      })
+
+      const missing = await executeTool(toolId, { baseUrl: 'api.example.com', _context })
+      expect(missing).toMatchObject({
+        success: false,
+        error: expect.stringMatching(/credentialId.*apiKey/),
+      })
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+
+      const saved = await executeTool(toolId, { credentialId: 'saved-credential', _context })
+      expect(saved.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        'https://api.example.com/v1/me',
+        expect.anything(),
+        expect.objectContaining({
+          headers: expect.objectContaining({ authorization: 'Bearer saved-token' }),
+        })
+      )
+    })
   })
 
   it.each(['oauth', 'managed_oauth', undefined])(

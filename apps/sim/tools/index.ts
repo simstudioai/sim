@@ -523,7 +523,7 @@ function enforceCopilotCredentialSelection(
   params: Record<string, unknown>,
   scope: ToolExecutionScope
 ): void {
-  if (!scope.copilotToolExecution || !tool.oauth?.required) {
+  if (!scope.copilotToolExecution || !tool.oauth) {
     return
   }
 
@@ -532,6 +532,22 @@ function enforceCopilotCredentialSelection(
   }
 
   const toolLabel = tool.name || toolId
+  if (!tool.oauth.required) {
+    // Copilot's schema lets credentialId stand in for these, so it no longer requires them.
+    const missing = (tool.oauth.credentialSuppliedParams ?? []).filter(
+      (paramId) =>
+        tool.params[paramId]?.required &&
+        !(isHosted && paramId === tool.hosting?.apiKeyParam) &&
+        (params[paramId] === undefined || params[paramId] === null || params[paramId] === '')
+    )
+    if (missing.length > 0) {
+      throw new Error(
+        `${toolLabel} needs credentialId (a saved ${tool.oauth.provider} credential) or ${missing.join(', ')}.`
+      )
+    }
+    return
+  }
+
   throw new Error(
     `Copilot must pass credentialId for ${toolLabel}. Run \`credentials list\` and pass the exact credentialId for provider "${tool.oauth.provider}".`
   )
