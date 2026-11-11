@@ -182,7 +182,7 @@ function projectField(
 function declaredInputFor(
   subBlock: SubBlockConfig,
   declaredInputs: BlockConfig['inputs'] = {}
-): CatalogInputDefinition | undefined {
+): BlockConfig['inputs'][string] | undefined {
   return (
     declaredInputs[subBlock.id] ??
     (subBlock.canonicalParamId !== undefined
