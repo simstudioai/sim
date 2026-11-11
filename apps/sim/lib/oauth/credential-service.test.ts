@@ -1383,7 +1383,7 @@ describe('token provider credentials saved in client-credentials mode', () => {
     )
   })
 
-  function storeBlob(credentialId: string, blob: Record<string, unknown>, reads = 2) {
+  function storeBlob(credentialId: string, blob: Record<string, unknown>, reads = 1) {
     for (let read = 0; read < reads; read++) {
       queueTableRows(credential, [{ encryptedServiceAccountKey: `enc-${credentialId}` }])
     }
@@ -1399,10 +1399,11 @@ describe('token provider credentials saved in client-credentials mode', () => {
     ).resolves.toEqual({ accessToken: 'minted', domain: 'acme.myshopify.com' })
     const request = new Request(fetchMock.mock.calls[0][0], fetchMock.mock.calls[0][1])
     expect(request.url).toBe('https://acme.myshopify.com/admin/oauth/access_token')
+    expect(mocks.decryptSecret).toHaveBeenCalledTimes(1)
   })
 
   it('leaves a coordinated Shopify token to the coordinator instead of caching it per instance', async () => {
-    storeBlob('shopify-cc-2', shopifyBlob, 4)
+    storeBlob('shopify-cc-2', shopifyBlob, 2)
     fetchMock.mockImplementation(async () =>
       Response.json({ access_token: `minted-${fetchMock.mock.calls.length}`, expires_in: 86399 })
     )
@@ -1427,7 +1428,7 @@ describe('token provider credentials saved in client-credentials mode', () => {
         expires_in: 2_591_999,
       })
     )
-    storeBlob('linear-cc', linearBlob, 4)
+    storeBlob('linear-cc', linearBlob, 2)
 
     await expect(
       resolveServiceAccountToken('linear-cc', 'linear-service-account')
@@ -1500,7 +1501,7 @@ describe('Atlassian service-account resolution', () => {
         cloudId: 'cloud-1',
         atlassianProduct: 'jira',
       },
-      2
+      1
     )
     fetchMock.mockResolvedValue(Response.json({ access_token: 'atl-minted', expires_in: 3600 }))
 
@@ -1514,6 +1515,7 @@ describe('Atlassian service-account resolution', () => {
     expect(new Request(fetchMock.mock.calls[0][0], fetchMock.mock.calls[0][1]).url).toBe(
       'https://auth.atlassian.com/oauth/token'
     )
+    expect(mocks.decryptSecret).toHaveBeenCalledTimes(1)
   })
 
   it('still returns a scoped API token as is', async () => {

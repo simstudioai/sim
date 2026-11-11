@@ -481,6 +481,40 @@ export function parseTokenServiceAccountSecretBlob(
   return parsed
 }
 
+/** The credential a stored secret blob holds: a pasted token, or a client-credentials pair. */
+export type StoredSecretMode =
+  | { apiToken: string }
+  | { authMethod: typeof CLIENT_CREDENTIALS_AUTH_METHOD; clientId: string; clientSecret: string }
+
+/**
+ * Reads which credential a parsed secret blob was saved with: no `authMethod` means a pasted
+ * token, and the client-credentials method means a client ID and secret to mint with. Returns
+ * `undefined` for a blob missing the fields its mode needs, or naming another method.
+ */
+export function parseStoredSecretMode(
+  parsed: Record<string, unknown>
+): StoredSecretMode | undefined {
+  if (parsed.authMethod === undefined) {
+    return typeof parsed.apiToken === 'string' && parsed.apiToken
+      ? { apiToken: parsed.apiToken }
+      : undefined
+  }
+  if (
+    parsed.authMethod !== CLIENT_CREDENTIALS_AUTH_METHOD ||
+    typeof parsed.clientId !== 'string' ||
+    !parsed.clientId ||
+    typeof parsed.clientSecret !== 'string' ||
+    !parsed.clientSecret
+  ) {
+    return undefined
+  }
+  return {
+    authMethod: CLIENT_CREDENTIALS_AUTH_METHOD,
+    clientId: parsed.clientId,
+    clientSecret: parsed.clientSecret,
+  }
+}
+
 /** Parses either mode of a token provider's secret blob, checking it belongs to the provider. */
 export function parseTokenServiceAccountSecret(
   decrypted: string,
@@ -495,39 +529,25 @@ export function parseTokenServiceAccountSecret(
   ) {
     throw malformed
   }
+  const mode = parseStoredSecretMode(parsed)
+  if (!mode) throw malformed
   const optional = {
     ...(typeof parsed.domain === 'string' ? { domain: parsed.domain } : {}),
     ...(isRecordLike(parsed.metadata)
       ? { metadata: parsed.metadata as Record<string, string> }
       : {}),
   }
-  if (parsed.authMethod === undefined) {
-    if (typeof parsed.apiToken !== 'string' || !parsed.apiToken) throw malformed
-    return {
-      type: TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
-      providerId: expectedProviderId,
-      apiToken: parsed.apiToken,
-      ...(typeof parsed.providerWorkspaceId === 'string'
-        ? { providerWorkspaceId: parsed.providerWorkspaceId }
-        : {}),
-      ...optional,
-    }
-  }
-  if (
-    parsed.authMethod !== CLIENT_CREDENTIALS_AUTH_METHOD ||
-    typeof parsed.clientId !== 'string' ||
-    !parsed.clientId ||
-    typeof parsed.clientSecret !== 'string' ||
-    !parsed.clientSecret
-  ) {
-    throw malformed
-  }
-  return {
+  const base: Pick<TokenServiceAccountSecretBlob, 'type' | 'providerId'> = {
     type: TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
     providerId: expectedProviderId,
-    authMethod: CLIENT_CREDENTIALS_AUTH_METHOD,
-    clientId: parsed.clientId,
-    clientSecret: parsed.clientSecret,
+  }
+  if ('authMethod' in mode) return { ...base, ...mode, ...optional }
+  return {
+    ...base,
+    ...mode,
+    ...(typeof parsed.providerWorkspaceId === 'string'
+      ? { providerWorkspaceId: parsed.providerWorkspaceId }
+      : {}),
     ...optional,
   }
 }
