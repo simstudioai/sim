@@ -312,7 +312,7 @@ describe('login command', () => {
     })
     expect(mocks.writeCredentialsProfile).toHaveBeenLastCalledWith('default', null)
     expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain(
-      'API key key-id was created but could not be stored safely'
+      'API key key-id was created on your account but could not be stored safely'
     )
   })
 
@@ -344,12 +344,14 @@ describe('login command', () => {
     })
 
     await expect(login('--read-only')).rejects.toThrow(
-      'issued a full-access key, not the key requested'
+      'issued a full-access key, not the key requested, so the CLI did not store it. Revoke that key'
     )
 
     expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
-    expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain(
-      'API key key-id was created but could not be stored safely'
+    const output = vi.mocked(console.log).mock.calls.flat().join('\n')
+    expect(output).toContain('API key key-id was created on your account')
+    expect(output).toMatch(
+      /Revoke it in Settings → API keys, where it is named "CLI \(\d{4}-\d{2}-\d{2} …Z\)"/
     )
   })
 
@@ -862,6 +864,28 @@ describe('login command — OAuth', () => {
   afterEach(() => {
     if (originalIsTTY) Object.defineProperty(process.stdin, 'isTTY', originalIsTTY)
     else Reflect.deleteProperty(process.stdin, 'isTTY')
+  })
+
+  /** Only an API key can expire, so asking for a lifetime chooses the handoff over OAuth. */
+  it('mints an API key when --expires-in is given without --method', async () => {
+    setInteractive(false)
+    mocks.pollForKey.mockResolvedValue({
+      id: 'key-id',
+      apiKey: 'sim-key',
+      scope: 'platform',
+      workspaceBound: false,
+      workspaceId: 'ws_1',
+      access: 'write',
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    })
+
+    await login('--expires-in', '30')
+
+    expect(mocks.loginWithBrowser).not.toHaveBeenCalled()
+    expect(mocks.writeCredentialsProfile).toHaveBeenLastCalledWith('default', {
+      kind: 'api_key',
+      apiKey: 'sim-key',
+    })
   })
 
   it('keeps a concurrently stored login and revokes the family it could not commit', async () => {

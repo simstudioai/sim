@@ -401,8 +401,8 @@ function parseExpiresIn(value: string | undefined): number | undefined {
  *
  * An explicit method selects the credential type: OAuth never falls back to
  * an API key, and API-key login skips OAuth discovery. With no method selected,
- * OAuth is preferred, with the pairing-code handoff used for remote terminals
- * or a server without the provider. An unreachable server remains
+ * OAuth is preferred, with the pairing-code handoff used for remote terminals,
+ * a server without the provider, or an `--expires-in` only an API key honors. An unreachable server remains
  * an error rather than being mistaken for one that lacks the feature.
  *
  * `--callback-port` overrides the remote-session guess, because naming the port
@@ -414,6 +414,7 @@ async function chooseLoginFlow(
 ): Promise<'oauth' | 'handoff'> {
   requireSecureEndpoint(profile.endpoint)
   if (options.method === 'api-key') return 'handoff'
+  if (options.method === undefined && options.expiresIn !== undefined) return 'handoff'
   if (
     options.method === undefined &&
     isLikelyRemoteSession() &&
@@ -569,7 +570,7 @@ export function loginCommand(): Command {
     .option('--read-only', 'Ask only for permission to read, never to change anything')
     .option(
       '--expires-in <days>',
-      `API-key login only: days until the key expires (${MIN_KEY_EXPIRY_DAYS}-${MAX_KEY_EXPIRY_DAYS}); omit for a key that never expires`
+      `Log in with an API key that expires after this many days (${MIN_KEY_EXPIRY_DAYS}-${MAX_KEY_EXPIRY_DAYS}); without it an API key never expires`
     )
     .option('--callback-port <port>', 'Pin the local port the browser returns to')
     .option('-y, --yes', 'Overwrite an existing API-key profile without prompting')
@@ -654,12 +655,14 @@ const EXPIRY_TOLERANCE_MS = 60 * 60 * 1000
  * and expiring handoff keys ignores the request and mints a full-access key
  * that never expires. A server that reports anything else — full access after
  * `--read-only`, read-only without it, a lifetime other than `--expires-in` —
- * minted a key nobody asked for, and storing it would hide that.
+ * minted a key nobody asked for, and storing it would hide that. The key
+ * already exists on the account by then, so the refusal points at the
+ * revocation guidance the handoff's failure path prints.
  */
 function requireRequestedKey(key: MintedKey, keyRequest: KeyRequest): void {
   const refuse = (issued: string, flag: string) =>
     new SimApiError(
-      `The server issued ${issued}, not the key requested. Nothing was stored; update the Sim deployment or adjust ${flag}.`,
+      `The server issued ${issued}, not the key requested, so the CLI did not store it. Revoke that key as described above, then update the Sim deployment or adjust ${flag}.`,
       0
     )
 
@@ -750,9 +753,10 @@ async function loginWithHandoff(
     })
   } catch (error) {
     const keyId = typeof key.id === 'string' && key.id ? safeOneLine(key.id) : 'unknown'
+    const issuedOn = new Date().toISOString().slice(0, 10)
     printLine(
       styles().yellow(
-        `API key ${keyId} was created but could not be stored safely. Revoke it in Settings → API keys.`
+        `API key ${keyId} was created on your account but could not be stored safely. Revoke it in Settings → API keys, where it is named "CLI (${issuedOn} …Z)" for the time it was issued.`
       )
     )
     throw error
