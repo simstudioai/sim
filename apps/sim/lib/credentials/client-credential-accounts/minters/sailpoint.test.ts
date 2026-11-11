@@ -54,6 +54,19 @@ describe('SailPoint API client token exchange', () => {
     expect(result.domain).toBe('acme.api.identitynow.com')
   })
 
+  it('mints for a government tenant at its identitynowgov.com API host', async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ access_token: 'sp-access', expires_in: 749 }))
+
+    const result = await mintSailPointServiceAccountToken({
+      ...FIELDS,
+      orgId: 'https://agency.api.identitynowgov.com/',
+    })
+
+    expect(mockFetch.mock.calls[0]?.[0]).toBe('https://agency.api.identitynowgov.com/oauth/token')
+    expect(result.domain).toBe('agency.api.identitynowgov.com')
+    expect(result.identity.displayName).toBe('SailPoint agency')
+  })
+
   it.each([
     '',
     'evil.example',
@@ -63,7 +76,7 @@ describe('SailPoint API client token exchange', () => {
     'https://acme.api.identitynow.com:8443',
     'http://acme.api.identitynow.com',
     'a.b.api.identitynow.com',
-    'acme.api.identitynowgov.com',
+    'acme.identitynowgov.com',
     'api',
     'api.identitynow.com',
     'https://api.identitynow.com/',

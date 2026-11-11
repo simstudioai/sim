@@ -411,8 +411,12 @@ export function resolveZohoDeskDataCenter(rawDataCenter?: string): {
   return { id, ...ZOHO_DESK_DATA_CENTERS[id] }
 }
 
-/** A SailPoint Identity Security Cloud API host: one tenant label under `api.identitynow.com`. */
-const SAILPOINT_API_HOST_REGEX = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.api\.identitynow\.com$/
+/**
+ * A SailPoint Identity Security Cloud API host: one tenant label under `api.identitynow.com`, or
+ * under `api.identitynowgov.com` for government tenants (the same hosts the legacy block accepts).
+ */
+const SAILPOINT_API_HOST_REGEX =
+  /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.api\.identitynow(?:gov)?\.com$/
 
 const SAILPOINT_TENANT_LABEL_REGEX = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
 const SAILPOINT_UI_HOST_REGEX = /^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.identitynow\.com$/
@@ -421,8 +425,9 @@ const SAILPOINT_API_DOMAIN_AS_TENANT = 'api.api.identitynow.com'
 
 /**
  * Normalizes a SailPoint tenant name, API host, UI host, or https URL of either
- * to the tenant's API host (`{tenant}.api.identitynow.com`), the domain
- * SailPoint documents for API calls and token requests. Returns `undefined`
+ * to the tenant's API host (`{tenant}.api.identitynow.com`, or the same under
+ * `api.identitynowgov.com` for a government tenant) for API calls and token
+ * requests. Returns `undefined`
  * for anything else (other domains, credentials, ports, more than one tenant
  * label, or `api`, SailPoint's own API domain) rather than throwing, so the
  * connect modal's format hint and the minter share one admission rule.
@@ -607,7 +612,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
         hintPattern: SAILPOINT_API_HOST_REGEX,
         hintNormalize: (value) => normalizeSailPointTenantHost(value) ?? value.trim().toLowerCase(),
         hintMessage:
-          'Expected your tenant name or its API host, like acme or acme.api.identitynow.com.',
+          'Expected your tenant name or its API host, like acme, acme.api.identitynow.com, or agency.api.identitynowgov.com.',
       },
       {
         id: 'clientId',

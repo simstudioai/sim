@@ -20,7 +20,8 @@ const TOKEN_EXCHANGE_TIMEOUT_MS = 30_000
 /**
  * Mints a SailPoint Identity Security Cloud access token for an API client or
  * personal access token through the client-credentials grant at the tenant's
- * documented token endpoint, `https://{tenant}.api.identitynow.com/oauth/token`.
+ * documented token endpoint, `https://{tenant}.api.identitynow.com/oauth/token` (or the same
+ * path on `api.identitynowgov.com` for a government tenant).
  * The tenant comes only from {@link normalizeSailPointTenantHost}, and the
  * exchange (shared with the legacy block's inline credentials) refuses
  * redirects, so the secret reaches no other host. The token's lifetime comes
@@ -83,7 +84,7 @@ export async function mintSailPointServiceAccountToken(
     expiresInSeconds: minted.expiresInSeconds,
     domain: host,
     identity: {
-      displayName: `SailPoint ${host.slice(0, -'.api.identitynow.com'.length)}`,
+      displayName: `SailPoint ${host.split('.')[0]}`,
       principal: null,
       auditMetadata: { sailpointTenant: host, sailpointClientId: fields.clientId },
       storedMetadata: { tenant: host },
