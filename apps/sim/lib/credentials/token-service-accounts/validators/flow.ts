@@ -1,7 +1,9 @@
 import { toRecord } from '@sim/utils/object'
+import { EgressRefusedError } from '@/lib/core/network/transport.server'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { userPrincipal } from '@/lib/credentials/principal'
 import {
+  isHostNotFound,
   isTransientProviderStatus,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
@@ -60,6 +62,13 @@ export async function validateFlowServiceAccount(
     }
   } catch (error) {
     if (error instanceof TokenServiceAccountValidationError) throw error
+    // A host the egress policy refuses, or one that doesn't exist, is the user's input.
+    if (error instanceof EgressRefusedError) {
+      throw new TokenServiceAccountValidationError('host_not_allowed', 400)
+    }
+    if (error instanceof Error && isHostNotFound(error.cause)) {
+      throw new TokenServiceAccountValidationError('site_not_found', 400)
+    }
     throw new TokenServiceAccountValidationError('provider_unavailable', 502)
   }
 }

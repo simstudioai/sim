@@ -3,10 +3,18 @@ import {
   inputValidationMock,
   inputValidationMockFns,
 } from '@sim/testing/mocks/input-validation.mock'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockResolveHost } = vi.hoisted(() => ({ mockResolveHost: vi.fn() }))
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+vi.mock('@sim/security/dns', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sim/security/dns')>()),
+  resolveHostAddresses: mockResolveHost,
+}))
 
+import { EgressRefusedError } from '@/lib/core/network/transport.server'
+import type * as InputValidation from '@/lib/core/security/input-validation.server'
 import {
   normalizeHttpBaseUrl,
   refuseUnsafeTypedUrl,
@@ -178,6 +186,9 @@ describe('tokenCheckValidator with a typed host', () => {
     expect(() => normalizeHttpBaseUrl('https:/grafana.example.com')).toThrow(/scheme/)
     expect(() => refuseUnsafeTypedUrl('https:/evil.com')).toThrow(/scheme/)
     expect(() => refuseUnsafeTypedUrl('HTTP:evil.com')).toThrow(/scheme/)
+    // The URL parser drops tabs and newlines, so they must not hide a scheme from the guard.
+    expect(() => refuseUnsafeTypedUrl('ht\ntps:/evil.com')).toThrow(/scheme/)
+    expect(() => normalizeHttpBaseUrl('ht\ttps:/evil.com')).toThrow(/scheme/)
     expect(refuseUnsafeTypedUrl('https://grafana.example.com')).toBe('https://grafana.example.com')
     expect(normalizeHttpBaseUrl('grafana.example.com:3000/')).toBe(
       'https://grafana.example.com:3000'
@@ -193,12 +204,48 @@ describe('tokenCheckValidator with a typed host', () => {
   })
 
   it('reports a host the egress policy refuses as the user input, not a retryable outage', async () => {
-    validateUrl.mockResolvedValue({ isValid: false, error: 'url resolves to a private address' })
+    validateUrl.mockResolvedValue({
+      isValid: false,
+      error: 'url resolves to a private address',
+      refusal: 'policy',
+    })
 
     await expect(
       validateHost({ apiToken: 'good', domain: 'grafana.internal' })
-    ).rejects.toMatchObject({ code: 'invalid_credentials', status: 400 })
+    ).rejects.toMatchObject({ code: 'host_not_allowed', status: 400 })
     expect(pinnedFetch).not.toHaveBeenCalled()
+  })
+
+  describe('behind an environment proxy', () => {
+    afterEach(() => {
+      vi.unstubAllEnvs()
+    })
+
+    it('refuses a host with a private record alongside its public one before sending the token', async () => {
+      vi.stubEnv('HTTPS_PROXY', 'http://proxy.internal:3128')
+      const actual = await vi.importActual<typeof InputValidation>(
+        '@/lib/core/security/input-validation.server'
+      )
+      validateUrl.mockImplementation(actual.validateUrlWithDNS)
+      mockResolveHost.mockResolvedValue({
+        addresses: ['93.184.216.34', '10.0.0.5'],
+        preferred: '93.184.216.34',
+      })
+      pinnedFetch.mockResolvedValue(jsonResponse({ ok: true }))
+
+      await expect(
+        validateHost({ apiToken: 'good', domain: 'split.example.com' })
+      ).rejects.toMatchObject({ code: 'host_not_allowed', status: 400 })
+      expect(pinnedFetch).not.toHaveBeenCalled()
+    })
+
+    it("reports the proxy route's own refusal as the host, not an outage", async () => {
+      pinnedFetch.mockRejectedValue(new EgressRefusedError('url resolves to a private address'))
+
+      await expect(
+        validateHost({ apiToken: 'good', domain: 'tools.example.com' })
+      ).rejects.toMatchObject({ code: 'host_not_allowed', status: 400 })
+    })
   })
 
   it('reports a host that cannot be reached as the provider being unavailable', async () => {
@@ -222,6 +269,7 @@ describe('tokenCheckValidator with a typed host', () => {
       isValid: false,
       error: 'url hostname could not be resolved',
       cause,
+      refusal: 'dns',
     })
 
     await expect(

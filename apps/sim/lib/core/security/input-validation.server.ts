@@ -20,12 +20,14 @@ import {
 import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   createOutboundTransport,
+  EgressRefusedError,
   requestWithOutboundDispatcher,
 } from '@/lib/core/network/transport.server'
 import { describeEgressDenial, type EgressProfile } from '@/lib/core/security/egress/profiles'
 import {
   checkEgressUrl,
   checkResolvedEgress,
+  type EgressRefusal,
   type EgressValidationOptions,
   validateEgressUrl,
 } from '@/lib/core/security/egress/validate'
@@ -48,6 +50,8 @@ export type AsyncValidationResult =
       isValid: false
       error: string
       cause?: unknown
+      /** Set by {@link validateUrlWithDNS}: a failed lookup, or a destination the policy refused. */
+      refusal?: EgressRefusal
       resolvedIP?: undefined
       originalHostname?: undefined
     }
@@ -74,7 +78,7 @@ export async function validateUrlWithDNS(
   const result = await validateEgressUrl(url, paramName, profile, options)
   return result.isValid
     ? { isValid: true, resolvedIP: result.resolvedIP, originalHostname: result.originalHostname }
-    : { isValid: false, error: result.error, cause: result.cause }
+    : { isValid: false, error: result.error, cause: result.cause, refusal: result.refusal }
 }
 
 /**
@@ -1582,7 +1586,7 @@ export async function secureFetchWithPinnedIP(
  * @param options - Fetch options, including the required egress `profile`
  * @param paramName - Name of the parameter for error messages (default: 'url')
  * @returns SecureFetchResponse
- * @throws Error if URL validation fails
+ * @throws EgressRefusedError if the egress policy refuses the URL, Error if its host cannot be resolved
  */
 export async function secureFetchWithValidation(
   url: string,
@@ -1594,6 +1598,7 @@ export async function secureFetchWithValidation(
     signal: options.signal,
   })
   if (!validation.isValid) {
+    if (validation.refusal === 'policy') throw new EgressRefusedError(validation.error)
     throw new Error(validation.error, { cause: validation.cause })
   }
   return secureFetchWithPinnedIP(url, validation.resolvedIP, options)

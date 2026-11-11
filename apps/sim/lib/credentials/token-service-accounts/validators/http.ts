@@ -1,4 +1,6 @@
+import { resolveEnvironmentProxy } from '@sim/security/environment-proxy'
 import { truncate } from '@sim/utils/string'
+import { EgressRefusedError } from '@/lib/core/network/transport.server'
 import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import {
   secureFetchWithPinnedIP,
@@ -99,16 +101,25 @@ export function readJsonBody(response: ProviderResponse, serviceLabel: string): 
 }
 
 /**
+ * Drops the tabs and newlines the URL parser ignores, then refuses `https:/host`, which
+ * would otherwise get a second scheme and parse as a host named `https`.
+ */
+function refuseMalformedScheme(typed: string): string {
+  const stripped = typed.replace(/[\t\n\r]/g, '')
+  if (/^https?:(?!\/\/)/i.test(stripped)) throw new Error('malformed scheme')
+  return stripped
+}
+
+/**
  * A typed http(s) base URL in the form tools build request paths on: a bare host
  * is taken as https, trailing slashes are dropped, and any other scheme,
  * credentials, a query, or a fragment is refused, since each would retarget the
  * request.
  */
 export function normalizeHttpBaseUrl(raw: string | undefined): string {
-  const typed = (raw ?? '').trim()
-  if (!typed) throw new Error('missing URL')
-  // `https:/host` would otherwise get a second scheme and parse as a host named `https`.
-  if (/^https?:(?!\/\/)/i.test(typed)) throw new Error('malformed scheme')
+  const trimmed = (raw ?? '').trim()
+  if (!trimmed) throw new Error('missing URL')
+  const typed = refuseMalformedScheme(trimmed)
   const url = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(typed) ? typed : `https://${typed}`)
   if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('http(s) only')
   if (url.username || url.password || url.search || url.hash) {
@@ -123,8 +134,7 @@ export function normalizeHttpBaseUrl(raw: string | undefined): string {
  * a host, and so verify a different identity or host than the user meant.
  */
 export function refuseUnsafeTypedUrl(raw: string | undefined): string {
-  const typed = (raw ?? '').trim()
-  if (/^https?:(?!\/\/)/i.test(typed)) throw new Error('malformed scheme')
+  const typed = refuseMalformedScheme((raw ?? '').trim())
   if (/^(?!https?:\/\/)[a-z][a-z\d+.-]*:\/\//i.test(typed)) throw new Error('http(s) only')
   const authority = typed.replace(/^[a-z][a-z\d+.-]*:\/\//i, '').split(/[/?#]/)[0]
   if (authority.includes('@')) throw new Error('credentials in URL')
@@ -157,25 +167,29 @@ function normalizedField(
   }
 }
 
+const hostNotAllowed = () =>
+  new TokenServiceAccountValidationError('host_not_allowed', 400, {
+    step: 'verify',
+    reason: 'host not allowed',
+  })
+
 /**
  * Sends a check through the guarded egress profile. A host the policy refuses
  * (a private address, or plain http where https is required) is the user's
- * input, so it fails as `invalid_credentials` rather than `provider_unavailable`,
+ * input, so it fails as `host_not_allowed` rather than `provider_unavailable`,
  * which renders as a retryable 503. A host that doesn't exist is `site_not_found`.
  */
 async function sendThroughEgress(
   profile: NonNullable<TokenCheck['egress']>,
   { url, method = 'GET', headers, body }: TokenCheckRequest
 ): Promise<ProviderResponse> {
-  const validation = await validateUrlWithDNS(url, 'url', profile, { logDetails: false })
+  // A forward proxy re-resolves the host, so the transport refuses one with any refused record.
+  const validation = await validateUrlWithDNS(url, 'url', profile, {
+    logDetails: false,
+    requireEveryAddress: resolveEnvironmentProxy(new URL(url)) !== null,
+  })
   if (!validation.isValid) {
-    // Only a failed DNS lookup carries a cause; without one the policy refused the host.
-    if (validation.cause === undefined) {
-      throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
-        step: 'verify',
-        reason: 'host not allowed',
-      })
-    }
+    if (validation.refusal !== 'dns') throw hostNotAllowed()
     const notFound = isHostNotFound(validation.cause)
     throw new TokenServiceAccountValidationError(
       notFound ? 'site_not_found' : 'provider_unavailable',
@@ -194,7 +208,9 @@ async function sendThroughEgress(
       maxResponseBytes: MAX_EGRESS_RESPONSE_BYTES,
       logUrlValidationDetails: false,
     })
-  } catch {
+  } catch (error) {
+    // The proxy route judges the host again; its answer may have changed since the check above.
+    if (error instanceof EgressRefusedError) throw hostNotAllowed()
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step: 'verify',
       reason: 'host unreachable',
