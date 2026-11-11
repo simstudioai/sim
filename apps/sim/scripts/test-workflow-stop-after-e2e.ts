@@ -408,7 +408,7 @@ async function resume(
     }
     throw new Error('Timed wait did not finish after automatic resume')
   }
-  const result = v2ExecuteWorkflowDataSchema.parse(
+  const result = v2ResumeWorkflowDataSchema.parse(
     record(
       await execute(
         fixture.workflowId,
