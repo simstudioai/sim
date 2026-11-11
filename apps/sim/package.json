@@ -206,7 +206,7 @@
     "class-variance-authority": "^0.7.1",
     "cmdk": "^1.0.0",
     "croner": "^9.0.0",
-    "cronstrue": "3.3.0",
+    "cronstrue": "3.38.0",
     "csv-parse": "7.0.3",
     "date-fns": "4.4.0",
     "decimal.js": "10.6.0",
