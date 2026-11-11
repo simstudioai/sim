@@ -2219,7 +2219,7 @@ export const v2WorkflowRunStatusSchema = z
         points: z
           .array(v2WorkflowRunPausePointSchema)
           .describe(
-            'Every point the run is paused at, earliest first, at most 100. Resume one with Resume workflow run, naming its `contextId` and supplying `input`.'
+            'Every point the run is paused at, earliest first, at most 100; past 100, points not yet resumed are listed before resumed ones. Resume one with Resume workflow run, naming its `contextId` and supplying `input`.'
           ),
       })
       .nullable()

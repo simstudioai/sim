@@ -14,7 +14,10 @@ vi.mock('@/lib/workflows/executor/paused-execution-metadata', () => ({
 }))
 
 import { FunctionalOutputsUnavailableError } from '@/lib/logs/execution/functional-outputs'
-import { getWorkflowExecutionStatus } from '@/lib/workflows/executor/execution-status'
+import {
+  getWorkflowExecutionStatus,
+  readPausedRunPoints,
+} from '@/lib/workflows/executor/execution-status'
 
 const mockGetJob = asyncJobsMockFns.mockJobQueue.getJob
 const mockMaterializeForDisplayWithBlockOutputs =
@@ -658,5 +661,47 @@ describe('getWorkflowExecutionStatus polls that read no execution data', () => {
     await expect(
       getWorkflowExecutionStatus({ ...input, selectedOutputs: ['block-1'] })
     ).rejects.toBeInstanceOf(FunctionalOutputsUnavailableError)
+  })
+})
+
+describe('readPausedRunPoints cap', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  /**
+   * A run that pauses again after resuming keeps its resumed points. Capping by
+   * registration time alone dropped the newest point, the one still waiting.
+   */
+  it('keeps a waiting point when resumed history exceeds the cap', async () => {
+    const pausePoints: Record<string, unknown> = {}
+    for (let i = 0; i < 100; i++) {
+      pausePoints[`old-${i}`] = {
+        contextId: `old-${i}`,
+        blockId: 'approval',
+        registeredAt: new Date(Date.UTC(2026, 0, 1, 0, 0, i)).toISOString(),
+        resumeStatus: 'resumed',
+        pauseKind: 'human',
+      }
+    }
+    pausePoints.current = {
+      contextId: 'current',
+      blockId: 'approval',
+      registeredAt: '2026-02-01T00:00:00.000Z',
+      resumeStatus: 'paused',
+      pauseKind: 'human',
+    }
+    queueTableRows(schemaMock.resumeQueue, [])
+    queueTableRows(schemaMock.workflowExecutionLogs, [])
+
+    const points = await readPausedRunPoints({
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      pausePoints,
+    })
+
+    expect(points).toHaveLength(100)
+    expect(points?.at(-1)).toMatchObject({ contextId: 'current', status: 'paused' })
+    expect(points?.filter((point) => point.status === 'paused')).toHaveLength(1)
   })
 })

@@ -616,6 +616,8 @@ export function renderSlotMap(
       )
     }
     if (property.default !== undefined) parts.push(`default: ${JSON.stringify(property.default)}`)
+    if ((kind === 'number' || kind === 'integer') && typeof property.maximum === 'number')
+      parts.push(`maximum: ${property.maximum}`)
     // The contract's own `.describe()` is the field's documentation, and it is
     // already what the OpenAPI specs publish. Carrying it here is what lets
     // `--help` say what a flag means instead of restating its name back at the

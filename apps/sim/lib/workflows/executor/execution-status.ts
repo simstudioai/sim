@@ -611,8 +611,23 @@ async function readWorkflowExecutionStatus(
   }
 }
 
-/** Most pause points a run detail lists; a run over it lists its earliest registered points. */
+/**
+ * Most pause points a run detail lists. A run that pauses again after resuming keeps its
+ * resumed points, so a run over the cap keeps every point not yet resumed before any resumed
+ * one: the points a caller can still act on are never crowded out by history.
+ */
 const MAX_PAUSED_RUN_POINTS = 100
+
+/** At most {@link MAX_PAUSED_RUN_POINTS}, unresolved points first, listed earliest registered first. */
+function capPausePoints<P extends PausePoint>(points: P[]): P[] {
+  const byRegistration = (a: P, b: P) => compareStrings(a.registeredAt ?? '', b.registeredAt ?? '')
+  if (points.length <= MAX_PAUSED_RUN_POINTS) return points.sort(byRegistration)
+  const unresolved = points.filter((point) => point.resumeStatus !== 'resumed')
+  const resumed = points.filter((point) => point.resumeStatus === 'resumed')
+  return [...unresolved.sort(byRegistration), ...resumed.sort(byRegistration)]
+    .slice(0, MAX_PAUSED_RUN_POINTS)
+    .sort(byRegistration)
+}
 
 /** One pause point of a paused run, as a caller reading the run may see it. */
 export interface PausedRunPoint {
@@ -674,7 +689,8 @@ async function readRunBlockNames(
 
 /**
  * The pause points of a paused run, earliest registered first and capped at
- * {@link MAX_PAUSED_RUN_POINTS}, or null when the run has no paused record.
+ * {@link MAX_PAUSED_RUN_POINTS} (unresolved points kept first), or null when the run has no
+ * paused record.
  *
  * Reads only `pause_points`, never the execution snapshot. `display` and
  * `inputFields` come only from points scrubbed of the run's resolved secrets when
@@ -727,9 +743,7 @@ export async function readPausedRunPoints(input: {
     }))
   )
 
-  const points = PauseResumeManager.mapPausePoints(row.pausePoints, queuePositions)
-    .sort((a, b) => compareStrings(a.registeredAt ?? '', b.registeredAt ?? ''))
-    .slice(0, MAX_PAUSED_RUN_POINTS)
+  const points = capPausePoints(PauseResumeManager.mapPausePoints(row.pausePoints, queuePositions))
   const baseBlockId = (point: PausePoint) => extractBaseBlockId(point.blockId ?? point.contextId)
   const names = await readRunBlockNames(workflowId, executionId, [
     ...new Set(points.map(baseBlockId)),
