@@ -6281,7 +6281,7 @@
     {
       "type": "mistral_parse_v3",
       "name": "Mistral Parser",
-      "description": "Extract text from PDF documents",
+      "description": "Extract text, tables, and images from PDF documents",
       "category": "tools",
       "hidden": false,
       "sourceWorkspaceName": null,
