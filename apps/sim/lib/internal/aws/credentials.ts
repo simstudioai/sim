@@ -106,6 +106,37 @@ export async function resolveAuthorizedAwsCredential(
   })
 }
 
+const THROTTLING_ERROR_NAMES = new Set(['Throttling', 'ThrottlingException'])
+const NETWORK_ERROR_CODES = new Set([
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'EPIPE',
+  'ETIMEDOUT',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+])
+
+/**
+ * Whether resolving a credential failed because AWS was briefly unavailable rather
+ * than because it denied the credential: an error STS models as retryable
+ * (IDPCommunicationError, when STS could not reach Sim's OIDC issuer), throttling,
+ * an STS 5xx, or a network failure. The SDK has already retried these.
+ */
+function isTransientAwsFailure(error: unknown): boolean {
+  if (!isRecordLike(error)) return false
+  const status = isRecordLike(error.$metadata) ? error.$metadata.httpStatusCode : undefined
+  return (
+    error.$retryable !== undefined ||
+    THROTTLING_ERROR_NAMES.has(String(error.name)) ||
+    status === 429 ||
+    (typeof status === 'number' && status >= 500) ||
+    error.name === 'TimeoutError' ||
+    NETWORK_ERROR_CODES.has(String(error.code))
+  )
+}
+
 /** Wraps a family's operation handler so it also accepts a saved AWS credential. */
 export function withAwsCredential<Result>(
   handler: InternalToolOperationHandler<Result>
@@ -126,7 +157,7 @@ export function withAwsCredential<Result>(
       request.signal?.throwIfAborted()
       return Response.json(
         { error: `Could not use the AWS credential: ${getErrorMessage(error, 'Unknown error')}` },
-        { status: 403 }
+        { status: isTransientAwsFailure(error) ? 503 : 403 }
       )
     }
     request.signal?.throwIfAborted()
