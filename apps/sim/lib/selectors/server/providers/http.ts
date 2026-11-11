@@ -48,13 +48,17 @@ async function readBoundedBody(response: Response): Promise<string> {
 }
 
 /**
- * Host and path of a provider request. The query string is dropped and OData-style path
- * arguments (`search(q='...')`) are blanked, since both can carry tokens or a user's search text.
+ * Host and path of a provider request, with the parts that can carry user data removed: the query
+ * string (tokens, filters), OData-style path arguments (`search(q='...')` holds search text), and
+ * any segment holding an email address (a Google calendar id is usually its owner's address).
  */
 function providerEndpoint(input: RequestInfo | URL): string | undefined {
   try {
     const url = new URL(input instanceof Request ? input.url : input)
-    return `${url.host}${url.pathname.replace(/\([^/]*\)/g, '()')}`
+    const path = url.pathname
+      .replace(/\([^/]*\)/g, '()')
+      .replace(/[^/]*(?:@|%40)[^/]*/gi, '{redacted}')
+    return `${url.host}${path}`
   } catch {
     return undefined
   }
