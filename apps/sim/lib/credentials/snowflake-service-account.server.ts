@@ -9,7 +9,7 @@ import {
 } from '@/lib/credentials/principal'
 import { parseServiceAccountConfig } from '@/lib/credentials/service-account-config'
 import { SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/credentials/token-service-accounts/descriptors'
-import { parseTokenServiceAccountSecretBlob } from '@/lib/credentials/token-service-accounts/server'
+import { parseTokenServiceAccountSecretBlob } from '@/lib/credentials/token-service-accounts/secret-blob'
 import { validateSnowflakeWorkloadIdentity } from '@/lib/credentials/token-service-accounts/validators/snowflake'
 import { WORKLOAD_IDENTITY_AUDIENCES } from '@/lib/credentials/workload-identity/audiences'
 import {

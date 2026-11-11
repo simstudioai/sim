@@ -3644,7 +3644,7 @@
       ]
     },
     {
-      "type": "github_v2",
+      "type": "github_v3",
       "name": "GitHub",
       "description": "Interact with GitHub or trigger workflows from GitHub events",
       "category": "tools",
