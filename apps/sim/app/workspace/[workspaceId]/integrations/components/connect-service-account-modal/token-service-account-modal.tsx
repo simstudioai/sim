@@ -100,9 +100,19 @@ function TokenServiceAccountModalForm({
 }: TokenServiceAccountModalProps) {
   const clientCredentials = descriptor.clientCredentials
   const [selectedAuthMethod, setSelectedAuthMethod] = useState<TokenAuthMethod | null>(null)
-  const authMethod: TokenAuthMethod =
+  /**
+   * A reconnect cannot pre-select the mode: the stored one lives inside the encrypted secret and
+   * is never returned to the client, so the admin restates it while retyping the secret. Until
+   * then neither mode's fields show, so a reconnect never switches modes by default.
+   */
+  const mustRestateAuthMethod = Boolean(clientCredentials && credentialId && !selectedAuthMethod)
+  const authMethod: TokenAuthMethod | null =
     selectedAuthMethod ??
-    (clientCredentials?.preferred && !credentialId ? CLIENT_CREDENTIALS_AUTH_METHOD : 'token')
+    (mustRestateAuthMethod
+      ? null
+      : clientCredentials?.preferred
+        ? CLIENT_CREDENTIALS_AUTH_METHOD
+        : 'token')
   const usesClientCredentials = authMethod === CLIENT_CREDENTIALS_AUTH_METHOD
   const [apiToken, setApiToken] = useState('')
   const [clientId, setClientId] = useState('')
@@ -125,6 +135,7 @@ function TokenServiceAccountModalForm({
   const isPending =
     createCredential.isPending || updateCredential.isPending || submitPending === true
   const isDisabled =
+    !authMethod ||
     (usesClientCredentials ? !clientId.trim() || !clientSecret.trim() : !trimmedToken) ||
     (Boolean(domainField) && !normalizedDomain) ||
     (Boolean(workspaceField) && !providerWorkspaceId.trim()) ||
@@ -188,7 +199,7 @@ function TokenServiceAccountModalForm({
           descriptor,
           code,
           onSubmitCredentials ? getErrorMessage(err, 'Could not save this connection.') : undefined,
-          authMethod
+          authMethod ?? undefined
         )
       )
       logger.error(`Failed to add ${descriptor.serviceLabel} service account credential`, err)
@@ -209,7 +220,7 @@ function TokenServiceAccountModalForm({
           <ChipModalField
             type='dropdown'
             title='Authentication'
-            value={authMethod}
+            value={authMethod ?? undefined}
             onChange={(value) => {
               setSelectedAuthMethod(value as TokenAuthMethod)
               if (error) setError(null)
@@ -256,7 +267,7 @@ function TokenServiceAccountModalForm({
           </>
         )}
 
-        {tokenField && !usesClientCredentials && (
+        {tokenField && authMethod === 'token' && (
           <ChipModalField
             type='custom'
             title={tokenField.label}

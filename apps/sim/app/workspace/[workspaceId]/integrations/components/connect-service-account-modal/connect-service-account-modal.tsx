@@ -149,7 +149,7 @@ function normalizeAtlassianDomain(raw: string): string {
     .replace(/\/+$/, '')
 }
 
-function messageForAtlassianError(err: unknown, authMethod: AtlassianAuthMethod): string {
+function messageForAtlassianError(err: unknown, authMethod: AtlassianAuthMethod | null): string {
   if (!isApiClientError(err) || !err.code) return FALLBACK_ERROR_MESSAGE
   const clientMessage =
     authMethod === CLIENT_CREDENTIALS_AUTH_METHOD
@@ -973,7 +973,13 @@ function AtlassianServiceAccountModalForm({
   initialDescription,
   onCreated,
 }: AtlassianServiceAccountModalProps) {
-  const [authMethod, setAuthMethod] = useState<AtlassianAuthMethod>('api_token')
+  /**
+   * A reconnect cannot pre-select the sign-in: the stored one lives inside the encrypted secret
+   * and is never returned to the client, so the admin restates it while retyping the secret.
+   */
+  const [authMethod, setAuthMethod] = useState<AtlassianAuthMethod | null>(
+    credentialId ? null : 'api_token'
+  )
   const [apiToken, setApiToken] = useState('')
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
@@ -993,6 +999,7 @@ function AtlassianServiceAccountModalForm({
 
   const isPending = createCredential.isPending || updateCredential.isPending
   const isDisabled =
+    !authMethod ||
     (usesClientCredentials ? !clientId.trim() || !clientSecret.trim() : !trimmedToken) ||
     !normalizedDomain ||
     isPending
@@ -1055,7 +1062,7 @@ function AtlassianServiceAccountModalForm({
         <ChipModalField
           type='dropdown'
           title='Authentication'
-          value={authMethod}
+          value={authMethod ?? undefined}
           onChange={(value) => {
             setAuthMethod(value as AtlassianAuthMethod)
             clearError()
@@ -1114,7 +1121,7 @@ function AtlassianServiceAccountModalForm({
               )}
             </ChipModalField>
           </>
-        ) : (
+        ) : authMethod === 'api_token' ? (
           <ChipModalField
             type='custom'
             title='API token'
@@ -1143,7 +1150,7 @@ function AtlassianServiceAccountModalForm({
               />
             )}
           </ChipModalField>
-        )}
+        ) : null}
 
         <ChipModalField
           type='input'

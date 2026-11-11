@@ -116,13 +116,21 @@ const CLIENT_CREDENTIALS_MODE_REQUIRED_FIELDS: Record<string, readonly ServiceAc
   ...TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS,
 }
 
+/**
+ * Whether a provider's primary mode is a pasted token but it also offers a client-credentials
+ * mode, which the secret records as `authMethod: 'client_credentials'`.
+ */
+export function offersClientCredentialsMode(providerId: string | null | undefined): boolean {
+  return Boolean(providerId && Object.hasOwn(CLIENT_CREDENTIALS_MODE_REQUIRED_FIELDS, providerId))
+}
+
 function getClientCredentialsModeFields(
   providerId: string | null | undefined,
   authMethod: unknown
 ): readonly ServiceAccountFieldId[] | undefined {
   return authMethod === CLIENT_CREDENTIALS_AUTH_METHOD &&
     providerId &&
-    Object.hasOwn(CLIENT_CREDENTIALS_MODE_REQUIRED_FIELDS, providerId)
+    offersClientCredentialsMode(providerId)
     ? CLIENT_CREDENTIALS_MODE_REQUIRED_FIELDS[providerId]
     : undefined
 }
