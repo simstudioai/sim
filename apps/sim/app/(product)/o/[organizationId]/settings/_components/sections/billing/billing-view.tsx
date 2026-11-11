@@ -1,21 +1,21 @@
 'use client'
 
+import { ActivityRow } from '@sim/emcn/activity-row'
 import { Button } from '@sim/emcn/button'
 import { Input } from '@sim/emcn/field/inputs'
 import { Icon } from '@sim/emcn/icon'
 import { SettingsRow, SettingsSection, SettingsSurface } from '@sim/emcn/settings-section'
-import { FailureNotice, StatusText } from '@sim/emcn/status'
-import { Switch } from '@sim/emcn/switch'
-import { Tooltip } from '@sim/emcn/tooltip'
-import { PageOverflow } from '@sim/emcn-platform/page-column'
+import { FailureNotice } from '@sim/emcn/status'
+import Link from 'next/link'
 import {
   BooleanRow,
   SavedSettingsSection,
 } from '@/app/(product)/_components/settings-parts/saved-settings'
 import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
+import { ResourceList } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { SwitchRow } from '@/app/(product)/_components/settings-parts/switch-row'
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
 import { AwsMarketplaceSubscription } from '@/app/(product)/o/[organizationId]/settings/_components/sections/billing/aws-marketplace'
-import styles from '@/app/(product)/o/[organizationId]/settings/_components/sections/billing/billing.module.css'
 import {
   CreditUsage,
   CreditUsageGlance,
@@ -24,7 +24,7 @@ import { useBillingSection, useUsageLimitField } from '@/platform/lib/data/billi
 
 const ON_DEMAND_LABEL = 'Allow usage to go past included usage'
 const ON_DEMAND_LOCKED =
-  "Your usage is above your plan's included amount, so on-demand can't be turned off yet. It turns off once usage drops below it — at the latest when your billing period resets."
+  'Stays on while usage is above your plan’s included amount, at the latest until your billing period resets'
 
 function UsageLimit(props: Parameters<typeof useUsageLimitField>[0]) {
   const field = useUsageLimitField(props)
@@ -75,9 +75,7 @@ export function BillingView({
           {billing.showExplorePlans && (
             <Button
               render={
-                billing.explorePlansHref ? (
-                  <a href={billing.explorePlansHref}>{billing.explorePlansLabel}</a>
-                ) : undefined
+                billing.explorePlansHref ? <Link href={billing.explorePlansHref} /> : undefined
               }
               size='compact'
               disabled={!billing.explorePlansHref}
@@ -98,21 +96,17 @@ export function BillingView({
       )}
       {billing.showOnDemand && (
         <SettingsSection title='Enable on-demand usage'>
-          <SettingsRow
+          <SwitchRow
             label={ON_DEMAND_LABEL}
-            description='Keep running past your plan’s included usage, billed as you go'
-          >
-            <Tooltip enabled={billing.onDemand.locked} label={ON_DEMAND_LOCKED}>
-              <span>
-                <Switch
-                  label={ON_DEMAND_LABEL}
-                  checked={billing.onDemand.locked || billing.onDemand.active}
-                  disabled={billing.onDemand.disabled}
-                  onCheckedChange={() => void billing.onDemand.toggle()}
-                />
-              </span>
-            </Tooltip>
-          </SettingsRow>
+            description={
+              billing.onDemand.locked
+                ? ON_DEMAND_LOCKED
+                : 'Keep running past your plan’s included usage, billed as you go'
+            }
+            checked={billing.onDemand.locked || billing.onDemand.active}
+            disabled={billing.onDemand.disabled}
+            onCheckedChange={() => void billing.onDemand.toggle()}
+          />
         </SettingsSection>
       )}
       {billing.showUsageNotifications && (
@@ -141,7 +135,7 @@ export function BillingView({
           )}
           <SettingsRow
             label='Payment method'
-            description='Update your card and billing details in Stripe'
+            description='Update your card and billing details, and see every invoice, in Stripe'
           >
             <Button
               size='compact'
@@ -196,48 +190,29 @@ export function BillingView({
       )}
       {billing.invoices.length > 0 && (
         <SettingsSection title='Invoices'>
-          <PageOverflow>
-            <ul className={styles.invoices}>
-              {billing.invoices.map((invoice) => {
-                const details = (
-                  <>
-                    <span data-type='T059'>{invoice.date}</span>
-                    <StatusText label={invoice.statusLabel} intent={invoice.statusIntent} />
-                    <span data-type='T060'>{invoice.amount}</span>
-                    <span className={styles.description} data-type='T060'>
-                      {invoice.description}
-                    </span>
-                    <Icon name='I032' />
-                  </>
-                )
-                return (
-                  <li key={invoice.id}>
-                    {invoice.url ? (
-                      <a
-                        className={styles.invoice}
-                        href={invoice.url}
-                        target='_blank'
-                        rel='noopener noreferrer'
-                      >
-                        {details}
-                      </a>
-                    ) : (
-                      <div className={styles.invoice}>{details}</div>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
-          </PageOverflow>
-          {billing.hasMoreInvoices && (
-            <Button
-              size='compact'
-              disabled={!billing.canOpenPortal || billing.portalPending}
-              onClick={billing.openPortal}
-            >
-              View all invoices
-            </Button>
-          )}
+          <ResourceList>
+            {billing.invoices.map((invoice) =>
+              invoice.url ? (
+                <ActivityRow
+                  key={invoice.id}
+                  title={invoice.date}
+                  detail={`${invoice.amount} · ${invoice.description}`}
+                  textMetadata={invoice.statusLabel}
+                  density='comfortable'
+                  render={<Link href={invoice.url} target='_blank' rel='noopener noreferrer' />}
+                />
+              ) : (
+                <ActivityRow
+                  key={invoice.id}
+                  title={invoice.date}
+                  detail={`${invoice.amount} · ${invoice.description}`}
+                  textMetadata={invoice.statusLabel}
+                  density='comfortable'
+                  readOnly
+                />
+              )
+            )}
+          </ResourceList>
         </SettingsSection>
       )}
       {billing.showCreditUsage && <CreditUsageGlance />}

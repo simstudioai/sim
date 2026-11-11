@@ -147,11 +147,12 @@ test('Insights keeps its window in the URL and carries it to the events ledger',
   await page.getByRole('menuitemradio', { name: 'Last 7 days' }).click()
   await expect(page).toHaveURL(/preset=7d/)
   await expect(page.getByRole('region', { name: 'Usage heatmap' })).toBeVisible()
+  await page.getByRole('link', { name: 'All events' }).click()
+  await expect(page).toHaveURL(/\/settings\/usage\/events\?.*preset=7d/)
+  // Export lives with the ledger it exports.
   const download = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Export', exact: true }).click()
   expect((await download).suggestedFilename()).toMatch(/^organization-usage-.*\.csv$/)
-  await page.getByRole('link', { name: 'All events' }).click()
-  await expect(page).toHaveURL(/\/settings\/usage\/events\?.*preset=7d/)
 })
 
 test('links: create, find, open, edit and delete on the Platform', async ({ page, context }) => {

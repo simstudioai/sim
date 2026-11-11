@@ -848,12 +848,15 @@ export async function settingsChecks() {
       await expect(day).toHaveAttribute('aria-pressed', 'true')
       await day.press('Escape')
       await expect(day).toHaveAttribute('aria-pressed', 'false')
+      await expect(page.getByRole('button', { name: 'View all', exact: true })).toHaveCount(2)
+      // The activity summary lives on Activity alone, not repeated on Overview.
+      await expect(page.getByRole('region', { name: 'Activity' })).toHaveCount(0)
+      await page.getByRole('radio', { name: 'Activity' }).click()
       await page.getByRole('button', { name: 'About workflow runs' }).hover()
       await expect(page.getByText('Retained executions, grouped by start date.')).toBeVisible()
       await expect(
-        page.getByText('Other includes cancelled, paused, and unfinished runs.')
+        page.getByText('Other includes cancelled, paused, and unfinished runs', { exact: true })
       ).toBeVisible()
-      await expect(page.getByRole('button', { name: 'View all', exact: true })).toHaveCount(2)
     })
   })
   notProvable(

@@ -1,20 +1,13 @@
 'use client'
 
-import { useEffect, useId, useState } from 'react'
 import { Button } from '@sim/emcn/button'
-import { DataTable } from '@sim/emcn/data-display'
 import { EmptyState } from '@sim/emcn/empty-state'
-import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
-import { DateRangePicker } from '@sim/emcn/picker/date-picker'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import {
-  DetailHeader,
-  SectionToolbar,
-} from '@/app/(product)/_components/settings-parts/settings-parts'
-import styles from '@/app/(product)/o/[organizationId]/settings/_components/sections/billing/billing.module.css'
+import { DetailHeader } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { PeriodPicker } from '@/app/(product)/o/[organizationId]/settings/_components/sections/usage/period-picker'
+import { UsageLedger } from '@/app/(product)/o/[organizationId]/settings/_components/sections/usage/usage-ledger'
 import { useCreditUsageLog, useCreditUsageSummary } from '@/platform/lib/data/credit-usage'
 
 const COLUMNS = [
@@ -23,14 +16,17 @@ const COLUMNS = [
   { key: 'credits', label: 'Credits', kind: 'text' },
 ] as const
 
+const TITLE = 'Credit usage'
+const DESCRIPTION = 'Every credit-consuming event behind your usage'
+
 /** Subscription's glance at the viewer's own usage, linking to the full log. */
 export function CreditUsageGlance() {
   const summary = useCreditUsageSummary()
-  if (summary.status === 'pending') return <SettingsSection title='Credit usage' />
+  if (summary.status === 'pending') return <SettingsSection title={TITLE} />
   if (summary.status === 'error')
     return <FailureNotice message='Couldn’t load credit usage.' onRetry={summary.retry} />
   return (
-    <SettingsSection title='Credit usage'>
+    <SettingsSection title={TITLE}>
       <SettingsRow label={summary.total} description='Last 30 days'>
         <Button size='compact' render={<Link href={summary.href} />}>
           View usage logs
@@ -40,85 +36,55 @@ export function CreditUsageGlance() {
   )
 }
 
-/** The credit usage page, which Enterprise plans do not have: they return to Subscription. */
+/**
+ * The credit usage page. Enterprise plans do not have it: the section's server gate sends them back
+ * to Subscription, and a plan it could not read in time is answered here instead.
+ */
 export function CreditUsage({ available }: { available: boolean }) {
-  const router = useRouter()
   const log = useCreditUsageLog()
-  const periodId = useId()
-  const [choosingRange, setChoosingRange] = useState(false)
-  const [exporting, setExporting] = useState(false)
-
-  useEffect(() => {
-    if (!available) router.replace(log.backHref)
-  }, [available, router, log.backHref])
-  if (!available) return null
-
-  return (
-    <>
-      <DetailHeader
-        backLabel='Subscription'
-        backHref={log.backHref}
-        title='Credit usage'
-        description='Every credit-consuming event behind your usage'
-      >
-        <Button
-          icon='I049'
-          disabled={log.rows.length === 0 || log.dimmed || exporting}
-          onClick={async () => {
-            setExporting(true)
-            await log.exportCsv()
-            setExporting(false)
-          }}
-        >
-          Export
-        </Button>
-      </DetailHeader>
-      <SectionToolbar grow={log.total && <span data-type='T060'>Total: {log.total}</span>}>
-        <ChoiceMenu
-          id={periodId}
-          label='Period'
-          options={log.periodOptions}
-          value={choosingRange ? 'custom' : log.period}
-          onValueChange={(value) => {
-            if (value === 'custom') setChoosingRange(true)
-            else log.selectPeriod(value)
-          }}
+  if (!available)
+    return (
+      <>
+        <DetailHeader
+          backLabel='Subscription'
+          backHref={log.backHref}
+          title={TITLE}
+          description={DESCRIPTION}
         />
-        {(choosingRange || log.period === 'custom') && (
-          <DateRangePicker
-            label='Custom range'
-            labelHidden
-            withTime
-            open={choosingRange}
-            onOpenChange={(open) => {
-              setChoosingRange(open)
-              if (!open && log.period !== 'custom') document.getElementById(periodId)?.focus()
-            }}
-            value={log.range}
-            onValueChange={(range) => {
-              if (range) log.applyRange(range.start, range.end)
-            }}
-          />
-        )}
-      </SectionToolbar>
-      {log.failed ? (
-        <FailureNotice message='Couldn’t load credit usage.' onRetry={log.retry} />
-      ) : log.pending ? null : log.rows.length === 0 ? (
-        <EmptyState title='No credit usage in this period.' />
-      ) : (
-        <div className={styles.dimmable} data-dimmed={log.dimmed || undefined}>
-          <DataTable
-            title='Credit usage'
-            titleHidden
-            columns={COLUMNS}
-            loadMore={log.loadMore}
-            rows={log.rows.map((row) => ({
-              id: row.id,
-              values: { when: row.when, label: row.label, credits: row.credits },
-            }))}
-          />
-        </div>
-      )}
-    </>
+        <EmptyState title='Credit usage is not part of your plan' />
+      </>
+    )
+  return (
+    <UsageLedger
+      backLabel='Subscription'
+      backHref={log.backHref}
+      title={TITLE}
+      description={DESCRIPTION}
+      summary={log.total && <span data-type='T060'>Total: {log.total}</span>}
+      period={
+        <PeriodPicker
+          options={log.periodOptions}
+          value={log.period}
+          customValue='custom'
+          range={log.range}
+          withTime
+          onPreset={log.selectPeriod}
+          onRange={log.applyRange}
+        />
+      }
+      columns={COLUMNS}
+      rows={log.rows.map((row) => ({
+        id: row.id,
+        values: { when: row.when, label: row.label, credits: row.credits },
+      }))}
+      loadMore={log.loadMore}
+      pending={log.pending}
+      failed={log.failed}
+      dimmed={log.dimmed}
+      retry={log.retry}
+      subject='credit usage'
+      emptyTitle='No credit usage in this period'
+      onExport={log.exportCsv}
+    />
   )
 }

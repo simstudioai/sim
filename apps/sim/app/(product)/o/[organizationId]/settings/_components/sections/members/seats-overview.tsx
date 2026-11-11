@@ -32,7 +32,7 @@ export function SeatsOverview({ seats }: SeatsOverviewProps) {
       <SettingsSection title='Seats'>
         <SettingsRow
           label='No active Team subscription'
-          description='Purchase a Team plan to invite teammates to this organization.'
+          description='Purchase a Team plan to invite teammates to this organization'
         >
           <Button
             render={<Link href={surfaceHref(scope, '/settings/billing')} />}
@@ -64,8 +64,8 @@ export function SeatsOverview({ seats }: SeatsOverviewProps) {
         label={`${model.used} used / ${model.total} total`}
         description={
           model.overLimit
-            ? 'You have more teammates than seats. Contact support to adjust your enterprise seat count.'
-            : 'Contact support for enterprise seat changes.'
+            ? 'You have more teammates than seats. Contact support to adjust your enterprise seat count'
+            : 'Contact support for enterprise seat changes'
         }
       >
         {tags}
