@@ -1077,7 +1077,7 @@ function AtlassianServiceAccountModalForm({
           required
           hint={
             usesClientCredentials
-              ? 'Sim requests a 60-minute token with the client ID and secret. Atlassian supports these credentials for Jira and Confluence.'
+              ? 'Atlassian supports these credentials for Jira and Confluence.'
               : undefined
           }
         />
@@ -1098,7 +1098,7 @@ function AtlassianServiceAccountModalForm({
               hint={
                 atlassianProduct === 'confluence'
                   ? 'Use an OAuth 2.0 credential with Confluence scopes. Required scopes are listed in the setup guide.'
-                  : ATLASSIAN_COVERAGE_HINT
+                  : 'Use an OAuth 2.0 credential with Jira scopes. Jira Service Management needs a scoped API token.'
               }
             />
             <ChipModalField type='custom' title='Client secret' required>

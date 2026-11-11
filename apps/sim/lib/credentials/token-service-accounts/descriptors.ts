@@ -90,7 +90,8 @@ export interface TokenServiceAccountClientCredentials {
   notPermittedHelp?: string
   /**
    * Preselects this mode for a new connection, for providers whose current setup no longer
-   * issues a pasted token. A reconnect always opens on the pasted-token mode.
+   * issues a pasted token. A reconnect preselects nothing; the admin restates the mode while
+   * retyping the secret.
    */
   preferred?: boolean
 }
