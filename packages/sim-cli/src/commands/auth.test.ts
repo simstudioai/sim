@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
     () => Promise<{
       id?: string
       apiKey: string
+      name?: string
       scope: 'platform' | 'copilot'
       workspaceBound?: boolean
       workspaceId?: string
@@ -312,7 +313,7 @@ describe('login command', () => {
     })
     expect(mocks.writeCredentialsProfile).toHaveBeenLastCalledWith('default', null)
     expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain(
-      'API key key-id was created on your account but could not be stored safely'
+      'API key key-id was created on your account but could not be stored safely. Revoke key key-id in Settings → API keys.'
     )
   })
 
@@ -336,6 +337,7 @@ describe('login command', () => {
     mocks.pollForKey.mockResolvedValue({
       id: 'key-id',
       apiKey: 'sim-key',
+      name: 'CLI (2026-11-11 09:30:00Z)',
       scope: 'platform',
       workspaceBound: false,
       workspaceId: 'ws_1',
@@ -350,9 +352,7 @@ describe('login command', () => {
     expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
     const output = vi.mocked(console.log).mock.calls.flat().join('\n')
     expect(output).toContain('API key key-id was created on your account')
-    expect(output).toMatch(
-      /Revoke it in Settings → API keys, where it is named "CLI \(\d{4}-\d{2}-\d{2} …Z\)"/
-    )
+    expect(output).toContain('Revoke "CLI (2026-11-11 09:30:00Z)" in Settings → API keys.')
   })
 
   it('stores nothing when the issued expiry is not the one requested', async () => {

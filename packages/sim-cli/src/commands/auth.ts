@@ -754,10 +754,10 @@ async function loginWithHandoff(
     })
   } catch (error) {
     const keyId = typeof key.id === 'string' && key.id ? safeOneLine(key.id) : 'unknown'
-    const issuedOn = new Date().toISOString().slice(0, 10)
+    const listedAs = key.name ? `"${safeOneLine(key.name)}"` : `key ${keyId}`
     printLine(
       styles().yellow(
-        `API key ${keyId} was created on your account but could not be stored safely. Revoke it in Settings → API keys, where it is named "CLI (${issuedOn} …Z)" for the time it was issued.`
+        `API key ${keyId} was created on your account but could not be stored safely. Revoke ${listedAs} in Settings → API keys.`
       )
     )
     throw error
