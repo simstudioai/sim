@@ -599,7 +599,7 @@
       "get": {
         "operationId": "getWorkflowOutline",
         "summary": "Get workflow outline",
-        "description": "Read the saved draft as a compact outline: connections embedded in their source blocks, loop and parallel children nested under their container, and empty values and editor-only fields omitted. Requires workspace read access, and reveals nothing Get workflow state does not: its derived fields, such as `triggerWebhookUrl`, are computed from values that state already returns. The outline is read-only: it adds those derived fields and omits positions and edge handles, so never send it to Replace workflow state; edit with Apply workflow operations or a full state from Get workflow state. This read records no audit event; `HEAD` mirrors `GET`.\n\nOAuth scope: `api:read`.",
+        "description": "Read the saved draft as a compact outline: connections embedded in their source blocks, loop and parallel children nested under their container, and null values omitted. Fields hidden from agents are omitted too, some of them real configuration, as are blocks whose parent container no longer exists; compare with Get workflow state for the full configuration. Requires workspace read access, and reveals nothing Get workflow state does not: its derived fields, such as `triggerWebhookUrl`, are computed from values that state already returns. The outline is read-only: it adds those derived fields and omits positions and edge handles, so never send it to Replace workflow state; edit with Apply workflow operations or a full state from Get workflow state. This read records no audit event; `HEAD` mirrors `GET`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -8954,7 +8954,7 @@
             "description": "Whether the block runs."
           },
           "inputs": {
-            "description": "Configured values keyed by field id, with empty values omitted and editor-only metadata removed. Loop and parallel containers report their iteration settings here. A webhook trigger also carries a derived `triggerWebhookUrl`, and a credential-routed trigger a derived `triggerRouting`; both are read-only.",
+            "description": "Configured values keyed by field id, with null values omitted. Fields hidden from agents are omitted as well, and some of them are real configuration, so read Get workflow state for the full set. Loop and parallel containers report their iteration settings here. A webhook trigger also carries a derived `triggerWebhookUrl`, and a credential-routed trigger a derived `triggerRouting`; both are read-only.",
             "type": "object",
             "propertyNames": {
               "type": "string"

@@ -3348,7 +3348,7 @@ const v2WorkflowOutlineBlockSchema = z
       .record(z.string(), z.unknown().describe('Configured value; shape depends on the field.'))
       .optional()
       .describe(
-        'Configured values keyed by field id, with empty values omitted and editor-only metadata removed. Loop and parallel containers report their iteration settings here. A webhook trigger also carries a derived `triggerWebhookUrl`, and a credential-routed trigger a derived `triggerRouting`; both are read-only.'
+        'Configured values keyed by field id, with null values omitted. Fields hidden from agents are omitted as well, and some of them are real configuration, so read Get workflow state for the full set. Loop and parallel containers report their iteration settings here. A webhook trigger also carries a derived `triggerWebhookUrl`, and a credential-routed trigger a derived `triggerRouting`; both are read-only.'
       ),
     connections: z
       .record(
