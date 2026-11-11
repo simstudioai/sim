@@ -23,7 +23,7 @@ export const harmonicListPeopleSavedSearchesTool: ToolConfig<
   description:
     'List the team-shared Harmonic saved searches that target people. Use a returned ID or URN to fetch results.',
   version: '1.0.0',
-  oauth: { required: true, provider: 'harmonic' },
+  oauth: { required: true, provider: 'harmonic', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.HARMONIC_ERRORS,
 
   params: {

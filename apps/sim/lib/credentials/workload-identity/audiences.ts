@@ -17,6 +17,27 @@ export const WORKLOAD_IDENTITY_PROVIDERS = [
 
 export type WorkloadIdentityProvider = (typeof WORKLOAD_IDENTITY_PROVIDERS)[number]
 
+/**
+ * Every auth mode a provider's saved credential can hold, keyless first: the stored
+ * `authType` a reconnect reopens on, so a key-based credential keeps its own mode.
+ */
+export const WORKLOAD_IDENTITY_PROVIDER_AUTH_TYPES = {
+  aws: ['oidc_role', 'assume_role', 'access_keys'],
+  databricks: ['oidc_federation', 'service_principal', 'personal_access_token'],
+  snowflake: ['workload_identity', 'programmatic_access_token'],
+  microsoft: ['federated', 'client_secret', 'certificate'],
+  google: ['workload_identity', 'json_key'],
+} as const satisfies Record<WorkloadIdentityProvider, readonly string[]>
+
+export type WorkloadIdentityProviderAuthType<
+  P extends WorkloadIdentityProvider = WorkloadIdentityProvider,
+> = (typeof WORKLOAD_IDENTITY_PROVIDER_AUTH_TYPES)[P][number]
+
+/** Every provider's auth modes in one list, for the reconnect contract. */
+export const WORKLOAD_IDENTITY_AUTH_TYPE_LIST = [
+  ...new Set(Object.values(WORKLOAD_IDENTITY_PROVIDER_AUTH_TYPES).flat()),
+] as [WorkloadIdentityProviderAuthType, ...WorkloadIdentityProviderAuthType[]]
+
 /** The service-account provider ID each relying party's keyless credential is created under. */
 const WORKLOAD_IDENTITY_SERVICE_ACCOUNT_PROVIDER_IDS = {
   aws: AWS_SERVICE_ACCOUNT_PROVIDER_ID,

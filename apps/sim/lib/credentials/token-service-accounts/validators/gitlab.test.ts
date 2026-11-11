@@ -31,7 +31,10 @@ describe('GitLab saved token verification', () => {
     fetch.mockResolvedValue(jsonResponse(activeToken))
 
     await expect(
-      validateGitLabServiceAccount({ apiToken: 'glpat-x', domain: 'https://gitlab.example.com/' })
+      validateGitLabServiceAccount({
+        apiToken: 'test-gitlab-token',
+        domain: 'https://gitlab.example.com/',
+      })
     ).resolves.toMatchObject({
       normalizedDomain: 'gitlab.example.com',
       displayName: 'sim-workflows (gitlab.example.com)',
@@ -46,7 +49,10 @@ describe('GitLab saved token verification', () => {
 
   it('refuses a host that could send the token somewhere else, without calling it', async () => {
     await expect(
-      validateGitLabServiceAccount({ apiToken: 'glpat-x', domain: 'evil.example.com@gitlab.com' })
+      validateGitLabServiceAccount({
+        apiToken: 'test-gitlab-token',
+        domain: 'evil.example.com@gitlab.com',
+      })
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
     expect(fetch).not.toHaveBeenCalled()
   })
@@ -58,7 +64,7 @@ describe('GitLab saved token verification', () => {
     fetch.mockResolvedValue(jsonResponse(token))
 
     await expect(
-      validateGitLabServiceAccount({ apiToken: 'glpat-x', domain: 'gitlab.com' })
+      validateGitLabServiceAccount({ apiToken: 'test-gitlab-token', domain: 'gitlab.com' })
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
   })
 
@@ -69,7 +75,7 @@ describe('GitLab saved token verification', () => {
     fetch.mockResolvedValue(reply)
 
     await expect(
-      validateGitLabServiceAccount({ apiToken: 'glpat-x', domain: 'gitlab.com' })
+      validateGitLabServiceAccount({ apiToken: 'test-gitlab-token', domain: 'gitlab.com' })
     ).rejects.toMatchObject({ code: 'provider_unavailable' })
   })
 
@@ -82,7 +88,7 @@ describe('GitLab saved token verification', () => {
     })
 
     await expect(
-      validateGitLabServiceAccount({ apiToken: 'glpat-x', domain: 'gitlab.exmaple.com' })
+      validateGitLabServiceAccount({ apiToken: 'test-gitlab-token', domain: 'gitlab.exmaple.com' })
     ).rejects.toMatchObject({ code: 'site_not_found' })
   })
 
@@ -90,7 +96,7 @@ describe('GitLab saved token verification', () => {
     fetch.mockResolvedValue(jsonResponse({ message: 'Bad Gateway' }, 502))
 
     await expect(
-      validateGitLabServiceAccount({ apiToken: 'glpat-x', domain: 'gitlab.com' })
+      validateGitLabServiceAccount({ apiToken: 'test-gitlab-token', domain: 'gitlab.com' })
     ).rejects.toMatchObject({ code: 'provider_unavailable' })
   })
 })

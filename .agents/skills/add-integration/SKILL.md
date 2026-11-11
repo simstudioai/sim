@@ -43,6 +43,12 @@ supported paths and choose the simplest supported setup for the intended user:
 | Customer-owned client credentials | Saved `service_account` credential with a client ID and secret | Internal-app eligibility, grant activation, scope syntax, token lifetime and revocation behavior |
 | API token or personal access token | Saved token service account when reusable connections are useful | Token permissions, identity verification, expiry and rotation |
 | Private key, certificate, or service-account JSON | Existing key-based service-account framework | Signing algorithm, audience, subject, tenant binding and key rotation |
+| Cloud workload identity (AWS role, Databricks/Snowflake/Entra/GCP federation) | Keyless saved credential: Sim signs a short-lived OIDC token the customer's cloud trusts. Add the provider to every table in `lib/credentials/workload-identity/audiences.ts` (`WORKLOAD_IDENTITY_PROVIDERS`, its service-account provider ID map, `WORKLOAD_IDENTITY_KEYLESS_CONFIGS`, `WORKLOAD_IDENTITY_AUDIENCES`) | Issuer and audience the provider accepts, how the trust pins the subject, token lifetime |
+
+API, CLI, and MCP callers set up keyless in two steps: `POST /api/v2/credentials/workload-identity/subjects`
+(or `sim credentials keyless-subject <providerId> --output json`) returns the subject to trust and a
+`keylessConfig`; they add its `requiredConfigFields` and create the credential with it. The provider
+catalog advertises `keyless` only when the deployment can sign tokens.
 
 Do not present customer-owned credentials as a way around a provider's approval requirements
 for a shared public integration. Explain the supported account/app type in the setup docs. Keep
@@ -86,15 +92,23 @@ service id:
    answers), and `errorBodyEchoesToken` when an error body echoes the token.
 3. `apps/sim/lib/oauth/oauth.ts` and `types.ts`: the service entry (`authType: 'service_account'`,
    `serviceAccountProviderId`).
-4. `apps/sim/tools/shared/saved-credentials.ts`: `tokenCredentialOAuth('<service>', { <toolParam>:
-   'accessToken' | 'domain' | 'providerWorkspaceId' })`, listed in `SAVED_CREDENTIAL_OAUTH`, and set
-   as `oauth` on every tool. Map every param that decides the request host; the executor overwrites
-   mapped params after authorizing the credential, and `check-block-registry` probes the tools' real
-   URL builders and fails on a host-steering param left unmapped.
+4. The tools' credential policy. A NEW integration's tools take a hidden `accessToken` and declare
+   `oauth: { required: true, provider: '<service>', credentialKind: 'service-account' }`, pinning
+   any host or account param with `authoritativeParams` (Flow's and Snowflake's tools are the
+   pattern). `tokenCredentialOAuth('<service>', { <toolParam>: 'accessToken' | 'domain' |
+   'providerWorkspaceId' })` in `apps/sim/tools/shared/saved-credentials.ts`, listed in
+   `SAVED_CREDENTIAL_OAUTH`, is for existing tools that already take the token inline (successors).
+   Either way, the executor overwrites mapped and pinned params after authorizing the credential,
+   and `check-block-registry` probes the real URL builders of every block with a saved-credential
+   picker and fails on a host-steering param left unmapped or unpinned.
 5. A credential-only block (including a successor) uses `authMode: AuthMode.OAuth`, so the
    generated catalog maps the service; a token-only block that keeps `AuthMode.ApiKey`, as Coda
    does, registers in `tokenCredentialIntegrationTypes` instead (see below). The credential picker
-   sits directly under the operation dropdown (`add-block` → OAuth/Credentials). An existing block that already takes the secret inline is never edited in
+   sits directly under the operation dropdown (`add-block` → OAuth/Credentials). A new block
+   writes the picker inline, as Higgsfield does: `{ id: 'credential', type: 'oauth-input', serviceId,
+   credentialKind: 'service-account', canonicalParamId: 'oauthCredential', mode: 'basic',
+   required: true }`, plus a `manualCredential` `short-input` with the same `canonicalParamId` in
+   `mode: 'advanced'`. An existing block that already takes the secret inline is never edited in
    place: add a credential-only successor (`add-block` → Credential-only successor).
 
 Then run `generate-docs`, `generate:block-successors`, `generate:deployment-config`, and
@@ -463,7 +477,8 @@ If creating V2 versions (API-aligned outputs):
 
 1. **V2 Tools** - Add `_v2` suffix, version `2.0.0`, flat outputs
 2. **V2 Block** - Add `_v2` type, use `createVersionedToolSelector`
-3. **V1 Block** - Add `(Legacy)` to name, set `hideFromToolbar: true`, and add
+3. **V1 Block** - Add `(Legacy)` to name (a credential-only successor is the exception: it keeps
+   the legacy block's name), set `hideFromToolbar: true`, and add
    `sunset: { status: 'legacy', replacedBy: '{service}_v2' }` — `check-block-registry`
    fails a legacy block with no `replacedBy`, and the amber legacy badge plus its
    click-to-upgrade action read from that field.

@@ -63,6 +63,7 @@ export const NETSUITE_OAUTH = {
   required: true,
   provider: 'netsuite',
   credentialKind: 'service-account',
+  authoritativeParams: ['instanceUrl'],
 } as const satisfies OAuthConfig
 
 /**

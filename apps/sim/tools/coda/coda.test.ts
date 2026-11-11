@@ -278,7 +278,11 @@ describe('Coda page content and publishing bodies', () => {
       Authorization: 'Bearer secret',
       Accept: 'application/json',
     })
-    expect(codaWhoamiTool.oauth).toEqual({ required: true, provider: 'coda' })
+    expect(codaWhoamiTool.oauth).toEqual({
+      required: true,
+      provider: 'coda',
+      credentialKind: 'service-account',
+    })
   })
 })
 

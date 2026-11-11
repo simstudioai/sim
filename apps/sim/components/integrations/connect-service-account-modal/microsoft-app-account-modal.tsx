@@ -82,12 +82,10 @@ function MicrosoftAppAccountForm({
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
   const [description, setDescription] = useState(initialDescription ?? '')
 
-  // A reconnect opens on keyless only for a keyless credential, which has a subject to keep; a
-  // new connection defaults to keyless wherever this deployment supports it.
+  // A reconnect opens on the credential's stored mode, so it never switches auth by default;
+  // a new connection defaults to keyless wherever this deployment supports it.
   const defaultAuthType: MicrosoftAuthType = credentialId
-    ? keyless.reconnectsKeyless
-      ? 'federated'
-      : 'client_secret'
+    ? (keyless.reconnectAuthType ?? 'client_secret')
     : keyless.available
       ? 'federated'
       : 'client_secret'
@@ -213,7 +211,12 @@ function MicrosoftAppAccountForm({
           </>
         )}
 
-        {authType === 'federated' && <KeylessTrustFields setup={keyless} />}
+        {authType === 'federated' && (
+          <KeylessTrustFields
+            setup={keyless}
+            pasteHint='In the app registration, open Certificates & secrets → Federated credentials → Add credential → Other issuer, and paste these values.'
+          />
+        )}
 
         <ChipModalField
           type='input'

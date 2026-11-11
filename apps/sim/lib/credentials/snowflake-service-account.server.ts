@@ -102,12 +102,16 @@ export class SnowflakeCredentialError extends Error {
   }
 }
 
-/** Whether a decrypted Snowflake secret is a keyless configuration rather than a token. */
-export function isKeylessSnowflakeSecret(decrypted: string): boolean {
+/** The auth mode a decrypted Snowflake secret holds: keyless, a token, or undefined when neither. */
+export function storedSnowflakeAuthType(
+  decrypted: string
+): 'workload_identity' | 'programmatic_access_token' | undefined {
   try {
-    return storedSecretSchema.safeParse(JSON.parse(decrypted)).success
+    if (storedSecretSchema.safeParse(JSON.parse(decrypted)).success) return 'workload_identity'
+    parseTokenServiceAccountSecretBlob(decrypted, SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID)
+    return 'programmatic_access_token'
   } catch {
-    return false
+    return undefined
   }
 }
 

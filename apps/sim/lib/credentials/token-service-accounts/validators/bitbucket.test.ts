@@ -5,7 +5,7 @@ import { jsonResponse } from '@sim/testing/helpers/http'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { validateBitbucketServiceAccount } from '@/lib/credentials/token-service-accounts/validators/token-checks'
 
-const TOKEN = 'ATCTT3xFfGN0secretvalue'
+const TOKEN = 'test-bitbucket-token'
 const repository = { full_name: 'acme/api', slug: 'api' }
 
 describe('Bitbucket saved access token verification', () => {

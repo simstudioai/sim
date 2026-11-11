@@ -655,12 +655,12 @@ function GoogleServiceAccountModalForm({
   const keylessOffer = googleKeylessOffer({
     oauthServiceId,
     available: Boolean(keyless.available),
-    reconnectsKeyless: keyless.reconnectsKeyless,
+    reconnectsKeyless: keyless.reconnectAuthType === 'workload_identity',
   })
   const offerKeyless = keylessOffer === 'offer'
   const [selectedAuthType, setSelectedAuthType] = useState<GoogleAuthType | null>(null)
   const authType: GoogleAuthType = offerKeyless
-    ? (selectedAuthType ?? (keyless.reconnectsKeyless ? 'workload_identity' : 'json_key'))
+    ? (selectedAuthType ?? keyless.reconnectAuthType ?? 'json_key')
     : 'json_key'
   const [keylessInput, setKeylessInput] = useState<GoogleKeylessInput>(EMPTY_GOOGLE_KEYLESS_INPUT)
   const [jsonInput, setJsonInput] = useState('')

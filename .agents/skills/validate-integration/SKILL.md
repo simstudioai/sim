@@ -226,6 +226,12 @@ For **each tool** in `tools.access`:
       `tokenCredentialOAuth` policy, every
       param that decides the request host is mapped, and the stored domain is in the form the tools
       build URLs from (`check-block-registry.ts origin/staging` passes)
+- [ ] A non-successor token block's tools declare `oauth: { required: true, provider,
+      credentialKind: 'service-account' }` and pin every host or account param in
+      `authoritativeParams` (`check-block-registry` enforces this for every block with a
+      saved-credential picker)
+- [ ] A keyless provider appears in every table in `lib/credentials/workload-identity/audiences.ts`, and the provider catalog
+      shows `keyless` only when the deployment can sign tokens
 - [ ] The `tokenCheckValidator` request uses the tools' host and auth, its normalizers refuse
       anything that could steer the host or path, and a fake key is rejected without a valid
       scoped key being refused

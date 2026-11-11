@@ -215,6 +215,16 @@ export async function resolveAwsSessionCredentials(
   return toSessionCredentials(response.Credentials)
 }
 
+/** The auth mode a decrypted AWS secret holds, or undefined when it is not one. */
+export function storedAwsAuthType(decrypted: string): AwsCredentialConfig['authType'] | undefined {
+  try {
+    const parsed = storedSecretSchema.safeParse(JSON.parse(decrypted))
+    return parsed.success ? parsed.data.config.authType : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function readStoredSubject(storedSecret: Record<string, unknown> | null | undefined) {
   const parsed = storedSecretSchema.safeParse(storedSecret)
   return parsed.success && parsed.data.config.authType === 'oidc_role'
@@ -346,7 +356,7 @@ async function assertRolePinsSubject(
     )
   }
   throw new AwsCredentialError(
-    `This role trusts every Sim subject. Use the trust policy shown in the dialog, whose sub condition pins ${config.subject}, so only this credential can assume the role.`
+    `This role trusts every Sim subject. Use the trust policy from Sim (the connect dialog or \`sim credentials keyless-subject\`), whose sub condition pins ${config.subject}, so only this credential can assume the role.`
   )
 }
 
