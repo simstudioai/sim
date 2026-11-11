@@ -2951,6 +2951,14 @@ async function executeDeclaredInternalOperation({
         requestId,
         signal: operationController.signal,
       })
+      if (
+        result instanceof Response &&
+        (result.status === 401 || result.status === 403) &&
+        authorizedServiceAccountCredential &&
+        typeof params.accessToken === 'string'
+      ) {
+        await forgetRefusedServiceAccountToken(params.accessToken, requestId)
+      }
       if (result instanceof Response && result.status === 401 && refreshCredential) {
         await result.body?.cancel()
         operationController.signal.throwIfAborted()
@@ -3077,6 +3085,27 @@ async function expireRejectedServiceAccountToken(
     logger.warn('Could not expire a service-account token the provider rejected', {
       requestId,
       error: toError(invalidationError).message,
+    })
+  }
+}
+
+/**
+ * An internal operation answers 401 or 403 when the provider refused a saved service account's
+ * token. A client-credential token cached on this instance is dropped so the next call mints a
+ * replacement: providers such as CrowdStrike Falcon and SailPoint fix a token's scopes when it is
+ * minted, so a scope granted since then only reaches a new token.
+ */
+async function forgetRefusedServiceAccountToken(
+  accessToken: string,
+  requestId: string
+): Promise<void> {
+  try {
+    const { forgetRejectedClientCredentialToken } = await import('@/lib/oauth/credential-service')
+    forgetRejectedClientCredentialToken(accessToken)
+  } catch (error) {
+    logger.warn('Could not drop a service-account token the provider refused', {
+      requestId,
+      error: toError(error).message,
     })
   }
 }

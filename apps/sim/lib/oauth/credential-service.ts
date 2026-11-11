@@ -713,6 +713,19 @@ function pruneExpiredClientCredentialCaches(nowMs: number): void {
 }
 
 /**
+ * Drops this instance's cached client-credential token once a provider has
+ * refused it (a revoked API client, or a token minted before the client was
+ * granted a scope), so the next resolution mints a replacement instead of
+ * serving the refused token until it nears expiry. Matching on the token value
+ * leaves alone a replacement another call has already minted.
+ */
+export function forgetRejectedClientCredentialToken(accessToken: string): void {
+  for (const [identity, entry] of clientCredentialTokenCache) {
+    if (entry.token.accessToken === accessToken) clientCredentialTokenCache.delete(identity)
+  }
+}
+
+/**
  * Rotation fingerprint for a stored encrypted secret: the ciphertext prefix
  * (IV + first blocks) is unique per encryption, so any re-encrypt — secret
  * rotation or re-pointing at a different app — changes it.

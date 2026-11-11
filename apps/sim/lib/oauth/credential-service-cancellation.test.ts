@@ -8,7 +8,10 @@ import {
   RAMP_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import * as clientAccounts from '@/lib/credentials/client-credential-accounts/server'
-import { resolveServiceAccountToken } from '@/lib/oauth/credential-service'
+import {
+  forgetRejectedClientCredentialToken,
+  resolveServiceAccountToken,
+} from '@/lib/oauth/credential-service'
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
@@ -102,5 +105,24 @@ describe('client credential token cache', () => {
       })
     }
     expect(mint).toHaveBeenCalledTimes(1)
+  })
+
+  it('mints a replacement once the provider rejects the cached token, and only that token', async () => {
+    const mint = vi.fn<clientAccounts.ClientCredentialAccountMinter>()
+    mint
+      .mockResolvedValueOnce({ ...token, accessToken: 'rejected-token' })
+      .mockResolvedValueOnce({ ...token, accessToken: 'replacement-token' })
+    vi.spyOn(clientAccounts, 'getClientCredentialAccountMinter').mockReturnValue(mint)
+    const resolve = () => {
+      queueTableRows(credential, [storedCredential])
+      return resolveServiceAccountToken('ramp-rejected', RAMP_SERVICE_ACCOUNT_PROVIDER_ID)
+    }
+
+    await expect(resolve()).resolves.toEqual({ accessToken: 'rejected-token' })
+    forgetRejectedClientCredentialToken('rejected-token')
+    await expect(resolve()).resolves.toEqual({ accessToken: 'replacement-token' })
+    forgetRejectedClientCredentialToken('rejected-token')
+    await expect(resolve()).resolves.toEqual({ accessToken: 'replacement-token' })
+    expect(mint).toHaveBeenCalledTimes(2)
   })
 })

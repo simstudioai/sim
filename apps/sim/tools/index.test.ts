@@ -220,8 +220,15 @@ vi.mock('@/executor/utils/credential-token', () => ({
     mockResolveExecutorCredentialToken(...args),
 }))
 
-const { mockInvalidateCoordinatedClientToken } = vi.hoisted(() => ({
-  mockInvalidateCoordinatedClientToken: vi.fn(),
+const { mockInvalidateCoordinatedClientToken, mockForgetRejectedClientCredentialToken } =
+  vi.hoisted(() => ({
+    mockInvalidateCoordinatedClientToken: vi.fn(),
+    mockForgetRejectedClientCredentialToken: vi.fn(),
+  }))
+
+vi.mock('@/lib/oauth/credential-service', () => ({
+  forgetRejectedClientCredentialToken: (...args: unknown[]) =>
+    mockForgetRejectedClientCredentialToken(...args),
 }))
 
 vi.mock('@/lib/credentials/coordinated-client-token', () => ({
@@ -3763,6 +3770,72 @@ describe('Internal Route Trust', () => {
 
       expect(result.success).toBe(false)
       expect(result.error).toBe('rejected')
+    })
+  })
+
+  describe('a service-account token an internal operation refuses', () => {
+    const toolId = 'test_internal_minted_token_refusal'
+    beforeEach(() => {
+      mockForgetRejectedClientCredentialToken.mockReset()
+      ;(tools as Record<string, unknown>)[toolId] = {
+        id: toolId,
+        name: 'Internal Minted Token Refusal Test',
+        description: 'Runs an internal operation with a resolved token',
+        version: '1.0.0',
+        oauth: { required: true, provider: 'crowdstrike' },
+        params: { accessToken: { type: 'string', required: false, visibility: 'hidden' } },
+        operation: {
+          input: (params: Record<string, unknown>) => ({ accessToken: params.accessToken }),
+        },
+      }
+    })
+    afterEach(() => {
+      Reflect.deleteProperty(tools, toolId)
+    })
+
+    async function runWith(credentialType: string, status: number) {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'minted-token',
+        credentialType,
+      })
+      mockExecuteInternalToolOperation.mockResolvedValueOnce(
+        Response.json(status < 400 ? { output: {} } : { error: 'refused' }, { status })
+      )
+      return executeTool(
+        toolId,
+        { credential: 'saved-credential' },
+        {
+          executionContext: createToolExecutionContext({
+            userId: 'user-1',
+            workspaceId: 'workspace-456',
+            workflowId: 'workflow-1',
+            executionId: 'execution-1',
+          }),
+        }
+      )
+    }
+
+    it.each([401, 403])(
+      'drops the cached token after a %i so the next call mints one',
+      async (status) => {
+        const result = await runWith('service_account', status)
+
+        expect(result.success).toBe(false)
+        expect(mockForgetRejectedClientCredentialToken).toHaveBeenCalledWith('minted-token')
+      }
+    )
+
+    it('keeps the token after a call the provider accepts', async () => {
+      const result = await runWith('service_account', 200)
+
+      expect(result.success).toBe(true)
+      expect(mockForgetRejectedClientCredentialToken).not.toHaveBeenCalled()
+    })
+
+    it("never drops a signed-in account's token", async () => {
+      await runWith('oauth', 401)
+
+      expect(mockForgetRejectedClientCredentialToken).not.toHaveBeenCalled()
     })
   })
 
