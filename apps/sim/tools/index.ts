@@ -517,6 +517,15 @@ function normalizeCopilotCredentialParams(params: Record<string, unknown>): void
   }
 }
 
+/**
+ * Whether this deployment and these params let Sim's hosted key fill
+ * `tool.hosting.apiKeyParam`, the gate {@link injectHostedKeyIfNeeded} opens with.
+ */
+function hostedKeyMayFill(tool: ToolDefinition, params: Record<string, unknown>): boolean {
+  if (!isHosted || !tool.hosting) return false
+  return !tool.hosting.enabled || tool.hosting.enabled(params)
+}
+
 function enforceCopilotCredentialSelection(
   toolId: string,
   tool: ToolDefinition,
@@ -537,7 +546,7 @@ function enforceCopilotCredentialSelection(
     const missing = (tool.oauth.credentialSuppliedParams ?? []).filter(
       (paramId) =>
         tool.params[paramId]?.required &&
-        !(isHosted && paramId === tool.hosting?.apiKeyParam) &&
+        !(paramId === tool.hosting?.apiKeyParam && hostedKeyMayFill(tool, params)) &&
         (params[paramId] === undefined || params[paramId] === null || params[paramId] === '')
     )
     if (missing.length > 0) {
@@ -655,11 +664,7 @@ async function injectHostedKeyIfNeeded(
   requestId: string,
   signal: AbortSignal | undefined
 ): Promise<HostedKeyInjectionResult> {
-  if (!tool.hosting) return { isUsingHostedKey: false }
-  if (!isHosted) return { isUsingHostedKey: false }
-  if (tool.hosting.enabled && !tool.hosting.enabled(params)) {
-    return { isUsingHostedKey: false }
-  }
+  if (!tool.hosting || !hostedKeyMayFill(tool, params)) return { isUsingHostedKey: false }
 
   const { envKeyPrefix, apiKeyParam, byokProviderId, rateLimit } = tool.hosting
   // A selected saved credential supplies this key; Sim's key must never stand in for it.

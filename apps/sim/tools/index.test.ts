@@ -4017,6 +4017,35 @@ describe('Internal Route Trust', () => {
         })
       )
     })
+
+    it('makes copilot pass the key when the hosted key does not apply to these params', async () => {
+      const hostedTool = {
+        ...tokenTool,
+        id: 'test_saved_token_conditionally_hosted',
+        hosting: {
+          enabled: () => false,
+          envKeyPrefix: 'TEST_HOSTED_KEY',
+          apiKeyParam: 'apiKey',
+          pricing: { type: 'per_request' as const, cost: 0.01 },
+          rateLimit: { mode: 'per_request' as const, requestsPerMinute: 60 },
+        },
+      }
+      ;(tools as Record<string, unknown>)[hostedTool.id] = hostedTool
+      setEnvFlags({ isHosted: true })
+
+      const result = await executeTool(hostedTool.id, {
+        baseUrl: 'api.example.com',
+        _context: { workspaceId: 'workspace-456', userId: 'user-1', copilotToolExecution: true },
+      })
+      setEnvFlags({ isHosted: false })
+      Reflect.deleteProperty(tools, hostedTool.id)
+
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringMatching(/credentialId.*apiKey/),
+      })
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    })
   })
 
   it.each(['oauth', 'managed_oauth', undefined])(
