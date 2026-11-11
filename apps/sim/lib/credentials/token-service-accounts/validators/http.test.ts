@@ -8,11 +8,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { EgressRefusedError } from '@/lib/core/network/transport.server'
-import {
-  normalizeHttpBaseUrl,
-  refuseUnsafeTypedUrl,
-  tokenCheckValidator,
-} from '@/lib/credentials/token-service-accounts/validators/http'
+import { normalizeHttpBaseUrl, refuseUnsafeTypedUrl } from '@/lib/core/security/input-validation'
+import { tokenCheckValidator } from '@/lib/credentials/token-service-accounts/validators/http'
 
 const validate = tokenCheckValidator({
   serviceLabel: 'Example',
