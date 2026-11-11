@@ -1,5 +1,5 @@
 import type { GongCreateCallParams, GongCreateCallResponse } from '@/tools/gong/types'
-import { getGongErrorMessage, parseGongJsonArray } from '@/tools/gong/utils'
+import { getGongErrorMessage, gongAuthorization, parseGongJsonArray } from '@/tools/gong/utils'
 import { GONG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -103,7 +103,7 @@ export const createCallTool: ToolConfig<GongCreateCallParams, GongCreateCallResp
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.accessKey}:${params.accessKeySecret}`)}`,
+      Authorization: gongAuthorization(params.accessKey, params.accessKeySecret),
     }),
     body: (params) => {
       const body: Record<string, unknown> = {

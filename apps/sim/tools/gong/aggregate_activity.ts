@@ -1,5 +1,5 @@
 import type { GongAggregateActivityParams, GongAggregateActivityResponse } from '@/tools/gong/types'
-import { getGongErrorMessage, parseGongIdList } from '@/tools/gong/utils'
+import { getGongErrorMessage, gongAuthorization, parseGongIdList } from '@/tools/gong/utils'
 import { GONG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -58,7 +58,7 @@ export const aggregateActivityTool: ToolConfig<
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.accessKey}:${params.accessKeySecret}`)}`,
+      Authorization: gongAuthorization(params.accessKey, params.accessKeySecret),
     }),
     body: (params) => {
       const filter: Record<string, unknown> = {

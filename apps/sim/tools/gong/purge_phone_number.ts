@@ -1,5 +1,5 @@
 import type { GongPurgePhoneNumberParams, GongPurgePhoneNumberResponse } from '@/tools/gong/types'
-import { getGongErrorMessage } from '@/tools/gong/utils'
+import { getGongErrorMessage, gongAuthorization } from '@/tools/gong/utils'
 import { GONG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -49,7 +49,7 @@ export const purgePhoneNumberTool: ToolConfig<
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.accessKey}:${params.accessKeySecret}`)}`,
+      Authorization: gongAuthorization(params.accessKey, params.accessKeySecret),
     }),
   },
 
