@@ -12,7 +12,7 @@ import {
   performCreateWorkspaceApiKey,
 } from '@/lib/api-key/orchestration'
 
-const INTERNAL_DETAIL = 'connect ECONNREFUSED 10.0.0.5:5432 for role april'
+const INTERNAL_DETAIL = 'connect ECONNREFUSED 10.0.0.5:5432 for role app'
 
 describe('API key creation failures', () => {
   beforeEach(() => {
