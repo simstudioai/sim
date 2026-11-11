@@ -16,14 +16,26 @@ const {
 }))
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+/** One stored token per application, served until it is invalidated, as the coordinated store does. */
+const storedCoordinatedTokens = vi.hoisted(() => new Map<string, string>())
 vi.mock('@/lib/credentials/coordinated-client-token', () => ({
   resolveCoordinatedClientToken: async (input: {
+    namespace: string
+    application: readonly string[]
     exchange: () => Promise<{ accessToken: string; expiresAt: Date }>
   }) => {
+    const key = `${input.namespace}:${input.application.join(':')}`
+    const stored = storedCoordinatedTokens.get(key)
+    if (stored) return { accessToken: stored, expiresInSeconds: 86_000 }
     const exchanged = await input.exchange()
+    storedCoordinatedTokens.set(key, exchanged.accessToken)
     return { accessToken: exchanged.accessToken, expiresInSeconds: 86_000 }
   },
-  invalidateCoordinatedClientToken: async () => {},
+  invalidateCoordinatedClientToken: async (accessToken: string) => {
+    for (const [key, stored] of storedCoordinatedTokens) {
+      if (stored === accessToken) storedCoordinatedTokens.delete(key)
+    }
+  },
 }))
 const mockEncryptSecret = encryptionMockFns.mockEncryptSecret
 vi.mock('@/lib/webhooks/providers/slack', () => ({ fetchSlackTeamId: mockFetchSlackTeamId }))
@@ -78,6 +90,10 @@ import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
+
+beforeEach(() => {
+  storedCoordinatedTokens.clear()
+})
 
 describe('verifyAndBuildServiceAccountSecret', () => {
   beforeEach(() => {
@@ -201,7 +217,7 @@ describe('verifyAndBuildServiceAccountSecret', () => {
     await expect(
       verifyAndBuildServiceAccountSecret(ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID, fields)
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
-    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
   it('does not mint again when the Atlassian site is unavailable', async () => {
