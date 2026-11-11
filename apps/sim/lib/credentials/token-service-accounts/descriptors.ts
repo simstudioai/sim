@@ -341,7 +341,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/hubspot-service-account',
     helpText:
-      'Create a service key in HubSpot under Development > Keys > Service keys; new legacy private apps can no longer be created, but existing private app tokens keep working. If the key rotates automatically, paste the new key here after each rotation.',
+      'Create a service key in HubSpot under Development > Keys > Service keys (or Settings > Integrations > Service keys, depending on your account); new legacy private apps can no longer be created, but existing private app tokens keep working. If the key rotates automatically, paste the new key here after each rotation.',
   },
   [AIRTABLE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: AIRTABLE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -2302,7 +2302,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/infisical',
     helpText:
-      'Use https://us.infisical.com for US Cloud, https://eu.infisical.com for EU Cloud, or your self-hosted URL. Sim does not renew the token, so it stops working when its Access Token TTL runs out (30 days by default): set a long Access Token TTL and Max TTL on the identity, and leave Access Token Period unset, since a periodic token expires unless it is renewed.',
+      'Use https://us.infisical.com for US Cloud, https://eu.infisical.com for EU Cloud, or your self-hosted URL. Sim does not renew the token, so it stops working when its Access Token TTL runs out: set a long Access Token TTL and Max TTL on the identity, and leave Access Token Period unset, since a periodic token expires unless it is renewed.',
     invalidCredentialsHelp:
       'Paste a machine identity access token, not a client secret or service token, and make sure the instance URL matches the region the identity lives in.',
   },
