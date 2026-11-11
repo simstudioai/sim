@@ -385,6 +385,79 @@ describe("the workspace's paused-run list", () => {
     ])
   })
 
+  it('leaves out time-only pauses, archived workflows, and other workspaces', async () => {
+    const humanPoint = {
+      contextId: 'approval',
+      blockId: 'approval',
+      registeredAt: new Date().toISOString(),
+      resumeStatus: 'paused',
+      snapshotReady: true,
+      response: {},
+    }
+    const pausedRow = (rowWorkflowId: string, pausePoints: unknown) => ({
+      id: generateId(),
+      workflowId: rowWorkflowId,
+      executionId: generateId(),
+      executionSnapshot: {},
+      pausePoints,
+      totalPauseCount: 1,
+      status: 'paused',
+    })
+    const now = new Date()
+    const archivedWorkflowId = generateId()
+    const otherWorkspaceId = generateId()
+    const otherWorkflowId = generateId()
+    await insertWorkspaceFixture(db, {
+      id: otherWorkspaceId,
+      name: 'Other paused run fixture',
+      ownerId,
+      billedAccountUserId: ownerId,
+      organizationId,
+      workspaceMode: 'organization',
+    })
+    await db.insert(workflow).values([
+      {
+        id: archivedWorkflowId,
+        userId: ownerId,
+        workspaceId,
+        name: 'Archived paused run fixture',
+        archivedAt: now,
+        lastSynced: now,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: otherWorkflowId,
+        userId: ownerId,
+        workspaceId: otherWorkspaceId,
+        name: 'Other workspace paused run fixture',
+        lastSynced: now,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ])
+    const timeOnly = pausedRow(workflowId, {
+      wait: { ...humanPoint, contextId: 'wait', pauseKind: 'time', resumeAt: now.toISOString() },
+    })
+    const archived = pausedRow(archivedWorkflowId, { approval: humanPoint })
+    const otherWorkspace = pausedRow(otherWorkflowId, { approval: humanPoint })
+    try {
+      await db.insert(pausedExecutions).values([timeOnly, archived, otherWorkspace])
+
+      const page = await listRuns(owner, { includeOutput: false })
+      const listedIds = page.runs.map((entry) => entry.runId)
+      expect(listedIds).not.toContain(timeOnly.executionId)
+      expect(listedIds).not.toContain(archived.executionId)
+      expect(listedIds).not.toContain(otherWorkspace.executionId)
+    } finally {
+      await db
+        .delete(pausedExecutions)
+        .where(inArray(pausedExecutions.workflowId, [archivedWorkflowId, otherWorkflowId]))
+      await db.delete(workflow).where(inArray(workflow.id, [archivedWorkflowId, otherWorkflowId]))
+      await deleteWorkspaceFixture(db, eq(workspace.id, otherWorkspaceId))
+    }
+  })
+
   it('pages through the waiting runs without repeating one', async () => {
     await pausedRun()
     await pausedRun()

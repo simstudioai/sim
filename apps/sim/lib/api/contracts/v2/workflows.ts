@@ -286,6 +286,7 @@ export const v2WorkflowApiInputSchema = z
     title: 'Workflow API input schema',
     description: 'JSON Schema for the `input` an API run of the active deployment accepts.',
   })
+export type V2WorkflowApiInputSchema = z.output<typeof v2WorkflowApiInputSchema>
 
 export const v2WorkflowDetailSchema = v2WorkflowListItemSchema
   .extend({
@@ -1485,8 +1486,9 @@ export const v2ExecutionErrorSchema = z
      *
      * The synchronous execute and resume responses attribute the block at
      * execution time. The polled run resource keeps only the error *string*, so
-     * it reads the block back from the run's recorded trace: the last block
-     * whose error nothing handled. When that trace is unavailable (not
+     * it reads the block back from the run's recorded trace: the unhandled
+     * failure the stored error names, else the one that ended first, and none
+     * when concurrent failures cannot be told apart. When that trace is unavailable (not
      * recorded, compacted, or withheld by the viewer's permission group) the
      * three fields are absent and a block-level failure reports
      * `EXECUTION_FAILED`. A failure its message classifies as run-level

@@ -1519,13 +1519,44 @@ describe('findFailedTraceBlock', () => {
     })
   })
 
-  it('names the last-executed unhandled failure', () => {
-    const spans = root([
-      span({ blockId: 'later', status: 'error', executionOrder: 3 }),
-      span({ blockId: 'earlier', status: 'error', executionOrder: 2 }),
+  /**
+   * Parallel branches: A started first, B later, and A's failure settled first, so the run
+   * stored A's error. B, still in flight, failed after it.
+   */
+  const concurrentFailures = () =>
+    root([
+      span({
+        blockId: 'a',
+        name: 'Agent A',
+        status: 'error',
+        executionOrder: 2,
+        endTime: '2024-01-01T10:00:01.000Z',
+      }),
+      span({
+        blockId: 'b',
+        name: 'Agent B',
+        status: 'error',
+        executionOrder: 3,
+        endTime: '2024-01-01T10:00:02.000Z',
+      }),
     ])
 
-    expect(findFailedTraceBlock(spans)?.blockId).toBe('later')
+  it('names the failure the stored run error belongs to', () => {
+    expect(findFailedTraceBlock(concurrentFailures(), 'Agent A: 429')?.blockId).toBe('a')
+    expect(findFailedTraceBlock(concurrentFailures(), 'Agent B: timeout')?.blockId).toBe('b')
+  })
+
+  it('falls back to the failure that ended first when the error names no block', () => {
+    expect(findFailedTraceBlock(concurrentFailures(), 'upstream returned 500')?.blockId).toBe('a')
+  })
+
+  it('names no block when concurrent failures cannot be told apart', () => {
+    const spans = root([
+      span({ blockId: 'a', name: 'Agent A', status: 'error' }),
+      span({ blockId: 'b', name: 'Agent B', status: 'error' }),
+    ])
+
+    expect(findFailedTraceBlock(spans, 'upstream returned 500')).toBeNull()
   })
 
   it('names the block inside a loop rather than the loop container', () => {

@@ -607,7 +607,7 @@ async function readWorkflowExecutionStatus(
     status: { ...resource, error, finalOutput, blockOutputs },
     stateExecutionId: executionId,
     pausePoints: paused ? pausedRow?.pausePoints : null,
-    failedBlock: error ? findFailedTraceBlock(executionData?.traceSpans) : null,
+    failedBlock: error ? findFailedTraceBlock(executionData?.traceSpans, error) : null,
   }
 }
 

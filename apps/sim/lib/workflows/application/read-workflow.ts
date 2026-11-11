@@ -1,4 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import {
+  type V2WorkflowApiInputSchema,
+  v2WorkflowApiInputSchema,
+} from '@/lib/api/contracts/v2/workflows'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
@@ -24,18 +29,36 @@ export interface ReadWorkflowInput {
 /**
  * JSON Schema for the `input` an API run of the active deployment accepts, or
  * null when the workflow has no active deployment or it has no API entry point.
+ *
+ * Reading a workflow never depended on its deployment, so a deployment that
+ * cannot be read, or a schema of an unexpected shape, reports null rather than
+ * failing the read.
  */
 async function loadDeployedApiInputSchema(
   workflowId: string,
   workspaceId: string
-): Promise<Record<string, unknown> | null> {
+): Promise<V2WorkflowApiInputSchema | null> {
+  let schema: Record<string, unknown> | null
   try {
-    const deployed = await loadDeployedWorkflowState(workflowId, workspaceId)
-    return resolveApiRunInputSchema(deployed.blocks)
+    schema = resolveApiRunInputSchema(
+      (await loadDeployedWorkflowState(workflowId, workspaceId)).blocks
+    )
   } catch (error) {
-    if (error instanceof NoActiveDeploymentError) return null
-    throw error
+    if (!(error instanceof NoActiveDeploymentError)) {
+      logger.warn('Deployed input schema unavailable', {
+        workflowId,
+        error: getErrorMessage(error),
+      })
+    }
+    return null
   }
+  if (!schema) return null
+  const parsed = v2WorkflowApiInputSchema.safeParse(schema)
+  if (!parsed.success) {
+    logger.warn('Deployed input schema has an unexpected shape', { workflowId })
+    return null
+  }
+  return parsed.data
 }
 
 async function loadWorkflowFolderPath(workspaceId: string, folderId: string | null) {

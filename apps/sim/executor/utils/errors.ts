@@ -142,6 +142,16 @@ function isRecordedThrown(value: unknown): value is object {
   return (typeof value === 'object' || typeof value === 'function') && value !== null
 }
 
+/** How a block failure's message names its block: `Block name: message`. */
+function blockErrorPrefix(blockName: string): string {
+  return `${blockName}: `
+}
+
+/** Whether an error message is the one a failure in `blockName` records. */
+export function errorNamesBlock(message: string, blockName: string): boolean {
+  return message === blockName || message.startsWith(blockErrorPrefix(blockName))
+}
+
 export interface BlockExecutionErrorDetails {
   block: SerializedBlock
   error: Error | string
@@ -160,7 +170,7 @@ export function buildBlockExecutionError(details: BlockExecutionErrorDetails): E
   const blockName = details.block.metadata?.name || details.block.id
   const blockType = details.block.metadata?.id || 'unknown'
 
-  const error = new Error(`${blockName}: ${errorMessage}`, {
+  const error = new Error(`${blockErrorPrefix(blockName)}${errorMessage}`, {
     cause: details.error instanceof Error ? details.error : undefined,
   })
 
@@ -339,8 +349,8 @@ export function classifyExecutionError(
     executionResult?.error ??
     fromLog.error ??
     'Execution failed'
-  if (blockName && message.startsWith(`${blockName}: `)) {
-    message = message.slice(blockName.length + 2)
+  if (blockName && message.startsWith(blockErrorPrefix(blockName))) {
+    message = message.slice(blockErrorPrefix(blockName).length)
   }
 
   const statusCode = error instanceof Error ? getExecutionErrorStatus(error) : undefined
