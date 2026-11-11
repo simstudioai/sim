@@ -58,8 +58,8 @@ export function tokenCredentialOAuth(
 }
 
 /**
- * Credential policy for a tool that takes an API client's id and secret
- * inline, mints its own token from them, and also accepts a saved
+ * Credential policy for a tool that takes its sign-in secrets inline (an API
+ * client's id and secret, or a user's API token) and also accepts a saved
  * client-credential account. With a credential selected, the executor fills
  * the tool's hidden `accessToken` with the token minted from the saved account,
  * plus every other mapped param (a cloud, site, or tenant the account is bound
@@ -413,11 +413,7 @@ export const ZEP_CREDENTIAL_OAUTH = tokenCredentialOAuth('zep', { apiKey: 'acces
  * from `accessToken`.
  */
 export const ZENDESK_CREDENTIAL_OAUTH = {
-  required: false,
-  provider: 'zendesk',
-  credentialKind: 'service-account',
-  credentialParams: { subdomain: 'domain' },
-  credentialSuppliedParams: ['email', 'apiToken', 'subdomain'],
+  ...clientCredentialOAuth('zendesk', { subdomain: 'domain' }, ['email', 'apiToken']),
   authoritativeParams: ['authStyle'],
 } as const satisfies OAuthConfig
 
