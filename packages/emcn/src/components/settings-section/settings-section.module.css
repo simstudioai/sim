@@ -7,10 +7,8 @@
 .surface {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--ui-list-gap);
   container: settings-rows / inline-size;
-  margin-inline: calc(-1 * var(--ui-row-inset));
-  padding: var(--spacing-4) calc(var(--ui-row-inset) - var(--spacing-stroke-default));
+  padding: var(--spacing-4) var(--spacing-20);
   border: var(--spacing-stroke-default) solid var(--ui-divider);
   border-radius: var(--radius-12);
 }
@@ -30,7 +28,7 @@
   grid-template-columns: minmax(0, 1fr);
   flex: 1;
   min-inline-size: 0;
-  gap: var(--ui-stack-gap);
+  gap: var(--spacing-4);
 }
 
 .identity {
@@ -73,6 +71,13 @@
 .row[data-field] .control > * {
   inline-size: 100%;
   min-inline-size: 0;
+}
+
+/* The control slot keeps the field width, so descriptions wrap on one edge across a surface's rows. */
+@container settings-rows (min-width: 30rem) {
+  .control {
+    min-inline-size: var(--settings-control-width);
+  }
 }
 
 @container settings-rows (max-width: 30rem) {

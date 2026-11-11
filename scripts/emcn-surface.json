@@ -8798,8 +8798,8 @@
         "segmented": "52bf1d00ba1c"
       },
       "src/components/settings-section/settings-section.module.css": {
-        "control": "a57065f113fb",
-        "copy": "f580c9484941",
+        "control": "b369cf20e982",
+        "copy": "f26d20906fff",
         "detail": "e5f38682f3dc",
         "identity": "5cf9a7df48d2",
         "leading": "24b833d041c1",
@@ -8807,7 +8807,7 @@
         "rowList": "55839e98011f",
         "saveActions": "2733ab722020",
         "section": "be2d93b83867",
-        "surface": "f3fe5c8f2714"
+        "surface": "4c3cb87aa5a2"
       },
       "src/components/stack/stack.module.css": {
         "count": "aa072c4721de",
@@ -8956,7 +8956,7 @@
       "src/components/segmented-control/segmented-control.tsx": "08d99a232a85",
       "src/components/settings-section/row-list.tsx": "084863a247f2",
       "src/components/settings-section/save-actions.tsx": "a59ba2dd043d",
-      "src/components/settings-section/settings-section.module.css": "b68613f27278",
+      "src/components/settings-section/settings-section.module.css": "82cb531ecc8f",
       "src/components/settings-section/settings-section.tsx": "8b8bf9c52cd8",
       "src/components/stack/stack.module.css": "d60c765f4c2c",
       "src/components/stack/stack.tsx": "9c1282860523",
