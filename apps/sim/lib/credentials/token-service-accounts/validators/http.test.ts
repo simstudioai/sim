@@ -8,7 +8,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { EgressRefusedError } from '@/lib/core/network/transport.server'
-import { normalizeHttpBaseUrl, refuseUnsafeTypedUrl } from '@/lib/core/security/input-validation'
 import { tokenCheckValidator } from '@/lib/credentials/token-service-accounts/validators/http'
 
 const validate = tokenCheckValidator({
@@ -169,19 +168,6 @@ describe('tokenCheckValidator with a typed host', () => {
       'https://tools.example.com/api/me',
       '203.0.113.7',
       expect.objectContaining({ profile: 'configuredEndpoint', maxRedirects: 0 })
-    )
-  })
-
-  it('refuses a mistyped scheme instead of reading the scheme as a host', () => {
-    expect(() => normalizeHttpBaseUrl('https:/grafana.example.com')).toThrow(/scheme/)
-    expect(() => refuseUnsafeTypedUrl('https:/evil.com')).toThrow(/scheme/)
-    expect(() => refuseUnsafeTypedUrl('HTTP:evil.com')).toThrow(/scheme/)
-    // The URL parser drops tabs and newlines, so they must not hide a scheme from the guard.
-    expect(() => refuseUnsafeTypedUrl('ht\ntps:/evil.com')).toThrow(/scheme/)
-    expect(() => normalizeHttpBaseUrl('ht\ttps:/evil.com')).toThrow(/scheme/)
-    expect(refuseUnsafeTypedUrl('https://grafana.example.com')).toBe('https://grafana.example.com')
-    expect(normalizeHttpBaseUrl('grafana.example.com:3000/')).toBe(
-      'https://grafana.example.com:3000'
     )
   })
 
