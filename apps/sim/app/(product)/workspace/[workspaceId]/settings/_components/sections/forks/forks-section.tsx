@@ -2,21 +2,22 @@
 
 import { lazy, Suspense, useState } from 'react'
 import { Button } from '@sim/emcn/button'
-import { EmptyState } from '@sim/emcn/empty-state'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
-import { FailureNotice, InlineNotice } from '@sim/emcn/status'
+import { InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { workspaceEntry } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
 import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   SectionStack,
   SectionToolbar,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { SettingsRead } from '@/app/(product)/_components/settings-parts/settings-read'
 import type { WorkspaceSettingsSectionProps } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
 import { ForkActivity } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/forks/fork-activity'
 import {
@@ -27,10 +28,10 @@ import { ForkWorkspaceModal } from '@/app/(product)/workspace/[workspaceId]/sett
 import {
   type ForkLineageChildApi,
   type ForkLineageNodeApi,
+  forkIdParam,
+  forkViewParam,
   useDeploymentShape,
-  useForkIdParam,
   useForkLineage,
-  useForkViewParam,
   useRollbackFork,
   useSettingsSearch,
   useUnlinkFork,
@@ -39,6 +40,7 @@ import {
 } from '@/platform/lib/data/forks'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { requestSettingsLeave } from '@/platform/lib/data/settings-guard'
+import { useSettingsSubview } from '@/platform/lib/data/settings-subview'
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
 import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
@@ -52,6 +54,9 @@ const ForkSyncDetail = lazy(() =>
 
 /** Explains a disabled action on a workspace the viewer cannot open. */
 const NO_ACCESS_REASON = "You don't have access to this workspace"
+
+/** The `fork-view` value that opens the workspace's sync activity. */
+const ACTIVITY_VIEW = 'activity'
 
 /** Lineage partner names by id (the parent and this workspace's forks), for Activity. */
 function lineagePartnerNames(
@@ -84,8 +89,9 @@ export default function ForksSection({ workspaceId }: WorkspaceSettingsSectionPr
   const rollback = useRollbackFork()
   const unlink = useUnlinkFork()
   const [searchTerm, setSearchTerm] = useSettingsSearch()
-  const [selectedForkId, setSelectedForkId] = useForkIdParam()
-  const [forkView, setForkView] = useForkViewParam()
+  const forkDetail = useSettingsSubview({ idParam: forkIdParam.key })
+  const activityView = useSettingsSubview({ idParam: forkViewParam.key })
+  const selectedForkId = forkDetail.id
   const [forking, setForking] = useState(false)
   const [confirmingRollback, setConfirmingRollback] = useState(false)
   const [confirmUnlink, setConfirmUnlink] = useState<{ id: string; name: string } | null>(null)
@@ -156,6 +162,12 @@ export default function ForksSection({ workspaceId }: WorkspaceSettingsSectionPr
   const parentVisible = parent !== null && (!query || parent.name.toLowerCase().includes(query))
   const filteredForks = forks.filter((fork) => fork.name.toLowerCase().includes(query))
 
+  const createFork = canMutate ? (
+    <Button size='compact' icon='I074' onClick={() => setForking(true)}>
+      Create fork
+    </Button>
+  ) : undefined
+
   const view =
     showParentDetail && parent ? (
       <Suspense fallback={null}>
@@ -164,15 +176,15 @@ export default function ForksSection({ workspaceId }: WorkspaceSettingsSectionPr
           workspaceId={workspaceId}
           workspaceName={workspaceName}
           parent={parent}
-          onBack={() => void setSelectedForkId(null, { history: 'replace' })}
+          onBack={forkDetail.close}
           onOpenWorkspace={() => openWorkspace(parent.id)}
         />
       </Suspense>
-    ) : forkView === 'activity' ? (
+    ) : activityView.id === ACTIVITY_VIEW ? (
       <ForkActivity
         workspaceId={workspaceId}
         workspaceNames={lineagePartnerNames(parent, forks)}
-        onBack={() => void setForkView(null, { history: 'replace' })}
+        onBack={activityView.close}
         undoable={undoableRun}
         rollingBack={rollback.isPending}
         onRollback={() => setConfirmingRollback(true)}
@@ -180,52 +192,61 @@ export default function ForksSection({ workspaceId }: WorkspaceSettingsSectionPr
     ) : (
       <SectionStack>
         <SettingsPageHeader />
-        <SectionToolbar
-          grow={
-            <SearchField
-              label='Search forks'
-              placeholder='Search forks…'
-              value={searchTerm}
-              onValueChange={setSearchTerm}
-            />
-          }
-        >
-          <Button variant='secondary' size='compact' onClick={() => void setForkView('activity')}>
-            See activity
-          </Button>
-        </SectionToolbar>
-        {lineage.isError ? (
-          <FailureNotice
-            message={getErrorMessage(lineage.error, 'Failed to load forks')}
-            retrying={lineage.isFetching}
-            onRetry={() => void lineage.refetch()}
-          />
-        ) : lineage.isPending ? null : (
-          <>
-            {parentVisible && parent && (
-              <SettingsSection title='Parent'>
-                <SettingsRow label={parent.name}>
-                  <ActionMenu
-                    label={`${parent.name} actions`}
-                    icon='I108'
-                    align='end'
-                    actions={[
-                      {
-                        id: 'mappings',
-                        label: 'Edit mappings',
-                        onSelect: () => void setSelectedForkId(parent.id),
-                        disabled: !parent.viewerAccessible,
-                        disabledReason: parent.viewerAccessible ? undefined : NO_ACCESS_REASON,
-                      },
-                      ...rowActions(parent),
-                    ]}
-                  />
-                </SettingsRow>
-              </SettingsSection>
-            )}
-            <SettingsSection title='Forks'>
-              {filteredForks.length > 0 ? (
-                filteredForks.map((fork) => (
+        <SettingsRead query={lineage} failureMessage='Couldn’t load forks'>
+          {() => (
+            <>
+              <SectionToolbar
+                grow={
+                  parent || forks.length > 0 ? (
+                    <SearchField
+                      label='Search forks'
+                      placeholder='Search forks…'
+                      value={searchTerm}
+                      onValueChange={setSearchTerm}
+                    />
+                  ) : undefined
+                }
+              >
+                <Button size='compact' onClick={() => activityView.open(ACTIVITY_VIEW)}>
+                  See activity
+                </Button>
+              </SectionToolbar>
+              {parentVisible && parent && (
+                <SettingsSection title='Parent'>
+                  <SettingsRow label={parent.name}>
+                    <ActionMenu
+                      label={`${parent.name} actions`}
+                      icon='I108'
+                      align='end'
+                      actions={[
+                        {
+                          id: 'mappings',
+                          label: 'Edit mappings',
+                          onSelect: () => forkDetail.open(parent.id),
+                          disabled: !parent.viewerAccessible,
+                          disabledReason: parent.viewerAccessible ? undefined : NO_ACCESS_REASON,
+                        },
+                        ...rowActions(parent),
+                      ]}
+                    />
+                  </SettingsRow>
+                </SettingsSection>
+              )}
+              <SettingsList
+                title='Forks'
+                empty={
+                  filteredForks.length > 0
+                    ? undefined
+                    : query
+                      ? { title: 'No matching forks' }
+                      : {
+                          title: 'No forks yet',
+                          description: 'Copy this workspace to work on separately',
+                          action: createFork,
+                        }
+                }
+              >
+                {filteredForks.map((fork) => (
                   <SettingsRow key={fork.id} label={fork.name}>
                     <ActionMenu
                       label={`${fork.name} actions`}
@@ -234,41 +255,29 @@ export default function ForksSection({ workspaceId }: WorkspaceSettingsSectionPr
                       actions={rowActions(fork)}
                     />
                   </SettingsRow>
-                ))
-              ) : (
-                <EmptyState
-                  title={query ? 'No matching forks' : 'No forks yet'}
-                  description={query ? undefined : 'Create a fork to get started.'}
-                />
-              )}
-              {canMutate && (
-                <SettingsRow
-                  label='New fork'
-                  description='Copy this workspace to work on separately'
-                >
-                  <Button
-                    variant='primary'
-                    size='compact'
-                    icon='I074'
-                    onClick={() => setForking(true)}
+                ))}
+                {createFork && (
+                  <SettingsRow
+                    label='New fork'
+                    description='Copy this workspace to work on separately'
                   >
-                    Create fork
-                  </Button>
-                </SettingsRow>
-              )}
-            </SettingsSection>
-            <SettingsSection title='Synced workflows'>
-              {/* Only this workspace's own value: a previous workspace's placeholder would write another lineage's policy. */}
-              {lineage.data && !lineage.isPlaceholderData && (
-                <ForkSyncDefaultRow
-                  workspaceId={workspaceId}
-                  excludeNewWorkflows={lineage.data.forkSyncNewWorkflowsExcluded}
-                />
-              )}
-              <ForkSyncedWorkflows workspaceId={workspaceId} />
-            </SettingsSection>
-          </>
-        )}
+                    {createFork}
+                  </SettingsRow>
+                )}
+              </SettingsList>
+              <SettingsSection title='Synced workflows'>
+                {/* Only this workspace's own value: a previous workspace's placeholder would write another lineage's policy. */}
+                {lineage.data && !lineage.isPlaceholderData && (
+                  <ForkSyncDefaultRow
+                    workspaceId={workspaceId}
+                    excludeNewWorkflows={lineage.data.forkSyncNewWorkflowsExcluded}
+                  />
+                )}
+                <ForkSyncedWorkflows workspaceId={workspaceId} />
+              </SettingsSection>
+            </>
+          )}
+        </SettingsRead>
       </SectionStack>
     )
 
@@ -291,7 +300,7 @@ export default function ForksSection({ workspaceId }: WorkspaceSettingsSectionPr
         onClose={() => setConfirmUnlink(null)}
         title='Disconnect fork'
         description={({ name }) =>
-          `This permanently removes the fork relationship with ${name}. Both workspaces stay exactly as they are, but they will no longer appear in each other's fork lists, and syncing between them stops.`
+          `Both workspaces stay as they are, but ${name} leaves this workspace's fork lists and syncing between them stops.`
         }
         confirmLabel='Disconnect'
         pendingLabel='Disconnecting…'
@@ -299,21 +308,21 @@ export default function ForksSection({ workspaceId }: WorkspaceSettingsSectionPr
       >
         <InlineNotice
           intent='warning'
-          message='This cannot be undone — the saved mappings and sync history for this pair are deleted, and forking again creates a brand-new workspace.'
+          message='This action cannot be undone. The saved mappings and sync history for this pair are deleted, and forking again creates a new workspace'
         />
       </ConfirmDialog>
       <ConfirmDialog
         target={confirmingRollback}
         onClose={() => setConfirmingRollback(false)}
         title='Undo last sync'
-        description='This restores each affected workflow to its prior deployed version and removes workflows the sync created. Continue?'
-        confirmLabel='Rollback'
-        pendingLabel='Rolling back…'
+        description='Each affected workflow returns to its prior deployed version, and workflows the sync created are removed.'
+        confirmLabel='Undo sync'
+        pendingLabel='Undoing…'
         onConfirm={runRollback}
       >
         <InlineNotice
           intent='warning'
-          message='Resources copied into this workspace during syncs may remain afterward — rollback restores workflows to their prior versions but does not remove copied resources.'
+          message='Resources copied into this workspace during syncs stay; only workflows are restored'
         />
       </ConfirmDialog>
     </>

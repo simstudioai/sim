@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { SettingsSaveBar } from '@/app/(product)/_components/settings-parts/save-bar'
 import {
   DetailHeader,
   Muted,
@@ -19,7 +20,7 @@ import {
   useForkSync,
   useForkSyncDirectionParam,
 } from '@/platform/lib/data/forks'
-import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
+import { requestSettingsLeave, useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 
 /** Explains a disabled action on a workspace the viewer cannot open. */
 const NO_ACCESS_REASON = "You don't have access to this workspace"
@@ -35,8 +36,8 @@ interface ForkSyncDetailProps {
 
 /**
  * The parent edge's sync page. Sync stays off until nothing blocks it and every required mapping
- * and field is set, and always confirms the overwrite first. Unsaved mapping edits swap the
- * header's actions for Discard and Save and guard leaving; Sync itself saves the mapping it runs.
+ * and field is set, and always confirms the overwrite first. Unsaved mapping edits commit through
+ * the save bar under the mappings; Sync itself saves the mapping it runs.
  */
 export function ForkSyncDetail({
   workspaceId,
@@ -54,18 +55,21 @@ export function ForkSyncDetail({
     direction,
     enabled: true,
   })
-  const guard = useSettingsUnsavedGuard({
-    isDirty: controller.hasSessionChoices,
-    navigationBlocked: controller.saving || controller.submitting,
+  /**
+   * The save bar registers the mapping draft. Choices it does not save (copy selections, dropped
+   * references, trigger overrides) still ask before leaving, and a running sync holds navigation.
+   */
+  useSettingsUnsavedGuard({
+    isDirty: controller.hasSessionChoices && !controller.dirty,
+    navigationBlocked: controller.submitting,
     onDiscard: controller.discard,
   })
   const [confirmingSync, setConfirmingSync] = useState(false)
   const target = controller.targetWorkspaceName
-  const busy = controller.saving || controller.submitting
 
   const changeDirection = (next: ForkDirection) => {
     if (next === controller.direction) return
-    guard.guardBack(() => void setDirection(next))
+    requestSettingsLeave(() => void setDirection(next))
   }
 
   return (
@@ -73,52 +77,45 @@ export function ForkSyncDetail({
       <DetailHeader
         backLabel='Workspace forks'
         onBack={() =>
-          guard.guardBack(() => {
+          requestSettingsLeave(() => {
             void setDirection(null)
             onBack()
           })
         }
         title={parent.name}
       >
-        {controller.dirty ? (
-          <>
-            <Button variant='quiet' size='compact' disabled={busy} onClick={controller.discard}>
-              Discard
-            </Button>
-            <Button variant='primary' size='compact' disabled={busy} onClick={controller.save}>
-              {controller.saving ? 'Saving…' : 'Save'}
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button
-              variant='secondary'
-              size='compact'
-              disabled={!parent.viewerAccessible}
-              disabledReason={parent.viewerAccessible ? undefined : NO_ACCESS_REASON}
-              onClick={onOpenWorkspace}
-            >
-              Open workspace
-            </Button>
-            <Button
-              variant='primary'
-              size='compact'
-              disabled={controller.syncDisabled}
-              disabledReason={controller.syncDisabled ? controller.syncDisabledReason : undefined}
-              onClick={() => setConfirmingSync(true)}
-            >
-              {controller.submitting ? 'Working…' : 'Sync'}
-            </Button>
-          </>
-        )}
+        <Button
+          size='compact'
+          disabled={!parent.viewerAccessible}
+          disabledReason={parent.viewerAccessible ? undefined : NO_ACCESS_REASON}
+          onClick={onOpenWorkspace}
+        >
+          Open workspace
+        </Button>
+        <Button
+          variant='primary'
+          size='compact'
+          disabled={controller.syncDisabled || controller.saving}
+          disabledReason={controller.syncDisabled ? controller.syncDisabledReason : undefined}
+          onClick={() => setConfirmingSync(true)}
+        >
+          {controller.submitting ? 'Syncing…' : 'Sync'}
+        </Button>
       </DetailHeader>
       <ForkSyncView controller={controller} onDirectionChange={changeDirection} />
+      <SettingsSaveBar
+        dirty={controller.dirty}
+        saving={controller.saving}
+        blocked={controller.submitting}
+        onSave={controller.save}
+        onDiscard={controller.discard}
+      />
       <ConfirmDialog
         target={confirmingSync}
         onClose={() => setConfirmingSync(false)}
         safe
         title={`Overwrite ${target}`}
-        description={`Syncing will overwrite any changes made in ${target} since the last sync. Continue?`}
+        description={`Syncing overwrites any changes made in ${target} since the last sync.`}
         confirmLabel='Sync'
         pendingLabel='Syncing…'
         onConfirm={async () => (await controller.sync()) || false}

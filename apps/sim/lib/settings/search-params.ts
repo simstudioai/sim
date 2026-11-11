@@ -40,12 +40,6 @@ export const forkIdParam = {
   parser: parseAsString,
 } as const
 
-/** Opening a fork's detail is a destination → push to history; clear on close. */
-export const forkIdUrlKeys = {
-  history: 'push',
-  clearOnDefault: true,
-} as const
-
 /**
  * `fork-view` deep-links the Forks settings tab to its workspace-scoped Activity
  * view (opened from the page header's "See activity" action).
@@ -53,12 +47,6 @@ export const forkIdUrlKeys = {
 export const forkViewParam = {
   key: 'fork-view',
   parser: parseAsStringLiteral(['activity'] as const),
-} as const
-
-/** Opening the activity view is a destination → push to history; clear on close. */
-export const forkViewUrlKeys = {
-  history: 'push',
-  clearOnDefault: true,
 } as const
 
 /**
