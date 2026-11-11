@@ -125,8 +125,8 @@ function fakeMicrosoft(
     tokenError?: Response
     /** Refusals answered to the first token requests, in order, before Entra starts issuing tokens. */
     tokenErrorsFirst?: Response[]
-    /** How long Entra takes to answer each token request. */
-    tokenDelayMs?: number
+    /** Settles when Entra answers each token request; the caller drives it on its fake clock. */
+    tokenDelay?: () => Promise<void>
   } = {}
 ) {
   const tokenRequests: TokenRequest[] = []
@@ -135,9 +135,7 @@ function fakeMicrosoft(
     if (url.startsWith('https://login.microsoftonline.com/')) {
       const form = Object.fromEntries(new URLSearchParams(String(init.body)))
       tokenRequests.push({ url, form, redirect: init.redirect })
-      if (options.tokenDelayMs) {
-        await new Promise((resolve) => setTimeout(resolve, options.tokenDelayMs))
-      }
+      await options.tokenDelay?.()
       if (options.tokenError) return options.tokenError.clone()
       const pendingError = pendingErrors.shift()
       if (pendingError) return pendingError
@@ -573,7 +571,10 @@ describe('getting a Microsoft app token for a run', () => {
     })
 
     it('stops retrying when a slow Entra would push the run past the shared mint deadline', async () => {
-      const tokens = fakeMicrosoft(fetch, { tokenError: refusal(70021), tokenDelayMs: 11_000 })
+      const tokens = fakeMicrosoft(fetch, {
+        tokenError: refusal(70021),
+        tokenDelay: () => new Promise((resolve) => setTimeout(resolve, 11_000)),
+      })
       storeCredential({ authType: 'federated', subject: SUBJECT }, 'ciphertext-slow-refusal')
 
       await expect(
