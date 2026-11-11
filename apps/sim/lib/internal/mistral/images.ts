@@ -5,9 +5,7 @@ import type { InternalToolFile } from '@/lib/internal/tool-operations/file-resul
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
 import { resolveStoredFileMetadata } from '@/lib/uploads/utils/stored-file-metadata'
-
-/** Most images one parse stores; Mistral's `image_limit` is clamped to it. */
-export const MAX_OCR_EXTRACTED_IMAGES = 100
+import { MAX_OCR_EXTRACTED_IMAGES } from '@/tools/mistral/types'
 
 /** Largest single image kept; a bigger one is a page scan, not a figure. */
 const MAX_OCR_IMAGE_BYTES = 20 * 1024 * 1024
