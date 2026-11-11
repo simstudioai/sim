@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { apiKeyAccessSchema } from '@/lib/api/contracts/api-keys'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
@@ -28,9 +29,6 @@ const base64Url43 = (message: string) => z.string().regex(/^[A-Za-z0-9\-_]{43}$/
  */
 export const cliAuthScopeSchema = z.enum(['copilot', 'platform']).default('copilot')
 export type CliAuthScope = z.output<typeof cliAuthScopeSchema>
-
-/** Access a minted platform key carries: full (`write`) or read-only (`read`). */
-const cliAuthKeyAccessSchema = z.enum(['read', 'write'])
 
 /**
  * Bounds on a minted platform key's lifetime, in whole days. The same window
@@ -72,7 +70,7 @@ export const approveCliAuthBodySchema = z.object({
    * approves; recording it here, rather than reading it at poll time, is what
    * keeps the unauthenticated poll from widening it.
    */
-  access: cliAuthKeyAccessSchema.optional().default('write'),
+  access: apiKeyAccessSchema.optional().default('write'),
   /** Platform scope only: days until the minted key expires. Absent means it never expires. */
   expiresInDays: cliAuthExpiresInDaysSchema.optional(),
 })
@@ -132,7 +130,7 @@ export const pollCliAuthContract = defineRouteContract({
          * A terminal that asked for read-only must check this rather than
          * assume it — a server that predates the field mints full access.
          */
-        access: cliAuthKeyAccessSchema.optional(),
+        access: apiKeyAccessSchema.optional(),
         /** Platform scope only: when the key expires, or null when it never does. */
         expiresAt: z.string().nullable().optional(),
       }),

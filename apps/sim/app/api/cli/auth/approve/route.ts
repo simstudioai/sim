@@ -28,8 +28,9 @@ const logger = createLogger('CliAuthApproveAPI')
  *
  * That makes the approval record the sole carrier of the decision. The poll body
  * is a request id and a secret and nothing else, so it cannot assert a scope, a
- * workspace, a binding, an access level, or a lifetime of its own — a refusal here writes no record, and a
- * poll driven directly against the same request id answers `pending` forever.
+ * workspace, a binding, an access level, or a lifetime of its own — a refusal
+ * here writes no record, and a poll driven directly against the same request id
+ * answers `pending` forever.
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const session = await getSession()

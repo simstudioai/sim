@@ -72,20 +72,18 @@ export function resolveCliAuthRequest({
     return { valid: false, reason: 'Key access and expiry only apply to Sim API keys.' }
   }
 
-  const keyAccess: ApiKeyAccess | null =
-    access === null ? 'write' : access === 'read' || access === 'write' ? access : null
-  if (!keyAccess) {
+  const keyAccess = access ?? 'write'
+  if (keyAccess !== 'read' && keyAccess !== 'write') {
     return { valid: false, reason: 'The requested key access is malformed.' }
   }
 
   const expiresInDays = expires === null ? null : Number(expires)
   if (
     expires !== null &&
-    !(
-      /^\d+$/.test(expires) &&
-      Number(expires) >= CLI_AUTH_MIN_EXPIRY_DAYS &&
-      Number(expires) <= CLI_AUTH_MAX_EXPIRY_DAYS
-    )
+    (!/^\d+$/.test(expires) ||
+      expiresInDays === null ||
+      expiresInDays < CLI_AUTH_MIN_EXPIRY_DAYS ||
+      expiresInDays > CLI_AUTH_MAX_EXPIRY_DAYS)
   ) {
     return {
       valid: false,

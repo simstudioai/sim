@@ -1,3 +1,4 @@
+import type { ApiKeyAccess } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { pollCliAuthContract } from '@/lib/api/contracts'
@@ -67,7 +68,7 @@ async function mintForGrant(grant: ApprovalGrant): Promise<
   | {
       ok: true
       key: { id: string; apiKey: string }
-      settings?: { access: 'read' | 'write'; expiresAt: string | null }
+      settings?: { access: ApiKeyAccess; expiresAt: string | null }
     }
   | { ok: false; status: number; message: string }
 > {

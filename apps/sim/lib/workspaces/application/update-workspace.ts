@@ -12,7 +12,10 @@ import {
   resolveActiveWorkspaceApplicationContext,
 } from '@/lib/workspaces/application/context'
 import { workspaceUpdateOperations } from '@/lib/workspaces/application/operations'
-import { countPublicWorkspaceMembers } from '@/lib/workspaces/public-queries'
+import {
+  countPublicWorkspaceMembers,
+  type PublicWorkspaceDetail,
+} from '@/lib/workspaces/public-queries'
 import {
   applyWorkspaceUpdate,
   readWorkspaceIdentityRecord,
@@ -111,7 +114,15 @@ export const updateWorkspaceIdentity = defineAuthorizedWorkspaceUseCase({
       ...result,
       patch,
       identity: presentIdentity(result.updated),
-      workspace: { id, name, color, logoUrl, memberCount, createdAt, updatedAt },
+      workspace: {
+        id,
+        name,
+        color,
+        logoUrl,
+        memberCount,
+        createdAt,
+        updatedAt,
+      } satisfies PublicWorkspaceDetail,
     }
   },
   projectAudit: ({ result }) => projectUpdateAudit(result.patch, result),
