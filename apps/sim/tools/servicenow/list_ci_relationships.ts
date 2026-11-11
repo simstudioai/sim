@@ -12,6 +12,7 @@ import {
   transformRecordListResponse,
   withQueryString,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listCiRelationshipsTool: ToolConfig<
@@ -23,6 +24,7 @@ export const listCiRelationshipsTool: ToolConfig<
   description:
     'List rows from the CI Relationship [cmdb_rel_ci] table for a configuration item. Each row carries the parent CI, the child CI, and the relationship type.',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     ...authParams,

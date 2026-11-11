@@ -94,6 +94,7 @@ export const HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID = 'higgsfield-service-accoun
 export const THRIVE_SERVICE_ACCOUNT_PROVIDER_ID = 'thrive-service-account' as const
 export const PLANETSCALE_SERVICE_ACCOUNT_PROVIDER_ID = 'planetscale-service-account' as const
 export const GONG_SERVICE_ACCOUNT_PROVIDER_ID = 'gong-service-account' as const
+export const SERVICENOW_SERVICE_ACCOUNT_PROVIDER_ID = 'servicenow-service-account' as const
 export const SUPABASE_SERVICE_ACCOUNT_PROVIDER_ID = 'supabase-service-account' as const
 export const INFISICAL_SERVICE_ACCOUNT_PROVIDER_ID = 'infisical-service-account' as const
 export const OKTA_SERVICE_ACCOUNT_PROVIDER_ID = 'okta-service-account' as const
@@ -225,6 +226,7 @@ export type TokenServiceAccountProviderId =
   | typeof THRIVE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof PLANETSCALE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof GONG_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof SERVICENOW_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SUPABASE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof INFISICAL_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof OKTA_SERVICE_ACCOUNT_PROVIDER_ID
@@ -2393,6 +2395,37 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       'A Gong technical administrator creates the access key and secret on the API page of the Gong company settings.',
     invalidCredentialsHelp:
       'Gong rejected this access key and secret. Check that they were created together, have not been revoked, and that your Gong plan includes API access.',
+  },
+  [SERVICENOW_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: SERVICENOW_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'ServiceNow',
+    tokenNoun: 'password',
+    connectNoun: 'login',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Password',
+        placeholder: 'Enter the ServiceNow user password',
+        secret: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Username',
+        placeholder: 'Enter the ServiceNow username',
+        secret: false,
+      },
+      {
+        id: 'domain',
+        label: 'Instance URL',
+        placeholder: 'yourcompany.service-now.com',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/servicenow',
+    helpText:
+      'Use a dedicated integration user with the roles your workflows need and without multi-factor authentication. Enter the instance host on service-now.com, servicenow.com, or servicenowservices.com; custom domains are not supported.',
+    invalidCredentialsHelp:
+      'ServiceNow rejected this username and password. Check them on the instance you entered, and that the user is active, not locked out, and not required to use multi-factor authentication.',
   },
 }
 

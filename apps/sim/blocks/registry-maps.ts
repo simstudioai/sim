@@ -381,7 +381,12 @@ import { SendblueBlock, SendblueBlockMeta } from '@/blocks/blocks/sendblue'
 import { SendGridBlock, SendGridBlockMeta, SendGridV2Block } from '@/blocks/blocks/sendgrid'
 import { SentryBlock, SentryBlockMeta, SentryV2Block } from '@/blocks/blocks/sentry'
 import { SerperBlock, SerperBlockMeta } from '@/blocks/blocks/serper'
-import { ServiceNowBlock, ServiceNowBlockMeta, ServiceNowV2Block } from '@/blocks/blocks/servicenow'
+import {
+  ServiceNowBlock,
+  ServiceNowBlockMeta,
+  ServiceNowV2Block,
+  ServiceNowV3Block,
+} from '@/blocks/blocks/servicenow'
 import { SESBlock, SESBlockMeta, SESV2Block } from '@/blocks/blocks/ses'
 import { SftpBlock, SftpBlockMeta, SftpV2Block } from '@/blocks/blocks/sftp'
 import { SharepointBlock, SharepointBlockMeta, SharepointV2Block } from '@/blocks/blocks/sharepoint'
@@ -865,6 +870,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   serper: SerperBlock,
   servicenow: ServiceNowBlock,
   servicenow_v2: ServiceNowV2Block,
+  servicenow_v3: ServiceNowV3Block,
   ses: SESBlock,
   ses_v2: SESV2Block,
   sftp: SftpBlock,

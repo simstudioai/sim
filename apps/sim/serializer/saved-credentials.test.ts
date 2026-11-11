@@ -95,6 +95,7 @@ import { S3Block, S3V2Block } from '@/blocks/blocks/s3'
 import { SecretsManagerBlock, SecretsManagerV2Block } from '@/blocks/blocks/secrets_manager'
 import { SendGridBlock, SendGridV2Block } from '@/blocks/blocks/sendgrid'
 import { SentryBlock, SentryV2Block } from '@/blocks/blocks/sentry'
+import { ServiceNowV2Block, ServiceNowV3Block } from '@/blocks/blocks/servicenow'
 import { SESBlock, SESV2Block } from '@/blocks/blocks/ses'
 import { SimilarwebBlock, SimilarwebV2Block } from '@/blocks/blocks/similarweb'
 import { SixtyfourBlock, SixtyfourV2Block } from '@/blocks/blocks/sixtyfour'
@@ -369,6 +370,11 @@ const VERSIONS: Array<{
     secretIds: ['serviceTokenId', 'serviceToken'],
   },
   { legacy: GongBlock, successor: GongV2Block, secretIds: ['accessKey', 'accessKeySecret'] },
+  {
+    legacy: ServiceNowV2Block,
+    successor: ServiceNowV3Block,
+    secretIds: ['instanceUrl', 'username', 'password'],
+  },
 ]
 
 function valuesFor(ids: readonly string[], prefix: string): Record<string, string> {

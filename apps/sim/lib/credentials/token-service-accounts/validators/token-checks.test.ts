@@ -31,6 +31,7 @@ import {
   validatePlaneServiceAccount,
   validatePlanetScaleServiceAccount,
   validateResendServiceAccount,
+  validateServiceNowServiceAccount,
   validateSupabaseServiceAccount,
   validateThriveServiceAccount,
   validateTinybirdServiceAccount,
@@ -340,6 +341,31 @@ describe('saved credentials whose connection names a host, region, or account', 
     ['Twilio', validateTwilioServiceAccount, { providerWorkspaceId: 'AC123/../Messages' }],
     ['PlanetScale', validatePlanetScaleServiceAccount, { providerWorkspaceId: 'id:extra' }],
     ['Gong', validateGongServiceAccount, { providerWorkspaceId: 'key:extra' }],
+    [
+      'ServiceNow',
+      validateServiceNowServiceAccount,
+      { domain: 'evil.example.com', providerWorkspaceId: 'admin' },
+    ],
+    [
+      'ServiceNow',
+      validateServiceNowServiceAccount,
+      { domain: 'acme.service-now.com.evil.example.com', providerWorkspaceId: 'admin' },
+    ],
+    [
+      'ServiceNow',
+      validateServiceNowServiceAccount,
+      { domain: 'http://acme.service-now.com', providerWorkspaceId: 'admin' },
+    ],
+    [
+      'ServiceNow',
+      validateServiceNowServiceAccount,
+      { domain: 'https://user:pass@acme.service-now.com', providerWorkspaceId: 'admin' },
+    ],
+    [
+      'ServiceNow',
+      validateServiceNowServiceAccount,
+      { domain: 'acme.service-now.com', providerWorkspaceId: 'ad:min' },
+    ],
     ['PlanetScale', validatePlanetScaleServiceAccount, { providerWorkspaceId: 'id with space' }],
   ])(
     '%s refuses a typed value that could steer the request, before sending the key',
@@ -564,5 +590,77 @@ describe('Gong saved access key verification', () => {
       validateGongServiceAccount({ apiToken: 'sécret-€', providerWorkspaceId: 'KEY123' })
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
     expect(fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('ServiceNow saved username and password verification', () => {
+  const secureFetch = inputValidationMockFns.mockSecureFetchWithPinnedIP
+
+  function reply(response: Response) {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockReset().mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.7',
+      originalHostname: 'acme.service-now.com',
+    })
+    secureFetch.mockReset().mockResolvedValue(response)
+  }
+
+  it('reads one user on the instance origin with the Basic auth the tools send', async () => {
+    reply(jsonResponse({ result: [{ sys_id: 'abc' }] }))
+
+    await expect(
+      validateServiceNowServiceAccount({
+        apiToken: 'pass',
+        providerWorkspaceId: ' integration.user ',
+        domain: 'acme.service-now.com/nav_to.do?uri=incident.do',
+      })
+    ).resolves.toMatchObject({
+      displayName: 'ServiceNow (https://acme.service-now.com)',
+      normalizedDomain: 'https://acme.service-now.com',
+      normalizedWorkspaceId: 'integration.user',
+    })
+    expect(secureFetch).toHaveBeenCalledWith(
+      'https://acme.service-now.com/api/now/table/sys_user?sysparm_limit=1&sysparm_fields=sys_id',
+      '203.0.113.7',
+      expect.objectContaining({
+        method: 'GET',
+        maxRedirects: 0,
+        headers: expect.objectContaining({
+          Authorization: `Basic ${Buffer.from('integration.user:pass').toString('base64')}`,
+        }),
+      })
+    )
+  })
+
+  it.each([
+    [
+      'rejects a password ServiceNow answers with 401',
+      jsonResponse({ error: {} }, 401),
+      'invalid_credentials',
+    ],
+    [
+      'accepts a user whose ACLs refuse the user table',
+      jsonResponse({ error: { message: 'User Not Authorized' }, status: 'failure' }, 403),
+      null,
+    ],
+    [
+      'does not take a hibernating instance page as proof',
+      new Response('<html>Instance Hibernating</html>', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' },
+      }),
+      'provider_unavailable',
+    ],
+  ] as const)('%s', async (_, response, code) => {
+    reply(response)
+
+    const result = validateServiceNowServiceAccount({
+      apiToken: 'pass',
+      providerWorkspaceId: 'admin',
+      domain: 'https://acme.service-now.com',
+    })
+
+    if (code) await expect(result).rejects.toMatchObject({ code })
+    else await expect(result).resolves.toMatchObject({ principal: null })
   })
 })

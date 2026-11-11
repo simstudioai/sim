@@ -147,6 +147,7 @@ import {
   SalesforceIcon,
   SendgridIcon,
   SentryIcon,
+  ServiceNowIcon,
   ShopifyIcon,
   SimilarwebIcon,
   SixtyfourIcon,
@@ -3508,6 +3509,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'gong',
+  },
+  servicenow: {
+    name: 'ServiceNow',
+    icon: ServiceNowIcon,
+    services: {
+      servicenow: {
+        name: 'ServiceNow',
+        description:
+          'Work with incidents, change requests, catalog items, and records in ServiceNow.',
+        providerId: 'servicenow',
+        serviceAccountProviderId: 'servicenow-service-account',
+        icon: ServiceNowIcon,
+        baseProviderIcon: ServiceNowIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'servicenow',
   },
   higgsfield: {
     name: 'Higgsfield',

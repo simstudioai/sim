@@ -8,6 +8,7 @@ import {
   readRecordArray,
   toRecordObject,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getCiTool: ToolConfig<ServiceNowGetCiParams, ServiceNowGetCiResponse> = {
@@ -16,6 +17,7 @@ export const getCiTool: ToolConfig<ServiceNowGetCiParams, ServiceNowGetCiRespons
   description:
     'Retrieve a configuration item and its CMDB relationships through the CMDB Instance API. Returns the CI attributes plus its inbound and outbound relations, each carrying the related CI and the relationship type.',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     ...authParams,

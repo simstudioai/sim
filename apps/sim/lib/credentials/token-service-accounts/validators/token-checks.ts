@@ -1,5 +1,9 @@
 import { toArray, toRecord } from '@sim/utils/object'
-import { validateOktaDomain, validateSupabaseProjectId } from '@/lib/core/security/input-validation'
+import {
+  validateOktaDomain,
+  validateServiceNowInstanceUrl,
+  validateSupabaseProjectId,
+} from '@/lib/core/security/input-validation'
 import {
   fetchProvider,
   TokenServiceAccountValidationError,
@@ -37,6 +41,7 @@ import { getNerdGraphEndpoint, newRelicHeaders } from '@/tools/new_relic/utils'
 import { oktaHeaders } from '@/tools/okta/utils'
 import { planeApiUrl, planeHeaders } from '@/tools/plane/utils'
 import { PLANETSCALE_API_ORIGIN, planetScaleHeaders } from '@/tools/planetscale/utils'
+import { createBasicAuthHeader } from '@/tools/servicenow/utils'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import { getThriveBaseUrl, getThriveHeaders, THRIVE_HOSTS } from '@/tools/thrive/utils'
 import { WHATSAPP_GRAPH_VERSION } from '@/tools/whatsapp/utils'
@@ -1307,6 +1312,55 @@ export const validateSentryServiceAccount = tokenCheckValidator({
     url: 'https://sentry.io/api/0/organizations/',
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
+})
+
+/**
+ * A typed ServiceNow instance reduced to the https origin the tools build `/api/now/...` paths on:
+ * a bare host is taken as https, a pasted console path or query is dropped, and the host must be
+ * one of ServiceNow's own domains (`validateServiceNowInstanceUrl`), so a saved password can only
+ * reach a ServiceNow instance.
+ */
+function normalizeServiceNowInstanceUrl(raw: string | undefined): string {
+  const typed = refuseUnsafeTypedUrl(raw)
+  const candidate = /^https?:\/\//i.test(typed) ? typed : `https://${typed}`
+  const result = validateServiceNowInstanceUrl(candidate)
+  if (!result.isValid) throw new Error('not a ServiceNow instance URL')
+  return new URL(result.sanitized ?? candidate).origin
+}
+
+/**
+ * Reading one user id from the Table API is a cheap documented read with the Basic
+ * `username:password` the tools send, on the instance it was typed with. ServiceNow answers bad
+ * credentials with 401 and a request its ACLs refuse with a JSON 403, which still proves the
+ * login. The username is the Basic username, so one with a colon is refused unsent. Only a
+ * Table API `result` list proves the login: a hibernating instance answers 200 with a page.
+ */
+export const validateServiceNowServiceAccount = tokenCheckValidator({
+  serviceLabel: 'ServiceNow',
+  domain: ({ domain }) => normalizeServiceNowInstanceUrl(domain),
+  workspaceId: ({ providerWorkspaceId }) => {
+    const username = (providerWorkspaceId ?? '').trim()
+    if (!/^[^:\x00-\x1f\x7f]+$/.test(username)) throw new Error('invalid username')
+    return username
+  },
+  egress: 'configuredEndpoint',
+  forbiddenMeansScoped: true,
+  request: ({ apiToken, domain, providerWorkspaceId = '' }) => ({
+    url: `${domain}/api/now/table/sys_user?sysparm_limit=1&sysparm_fields=sys_id`,
+    headers: {
+      Authorization: createBasicAuthHeader(providerWorkspaceId, apiToken),
+      Accept: 'application/json',
+    },
+  }),
+  acceptsBody: (body) => {
+    if (!Array.isArray(toRecord(body).result)) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'ServiceNow returned an unexpected table read',
+      })
+    }
+    return true
+  },
 })
 
 /** Similarweb's capabilities endpoint costs no data credits and answers 200 only for a valid key. */

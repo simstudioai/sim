@@ -271,6 +271,11 @@ export const ROCKETLANE_CREDENTIAL_OAUTH = tokenCredentialOAuth('rocketlane', {
 export const ROOTLY_CREDENTIAL_OAUTH = tokenCredentialOAuth('rootly', { apiKey: 'accessToken' })
 export const SENDGRID_CREDENTIAL_OAUTH = tokenCredentialOAuth('sendgrid', { apiKey: 'accessToken' })
 export const SENTRY_CREDENTIAL_OAUTH = tokenCredentialOAuth('sentry', { apiKey: 'accessToken' })
+export const SERVICENOW_CREDENTIAL_OAUTH = tokenCredentialOAuth('servicenow', {
+  instanceUrl: 'domain',
+  username: 'providerWorkspaceId',
+  password: 'accessToken',
+})
 export const SIMILARWEB_CREDENTIAL_OAUTH = tokenCredentialOAuth('similarweb', {
   apiKey: 'accessToken',
 })
@@ -413,6 +418,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   rootly: ROOTLY_CREDENTIAL_OAUTH,
   sendgrid: SENDGRID_CREDENTIAL_OAUTH,
   sentry: SENTRY_CREDENTIAL_OAUTH,
+  servicenow: SERVICENOW_CREDENTIAL_OAUTH,
   similarweb: SIMILARWEB_CREDENTIAL_OAUTH,
   sixtyfour: SIXTYFOUR_CREDENTIAL_OAUTH,
   smartlead: SMARTLEAD_CREDENTIAL_OAUTH,
