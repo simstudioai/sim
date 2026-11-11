@@ -87,13 +87,15 @@ const API_SCOPES: readonly OAuthApiScope[] = [
 ]
 
 /**
- * The API scopes a credential holds, as `/api/v2/meta` reports them. A credential
- * no grant bounds, such as a write key, holds both `api:read` and `api:write`.
+ * The API scopes a credential can reach, as `/api/v2/meta` reports them: each scope
+ * {@link requireOAuthOperationScope} would let it through, so `api:write` reports the
+ * `api:read` it implies and either reports `search:read`. A credential no grant bounds,
+ * such as a write key, reaches every scope.
  */
 export function credentialApiScopes(principal: Principal): OAuthApiScope[] {
   const granted = grantedApiScopes(principal)
-  if (!granted) return [OAUTH_API_READ_SCOPE, OAUTH_API_WRITE_SCOPE]
-  return API_SCOPES.filter((scope) => granted.includes(scope))
+  if (!granted) return [...API_SCOPES]
+  return API_SCOPES.filter((scope) => oauthScopeSatisfies(granted, scope))
 }
 
 function grantedApiScopes(principal: Principal): readonly string[] | undefined {

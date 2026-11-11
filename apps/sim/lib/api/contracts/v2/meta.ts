@@ -25,7 +25,7 @@ export const v2MetaSchema = z
     scopes: z
       .array(z.enum(['api:read', 'api:write', 'search:read']))
       .describe(
-        'API scopes the calling credential holds. A read-only API key holds only api:read: it is refused every operation that changes state and every operation that declares no API scope, so api:read alone does not authorize those. A full-access key holds api:read and api:write; an OAuth access token holds what it was granted.'
+        'API scopes the calling credential can use. api:write implies api:read, and either implies search:read. A read-only API key holds api:read and search:read: it is refused every operation that changes state and every operation that declares no API scope, so api:read alone does not authorize those. A full-access key holds all three; an OAuth access token holds what it was granted and what that implies.'
       ),
   })
   .meta({

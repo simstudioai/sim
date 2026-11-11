@@ -742,14 +742,34 @@ check('enabling a poller clears its failures and backoff but keeps its config', 
 
 check('a poll failure auto-disables at the threshold in the same write', async () => {
   const logger = createLogger('TriggerHealthIntegration')
+  const warn = vi.spyOn(logger, 'warn')
   await markWebhookFailed(flakyWebhookId, logger)
   expect(await webhookRow(flakyWebhookId)).toMatchObject({ isActive: true, failedCount: 99 })
   await markWebhookFailed(flakyWebhookId, logger)
   expect(await webhookRow(flakyWebhookId)).toMatchObject({ isActive: false, failedCount: 100 })
+  expect(warn).toHaveBeenCalledTimes(1)
+
+  await markWebhookFailed(flakyWebhookId, logger)
+  expect(await webhookRow(flakyWebhookId)).toMatchObject({ isActive: false, failedCount: 101 })
+  expect(warn).toHaveBeenCalledTimes(1)
 
   await setBlock('flaky', true)
   await markWebhookFailed(flakyWebhookId, logger)
   expect(await webhookRow(flakyWebhookId)).toMatchObject({ isActive: true, failedCount: 1 })
+})
+
+check('overlapping failures at the threshold count every failure and disable once', async () => {
+  const logger = createLogger('TriggerHealthConcurrency')
+  const warn = vi.spyOn(logger, 'warn')
+  await db
+    .update(webhook)
+    .set({ isActive: true, failedCount: 97 })
+    .where(eq(webhook.id, flakyWebhookId))
+
+  await Promise.all(Array.from({ length: 6 }, () => markWebhookFailed(flakyWebhookId, logger)))
+
+  expect(await webhookRow(flakyWebhookId)).toMatchObject({ isActive: false, failedCount: 103 })
+  expect(warn).toHaveBeenCalledTimes(1)
 })
 
 check('an unknown block is not found', async () => {
