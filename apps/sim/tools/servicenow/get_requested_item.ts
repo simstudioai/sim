@@ -18,6 +18,7 @@ import {
   transformRecordResponse,
   withQueryString,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getRequestedItemTool: ToolConfig<
@@ -29,6 +30,7 @@ export const getRequestedItemTool: ToolConfig<
   description:
     'Retrieve a single ServiceNow requested item (RITM) by number (e.g., RITM0010001) or sys_id from the Requested Item [sc_req_item] table.',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     ...authParams,

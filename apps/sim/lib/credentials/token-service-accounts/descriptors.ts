@@ -92,6 +92,9 @@ export const CODA_SERVICE_ACCOUNT_PROVIDER_ID = 'coda-service-account' as const
 export const GAUGE_SERVICE_ACCOUNT_PROVIDER_ID = 'gauge-service-account' as const
 export const HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID = 'higgsfield-service-account' as const
 export const THRIVE_SERVICE_ACCOUNT_PROVIDER_ID = 'thrive-service-account' as const
+export const PLANETSCALE_SERVICE_ACCOUNT_PROVIDER_ID = 'planetscale-service-account' as const
+export const GONG_SERVICE_ACCOUNT_PROVIDER_ID = 'gong-service-account' as const
+export const SERVICENOW_SERVICE_ACCOUNT_PROVIDER_ID = 'servicenow-service-account' as const
 export const SUPABASE_SERVICE_ACCOUNT_PROVIDER_ID = 'supabase-service-account' as const
 export const INFISICAL_SERVICE_ACCOUNT_PROVIDER_ID = 'infisical-service-account' as const
 export const OKTA_SERVICE_ACCOUNT_PROVIDER_ID = 'okta-service-account' as const
@@ -99,6 +102,14 @@ export const DEVIN_SERVICE_ACCOUNT_PROVIDER_ID = 'devin-service-account' as cons
 export const EMAILBISON_SERVICE_ACCOUNT_PROVIDER_ID = 'emailbison-service-account' as const
 export const UPSTASH_SERVICE_ACCOUNT_PROVIDER_ID = 'upstash-service-account' as const
 export const ALGOLIA_SERVICE_ACCOUNT_PROVIDER_ID = 'algolia-service-account' as const
+/**
+ * The Twilio credential's `apiToken` holds either the account auth token or an API key pair
+ * (`SKxxx:secret`), deliberately in one field: the pair is exactly the Basic username and password
+ * Twilio takes for a key, so every surface (saved credential, inline block field, API) carries it
+ * with no extra field. Build request auth only with `twilioAuthorization`; a consumer that needs
+ * the account auth token itself (webhook signature HMAC) must refuse a value `isTwilioApiKeyPair`
+ * matches, since an API key secret cannot sign.
+ */
 export const TWILIO_SERVICE_ACCOUNT_PROVIDER_ID = 'twilio-service-account' as const
 export const AZURE_DEVOPS_SERVICE_ACCOUNT_PROVIDER_ID = 'azure-devops-service-account' as const
 export const PLANE_SERVICE_ACCOUNT_PROVIDER_ID = 'plane-service-account' as const
@@ -221,6 +232,9 @@ export type TokenServiceAccountProviderId =
   | typeof GAUGE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof THRIVE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof PLANETSCALE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof GONG_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof SERVICENOW_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SUPABASE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof INFISICAL_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof OKTA_SERVICE_ACCOUNT_PROVIDER_ID
@@ -2138,9 +2152,11 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     fields: [
       {
         id: 'apiToken',
-        label: 'Auth token',
-        placeholder: 'Paste your Twilio auth token',
+        label: 'Auth token or API key',
+        placeholder: 'Paste your auth token, or SKxxx:secret for an API key',
         secret: true,
+        hintPattern: /^(?!SK)|^SK[0-9a-fA-F]{32}:\S+$/,
+        hintMessage: 'Enter an API key as its SID and secret joined by a colon: SKxxx:secret.',
       },
       {
         id: 'providerWorkspaceId',
@@ -2153,9 +2169,9 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/twilio_sms',
     helpText:
-      'Copy the Account SID and Auth Token from Account Info on your Twilio Console dashboard.',
+      'Copy the Account SID and Auth Token from Account Info on your Twilio Console dashboard. To use an API key instead, enter its SID and secret joined by a colon (SKxxx:secret); a Standard or Main key works, and a restricted key needs read access to phone numbers.',
     invalidCredentialsHelp:
-      'Twilio rejected this Account SID and auth token. Check that the token belongs to this account and has not been rotated.',
+      'Twilio rejected this Account SID and auth token or API key. Check that the token or key belongs to this account and has not been rotated or deleted, and that an API key is entered as SKxxx:secret.',
   },
   [ALGOLIA_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: ALGOLIA_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -2341,6 +2357,87 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       'Use the API key and tenant ID from your Thrive admin settings. Region host is public.api.learn.link, or public.api.mea.learn.tech for the Middle East and Africa (staging hosts also work).',
     invalidCredentialsHelp:
       'Thrive rejected this API key. Check that the tenant ID matches the key and that the region host is the one your tenant uses.',
+  },
+  [PLANETSCALE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: PLANETSCALE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'PlanetScale',
+    tokenNoun: 'service token',
+    connectNoun: 'service token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Service token',
+        placeholder: 'Paste your PlanetScale service token',
+        secret: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Service token ID',
+        placeholder: 'Paste the service token ID',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/planetscale',
+    helpText:
+      "Create a service token on your PlanetScale organization's Service tokens page, copy its ID and token, and grant it access to the organization and databases your workflows use.",
+    invalidCredentialsHelp:
+      'PlanetScale rejected this service token. Check that the token ID and token belong together and that the token has not been deleted or expired.',
+  },
+  [GONG_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: GONG_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Gong',
+    tokenNoun: 'access key secret',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Access key secret',
+        placeholder: 'Paste your Gong access key secret',
+        secret: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Access key',
+        placeholder: 'Paste your Gong access key',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/gong',
+    helpText:
+      'A Gong technical administrator creates the access key and secret on the API page of the Gong company settings. Sim calls https://api.gong.io; an account whose API page shows a different base URL is not supported yet.',
+    invalidCredentialsHelp:
+      'Gong rejected this access key and secret. Check that they were created together, have not been revoked, and that your Gong plan includes API access. If the API page in Gong shows a base URL other than https://api.gong.io, that account is not supported yet.',
+  },
+  [SERVICENOW_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: SERVICENOW_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'ServiceNow',
+    tokenNoun: 'password',
+    connectNoun: 'login',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Password',
+        placeholder: 'Enter the ServiceNow user password',
+        secret: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Username',
+        placeholder: 'Enter the ServiceNow username',
+        secret: false,
+      },
+      {
+        id: 'domain',
+        label: 'Instance URL',
+        placeholder: 'yourcompany.service-now.com',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/servicenow',
+    helpText:
+      "Use a dedicated integration user with the roles your workflows need and without multi-factor authentication. Enter the instance host on service-now.com, servicenow.com, or servicenowservices.com. If your instance uses a custom URL, enter the instance's original service-now.com address instead; custom URLs and on-premises instances are not supported.",
+    invalidCredentialsHelp:
+      "ServiceNow rejected this username and password, or the instance URL is not a ServiceNow address. Enter the instance's service-now.com address (not a custom URL), and check that the user is active, not locked out, and not required to use multi-factor authentication.",
   },
 }
 

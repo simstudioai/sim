@@ -6,6 +6,7 @@ import {
   parseServiceNowResponse,
   toRecordObject,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ServiceNowUpdateRecordTool')
@@ -15,6 +16,7 @@ export const updateRecordTool: ToolConfig<ServiceNowUpdateParams, ServiceNowUpda
   name: 'Update ServiceNow Record',
   description: 'Update an existing record in a ServiceNow table',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     instanceUrl: {

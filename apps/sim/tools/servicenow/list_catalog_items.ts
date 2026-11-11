@@ -11,6 +11,7 @@ import {
   toRecordArray,
   withQueryString,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listCatalogItemsTool: ToolConfig<
@@ -22,6 +23,7 @@ export const listCatalogItemsTool: ToolConfig<
   description:
     'Browse or search the ServiceNow service catalog. Returns each item with its sys_id, name, description, type, category, and catalogs, which is what Order ServiceNow Catalog Item needs.',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     ...authParams,

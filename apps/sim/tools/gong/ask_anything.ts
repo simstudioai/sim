@@ -1,5 +1,6 @@
 import type { GongAskAnythingParams, GongAskAnythingResponse } from '@/tools/gong/types'
-import { getGongErrorMessage } from '@/tools/gong/utils'
+import { getGongErrorMessage, gongAuthorization } from '@/tools/gong/utils'
+import { GONG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const askAnythingTool: ToolConfig<GongAskAnythingParams, GongAskAnythingResponse> = {
@@ -8,6 +9,7 @@ export const askAnythingTool: ToolConfig<GongAskAnythingParams, GongAskAnythingR
   description:
     'Ask a natural-language question about a CRM account, deal, contact, or lead. Gong answers from up to 60 calls and 500 emails associated with the entity. Consumes Gong credits.',
   version: '1.0.0',
+  oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {
     accessKey: {
@@ -96,7 +98,7 @@ export const askAnythingTool: ToolConfig<GongAskAnythingParams, GongAskAnythingR
     },
     method: 'GET',
     headers: (params) => ({
-      Authorization: `Basic ${btoa(`${params.accessKey}:${params.accessKeySecret}`)}`,
+      Authorization: gongAuthorization(params.accessKey, params.accessKeySecret),
     }),
   },
 

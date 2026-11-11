@@ -48,6 +48,7 @@ import { FirefliesV2Block, FirefliesV3Block } from '@/blocks/blocks/fireflies'
 import { FlintBlock, FlintV2Block } from '@/blocks/blocks/flint'
 import { GammaBlock, GammaV2Block } from '@/blocks/blocks/gamma'
 import { GitLabBlock, GitLabV2Block } from '@/blocks/blocks/gitlab'
+import { GongBlock, GongV2Block } from '@/blocks/blocks/gong'
 import { GrafanaBlock, GrafanaV2Block } from '@/blocks/blocks/grafana'
 import { GrainV2Block, GrainV3Block } from '@/blocks/blocks/grain'
 import { GranolaBlock, GranolaV2Block } from '@/blocks/blocks/granola'
@@ -78,6 +79,7 @@ import { OtterBlock, OtterV2Block } from '@/blocks/blocks/otter'
 import { PagerDutyBlock, PagerDutyV2Block } from '@/blocks/blocks/pagerduty'
 import { PersonaBlock, PersonaV2Block } from '@/blocks/blocks/persona'
 import { PlaneBlock, PlaneV2Block } from '@/blocks/blocks/plane'
+import { PlanetScaleBlock, PlanetScaleV2Block } from '@/blocks/blocks/planetscale'
 import { ProfoundBlock, ProfoundV2Block } from '@/blocks/blocks/profound'
 import { PulseV2Block, PulseV3Block } from '@/blocks/blocks/pulse'
 import { QuartrBlock, QuartrV2Block } from '@/blocks/blocks/quartr'
@@ -93,6 +95,7 @@ import { S3Block, S3V2Block } from '@/blocks/blocks/s3'
 import { SecretsManagerBlock, SecretsManagerV2Block } from '@/blocks/blocks/secrets_manager'
 import { SendGridBlock, SendGridV2Block } from '@/blocks/blocks/sendgrid'
 import { SentryBlock, SentryV2Block } from '@/blocks/blocks/sentry'
+import { ServiceNowV2Block, ServiceNowV3Block } from '@/blocks/blocks/servicenow'
 import { SESBlock, SESV2Block } from '@/blocks/blocks/ses'
 import { SimilarwebBlock, SimilarwebV2Block } from '@/blocks/blocks/similarweb'
 import { SixtyfourBlock, SixtyfourV2Block } from '@/blocks/blocks/sixtyfour'
@@ -360,6 +363,17 @@ const VERSIONS: Array<{
     successor: ThriveV2Block,
     secretIds: ['tenantId', 'apiKey', 'host'],
     optionalIds: ['host'],
+  },
+  {
+    legacy: PlanetScaleBlock,
+    successor: PlanetScaleV2Block,
+    secretIds: ['serviceTokenId', 'serviceToken'],
+  },
+  { legacy: GongBlock, successor: GongV2Block, secretIds: ['accessKey', 'accessKeySecret'] },
+  {
+    legacy: ServiceNowV2Block,
+    successor: ServiceNowV3Block,
+    secretIds: ['instanceUrl', 'username', 'password'],
   },
 ]
 

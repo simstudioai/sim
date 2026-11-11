@@ -5,6 +5,7 @@ import {
   normalizeInstanceUrl,
   throwServiceNowError,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ServiceNowDeleteRecordTool')
@@ -14,6 +15,7 @@ export const deleteRecordTool: ToolConfig<ServiceNowDeleteParams, ServiceNowDele
   name: 'Delete ServiceNow Record',
   description: 'Delete a record from a ServiceNow table',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     instanceUrl: {

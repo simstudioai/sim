@@ -126,7 +126,7 @@ import {
 } from '@/blocks/blocks/github'
 import { GitLabBlock, GitLabBlockMeta, GitLabV2Block } from '@/blocks/blocks/gitlab'
 import { GmailBlock, GmailBlockMeta, GmailV2Block, GmailV2BlockMeta } from '@/blocks/blocks/gmail'
-import { GongBlock, GongBlockMeta } from '@/blocks/blocks/gong'
+import { GongBlock, GongBlockMeta, GongV2Block } from '@/blocks/blocks/gong'
 import { GoogleSearchBlock, GoogleSearchBlockMeta } from '@/blocks/blocks/google'
 import { GoogleAdsBlock, GoogleAdsBlockMeta } from '@/blocks/blocks/google_ads'
 import { GoogleAppsheetBlock, GoogleAppsheetBlockMeta } from '@/blocks/blocks/google_appsheet'
@@ -327,7 +327,11 @@ import { PineconeBlock, PineconeBlockMeta } from '@/blocks/blocks/pinecone'
 import { PipedriveBlock, PipedriveBlockMeta } from '@/blocks/blocks/pipedrive'
 import { PitchBookBlock, PitchBookBlockMeta } from '@/blocks/blocks/pitchbook'
 import { PlaneBlock, PlaneBlockMeta, PlaneV2Block } from '@/blocks/blocks/plane'
-import { PlanetScaleBlock, PlanetScaleBlockMeta } from '@/blocks/blocks/planetscale'
+import {
+  PlanetScaleBlock,
+  PlanetScaleBlockMeta,
+  PlanetScaleV2Block,
+} from '@/blocks/blocks/planetscale'
 import { PolymarketBlock, PolymarketBlockMeta } from '@/blocks/blocks/polymarket'
 import { PostgreSQLBlock, PostgreSQLBlockMeta } from '@/blocks/blocks/postgresql'
 import { PostHogBlock, PostHogBlockMeta } from '@/blocks/blocks/posthog'
@@ -377,7 +381,12 @@ import { SendblueBlock, SendblueBlockMeta } from '@/blocks/blocks/sendblue'
 import { SendGridBlock, SendGridBlockMeta, SendGridV2Block } from '@/blocks/blocks/sendgrid'
 import { SentryBlock, SentryBlockMeta, SentryV2Block } from '@/blocks/blocks/sentry'
 import { SerperBlock, SerperBlockMeta } from '@/blocks/blocks/serper'
-import { ServiceNowBlock, ServiceNowBlockMeta, ServiceNowV2Block } from '@/blocks/blocks/servicenow'
+import {
+  ServiceNowBlock,
+  ServiceNowBlockMeta,
+  ServiceNowV2Block,
+  ServiceNowV3Block,
+} from '@/blocks/blocks/servicenow'
 import { SESBlock, SESBlockMeta, SESV2Block } from '@/blocks/blocks/ses'
 import { SftpBlock, SftpBlockMeta, SftpV2Block } from '@/blocks/blocks/sftp'
 import { SharepointBlock, SharepointBlockMeta, SharepointV2Block } from '@/blocks/blocks/sharepoint'
@@ -634,6 +643,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   gmail: GmailBlock,
   gmail_v2: GmailV2Block,
   gong: GongBlock,
+  gong_v2: GongV2Block,
   google_ads: GoogleAdsBlock,
   google_appsheet: GoogleAppsheetBlock,
   google_bigquery: GoogleBigQueryBlock,
@@ -798,6 +808,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   plane: PlaneBlock,
   plane_v2: PlaneV2Block,
   planetscale: PlanetScaleBlock,
+  planetscale_v2: PlanetScaleV2Block,
   polymarket: PolymarketBlock,
   postgresql: PostgreSQLBlock,
   posthog: PostHogBlock,
@@ -859,6 +870,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   serper: SerperBlock,
   servicenow: ServiceNowBlock,
   servicenow_v2: ServiceNowV2Block,
+  servicenow_v3: ServiceNowV3Block,
   ses: SESBlock,
   ses_v2: SESV2Block,
   sftp: SftpBlock,

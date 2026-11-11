@@ -19,6 +19,7 @@ import {
   validateElevenLabsServiceAccount,
   validateEmailBisonServiceAccount,
   validateFlintServiceAccount,
+  validateGongServiceAccount,
   validateGrafanaServiceAccount,
   validateInfisicalServiceAccount,
   validateInstantlyServiceAccount,
@@ -29,7 +30,9 @@ import {
   validateNewRelicServiceAccount,
   validateOktaServiceAccount,
   validatePlaneServiceAccount,
+  validatePlanetScaleServiceAccount,
   validateResendServiceAccount,
+  validateServiceNowServiceAccount,
   validateSupabaseServiceAccount,
   validateThriveServiceAccount,
   validateTinybirdServiceAccount,
@@ -436,16 +439,54 @@ describe('saved credentials whose connection names a host, region, or account', 
       { domain: 'evil.example.com', providerWorkspaceId: 't1' },
     ],
     ['Twilio', validateTwilioServiceAccount, { providerWorkspaceId: 'AC123/../Messages' }],
+    ['PlanetScale', validatePlanetScaleServiceAccount, { providerWorkspaceId: 'id:extra' }],
+    ['Gong', validateGongServiceAccount, { providerWorkspaceId: 'key:extra' }],
+    [
+      'ServiceNow',
+      validateServiceNowServiceAccount,
+      { domain: 'evil.example.com', providerWorkspaceId: 'admin' },
+    ],
+    [
+      'ServiceNow',
+      validateServiceNowServiceAccount,
+      { domain: 'acme.service-now.com.evil.example.com', providerWorkspaceId: 'admin' },
+    ],
+    [
+      'ServiceNow',
+      validateServiceNowServiceAccount,
+      { domain: 'http://acme.service-now.com', providerWorkspaceId: 'admin' },
+    ],
+    [
+      'ServiceNow',
+      validateServiceNowServiceAccount,
+      { domain: 'https://user:pass@acme.service-now.com', providerWorkspaceId: 'admin' },
+    ],
+    [
+      'ServiceNow',
+      validateServiceNowServiceAccount,
+      { domain: 'acme.service-now.com', providerWorkspaceId: 'ad:min' },
+    ],
+    ['PlanetScale', validatePlanetScaleServiceAccount, { providerWorkspaceId: 'id with space' }],
   ])(
     '%s refuses a typed value that could steer the request, before sending the key',
     async (_, validate, typed) => {
-      const fetch = vi.fn()
+      // Both transports would answer, so only the refusal itself can keep the key unsent.
+      const fetch = vi.fn().mockResolvedValue(jsonResponse({}, 401))
       vi.stubGlobal('fetch', fetch)
+      inputValidationMockFns.mockValidateUrlWithDNS.mockReset().mockResolvedValue({
+        isValid: true,
+        resolvedIP: '203.0.113.7',
+        originalHostname: 'instance.example.com',
+      })
+      inputValidationMockFns.mockSecureFetchWithPinnedIP
+        .mockReset()
+        .mockResolvedValue(jsonResponse({}, 401))
 
       await expect(validate({ apiToken: 'secret', ...typed })).rejects.toMatchObject({
         code: 'invalid_credentials',
       })
       expect(fetch).not.toHaveBeenCalled()
+      expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
     }
   )
 
@@ -548,4 +589,258 @@ describe('saved credentials whose vendor answers a restricted token in its error
     if (code) await expect(result).rejects.toMatchObject({ code })
     else await expect(result).resolves.toMatchObject({ principal: null })
   })
+})
+
+describe('PlanetScale saved service token verification', () => {
+  it('lists organizations with the token ID and token sent as the tools send them', async () => {
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({ type: 'list', data: [] }))
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validatePlanetScaleServiceAccount({ apiToken: 'tok-secret', providerWorkspaceId: ' tok-id ' })
+    ).resolves.toMatchObject({
+      displayName: 'PlanetScale (tok-id)',
+      normalizedWorkspaceId: 'tok-id',
+    })
+    expect(fetch).toHaveBeenCalledWith(
+      'https://api.planetscale.com/v1/organizations',
+      expect.objectContaining({
+        method: 'GET',
+        redirect: 'error',
+        headers: expect.objectContaining({ Authorization: 'tok-id:tok-secret' }),
+      })
+    )
+  })
+
+  it('rejects a token PlanetScale answers with 401', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ code: 'unauthorized', message: 'Unauthorized' }, 401))
+    )
+
+    await expect(
+      validatePlanetScaleServiceAccount({ apiToken: 'bad', providerWorkspaceId: 'tok-id' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it('rejects a JSON 403, which PlanetScale does not document as a valid token', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ code: 'forbidden', message: 'Forbidden' }, 403))
+    )
+
+    await expect(
+      validatePlanetScaleServiceAccount({ apiToken: 'any', providerWorkspaceId: 'tok-id' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it('does not take a proxy 403 page as proof of the token', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response('<html>Forbidden</html>', {
+          status: 403,
+          headers: { 'Content-Type': 'text/html' },
+        })
+      )
+    )
+
+    await expect(
+      validatePlanetScaleServiceAccount({ apiToken: 'any', providerWorkspaceId: 'tok-id' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it('refuses a token the tools could not send, before any request', async () => {
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validatePlanetScaleServiceAccount({ apiToken: 'tok:extra', providerWorkspaceId: 'tok-id' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('Gong saved access key verification', () => {
+  it('lists workspaces on the tools host with the Basic key and secret the tools send', async () => {
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({ requestId: 'r', workspaces: [] }))
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateGongServiceAccount({ apiToken: 'key-secret', providerWorkspaceId: ' KEY123 ' })
+    ).resolves.toMatchObject({ displayName: 'Gong (KEY123)', normalizedWorkspaceId: 'KEY123' })
+    expect(fetch).toHaveBeenCalledWith(
+      'https://api.gong.io/v2/workspaces',
+      expect.objectContaining({
+        method: 'GET',
+        redirect: 'error',
+        headers: expect.objectContaining({ Authorization: `Basic ${btoa('KEY123:key-secret')}` }),
+      })
+    )
+  })
+
+  it.each([401, 403])('rejects a key pair Gong answers with %i', async (status) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ requestId: 'r', errors: ['Access denied'] }, status))
+    )
+
+    await expect(
+      validateGongServiceAccount({ apiToken: 'bad', providerWorkspaceId: 'KEY123' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it('refuses a secret the tools could not encode, before any request', async () => {
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateGongServiceAccount({ apiToken: 'sécret-€', providerWorkspaceId: 'KEY123' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('ServiceNow saved username and password verification', () => {
+  const secureFetch = inputValidationMockFns.mockSecureFetchWithPinnedIP
+
+  function reply(response: Response) {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockReset().mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.7',
+      originalHostname: 'acme.service-now.com',
+    })
+    secureFetch.mockReset().mockResolvedValue(response)
+  }
+
+  it('reads one user on the instance origin with the Basic auth the tools send', async () => {
+    reply(jsonResponse({ result: [{ sys_id: 'abc' }] }))
+
+    await expect(
+      validateServiceNowServiceAccount({
+        apiToken: 'pass',
+        providerWorkspaceId: ' integration.user ',
+        domain: 'acme.service-now.com/nav_to.do?uri=incident.do',
+      })
+    ).resolves.toMatchObject({
+      displayName: 'ServiceNow (https://acme.service-now.com)',
+      normalizedDomain: 'https://acme.service-now.com',
+      normalizedWorkspaceId: 'integration.user',
+    })
+    expect(secureFetch).toHaveBeenCalledWith(
+      'https://acme.service-now.com/api/now/table/sys_user?sysparm_limit=1&sysparm_fields=sys_id',
+      '203.0.113.7',
+      expect.objectContaining({
+        method: 'GET',
+        maxRedirects: 0,
+        headers: expect.objectContaining({
+          Authorization: `Basic ${Buffer.from('integration.user:pass').toString('base64')}`,
+        }),
+      })
+    )
+  })
+
+  it.each([
+    [
+      'rejects a password ServiceNow answers with 401',
+      jsonResponse({ error: {} }, 401),
+      'invalid_credentials',
+    ],
+    [
+      'accepts a user whose ACLs refuse the user table',
+      jsonResponse({ error: { message: 'User Not Authorized' }, status: 'failure' }, 403),
+      null,
+    ],
+    [
+      'does not take a hibernating instance page as proof',
+      new Response('<html>Instance Hibernating</html>', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' },
+      }),
+      'provider_unavailable',
+    ],
+  ] as const)('%s', async (_, response, code) => {
+    reply(response)
+
+    const result = validateServiceNowServiceAccount({
+      apiToken: 'pass',
+      providerWorkspaceId: 'admin',
+      domain: 'https://acme.service-now.com',
+    })
+
+    if (code) await expect(result).rejects.toMatchObject({ code })
+    else await expect(result).resolves.toMatchObject({ principal: null })
+  })
+})
+
+describe('Twilio saved credential verification', () => {
+  const ACCOUNT_SID = `AC${'a'.repeat(32)}`
+  const API_KEY_SID = `SK${'b'.repeat(32)}`
+
+  it('checks an auth token against the account resource, as before', async () => {
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({ sid: ACCOUNT_SID }))
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateTwilioServiceAccount({ apiToken: 'c'.repeat(32), providerWorkspaceId: ACCOUNT_SID })
+    ).resolves.toMatchObject({ displayName: `Twilio (${ACCOUNT_SID})` })
+    expect(fetch).toHaveBeenCalledWith(
+      `https://api.twilio.com/2010-04-01/Accounts/${ACCOUNT_SID}.json`,
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: `Basic ${Buffer.from(`${ACCOUNT_SID}:${'c'.repeat(32)}`).toString('base64')}`,
+        }),
+      })
+    )
+  })
+
+  it('checks an API key with a read a Standard key may make, sent as the key SID and secret', async () => {
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({ incoming_phone_numbers: [] }))
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateTwilioServiceAccount({
+        apiToken: `${API_KEY_SID}:key-secret`,
+        providerWorkspaceId: ACCOUNT_SID,
+      })
+    ).resolves.toMatchObject({ displayName: `Twilio (${ACCOUNT_SID})` })
+    expect(fetch).toHaveBeenCalledWith(
+      `https://api.twilio.com/2010-04-01/Accounts/${ACCOUNT_SID}/IncomingPhoneNumbers.json?PageSize=1`,
+      expect.objectContaining({
+        redirect: 'error',
+        headers: expect.objectContaining({
+          Authorization: `Basic ${Buffer.from(`${API_KEY_SID}:key-secret`).toString('base64')}`,
+        }),
+      })
+    )
+  })
+
+  it('rejects an API key Twilio refuses for this account', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ code: 20003, message: 'Authenticate' }, 401))
+    )
+
+    await expect(
+      validateTwilioServiceAccount({
+        apiToken: `${API_KEY_SID}:wrong`,
+        providerWorkspaceId: ACCOUNT_SID,
+      })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it.each([`SKshort:secret`, `${API_KEY_SID}:`, `${ACCOUNT_SID}:secret`, 'token:with:colons'])(
+    'refuses %s, which is neither an auth token nor an API key, before any request',
+    async (apiToken) => {
+      const fetch = vi.fn()
+      vi.stubGlobal('fetch', fetch)
+
+      await expect(
+        validateTwilioServiceAccount({ apiToken, providerWorkspaceId: ACCOUNT_SID })
+      ).rejects.toMatchObject({ code: 'invalid_credentials' })
+      expect(fetch).not.toHaveBeenCalled()
+    }
+  )
 })

@@ -171,6 +171,10 @@ export const GITLAB_CREDENTIAL_OAUTH = tokenCredentialOAuth('gitlab', {
   accessToken: 'accessToken',
   host: 'domain',
 })
+export const GONG_CREDENTIAL_OAUTH = tokenCredentialOAuth('gong', {
+  accessKey: 'providerWorkspaceId',
+  accessKeySecret: 'accessToken',
+})
 export const GRAFANA_CREDENTIAL_OAUTH = tokenCredentialOAuth('grafana', {
   baseUrl: 'domain',
   apiKey: 'accessToken',
@@ -247,6 +251,10 @@ export const PLANE_CREDENTIAL_OAUTH = tokenCredentialOAuth('plane', {
   apiKey: 'accessToken',
   baseUrl: 'domain',
 })
+export const PLANETSCALE_CREDENTIAL_OAUTH = tokenCredentialOAuth('planetscale', {
+  serviceTokenId: 'providerWorkspaceId',
+  serviceToken: 'accessToken',
+})
 export const PROFOUND_CREDENTIAL_OAUTH = tokenCredentialOAuth('profound', { apiKey: 'accessToken' })
 export const PULSE_CREDENTIAL_OAUTH = tokenCredentialOAuth('pulse', { apiKey: 'accessToken' })
 export const QUARTR_CREDENTIAL_OAUTH = tokenCredentialOAuth('quartr', { apiKey: 'accessToken' })
@@ -263,6 +271,11 @@ export const ROCKETLANE_CREDENTIAL_OAUTH = tokenCredentialOAuth('rocketlane', {
 export const ROOTLY_CREDENTIAL_OAUTH = tokenCredentialOAuth('rootly', { apiKey: 'accessToken' })
 export const SENDGRID_CREDENTIAL_OAUTH = tokenCredentialOAuth('sendgrid', { apiKey: 'accessToken' })
 export const SENTRY_CREDENTIAL_OAUTH = tokenCredentialOAuth('sentry', { apiKey: 'accessToken' })
+export const SERVICENOW_CREDENTIAL_OAUTH = tokenCredentialOAuth('servicenow', {
+  instanceUrl: 'domain',
+  username: 'providerWorkspaceId',
+  password: 'accessToken',
+})
 export const SIMILARWEB_CREDENTIAL_OAUTH = tokenCredentialOAuth('similarweb', {
   apiKey: 'accessToken',
 })
@@ -364,6 +377,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   gamma: GAMMA_CREDENTIAL_OAUTH,
   'github-token': GITHUB_CREDENTIAL_OAUTH,
   gitlab: GITLAB_CREDENTIAL_OAUTH,
+  gong: GONG_CREDENTIAL_OAUTH,
   grafana: GRAFANA_CREDENTIAL_OAUTH,
   grain: GRAIN_CREDENTIAL_OAUTH,
   granola: GRANOLA_CREDENTIAL_OAUTH,
@@ -391,6 +405,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   pagerduty: PAGERDUTY_CREDENTIAL_OAUTH,
   persona: PERSONA_CREDENTIAL_OAUTH,
   plane: PLANE_CREDENTIAL_OAUTH,
+  planetscale: PLANETSCALE_CREDENTIAL_OAUTH,
   profound: PROFOUND_CREDENTIAL_OAUTH,
   pulse: PULSE_CREDENTIAL_OAUTH,
   quartr: QUARTR_CREDENTIAL_OAUTH,
@@ -403,6 +418,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   rootly: ROOTLY_CREDENTIAL_OAUTH,
   sendgrid: SENDGRID_CREDENTIAL_OAUTH,
   sentry: SENTRY_CREDENTIAL_OAUTH,
+  servicenow: SERVICENOW_CREDENTIAL_OAUTH,
   similarweb: SIMILARWEB_CREDENTIAL_OAUTH,
   sixtyfour: SIXTYFOUR_CREDENTIAL_OAUTH,
   smartlead: SMARTLEAD_CREDENTIAL_OAUTH,

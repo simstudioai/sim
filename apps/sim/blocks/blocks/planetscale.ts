@@ -1,5 +1,6 @@
 import { PlanetScaleIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 function optionalBoolean(value: unknown): boolean | undefined {
   if (value === undefined || value === null || value === '') return undefined
@@ -12,6 +13,8 @@ function optionalNumber(value: unknown): number | undefined {
 }
 export const PlanetScaleBlock: BlockConfig = {
   type: 'planetscale',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'planetscale_v2' },
   name: 'PlanetScale',
   description: 'Manage PlanetScale databases, branches, backups, and deploy requests',
   longDescription:
@@ -1185,3 +1188,28 @@ export const PlanetScaleBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const PlanetScaleV2Block: BlockConfig = {
+  ...PlanetScaleBlock,
+  type: 'planetscale_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    PlanetScaleBlock,
+    {
+      id: 'credential',
+      type: 'oauth-input',
+      serviceId: 'planetscale',
+      title: 'PlanetScale Credential',
+    },
+    {
+      selectorKeys: {
+        'planetscale.databases': 'planetscale.savedDatabases',
+        'planetscale.branches': 'planetscale.savedBranches',
+        'planetscale.backups': 'planetscale.savedBackups',
+        'planetscale.deployRequests': 'planetscale.savedDeployRequests',
+      },
+    }
+  ),
+}

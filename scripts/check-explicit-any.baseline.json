@@ -1603,7 +1603,6 @@
     "apps/sim/lib/selectors/server/internal.ts": 3,
     "apps/sim/lib/selectors/server/providers/credential-bundle.ts": 1,
     "apps/sim/lib/selectors/server/providers/planetscale.test.ts": 2,
-    "apps/sim/lib/selectors/server/providers/planetscale.ts": 3,
     "apps/sim/lib/selectors/server/providers/slack.ts": 1,
     "apps/sim/lib/sim-search/connectors.test.ts": 4,
     "apps/sim/lib/sim-search/live/application.test.ts": 10,

@@ -60,6 +60,7 @@ import {
   GithubIcon,
   GitLabIcon,
   GmailIcon,
+  GongIcon,
   GoogleAdsIcon,
   GoogleBigQueryIcon,
   GoogleCalendarIcon,
@@ -128,6 +129,7 @@ import {
   PersonaIcon,
   PipedriveIcon,
   PlaneIcon,
+  PlanetScaleIcon,
   PowerBIIcon,
   ProfoundIcon,
   PulseIcon,
@@ -145,6 +147,7 @@ import {
   SalesforceIcon,
   SendgridIcon,
   SentryIcon,
+  ServiceNowIcon,
   ShopifyIcon,
   SimilarwebIcon,
   SixtyfourIcon,
@@ -3474,6 +3477,59 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'thrive',
+  },
+  planetscale: {
+    name: 'PlanetScale',
+    icon: PlanetScaleIcon,
+    services: {
+      planetscale: {
+        name: 'PlanetScale',
+        description: 'Manage PlanetScale databases, branches, backups, and deploy requests.',
+        providerId: 'planetscale',
+        serviceAccountProviderId: 'planetscale-service-account',
+        icon: PlanetScaleIcon,
+        baseProviderIcon: PlanetScaleIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'planetscale',
+  },
+  gong: {
+    name: 'Gong',
+    icon: GongIcon,
+    services: {
+      gong: {
+        name: 'Gong',
+        description:
+          'Read calls, transcripts, users, and activity, and manage Engage flows in Gong.',
+        providerId: 'gong',
+        serviceAccountProviderId: 'gong-service-account',
+        icon: GongIcon,
+        baseProviderIcon: GongIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'gong',
+  },
+  servicenow: {
+    name: 'ServiceNow',
+    icon: ServiceNowIcon,
+    services: {
+      servicenow: {
+        name: 'ServiceNow',
+        description:
+          'Work with incidents, change requests, catalog items, and records in ServiceNow.',
+        providerId: 'servicenow',
+        serviceAccountProviderId: 'servicenow-service-account',
+        icon: ServiceNowIcon,
+        baseProviderIcon: ServiceNowIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'servicenow',
   },
   higgsfield: {
     name: 'Higgsfield',

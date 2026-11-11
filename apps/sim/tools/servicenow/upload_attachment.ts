@@ -3,6 +3,7 @@ import type {
   ServiceNowUploadAttachmentParams,
   ServiceNowUploadAttachmentResponse,
 } from '@/tools/servicenow/types'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 const logger = createLogger('ServiceNowUploadAttachmentTool')
@@ -15,6 +16,7 @@ export const uploadAttachmentTool: InternalToolConfig<
   name: 'Upload ServiceNow Attachment',
   description: 'Attach a file to a ServiceNow record',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     instanceUrl: {

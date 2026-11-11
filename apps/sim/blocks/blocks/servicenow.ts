@@ -1,7 +1,7 @@
 import { ServiceNowIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 import {
   APPROVAL_DECISION_OPTIONS,
   APPROVAL_STATE,
@@ -165,7 +165,7 @@ export const ServiceNowBlock = {
   type: 'servicenow',
   name: 'ServiceNow (Legacy)',
   hideFromToolbar: true,
-  sunset: { status: 'legacy', replacedBy: 'servicenow_v2' },
+  sunset: { status: 'legacy', replacedBy: 'servicenow_v3' },
   description: 'Create, read, update, and delete ServiceNow records',
   longDescription:
     'Create or update incidents and change requests, order catalog items, and process approvals. Read configuration items, knowledge articles, users, and groups, and transfer attachments. Generic record, aggregate, and table-scoped attachment operations accept a table name. Connect with your ServiceNow instance URL, username, and password.',
@@ -1928,8 +1928,8 @@ export const ServiceNowV2Block: BlockConfig = {
   ...ServiceNowBlock,
   type: 'servicenow_v2',
   name: 'ServiceNow',
-  hideFromToolbar: false,
-  sunset: undefined,
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'servicenow_v3' },
   tools: {
     ...ServiceNowBlock.tools,
     access: ServiceNowBlock.tools.access.map((toolId) =>
@@ -1949,6 +1949,20 @@ export const ServiceNowV2Block: BlockConfig = {
     ...ServiceNowBlock.outputs,
     content: { type: 'string', description: 'HTML body of a knowledge article' },
   },
+}
+
+export const ServiceNowV3Block: BlockConfig = {
+  ...ServiceNowV2Block,
+  type: 'servicenow_v3',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(ServiceNowV2Block, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'servicenow',
+    title: 'ServiceNow Credential',
+  }),
 }
 
 export const ServiceNowBlockMeta = {
