@@ -3,7 +3,6 @@ import {
   normalizeHttpBaseUrl,
   refuseUnsafeTypedUrl,
   validateOktaDomain,
-  validateServiceNowInstanceUrl,
   validateSupabaseProjectId,
 } from '@/lib/core/security/input-validation'
 import {
@@ -1370,16 +1369,17 @@ export const validateSentryServiceAccount = tokenCheckValidator({
 
 /**
  * A typed ServiceNow instance reduced to the https origin the tools build `/api/now/...` paths on:
- * a bare host is taken as https, a pasted console path or query is dropped, and the host must be
- * one of ServiceNow's own domains (`validateServiceNowInstanceUrl`), so a saved password can only
- * reach a ServiceNow instance.
+ * a bare host is taken as https and a pasted console path or query is dropped. Like a self-managed
+ * GitLab host, any public https host is allowed (instances on `service-now.com`, custom instance
+ * URLs, and self-hosted instances, matching what the earlier block accepted); the
+ * `configuredEndpoint` egress check refuses private and loopback addresses, and the saved password
+ * only ever goes to the host stored with it.
  */
 function normalizeServiceNowInstanceUrl(raw: string | undefined): string {
   const typed = refuseUnsafeTypedUrl(raw)
-  const candidate = /^https?:\/\//i.test(typed) ? typed : `https://${typed}`
-  const result = validateServiceNowInstanceUrl(candidate)
-  if (!result.isValid) throw new Error('not a ServiceNow instance URL')
-  return new URL(result.sanitized ?? candidate).origin
+  const url = new URL(/^https?:\/\//i.test(typed) ? typed : `https://${typed}`)
+  if (url.protocol !== 'https:') throw new Error('https only')
+  return url.origin
 }
 
 /**

@@ -444,16 +444,6 @@ describe('saved credentials whose connection names a host, region, or account', 
     [
       'ServiceNow',
       validateServiceNowServiceAccount,
-      { domain: 'evil.example.com', providerWorkspaceId: 'admin' },
-    ],
-    [
-      'ServiceNow',
-      validateServiceNowServiceAccount,
-      { domain: 'acme.service-now.com.evil.example.com', providerWorkspaceId: 'admin' },
-    ],
-    [
-      'ServiceNow',
-      validateServiceNowServiceAccount,
       { domain: 'http://acme.service-now.com', providerWorkspaceId: 'admin' },
     ],
     [
@@ -739,6 +729,23 @@ describe('ServiceNow saved username and password verification', () => {
           Authorization: `Basic ${Buffer.from('integration.user:pass').toString('base64')}`,
         }),
       })
+    )
+  })
+
+  it('verifies an instance on a custom URL, as the earlier block allowed', async () => {
+    reply(jsonResponse({ result: [{ sys_id: 'abc' }] }))
+
+    await expect(
+      validateServiceNowServiceAccount({
+        apiToken: 'pass',
+        providerWorkspaceId: 'admin',
+        domain: 'support.acme.example',
+      })
+    ).resolves.toMatchObject({ normalizedDomain: 'https://support.acme.example' })
+    expect(secureFetch).toHaveBeenCalledWith(
+      'https://support.acme.example/api/now/table/sys_user?sysparm_limit=1&sysparm_fields=sys_id',
+      '203.0.113.7',
+      expect.objectContaining({ maxRedirects: 0 })
     )
   })
 

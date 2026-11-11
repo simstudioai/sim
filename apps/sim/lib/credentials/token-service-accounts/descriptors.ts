@@ -2484,9 +2484,9 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/servicenow',
     helpText:
-      "Use a dedicated integration user with the roles your workflows need and without multi-factor authentication. Enter the instance host on service-now.com, servicenow.com, or servicenowservices.com. If your instance uses a custom URL, enter the instance's original service-now.com address instead; custom URLs and on-premises instances are not supported.",
+      "Use a dedicated integration user with the roles your workflows need and without multi-factor authentication. Enter your instance's https URL, like acme.service-now.com or a custom instance URL. The instance must be reachable from the internet.",
     invalidCredentialsHelp:
-      "ServiceNow rejected this username and password, or the instance URL is not a ServiceNow address. Enter the instance's service-now.com address (not a custom URL), and check that the user is active, not locked out, and not required to use multi-factor authentication.",
+      'ServiceNow rejected this username and password. Check the instance URL, and that the user is active, not locked out, and not required to use multi-factor authentication.',
   },
 }
 
