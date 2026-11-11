@@ -3,6 +3,12 @@ import type { UserFile } from '@/executor/types'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /**
+ * Most images one Mistral Parser run extracts. Bounds the block's Max Images field, the
+ * server's `image_limit` clamp, and the extraction loop.
+ */
+export const MAX_OCR_EXTRACTED_IMAGES = 100
+
+/**
  * Shared output property definitions for Mistral OCR API responses.
  * Based on Mistral API documentation: https://docs.mistral.ai/api/endpoint/ocr
  */

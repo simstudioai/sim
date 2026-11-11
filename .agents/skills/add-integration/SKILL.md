@@ -80,7 +80,7 @@ service id:
    `server.ts`). Make one cheap, documented read on the tools' own host with the tools' own auth,
    reusing their header and URL builders. `domain` and `workspaceId` normalize to exactly the form
    the tools build URLs from and throw for anything that could steer the host or path
-   (`normalizeHttpBaseUrl`, `allowedDomain`, and a refusal of credentials in the URL); the normalized domain is what
+   (`normalizeHttpBaseUrl`, `allowedDomain`, `refuseUnsafeTypedUrl`); the normalized domain is what
    the credential stores. Set `egress` when the user chooses the host. Add `forbiddenMeansScoped`,
    `rejectsKey`, or `provesKey` only for documented replies (probe a fake key to see how a bad one
    answers), and `errorBodyEchoesToken` when an error body echoes the token.
@@ -359,7 +359,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
 
 ### Trigger Registry (`apps/sim/triggers/registry.ts`) - If triggers exist
 
-```typescript illustrative
+```typescript
 // Add import (alphabetically)
 import {
   {service}EventATrigger,
@@ -423,9 +423,7 @@ a resolvable capability must fail validation; an independent service account use
 ## Step 8: Generate and Validate the Catalog
 
 Run `bun run generate:tool-metadata`, `bun run scripts/generate-docs.ts`,
-`bun run generate:deployment-config`, `bun scripts/sync-platform-integration-metadata.ts` (the
-Platform integration catalog; `check:platform-integration-metadata` is in `check:audits`), then
-`bun run check:audits` (see the `validate-integration`
+`bun run generate:deployment-config`, then `bun run check:audits` (see the `validate-integration`
 skill → Regenerate Derived Artifacts for the full list and what each check verifies).
 
 The docs generator creates `apps/docs/content/docs/integrations/{service}.mdx` — one page per service carrying the block's Actions and, if it has one, its Triggers section. Never hand-edit generated pages; the only editable region is the `{/* MANUAL-CONTENT */}` block (see `scripts/README.md`).
@@ -654,7 +652,7 @@ tools: {
 
 #### 3. Define and register the in-process operation
 
-```typescript illustrative
+```typescript
 export const {service}UploadTool: InternalToolConfig<Params, Response> = {
   id: '{service}_upload',
   // ...

@@ -12,6 +12,7 @@ import {
   normalizeFileInput,
   parseOptionalNumberInput,
 } from '@/blocks/utils'
+import { MAX_OCR_EXTRACTED_IMAGES } from '@/tools/mistral/types'
 
 export const MistralParseBlock: BlockConfig = {
   type: 'mistral_parse',
@@ -310,7 +311,7 @@ export const MistralParseV3Block: BlockConfig = {
   name: 'Mistral Parser',
   description: 'Extract text, tables, and images from PDF documents',
   longDescription:
-    'Extract text, tables, and images from uploaded PDF documents, or from a URL. Images come back as files an agent can pass on.',
+    'Extract text, tables, and images from an uploaded PDF or a file from a previous block. Images come back as files an agent can pass on.',
   hideFromToolbar: false,
   /* v3 renamed the canonical pair's advanced member `filePath` -> `fileReference`,
      so the inherited sentence would reference a subblock this block lacks. */
@@ -464,6 +465,7 @@ export const MistralParseV3Block: BlockConfig = {
           parameters.imageLimit = parseOptionalNumberInput(params.imageLimit, 'Max Images', {
             integer: true,
             min: 0,
+            max: MAX_OCR_EXTRACTED_IMAGES,
           })
           parameters.imageMinSize = parseOptionalNumberInput(
             params.imageMinSize,
