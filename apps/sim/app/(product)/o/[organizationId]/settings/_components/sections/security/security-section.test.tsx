@@ -99,18 +99,33 @@ function expectLeave(allowed: boolean) {
   useSettingsDirtyStore.getState().cancelLeave()
 }
 
+/** The server's policy: a write stores its body once its response lands, as reads then return. */
+let stored: typeof SAVED
+let request: ReturnType<typeof createDeferred<Response>>
+let writes: unknown[]
+
+function write(init: RequestInit) {
+  const body = JSON.parse(String(init.body))
+  writes.push(body)
+  return request.promise.then((response) => {
+    stored = { ...SAVED, configured: body }
+    return response
+  })
+}
+
+beforeEach(() => {
+  stored = SAVED
+  request = createDeferred<Response>()
+  writes = []
+})
+
 it('retains newer session-policy edits when an earlier save completes', async () => {
-  const request = createDeferred<Response>()
-  const writes: unknown[] = []
   vi.stubGlobal(
     'fetch',
     vi.fn((url: string, init?: RequestInit) => {
-      if (init?.method === 'PUT') {
-        writes.push(JSON.parse(String(init.body)))
-        return request.promise
-      }
+      if (init?.method === 'PUT') return write(init)
       if (String(url).includes('/session-policy'))
-        return Promise.resolve(jsonResponse({ success: true, data: SAVED }))
+        return Promise.resolve(jsonResponse({ success: true, data: stored }))
       return Promise.resolve(jsonResponse({ error: 'Not found' }, 404))
     })
   )
@@ -145,13 +160,12 @@ it('retains newer session-policy edits when an earlier save completes', async ()
 })
 
 it('holds a leave while the save is in flight, then lets it go once saved', async () => {
-  const request = createDeferred<Response>()
   vi.stubGlobal(
     'fetch',
     vi.fn((url: string, init?: RequestInit) => {
-      if (init?.method === 'PUT') return request.promise
+      if (init?.method === 'PUT') return write(init)
       if (String(url).includes('/session-policy'))
-        return Promise.resolve(jsonResponse({ success: true, data: SAVED }))
+        return Promise.resolve(jsonResponse({ success: true, data: stored }))
       return Promise.resolve(jsonResponse({ error: 'Not found' }, 404))
     })
   )

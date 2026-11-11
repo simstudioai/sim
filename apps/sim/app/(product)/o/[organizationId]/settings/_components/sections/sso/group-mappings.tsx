@@ -6,10 +6,11 @@ import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { Select } from '@sim/emcn/picker/select'
-import { SettingsRow } from '@sim/emcn/settings-section'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toast } from '@/lib/toast/sink'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
 import { ActionRow, Muted } from '@/app/(product)/_components/settings-parts/settings-parts'
 import {
   automaticMatchWouldRemain,
@@ -69,9 +70,9 @@ function AddMapping({ organizationId, groupId, permissionGroups, workspaces }: A
       const result = await upsertMapping.mutateAsync({ organizationId, body })
       discard()
       if ((result.mapping.unassignedMemberCount ?? 0) > 0) {
-        toast.info('Mapping saved. Some permission-group memberships need attention below.')
+        toast.info('Mapping saved. Some permission-group memberships need attention below')
       } else {
-        toast.success(`Mapping saved. Checked ${plural(result.reconciledUsers, 'member')}.`)
+        toast.success(`Mapping saved. Checked ${plural(result.reconciledUsers, 'member')}`)
       }
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to add mapping'))
@@ -124,7 +125,7 @@ function AddMapping({ organizationId, groupId, permissionGroups, workspaces }: A
       {changesAllMembersPolicy && (
         <Muted>
           This permission group currently governs everyone in its workspaces. Mapping it switches it
-          permanently to selected members. Other members will use the remaining permission policy.
+          permanently to selected members. Other members will use the remaining permission policy
         </Muted>
       )}
     </>
@@ -133,7 +134,6 @@ function AddMapping({ organizationId, groupId, permissionGroups, workspaces }: A
 
 interface GroupMappingsProps {
   organizationId: string
-  active: boolean
   autoMapByName: boolean
   onReconcile: () => Promise<void>
   reconciling: boolean
@@ -141,7 +141,6 @@ interface GroupMappingsProps {
 
 export function GroupMappings({
   organizationId,
-  active,
   autoMapByName,
   onReconcile,
   reconciling,
@@ -153,12 +152,12 @@ export function GroupMappings({
     error,
     isFetching,
     refetch,
-  } = useScimGroupMappings(organizationId, active)
-  const permissionGroupsQuery = usePermissionGroups(organizationId, active)
+  } = useScimGroupMappings(organizationId)
+  const permissionGroupsQuery = usePermissionGroups(organizationId)
   const allPermissionGroups = permissionGroupsQuery.data ?? []
   // The default group governs by having no members, so it cannot be a membership target.
   const permissionGroups = allPermissionGroups.filter((group) => !group.isDefault)
-  const workspacesQuery = useOrganizationWorkspaces(organizationId, active)
+  const workspacesQuery = useOrganizationWorkspaces(organizationId)
   const workspaces = workspacesQuery.data ?? []
   const deleteMapping = useDeleteScimGroupMapping()
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null)
@@ -197,12 +196,18 @@ export function GroupMappings({
   }
   if (!groups || groups.length === 0) {
     return (
-      <Muted>No groups yet. Push a group from your identity provider and it appears here.</Muted>
+      <SettingsList
+        title='Group mappings'
+        empty={{
+          title: 'No groups yet',
+          description: 'Push a group from your identity provider and it appears here',
+        }}
+      />
     )
   }
 
   return (
-    <>
+    <SettingsSection title='Group mappings'>
       {groups.map((group) => {
         const unassigned = group.mappings.filter(
           (mapping) => (mapping.unassignedMemberCount ?? 0) > 0
@@ -265,10 +270,10 @@ export function GroupMappings({
         )
       })}
       <ConfirmDialog
-        target={active && pendingRemove}
+        target={pendingRemove}
         onClose={() => setPendingRemoveId(null)}
-        title='Remove mapping'
-        description={`Remove the mapping to ${pendingRemove ? describeScimMapping(pendingRemove, names) : ''}? ${removeMappingConsequence(pendingRemove, automaticMatchRemains)}`}
+        title={`Remove mapping to ${pendingRemove ? describeScimMapping(pendingRemove, names) : 'target'}`}
+        description={removeMappingConsequence(pendingRemove, automaticMatchRemains)}
         confirmLabel='Remove'
         pendingLabel='Removing…'
         onConfirm={async (mapping) => {
@@ -276,6 +281,6 @@ export function GroupMappings({
           toast.success('Mapping removed')
         }}
       />
-    </>
+    </SettingsSection>
   )
 }

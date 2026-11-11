@@ -8,6 +8,7 @@ import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice, StatusTag } from '@sim/emcn/status'
 import { ActionRow } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { ExternalLink } from '@/app/(product)/o/[organizationId]/settings/_components/section-parts/external-link'
 import type { SlackSearchInstallationView } from '@/platform/lib/data/settings-slack'
 import {
   needsSharedInstall,
@@ -58,10 +59,10 @@ export function SlackConnections({ connections, renderSetup }: SlackConnectionsP
           const description = needsInstall
             ? bot.teamName
             : bot.needsValidation
-              ? 'Reconnect to verify the app’s credentials and permissions.'
+              ? 'Reconnect to verify the app’s credentials and permissions'
               : bot.lastOutcome === 'delivery_failed' ||
                   bot.lastOutcome === 'assistant_or_delivery_failed'
-                ? 'The last reply failed. Check the Slack connection.'
+                ? 'The last reply failed. Check the Slack connection'
                 : bot.teamName
           return (
             <SettingsRow
@@ -75,22 +76,10 @@ export function SlackConnections({ connections, renderSetup }: SlackConnectionsP
                   label={reconnect ? 'Reconnect required' : bot.enabled ? 'Enabled' : 'Disabled'}
                   intent={reconnect ? 'warning' : bot.enabled ? 'success' : 'neutral'}
                 />
-                <Button
-                  size='compact'
-                  variant='quiet'
-                  render={
-                    <a
-                      aria-label='Open in Slack'
-                      href={`https://slack.com/app_redirect?app=${encodeURIComponent(bot.appId)}&team=${encodeURIComponent(bot.teamId)}`}
-                      target='_blank'
-                      rel='noopener noreferrer'
-                    >
-                      Open in Slack
-                    </a>
-                  }
-                >
-                  Open in Slack
-                </Button>
+                <ExternalLink
+                  href={`https://slack.com/app_redirect?app=${encodeURIComponent(bot.appId)}&team=${encodeURIComponent(bot.teamId)}`}
+                  label='Open in Slack'
+                />
                 <ActionMenu
                   icon='I108'
                   label={`${botName(bot)} actions`}
@@ -130,10 +119,8 @@ export function SlackConnections({ connections, renderSetup }: SlackConnectionsP
       <ConfirmDialog
         target={removing}
         onClose={() => setRemoving(undefined)}
-        title='Remove Slack Search'
-        description={(bot) =>
-          `Remove ${botName(bot)} from Slack Search? Pending replies will be cancelled.`
-        }
+        title={(bot) => `Remove ${botName(bot)}`}
+        description='It stops answering in Slack and pending replies are cancelled'
         confirmLabel='Remove'
         pendingLabel='Removing…'
         onConfirm={(bot) => connections.remove(bot)}

@@ -8,6 +8,7 @@ export {
   type PiiStageKey,
   type PiiStagePolicy,
 } from '@/lib/guardrails/pii-entities'
+export { useOrganizationWorkspaces } from '@/ee/access-control/hooks/permission-groups'
 export {
   type DataRetentionResponse,
   useOrganizationRetention,
@@ -15,7 +16,6 @@ export {
 } from '@/ee/data-retention/hooks/data-retention'
 export {
   buildRetentionUpdate,
-  type EditingPolicy,
   hoursToDisplayDays,
   newOverrideDraft,
   normalizePolicyDraft,
@@ -34,4 +34,3 @@ export {
   withOverridePolicy,
   withoutOverride,
 } from '@/ee/data-retention/lib/policy-draft'
-export { useWorkspacesQuery } from '@/hooks/queries/workspace'

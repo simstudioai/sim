@@ -11,9 +11,9 @@ export default async function IntegrationsSection({
   if (!organization.viewer.isAdmin) notFound()
   // Inlined at build time, so a normal build carries neither this branch nor the example data.
   if (process.env.SIM_PLATFORM_FIXTURES === '1') {
-    const [{ SourcesView }, { loadSourceSettings }] = await Promise.all([
+    const [{ FixtureSources }, { loadSourceSettings }] = await Promise.all([
       import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/sources-view'
+        '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/fixture-sources'
       ),
       import('@/platform/fixtures'),
     ])
@@ -25,7 +25,7 @@ export default async function IntegrationsSection({
       )
     )
       notFound()
-    return <SourcesView initial={inventory} subpath={subpath} />
+    return <FixtureSources initial={inventory} subpath={subpath} />
   }
   return <LiveIntegrationsSection organization={organization} subpath={subpath} query={query} />
 }

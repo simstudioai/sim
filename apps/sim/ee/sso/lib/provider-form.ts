@@ -322,15 +322,6 @@ export function ssoFormCallbackUrl(
   )
 }
 
-/** Where the identity provider returns to, for a saved provider. */
-export function ssoProviderCallbackUrl(provider: SsoProviderView, baseUrl: string): string {
-  return (
-    (provider.providerType === 'saml' &&
-      readProviderConfigString(provider.samlConfig, 'callbackUrl')) ||
-    `${baseUrl}${callbackPath(provider.providerType === 'saml', provider.providerId)}`
-  )
-}
-
 /**
  * Who signs in the domain once the provider is deleted: the first other verified provider by id when
  * deleting the primary, otherwise the domain's current primary. The list arrives ordered by provider

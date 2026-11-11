@@ -84,6 +84,7 @@ export function FixtureAdminPanel({ example }: { example: AdminExample }) {
         ? { users: matches.slice(offset, offset + ADMIN_PAGE_SIZE), total: matches.length }
         : undefined,
       searching: false,
+      retry: () => {},
       recent: draft.recent.flatMap((id) => draft.users.filter((user) => user.id === id)),
       impersonating: false,
       busy: () => false,

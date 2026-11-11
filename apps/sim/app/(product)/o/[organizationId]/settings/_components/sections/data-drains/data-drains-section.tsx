@@ -77,16 +77,18 @@ export default function DataDrainsSection({ organization }: SettingsSectionProps
   return (
     <SectionStack>
       <SettingsPageHeader />
-      <SectionToolbar
-        grow={
-          <SearchField
-            label='Search data drains'
-            placeholder='Search data drains…'
-            value={search}
-            onValueChange={setSearch}
-          />
-        }
-      />
+      {drains && drains.length > 0 && (
+        <SectionToolbar
+          grow={
+            <SearchField
+              label='Search data drains'
+              placeholder='Search data drains…'
+              value={search}
+              onValueChange={setSearch}
+            />
+          }
+        />
+      )}
       <SettingsRead query={drainsQuery} failureMessage='Couldn’t load data drains'>
         {(drains) => (
           <SettingsList
@@ -95,7 +97,7 @@ export default function DataDrainsSection({ organization }: SettingsSectionProps
               drains.length === 0
                 ? {
                     title: 'No data drains yet',
-                    description: 'Export logs, chats and runs to your own storage on a schedule.',
+                    description: 'Export logs, chats and runs to your own storage on a schedule',
                     action: createDrain,
                   }
                 : filtered.length === 0

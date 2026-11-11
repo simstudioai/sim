@@ -122,6 +122,7 @@ export function useLiveAdminConsole(
         : undefined,
       searching: users.isLoading,
       error: users.error ? getErrorMessage(users.error, 'Failed to fetch users') : undefined,
+      retry: () => void users.refetch(),
       warning,
       recent: recent.data?.map(toDirectoryUser) ?? [],
       impersonating,

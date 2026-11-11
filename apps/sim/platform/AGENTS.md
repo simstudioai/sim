@@ -112,7 +112,7 @@ A read is `SettingsRead`: nothing while pending, `FailureNotice` with Retry when
 
 A browser-rendered section's first reads start on the server: `lib/data/prefetch-settings.ts` seeds them under each hook's key and `staleTime`, and the page hands them to the section through a `HydrationBoundary`, as a server section's own `prefetch-*` read does. A read that depends on the browser (the viewer's time zone, a clock-relative range) is not prefetched, since its key would not match. A Settings section the viewer may not open is answered by the shell (`isClosedSettingsSection`) before the page streams, so the response is a 404; a `notFound()` inside the page arrives after the status has been sent.
 
-Pages that predate these parts are listed in `SAVE_BAR_MIGRATIONS`, `SWITCH_ROW_MIGRATIONS` and `EMPTY_SURFACE_MIGRATIONS` (`scripts/platform-allowlists.ts`); a page's entry goes in the change that migrates it.
+Every settings page uses these parts, and `save-owner`, `switch-row` and `empty-in-surface` grant no exceptions.
 
 ## Product root and shell
 

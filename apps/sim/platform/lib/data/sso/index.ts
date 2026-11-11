@@ -31,7 +31,6 @@ export {
   type SsoProviderForm,
   ssoFormCallbackUrl,
   ssoFormFromProvider,
-  ssoProviderCallbackUrl,
   validateSsoProviderForm,
 } from '@/ee/sso/lib/provider-form'
 export { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'

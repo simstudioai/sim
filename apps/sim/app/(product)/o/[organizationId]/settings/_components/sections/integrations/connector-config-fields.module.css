@@ -1,4 +1,4 @@
-/* A field with a manual form: the switch sits under the control, its ink on the field's text edge. */
+/* A field with a manual form: the switch sits under the control, at its end. */
 .paired {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -7,5 +7,4 @@
 .switch {
   display: flex;
   justify-content: flex-end;
-  margin-inline-end: calc(-1 * var(--ui-action-overhang));
 }

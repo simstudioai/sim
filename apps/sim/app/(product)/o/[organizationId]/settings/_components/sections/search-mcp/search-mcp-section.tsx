@@ -1,18 +1,24 @@
 'use client'
 
-import { useState } from 'react'
-import { Button } from '@sim/emcn/button'
 import { CopyButton } from '@sim/emcn/button/copy-button'
 import { CopyField } from '@sim/emcn/field/value-fields'
 import { Select } from '@sim/emcn/picker/select'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { useQueryStates } from 'nuqs'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
 import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   FieldStack,
-  Muted,
   Preformatted,
+  SectionStack,
+  SectionToolbar,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { ExternalLink } from '@/app/(product)/o/[organizationId]/settings/_components/section-parts/external-link'
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
+import {
+  searchMcpParsers,
+  searchMcpUrlKeys,
+} from '@/app/(product)/o/[organizationId]/settings/_components/sections/search-mcp/search-params'
 import { getBaseUrl } from '@/platform/lib/data/mcp'
 
 const CLIENTS = [
@@ -87,51 +93,39 @@ function ConnectionInstructions({ endpoint, client }: ConnectionInstructionsProp
 }
 
 export default function SearchMcpSection({ organization }: SettingsSectionProps) {
-  const [client, setClient] = useState<(typeof CLIENTS)[number]>(CLIENTS[0])
+  const [{ client: clientId }, setParams] = useQueryStates(searchMcpParsers, searchMcpUrlKeys)
+  const client = CLIENTS.find((item) => item.value === clientId) ?? CLIENTS[0]
   const endpoint = `${getBaseUrl()}/api/mcp/search/organizations/${encodeURIComponent(organization.organization.id)}`
   return (
-    <>
+    <SectionStack>
       <SettingsPageHeader />
-      <SettingsSection title='Connection'>
-        {organization.viewer.canUseSearchMcp ? (
-          <>
-            <SettingsRow label='App' description='Select the app to connect' field>
-              <Select
-                label='MCP app'
-                value={client.value}
-                options={CLIENTS}
-                onValueChange={(value) => {
-                  const selection = CLIENTS.find((item) => item.value === value)
-                  if (selection) setClient(selection)
-                }}
-              />
-            </SettingsRow>
-            <ConnectionInstructions key={client.value} client={client} endpoint={endpoint} />
-          </>
-        ) : (
-          <Muted>
-            Your organization’s policy disables Sim Search MCP access. Contact an organization admin
-            to enable it.
-          </Muted>
-        )}
-        <SettingsRow label='Setup guide' description='Read the Search MCP documentation'>
-          <Button
-            size='compact'
-            render={
-              <a
-                aria-label='Search MCP documentation'
-                href='https://docs.sim.ai/search/mcp'
-                target='_blank'
-                rel='noreferrer'
-              >
-                Docs
-              </a>
-            }
-          >
-            Docs
-          </Button>
-        </SettingsRow>
-      </SettingsSection>
-    </>
+      <SectionToolbar>
+        <ExternalLink href='https://docs.sim.ai/search/mcp' label='Docs' />
+      </SectionToolbar>
+      {organization.viewer.canUseSearchMcp ? (
+        <SettingsSection title='Connection'>
+          <SettingsRow label='App' description='Select the app to connect' field>
+            <Select
+              label='MCP app'
+              value={client.value}
+              options={CLIENTS}
+              onValueChange={(value) => {
+                const selection = CLIENTS.find((item) => item.value === value)
+                if (selection) void setParams({ client: selection.value })
+              }}
+            />
+          </SettingsRow>
+          <ConnectionInstructions key={client.value} client={client} endpoint={endpoint} />
+        </SettingsSection>
+      ) : (
+        <SettingsList
+          title='Connection'
+          empty={{
+            title: 'Your organization’s policy disables Sim Search MCP access',
+            description: 'Contact an organization admin to enable it',
+          }}
+        />
+      )}
+    </SectionStack>
   )
 }

@@ -1117,42 +1117,6 @@ const ALERT_OWNERS: ReasonedAllowlist = {
     "The schema and code editors have no error slot; their message sits inline in the editor's action bar beside Generate",
 }
 
-/*
- * Settings page-lane migrations. Pages that predate the shared settings parts, each granted until its
- * page lane adopts the part the rule names; delete a page's entry in the same change that migrates it.
- */
-const SETTINGS_PAGE_LANE = 'Predates the shared settings part; the page lane migrates'
-
-/** Hand-built Save and Discard (`save-owner`), until the page adopts `SettingsSaveBar`. */
-const SAVE_BAR_MIGRATIONS: ReasonedAllowlist = granted(SETTINGS_PAGE_LANE, [
-  `${ORGANIZATION_ROUTES}settings/_components/sections/access-control/group-detail.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/data-retention/policy-detail.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/source-connections.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/source-detail.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/source-secrets.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/sso/provider-form.tsx`,
-])
-
-/** A `Switch` in a `SettingsRow` (`switch-row`), until the page adopts `SwitchRow`. */
-const SWITCH_ROW_MIGRATIONS: ReasonedAllowlist = granted(SETTINGS_PAGE_LANE, [
-  `${ORGANIZATION_ROUTES}settings/_components/sections/access-control/group-detail.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/admin/admin-panel.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/data-drains/drain-detail.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/sso/scim-panel.tsx`,
-])
-
-/** An `EmptyState` inside a settings surface (`empty-in-surface`), until the page adopts `SettingsList`. */
-const EMPTY_SURFACE_MIGRATIONS: ReasonedAllowlist = granted(SETTINGS_PAGE_LANE, [
-  `${ORGANIZATION_ROUTES}settings/_components/sections/admin/admin-directory.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/audit-logs/audit-logs-section.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/live-sources.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/provider-detail.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/source-connections.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/source-secrets.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/integrations/sources-view.tsx`,
-  `${ORGANIZATION_ROUTES}settings/_components/sections/security/security-section.tsx`,
-])
-
 export const PLATFORM_ALLOWLISTS = {
   LIVE_ONLY_ROUTES,
   FIXTURE_BRANCH_VIEWS,
@@ -1168,9 +1132,6 @@ export const PLATFORM_ALLOWLISTS = {
   FRAMES_OUTSIDE_SURFACE,
   LOCAL_TOKEN_OWNERS,
   ROW_BLEED_OWNERS,
-  SAVE_BAR_MIGRATIONS,
-  SWITCH_ROW_MIGRATIONS,
-  EMPTY_SURFACE_MIGRATIONS,
   serverSeamHelpers,
   platformHostModules,
   seamHelpers,

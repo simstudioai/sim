@@ -7,15 +7,16 @@ import { CopyField } from '@sim/emcn/field/value-fields'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
-import { FailureNotice, StatusTag } from '@sim/emcn/status'
+import { StatusTag } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toast } from '@/lib/toast/sink'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
 import {
   ActionRow,
   FieldStack,
-  Muted,
   SectionStack,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { SettingsRead } from '@/app/(product)/_components/settings-parts/settings-read'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import {
   type OrganizationDomain,
@@ -90,22 +91,13 @@ function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
 }
 
 /** Domain ownership shared by SSO and SCIM. */
-export function DomainsPanel({
-  organizationId,
-  active,
-}: {
-  organizationId: string
-  active: boolean
-}) {
-  const { data, isLoading, isError, error, isFetching, refetch } = useOrganizationDomains(
-    organizationId,
-    { enabled: active }
-  )
+export function DomainsPanel({ organizationId }: { organizationId: string }) {
+  const domainsQuery = useOrganizationDomains(organizationId)
   const addDomain = useAddOrganizationDomain()
   const removeDomain = useRemoveOrganizationDomain()
   const [newDomain, setNewDomain] = useState('')
   const [pendingRemovalId, setPendingRemovalId] = useState<string | null>(null)
-  const domains = data?.domains ?? []
+  const domains = domainsQuery.data?.domains ?? []
   const pendingRemoval = domains.find((domain) => domain.id === pendingRemovalId) ?? null
   useSettingsUnsavedGuard({
     isDirty: newDomain.trim().length > 0,
@@ -128,7 +120,31 @@ export function DomainsPanel({
 
   return (
     <SectionStack>
-      <SettingsSection title='Verified domains'>
+      <SettingsRead query={domainsQuery} failureMessage='Failed to load verified domains'>
+        {({ domains: list }) => (
+          <SettingsList
+            title='Verified domains'
+            empty={
+              list.length === 0
+                ? {
+                    title: 'No domains yet',
+                    description: 'Verify an email domain to use it for SSO and SCIM',
+                  }
+                : undefined
+            }
+          >
+            {list.map((domain) => (
+              <DomainRow
+                key={domain.id}
+                organizationId={organizationId}
+                domain={domain}
+                onRemove={(target) => setPendingRemovalId(target.id)}
+              />
+            ))}
+          </SettingsList>
+        )}
+      </SettingsRead>
+      <SettingsSection title='Add domain'>
         <form
           onSubmit={(event) => {
             event.preventDefault()
@@ -137,7 +153,7 @@ export function DomainsPanel({
         >
           <FieldStack>
             <TextField
-              label='Add a domain'
+              label='Domain'
               placeholder='acme.com'
               value={newDomain}
               onChange={setNewDomain}
@@ -149,34 +165,12 @@ export function DomainsPanel({
             </ActionRow>
           </FieldStack>
         </form>
-        {isLoading ? null : data === undefined && isError ? (
-          <FieldStack>
-            <FailureNotice
-              message={getErrorMessage(error, 'Failed to load verified domains')}
-              retrying={isFetching}
-              onRetry={() => void refetch()}
-            />
-          </FieldStack>
-        ) : domains.length === 0 ? (
-          <FieldStack>
-            <Muted>No domains yet.</Muted>
-          </FieldStack>
-        ) : (
-          domains.map((domain) => (
-            <DomainRow
-              key={domain.id}
-              organizationId={organizationId}
-              domain={domain}
-              onRemove={(target) => setPendingRemovalId(target.id)}
-            />
-          ))
-        )}
       </SettingsSection>
       <ConfirmDialog
-        target={active && pendingRemoval}
+        target={pendingRemoval}
         onClose={() => setPendingRemovalId(null)}
-        title='Remove domain'
-        description={`Remove ${pendingRemoval?.domain ?? ''}? This immediately disables SSO sign-in for anyone on that domain, because the proof is what grants your identity provider its authority. Verifying the domain again restores it.`}
+        title={`Remove ${pendingRemoval?.domain ?? 'domain'}`}
+        description='SSO sign-in stops at once for anyone on this domain, because the proof is what grants your identity provider its authority. Verifying the domain again restores it'
         confirmLabel='Remove'
         pendingLabel='Removing…'
         onConfirm={async (domain) => {

@@ -3,22 +3,21 @@
 import { useState } from 'react'
 import { ActivityRow } from '@sim/emcn/activity-row'
 import { Button } from '@sim/emcn/button'
-import { EmptyState } from '@sim/emcn/empty-state'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
-import { FailureNotice } from '@sim/emcn/status'
 import { toError } from '@sim/utils/errors'
 import { toast } from '@/lib/toast/sink'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
 import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   ResourceList,
   SectionStack,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { SettingsRead } from '@/app/(product)/_components/settings-parts/settings-read'
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
 import { PolicyDetail } from '@/app/(product)/o/[organizationId]/settings/_components/sections/data-retention/policy-detail'
 import {
   buildRetentionUpdate,
   type DataRetentionResponse,
-  type EditingPolicy,
   hoursToDisplayDays,
   newOverrideDraft,
   normalizePolicyDraft,
@@ -31,14 +30,18 @@ import {
   type PolicyDraft,
   type RetentionSnapshot,
   useOrganizationRetention,
+  useOrganizationWorkspaces,
   useUpdateOrganizationRetention,
-  useWorkspacesQuery,
   withOrgPolicy,
   withOverridePolicy,
   withoutOverride,
 } from '@/platform/lib/data/data-retention'
-import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
+import { requestSettingsLeave } from '@/platform/lib/data/settings-guard'
+import { useSettingsSubview } from '@/platform/lib/data/settings-subview'
 import { compareText } from '@/platform/shared/time'
+
+/** The sub-view id of the organization's own policy; any other id is an override's workspace. */
+const ORGANIZATION_POLICY = 'organization'
 
 function snapshotFrom(data: DataRetentionResponse): RetentionSnapshot {
   const rules = data.configured.piiRedaction?.rules ?? []
@@ -61,178 +64,219 @@ function snapshotFrom(data: DataRetentionResponse): RetentionSnapshot {
   }
 }
 
-interface RetentionFormProps {
-  initialData: DataRetentionResponse
-  organizationId: string
-  workspaceOptions: { value: string; label: string }[]
+interface WorkspaceOption {
+  value: string
+  label: string
 }
 
-/** The whole document is one save: the route replaces each key, so all of it is always sent. */
-function RetentionForm({ initialData, organizationId, workspaceOptions }: RetentionFormProps) {
-  const update = useUpdateOrganizationRetention()
-  const [snapshot, setSnapshot] = useState(() => snapshotFrom(initialData))
-  const [editing, setEditing] = useState<EditingPolicy | null>(null)
-  const changed =
-    editing !== null &&
-    normalizePolicyDraft(editing.draft) !== normalizePolicyDraft(editing.original)
-  const discard = () => {
-    if (editing) setEditing({ ...editing, draft: editing.original })
-  }
-  const guard = useSettingsUnsavedGuard({
-    isDirty: changed,
-    navigationBlocked: update.isPending,
-    onDiscard: discard,
-  })
+/** The policies as one snapshot, the workspaces that name them, and who holds which override. */
+function retentionModel(data: DataRetentionResponse, workspaces: { id: string; name: string }[]) {
+  const snapshot = snapshotFrom(data)
+  const workspaceOptions: WorkspaceOption[] = workspaces.map((workspace) => ({
+    value: workspace.id,
+    label: workspace.name,
+  }))
   const workspaceName = (id: string) =>
     workspaceOptions.find((option) => option.value === id)?.label ?? 'Unknown workspace'
   const withOverrides = overrideWorkspaceIds(snapshot).sort((a, b) =>
     compareText(workspaceName(a), workspaceName(b))
   )
-  const taken = new Set(withOverrides)
-  const freeWorkspaces = workspaceOptions.filter((option) => !taken.has(option.value))
+  return { snapshot, workspaceOptions, workspaceName, withOverrides }
+}
 
-  /** Excludes workspaces held by OTHER overrides. */
-  function pickerOptions(original: PolicyDraft) {
-    const others = new Set(withOverrides.filter((id) => !original.workspaceIds.includes(id)))
-    return workspaceOptions.filter((option) => !others.has(option.value))
-  }
+interface PolicyEditorProps {
+  name: string
+  organizationId: string
+  snapshot: RetentionSnapshot
+  original: PolicyDraft
+  isNew: boolean
+  workspaceOptions: WorkspaceOption[]
+  onClose: () => void
+  onSaved: (workspaceId: string) => void
+}
 
-  function open(draft: PolicyDraft, isNew = false) {
-    setEditing({ draft, original: draft, isNew })
-  }
+/**
+ * One policy's detail, edited in place. The whole document is one save: the route replaces each
+ * key, so all of it is always sent. The draft is held only once edited, so a save that lands shows
+ * the server's policy.
+ */
+function PolicyEditor({
+  name,
+  organizationId,
+  snapshot,
+  original,
+  isNew,
+  workspaceOptions,
+  onClose,
+  onSaved,
+}: PolicyEditorProps) {
+  const update = useUpdateOrganizationRetention()
+  const [edited, setEdited] = useState<PolicyDraft | null>(null)
+  const draft = edited ?? original
+  const dirty = edited !== null && normalizePolicyDraft(edited) !== normalizePolicyDraft(original)
 
   async function persist(next: RetentionSnapshot) {
     await update.mutateAsync({ orgId: organizationId, settings: buildRetentionUpdate(next) })
-    setSnapshot(next)
-    setEditing(null)
   }
 
   async function save() {
-    if (!editing || update.isPending) return
-    const { draft } = editing
+    if (update.isPending) return
+    if (!draft.isOrgDefault && draft.workspaceIds.length === 0) return
     try {
       if (draft.isOrgDefault) {
         await persist(withOrgPolicy(snapshot, draft))
-        toast.success('Organization defaults saved.')
+        setEdited(null)
+        toast.success('Organization defaults saved')
         return
       }
-      if (draft.workspaceIds.length === 0) return
-      await persist(withOverridePolicy(snapshot, editing))
-      toast.success('Workspace override saved.')
+      await persist(withOverridePolicy(snapshot, { draft, original, isNew }))
+      setEdited(null)
+      toast.success(isNew ? 'Workspace override added' : 'Workspace override saved')
+      onSaved(draft.workspaceIds[0])
     } catch (error) {
       toast.error(toError(error).message)
     }
   }
 
-  if (editing) {
-    return (
-      <SectionStack>
-        <PolicyDetail
-          draft={editing.draft}
-          isNew={editing.isNew}
-          changed={changed}
-          isSaving={update.isPending}
-          canRemove={!editing.draft.isOrgDefault && !editing.isNew}
-          workspaceOptions={pickerOptions(editing.original)}
-          onChange={(draft) => {
-            if (!update.isPending) setEditing({ ...editing, draft })
-          }}
-          onBack={() => guard.guardBack(() => setEditing(null))}
-          onDiscard={discard}
-          onSave={() => void save()}
-          onRemove={async () => {
-            await persist(withoutOverride(snapshot, editing.original.workspaceIds))
-            toast.success('Workspace override removed.')
-          }}
-        />
-      </SectionStack>
-    )
-  }
-
   return (
-    <SectionStack>
-      <SettingsPageHeader />
-      <SettingsSection title='Retention policies'>
-        <ResourceList>
+    <PolicyDetail
+      name={name}
+      draft={draft}
+      isNew={isNew}
+      dirty={dirty}
+      isSaving={update.isPending}
+      workspaceOptions={workspaceOptions}
+      onChange={(next) => {
+        if (!update.isPending) setEdited(next)
+      }}
+      onBack={() => requestSettingsLeave(onClose)}
+      onDiscard={() => setEdited(null)}
+      onSave={() => void save()}
+      onRemove={async () => {
+        await persist(withoutOverride(snapshot, original.workspaceIds))
+        toast.success('Workspace override removed')
+        onClose()
+      }}
+    />
+  )
+}
+
+interface RetentionPoliciesProps {
+  data: DataRetentionResponse
+  workspaces: { id: string; name: string }[]
+  onOpen: (id: string) => void
+  onCreate: () => void
+}
+
+function RetentionPolicies({ data, workspaces, onOpen, onCreate }: RetentionPoliciesProps) {
+  const { snapshot, workspaceOptions, workspaceName, withOverrides } = retentionModel(
+    data,
+    workspaces
+  )
+  const taken = new Set(withOverrides)
+  const hasFreeWorkspace = workspaceOptions.some((option) => !taken.has(option.value))
+  return (
+    <SettingsSection title='Retention policies'>
+      <ResourceList>
+        <ActivityRow
+          title='Organization'
+          detail={orgPolicySummary(snapshot)}
+          textMetadata='Default'
+          onOpen={() => onOpen(ORGANIZATION_POLICY)}
+        />
+        {withOverrides.map((workspaceId) => (
           <ActivityRow
-            title='Organization'
-            detail={orgPolicySummary(snapshot)}
-            textMetadata='Default'
-            onOpen={() => open(orgPolicyDraft(snapshot))}
+            key={workspaceId}
+            title={workspaceName(workspaceId)}
+            detail={overridePolicySummary(snapshot, workspaceId)}
+            onOpen={() => onOpen(workspaceId)}
           />
-          {withOverrides.map((workspaceId) => (
-            <ActivityRow
-              key={workspaceId}
-              title={workspaceName(workspaceId)}
-              detail={overridePolicySummary(snapshot, workspaceId)}
-              onOpen={() => open(overrideDraft(snapshot, workspaceId))}
-            />
-          ))}
-        </ResourceList>
-        <SettingsRow
-          label='Workspace override'
-          description='Set a different policy for some workspaces'
-        >
-          <Button
-            variant='primary'
-            icon='I074'
-            disabled={freeWorkspaces.length === 0}
-            onClick={() => open(newOverrideDraft(), true)}
-          >
-            Add override
-          </Button>
-        </SettingsRow>
-      </SettingsSection>
-    </SectionStack>
+        ))}
+      </ResourceList>
+      <SettingsRow
+        label='Workspace override'
+        description='Set a different policy for some workspaces'
+      >
+        <Button icon='I074' disabled={!hasFreeWorkspace} onClick={onCreate}>
+          Add override
+        </Button>
+      </SettingsRow>
+    </SettingsSection>
   )
 }
 
 export default function DataRetentionSection({ organization }: SettingsSectionProps) {
   const organizationId = organization.organization.id
-  const { data, isLoading, isFetching, refetch } = useOrganizationRetention(organizationId)
-  const workspacesQuery = useWorkspacesQuery(Boolean(organizationId))
+  const retention = useOrganizationRetention(organizationId)
+  const workspaces = useOrganizationWorkspaces(organizationId)
+  const subview = useSettingsSubview({ idParam: 'policy', createParam: 'createOverride' })
+  const gated = organization.deployment.billingEnabled && retention.data?.isEnterprise === false
 
-  if (isLoading || workspacesQuery.isPending) return <SettingsPageHeader />
-  if (!data) {
-    return (
-      <>
-        <SettingsPageHeader />
-        <FailureNotice
-          message='Failed to load data retention settings.'
-          retrying={isFetching}
-          onRetry={() => void refetch()}
-        />
-      </>
-    )
+  if ((subview.id !== null || subview.creating) && (retention.isPending || workspaces.isPending)) {
+    return null
   }
-  if (!workspacesQuery.data) {
-    return (
-      <>
-        <SettingsPageHeader />
-        <FailureNotice
-          message='Failed to load workspaces.'
-          retrying={workspacesQuery.isFetching}
-          onRetry={() => void workspacesQuery.refetch()}
-        />
-      </>
+
+  if (retention.data && workspaces.data && !gated) {
+    const { snapshot, workspaceOptions, workspaceName, withOverrides } = retentionModel(
+      retention.data,
+      workspaces.data
     )
+    const openId =
+      subview.id === ORGANIZATION_POLICY || (subview.id && withOverrides.includes(subview.id))
+        ? subview.id
+        : null
+    if (subview.creating || openId) {
+      const original = subview.creating
+        ? newOverrideDraft()
+        : openId === ORGANIZATION_POLICY
+          ? orgPolicyDraft(snapshot)
+          : overrideDraft(snapshot, openId as string)
+      /** Excludes workspaces held by other overrides. */
+      const others = new Set(withOverrides.filter((id) => !original.workspaceIds.includes(id)))
+      return (
+        <SectionStack>
+          <PolicyEditor
+            key={`${organizationId}:${subview.creating ? 'create' : openId}`}
+            name={openId ? workspaceName(openId) : ''}
+            organizationId={organizationId}
+            snapshot={snapshot}
+            original={original}
+            isNew={subview.creating}
+            workspaceOptions={workspaceOptions.filter((option) => !others.has(option.value))}
+            onClose={subview.close}
+            onSaved={(workspaceId) => {
+              if (subview.creating || workspaceId !== openId) subview.showCreated(workspaceId)
+            }}
+          />
+        </SectionStack>
+      )
+    }
   }
-  if (organization.deployment.billingEnabled && !data.isEnterprise) {
-    return (
-      <>
-        <SettingsPageHeader />
-        <EmptyState title='Data retention is available on Enterprise plans only.' />
-      </>
-    )
-  }
+
   return (
-    <RetentionForm
-      key={organizationId}
-      initialData={data}
-      organizationId={organizationId}
-      workspaceOptions={workspacesQuery.data
-        .filter((workspace) => workspace.organizationId === organizationId)
-        .map((workspace) => ({ value: workspace.id, label: workspace.name }))}
-    />
+    <SectionStack>
+      <SettingsPageHeader />
+      <SettingsRead query={retention} failureMessage='Failed to load data retention settings'>
+        {(data) =>
+          gated ? (
+            <SettingsList
+              title='Retention policies'
+              empty={{ title: 'Data retention is available on Enterprise plans' }}
+            />
+          ) : (
+            <SettingsRead query={workspaces} failureMessage='Failed to load workspaces'>
+              {(workspaceList) => (
+                <RetentionPolicies
+                  data={data}
+                  workspaces={workspaceList}
+                  onOpen={subview.open}
+                  onCreate={subview.create}
+                />
+              )}
+            </SettingsRead>
+          )
+        }
+      </SettingsRead>
+    </SectionStack>
   )
 }

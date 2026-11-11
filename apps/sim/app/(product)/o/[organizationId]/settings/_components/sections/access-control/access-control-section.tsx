@@ -4,55 +4,44 @@ import { useState } from 'react'
 import { ActivityRow } from '@sim/emcn/activity-row'
 import { Button } from '@sim/emcn/button'
 import { Checkbox } from '@sim/emcn/checkbox'
-import { EmptyState } from '@sim/emcn/empty-state'
 import { TextField } from '@sim/emcn/field'
 import { Modal } from '@sim/emcn/modal'
 import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { SearchField } from '@sim/emcn/search-field'
-import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
-import { FailureNotice } from '@sim/emcn/status'
-import { getErrorMessage } from '@sim/utils/errors'
-import Link from 'next/link'
+import { SettingsRow } from '@sim/emcn/settings-section'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
 import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   ResourceList,
   SectionStack,
+  SectionToolbar,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { SettingsRead } from '@/app/(product)/_components/settings-parts/settings-read'
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
-import { GroupDetail } from '@/app/(product)/o/[organizationId]/settings/_components/sections/access-control/group-detail'
 import {
-  type PermissionGroup,
+  GroupDetail,
+  groupSummary,
+} from '@/app/(product)/o/[organizationId]/settings/_components/sections/access-control/group-detail'
+import {
   useAccessControlParams,
   useCreatePermissionGroup,
   useOrganizationWorkspaces,
   usePermissionGroups,
 } from '@/platform/lib/data/access-control'
-import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { usePlatformHref } from '@/platform/lib/platform-href'
-import { plural } from '@/platform/shared/plural'
-
-function groupSummary(group: PermissionGroup): string {
-  if (group.isDefault) return 'Everyone in the organization'
-  const members = group.memberCount === 0 ? 'All members' : plural(group.memberCount, 'member')
-  return `${members} · ${plural(group.workspaces.length, 'workspace')}`
-}
 
 interface CreateGroupModalProps {
   organizationId: string
   open: boolean
   onOpenChange: (open: boolean) => void
-  workspaceOptions: { value: string; label: string }[]
-  workspacesLoading: boolean
 }
 
-function CreateGroupModal({
-  organizationId,
-  open,
-  onOpenChange,
-  workspaceOptions,
-  workspacesLoading,
-}: CreateGroupModalProps) {
+function CreateGroupModal({ organizationId, open, onOpenChange }: CreateGroupModalProps) {
   const createGroup = useCreatePermissionGroup()
+  const workspaces = useOrganizationWorkspaces(organizationId, open)
+  const workspaceOptions = (workspaces.data ?? []).map((workspace) => ({
+    value: workspace.id,
+    label: workspace.name,
+  }))
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [isDefault, setIsDefault] = useState(false)
@@ -73,7 +62,7 @@ function CreateGroupModal({
       open={open}
       onOpenChange={change}
       title='Create permission group'
-      description='Give the group a name and choose the workspaces it governs.'
+      description='Give the group a name and choose the workspaces it governs'
       confirmLabel={createGroup.isPending ? 'Creating…' : 'Create group'}
       confirmDisabled={!name.trim() || (!isDefault && workspaceIds.length === 0)}
       onConfirm={async () => {
@@ -109,7 +98,7 @@ function CreateGroupModal({
         options={workspaceOptions}
         value={workspaceIds}
         onValueChange={setWorkspaceIds}
-        disabled={isDefault || workspacesLoading}
+        disabled={isDefault || workspaces.data === undefined}
       />
     </Modal>
   )
@@ -118,13 +107,9 @@ function CreateGroupModal({
 export default function AccessControlSection({ organization }: SettingsSectionProps) {
   const organizationId = organization.organization.id
   const groups = usePermissionGroups(organizationId)
-  const workspaces = useOrganizationWorkspaces(organizationId)
   const params = useAccessControlParams()
-  const hrefFor = usePlatformHref()
   const [creating, setCreating] = useState(false)
   const permissionGroups = groups.data ?? []
-  const organizationWorkspaces = workspaces.data ?? []
-  const workspaceOptions = organizationWorkspaces.map((ws) => ({ value: ws.id, label: ws.name }))
   const query = params.search.trim().toLowerCase()
   const filtered = query
     ? permissionGroups.filter((group) => group.name.toLowerCase().includes(query))
@@ -133,109 +118,83 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
     ? permissionGroups.find((group) => group.id === params.groupId)
     : undefined
 
-  if (groups.isPending) return params.groupId ? null : <SettingsPageHeader />
-  if (groups.error && groups.data === undefined) {
-    return (
-      <>
-        <SettingsPageHeader />
-        <FailureNotice
-          message={getErrorMessage(groups.error, 'Failed to load permission groups')}
-          retrying={groups.isFetching}
-          onRetry={() => void groups.refetch()}
-        />
-      </>
-    )
-  }
-
-  const workspacesError = workspaces.error && workspaces.data === undefined && (
-    <FailureNotice
-      message={getErrorMessage(workspaces.error, 'Failed to load workspaces')}
-      retrying={workspaces.isFetching}
-      onRetry={() => void workspaces.refetch()}
-    />
-  )
-
-  const refreshError = groups.error && (
-    <FailureNotice
-      message={getErrorMessage(groups.error, 'Failed to refresh permission groups')}
-      retrying={groups.isFetching}
-      onRetry={() => void groups.refetch()}
-    />
-  )
+  /** A valid deep link never flashes the list before jumping to it; a dead id falls back to it. */
+  if (params.groupId && groups.isPending) return null
 
   if (selectedGroup) {
     return (
-      <SectionStack>
-        {refreshError}
-        {workspacesError}
-        <GroupDetail
-          key={selectedGroup.id}
-          group={selectedGroup}
-          organizationId={organizationId}
-          hosted={organization.deployment.hosted}
-          projectsEnabled={organization.featureFlags.projects}
-          workspaceOptions={workspaceOptions}
-          workspacesLoading={workspaces.isPending}
-          onBack={params.closeGroup}
-        />
-      </SectionStack>
+      <GroupDetail
+        key={selectedGroup.id}
+        group={selectedGroup}
+        organizationId={organizationId}
+        hosted={organization.deployment.hosted}
+        projectsEnabled={organization.featureFlags.projects}
+        onBack={params.closeGroup}
+      />
     )
   }
+
+  const createGroup = (
+    <Button size='compact' icon='I074' onClick={() => setCreating(true)}>
+      Create group
+    </Button>
+  )
 
   return (
     <SectionStack>
       <SettingsPageHeader />
-      {refreshError}
-      {workspacesError}
-      <SearchField
-        label='Search permission groups'
-        placeholder='Search permission groups…'
-        value={params.search}
-        onValueChange={params.setSearch}
-      />
-      {permissionGroups.length === 0 ? (
-        <EmptyState title='No permission groups yet' description='Create a group to get started.' />
-      ) : filtered.length === 0 ? (
-        <EmptyState title='No matching groups' />
-      ) : (
-        <SettingsSection title={`Permission groups ${permissionGroups.length}`}>
-          <ResourceList>
-            {filtered.map((group) => (
-              <ActivityRow
-                key={group.id}
-                title={group.name}
-                detail={groupSummary(group)}
-                textMetadata={group.isDefault ? 'Default' : undefined}
-                onOpen={() => params.openGroup(group.id)}
-              />
-            ))}
-          </ResourceList>
-        </SettingsSection>
+      {permissionGroups.length > 0 && (
+        <SectionToolbar
+          grow={
+            <SearchField
+              label='Search permission groups'
+              placeholder='Search permission groups…'
+              value={params.search}
+              onValueChange={params.setSearch}
+            />
+          }
+        />
       )}
-      <SettingsSection title='Manage'>
-        <SettingsRow label='New permission group' description='Limit what a set of members can use'>
-          <Button size='compact' icon='I074' onClick={() => setCreating(true)}>
-            Create group
-          </Button>
-        </SettingsRow>
-        <SettingsRow
-          label='Access requests'
-          description='Review requests to use restricted features'
-        >
-          <Button
-            size='compact'
-            render={<Link href={hrefFor(surfaceHref(organization, '/settings/requests'))} />}
+      <SettingsRead query={groups} failureMessage='Failed to load permission groups'>
+        {(list) => (
+          <SettingsList
+            title='Permission groups'
+            empty={
+              list.length === 0
+                ? {
+                    title: 'No permission groups yet',
+                    description: 'Limit what a set of members can use',
+                    action: createGroup,
+                  }
+                : filtered.length === 0
+                  ? { title: 'No matching groups' }
+                  : undefined
+            }
           >
-            Review requests
-          </Button>
-        </SettingsRow>
-      </SettingsSection>
+            <ResourceList>
+              {filtered.map((group) => (
+                <ActivityRow
+                  key={group.id}
+                  title={group.name}
+                  detail={groupSummary(group)}
+                  textMetadata={group.isDefault ? 'Default' : undefined}
+                  onOpen={() => params.openGroup(group.id)}
+                />
+              ))}
+            </ResourceList>
+            <SettingsRow
+              label='New permission group'
+              description='Limit what a set of members can use'
+            >
+              {createGroup}
+            </SettingsRow>
+          </SettingsList>
+        )}
+      </SettingsRead>
       <CreateGroupModal
         organizationId={organizationId}
         open={creating}
         onOpenChange={setCreating}
-        workspaceOptions={workspaceOptions}
-        workspacesLoading={workspaces.isPending}
       />
     </SectionStack>
   )

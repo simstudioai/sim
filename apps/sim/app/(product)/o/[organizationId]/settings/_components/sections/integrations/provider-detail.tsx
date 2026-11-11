@@ -3,22 +3,23 @@
 import { type ReactNode, useState } from 'react'
 import { ActivityRow } from '@sim/emcn/activity-row'
 import { Button } from '@sim/emcn/button'
-import { EmptyState } from '@sim/emcn/empty-state'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SearchField } from '@sim/emcn/search-field'
-import { SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { Tooltip } from '@sim/emcn/tooltip'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
 import {
+  ActionRow,
   DetailHeader,
-  Muted,
   ResourceList,
   SectionStack,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { ExternalLink } from '@/app/(product)/o/[organizationId]/settings/_components/section-parts/external-link'
+import { sourceTypeMeta } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/model'
 import { SourceSetup } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/source-setup-host'
 import { CONNECTOR_META_REGISTRY } from '@/platform/lib/data/knowledge/connectors'
 import { useOrganization } from '@/platform/lib/data/organization'
@@ -76,15 +77,14 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
   })
   const unavailable =
     availability.isIntegrationAvailabilityReady && !access.admin && !access.members
+  const typeMeta = sourceTypeMeta(connectorType)
   const description =
     approved && unavailable
       ? 'Unavailable in this deployment'
       : provider
-        ? connectorType === 'gitlab'
-          ? 'Projects and permissions'
-          : connectorType === 'github'
-            ? 'GitHub App repositories'
-            : 'Service account connections'
+        ? typeMeta.serviceScope === 'Service account'
+          ? 'Service account connections'
+          : typeMeta.serviceScope
         : undefined
   const pending =
     overview.isPending || overview.isError || !availability.isIntegrationAvailabilityReady
@@ -100,19 +100,7 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
       title={meta.name}
       description={description}
     >
-      {meta.searchDocsUrl && (
-        <Button
-          variant='quiet'
-          size='compact'
-          render={
-            <a href={meta.searchDocsUrl} target='_blank' rel='noopener noreferrer'>
-              Docs
-            </a>
-          }
-        >
-          Docs
-        </Button>
-      )}
+      {meta.searchDocsUrl && <ExternalLink href={meta.searchDocsUrl} label='Docs' />}
       {actions}
     </DetailHeader>
   )
@@ -141,35 +129,27 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
         {header(
           <>
             {approved ? (
-              (needsSlackSetup ||
-                access.admin ||
-                (connectorType === 'github' && access.members)) && (
+              (needsSlackSetup || access.admin || (typeMeta.appInstallation && access.members)) && (
                 <Button
                   variant='primary'
                   size='compact'
                   icon='I074'
                   disabled={
-                    pending ||
-                    (connectorType === 'slack' && (accounts.isPending || accounts.isError))
+                    pending || (typeMeta.slackApp && (accounts.isPending || accounts.isError))
                   }
                   render={needsSlackSetup ? <Link href={slackHref} /> : undefined}
                   onClick={needsSlackSetup ? undefined : startSource}
                 >
                   {needsSlackSetup
                     ? 'Set up Slack app'
-                    : connectorType === 'github'
-                      ? 'Add repository'
-                      : connectorType !== 'gitlab'
-                        ? 'Add service account'
-                        : getSearchConnectionLabels(
-                            connectorType,
-                            access.admin ? 'admin' : 'members'
-                          ).add}
+                    : (typeMeta.addConnection ??
+                      getSearchConnectionLabels(connectorType, access.admin ? 'admin' : 'members')
+                        .add)}
                 </Button>
               )
             ) : (
               <Tooltip
-                label='This integration is unavailable in this deployment.'
+                label='This integration is unavailable in this deployment'
                 enabled={unavailable}
               >
                 <span>
@@ -200,12 +180,14 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
             )}
           </>
         )}
-        <SearchField
-          label='Search connections'
-          placeholder={labels.searchPlaceholder}
-          value={search}
-          onValueChange={setSearch}
-        />
+        {(Boolean(listed?.length) || search !== '') && (
+          <SearchField
+            label='Search connections'
+            placeholder={labels.searchPlaceholder}
+            value={search}
+            onValueChange={setSearch}
+          />
+        )}
         {availability.integrationAvailabilityError && (
           <FailureNotice
             message={getErrorMessage(
@@ -216,63 +198,60 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
             onRetry={() => void availability.refetchIntegrationAvailability()}
           />
         )}
-        {connectorType === 'slack' && accounts.isError && (
+        {typeMeta.slackApp && accounts.isError && (
           <FailureNotice
             message={getErrorMessage(accounts.error, 'Could not load account connections')}
             retrying={accounts.isFetching}
             onRetry={() => void accounts.refetch()}
           />
         )}
-        <SettingsSection title='Connections'>
-          {sources.isRefetchError && (
-            <FailureNotice
-              message={getErrorMessage(sources.error, 'Could not load connections')}
-              retrying={sources.isFetching}
-              onRetry={() => void sources.refetch()}
-            />
-          )}
-          {sources.isError && !sources.data ? (
-            <FailureNotice
-              message={getErrorMessage(sources.error, 'Could not load connections')}
-              retrying={sources.isFetching}
-              onRetry={() => void sources.refetch()}
-            />
-          ) : sources.data ? (
-            <>
-              <ResourceList>
-                {listed?.map((source) => (
-                  <ActivityRow
-                    density='comfortable'
-                    key={source.connectorId}
-                    title={source.sourceDescription || meta.name}
-                    detail={!approved ? 'Unavailable' : !source.enabled ? 'Paused' : undefined}
-                    href={surfaceHref(
-                      surface,
-                      `/settings/integrations/sources/${encodeURIComponent(source.connectorId)}`
-                    )}
-                  />
-                ))}
-              </ResourceList>
-              {!listed?.length && !sources.hasNextPage && (
-                <EmptyState
-                  title={
-                    sourceSearch
+        {sources.isError && (
+          <FailureNotice
+            message={getErrorMessage(
+              sources.error,
+              sources.isFetchNextPageError
+                ? 'Could not load more connections'
+                : 'Could not load connections'
+            )}
+            retrying={sources.isFetching}
+            onRetry={() =>
+              void (sources.isFetchNextPageError ? sources.fetchNextPage() : sources.refetch())
+            }
+          />
+        )}
+        {sources.data && (
+          <SettingsList
+            title='Connections'
+            empty={
+              !listed?.length && !sources.hasNextPage
+                ? {
+                    title: sourceSearch
                       ? 'No matching connections'
                       : unavailable
-                        ? `${meta.name} must be configured for this deployment before you can add a connection.`
+                        ? `${meta.name} must be configured for this deployment before you can add a connection`
                         : !approved
-                          ? 'Activate this integration to add a connection.'
-                          : labels.empty
+                          ? 'Activate this integration to add a connection'
+                          : labels.empty,
                   }
+                : undefined
+            }
+          >
+            <ResourceList>
+              {listed?.map((source) => (
+                <ActivityRow
+                  density='comfortable'
+                  key={source.connectorId}
+                  title={source.sourceDescription || meta.name}
+                  detail={!approved ? 'Unavailable' : !source.enabled ? 'Paused' : undefined}
+                  href={surfaceHref(
+                    surface,
+                    `/settings/integrations/sources/${encodeURIComponent(source.connectorId)}`
+                  )}
                 />
-              )}
-              {sources.isFetchNextPageError ? (
-                <FailureNotice
-                  message={getErrorMessage(sources.error, 'Could not load more connections')}
-                  retrying={sources.isFetchingNextPage}
-                  onRetry={() => void sources.fetchNextPage()}
-                />
-              ) : sources.hasNextPage ? (
+              ))}
+            </ResourceList>
+            {sources.hasNextPage && !sources.isFetchNextPageError && (
+              <ActionRow>
                 <Button
                   size='compact'
                   disabled={sources.isFetchingNextPage}
@@ -280,24 +259,20 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
                 >
                   {sources.isFetchingNextPage ? 'Loading…' : 'Load more'}
                 </Button>
-              ) : null}
-            </>
-          ) : null}
-        </SettingsSection>
+              </ActionRow>
+            )}
+          </SettingsList>
+        )}
         {removingSlackAccounts && connections.removeSlackSetup && (
           <ConfirmDialog
             target
             onClose={() => setRemovingSlackAccounts(false)}
             title='Remove Slack app setup'
+            description='Your organization’s Slack accounts disconnect and their saved app configuration is cleared. Remove any connections using these accounts first'
             confirmLabel='Remove'
             pendingLabel='Removing…'
             onConfirm={connections.removeSlackSetup}
-          >
-            <Muted>
-              This disconnects your organization’s Slack accounts and clears their saved app
-              configuration. Remove any connections using these accounts first.
-            </Muted>
-          </ConfirmDialog>
+          />
         )}
       </SectionStack>
     </SourceSetup>

@@ -1,18 +1,18 @@
 'use client'
 
-import { useId, useState } from 'react'
+import { Fragment, useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { Disclosure } from '@sim/emcn/disclosure'
-import { EmptyState } from '@sim/emcn/empty-state'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { DateRangePicker } from '@sim/emcn/picker/date-picker'
 import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { PropertyList } from '@sim/emcn/property-list'
 import { LoadMoreFooter } from '@sim/emcn/scroll-area/load-more-footer'
 import { SearchField } from '@sim/emcn/search-field'
-import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { toast } from '@/lib/toast/sink'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
 import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import {
   ActionRow,
@@ -22,7 +22,12 @@ import {
   SectionStack,
   SectionToolbar,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
+import {
+  useVirtualRows,
+  VirtualSpacer,
+} from '@/app/(product)/_components/workspace/resource-table/virtual-rows'
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
+import styles from '@/app/(product)/o/[organizationId]/settings/_components/sections/audit-logs/audit-logs-section.module.css'
 import {
   AUDIT_TIME_RANGE_OPTIONS,
   canExportAuditLogs,
@@ -91,22 +96,27 @@ function AuditEntryDetails({ entry }: { entry: AuditEntry }) {
   )
 }
 
+/** The title is the event; a destructive one keeps a danger tag, the only thing its words can't say. */
 function AuditEntryRow({ entry }: { entry: AuditEntry }) {
+  const byline = (
+    <Muted>
+      {entry.actorEmail || entry.actorName || 'System'} ·{' '}
+      {formatTimestamp(new Date(entry.createdAt).getTime())}
+    </Muted>
+  )
   return (
     <Disclosure
       variant='activity'
-      label={entry.description || entry.resourceName || entry.resourceId || '-'}
+      label={entry.description || formatAuditAction(entry.action)}
       introduction={
-        <ActionRow>
-          <StatusTag
-            label={formatAuditAction(entry.action)}
-            intent={isDestructiveAuditAction(entry.action) ? 'danger' : 'neutral'}
-          />
-          <Muted>
-            {entry.actorEmail || entry.actorName || 'System'} ·{' '}
-            {formatTimestamp(new Date(entry.createdAt).getTime())}
-          </Muted>
-        </ActionRow>
+        isDestructiveAuditAction(entry.action) ? (
+          <ActionRow>
+            <StatusTag label='Destructive' intent='danger' />
+            {byline}
+          </ActionRow>
+        ) : (
+          byline
+        )
       }
     >
       <AuditEntryDetails entry={entry} />
@@ -114,20 +124,43 @@ function AuditEntryRow({ entry }: { entry: AuditEntry }) {
   )
 }
 
+interface AuditEntryListProps {
+  entries: AuditEntry[]
+}
+
+/** Only the rows near the viewport mount, so a long feed stays light however many pages loaded. */
+function AuditEntryList({ entries }: AuditEntryListProps) {
+  const { listRef, virtualizer, entries: rows, spaceAfter } = useVirtualRows(entries)
+  return (
+    <ol ref={listRef} className={styles.rows} aria-label='Audit events'>
+      {rows.map(({ key, index, row, spaceBefore }) => (
+        <Fragment key={key}>
+          <VirtualSpacer blockSize={spaceBefore} />
+          <li ref={virtualizer.measureElement} data-index={index}>
+            <AuditEntryRow entry={row} />
+          </li>
+        </Fragment>
+      ))}
+      <VirtualSpacer blockSize={spaceAfter} />
+    </ol>
+  )
+}
+
 export default function AuditLogsSection({ organization }: SettingsSectionProps) {
   const feed = useAuditLogFeed(organization.organization.id)
-  const [choosingCustomRange, setChoosingCustomRange] = useState(false)
-  const [refreshing, setRefreshing] = useState(false)
+  /** Custom range was chosen: its picker shows, and stays until a preset replaces it. */
+  const [choosingRange, setChoosingRange] = useState(false)
+  const [rangeOpen, setRangeOpen] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const [exporting, setExporting] = useState(false)
-  const timeRangeId = useId()
   const { scope } = feed
 
-  async function refresh() {
-    setRefreshing(true)
+  async function retry() {
+    setRetrying(true)
     try {
       await feed.refresh()
     } finally {
-      setRefreshing(false)
+      setRetrying(false)
     }
   }
 
@@ -149,146 +182,121 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
     }
   }
 
-  const showCustomRange = choosingCustomRange || feed.timeRange === 'Custom range'
+  const customRange = choosingRange || feed.timeRange === 'Custom range'
+  const searchable = feed.entries.length > 0 || feed.search !== ''
 
   return (
     <SectionStack>
       <SettingsPageHeader />
       <SectionToolbar
         grow={
-          <SearchField
-            label='Search audit logs'
-            placeholder='Search audit logs…'
-            value={feed.search}
-            onValueChange={feed.setSearch}
-          />
+          searchable && (
+            <SearchField
+              label='Search audit logs'
+              placeholder='Search audit logs…'
+              value={feed.search}
+              onValueChange={feed.setSearch}
+            />
+          )
         }
-      />
-      <SettingsSection title='Filters'>
-        <SettingsRow label='Resource type' description='Show events for these resource types'>
-          <MultiSelect
-            variant='text'
-            label='Type'
+      >
+        <MultiSelect
+          variant='text'
+          label='Type'
+          options={RESOURCE_TYPE_OPTIONS}
+          value={feed.types}
+          onValueChange={feed.setTypes}
+          placeholder='All types'
+          searchLabel='Search types'
+        />
+        <ChoiceMenu
+          label='Time range'
+          options={AUDIT_TIME_RANGE_OPTIONS}
+          value={choosingRange ? 'Custom range' : feed.timeRange}
+          onValueChange={(value) => {
+            const custom = value === 'Custom range'
+            setChoosingRange(custom)
+            setRangeOpen(custom)
+            if (!custom) feed.selectPreset(value as Parameters<typeof feed.selectPreset>[0])
+          }}
+        />
+        {customRange && (
+          <DateRangePicker
+            label='Custom time range'
             labelHidden
-            options={RESOURCE_TYPE_OPTIONS}
-            value={feed.types}
-            onValueChange={feed.setTypes}
-            placeholder='All types'
-            searchLabel='Search types'
-          />
-        </SettingsRow>
-        <SettingsRow label='Time range' description='Show events from this period'>
-          <ChoiceMenu
-            id={timeRangeId}
-            label='Time range'
-            options={AUDIT_TIME_RANGE_OPTIONS}
-            value={choosingCustomRange ? 'Custom range' : feed.timeRange}
-            onValueChange={(value) => {
-              if (value === 'Custom range') {
-                setChoosingCustomRange(true)
-                return
-              }
-              setChoosingCustomRange(false)
-              feed.selectPreset(value as Parameters<typeof feed.selectPreset>[0])
+            withTime
+            open={rangeOpen}
+            onOpenChange={setRangeOpen}
+            value={feed.customRange}
+            onValueChange={(range) => {
+              if (!range) return
+              setChoosingRange(false)
+              feed.applyCustomRange(range.start, range.end)
             }}
           />
-        </SettingsRow>
-        {showCustomRange && (
-          <SettingsRow label='Custom time range' description='Show events between two dates'>
-            <DateRangePicker
-              label='Custom time range'
-              labelHidden
-              open={choosingCustomRange}
-              onOpenChange={(open) => {
-                setChoosingCustomRange(open)
-                if (!open && !feed.customRange) document.getElementById(timeRangeId)?.focus()
-              }}
-              withTime
-              value={feed.customRange}
-              onValueChange={(range) => {
-                if (!range) return
-                feed.applyCustomRange(range.start, range.end)
-              }}
-            />
-          </SettingsRow>
         )}
         {scope.chipLabel && (
-          <SettingsRow label='Workspace' description='Show events from this workspace only'>
-            <Button
-              variant='secondary'
-              size='compact'
-              onClick={feed.clearWorkspaceScope}
-              trailingIcon='I105'
-            >
-              {scope.chipLabel}
-            </Button>
-          </SettingsRow>
+          <Button
+            variant='quiet'
+            size='compact'
+            onClick={feed.clearWorkspaceScope}
+            trailingIcon='I105'
+          >
+            {scope.chipLabel}
+          </Button>
         )}
-      </SettingsSection>
-
-      <SettingsSection title='Audit events'>
-        <SettingsRow label='Filtered events' description='Refresh or export the events that match'>
-          <ActionRow>
-            <Button
-              variant='quiet'
-              size='compact'
-              disabled={refreshing}
-              onClick={() => void refresh()}
-            >
-              Refresh
-            </Button>
-            <Button
-              size='compact'
-              disabled={
-                !canExportAuditLogs({
-                  isScopeAnswerable: scope.isAnswerable,
-                  entryCount: feed.entries.length,
-                  isExporting: exporting,
-                  isPlaceholderData: feed.isPlaceholderData,
-                })
-              }
-              onClick={() => void exportCsv()}
-            >
-              {exporting ? 'Exporting…' : 'Export'}
-            </Button>
-          </ActionRow>
-        </SettingsRow>
-        {feed.entries.length > 0 ? (
-          <>
-            <RowStack>
-              {feed.entries.map((entry) => (
-                <AuditEntryRow key={entry.id} entry={entry} />
-              ))}
-            </RowStack>
-            <LoadMoreFooter
-              state={{
-                hasMore: feed.hasNextPage,
-                loading: feed.isFetchingNextPage,
-                error: feed.nextPageError,
-                onLoadMore: feed.fetchNextPage,
-              }}
-            />
-          </>
-        ) : feed.isLoading ? null : scope.isUnavailable ? (
-          <FailureNotice
-            message="Couldn't check that workspace."
-            retrying={refreshing}
-            onRetry={() => void refresh()}
+        <Button
+          variant='quiet'
+          size='compact'
+          disabled={
+            !canExportAuditLogs({
+              isScopeAnswerable: scope.isAnswerable,
+              entryCount: feed.entries.length,
+              isExporting: exporting,
+              isPlaceholderData: feed.isPlaceholderData,
+            })
+          }
+          onClick={() => void exportCsv()}
+        >
+          {exporting ? 'Exporting…' : 'Export'}
+        </Button>
+      </SectionToolbar>
+      {feed.entries.length > 0 ? (
+        <SettingsSection title='Audit events'>
+          <AuditEntryList entries={feed.entries} />
+          <LoadMoreFooter
+            state={{
+              hasMore: feed.hasNextPage,
+              loading: feed.isFetchingNextPage,
+              error: feed.nextPageError,
+              onLoadMore: feed.fetchNextPage,
+            }}
           />
-        ) : scope.isUnresolved ? (
-          <EmptyState title='That workspace is not part of this organization.' />
-        ) : feed.isError ? (
-          <FailureNotice
-            message={feed.errorMessage ?? 'Failed to load audit logs'}
-            retrying={refreshing}
-            onRetry={() => void refresh()}
-          />
-        ) : feed.debouncedSearch ? (
-          <EmptyState title='No matching audit logs' />
-        ) : (
-          <EmptyState title='No audit logs' />
-        )}
-      </SettingsSection>
+        </SettingsSection>
+      ) : feed.isLoading ? null : scope.isUnavailable ? (
+        <FailureNotice
+          message='Couldn’t check that workspace'
+          retrying={retrying}
+          onRetry={() => void retry()}
+        />
+      ) : feed.isError ? (
+        <FailureNotice
+          message={feed.errorMessage ?? 'Failed to load audit logs'}
+          retrying={retrying}
+          onRetry={() => void retry()}
+        />
+      ) : (
+        <SettingsList
+          title='Audit events'
+          empty={{
+            title: scope.isUnresolved
+              ? 'That workspace is not part of this organization'
+              : feed.debouncedSearch
+                ? 'No matching audit logs'
+                : 'No audit logs',
+          }}
+        />
+      )}
     </SectionStack>
   )
 }

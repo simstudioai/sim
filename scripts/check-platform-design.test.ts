@@ -1293,15 +1293,6 @@ it('fails the settings part rules: save-owner, switch-row, empty-in-surface, out
     expect(result.output.match(/\[switch-row\]/g)).toHaveLength(1)
     expect(result.output.match(/\[empty-in-surface\]/g)).toHaveLength(2)
     expect(result.output).not.toContain(`${parts}:`)
-
-    writeAllowlists(root, {
-      SAVE_BAR_MIGRATIONS: { [view]: 'The fixture keeps its save row to prove a grant' },
-      SWITCH_ROW_MIGRATIONS: { [view]: 'The fixture keeps its switch row to prove a grant' },
-      EMPTY_SURFACE_MIGRATIONS: { [view]: 'The fixture keeps its empty surface to prove a grant' },
-    })
-    const granted = run()
-    for (const rule of ['save-owner', 'switch-row', 'empty-in-surface'])
-      expect(granted.output).not.toContain(`[${rule}]`)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

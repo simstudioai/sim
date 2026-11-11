@@ -128,7 +128,7 @@ it('protects the only retrievable SCIM token until its dialog is dismissed', asy
   await act(async () => {
     root.render(
       <QueryClientProvider client={client}>
-        <ScimPanel organizationId='org-a' active onOpenDomains={() => {}} />
+        <ScimPanel organizationId='org-a' onOpenDomains={() => {}} />
       </QueryClientProvider>
     )
     await settle()

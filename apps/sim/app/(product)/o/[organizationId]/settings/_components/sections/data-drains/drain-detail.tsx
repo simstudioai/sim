@@ -6,15 +6,15 @@ import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { PropertyList } from '@sim/emcn/property-list'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
-import { Switch } from '@sim/emcn/switch'
 import { toError } from '@sim/utils/errors'
 import { toast } from '@/lib/toast/sink'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
 import {
   DetailHeader,
   FieldStack,
-  Muted,
   SectionStack,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { SwitchRow } from '@/app/(product)/_components/settings-parts/switch-row'
 import {
   CADENCE_LABELS,
   type DataDrain,
@@ -59,15 +59,33 @@ function humanizeConfigKey(key: string): string {
   return [first.charAt(0).toUpperCase() + first.slice(1), ...rest].join(' ')
 }
 
-const RUN_STATUS_INTENT = { success: 'success', failed: 'danger', running: 'info' } as const
+/** A run's status in the Logs vocabulary. */
+const RUN_STATUS = {
+  success: { label: 'Completed', intent: 'success' },
+  failed: { label: 'Failed', intent: 'danger' },
+  running: { label: 'Running', intent: 'info' },
+} as const
+
+const RUN_TRIGGER_LABELS: Record<DataDrainRun['trigger'], string> = {
+  cron: 'Scheduled',
+  manual: 'Manual',
+}
 
 function RunRow({ run }: { run: DataDrainRun }) {
+  const status = RUN_STATUS[run.status]
   return (
     <SettingsRow
-      label={`${run.rowsExported.toLocaleString(LOCALE)} rows · ${formatFileSize(run.bytesWritten, { includeBytes: true })}`}
-      description={`${run.trigger} · ${formatTimestamp(new Date(run.startedAt).getTime())}${run.error ? ` · ${run.error}` : ''}`}
+      label={formatTimestamp(new Date(run.startedAt).getTime())}
+      description={[
+        RUN_TRIGGER_LABELS[run.trigger],
+        `${run.rowsExported.toLocaleString(LOCALE)} rows`,
+        formatFileSize(run.bytesWritten, { includeBytes: true }),
+        run.error,
+      ]
+        .filter(Boolean)
+        .join(' · ')}
     >
-      <StatusTag label={run.status} intent={RUN_STATUS_INTENT[run.status]} />
+      <StatusTag label={status.label} intent={status.intent} />
     </SettingsRow>
   )
 }
@@ -110,26 +128,22 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
         description={`${SOURCE_LABELS[drain.source]} → ${DESTINATION_LABELS[drain.destinationType]} · ${CADENCE_LABELS[drain.scheduleCadence]}`}
       />
       <SettingsSection title='Status'>
-        <SettingsRow
+        <SwitchRow
           label='Enabled'
           description='Disabled drains keep their place and resume where they left off'
-        >
-          <Switch
-            label='Enabled'
-            checked={drain.enabled}
-            disabled={updateDrain.isPending}
-            onCheckedChange={() =>
-              void report(
-                updateDrain.mutateAsync({
-                  organizationId,
-                  drainId: drain.id,
-                  body: { enabled: !drain.enabled },
-                }),
-                drain.enabled ? 'Drain disabled' : 'Drain enabled'
-              )
-            }
-          />
-        </SettingsRow>
+          checked={drain.enabled}
+          disabled={updateDrain.isPending}
+          onCheckedChange={() =>
+            void report(
+              updateDrain.mutateAsync({
+                organizationId,
+                drainId: drain.id,
+                body: { enabled: !drain.enabled },
+              }),
+              drain.enabled ? 'Drain disabled' : 'Drain enabled'
+            )
+          }
+        />
       </SettingsSection>
       <SettingsSection title='Schedule'>
         <FieldStack>
@@ -163,6 +177,21 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
             ]}
           />
         </FieldStack>
+        <SettingsRow
+          label='Manual export'
+          description={
+            drain.enabled ? 'Export now, outside the schedule' : 'Enable the drain to run it'
+          }
+        >
+          <Button
+            disabled={!drain.enabled || runDrain.isPending}
+            onClick={() =>
+              void report(runDrain.mutateAsync({ organizationId, drainId: drain.id }), 'Run queued')
+            }
+          >
+            Run now
+          </Button>
+        </SettingsRow>
       </SettingsSection>
       <SettingsSection title='Destination'>
         <FieldStack>
@@ -199,44 +228,25 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
           </Button>
         </SettingsRow>
       </SettingsSection>
-      <SettingsSection title='Recent runs'>
-        <SettingsRow
-          label='Manual export'
-          description={drain.enabled ? undefined : 'Enable the drain to run it.'}
+      {runsLoading ? null : runs.data === undefined ? (
+        <FailureNotice
+          message={toError(runs.error).message}
+          retrying={runs.isFetching}
+          onRetry={() => void runs.refetch()}
+        />
+      ) : (
+        <SettingsList
+          title='Recent runs'
+          empty={runs.data.length === 0 ? { title: 'No runs yet' } : undefined}
         >
-          <Button
-            disabled={!drain.enabled || runDrain.isPending}
-            onClick={() =>
-              void report(runDrain.mutateAsync({ organizationId, drainId: drain.id }), 'Run queued')
-            }
-          >
-            Run now
-          </Button>
-        </SettingsRow>
-        {runsLoading ? null : runs.data === undefined ? (
-          <FieldStack>
-            <FailureNotice
-              message={toError(runs.error).message}
-              retrying={runs.isFetching}
-              onRetry={() => void runs.refetch()}
-            />
-          </FieldStack>
-        ) : runs.data.length > 0 ? (
-          runs.data.map((run) => <RunRow key={run.id} run={run} />)
-        ) : (
-          <FieldStack>
-            <Muted>No runs yet</Muted>
-          </FieldStack>
-        )}
-      </SettingsSection>
+          {runs.data.map((run) => (
+            <RunRow key={run.id} run={run} />
+          ))}
+        </SettingsList>
+      )}
       <SettingsSection title='Manage drain'>
         <SettingsRow label='Delete drain' description='Stop exporting and remove this drain'>
-          <Button
-            variant='quiet'
-            destructive
-            disabled={deleteDrain.isPending}
-            onClick={() => setConfirmingDelete(true)}
-          >
+          <Button variant='quiet' destructive onClick={() => setConfirmingDelete(true)}>
             Delete
           </Button>
         </SettingsRow>
@@ -244,8 +254,8 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
       <ConfirmDialog
         target={confirmingDelete}
         onClose={() => setConfirmingDelete(false)}
-        title='Delete drain'
-        description={`Are you sure you want to delete ${drain.name}? This action cannot be undone.`}
+        title={`Delete ${drain.name}`}
+        description='Exports stop and the drain is removed. This can’t be undone'
         confirmLabel='Delete'
         pendingLabel='Deleting…'
         onConfirm={async () => {

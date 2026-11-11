@@ -52,7 +52,9 @@ export interface AdminConsole {
     /** The page the URL's search asks for, once read. */
     results?: { users: DirectoryUser[]; total: number }
     searching: boolean
+    /** Why the search read failed; `retry` reads it again. */
     error?: string
+    retry: () => void
     warning?: string
     recent: DirectoryUser[]
     impersonating: boolean

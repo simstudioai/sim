@@ -5,9 +5,9 @@ import { Button } from '@sim/emcn/button'
 import { Select } from '@sim/emcn/picker/select'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
-import { Switch } from '@sim/emcn/switch'
 import Link from 'next/link'
 import { SectionStack } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { SwitchRow } from '@/app/(product)/_components/settings-parts/switch-row'
 import { AdminDirectory } from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/admin-directory'
 import { WorkflowImport } from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/workflow-import'
 import type { AdminConsole, ImportInputs } from '@/platform/lib/data/admin-model'
@@ -35,27 +35,20 @@ export function AdminPanel({ console: admin }: { console: AdminConsole }) {
     <SectionStack>
       <SettingsSection title='Administration'>
         {settings === null ? (
-          <FailureNotice message='Could not load admin settings.' onRetry={admin.retrySettings} />
+          <FailureNotice message='Could not load admin settings' onRetry={admin.retrySettings} />
         ) : (
           settings && (
             <>
-              <SettingsRow
+              <SwitchRow
                 label='Super admin mode'
                 description='Act with platform administrator access'
-              >
-                <Switch
-                  label='Super admin mode'
-                  checked={settings.superUserModeEnabled}
-                  disabled={admin.savingSetting}
-                  onCheckedChange={admin.setSuperUserMode}
-                />
-              </SettingsRow>
+                checked={settings.superUserModeEnabled}
+                disabled={admin.savingSetting}
+                onCheckedChange={admin.setSuperUserMode}
+              />
               {settings.superUserModeEnabled && admin.benchmarkAvailable && (
                 <SettingsRow label='Benchmarks' description='Open the agent benchmark runs'>
-                  <Button
-                    size='compact'
-                    render={<Link href={BENCHMARK_HREF}>Open benchmarks</Link>}
-                  >
+                  <Button size='compact' render={<Link href={BENCHMARK_HREF} />}>
                     Open benchmarks
                   </Button>
                 </SettingsRow>

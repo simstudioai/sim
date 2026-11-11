@@ -2,20 +2,20 @@
 
 import { useState } from 'react'
 import { Button, IconButton } from '@sim/emcn/button'
-import { EmptyState } from '@sim/emcn/empty-state'
 import { TextField } from '@sim/emcn/field'
 import { SecretField } from '@sim/emcn/field/value-fields'
-import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { SettingsRow } from '@sim/emcn/settings-section'
 import { generateId } from '@sim/utils/id'
 import { useRouter } from 'next/navigation'
+import { SettingsSaveBar } from '@/app/(product)/_components/settings-parts/save-bar'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
 import {
-  ActionRow,
   DetailHeader,
   FieldStack,
   SectionStack,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
 import type { SourceSettingsData } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/model'
-import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
+import { requestSettingsLeave } from '@/platform/lib/data/settings-guard'
 
 interface SecretSettingsProps {
   data: SourceSettingsData
@@ -35,18 +35,40 @@ export function SecretSettings({ data, href, update }: SecretSettingsProps) {
     rows.every(
       (row) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(row.name.trim()) && (row.saved || Boolean(row.value))
     ) && new Set(names).size === names.length
-  const guard = useSettingsUnsavedGuard({ isDirty: dirty, onDiscard: () => setRows(saved()) })
+  const discard = () => setRows(saved())
+  const addSecret = (
+    <Button
+      size='compact'
+      icon='I074'
+      onClick={() =>
+        setRows((items) => [...items, { id: generateId(), name: '', value: '', saved: false }])
+      }
+    >
+      Add secret
+    </Button>
+  )
   return (
     <SectionStack>
       <DetailHeader
         title='Generic Secrets'
+        description='Organization secrets your sources can use'
         backLabel='Sources'
-        onBack={() => guard.guardBack(() => router.push(href))}
+        onBack={() => requestSettingsLeave(() => router.push(href))}
       />
-      <SettingsSection title='Organization secrets'>
-        {!rows.length && <EmptyState title='No organization secrets' />}
+      <SettingsList
+        title='Organization secrets'
+        empty={
+          rows.length === 0
+            ? {
+                title: 'No organization secrets',
+                description: 'Store a value your sources can use',
+                action: addSecret,
+              }
+            : undefined
+        }
+      >
         {rows.map((row) => (
-          <SettingsRow key={row.id} field label={row.saved ? row.name : 'New secret'}>
+          <SettingsRow key={row.id} label={row.saved ? row.name : 'New secret'}>
             <FieldStack>
               <TextField
                 label='Name'
@@ -77,39 +99,20 @@ export function SecretSettings({ data, href, update }: SecretSettingsProps) {
           </SettingsRow>
         ))}
         <SettingsRow label='Add secret' description='Store a value your sources can use'>
-          <Button
-            size='compact'
-            icon='I074'
-            onClick={() =>
-              setRows((items) => [
-                ...items,
-                { id: generateId(), name: '', value: '', saved: false },
-              ])
-            }
-          >
-            Add secret
-          </Button>
+          {addSecret}
         </SettingsRow>
-        {dirty && (
-          <ActionRow>
-            <Button
-              variant='primary'
-              disabled={!valid}
-              onClick={() => {
-                update((current) => ({ ...current, secrets: names }))
-                setRows(
-                  rows.map((row) => ({ ...row, name: row.name.trim(), value: '', saved: true }))
-                )
-              }}
-            >
-              Save
-            </Button>
-            <Button variant='quiet' onClick={() => setRows(saved())}>
-              Discard
-            </Button>
-          </ActionRow>
-        )}
-      </SettingsSection>
+      </SettingsList>
+      <SettingsSaveBar
+        dirty={dirty}
+        saving={false}
+        blocked={!valid}
+        blockedReason='Name each secret with letters, digits and underscores, give a new one a value, and keep names unique'
+        onSave={() => {
+          update((current) => ({ ...current, secrets: names }))
+          setRows(rows.map((row) => ({ ...row, name: row.name.trim(), value: '', saved: true })))
+        }}
+        onDiscard={discard}
+      />
     </SectionStack>
   )
 }

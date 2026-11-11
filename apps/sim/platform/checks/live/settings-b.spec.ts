@@ -33,10 +33,8 @@ test.describe('governance settings', () => {
       if (request.url().includes('/api/audit-logs')) reads.push(request.url())
     })
     await page.goto(liveRoute('/settings/audit-logs?workspace=not-a-real-workspace'))
-    await expect(page.getByText('That workspace is not part of this organization.')).toBeVisible()
+    await expect(page.getByText('That workspace is not part of this organization')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Export' })).toBeDisabled()
-    await page.getByRole('button', { name: 'Refresh' }).click()
-    await expect(page.getByRole('button', { name: 'Refresh' })).toBeEnabled()
     expect(reads).toEqual([])
 
     await page.getByRole('button', { name: 'Workspace: not found' }).click()
@@ -106,7 +104,7 @@ test.describe('governance settings', () => {
           response.url().includes('/api/auth/sso/providers')
       )
       await page.goto(liveRoute('/settings/sso'))
-      await expect(page.getByRole('radio', { name: 'Domains' })).toBeAttached()
+      await expect(page.getByRole('tab', { name: 'Domains' })).toBeAttached()
       const body = await (await providers).text()
       expect(body).not.toContain(clientSecret)
       const listed = (

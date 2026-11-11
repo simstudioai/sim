@@ -1177,19 +1177,19 @@ function checkJs(file: string, content: string) {
           'Go back through DirectoryBack on a page or DetailHeader in Settings, labelled with a bare noun'
         )
       if (!file.startsWith(SETTINGS_PARTS)) {
-        if (isHandSave(node) && !grants('SAVE_BAR_MIGRATIONS', file))
+        if (isHandSave(node))
           report(
             'save-owner',
             location(node),
             'Commit a settings draft through SettingsSaveBar, which owns Discard, Save and the leave guard'
           )
-        if (isSwitchInRow(node) && !grants('SWITCH_ROW_MIGRATIONS', file))
+        if (isSwitchInRow(node))
           report(
             'switch-row',
             location(node),
             'Put an on-or-off setting in SwitchRow, not a Switch in a SettingsRow'
           )
-        if (isEmptyInSurface(node) && !grants('EMPTY_SURFACE_MIGRATIONS', file))
+        if (isEmptyInSurface(node))
           report(
             'empty-in-surface',
             location(node),
