@@ -143,12 +143,21 @@ async function redeployWorkflowIfDrifted(workflowId: string, userId: string): Pr
     }
     throw new Error(message)
   }
+  if (deployResult.latestDeploymentAttempt?.isCurrent === false) {
+    throw new OrchestrationError(
+      'conflict',
+      'The workflow deployment attempt is historical and no longer describes production. Retry the chat update.'
+    )
+  }
   if (deployResult.latestDeploymentAttempt?.status !== 'active') {
     throw new OrchestrationError(
       'conflict',
       deployResult.warnings?.[0] ??
         'Workflow deployment is still preparing. Retry the chat update after it becomes active.'
     )
+  }
+  if (!deployResult.activeDeployment) {
+    throw new Error('Workflow deployment reported active without a live deployment version.')
   }
   logger.info(`Redeployed workflow ${workflowId} for chat update (v${deployResult.version})`)
 }
