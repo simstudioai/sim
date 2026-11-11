@@ -1,4 +1,5 @@
 import type { LabelsResponse, RemoveLabelParams } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const removeLabelTool: ToolConfig<RemoveLabelParams, LabelsResponse> = {
@@ -6,6 +7,7 @@ export const removeLabelTool: ToolConfig<RemoveLabelParams, LabelsResponse> = {
   name: 'GitHub Remove Label',
   description: 'Remove a label from an issue in a GitHub repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {

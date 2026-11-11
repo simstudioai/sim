@@ -1,3 +1,4 @@
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface SearchCodeParams {
@@ -36,6 +37,7 @@ export const searchCodeTool: ToolConfig<SearchCodeParams, SearchCodeResponse> = 
   description:
     'Search for code across GitHub repositories. Use qualifiers like repo:owner/name, language:js, path:src, extension:py',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     q: {
@@ -172,6 +174,7 @@ export const searchCodeV2Tool: ToolConfig<SearchCodeParams, any> = {
   name: searchCodeTool.name,
   description: searchCodeTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: searchCodeTool.params,
   request: searchCodeTool.request,
 

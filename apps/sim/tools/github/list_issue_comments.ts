@@ -1,6 +1,7 @@
 import { truncate } from '@sim/utils/string'
 import type { CommentsListResponse, ListIssueCommentsParams } from '@/tools/github/types'
 import { COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listIssueCommentsTool: ToolConfig<ListIssueCommentsParams, CommentsListResponse> = {
@@ -8,6 +9,7 @@ export const listIssueCommentsTool: ToolConfig<ListIssueCommentsParams, Comments
   name: 'GitHub Issue Comments Lister',
   description: 'List all comments on a GitHub issue',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -146,6 +148,7 @@ export const listIssueCommentsV2Tool: ToolConfig<ListIssueCommentsParams, any> =
   name: listIssueCommentsTool.name,
   description: listIssueCommentsTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listIssueCommentsTool.params,
   request: listIssueCommentsTool.request,
 

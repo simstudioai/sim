@@ -17,6 +17,7 @@ export const docusignListTemplatesTool: InternalToolConfig<
   oauth: {
     required: true,
     provider: 'docusign',
+    authoritativeParams: ['instanceUrl'],
   },
 
   params: {
@@ -25,6 +26,12 @@ export const docusignListTemplatesTool: InternalToolConfig<
       required: true,
       visibility: 'hidden',
       description: 'DocuSign OAuth access token',
+    },
+    instanceUrl: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'DocuSign account API base bound to a JWT Grant credential',
     },
     searchText: {
       type: 'string',
@@ -43,6 +50,7 @@ export const docusignListTemplatesTool: InternalToolConfig<
   operation: {
     input: (params) => ({
       accessToken: params.accessToken,
+      instanceUrl: params.instanceUrl,
       searchText: params.searchText,
       count: params.count,
     }),

@@ -6,6 +6,7 @@ import {
   COMMIT_SUMMARY_OUTPUT_PROPERTIES,
   USER_FULL_OUTPUT,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface GetCommitParams {
@@ -44,6 +45,7 @@ export const getCommitTool: ToolConfig<GetCommitParams, GetCommitResponse> = {
   name: 'GitHub Get Commit',
   description: 'Get detailed information about a specific commit including files changed and stats',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -190,6 +192,7 @@ export const getCommitV2Tool: ToolConfig<GetCommitParams, any> = {
   name: getCommitTool.name,
   description: getCommitTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getCommitTool.params,
   request: getCommitTool.request,
 

@@ -1,3 +1,4 @@
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface DeleteMilestoneParams {
@@ -23,6 +24,7 @@ export const deleteMilestoneTool: ToolConfig<DeleteMilestoneParams, DeleteMilest
   name: 'GitHub Delete Milestone',
   description: 'Delete a milestone from a repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -97,6 +99,7 @@ export const deleteMilestoneV2Tool: ToolConfig<DeleteMilestoneParams, any> = {
   name: deleteMilestoneTool.name,
   description: deleteMilestoneTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: deleteMilestoneTool.params,
   request: deleteMilestoneTool.request,
 

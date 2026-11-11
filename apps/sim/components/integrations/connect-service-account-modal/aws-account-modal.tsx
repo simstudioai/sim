@@ -114,7 +114,9 @@ function AwsAccountForm({
   }
 
   const trustPolicy =
-    authType === 'oidc_role' && keyless.trust ? buildAwsTrustPolicy(keyless.trust, roleArn) : null
+    authType === 'oidc_role' && keyless.trust?.audience
+      ? buildAwsTrustPolicy({ ...keyless.trust, audience: keyless.trust.audience }, roleArn)
+      : null
   const action = credentialId ? 'Reconnect' : 'Add'
   const authOptions = [
     ...(keyless.available

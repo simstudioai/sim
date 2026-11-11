@@ -1,3 +1,4 @@
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface UnstarRepoParams {
@@ -23,6 +24,7 @@ export const unstarRepoTool: ToolConfig<UnstarRepoParams, UnstarRepoResponse> = 
   name: 'GitHub Unstar Repository',
   description: 'Remove star from a repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -92,6 +94,7 @@ export const unstarRepoV2Tool: ToolConfig<UnstarRepoParams, any> = {
   name: unstarRepoTool.name,
   description: unstarRepoTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: unstarRepoTool.params,
   request: unstarRepoTool.request,
 

@@ -595,86 +595,86 @@
       }
     },
     "app/api/v2/blocks/[blockId]/route.ts": {
-      "modules": 1989,
+      "modules": 1994,
       "gateways": {
         "apps/sim/triggers/index.ts": 557,
         "apps/sim/triggers/registry.ts": 555,
+        "apps/sim/lib/api/server/routes/index.ts": 403,
         "apps/sim/blocks/registry.ts": 387,
         "apps/sim/blocks/registry-maps.ts": 385,
-        "apps/sim/lib/api/server/routes/index.ts": 381,
-        "apps/sim/lib/api/server/routes/internal-json-route.ts": 329,
-        "apps/sim/lib/auth/index.ts": 317,
-        "apps/sim/lib/webhooks/providers/index.ts": 95
+        "apps/sim/lib/api/server/routes/internal-json-route.ts": 351,
+        "apps/sim/lib/auth/index.ts": 339,
+        "apps/sim/lib/webhooks/providers/index.ts": 90
       }
     },
     "app/api/v2/blocks/route.ts": {
-      "modules": 1988,
+      "modules": 1991,
       "gateways": {
         "apps/sim/blocks/registry.ts": 948,
         "apps/sim/blocks/registry-maps.ts": 946,
         "apps/sim/triggers/index.ts": 557,
         "apps/sim/triggers/registry.ts": 555,
-        "apps/sim/lib/api/server/routes/index.ts": 374,
-        "apps/sim/lib/api/server/routes/internal-json-route.ts": 330,
-        "apps/sim/lib/auth/index.ts": 318,
-        "apps/sim/lib/webhooks/providers/index.ts": 96
+        "apps/sim/lib/api/server/routes/index.ts": 396,
+        "apps/sim/lib/api/server/routes/internal-json-route.ts": 352,
+        "apps/sim/lib/auth/index.ts": 340,
+        "apps/sim/lib/webhooks/providers/index.ts": 91
       }
     },
     "app/api/v2/connector-types/route.ts": {
-      "modules": 2058,
+      "modules": 2061,
       "gateways": {
         "apps/sim/blocks/registry.ts": 949,
         "apps/sim/blocks/registry-maps.ts": 947,
         "apps/sim/triggers/index.ts": 557,
         "apps/sim/triggers/registry.ts": 555,
-        "apps/sim/lib/api/server/routes/index.ts": 374,
-        "apps/sim/lib/api/server/routes/internal-json-route.ts": 330,
-        "apps/sim/lib/auth/index.ts": 318,
-        "apps/sim/lib/webhooks/providers/index.ts": 96
+        "apps/sim/lib/api/server/routes/index.ts": 396,
+        "apps/sim/lib/api/server/routes/internal-json-route.ts": 352,
+        "apps/sim/lib/auth/index.ts": 340,
+        "apps/sim/lib/webhooks/providers/index.ts": 91
       }
     },
     "app/api/v2/tools/[toolId]/route.ts": {
-      "modules": 1984,
+      "modules": 1989,
       "gateways": {
         "apps/sim/blocks/registry.ts": 948,
         "apps/sim/blocks/registry-maps.ts": 946,
         "apps/sim/triggers/index.ts": 557,
         "apps/sim/triggers/registry.ts": 555,
-        "apps/sim/lib/api/server/routes/index.ts": 382,
-        "apps/sim/lib/api/server/routes/internal-json-route.ts": 330,
-        "apps/sim/lib/auth/index.ts": 318,
-        "apps/sim/lib/webhooks/providers/index.ts": 96
+        "apps/sim/lib/api/server/routes/index.ts": 404,
+        "apps/sim/lib/api/server/routes/internal-json-route.ts": 352,
+        "apps/sim/lib/auth/index.ts": 340,
+        "apps/sim/lib/webhooks/providers/index.ts": 91
       }
     },
     "app/api/v2/tools/route.ts": {
-      "modules": 1985,
+      "modules": 1990,
       "gateways": {
         "apps/sim/blocks/registry.ts": 948,
         "apps/sim/blocks/registry-maps.ts": 946,
         "apps/sim/triggers/index.ts": 557,
         "apps/sim/triggers/registry.ts": 555,
-        "apps/sim/lib/api/server/routes/index.ts": 374,
-        "apps/sim/lib/api/server/routes/internal-json-route.ts": 330,
-        "apps/sim/lib/auth/index.ts": 318,
-        "apps/sim/lib/webhooks/providers/index.ts": 96
+        "apps/sim/lib/api/server/routes/index.ts": 396,
+        "apps/sim/lib/api/server/routes/internal-json-route.ts": 352,
+        "apps/sim/lib/auth/index.ts": 340,
+        "apps/sim/lib/webhooks/providers/index.ts": 91
       }
     },
     "lib/catalog/projection/block-detail.ts": {
-      "modules": 1086,
+      "modules": 1087,
       "gateways": {
         "apps/sim/triggers/index.ts": 599,
         "apps/sim/triggers/registry.ts": 597,
-        "apps/sim/lib/catalog/projection/block-summary.ts": 439,
-        "apps/sim/blocks/registry-maps.ts": 434,
+        "apps/sim/lib/catalog/projection/block-summary.ts": 441,
+        "apps/sim/blocks/registry-maps.ts": 437,
         "apps/sim/triggers/plane/index.ts": 46,
         "apps/sim/triggers/clickup/index.ts": 32
       }
     },
     "lib/catalog/projection/block-summary.ts": {
-      "modules": 1081,
+      "modules": 1082,
       "gateways": {
-        "apps/sim/blocks/registry.ts": 1069,
-        "apps/sim/blocks/registry-maps.ts": 1065,
+        "apps/sim/blocks/registry.ts": 1071,
+        "apps/sim/blocks/registry-maps.ts": 1068,
         "apps/sim/triggers/index.ts": 599,
         "apps/sim/triggers/registry.ts": 597,
         "apps/sim/triggers/plane/index.ts": 46,

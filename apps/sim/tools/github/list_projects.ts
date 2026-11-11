@@ -1,4 +1,5 @@
 import type { ListProjectsParams, ListProjectsResponse } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listProjectsTool: ToolConfig<ListProjectsParams, ListProjectsResponse> = {
@@ -7,6 +8,7 @@ export const listProjectsTool: ToolConfig<ListProjectsParams, ListProjectsRespon
   description:
     'List GitHub Projects V2 for an organization or user. Returns up to 20 projects with their details including ID, title, number, URL, and status.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner_type: {
@@ -169,6 +171,7 @@ export const listProjectsV2Tool: ToolConfig<ListProjectsParams, any> = {
   name: listProjectsTool.name,
   description: listProjectsTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listProjectsTool.params,
   request: listProjectsTool.request,
 

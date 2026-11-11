@@ -5,6 +5,7 @@ import {
   MILESTONE_OUTPUT,
   USER_OUTPUT,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getIssueTool: ToolConfig<GetIssueParams, IssueResponse> = {
@@ -12,6 +13,7 @@ export const getIssueTool: ToolConfig<GetIssueParams, IssueResponse> = {
   name: 'GitHub Get Issue',
   description: 'Get detailed information about a specific issue in a GitHub repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -116,6 +118,7 @@ export const getIssueV2Tool: ToolConfig<GetIssueParams, any> = {
   name: getIssueTool.name,
   description: getIssueTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getIssueTool.params,
   request: getIssueTool.request,
 

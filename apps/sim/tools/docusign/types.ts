@@ -82,6 +82,7 @@ export const TEMPLATES_ARRAY_OUTPUT: OutputProperty = {
 /** Params interfaces */
 export interface DocuSignSendEnvelopeParams {
   accessToken: string
+  instanceUrl?: string
   emailSubject: string
   emailBody?: string
   signerEmail: string
@@ -94,6 +95,7 @@ export interface DocuSignSendEnvelopeParams {
 
 export interface DocuSignCreateFromTemplateParams {
   accessToken: string
+  instanceUrl?: string
   templateId: string
   emailSubject?: string
   emailBody?: string
@@ -103,11 +105,13 @@ export interface DocuSignCreateFromTemplateParams {
 
 export interface DocuSignGetEnvelopeParams {
   accessToken: string
+  instanceUrl?: string
   envelopeId: string
 }
 
 export interface DocuSignListEnvelopesParams {
   accessToken: string
+  instanceUrl?: string
   fromDate?: string
   toDate?: string
   envelopeStatus?: string
@@ -117,24 +121,28 @@ export interface DocuSignListEnvelopesParams {
 
 export interface DocuSignVoidEnvelopeParams {
   accessToken: string
+  instanceUrl?: string
   envelopeId: string
   voidedReason: string
 }
 
 export interface DocuSignDownloadDocumentParams {
   accessToken: string
+  instanceUrl?: string
   envelopeId: string
   documentId?: string
 }
 
 export interface DocuSignListTemplatesParams {
   accessToken: string
+  instanceUrl?: string
   searchText?: string
   count?: string
 }
 
 export interface DocuSignListRecipientsParams {
   accessToken: string
+  instanceUrl?: string
   envelopeId: string
 }
 

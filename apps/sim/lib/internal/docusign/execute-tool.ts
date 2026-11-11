@@ -19,7 +19,10 @@ import type {
   InternalToolOperationHandler,
 } from '@/lib/internal/tool-operations/types'
 
-const auth = { accessToken: z.string().min(1, 'Access token is required') }
+const auth = {
+  accessToken: z.string().min(1, 'Access token is required'),
+  instanceUrl: z.string().optional(),
+}
 const schemas = {
   docusign_create_from_template: z.object({
     ...auth,

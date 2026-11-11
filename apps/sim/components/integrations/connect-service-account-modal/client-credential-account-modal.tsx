@@ -9,6 +9,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipTextarea,
+  CopyCodeButton,
   SecretInput,
 } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
@@ -35,6 +36,14 @@ import {
 
 const logger = createLogger('ClientCredentialAccountModal')
 
+type FieldValues = Partial<Record<ClientCredentialAccountFieldId, string>>
+
+/** Submit-error copy, with an optional provider link the user must open to recover. */
+interface ClientCredentialErrorCopy {
+  message: string
+  link?: { href: string; label: string }
+}
+
 const FALLBACK_ERROR_MESSAGE = "We couldn't save this credential. Try again in a moment."
 
 /**
@@ -46,36 +55,68 @@ function messageForClientCredentialError(
   err: unknown,
   descriptor: ClientCredentialAccountDescriptor,
   requiredFields: ClientCredentialAccountField[],
+  values: FieldValues,
   fallbackMessage = FALLBACK_ERROR_MESSAGE
-): string {
+): ClientCredentialErrorCopy {
   if (isApiClientError(err) && err.code) {
     // Names the fields the *selected* auth method needed, so a JWT failure
     // doesn't tell the user to check a consumer secret they never entered.
     const fieldLabels = requiredFields.map((field) => field.label).join(', ')
     switch (err.code) {
       case 'invalid_credentials':
-        return `We couldn't authenticate with those credentials. Check that the ${fieldLabels} all belong to the same ${descriptor.serviceLabel} app and that the app is authorized.`
+        return {
+          message: `We couldn't authenticate with those credentials. Check that the ${fieldLabels} all belong to the same ${descriptor.serviceLabel} app and that the app is authorized.`,
+        }
       case 'permission_conflict':
-        return 'Use the same permissions for connections to this application, or create a separate application for different permissions.'
+        return {
+          message:
+            'Use the same permissions for connections to this application, or create a separate application for different permissions.',
+        }
       case 'site_not_found': {
         // "host field" named a label no provider renders — Salesforce calls it
         // My Domain host, and Zoom/Box/Zoho Desk have no host field at all.
         const hostFieldLabel =
           descriptor.fields.find((field) => field.id === 'orgId')?.label ?? 'host'
-        return `We couldn't find a ${descriptor.serviceLabel} account at that host. Check the ${hostFieldLabel} field and try again.`
+        return {
+          message: `We couldn't find a ${descriptor.serviceLabel} account at that host. Check the ${hostFieldLabel} field and try again.`,
+        }
       }
       case 'provider_unavailable':
-        return `We couldn't reach ${descriptor.serviceLabel} to verify these credentials. Try again in a moment.`
+        return {
+          message: `We couldn't reach ${descriptor.serviceLabel} to verify these credentials. Try again in a moment.`,
+        }
+      case 'consent_required': {
+        const redirectUri = window.location.origin
+        const consentUrl = descriptor.consentUrl?.(values, redirectUri)
+        return consentUrl
+          ? {
+              message: `${descriptor.serviceLabel} needs the impersonated user's consent first. Add ${redirectUri} as a redirect URI on the integration key, then open the consent page signed in as that user, accept, and try again.`,
+              link: { href: consentUrl, label: 'Open consent page' },
+            }
+          : {
+              message: `${descriptor.serviceLabel} needs the impersonated user's consent first. See the setup guide.`,
+            }
+      }
+      case 'account_not_found': {
+        if (!values.orgId?.trim()) {
+          return {
+            message: `That user has no ${descriptor.serviceLabel} account in this environment. Check the environment and user ID.`,
+          }
+        }
+        const accountFieldLabel =
+          descriptor.fields.find((field) => field.id === 'orgId')?.label ?? 'account'
+        return {
+          message: `That user isn't a member of the ${accountFieldLabel} you entered. Check it, or leave it blank to use the user's default account.`,
+        }
+      }
       case 'duplicate_display_name':
-        return 'A credential with that name already exists in this workspace.'
+        return { message: 'A credential with that name already exists in this workspace.' }
       default:
-        return fallbackMessage
+        return { message: fallbackMessage }
     }
   }
-  return fallbackMessage
+  return { message: fallbackMessage }
 }
-
-type FieldValues = Partial<Record<ClientCredentialAccountFieldId, string>>
 
 function openDocs(url: string): void {
   window.open(url, '_blank', 'noopener,noreferrer')
@@ -140,7 +181,7 @@ function ClientCredentialAccountModalForm({
   const [values, setValues] = useState<FieldValues>({})
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
   const [description, setDescription] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<ClientCredentialErrorCopy | null>(null)
 
   const createCredential = useCreateScopedCredential()
   const updateCredential = useUpdateScopedCredential()
@@ -240,6 +281,7 @@ function ClientCredentialAccountModalForm({
           err,
           descriptor,
           required,
+          values,
           onSubmitCredentials ? getErrorMessage(err, FALLBACK_ERROR_MESSAGE) : undefined
         )
       )
@@ -379,7 +421,26 @@ function ClientCredentialAccountModalForm({
           minHeight={80}
         />
 
-        <ChipModalError>{error}</ChipModalError>
+        <ChipModalError>
+          {error && (
+            <>
+              {error.message}
+              {error.link && (
+                <span className='mt-1 flex items-center gap-1'>
+                  <a
+                    href={error.link.href}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='text-[var(--brand-secondary)] underline underline-offset-2'
+                  >
+                    {error.link.label}
+                  </a>
+                  <CopyCodeButton code={error.link.href} />
+                </span>
+              )}
+            </>
+          )}
+        </ChipModalError>
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}

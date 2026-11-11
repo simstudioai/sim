@@ -1,3 +1,4 @@
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface UpdateMilestoneParams {
@@ -34,6 +35,7 @@ export const updateMilestoneTool: ToolConfig<UpdateMilestoneParams, UpdateMilest
   name: 'GitHub Update Milestone',
   description: 'Update a milestone in a repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -158,6 +160,7 @@ export const updateMilestoneV2Tool: ToolConfig<UpdateMilestoneParams, any> = {
   name: updateMilestoneTool.name,
   description: updateMilestoneTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: updateMilestoneTool.params,
   request: updateMilestoneTool.request,
 

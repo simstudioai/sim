@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   fetchProvider,
+  isHostNotFound,
   parseProviderJson,
   readProviderErrorSnippet,
   TokenServiceAccountValidationError,
@@ -61,6 +62,25 @@ describe('token service-account error helpers', () => {
 
       expect(JSON.stringify(error.logDetail)).not.toContain(PROVIDER_URL)
       expect(JSON.stringify(error.logDetail)).not.toContain('example-provider')
+    })
+  })
+
+  describe('isHostNotFound', () => {
+    it('reads ENOTFOUND on the cause even when the outer error carries another code', () => {
+      const error = Object.assign(new TypeError('fetch failed'), {
+        code: 'UND_ERR_CONNECT',
+        cause: Object.assign(new Error('getaddrinfo ENOTFOUND'), { code: 'ENOTFOUND' }),
+      })
+
+      expect(isHostNotFound(error)).toBe(true)
+    })
+
+    it('does not treat a transient resolver failure as a missing host', () => {
+      const error = Object.assign(new TypeError('fetch failed'), {
+        cause: Object.assign(new Error('getaddrinfo EAI_AGAIN'), { code: 'EAI_AGAIN' }),
+      })
+
+      expect(isHostNotFound(error)).toBe(false)
     })
   })
 

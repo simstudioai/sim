@@ -1,6 +1,7 @@
 import { truncate } from '@sim/utils/string'
 import type { CommentsListResponse, ListPRCommentsParams } from '@/tools/github/types'
 import { PR_COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listPRCommentsTool: ToolConfig<ListPRCommentsParams, CommentsListResponse> = {
@@ -8,6 +9,7 @@ export const listPRCommentsTool: ToolConfig<ListPRCommentsParams, CommentsListRe
   name: 'GitHub PR Review Comments Lister',
   description: 'List all review comments on a GitHub pull request',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -162,6 +164,7 @@ export const listPRCommentsV2Tool: ToolConfig<ListPRCommentsParams, any> = {
   name: listPRCommentsTool.name,
   description: listPRCommentsTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listPRCommentsTool.params,
   request: listPRCommentsTool.request,
 

@@ -23,9 +23,15 @@ export const resetPasswordTool: ToolConfig<
     "Reset another user's password through their password authentication method. Leave the new password empty to have Microsoft generate one and return it. The user is prompted to change the password at their next sign-in. Cannot be run against your own account.",
   version: '1.0.0',
   errorExtractor: 'nested-error-object',
+  /**
+   * Graph does not support application permissions for `resetPassword`, so a
+   * saved Microsoft app credential is turned away before any request.
+   * @see https://learn.microsoft.com/en-us/graph/api/authenticationmethod-resetpassword
+   */
   oauth: {
     required: true,
     provider: 'microsoft-ad',
+    credentialKind: 'oauth',
   },
   params: {
     accessToken: {

@@ -3,7 +3,10 @@ import type {
   DataverseAssociateParams,
   DataverseAssociateResponse,
 } from '@/tools/microsoft_dataverse/types'
-import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
+import {
+  DATAVERSE_OAUTH_CONFIG,
+  getDataverseRequestBaseUrl,
+} from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseAssociate')
@@ -18,7 +21,7 @@ export const dataverseAssociateTool: ToolConfig<
     'Associate two records in Microsoft Dataverse via a navigation property. Creates a relationship between a source record and a target record. Supports both collection-valued (POST) and single-valued (PUT) navigation properties.',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'microsoft-dataverse' },
+  oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',
 
   params: {
@@ -76,7 +79,7 @@ export const dataverseAssociateTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      const baseUrl = getDataverseRequestBaseUrl(params)
       return `${baseUrl}/api/data/v9.2/${params.entitySetName.trim()}(${params.recordId.trim()})/${params.navigationProperty.trim()}/$ref`
     },
     method: (params) => (params.navigationType === 'single' ? 'PUT' : 'POST'),
@@ -94,7 +97,7 @@ export const dataverseAssociateTool: ToolConfig<
       Accept: 'application/json',
     }),
     body: (params) => {
-      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      const baseUrl = getDataverseRequestBaseUrl(params)
       return {
         '@odata.id': `${baseUrl}/api/data/v9.2/${params.targetEntitySetName.trim()}(${params.targetRecordId.trim()})`,
       }

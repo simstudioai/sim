@@ -28,6 +28,15 @@ import {
   verifyAndEncryptDatabricksCredential,
 } from '@/lib/credentials/databricks-service-account.server'
 import { slackCustomBotDisplayName } from '@/lib/credentials/display-name'
+import {
+  GoogleWorkloadIdentityError,
+  isGoogleWorkloadIdentitySubmission,
+  verifyAndEncryptGoogleWorkloadIdentityCredential,
+} from '@/lib/credentials/google-workload-identity.server'
+import {
+  MicrosoftAppCredentialError,
+  verifyAndEncryptMicrosoftAppCredential,
+} from '@/lib/credentials/microsoft-app-service-account.server'
 import { verifyAndEncryptOciApiKeyCredential } from '@/lib/credentials/oci-api-key-service-account.server'
 import { verifyAndEncryptOracleDatabaseCredential } from '@/lib/credentials/oracledb-service-account.server'
 import {
@@ -36,8 +45,13 @@ import {
 } from '@/lib/credentials/principal'
 import type { AtlassianProduct } from '@/lib/credentials/service-account-fields'
 import {
+  SnowflakeCredentialError,
+  verifyAndEncryptSnowflakeKeylessCredential,
+} from '@/lib/credentials/snowflake-service-account.server'
+import {
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
+  SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
   TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
 } from '@/lib/credentials/token-service-accounts/descriptors'
 import type { TokenServiceAccountSecretBlob } from '@/lib/credentials/token-service-accounts/secret-blob'
@@ -50,6 +64,7 @@ import {
   AWS_SERVICE_ACCOUNT_PROVIDER_ID,
   DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
@@ -103,8 +118,8 @@ export interface ServiceAccountSecretResult {
   /** Slack custom bot: the derived bot user id (for reaction self-drop). */
   botUserId?: string
   /**
-   * Keyless AWS or Databricks: a subject this save binds that the credential did
-   * not already hold, which must not belong to another credential of the owner.
+   * Keyless AWS, Databricks, Snowflake, Microsoft app, or Google: a subject this save binds that
+   * the credential did not already hold, which must not belong to another credential of the owner.
    */
   newWorkloadIdentitySubject?: string
 }
@@ -227,6 +242,9 @@ async function buildGoogleServiceAccountSecret(
       'serviceAccountJson is required for service account credentials'
     )
   }
+  if (isGoogleWorkloadIdentitySubmission(serviceAccountJson)) {
+    return buildGoogleWorkloadIdentitySecret(serviceAccountJson, fields.owner)
+  }
   const jsonParseResult = serviceAccountJsonSchema.safeParse(serviceAccountJson)
   if (!jsonParseResult.success) {
     throw new ServiceAccountSecretError(
@@ -250,6 +268,38 @@ async function buildGoogleServiceAccountSecret(
       ...serviceAccountPrincipalMetadata(principal),
     },
     principal,
+  }
+}
+
+/** A keyless Google Cloud credential: Workload Identity Federation, no stored key. */
+async function buildGoogleWorkloadIdentitySecret(
+  serviceAccountJson: string,
+  owner: ServiceAccountSecretFields['owner']
+): Promise<ServiceAccountSecretResult> {
+  if (!owner) throw new ServiceAccountSecretError('Google Cloud credential owner is required')
+  let result
+  try {
+    result = await verifyAndEncryptGoogleWorkloadIdentityCredential(serviceAccountJson, owner)
+  } catch (error) {
+    if (error instanceof GoogleWorkloadIdentityError) {
+      throw new ServiceAccountSecretError(error.message)
+    }
+    throw new ServiceAccountSecretError(
+      `Could not verify the Google Cloud keyless credential: ${getErrorMessage(error, 'Unknown error')}`
+    )
+  }
+  const principal: ServiceAccountPrincipal = { kind: 'user', id: result.serviceAccountEmail }
+  return {
+    providerId: GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+    encryptedServiceAccountKey: result.encryptedServiceAccountKey,
+    displayName: result.serviceAccountEmail,
+    auditMetadata: {
+      googleClientEmail: result.serviceAccountEmail,
+      googleWorkloadIdentityProvider: result.workloadIdentityProvider,
+      ...serviceAccountPrincipalMetadata(principal),
+    },
+    principal,
+    newWorkloadIdentitySubject: result.newSubject,
   }
 }
 
@@ -302,6 +352,43 @@ async function buildDatabricksServiceAccountSecret(
     encryptedServiceAccountKey: result.encryptedServiceAccountKey,
     displayName: result.identity,
     auditMetadata: serviceAccountPrincipalMetadata(principal),
+    principal,
+    newWorkloadIdentitySubject: result.newSubject,
+  }
+}
+
+async function buildMicrosoftAppServiceAccountSecret(
+  fields: ServiceAccountSecretFields
+): Promise<ServiceAccountSecretResult> {
+  if (!fields.serviceAccountJson)
+    throw new ServiceAccountSecretError('Microsoft app credential configuration is required')
+  if (!fields.owner)
+    throw new ServiceAccountSecretError('Microsoft app credential owner is required')
+  let result
+  try {
+    result = await verifyAndEncryptMicrosoftAppCredential(fields.serviceAccountJson, fields.owner)
+  } catch (error) {
+    if (error instanceof MicrosoftAppCredentialError) {
+      throw new ServiceAccountSecretError(error.message)
+    }
+    throw new ServiceAccountSecretError(
+      `Could not verify the Microsoft app credential: ${getErrorMessage(error, 'Unknown error')}`
+    )
+  }
+  // The app's service principal is the identity every app-only token acts as.
+  const principal: ServiceAccountPrincipal = {
+    kind: 'user',
+    id: result.servicePrincipalId,
+    label: result.displayName,
+  }
+  return {
+    providerId: MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
+    encryptedServiceAccountKey: result.encryptedServiceAccountKey,
+    displayName: result.displayName,
+    auditMetadata: {
+      microsoftTenantId: result.tenantId,
+      ...serviceAccountPrincipalMetadata(principal),
+    },
     principal,
     newWorkloadIdentitySubject: result.newSubject,
   }
@@ -409,6 +496,38 @@ async function buildTokenServiceAccountSecret(
 }
 
 /**
+ * Builds a Snowflake secret. A JSON configuration is the keyless mode (no
+ * stored secret); otherwise the pasted programmatic access token goes through
+ * the token-paste builder exactly as before. Snowflake's own refusals keep the
+ * shared validation codes so callers report them like any token check.
+ */
+async function buildSnowflakeServiceAccountSecret(
+  fields: ServiceAccountSecretFields
+): Promise<ServiceAccountSecretResult> {
+  if (!fields.serviceAccountJson) {
+    return buildTokenServiceAccountSecret(SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID, fields)
+  }
+  if (fields.apiToken) {
+    throw new ServiceAccountSecretError(
+      'Send either a programmatic access token or a keyless configuration, not both'
+    )
+  }
+  if (!fields.owner) throw new ServiceAccountSecretError('Snowflake credential owner is required')
+  try {
+    const result = await verifyAndEncryptSnowflakeKeylessCredential(
+      fields.serviceAccountJson,
+      fields.owner
+    )
+    return { providerId: SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID, ...result }
+  } catch (error) {
+    if (error instanceof SnowflakeCredentialError) {
+      throw new ServiceAccountSecretError(error.message)
+    }
+    throw error
+  }
+}
+
+/**
  * Builds a client-credential service-account secret for any provider registered
  * in `CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS`: verifies the provider-specific
  * descriptor fields by minting a real access token (also capturing the derived
@@ -505,6 +624,8 @@ const SERVICE_ACCOUNT_SECRET_BUILDERS: Record<string, ServiceAccountSecretBuilde
   [ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID]: buildOracleDatabaseServiceAccountSecret,
   [AWS_SERVICE_ACCOUNT_PROVIDER_ID]: buildAwsServiceAccountSecret,
   [DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID]: buildDatabricksServiceAccountSecret,
+  [MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID]: buildMicrosoftAppServiceAccountSecret,
+  [SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID]: buildSnowflakeServiceAccountSecret,
 }
 
 /**

@@ -524,7 +524,7 @@ export const mistralParserV3Tool: InternalToolConfig<MistralParserV2Input, Mistr
       images: {
         type: 'file[]',
         description:
-          'Images extracted from the document, named page-<index>-<image id>; empty unless image extraction is on',
+          'Images extracted from the document, named page-<index>-<image id> with the extension of the detected image type; empty unless image extraction is on',
       },
     },
     params: {

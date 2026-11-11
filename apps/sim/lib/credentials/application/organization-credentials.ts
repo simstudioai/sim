@@ -392,7 +392,10 @@ export async function authorizeOrganizationCredentialUse(input: {
 }
 
 export async function resolveOrganizationCredentialTokenBundle(
-  input: Parameters<typeof authorizeOrganizationCredentialUse>[0]
+  input: Parameters<typeof authorizeOrganizationCredentialUse>[0] & {
+    /** The service the token is for, from the caller's server-side definition. */
+    service?: string
+  }
 ): Promise<ServiceAccountTokenResult | null> {
   const { credential: row, userId } = await authorizeOrganizationCredentialUse(input)
   if (row.type === 'managed_oauth') {
@@ -409,7 +412,7 @@ export async function resolveOrganizationCredentialTokenBundle(
     input.requestId,
     input.requiredScopes,
     input.impersonateEmail,
-    { privacyMode: 'selector' }
+    { privacyMode: 'selector', service: input.service }
   )
 }
 

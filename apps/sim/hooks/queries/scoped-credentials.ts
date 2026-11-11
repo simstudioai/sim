@@ -136,6 +136,8 @@ interface UseWorkloadIdentitySetupProps {
   /** One per modal session, so each open gets its own subject. */
   sessionKey: string
   enabled: boolean
+  /** The credential being reconnected, if any. */
+  credentialId?: string
 }
 
 /**
@@ -149,7 +151,11 @@ export function useWorkloadIdentitySetup(input: UseWorkloadIdentitySetupProps) {
     queryKey: workloadIdentityKeys.setup(input.workspaceId, input.provider, input.sessionKey),
     queryFn: async ({ signal }) =>
       requestJson(prepareWorkloadIdentityContract, {
-        body: { workspaceId: input.workspaceId ?? '', provider: input.provider },
+        body: {
+          workspaceId: input.workspaceId ?? '',
+          provider: input.provider,
+          ...(input.credentialId ? { credentialId: input.credentialId } : {}),
+        },
         signal,
       }),
     enabled: input.enabled && Boolean(input.workspaceId),

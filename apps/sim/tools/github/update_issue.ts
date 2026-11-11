@@ -5,6 +5,7 @@ import {
   MILESTONE_OUTPUT,
   USER_OUTPUT,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateIssueTool: ToolConfig<UpdateIssueParams, IssueResponse> = {
@@ -12,6 +13,7 @@ export const updateIssueTool: ToolConfig<UpdateIssueParams, IssueResponse> = {
   name: 'GitHub Update Issue',
   description: 'Update an existing issue in a GitHub repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {

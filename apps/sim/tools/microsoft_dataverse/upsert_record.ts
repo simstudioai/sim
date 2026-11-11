@@ -4,7 +4,10 @@ import type {
   DataverseUpsertRecordResponse,
 } from '@/tools/microsoft_dataverse/types'
 import { DATAVERSE_RECORD_OUTPUT } from '@/tools/microsoft_dataverse/types'
-import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
+import {
+  DATAVERSE_OAUTH_CONFIG,
+  getDataverseRequestBaseUrl,
+} from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseUpsertRecord')
@@ -19,7 +22,7 @@ export const dataverseUpsertRecordTool: ToolConfig<
     'Create or update a record in a Microsoft Dataverse table. If a record with the given ID exists, it is updated; otherwise, a new record is created.',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'microsoft-dataverse' },
+  oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',
 
   params: {
@@ -57,7 +60,7 @@ export const dataverseUpsertRecordTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      const baseUrl = getDataverseRequestBaseUrl(params)
       return `${baseUrl}/api/data/v9.2/${params.entitySetName.trim()}(${params.recordId.trim()})`
     },
     method: 'PATCH',

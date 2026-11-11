@@ -256,13 +256,16 @@ describe('Mistral ingestion authorization', () => {
   )
 
   it('returns extracted images as files, never as base64 in the output', async () => {
-    const png = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.from('synthetic jpeg body')])
+    const jpeg = Buffer.concat([
+      Buffer.from([0xff, 0xd8, 0xff]),
+      Buffer.from('synthetic jpeg body'),
+    ])
     submit.mockResolvedValue({
       pages: [
         {
           index: 0,
           images: [
-            { id: 'img-0.png', image_base64: `data:image/png;base64,${png.toString('base64')}` },
+            { id: 'img-0.png', image_base64: `data:image/png;base64,${jpeg.toString('base64')}` },
           ],
         },
       ],
@@ -275,7 +278,7 @@ describe('Mistral ingestion authorization', () => {
     expect(isInternalToolFileResult(result)).toBe(true)
     if (!isInternalToolFileResult(result)) return
     expect(result.files).toHaveLength(1)
-    expect(JSON.stringify(result.present([]))).not.toContain(png.toString('base64'))
+    expect(JSON.stringify(result.present([]))).not.toContain(jpeg.toString('base64'))
   })
 
   it('does not request images for tool versions that have no image output', async () => {

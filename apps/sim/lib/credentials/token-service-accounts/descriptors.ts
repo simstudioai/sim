@@ -112,6 +112,8 @@ export const CONVEX_SERVICE_ACCOUNT_PROVIDER_ID = 'convex-service-account' as co
 export const JUPYTER_SERVICE_ACCOUNT_PROVIDER_ID = 'jupyter-service-account' as const
 export const GRAFANA_SERVICE_ACCOUNT_PROVIDER_ID = 'grafana-service-account' as const
 export const GITLAB_SERVICE_ACCOUNT_PROVIDER_ID = 'gitlab-service-account' as const
+export const GITHUB_SERVICE_ACCOUNT_PROVIDER_ID = 'github-service-account' as const
+export const BITBUCKET_SERVICE_ACCOUNT_PROVIDER_ID = 'bitbucket-service-account' as const
 export const WHATSAPP_SERVICE_ACCOUNT_PROVIDER_ID = 'whatsapp-service-account' as const
 export const VERCEL_SERVICE_ACCOUNT_PROVIDER_ID = 'vercel-service-account' as const
 export const TYPEFORM_SERVICE_ACCOUNT_PROVIDER_ID = 'typeform-service-account' as const
@@ -239,6 +241,8 @@ export type TokenServiceAccountProviderId =
   | typeof JUPYTER_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof GRAFANA_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof GITLAB_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof GITHUB_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof BITBUCKET_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof WHATSAPP_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof VERCEL_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof TYPEFORM_SERVICE_ACCOUNT_PROVIDER_ID
@@ -1833,6 +1837,53 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       'Use a personal, project, or group access token with the api scope (read_api for read-only workflows). Enter gitlab.com, or your self-managed host.',
     invalidCredentialsHelp:
       'GitLab rejected this token. Check that it is active, has the api or read_api scope, and belongs to the host you entered.',
+  },
+  [GITHUB_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: GITHUB_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'GitHub',
+    tokenNoun: 'personal access token',
+    connectNoun: 'personal access token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Personal access token',
+        placeholder: 'github_pat_... or ghp_...',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/github',
+    helpText:
+      'Use a fine-grained personal access token limited to the repositories the workflow needs, or a classic token with the repo scope. GitHub Enterprise Server hosts are not supported.',
+    invalidCredentialsHelp:
+      'GitHub rejected this token. Check that it has not expired or been revoked, and that it is a personal access token for github.com rather than a GitHub App or Enterprise Server token.',
+  },
+  [BITBUCKET_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: BITBUCKET_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Bitbucket',
+    tokenNoun: 'access token',
+    connectNoun: 'access token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Access token',
+        placeholder: 'Paste a workspace, project, or repository access token',
+        secret: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Repository',
+        placeholder: 'my-workspace/my-repository',
+        secret: false,
+        hintPattern: /^[A-Za-z0-9][A-Za-z0-9_-]*\/[A-Za-z0-9_-][A-Za-z0-9._-]*$/,
+        hintMessage:
+          'Enter a repository the token can read as workspace/repository, as in bitbucket.org/my-workspace/my-repository.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/bitbucket-service-account',
+    helpText:
+      'Use a Bitbucket Cloud workspace, project, or repository access token with at least the repository scope. Enter any repository the token can read, as workspace/repository; Sim reads it once to verify the token.',
+    invalidCredentialsHelp:
+      'Bitbucket rejected this token. Check that it has not expired or been revoked, has the repository scope, and can read the repository you entered.',
   },
   [GRAFANA_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: GRAFANA_SERVICE_ACCOUNT_PROVIDER_ID,

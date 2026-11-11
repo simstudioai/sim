@@ -614,6 +614,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'microsoft-ad',
         icon: AzureIcon,
         baseProviderIcon: MicrosoftIcon,
+        serviceAccountProviderId: 'microsoft-app-service-account',
         scopes: [
           'openid',
           'profile',
@@ -639,6 +640,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'microsoft-dataverse',
         icon: MicrosoftDataverseIcon,
         baseProviderIcon: MicrosoftIcon,
+        serviceAccountProviderId: 'microsoft-app-service-account',
         scopes: [
           'openid',
           'profile',
@@ -823,6 +825,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'sharepoint',
         icon: MicrosoftSharepointIcon,
         baseProviderIcon: MicrosoftIcon,
+        serviceAccountProviderId: 'microsoft-app-service-account',
         scopes: [
           'openid',
           'profile',
@@ -1006,6 +1009,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Bitbucket',
         description: 'Read repositories, collaborate on pull requests, and manage pipelines.',
         providerId: 'bitbucket',
+        serviceAccountProviderId: 'bitbucket-service-account',
         icon: BitbucketIcon,
         baseProviderIcon: BitbucketIcon,
         scopes: [
@@ -1530,6 +1534,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: DocuSignIcon,
         baseProviderIcon: DocuSignIcon,
         scopes: ['signature', 'extended'],
+        serviceAccountProviderId: 'docusign-service-account',
       },
     },
     defaultService: 'docusign',
@@ -3083,6 +3088,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'whatsapp',
+  },
+  'github-token': {
+    name: 'GitHub',
+    icon: GithubIcon,
+    services: {
+      'github-token': {
+        name: 'GitHub',
+        description:
+          'Manage GitHub repositories, issues, pull requests, workflows, releases, and gists.',
+        providerId: 'github-token',
+        serviceAccountProviderId: 'github-service-account',
+        icon: GithubIcon,
+        baseProviderIcon: GithubIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'github-token',
   },
   gitlab: {
     name: 'GitLab',

@@ -1,4 +1,5 @@
 import type { ClosePRParams, PRResponse } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const closePRTool: ToolConfig<ClosePRParams, PRResponse> = {
@@ -6,6 +7,7 @@ export const closePRTool: ToolConfig<ClosePRParams, PRResponse> = {
   name: 'GitHub Close Pull Request',
   description: 'Close a pull request in a GitHub repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -96,6 +98,7 @@ export const closePRV2Tool: ToolConfig<ClosePRParams, any> = {
   name: closePRTool.name,
   description: closePRTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: closePRTool.params,
   request: closePRTool.request,
 

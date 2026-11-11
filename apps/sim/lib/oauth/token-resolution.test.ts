@@ -39,7 +39,9 @@ vi.unmock('@/lib/oauth/utils')
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { InvalidManagedOAuthDelegationError } from '@/lib/credentials/application/managed-oauth-delegation'
+import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { resolveCredentialAccessToken, resolveCredentialToken } from '@/lib/oauth/token-resolution'
+import type { OAuthService } from '@/lib/oauth/types'
 import { getToolMetadata } from '@/tools/metadata'
 
 const mockGetToolMetadata = vi.mocked(getToolMetadata)
@@ -638,4 +640,131 @@ describe('ordinary tool credential binding', () => {
       }
     }
   )
+})
+
+describe('Microsoft app credential binding', () => {
+  const authenticate = async () => INTERNAL_AUTH
+  const appCredential = {
+    credentialType: 'service_account',
+    credentialId: 'microsoft-app-1',
+    providerId: 'microsoft-app-service-account',
+    accountId: '',
+    workspaceId: 'workspace-1',
+    usedCredentialTable: true,
+  } as const
+
+  beforeEach(() => {
+    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
+      ok: true,
+      requesterUserId: 'user-1',
+      credentialOwnerUserId: 'owner-1',
+    })
+    mockResolveOAuthAccountId.mockResolvedValue(appCredential)
+    mockResolveServiceAccountToken.mockReset()
+    mockResolveServiceAccountToken.mockResolvedValue({ accessToken: 'app-token' })
+  })
+
+  function toolFor(provider: OAuthService) {
+    mockGetToolMetadata.mockReturnValue({
+      id: `${provider}-tool`,
+      params: {},
+      oauth: { required: true, provider },
+    })
+  }
+
+  it.each([
+    'outlook',
+    'onedrive',
+    'microsoft-excel',
+    'microsoft-word',
+    'microsoft-planner',
+    'microsoft-teams',
+  ] as const)(
+    'refuses an app credential for %s, which acts as a signed-in person',
+    async (provider) => {
+      toolFor(provider)
+      const result = await resolveCredentialAccessToken({
+        requestId: 'microsoft-app',
+        credentialId: 'microsoft-app-1',
+        toolId: `${provider}-tool`,
+        authenticate,
+      })
+      expect(result).toMatchObject({ ok: false, status: 400, code: 'CREDENTIAL_PROVIDER_MISMATCH' })
+      expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['microsoft-ad', 'sharepoint', 'microsoft-dataverse'] as const)(
+    'mints an app-only token for %s and tells the resolver which service it is for',
+    async (provider) => {
+      toolFor(provider)
+      const result = await resolveCredentialAccessToken({
+        requestId: 'microsoft-app',
+        credentialId: 'microsoft-app-1',
+        toolId: `${provider}-tool`,
+        authenticate,
+      })
+      expect(result).toMatchObject({ ok: true, token: { credentialType: 'service_account' } })
+      expect(mockResolveServiceAccountToken).toHaveBeenCalledWith(
+        'microsoft-app-1',
+        'microsoft-app-service-account',
+        expect.any(Array),
+        undefined,
+        { service: provider }
+      )
+    }
+  )
+
+  it('refuses an app credential for Reset password, which Graph allows only for a signed-in admin', async () => {
+    const { resetPasswordTool } = await import('@/tools/microsoft_ad/reset_password')
+    mockGetToolMetadata.mockReturnValue(resetPasswordTool)
+    const result = await resolveCredentialAccessToken({
+      requestId: 'microsoft-app',
+      credentialId: 'microsoft-app-1',
+      toolId: resetPasswordTool.id,
+      authenticate,
+    })
+    expect(result).toMatchObject({ ok: false, status: 400, code: 'CREDENTIAL_TYPE_MISMATCH' })
+    expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
+  })
+})
+
+describe('keyless Google Cloud credential refusals', () => {
+  const authenticate = async () => INTERNAL_AUTH
+
+  beforeEach(() => {
+    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
+      ok: true,
+      requesterUserId: 'user-1',
+      credentialOwnerUserId: 'owner-1',
+    })
+    mockResolveOAuthAccountId.mockResolvedValue({
+      credentialType: 'service_account',
+      credentialId: 'google-keyless-1',
+      providerId: 'google-service-account',
+      accountId: '',
+      workspaceId: 'workspace-1',
+      usedCredentialTable: true,
+    })
+    mockGetToolMetadata.mockReturnValue({
+      id: 'google-drive-tool',
+      params: {},
+      oauth: { required: true, provider: 'google-drive' },
+    })
+    mockResolveServiceAccountToken.mockReset()
+    mockResolveServiceAccountToken.mockRejectedValue(
+      new TokenServiceAccountValidationError('unsupported_use', 400)
+    )
+  })
+
+  it('tells the caller to use a JSON key instead of asking to reconnect', async () => {
+    const result = await resolveCredentialAccessToken({
+      requestId: 'google-keyless',
+      credentialId: 'google-keyless-1',
+      toolId: 'google-drive-tool',
+      authenticate,
+    })
+    expect(result).toMatchObject({ ok: false, status: 400, code: 'unsupported_use' })
+    expect(result.ok ? '' : result.error).toMatch(/use a JSON key credential instead/)
+  })
 })

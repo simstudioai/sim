@@ -79,6 +79,7 @@ import {
 } from '@/executor/utils/resolved-secret-trace-registry'
 import { prepareToolExecution, transformBlockTool } from '@/providers/utils'
 import { bitbucketGetPipelineStepLogTool } from '@/tools/bitbucket/get_pipeline_step_log'
+import { docusignGetEnvelopeTool } from '@/tools/docusign/get_envelope'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import { fileGetContentTool } from '@/tools/file/get'
 import { fileFetchTool } from '@/tools/file/parser'
@@ -87,8 +88,11 @@ import { searchUsersV2Tool } from '@/tools/github/search_users'
 import { jamaDeleteItemTool } from '@/tools/jama/delete_item'
 import { jamaDeleteRelationshipTool } from '@/tools/jama/delete_relationship'
 import { memoryAddTool } from '@/tools/memory/add'
+import { dataverseWhoAmITool } from '@/tools/microsoft_dataverse/whoami'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import { slackListsItemsListTool } from '@/tools/slack_lists/items_list'
+import { cortexAnalystAskTool as snowflakeCortexAnalystAskTool } from '@/tools/snowflake/cortex_analyst_ask'
+import { listDatabasesTool as snowflakeListDatabasesTool } from '@/tools/snowflake/list_databases'
 import { stripeListSubscriptionsTool } from '@/tools/stripe/list_subscriptions'
 import { stripeSearchSubscriptionsTool } from '@/tools/stripe/search_subscriptions'
 import { getCallerIdentityTool } from '@/tools/sts/get_caller_identity'
@@ -230,6 +234,7 @@ const mockRegistryTools: Record<string, any> = {
   stripe_search_subscriptions: stripeSearchSubscriptionsTool,
   slack_lists_items_list: slackListsItemsListTool,
   github_search_users_v2: searchUsersV2Tool,
+  docusign_get_envelope: docusignGetEnvelopeTool,
   jama_delete_item: jamaDeleteItemTool,
   jama_delete_relationship: jamaDeleteRelationshipTool,
   bitbucket_get_pipeline_step_log: bitbucketGetPipelineStepLogTool,
@@ -3576,6 +3581,43 @@ describe('Internal Route Trust', () => {
     }
   })
 
+  it('gives a DocuSign operation the account base only from its credential', async () => {
+    const boundBase =
+      'https://na3.docusign.net/restapi/v2.1/accounts/99999999-0000-0000-0000-000000000001'
+    const callerBase = 'https://evil.example.com/restapi/v2.1/accounts/x'
+    const context = createToolExecutionContext({
+      userId: 'user-1',
+      workspaceId: 'workspace-456',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+    })
+
+    mockResolveExecutorCredentialToken.mockResolvedValue({
+      accessToken: 'oauth-token',
+      credentialType: 'oauth',
+    })
+    await executeTool(
+      'docusign_get_envelope',
+      { credential: 'oauth-credential', envelopeId: 'env-1', instanceUrl: callerBase },
+      { executionContext: context }
+    )
+    mockResolveExecutorCredentialToken.mockResolvedValue({
+      accessToken: 'jwt-token',
+      credentialType: 'service_account',
+      instanceUrl: boundBase,
+    })
+    await executeTool(
+      'docusign_get_envelope',
+      { credential: 'jwt-credential', envelopeId: 'env-1', instanceUrl: callerBase },
+      { executionContext: context }
+    )
+
+    const [oauthCall, jwtCall] = mockExecuteInternalToolOperation.mock.calls
+    expect(oauthCall?.[0].input).toMatchObject({ accessToken: 'oauth-token', envelopeId: 'env-1' })
+    expect(oauthCall?.[0].input.instanceUrl).toBeUndefined()
+    expect(jwtCall?.[0].input).toMatchObject({ accessToken: 'jwt-token', instanceUrl: boundBase })
+  })
+
   it('accepts an authoritative QuickBooks realmId only from credential resolution', async () => {
     const toolId = 'test_quickbooks_realm_authority'
     const credentialRealmId = '123456789'
@@ -3625,6 +3667,228 @@ describe('Internal Route Trust', () => {
     } finally {
       Reflect.deleteProperty(tools, toolId)
     }
+  })
+
+  describe('Dataverse environment authority', () => {
+    beforeEach(() => {
+      ;(tools as Record<string, unknown>)[dataverseWhoAmITool.id] = dataverseWhoAmITool
+    })
+    afterEach(() => {
+      Reflect.deleteProperty(tools, dataverseWhoAmITool.id)
+    })
+
+    async function dataverseRequestUrl(
+      resolved: Record<string, unknown>,
+      callerParams: Record<string, unknown>
+    ) {
+      mockResolveExecutorCredentialToken.mockResolvedValue({ accessToken: 'token', ...resolved })
+      await executeTool(dataverseWhoAmITool.id, {
+        credential: 'dataverse-credential',
+        ...callerParams,
+      })
+      return mockSecureFetchWithPinnedIP.mock.lastCall?.[0]
+    }
+
+    it('keeps a signed-in account on the block environment even when the caller claims an app credential', async () => {
+      const url = await dataverseRequestUrl(
+        { credentialType: 'oauth' },
+        {
+          environmentUrl: 'https://contoso.crm.dynamics.com',
+          credentialType: 'service_account',
+          instanceUrl: 'https://fabrikam.api.crm.dynamics.com',
+        }
+      )
+
+      expect(url).toBe('https://contoso.crm.dynamics.com/api/data/v9.2/WhoAmI()')
+    })
+
+    it('sends an app credential to its own environment, never one the caller names', async () => {
+      mockSecureFetchWithPinnedIP.mockClear()
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'app-token',
+        credentialType: 'service_account',
+        instanceUrl: 'https://contoso.api.crm.dynamics.com',
+      })
+
+      const refused = await executeTool(dataverseWhoAmITool.id, {
+        credential: 'dataverse-credential',
+        environmentUrl: 'https://fabrikam.crm.dynamics.com',
+        instanceUrl: 'https://fabrikam.api.crm.dynamics.com',
+      })
+
+      expect(refused.success).toBe(false)
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+
+      const url = await dataverseRequestUrl(
+        { credentialType: 'service_account', instanceUrl: 'https://contoso.api.crm.dynamics.com' },
+        { environmentUrl: 'https://contoso.crm.dynamics.com' }
+      )
+      expect(url).toBe('https://contoso.api.crm.dynamics.com/api/data/v9.2/WhoAmI()')
+    })
+  })
+
+  describe('Snowflake token type', () => {
+    const CREDENTIAL_HOST = 'myorg-myaccount.snowflakecomputing.com'
+
+    beforeEach(() => {
+      ;(tools as Record<string, unknown>)[snowflakeListDatabasesTool.id] =
+        snowflakeListDatabasesTool
+    })
+    afterEach(() => {
+      Reflect.deleteProperty(tools, snowflakeListDatabasesTool.id)
+    })
+
+    async function snowflakeRequestHeaders(
+      resolved: Record<string, unknown>,
+      callerParams: Record<string, unknown>
+    ) {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        credentialType: 'service_account',
+        domain: CREDENTIAL_HOST,
+        ...resolved,
+      })
+      await executeTool(snowflakeListDatabasesTool.id, {
+        oauthCredential: 'snowflake-credential',
+        ...callerParams,
+      })
+      const [url, , init] = mockSecureFetchWithPinnedIP.mock.lastCall ?? []
+      return { url, headers: (init as { headers: Record<string, string> }).headers }
+    }
+
+    it('sends a programmatic access token as one even when the caller claims keyless and another host', async () => {
+      const { url, headers } = await snowflakeRequestHeaders(
+        { accessToken: 'pat-secret' },
+        { authStyle: 'snowflake-workload-identity', domain: 'attacker.snowflakecomputing.com' }
+      )
+
+      expect(url).toBe(`https://${CREDENTIAL_HOST}/api/v2/statements`)
+      expect(headers.authorization).toBe('Bearer pat-secret')
+      expect(headers['x-snowflake-authorization-token-type']).toBe('PROGRAMMATIC_ACCESS_TOKEN')
+    })
+
+    /**
+     * Cortex Analyst runs its generated SQL itself. The second statement must reach the
+     * credential's host with the credential's token type, for every credential mode.
+     */
+    it.each([
+      ['a programmatic access token', {}, 'Bearer pat-or-jwt', 'PROGRAMMATIC_ACCESS_TOKEN'],
+      [
+        'a keyless credential',
+        { authStyle: 'snowflake-workload-identity' },
+        'Bearer WIF.OIDC.pat-or-jwt',
+        'WORKLOAD_IDENTITY_FEDERATION',
+      ],
+    ])(
+      'runs Cortex Analyst’s generated SQL with %s',
+      async (_mode, resolved, authorization, tokenType) => {
+        ;(tools as Record<string, unknown>)[snowflakeCortexAnalystAskTool.id] =
+          snowflakeCortexAnalystAskTool
+        try {
+          mockResolveExecutorCredentialToken.mockResolvedValue({
+            credentialType: 'service_account',
+            domain: CREDENTIAL_HOST,
+            accessToken: 'pat-or-jwt',
+            ...resolved,
+          })
+          mockSecureFetchWithPinnedIP
+            .mockResolvedValueOnce(
+              toSecureFetchResponse(
+                Response.json({
+                  message: {
+                    role: 'analyst',
+                    content: [{ type: 'sql', statement: 'SELECT 1' }],
+                  },
+                })
+              )
+            )
+            .mockResolvedValueOnce(
+              toSecureFetchResponse(
+                Response.json({
+                  statementHandle: '01b2c3d4-0000-0000-0000-000000000000',
+                  sqlState: '00000',
+                  resultSetMetaData: { numRows: 1, rowType: [{ name: '1', type: 'fixed' }] },
+                  data: [['1']],
+                })
+              )
+            )
+
+          const result = await executeTool(snowflakeCortexAnalystAskTool.id, {
+            oauthCredential: 'snowflake-credential',
+            question: 'How many?',
+            semanticView: 'DB.SCHEMA.VIEW',
+            executeSql: true,
+          })
+
+          expect(result.success).toBe(true)
+          const [url, , init] = mockSecureFetchWithPinnedIP.mock.lastCall ?? []
+          expect(url).toBe(`https://${CREDENTIAL_HOST}/api/v2/statements`)
+          const headers = Object.fromEntries(
+            Object.entries((init as { headers: Record<string, string> }).headers).map(
+              ([name, value]) => [name.toLowerCase(), value]
+            )
+          )
+          expect(headers.authorization).toBe(authorization)
+          expect(headers['x-snowflake-authorization-token-type']).toBe(tokenType)
+        } finally {
+          Reflect.deleteProperty(tools, snowflakeCortexAnalystAskTool.id)
+        }
+      }
+    )
+
+    it('aborts Cortex Analyst’s generated SQL when the run is cancelled', async () => {
+      ;(tools as Record<string, unknown>)[snowflakeCortexAnalystAskTool.id] =
+        snowflakeCortexAnalystAskTool
+      const controller = new AbortController()
+      let statementSignal: AbortSignal | undefined
+      try {
+        mockResolveExecutorCredentialToken.mockResolvedValue({
+          credentialType: 'service_account',
+          domain: CREDENTIAL_HOST,
+          accessToken: 'pat-secret',
+        })
+        mockSecureFetchWithPinnedIP
+          .mockResolvedValueOnce(
+            toSecureFetchResponse(
+              Response.json({
+                message: { role: 'analyst', content: [{ type: 'sql', statement: 'SELECT 1' }] },
+              })
+            )
+          )
+          .mockImplementationOnce(
+            async (_url: string, _ip: string, init: { signal?: AbortSignal }) => {
+              statementSignal = init.signal
+              controller.abort(new Error('run cancelled'))
+              throw new Error('aborted')
+            }
+          )
+
+        const result = await executeTool(
+          snowflakeCortexAnalystAskTool.id,
+          {
+            oauthCredential: 'snowflake-credential',
+            question: 'How many?',
+            semanticView: 'DB.SCHEMA.VIEW',
+            executeSql: true,
+          },
+          { signal: controller.signal }
+        )
+
+        expect(statementSignal?.aborted).toBe(true)
+        expect(result.success).toBe(false)
+      } finally {
+        Reflect.deleteProperty(tools, snowflakeCortexAnalystAskTool.id)
+      }
+    })
+
+    it('sends a keyless credential’s token through workload identity federation', async () => {
+      const { headers } = await snowflakeRequestHeaders(
+        { accessToken: 'signed-jwt', authStyle: 'snowflake-workload-identity' },
+        {}
+      )
+
+      expect(headers.authorization).toBe('Bearer WIF.OIDC.signed-jwt')
+      expect(headers['x-snowflake-authorization-token-type']).toBe('WORKLOAD_IDENTITY_FEDERATION')
+    })
   })
 
   describe('saved token credentials (credentialParams)', () => {
@@ -4399,7 +4663,8 @@ describe('Internal Route Trust', () => {
       expect(postProcess).toHaveBeenCalledWith(
         expect.any(Object),
         expect.objectContaining({ prompt: 'direct-secret', apiKey: 'direct-secret' }),
-        expect.any(Function)
+        expect.any(Function),
+        expect.any(Object)
       )
       expect(params).toEqual(originalParams)
     } finally {

@@ -115,8 +115,8 @@ function DatabricksAccountForm({
   }
 
   const federationCommand =
-    authType === 'oidc_federation' && keyless.trust
-      ? buildDatabricksFederationCommand(keyless.trust)
+    authType === 'oidc_federation' && keyless.trust?.audience
+      ? buildDatabricksFederationCommand({ ...keyless.trust, audience: keyless.trust.audience })
       : null
   const action = credentialId ? 'Reconnect' : 'Add'
   const authOptions = [

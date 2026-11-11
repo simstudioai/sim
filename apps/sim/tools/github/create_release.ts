@@ -4,6 +4,7 @@ import {
   RELEASE_OUTPUT_PROPERTIES,
   USER_OUTPUT,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createReleaseTool: ToolConfig<CreateReleaseParams, ReleaseResponse> = {
@@ -12,6 +13,7 @@ export const createReleaseTool: ToolConfig<CreateReleaseParams, ReleaseResponse>
   description:
     'Create a new release for a GitHub repository. Specify tag name, target commit, title, description, and whether it should be a draft or prerelease.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {

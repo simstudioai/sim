@@ -67021,7 +67021,15 @@
           "line": 122
         }
       ],
-      "codeFences": [],
+      "codeFences": [
+        {
+          "lang": "bash",
+          "meta": null,
+          "sha256": "b867716c5b178cc345e9ec091ffd5db588c778b02f244e3e51513c9266fbaf8a",
+          "bytes": 733,
+          "line": 199
+        }
+      ],
       "links": [
         "https://console.cloud.google.com/",
         "#scopes-reference",
@@ -141491,9 +141499,16 @@
         {
           "lang": "sql",
           "meta": null,
+          "sha256": "96716701cef0ce8a3205217105b932f669acc115ec2faed939bf81704eb83ed2",
+          "bytes": 169,
+          "line": 29
+        },
+        {
+          "lang": "sql",
+          "meta": null,
           "sha256": "0fbd73d76ccb6a73e3f2f817a592bff15a0d1ffb45b4425fbfc91cc7ac0a48da",
           "bytes": 134,
-          "line": 46
+          "line": 94
         }
       ],
       "links": [

@@ -5,7 +5,10 @@ import type {
   DataverseDownloadFileResponse,
   DataverseDownloadFileV2Response,
 } from '@/tools/microsoft_dataverse/types'
-import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
+import {
+  DATAVERSE_OAUTH_CONFIG,
+  getDataverseRequestBaseUrl,
+} from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig, ToolFileData } from '@/tools/types'
 
 const logger = createLogger('DataverseDownloadFile')
@@ -54,7 +57,7 @@ export const dataverseDownloadFileTool = {
     'Download a file from a file or image column on a Dataverse record. Stores the file in execution storage and returns a file reference, plus the base64 content and metadata directly.',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'microsoft-dataverse' },
+  oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',
 
   params: {
@@ -92,7 +95,7 @@ export const dataverseDownloadFileTool = {
 
   request: {
     url: (params) => {
-      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      const baseUrl = getDataverseRequestBaseUrl(params)
       return `${baseUrl}/api/data/v9.2/${params.entitySetName.trim()}(${params.recordId.trim()})/${params.fileColumn.trim()}/$value`
     },
     method: 'GET',

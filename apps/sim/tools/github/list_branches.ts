@@ -1,5 +1,6 @@
 import type { BranchListResponse, ListBranchesParams } from '@/tools/github/types'
 import { BRANCH_OUTPUT_PROPERTIES } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listBranchesTool: ToolConfig<ListBranchesParams, BranchListResponse> = {
@@ -8,6 +9,7 @@ export const listBranchesTool: ToolConfig<ListBranchesParams, BranchListResponse
   description:
     'List all branches in a GitHub repository. Optionally filter by protected status and control pagination.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -142,6 +144,7 @@ export const listBranchesV2Tool: ToolConfig<ListBranchesParams, any> = {
   name: listBranchesTool.name,
   description: listBranchesTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listBranchesTool.params,
   request: listBranchesTool.request,
 

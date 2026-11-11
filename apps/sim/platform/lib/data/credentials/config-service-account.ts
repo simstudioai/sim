@@ -142,7 +142,8 @@ export function useConfigServiceAccountForm({
     })
   }
 
-  if (keyless && trust) {
+  if (keyless && trust?.audience) {
+    const fixedTrust = { ...trust, audience: trust.audience }
     const copy = (id: string, label: string, value: string, multiline = false) =>
       fields.push({
         id,
@@ -155,12 +156,12 @@ export function useConfigServiceAccountForm({
         value,
       })
     copy('issuer', 'Issuer', trust.issuer)
-    copy('audience', 'Audience', trust.audience)
+    copy('audience', 'Audience', fixedTrust.audience)
     copy('subject', 'Subject', trust.subject)
     copy(
       'trustSnippet',
       descriptor.trustSnippet.label,
-      descriptor.trustSnippet.build(trust, values),
+      descriptor.trustSnippet.build(fixedTrust, values),
       true
     )
   }

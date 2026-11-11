@@ -122,6 +122,7 @@ import {
   GitHubBlockMeta,
   GitHubV2Block,
   GitHubV2BlockMeta,
+  GitHubV3Block,
 } from '@/blocks/blocks/github'
 import { GitLabBlock, GitLabBlockMeta, GitLabV2Block } from '@/blocks/blocks/gitlab'
 import { GmailBlock, GmailBlockMeta, GmailV2Block, GmailV2BlockMeta } from '@/blocks/blocks/gmail'
@@ -627,6 +628,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   generic_webhook: GenericWebhookBlock,
   github: GitHubBlock,
   github_v2: GitHubV2Block,
+  github_v3: GitHubV3Block,
   gitlab: GitLabBlock,
   gitlab_v2: GitLabV2Block,
   gmail: GmailBlock,
@@ -1065,6 +1067,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   gauge: GaugeBlockMeta,
   github: GitHubBlockMeta,
   github_v2: GitHubV2BlockMeta,
+  github_v3: GitHubV2BlockMeta,
   gitlab: GitLabBlockMeta,
   gmail: GmailBlockMeta,
   gmail_v2: GmailV2BlockMeta,

@@ -481,6 +481,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   generic_webhook: Webhook,
   github: GithubIcon,
   github_v2: GithubIcon,
+  github_v3: GithubIcon,
   gitlab: GitLabIcon,
   gitlab_v2: GitLabIcon,
   gmail: GmailIcon,

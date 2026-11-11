@@ -9,6 +9,10 @@ import { env } from '@/lib/core/config/env'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import {
+  SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
+  TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
+} from '@/lib/credentials/token-service-accounts/descriptors'
 import type { WorkloadIdentityProvider } from '@/lib/credentials/workload-identity/audiences'
 import type { WorkloadIdentityOwner } from '@/lib/credentials/workload-identity/issuer'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
@@ -16,9 +20,14 @@ import type { DbTransaction } from '@/lib/db/types'
 import {
   AWS_SERVICE_ACCOUNT_PROVIDER_ID,
   DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
+  GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 
 const logger = createLogger('WorkloadIdentitySubject')
+
+/** The `type` of a Google JSON key, stored verbatim. */
+const GOOGLE_SERVICE_ACCOUNT_KEY_TYPE = 'service_account'
 
 /**
  * Credential-scoped workload-identity subjects.
@@ -179,18 +188,31 @@ export function bindWorkloadIdentitySubject(input: {
 const KEYLESS_PROVIDER_IDS = [
   AWS_SERVICE_ACCOUNT_PROVIDER_ID,
   DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
+  SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
+  MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
+  GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
 ]
 
-/** The part of an AWS or Databricks stored secret that can hold a bound subject. */
+/** The part of a keyless provider's stored secret that can hold a bound subject. */
 const storedSubjectSchema = z.object({
   config: z.object({ subject: z.string().optional() }),
+})
+
+/**
+ * Keyed secrets of those providers that have no `config` at all: a Google JSON
+ * key and a Snowflake programmatic access token. They hold no subject.
+ */
+const keyedSecretSchema = z.object({
+  type: z.enum([GOOGLE_SERVICE_ACCOUNT_KEY_TYPE, TOKEN_SERVICE_ACCOUNT_SECRET_TYPE]),
 })
 
 /** The subject a stored secret holds, `undefined` for a keyed mode, or `null` when unreadable. */
 async function readStoredSubject(encrypted: string): Promise<string | undefined | null> {
   try {
     const { decrypted } = await decryptSecret(encrypted)
-    const parsed = storedSubjectSchema.safeParse(JSON.parse(decrypted))
+    const blob: unknown = JSON.parse(decrypted)
+    if (keyedSecretSchema.safeParse(blob).success) return undefined
+    const parsed = storedSubjectSchema.safeParse(blob)
     return parsed.success ? parsed.data.config.subject : null
   } catch {
     return null

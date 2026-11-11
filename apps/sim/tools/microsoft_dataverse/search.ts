@@ -3,7 +3,10 @@ import type {
   DataverseSearchParams,
   DataverseSearchResponse,
 } from '@/tools/microsoft_dataverse/types'
-import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
+import {
+  DATAVERSE_OAUTH_CONFIG,
+  getDataverseRequestBaseUrl,
+} from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseSearch')
@@ -15,7 +18,7 @@ export const dataverseSearchTool: ToolConfig<DataverseSearchParams, DataverseSea
     'Perform a full-text relevance search across Microsoft Dataverse tables. Requires Dataverse Search to be enabled on the environment. Supports simple and Lucene query syntax.',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'microsoft-dataverse' },
+  oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',
 
   params: {
@@ -94,7 +97,7 @@ export const dataverseSearchTool: ToolConfig<DataverseSearchParams, DataverseSea
 
   request: {
     url: (params) => {
-      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      const baseUrl = getDataverseRequestBaseUrl(params)
       return `${baseUrl}/api/data/v9.2/searchquery`
     },
     method: 'POST',

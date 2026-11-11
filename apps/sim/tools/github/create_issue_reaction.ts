@@ -1,4 +1,5 @@
 import { REACTION_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface CreateIssueReactionParams {
@@ -30,6 +31,7 @@ export const createIssueReactionTool: ToolConfig<
   name: 'GitHub Create Issue Reaction',
   description: 'Add a reaction to an issue',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -119,6 +121,7 @@ export const createIssueReactionV2Tool: ToolConfig<CreateIssueReactionParams, an
   name: createIssueReactionTool.name,
   description: createIssueReactionTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: createIssueReactionTool.params,
   request: createIssueReactionTool.request,
 
