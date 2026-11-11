@@ -130,6 +130,8 @@ export interface SnowflakeKeylessSecret {
   displayName: string
   auditMetadata: Record<string, string>
   principal: ServiceAccountPrincipal | null
+  /** A subject this save binds that the credential did not already hold. */
+  newWorkloadIdentitySubject?: string
 }
 
 /**
@@ -194,6 +196,9 @@ export async function verifyAndEncryptSnowflakeKeylessCredential(
     displayName: validation.displayName,
     auditMetadata: { ...validation.auditMetadata, ...principalMetadata },
     principal: validation.principal,
+    ...(subject !== readStoredSubject(owner.storedSecret)
+      ? { newWorkloadIdentitySubject: subject }
+      : {}),
   }
 }
 

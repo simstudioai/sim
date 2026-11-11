@@ -231,6 +231,21 @@ describe('saving a Microsoft app credential', () => {
       expect(used).toContain(`sim-oidc|api://AzureADTokenExchange|${SUBJECT}`)
     })
 
+    it('reports a newly issued subject so the save can check no other credential holds it', async () => {
+      const grant = issueWorkloadIdentitySubject('microsoft', { workspaceId: 'ws-1' }, 'user-1')
+      fakeMicrosoft(fetch, {
+        acceptAssertion: (assertion) =>
+          assertion.endsWith(`|${grant.subject}`) || assertion.endsWith(`|${SUBJECT}`),
+      })
+
+      await expect(
+        save({ authType: 'federated', subject: grant.subject, subjectProof: grant.subjectProof })
+      ).resolves.toMatchObject({ newSubject: grant.subject })
+      await expect(save({ authType: 'federated' }, reconnectOwner)).resolves.not.toHaveProperty(
+        'newSubject'
+      )
+    })
+
     it('refuses an app that also accepts a subject no credential holds', async () => {
       fakeMicrosoft(fetch, { acceptAssertion: () => true })
 

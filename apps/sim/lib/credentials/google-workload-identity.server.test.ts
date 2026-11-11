@@ -264,7 +264,7 @@ describe('saving a keyless Google Cloud credential', () => {
 
     await expect(
       save({ subject: grant.subject, subjectProof: grant.subjectProof }, owner)
-    ).resolves.toMatchObject({ serviceAccountEmail: SA_EMAIL })
+    ).resolves.toMatchObject({ serviceAccountEmail: SA_EMAIL, newSubject: grant.subject })
   })
 
   it.each([

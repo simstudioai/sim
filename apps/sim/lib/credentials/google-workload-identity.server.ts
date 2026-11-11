@@ -347,6 +347,8 @@ export interface GoogleWorkloadIdentitySaveResult {
   serviceAccountEmail: string
   /** The workload identity provider's resource name. */
   workloadIdentityProvider: string
+  /** A subject this save binds that the credential did not already hold. */
+  newSubject?: string
 }
 
 /**
@@ -405,6 +407,9 @@ export async function verifyAndEncryptGoogleWorkloadIdentityCredential(
     encryptedServiceAccountKey: encrypted,
     serviceAccountEmail: config.serviceAccountEmail,
     workloadIdentityProvider: googleWorkloadIdentityProviderName(config),
+    ...(config.subject !== readStoredSubject(owner.storedSecret)
+      ? { newSubject: config.subject }
+      : {}),
   }
 }
 

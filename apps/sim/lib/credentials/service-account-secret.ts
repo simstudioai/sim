@@ -120,8 +120,8 @@ export interface ServiceAccountSecretResult {
   /** Slack custom bot: the derived bot user id (for reaction self-drop). */
   botUserId?: string
   /**
-   * Keyless AWS or Databricks: a subject this save binds that the credential did
-   * not already hold, which must not belong to another credential of the owner.
+   * Keyless AWS, Databricks, Snowflake, Microsoft app, or Google: a subject this save binds that
+   * the credential did not already hold, which must not belong to another credential of the owner.
    */
   newWorkloadIdentitySubject?: string
 }
@@ -301,6 +301,7 @@ async function buildGoogleWorkloadIdentitySecret(
       ...serviceAccountPrincipalMetadata(principal),
     },
     principal,
+    newWorkloadIdentitySubject: result.newSubject,
   }
 }
 
@@ -391,6 +392,7 @@ async function buildMicrosoftAppServiceAccountSecret(
       ...serviceAccountPrincipalMetadata(principal),
     },
     principal,
+    newWorkloadIdentitySubject: result.newSubject,
   }
 }
 

@@ -117,6 +117,7 @@ describe('saving a keyless Snowflake connection', () => {
     )
 
     expect(saved.displayName).toBe('SIM_WORKFLOWS (MYORG-MYACCOUNT)')
+    expect(saved.newWorkloadIdentitySubject).toBe(grant.subject)
     expect(secureFetch.mock.calls[0][0]).toBe(`https://${HOST}/api/v2/statements`)
     expect(secureFetch.mock.calls[0][1]).toMatchObject({ maxRedirects: 0 })
     expect(fetch).not.toHaveBeenCalled()

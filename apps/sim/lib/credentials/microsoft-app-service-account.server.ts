@@ -521,6 +521,8 @@ export interface MicrosoftAppCredentialSaveResult {
   /** The app's service principal object ID in the tenant. */
   servicePrincipalId: string
   tenantId: string
+  /** A subject this save binds that the credential did not already hold. */
+  newSubject?: string
 }
 
 /**
@@ -584,6 +586,9 @@ export async function verifyAndEncryptMicrosoftAppCredential(
     displayName: verified.value.displayName ?? config.clientId,
     servicePrincipalId: verified.value.id,
     tenantId: config.tenantId,
+    ...(config.authType === 'federated' && config.subject !== readStoredSubject(owner.storedSecret)
+      ? { newSubject: config.subject }
+      : {}),
   }
 }
 
