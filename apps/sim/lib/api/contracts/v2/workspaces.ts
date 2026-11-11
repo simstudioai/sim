@@ -121,7 +121,7 @@ const v2UpdateWorkspaceBodySchema = z
       .describe('New workspace display name.'),
     logoUrl: z
       .string()
-      .regex(/^(\/(?!\/)|https:\/\/)/, 'logoUrl must be a root-relative path or an HTTPS URL')
+      .regex(/^(\/$|\/[^/]|https:\/\/)/, 'logoUrl must be a root-relative path or an HTTPS URL')
       .nullable()
       .optional()
       .describe(

@@ -15082,8 +15082,8 @@
                   }
                 ]
               },
-              "traceId": {
-                "description": "Identifier of this request, the same value as the `x-request-id` response header. Include it when contacting support.",
+              "requestId": {
+                "description": "Identifier of this request, the same id as the `x-request-id` response header. Quote it when contacting support.",
                 "type": "string"
               }
             },
@@ -15266,7 +15266,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "pattern": "^(\\/(?!\\/)|https:\\/\\/)"
+                "pattern": "^(\\/$|\\/[^/]|https:\\/\\/)"
               },
               {
                 "type": "null"

@@ -1424,7 +1424,10 @@ export const v2UpdateWorkflowTriggerContract = defineRouteContract({
   },
 })
 
-const v2WorkspaceScheduleSortFields = ['createdAt'] as const
+const v2WorkspaceScheduleSort = v2SortFields(['createdAt'] as const, {
+  sortBy: 'createdAt',
+  sortOrder: 'desc',
+})
 
 /** One schedule the live deployments of a workspace run. */
 const v2WorkspaceScheduleSchema = v2WorkflowTriggerSchema
@@ -1457,7 +1460,10 @@ const v2ListWorkspaceSchedulesQuerySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace whose schedules should be listed.'),
     ...v2PaginationFields({ description: 'Maximum schedules to return per page.' }),
-    ...v2SortFields(v2WorkspaceScheduleSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
+    ...v2WorkspaceScheduleSort,
+    sortBy: v2WorkspaceScheduleSort.sortBy.describe(
+      "Field used to sort the result. `createdAt` is when the schedule was created for the deployment version that runs it: each deploy creates new schedule rows, so a redeployed workflow's schedules move to the newest end."
+    ),
   })
   .strict()
   .meta({
@@ -3348,7 +3354,7 @@ const v2WorkflowOutlineBlockSchema = z
       .record(z.string(), z.unknown().describe('Configured value; shape depends on the field.'))
       .optional()
       .describe(
-        'Configured values keyed by field id, with empty values omitted and editor-only metadata removed. Loop and parallel containers report their iteration settings here. A webhook trigger also carries a derived `triggerWebhookUrl`, and a credential-routed trigger a derived `triggerRouting`; both are read-only.'
+        'Configured values keyed by field id, with null values omitted. Fields hidden from agents are omitted as well, and some of them are real configuration, so read Get workflow state for the full set. Loop and parallel containers report their iteration settings here. A webhook trigger also carries a derived `triggerWebhookUrl`, and a credential-routed trigger a derived `triggerRouting`; both are read-only.'
       ),
     connections: z
       .record(

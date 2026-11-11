@@ -22851,7 +22851,8 @@ export const V2_OPERATIONS = {
         kind: 'enum',
         values: ['createdAt'] as const,
         default: 'createdAt',
-        describe: 'Field used to sort the result.',
+        describe:
+          "Field used to sort the result. `createdAt` is when the schedule was created for the deployment version that runs it: each deploy creates new schedule rows, so a redeployed workflow's schedules move to the newest end.",
       },
       sortOrder: {
         kind: 'enum',

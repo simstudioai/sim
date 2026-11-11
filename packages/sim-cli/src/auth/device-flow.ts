@@ -72,6 +72,8 @@ export interface AuthRequest {
 export interface MintedKey {
   id: string
   apiKey: string
+  /** The name the key is listed under, or null from a server that predates it. */
+  name: string | null
   scope: CliAuthScope
   /** The workspace picked in the browser — the profile's default target. */
   workspaceId: string | null
@@ -137,7 +139,7 @@ export function buildApprovalUrl(
 
 interface PollResponse {
   status: 'pending' | 'complete'
-  key?: { id: string; apiKey: string }
+  key?: { id: string; apiKey: string; name?: string }
   scope?: CliAuthScope
   workspaceId?: string | null
   workspaceBound?: boolean
@@ -261,6 +263,7 @@ export async function pollForKey(
           return {
             id: body.key.id,
             apiKey: body.key.apiKey,
+            name: typeof body.key.name === 'string' ? body.key.name : null,
             // Older servers answer without these; a key from a server that does
             // not know about scopes is a copilot key by definition.
             scope: body.scope ?? 'copilot',
