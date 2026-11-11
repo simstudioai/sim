@@ -40,12 +40,15 @@ const tokenSecret = {
 }
 
 /** The credential being reconnected, as the caller's access to it resolves. */
-function reconnecting(secret: object, access: { isAdmin?: boolean; workspaceId?: string } = {}) {
+function reconnecting(
+  secret: object,
+  access: { isAdmin?: boolean; workspaceId?: string; providerId?: string } = {}
+) {
   credentialsAccessMockFns.mockGetCredentialActorContext.mockResolvedValue({
     credential: {
       workspaceId: access.workspaceId ?? 'workspace-1',
       type: 'service_account',
-      providerId: 'snowflake-service-account',
+      providerId: access.providerId ?? 'snowflake-service-account',
       encryptedServiceAccountKey: 'ciphertext',
     },
     member: null,
@@ -56,10 +59,10 @@ function reconnecting(secret: object, access: { isAdmin?: boolean; workspaceId?:
   encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: JSON.stringify(secret) })
 }
 
-function prepare() {
+function prepare(provider: 'snowflake' | 'google' = 'snowflake') {
   return prepareWorkloadIdentity.execute({
     principal,
-    input: { workspaceId: 'workspace-1', provider: 'snowflake', credentialId: 'cred-1' },
+    input: { workspaceId: 'workspace-1', provider, credentialId: 'cred-1' },
   })
 }
 
@@ -110,6 +113,44 @@ describe('preparing a Snowflake reconnect', () => {
   it('reveals nothing about a credential from another workspace', async () => {
     reconnecting(keylessSecret, { workspaceId: 'workspace-2' })
     expect(await prepare()).not.toHaveProperty('reconnectsKeyless')
+    expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
+  })
+})
+
+describe('preparing a Google service account reconnect', () => {
+  const google = { providerId: 'google-service-account' }
+
+  beforeEach(() => {
+    workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext.mockResolvedValue({
+      workspaceId: 'workspace-1',
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'user-1',
+    })
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
+  })
+
+  it('opens a keyless credential on keyless, with no fixed audience', async () => {
+    reconnecting(
+      {
+        type: 'google_workload_identity_v1',
+        config: { subject: 'sim:workspace:workspace-1:credential:abcdef0123456789' },
+      },
+      google
+    )
+    const result = await prepare('google')
+    expect(result).toMatchObject({ available: true, reconnectsKeyless: true })
+    expect(result).not.toHaveProperty('audience')
+  })
+
+  it('opens a JSON key credential on the key', async () => {
+    reconnecting({ type: 'service_account', client_email: 'sa@p.iam.gserviceaccount.com' }, google)
+    expect(await prepare('google')).not.toHaveProperty('reconnectsKeyless')
+  })
+
+  it('does not read a Snowflake credential as a Google one', async () => {
+    reconnecting(keylessSecret)
+    expect(await prepare('google')).not.toHaveProperty('reconnectsKeyless')
     expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
   })
 })

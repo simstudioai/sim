@@ -30,6 +30,10 @@ vi.mock('@/lib/concurrency/leader-lock', () => ({
 }))
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/credentials/workload-identity/issuer', () => ({
+  isWorkloadIdentityConfigured: async () => true,
+  mintWorkloadIdentityToken: async ({ subject }: { subject: string }) => `sim-oidc|${subject}`,
+}))
 
 vi.mock('@/lib/oauth/instagram', () => ({
   isInstagramProvider: vi.fn(() => false),
@@ -1209,6 +1213,74 @@ describe('Google service-account token minting', () => {
       errorDescription: 'Token exchange failed: 400',
     })
     expect(JSON.stringify(loggedCalls('error'))).not.toContain('xxxx')
+  })
+
+  describe('a keyless credential', () => {
+    const keylessSecret = {
+      decrypted: JSON.stringify({
+        type: 'google_workload_identity_v1',
+        config: {
+          projectNumber: '123456789012',
+          poolId: 'sim-pool',
+          providerId: 'sim-oidc',
+          serviceAccountEmail: 'bq-runner@analytics-prod.iam.gserviceaccount.com',
+          subject: 'sim:workspace:ws-1:credential:abcdef0123456789',
+        },
+      }),
+    }
+
+    it('refuses an impersonated Workspace user instead of signing a delegation JWT', async () => {
+      queueTableRows(credential, [row])
+      mocks.decryptSecret.mockResolvedValue(keylessSecret)
+
+      await expect(
+        getServiceAccountToken('credential-1', [driveScope], 'member@example.com', {
+          service: 'google-bigquery',
+        })
+      ).rejects.toMatchObject({ code: 'unsupported_use' })
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('mints through federation, not a JWT, for the BigQuery tool the resolver dispatches', async () => {
+      queueTableRows(credential, [row])
+      mocks.decryptSecret.mockResolvedValue(keylessSecret)
+      fetchMock.mockImplementation(async (input) =>
+        String(input).startsWith('https://sts.googleapis.com/')
+          ? Response.json({ access_token: 'federated-token' })
+          : Response.json({ accessToken: 'bigquery-token', expireTime: '2026-09-09T19:00:00Z' })
+      )
+      const bigQueryScope = 'https://www.googleapis.com/auth/bigquery'
+
+      await expect(
+        resolveServiceAccountToken(
+          'credential-keyless',
+          GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+          [bigQueryScope],
+          undefined,
+          { service: 'google-bigquery' }
+        )
+      ).resolves.toEqual({ accessToken: 'bigquery-token' })
+      expect(fetchMock.mock.calls.map(([input]) => String(input))).toEqual([
+        'https://sts.googleapis.com/v1/token',
+        'https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/bq-runner%40analytics-prod.iam.gserviceaccount.com:generateAccessToken',
+      ])
+    })
+
+    it('refuses a Workspace tool the resolver dispatches to it', async () => {
+      queueTableRows(credential, [row])
+      mocks.decryptSecret.mockResolvedValue(keylessSecret)
+
+      await expect(
+        resolveServiceAccountToken(
+          'credential-1',
+          GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+          [driveScope],
+          undefined,
+          { service: 'google-drive' }
+        )
+      ).rejects.toMatchObject({ code: 'unsupported_use' })
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
   })
 })
 

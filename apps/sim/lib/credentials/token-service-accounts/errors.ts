@@ -19,6 +19,11 @@ export type TokenServiceAccountValidationCode =
   | 'consent_required'
   /** The credential authenticated, but the account it pins is not one its user belongs to. */
   | 'account_not_found'
+  /**
+   * The credential works, but not for this service or option: a keyless Google Cloud credential
+   * asked for a Workspace service or to impersonate a user (domain-wide delegation).
+   */
+  | 'unsupported_use'
 
 export class TokenServiceAccountValidationError extends Error {
   constructor(

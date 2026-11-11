@@ -39,6 +39,7 @@ vi.unmock('@/lib/oauth/utils')
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { InvalidManagedOAuthDelegationError } from '@/lib/credentials/application/managed-oauth-delegation'
+import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { resolveCredentialAccessToken, resolveCredentialToken } from '@/lib/oauth/token-resolution'
 import type { OAuthService } from '@/lib/oauth/types'
 import { getToolMetadata } from '@/tools/metadata'
@@ -703,5 +704,45 @@ describe('Microsoft app credential binding', () => {
     })
     expect(result).toMatchObject({ ok: false, status: 400, code: 'CREDENTIAL_TYPE_MISMATCH' })
     expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
+  })
+})
+
+describe('keyless Google Cloud credential refusals', () => {
+  const authenticate = async () => INTERNAL_AUTH
+
+  beforeEach(() => {
+    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
+      ok: true,
+      requesterUserId: 'user-1',
+      credentialOwnerUserId: 'owner-1',
+    })
+    mockResolveOAuthAccountId.mockResolvedValue({
+      credentialType: 'service_account',
+      credentialId: 'google-keyless-1',
+      providerId: 'google-service-account',
+      accountId: '',
+      workspaceId: 'workspace-1',
+      usedCredentialTable: true,
+    })
+    mockGetToolMetadata.mockReturnValue({
+      id: 'google-drive-tool',
+      params: {},
+      oauth: { required: true, provider: 'google-drive' },
+    })
+    mockResolveServiceAccountToken.mockReset()
+    mockResolveServiceAccountToken.mockRejectedValue(
+      new TokenServiceAccountValidationError('unsupported_use', 400)
+    )
+  })
+
+  it('tells the caller to use a JSON key instead of asking to reconnect', async () => {
+    const result = await resolveCredentialAccessToken({
+      requestId: 'google-keyless',
+      credentialId: 'google-keyless-1',
+      toolId: 'google-drive-tool',
+      authenticate,
+    })
+    expect(result).toMatchObject({ ok: false, status: 400, code: 'unsupported_use' })
+    expect(result.ok ? '' : result.error).toMatch(/use a JSON key credential instead/)
   })
 })

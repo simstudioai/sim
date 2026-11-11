@@ -37,6 +37,7 @@ import {
   deletePersonalEnvCredentialForUser,
   deleteWorkspaceEnvCredentials,
 } from '@/lib/credentials/environment'
+import { GOOGLE_WORKLOAD_IDENTITY_SECRET_TYPE } from '@/lib/credentials/google-workload-identity'
 import { OciCredentialVerificationError } from '@/lib/credentials/oci-api-key-service-account.server'
 import type {
   AtlassianProduct,
@@ -176,6 +177,12 @@ function deriveStoredDisplayName(blob: Record<string, unknown> | null): string |
   }
   if (blob.type === GOOGLE_SERVICE_ACCOUNT_KEY_TYPE && typeof blob.client_email === 'string') {
     return blob.client_email || undefined
+  }
+  if (blob.type === GOOGLE_WORKLOAD_IDENTITY_SECRET_TYPE) {
+    const config = blob.config as { serviceAccountEmail?: unknown } | undefined
+    return typeof config?.serviceAccountEmail === 'string'
+      ? config.serviceAccountEmail || undefined
+      : undefined
   }
   return undefined
 }
@@ -347,10 +354,11 @@ export async function updateCredentialRecord(
         providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID &&
         params.atlassianProduct === undefined
       const needsStoredUsername = params.username === undefined && isMultiGrantProvider
-      // A keyless AWS role, Databricks principal, Microsoft app, or Snowflake service user keeps
-      // its trusted subject across reconnects.
+      // A keyless AWS role, Databricks principal, Microsoft app, Google service account, or
+      // Snowflake service user keeps its trusted subject across reconnects.
       const needsStoredBoundSubject =
         providerId === AWS_SERVICE_ACCOUNT_PROVIDER_ID ||
+        providerId === GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID ||
         providerId === DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID ||
         providerId === MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID ||
         (providerId === SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID &&

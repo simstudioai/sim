@@ -29,6 +29,11 @@ import {
 } from '@/lib/credentials/databricks-service-account.server'
 import { slackCustomBotDisplayName } from '@/lib/credentials/display-name'
 import {
+  GoogleWorkloadIdentityError,
+  isGoogleWorkloadIdentitySubmission,
+  verifyAndEncryptGoogleWorkloadIdentityCredential,
+} from '@/lib/credentials/google-workload-identity.server'
+import {
   MicrosoftAppCredentialError,
   verifyAndEncryptMicrosoftAppCredential,
 } from '@/lib/credentials/microsoft-app-service-account.server'
@@ -239,6 +244,9 @@ async function buildGoogleServiceAccountSecret(
       'serviceAccountJson is required for service account credentials'
     )
   }
+  if (isGoogleWorkloadIdentitySubmission(serviceAccountJson)) {
+    return buildGoogleWorkloadIdentitySecret(serviceAccountJson, fields.owner)
+  }
   const jsonParseResult = serviceAccountJsonSchema.safeParse(serviceAccountJson)
   if (!jsonParseResult.success) {
     throw new ServiceAccountSecretError(
@@ -259,6 +267,37 @@ async function buildGoogleServiceAccountSecret(
     auditMetadata: {
       googleClientEmail: clientEmail,
       googleProjectId: projectId,
+      ...serviceAccountPrincipalMetadata(principal),
+    },
+    principal,
+  }
+}
+
+/** A keyless Google Cloud credential: Workload Identity Federation, no stored key. */
+async function buildGoogleWorkloadIdentitySecret(
+  serviceAccountJson: string,
+  owner: ServiceAccountSecretFields['owner']
+): Promise<ServiceAccountSecretResult> {
+  if (!owner) throw new ServiceAccountSecretError('Google Cloud credential owner is required')
+  let result
+  try {
+    result = await verifyAndEncryptGoogleWorkloadIdentityCredential(serviceAccountJson, owner)
+  } catch (error) {
+    if (error instanceof GoogleWorkloadIdentityError) {
+      throw new ServiceAccountSecretError(error.message)
+    }
+    throw new ServiceAccountSecretError(
+      `Could not verify the Google Cloud keyless credential: ${getErrorMessage(error, 'Unknown error')}`
+    )
+  }
+  const principal: ServiceAccountPrincipal = { kind: 'user', id: result.serviceAccountEmail }
+  return {
+    providerId: GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+    encryptedServiceAccountKey: result.encryptedServiceAccountKey,
+    displayName: result.serviceAccountEmail,
+    auditMetadata: {
+      googleClientEmail: result.serviceAccountEmail,
+      googleWorkloadIdentityProvider: result.workloadIdentityProvider,
       ...serviceAccountPrincipalMetadata(principal),
     },
     principal,

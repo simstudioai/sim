@@ -18,6 +18,7 @@ import {
   getClientCredentialAccountMinter,
   parseClientCredentialAccountSecretBlob,
 } from '@/lib/credentials/client-credential-accounts/server'
+import { isGoogleWorkloadIdentitySecret } from '@/lib/credentials/google-workload-identity'
 import {
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
@@ -98,7 +99,8 @@ export interface CredentialTokenResolutionOptions {
   /**
    * The OAuth service the token is for, set only from server-side policy (a tool's validated
    * policy, a selector's or connector's own definition), never from the caller. A Microsoft app
-   * credential mints for that service's resource and refuses any other.
+   * credential mints for that service's resource and refuses any other; a keyless Google
+   * credential refuses any service that is not a Google Cloud API.
    */
   service?: string
   /**
@@ -240,10 +242,19 @@ const SA_DIAGNOSTIC_ERROR_CODES = new Set([
  * delegated subject) share one query and decrypt; a later read queries again, so it sees a
  * revocation recorded since. Sharing also bounds a hung read by the coalescing settle timeout.
  */
-function readGoogleServiceAccountKey(credentialId: string): Promise<string> {
+interface GoogleServiceAccountSecret {
+  decrypted: string
+  /** Changes whenever the stored secret is re-encrypted. */
+  secretVersion: string
+  owner: { workspaceId?: string; organizationId?: string }
+}
+
+function readGoogleServiceAccountKey(credentialId: string): Promise<GoogleServiceAccountSecret> {
   return coalesceLocally(`sa-key:${credentialId}`, async () => {
     const [credentialRow] = await db
       .select({
+        workspaceId: credential.workspaceId,
+        organizationId: credential.organizationId,
         type: credential.type,
         providerId: credential.providerId,
         revokedAt: credential.revokedAt,
@@ -263,7 +274,13 @@ function readGoogleServiceAccountKey(credentialId: string): Promise<string> {
     }
 
     const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
-    return decrypted
+    return {
+      decrypted,
+      secretVersion: credentialRow.encryptedServiceAccountKey.slice(0, 32),
+      owner: credentialRow.workspaceId
+        ? { workspaceId: credentialRow.workspaceId }
+        : { organizationId: credentialRow.organizationId ?? undefined },
+    }
   })
 }
 
@@ -283,14 +300,35 @@ export async function getServiceAccountToken(
   options?: CredentialTokenResolutionOptions
 ): Promise<string> {
   options?.signal?.throwIfAborted()
-  const decrypted = await waitWithAbort(readGoogleServiceAccountKey(credentialId), options?.signal)
+  const { decrypted, secretVersion, owner } = await waitWithAbort(
+    readGoogleServiceAccountKey(credentialId),
+    options?.signal
+  )
+  const filteredScopes = scopes.filter((s) => !SA_EXCLUDED_SCOPES.has(s))
+
+  if (isGoogleWorkloadIdentitySecret(decrypted)) {
+    const { resolveGoogleWorkloadIdentityToken } = await import(
+      '@/lib/credentials/google-workload-identity.server'
+    )
+    return waitWithAbort(
+      resolveGoogleWorkloadIdentityToken({
+        credentialId,
+        decrypted,
+        secretVersion,
+        owner,
+        scopes: filteredScopes,
+        impersonateEmail,
+        service: options?.service,
+      }),
+      options?.signal
+    )
+  }
+
   const keyData = JSON.parse(decrypted) as {
     client_email: string
     private_key: string
     token_uri?: string
   }
-
-  const filteredScopes = scopes.filter((s) => !SA_EXCLUDED_SCOPES.has(s))
 
   const now = Math.floor(Date.now() / 1000)
   const ALLOWED_TOKEN_URIS = new Set(['https://oauth2.googleapis.com/token'])
@@ -813,7 +851,7 @@ const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolve
   },
   [GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID]: async (
     credentialId,
-    { scopes, impersonateEmail, privacyMode, signal }
+    { scopes, impersonateEmail, privacyMode, service, signal }
   ) => {
     if (!scopes?.length) {
       throw new Error('Scopes are required for service account credentials')
@@ -821,6 +859,7 @@ const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolve
     return {
       accessToken: await getServiceAccountToken(credentialId, scopes, impersonateEmail, {
         privacyMode,
+        service,
         signal,
       }),
     }

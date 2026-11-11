@@ -573,14 +573,17 @@ export const prepareWorkloadIdentityContract = defineRouteContract({
         available: z.literal(true),
         /** Register this URL as the OpenID Connect issuer the cloud trusts. */
         issuer: z.string(),
-        /** The `aud` the cloud must accept (AWS client ID, Databricks policy audience). */
-        audience: z.string(),
+        /**
+         * The `aud` the cloud must accept (AWS client ID, Databricks policy audience). Absent for
+         * Google, whose audience is each credential's own workload identity provider.
+         */
+        audience: z.string().optional(),
         /** The exact `sub` the role's trust policy must allow. */
         subject: z.string(),
         /** Opaque proof submitted with the credential; binds the subject to its creator. */
         subjectProof: z.string(),
         expiresAt: z.string(),
-        /** The reconnected credential is keyless (Snowflake only). */
+        /** The reconnected credential is keyless (Snowflake and Google only). */
         reconnectsKeyless: z.literal(true).optional(),
       }),
     ]),

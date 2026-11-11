@@ -484,6 +484,15 @@ export async function resolveCredentialToken(
                 'The provider needs the impersonated user to grant consent — reconnect the credential to get the consent link',
             }
           }
+          if (error.code === 'unsupported_use') {
+            return {
+              ok: false,
+              status: 400,
+              code: error.code,
+              error:
+                'This credential cannot be used here. Keyless Google Cloud credentials work only with Google Cloud tools such as BigQuery and cannot impersonate a Workspace user; use a JSON key credential instead',
+            }
+          }
           if (error.code === 'account_not_found') {
             return {
               ok: false,
