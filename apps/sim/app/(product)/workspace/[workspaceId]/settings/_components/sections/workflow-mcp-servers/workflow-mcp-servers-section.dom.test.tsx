@@ -25,11 +25,14 @@ vi.mock(
     ),
   })
 )
+vi.mock('@/platform/lib/data/settings-subview', () => ({
+  useSettingsSubview: () => ({ id: 'srv', open: vi.fn(), close: vi.fn() }),
+}))
 vi.mock('@/platform/lib/data/mcp', () => ({
+  mcpServerIdParam: { key: 'mcpServerId' },
   createLogger: () => ({ error: vi.fn(), info: vi.fn() }),
   useDeleteWorkflowMcpServer: () => ({ mutateAsync: mcp.deleteServer }),
   useDeployedWorkflows: () => ({ data: [] }),
-  useMcpServerIdParam: () => ['srv', vi.fn()],
   useMcpServerTabParam: () => [null, vi.fn()],
   useSettingsSearch: () => ['', vi.fn()],
   useWorkflowMcpServers: () => ({

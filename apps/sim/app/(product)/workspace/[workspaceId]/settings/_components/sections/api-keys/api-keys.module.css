@@ -3,8 +3,3 @@
   align-items: center;
   gap: var(--ui-action-gap);
 }
-
-.status {
-  color: var(--ui-secondary);
-  padding-block: var(--spacing-12);
-}

@@ -2,13 +2,12 @@
 
 import { Button } from '@sim/emcn/button'
 import { Disclosure } from '@sim/emcn/disclosure'
-import { EmptyState } from '@sim/emcn/empty-state'
 import { PropertyList } from '@sim/emcn/property-list'
 import { LoadMoreFooter } from '@sim/emcn/scroll-area/load-more-footer'
-import { SettingsSection } from '@sim/emcn/settings-section'
-import { FailureNotice, InlineNotice, StatusTag } from '@sim/emcn/status'
+import { InlineNotice, StatusTag } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
 import {
   ActionRow,
   DetailHeader,
@@ -17,17 +16,17 @@ import {
   RowStack,
   SectionStack,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { SettingsRead } from '@/app/(product)/_components/settings-parts/settings-read'
 import {
   type BackgroundWorkItem,
   type BackgroundWorkMetadata,
   useWorkspaceBackgroundWork,
 } from '@/platform/lib/data/forks'
+import { plural } from '@/platform/shared/plural'
 import { formatTimestamp } from '@/platform/shared/time'
 
 /** Errors can carry a whole driver message; the status line is a glance-level summary. */
 const STATUS_MAX_LENGTH = 240
-
-const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`
 
 /** "N verb" segments (verbs like "updated" are not pluralized), dropping zero counts. */
 function countList(pairs: Array<[number | undefined, string]>): string {
@@ -292,7 +291,7 @@ interface ForkActivityProps {
 
 /**
  * Every fork, sync and rollback involving this workspace, on both sides of each edge, newest
- * first and paged; each row opens to what changed. Rollback sits in the header while the last sync
+ * first and paged; each row opens to what changed. Undo last sync sits in the header while the last sync
  * into this workspace can be undone.
  */
 export function ForkActivity({
@@ -318,49 +317,48 @@ export function ForkActivity({
             disabled={rollingBack}
             onClick={onRollback}
           >
-            Rollback
+            Undo last sync
           </Button>
         )}
       </DetailHeader>
       {undoable && (
         <InlineNotice
-          message={`The last sync into this workspace (from ${undoable.otherName}) can be undone — it restores each workflow's prior deployed version.`}
+          message={`The last sync into this workspace, from ${undoable.otherName}, can be undone`}
         />
       )}
-      <SettingsSection title='Events'>
-        {jobs.length > 0 ? (
-          <FieldStack>
-            <RowStack>
-              {jobs.map((job) => (
-                <ActivityEntry key={job.id} job={job} view={view} />
-              ))}
-            </RowStack>
-            <LoadMoreFooter
-              state={{
-                hasMore: feed.hasNextPage,
-                loading: feed.isFetchingNextPage,
-                error: feed.isFetchNextPageError
-                  ? getErrorMessage(feed.error, "Couldn't load more activity")
-                  : undefined,
-                onLoadMore: () => void feed.fetchNextPage(),
-              }}
-            />
-          </FieldStack>
-        ) : feed.isPending ? null : feed.isError ? (
-          <FieldStack>
-            <FailureNotice
-              message="Couldn't load activity. Try again shortly."
-              retrying={feed.isFetching}
-              onRetry={() => void feed.refetch()}
-            />
-          </FieldStack>
-        ) : (
-          <EmptyState
-            title='Nothing here yet'
-            description='Forks, syncs, and rollbacks will appear here.'
-          />
+      <SettingsRead query={feed} failureMessage='Couldn’t load activity'>
+        {() => (
+          <SettingsList
+            title='Events'
+            empty={
+              jobs.length === 0
+                ? {
+                    title: 'No activity yet',
+                    description: 'Forks, syncs and rollbacks appear here',
+                  }
+                : undefined
+            }
+          >
+            <FieldStack>
+              <RowStack>
+                {jobs.map((job) => (
+                  <ActivityEntry key={job.id} job={job} view={view} />
+                ))}
+              </RowStack>
+              <LoadMoreFooter
+                state={{
+                  hasMore: feed.hasNextPage,
+                  loading: feed.isFetchingNextPage,
+                  error: feed.isFetchNextPageError
+                    ? getErrorMessage(feed.error, "Couldn't load more activity")
+                    : undefined,
+                  onLoadMore: () => void feed.fetchNextPage(),
+                }}
+              />
+            </FieldStack>
+          </SettingsList>
         )}
-      </SettingsSection>
+      </SettingsRead>
     </SectionStack>
   )
 }

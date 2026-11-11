@@ -281,6 +281,35 @@ export function useMcpToolsQuery(workspaceId: string) {
   }, [results, serversLoading, serversError, serverIds, servers, managedCatalog])
 }
 
+/**
+ * Re-discovers one server's tools each time a view of it mounts, so opening a server, by a click or
+ * a shared link, shows what it offers now without probing every other server in the workspace. The
+ * tools land under the server's discovery key, where `useMcpToolsQuery` reads them.
+ */
+export function useMcpServerToolsProbe(
+  workspaceId: string,
+  serverId: string,
+  options?: { enabled?: boolean }
+) {
+  const queryClient = useQueryClient()
+  return useQuery({
+    queryKey: mcpKeys.serverToolsProbe(workspaceId, serverId),
+    queryFn: async ({ signal }) => {
+      const tools = await fetchMcpTools(workspaceId, true, signal, serverId)
+      queryClient.setQueryData(mcpKeys.serverToolsList(workspaceId, serverId), tools)
+      void queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(workspaceId) })
+      void queryClient.invalidateQueries({ queryKey: mcpKeys.storedToolsList(workspaceId) })
+      return tools
+    },
+    enabled: Boolean(workspaceId && serverId) && (options?.enabled ?? true),
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
+    retry: false,
+  })
+}
+
 export function useForceRefreshMcpTools() {
   const queryClient = useQueryClient()
 

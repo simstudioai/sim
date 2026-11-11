@@ -3,11 +3,9 @@
 import { useId, useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
-import { FieldFrame, TextAreaField, TextField } from '@sim/emcn/field'
-import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
-import { SaveActions } from '@sim/emcn/settings-section/save-actions'
+import { FieldFrame, TextAreaField } from '@sim/emcn/field'
+import { SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
-import { Switch } from '@sim/emcn/switch'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import { useQueryState } from 'nuqs'
 import {
@@ -15,14 +13,15 @@ import {
   CredentialMembers,
 } from '@/app/(product)/_components/credential-members/credential-members'
 import { SecretValueInput } from '@/app/(product)/_components/secrets-editor/secret-value-input'
+import { SettingsSaveBar } from '@/app/(product)/_components/settings-parts/save-bar'
 import {
   DetailHeader,
   FieldStack,
   SectionStack,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { SwitchRow } from '@/app/(product)/_components/settings-parts/switch-row'
 import {
-  secretDetailViewParam,
-  secretDetailViewUrlKeys,
+  SECRET_VIEW_PARAM,
   secretUsageTabParam,
   secretUsageTabUrlKeys,
 } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/secrets/search-params'
@@ -34,9 +33,14 @@ import {
   useSecretValue,
   useWorkspaceCredential,
 } from '@/platform/lib/data/secrets'
+import { requestSettingsLeave } from '@/platform/lib/data/settings-guard'
+import { useSettingsSubview } from '@/platform/lib/data/settings-subview'
 
 /** Logs leads: it is the default tab, and what "See usage" opened before References existed. */
 const USAGE_TABS = ['logs', 'references'] as const
+
+/** The `secret-view` value that opens the usage view. */
+const USAGE_VIEW = 'usage'
 
 interface SecretDetailProps {
   workspaceId: string
@@ -62,10 +66,7 @@ export function SecretDetail({ workspaceId, credentialId, onBack }: SecretDetail
   const isPersonal = credential?.type === 'env_personal'
 
   const [sharing, setSharing] = useState(false)
-  const [view, setView] = useQueryState(secretDetailViewParam.key, {
-    ...secretDetailViewParam.parser,
-    ...secretDetailViewUrlKeys,
-  })
+  const view = useSettingsSubview({ idParam: SECRET_VIEW_PARAM })
   const [usageTab, setUsageTab] = useQueryState(secretUsageTabParam.key, {
     ...secretUsageTabParam.parser,
     ...secretUsageTabUrlKeys,
@@ -84,7 +85,7 @@ export function SecretDetail({ workspaceId, credentialId, onBack }: SecretDetail
     isAdmin: isWorkspaceSecretAdmin,
     section: valueField,
   })
-  const back = () => form.guardBack(onBack)
+  const back = () => requestSettingsLeave(onBack)
 
   if (isPending && !credential) return null
 
@@ -96,8 +97,8 @@ export function SecretDetail({ workspaceId, credentialId, onBack }: SecretDetail
         <FailureNotice
           message={
             isApiClientError(error) && error.status === 403
-              ? 'You do not have access to this secret.'
-              : 'Could not load this secret.'
+              ? 'You don’t have access to this secret'
+              : 'Couldn’t load this secret'
           }
           retrying={isFetching}
           onRetry={() => void refetch()}
@@ -109,7 +110,7 @@ export function SecretDetail({ workspaceId, credentialId, onBack }: SecretDetail
     return (
       <SectionStack>
         <DetailHeader backLabel='Secrets' onBack={back} title='Secret' />
-        <EmptyState title='Secret not found.' />
+        <EmptyState title='Secret not found' />
       </SectionStack>
     )
 
@@ -122,15 +123,15 @@ export function SecretDetail({ workspaceId, credentialId, onBack }: SecretDetail
    */
   const canViewUsage = valueField.canEdit
 
-  if (canViewUsage && view === 'usage') {
+  if (canViewUsage && view.id === USAGE_VIEW) {
     const secretName = credential.envKey || ''
     return (
       <SectionStack>
         <DetailHeader
           backLabel={title}
           onBack={() => {
-            void setView(null, { history: 'replace' })
             void setUsageTab(null, { history: 'replace' })
+            view.close()
           }}
           title='Usage'
         />
@@ -192,7 +193,7 @@ export function SecretDetail({ workspaceId, credentialId, onBack }: SecretDetail
               ? 'Only the owner of this secret can see its usage'
               : 'Only admins of this secret can see its usage'
           }
-          onClick={() => void setView('usage')}
+          onClick={() => view.open(USAGE_VIEW)}
         >
           See usage
         </Button>
@@ -204,7 +205,6 @@ export function SecretDetail({ workspaceId, credentialId, onBack }: SecretDetail
       </DetailHeader>
       <SettingsSection title='Details'>
         <FieldStack>
-          <TextField label='Key' placeholder='Key' value={credential.envKey || ''} viewOnly />
           <FieldFrame id={valueId} label='Value'>
             <SecretValueInput
               id={valueId}
@@ -233,21 +233,17 @@ export function SecretDetail({ workspaceId, credentialId, onBack }: SecretDetail
       </SettingsSection>
       {!isPersonal && (
         <SettingsSection title='Visibility'>
-          <SettingsRow
+          <SwitchRow
             label='Show value in logs and chat'
-            description='The value is visible to anyone who can see this workspace’s runs — in logs, Chat, and the API, including shared log links.'
-          >
-            <Switch
-              label='Show value in logs and chat'
-              checked={form.unredactedDraft}
-              onCheckedChange={form.setUnredactedDraft}
-              disabled={!isWorkspaceSecretAdmin}
-            />
-          </SettingsRow>
+            description='Anyone who can see this workspace’s runs sees the value, shared log links included'
+            checked={form.unredactedDraft}
+            onCheckedChange={form.setUnredactedDraft}
+            disabled={!isWorkspaceSecretAdmin}
+          />
         </SettingsSection>
       )}
       {(isWorkspaceSecretAdmin || canEditValue) && (
-        <SaveActions
+        <SettingsSaveBar
           dirty={form.isDirty}
           saving={form.isSaving}
           onSave={() => void form.save()}

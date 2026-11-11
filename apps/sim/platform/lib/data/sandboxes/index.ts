@@ -24,4 +24,3 @@ export {
   SYSTEM_PACKAGE_PLACEHOLDER,
   toSubmittedLines,
 } from '@/platform/lib/data/sandboxes/draft'
-export { useSandboxParam } from '@/platform/lib/data/sandboxes/params'

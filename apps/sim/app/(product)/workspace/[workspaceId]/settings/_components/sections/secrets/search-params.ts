@@ -1,16 +1,10 @@
 import { parseAsStringLiteral } from 'nuqs'
 
-/** `secret-view` deep-links a secret to its usage view, a destination of its own. */
-export const secretDetailViewParam = {
-  key: 'secret-view',
-  parser: parseAsStringLiteral(['usage'] as const),
-} as const
+/** `secret` opens one secret's detail over the list. */
+export const SECRET_ID_PARAM = 'secret'
 
-/** Opening the usage view is a destination: push to history; clear on close. */
-export const secretDetailViewUrlKeys = {
-  history: 'push',
-  clearOnDefault: true,
-} as const
+/** `secret-view=usage` opens a secret's usage view, a sub-view of its detail. */
+export const SECRET_VIEW_PARAM = 'secret-view'
 
 /** The usage view's tab, so a shared `secret-view=usage` link can land on either reading. */
 export const secretUsageTabParam = {

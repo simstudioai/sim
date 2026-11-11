@@ -25,12 +25,6 @@ export const mcpServerIdParam = {
   parser: parseAsString,
 } as const
 
-/** Opening a server is a destination → push to history; clear on close. */
-export const mcpServerIdUrlKeys = {
-  history: 'push',
-  clearOnDefault: true,
-} as const
-
 /**
  * `fork-id` deep-links the Forks settings tab to a specific fork's detail
  * sub-view (mirrors `mcpServerId` on the MCP tab).
@@ -40,12 +34,6 @@ export const forkIdParam = {
   parser: parseAsString,
 } as const
 
-/** Opening a fork's detail is a destination → push to history; clear on close. */
-export const forkIdUrlKeys = {
-  history: 'push',
-  clearOnDefault: true,
-} as const
-
 /**
  * `fork-view` deep-links the Forks settings tab to its workspace-scoped Activity
  * view (opened from the page header's "See activity" action).
@@ -53,12 +41,6 @@ export const forkIdUrlKeys = {
 export const forkViewParam = {
   key: 'fork-view',
   parser: parseAsStringLiteral(['activity'] as const),
-} as const
-
-/** Opening the activity view is a destination → push to history; clear on close. */
-export const forkViewUrlKeys = {
-  history: 'push',
-  clearOnDefault: true,
 } as const
 
 /**
@@ -77,36 +59,16 @@ export const serverTabUrlKeys = {
   clearOnDefault: true,
 } as const
 
-/**
- * `custom-block-id` deep-links the Custom Blocks settings tab to a specific
- * block's detail sub-view. The "create new" flow stays in local state — only
- * existing entities are deep-linkable.
- */
+/** `custom-block-id` deep-links the Custom Blocks settings tab to one block's detail sub-view. */
 export const customBlockIdParam = {
   key: 'custom-block-id',
   parser: parseAsString,
 } as const
 
-/** Opening a block's detail is a destination → push to history; clear on close. */
-export const customBlockIdUrlKeys = {
-  history: 'push',
-  clearOnDefault: true,
-} as const
-
-/**
- * `custom-tool-id` deep-links the Custom Tools settings tab to a specific
- * tool's detail sub-view. The "create new" flow stays in local state — only
- * existing entities are deep-linkable.
- */
+/** `custom-tool-id` deep-links the Custom Tools settings tab to one tool's detail sub-view. */
 export const customToolIdParam = {
   key: 'custom-tool-id',
   parser: parseAsString,
-} as const
-
-/** Opening a tool's detail is a destination → push to history; clear on close. */
-export const customToolIdUrlKeys = {
-  history: 'push',
-  clearOnDefault: true,
 } as const
 
 /**

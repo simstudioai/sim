@@ -10,6 +10,8 @@ export const mcpKeys = {
     [...mcpKeys.serverTools(), workspaceId ?? ''] as const,
   serverToolsList: (workspaceId?: string, serverId?: string) =>
     [...mcpKeys.serverToolsWorkspace(workspaceId), serverId ?? ''] as const,
+  serverToolsProbe: (workspaceId?: string, serverId?: string) =>
+    [...mcpKeys.all, 'serverToolsProbe', workspaceId ?? '', serverId ?? ''] as const,
   storedTools: () => [...mcpKeys.all, 'storedTools'] as const,
   storedToolsList: (workspaceId?: string) => [...mcpKeys.storedTools(), workspaceId ?? ''] as const,
   allowedDomains: () => [...mcpKeys.all, 'allowedDomains'] as const,

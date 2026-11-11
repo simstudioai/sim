@@ -1,5 +1,5 @@
 export { createLogger } from '@sim/logger'
-export { customToolIdParam, customToolIdUrlKeys } from '@/lib/settings/search-params'
+export { customToolIdParam } from '@/lib/settings/search-params'
 export {
   type CustomToolDefinition,
   useCreateCustomTool,

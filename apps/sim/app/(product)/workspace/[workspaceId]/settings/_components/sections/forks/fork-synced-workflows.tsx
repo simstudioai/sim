@@ -81,7 +81,7 @@ export function ForkSyncDefaultRow({ workspaceId, excludeNewWorkflows }: ForkSyn
   return (
     <SettingsRow
       label='Sync new workflows by default'
-      description='Applies to every workspace in this fork lineage.'
+      description='Applies to every workspace in this fork lineage'
     >
       <SegmentedControl
         label='Sync new workflows by default'
@@ -106,7 +106,7 @@ export function ForkSyncDefaultRow({ workspaceId, excludeNewWorkflows }: ForkSyn
 
 /**
  * The deployed workflows in their folders, each checked while it SYNCS: it takes part in sync both
- * ways and is copied into new forks. Unchecking keeps it here only; it stays deployed, and a synced
+ * ways and is copied into new forks. Folders open collapsed, so a large workspace stays one screen. Unchecking keeps it here only; it stays deployed, and a synced
  * counterpart elsewhere keeps its last deployed version. A folder toggles its whole subtree. The
  * stored flag is `forkSyncExcluded`, so this owns the one inversion.
  */
@@ -173,7 +173,6 @@ export function ForkSyncedWorkflows({ workspaceId }: { workspaceId: string }) {
           isSelected={(id) => syncedIds.has(id)}
           onToggle={toggle}
           groupActionLabel={(label) => `Sync all in ${label}`}
-          initiallyExpanded
           disabled={updateSynced.isPending}
         />
       )}

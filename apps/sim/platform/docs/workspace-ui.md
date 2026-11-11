@@ -15,7 +15,7 @@ Open [a workspace](http://localhost:3000/workspace/it/dashboards?state=full) on 
 | `workflows`, `workflows/[workflowId]` | Live only. Workflows and folders, and the workflow editor. |
 | `workflows/runs/[executionId]` | Live only. A run's frozen workflow, opened from the run; it lives here because only the Workflows tab loads the block registry. |
 | `tests`, `tests/[name]` | Live only, behind the `workflow-tests` flag. The workspace's workflow tests with Run all, and a test's latest or chosen run in the Logs run-details anatomy. |
-| `settings`, `settings/[section]`, `settings/secrets/[credentialId]` | Live only. The workspace's Settings: its sections beside their navigation. Example data keeps the tab empty. |
+| `settings`, `settings/[section]` (a secret's detail at `settings/secrets?secret=[credentialId]`) | Live only. The workspace's Settings: its sections beside their navigation. Example data keeps the tab empty. |
 | `upgrade` | Redirects to the plan picker, `/settings/billing/plans`, keeping `reason`. |
 | `home`, `chat/[chatId]`, `integrations`, `skills`, `access-requests` | Live only. Moved legacy URLs: each page authorizes the workspace, then redirects permanently to its organization's page through `lib/data/legacy-redirects.ts`, which maps the URL with `mapLegacyWorkspaceUrl` (`@/lib/navigation/legacy-redirects`) (the Settings route does the same for organization section keys). |
 | `files/[fileId]/view`, `w/*`, `task/[chatId]` | Moved legacy URLs, redirected statically in `next.config.ts`. |

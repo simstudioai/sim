@@ -8,6 +8,7 @@ export {
   type McpToolIssue,
 } from '@/lib/mcp/tool-validation'
 export type { McpAuthType, McpTransport } from '@/lib/mcp/types'
+export { mcpServerIdParam } from '@/lib/settings/search-params'
 export { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
 export {
   type McpServer,
@@ -17,9 +18,9 @@ export {
   useAllowedMcpDomains,
   useCreateMcpServer,
   useDeleteMcpServer,
-  useForceRefreshMcpTools,
   useMcpServers,
   useMcpServerTest,
+  useMcpServerToolsProbe,
   useMcpToolsQuery,
   useRefreshMcpServer,
   useStoredMcpTools,
@@ -40,4 +41,4 @@ export {
 } from '@/hooks/queries/workflow-mcp-servers'
 export { useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
 export { useSettingsSearch } from '@/hooks/use-settings-search'
-export { useMcpServerIdParam, useMcpServerTabParam } from '@/platform/lib/data/mcp/params'
+export { useMcpServerTabParam } from '@/platform/lib/data/mcp/params'

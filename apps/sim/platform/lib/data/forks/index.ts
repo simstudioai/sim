@@ -11,6 +11,7 @@ export type {
   GetForkResourcesResponse,
 } from '@/lib/api/contracts/workspace-fork'
 export { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+export { forkIdParam, forkViewParam } from '@/lib/settings/search-params'
 export { buildWebhookTriggerUrl } from '@/lib/webhooks/trigger-url'
 export {
   FORK_RESOURCE_KIND_LABEL,
@@ -55,11 +56,7 @@ export { forkSyncBlockerReasonFor } from '@/ee/workspace-forking/lib/promote/syn
 export { useFolders } from '@/hooks/queries/folders'
 export { useWorkspaceCreationPolicy, useWorkspacesQuery } from '@/hooks/queries/workspace'
 export { useSettingsSearch } from '@/hooks/use-settings-search'
-export {
-  useForkIdParam,
-  useForkSyncDirectionParam,
-  useForkViewParam,
-} from '@/platform/lib/data/forks/params'
+export { useForkSyncDirectionParam } from '@/platform/lib/data/forks/params'
 export { useWorkspaceWorkflowList } from '@/platform/lib/data/forks/workflow-list'
 export type { WorkflowFolder } from '@/stores/folders/types'
 export type { WorkflowMetadata } from '@/stores/workflows/registry/types'

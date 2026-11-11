@@ -16,6 +16,11 @@ vi.mock('@/platform/lib/data/inbox', () => {
     useAddInboxSender: () => idle,
     useInboxSenders: () => ({
       isPending: false,
+      isLoadingError: false,
+      isRefetchError: false,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
       data: {
         workspaceMembers: [],
         senders: [{ id: 'sender-1', email: 'boss@sim.test', label: null }],

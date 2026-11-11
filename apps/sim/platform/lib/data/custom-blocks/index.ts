@@ -2,6 +2,7 @@ export type {
   CustomBlock,
   CustomBlockInputPlaceholder,
 } from '@/lib/api/contracts/custom-blocks'
+export { customBlockIdParam } from '@/lib/settings/search-params'
 export { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 export {
   type CustomBlockInput,
@@ -20,4 +21,3 @@ export {
 export { useWorkspacesQuery } from '@/hooks/queries/workspace'
 export { useProfilePictureUpload } from '@/hooks/use-profile-picture-upload'
 export { useSettingsSearch } from '@/hooks/use-settings-search'
-export { useCustomBlockParam } from '@/platform/lib/data/custom-blocks/params'

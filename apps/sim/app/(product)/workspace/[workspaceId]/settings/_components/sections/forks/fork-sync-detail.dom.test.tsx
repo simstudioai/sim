@@ -13,6 +13,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 const forks = vi.hoisted(() => ({ sync: vi.fn() }))
 vi.mock('@/platform/lib/data/settings-guard', () => ({
+  requestSettingsLeave: (leave: () => void) => leave(),
   useSettingsUnsavedGuard: () => ({ guardBack: (run: () => void) => run() }),
 }))
 vi.mock(

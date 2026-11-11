@@ -8,9 +8,11 @@ import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { Select } from '@sim/emcn/picker/select'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
-import { FailureNotice, InlineNotice } from '@sim/emcn/status'
+import { InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
-import { FieldStack, Muted } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
+import { FieldStack } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { SettingsRead } from '@/app/(product)/_components/settings-parts/settings-read'
 import {
   type InboxConfig,
   useAddInboxSender,
@@ -20,11 +22,90 @@ import {
   useUpdateInboxAddress,
   useUpdateInboxSecretPolicy,
 } from '@/platform/lib/data/inbox'
+import { plural } from '@/platform/shared/plural'
 
 const SECRET_SCOPE_OPTIONS = [
   { value: 'all', label: 'All secrets' },
   { value: 'selected', label: 'Selected secrets' },
 ]
+
+interface InboxDialogProps {
+  workspaceId: string
+  onClose: () => void
+}
+
+/** Allows one more address to email tasks, holding its own draft. */
+function AddSenderDialog({ workspaceId, onClose }: InboxDialogProps) {
+  const addSender = useAddInboxSender()
+  const [email, setEmail] = useState('')
+  const [label, setLabel] = useState('')
+  return (
+    <Modal
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+      title='Add allowed sender'
+      confirmLabel='Add sender'
+      confirmDisabled={!email.trim() || addSender.isPending}
+      pending={addSender.isPending}
+      onConfirm={() =>
+        addSender.mutateAsync({
+          workspaceId,
+          email: email.trim(),
+          label: label.trim() || undefined,
+        })
+      }
+    >
+      <TextField
+        type='email'
+        label='Email address'
+        required
+        value={email}
+        onChange={setEmail}
+        placeholder='user@example.com'
+        autoComplete='off'
+      />
+      <TextField
+        label='Label'
+        optional
+        value={label}
+        onChange={setLabel}
+        placeholder='e.g., John from Marketing'
+        autoComplete='off'
+      />
+    </Modal>
+  )
+}
+
+/** Replaces the inbox with one at a new address, holding its own draft. */
+function ChangeAddressDialog({ workspaceId, onClose }: InboxDialogProps) {
+  const updateAddress = useUpdateInboxAddress()
+  const [username, setUsername] = useState('')
+  return (
+    <Modal
+      destructive
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+      title='Change email address'
+      description='A new inbox replaces this one, and the old address stops receiving email at once'
+      confirmLabel={updateAddress.isPending ? 'Updating…' : 'Change address'}
+      confirmDisabled={!username.trim() || updateAddress.isPending}
+      pending={updateAddress.isPending}
+      onConfirm={() => updateAddress.mutateAsync({ workspaceId, username: username.trim() })}
+    >
+      <TextField
+        label='New email prefix'
+        value={username}
+        onChange={setUsername}
+        placeholder='e.g., new-acme'
+        autoComplete='off'
+      />
+    </Modal>
+  )
+}
 
 interface InboxSettingsProps
   extends Pick<InboxConfig, 'address' | 'secretScope' | 'mountedSecrets'> {
@@ -39,62 +120,47 @@ export function InboxSettings({
   mountedSecrets,
 }: InboxSettingsProps) {
   const senders = useInboxSenders(workspaceId)
-  const updateAddress = useUpdateInboxAddress()
   const updateSecretPolicy = useUpdateInboxSecretPolicy()
-  const addSender = useAddInboxSender()
   const removeSender = useRemoveInboxSender()
   const secretOptions = useRawMountableSecretOptions(workspaceId)
 
-  const [addingSender, setAddingSender] = useState(false)
-  const [senderEmail, setSenderEmail] = useState('')
-  const [senderLabel, setSenderLabel] = useState('')
-  const [editingAddress, setEditingAddress] = useState(false)
-  const [username, setUsername] = useState('')
+  const [dialog, setDialog] = useState<'add-sender' | 'change-address' | null>(null)
   const [removingSender, setRemovingSender] = useState<{ id: string; email: string } | null>(null)
+
+  const addSender = (
+    <Button size='compact' icon='I074' onClick={() => setDialog('add-sender')}>
+      Add sender
+    </Button>
+  )
 
   return (
     <>
       {address && (
         <SettingsSection title='Sim’s email'>
-          <FieldStack>
-            <TextField label='Address' value={address} viewOnly placeholder='' />
-          </FieldStack>
-          <SettingsRow
-            label='Change address'
-            description='Creates a new inbox; the old address stops receiving email at once'
-          >
-            <Button
-              variant='quiet'
-              destructive
-              onClick={() => {
-                setUsername('')
-                setEditingAddress(true)
-              }}
-            >
+          <SettingsRow label='Address' description={address}>
+            <Button size='compact' onClick={() => setDialog('change-address')}>
               Change address
             </Button>
           </SettingsRow>
         </SettingsSection>
       )}
-      <SettingsSection title='Allowed senders'>
-        {senders.isPending ? null : senders.data === undefined ? (
-          <FieldStack>
-            <FailureNotice
-              message={getErrorMessage(senders.error, 'Failed to load allowed senders')}
-              retrying={senders.isFetching}
-              onRetry={() => void senders.refetch()}
-            />
-          </FieldStack>
-        ) : senders.data.workspaceMembers.length === 0 && senders.data.senders.length === 0 ? (
-          <FieldStack>
-            <Muted>No allowed senders configured.</Muted>
-          </FieldStack>
-        ) : (
-          <>
-            {senders.data.workspaceMembers.map((member) => (
-              <SettingsRow key={member.email} label={member.email} description='Member' />
-            ))}
-            {senders.data.senders.map((sender) => (
+      <SettingsRead query={senders} failureMessage='Couldn’t load allowed senders'>
+        {({ workspaceMembers, senders: allowed }) => (
+          <SettingsList
+            title='Allowed senders'
+            empty={
+              workspaceMembers.length === 0 && allowed.length === 0
+                ? { title: 'No allowed senders yet', action: addSender }
+                : undefined
+            }
+          >
+            {workspaceMembers.length > 0 && (
+              <SettingsRow
+                label='Workspace members'
+                description={`${plural(workspaceMembers.length, 'member')} can email tasks`}
+              />
+            )}
+            {allowed.map((sender) => (
               <SettingsRow
                 key={sender.id}
                 label={sender.email}
@@ -107,22 +173,12 @@ export function InboxSettings({
                 />
               </SettingsRow>
             ))}
-          </>
+            <SettingsRow label='New sender' description='Allow another address to email tasks'>
+              {addSender}
+            </SettingsRow>
+          </SettingsList>
         )}
-        <SettingsRow label='Add sender' description='Allow another address to email tasks'>
-          <Button
-            size='compact'
-            icon='I074'
-            onClick={() => {
-              setSenderEmail('')
-              setSenderLabel('')
-              setAddingSender(true)
-            }}
-          >
-            Add sender
-          </Button>
-        </SettingsRow>
-      </SettingsSection>
+      </SettingsRead>
       <SettingsSection title='Secrets'>
         <SettingsRow
           label='Secret access'
@@ -182,58 +238,12 @@ export function InboxSettings({
         pendingLabel='Removing…'
         onConfirm={({ id }) => removeSender.mutateAsync({ workspaceId, senderId: id })}
       />
-      <Modal
-        open={addingSender}
-        onOpenChange={setAddingSender}
-        title='Add allowed sender'
-        confirmLabel='Add sender'
-        confirmDisabled={!senderEmail.trim() || addSender.isPending}
-        pending={addSender.isPending}
-        onConfirm={() =>
-          addSender.mutateAsync({
-            workspaceId,
-            email: senderEmail.trim(),
-            label: senderLabel.trim() || undefined,
-          })
-        }
-      >
-        <TextField
-          type='email'
-          label='Email address'
-          required
-          value={senderEmail}
-          onChange={setSenderEmail}
-          placeholder='user@example.com'
-          autoComplete='off'
-        />
-        <TextField
-          label='Label'
-          optional
-          value={senderLabel}
-          onChange={setSenderLabel}
-          placeholder='e.g., John from Marketing'
-          autoComplete='off'
-        />
-      </Modal>
-      <Modal
-        destructive
-        open={editingAddress}
-        onOpenChange={setEditingAddress}
-        title='Change email address'
-        description='Changing your email address will create a new inbox. The old address will stop receiving emails immediately.'
-        confirmLabel={updateAddress.isPending ? 'Updating…' : 'Change address'}
-        confirmDisabled={!username.trim() || updateAddress.isPending}
-        pending={updateAddress.isPending}
-        onConfirm={() => updateAddress.mutateAsync({ workspaceId, username: username.trim() })}
-      >
-        <TextField
-          label='New email prefix'
-          value={username}
-          onChange={setUsername}
-          placeholder='e.g., new-acme'
-          autoComplete='off'
-        />
-      </Modal>
+      {dialog === 'add-sender' && (
+        <AddSenderDialog workspaceId={workspaceId} onClose={() => setDialog(null)} />
+      )}
+      {dialog === 'change-address' && (
+        <ChangeAddressDialog workspaceId={workspaceId} onClose={() => setDialog(null)} />
+      )}
     </>
   )
 }

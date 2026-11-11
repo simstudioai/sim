@@ -12,9 +12,8 @@ export interface WorkspaceSettingsSectionProps {
 
 /**
  * The segments a section accepts after its key; any other path under it is not found. Each
- * section's code loads from `workspace-settings-section`.
+ * section's code loads from `workspace-settings-section`. None takes one today: a record's detail
+ * opens through `useSettingsSubview`, in the query string.
  */
 export const WORKSPACE_SETTINGS_SUBPATHS: Partial<Record<WorkspaceSettingsKey, readonly string[]>> =
-  {
-    secrets: [':credentialId'],
-  }
+  {}
