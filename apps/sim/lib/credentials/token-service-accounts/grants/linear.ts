@@ -20,8 +20,13 @@ const STEP = 'linear_token_mint'
  * credentials for one app must never disagree. They match the scopes Linear's tools use.
  */
 const LINEAR_CLIENT_CREDENTIAL_SCOPE = 'read,write'
-/** Linear documents a 30-day lifetime for client-credentials tokens, with no refresh token. */
-const MAX_TOKEN_LIFETIME_SECONDS = 30 * 24 * 60 * 60
+/**
+ * Linear documents a 30-day lifetime for client-credentials tokens, but a token can also be
+ * revoked early (cleanup, another scope request) without every API answer saying so with a 401, so
+ * the shared token is replaced daily. Same-scope tokens coexist, so the replacement leaves the
+ * previous token valid for calls already using it.
+ */
+const SERVED_TOKEN_LIFETIME_SECONDS = 24 * 60 * 60
 
 async function exchangeLinearToken(
   clientId: string,
@@ -84,17 +89,17 @@ async function exchangeLinearToken(
   return {
     accessToken: payload.access_token,
     expiresAt: new Date(
-      startedAt + Math.min(payload.expires_in, MAX_TOKEN_LIFETIME_SECONDS) * 1000
+      startedAt + Math.min(payload.expires_in, SERVED_TOKEN_LIFETIME_SECONDS) * 1000
     ),
   }
 }
 
 /**
  * Mints an app-actor token for a Linear OAuth app with client credentials turned on. Linear asks
- * clients to reuse one token until shortly before it expires and to request a new one after a
- * 401, and cleans up an app's surplus tokens past 1,000 per workspace, so every saved credential
- * for one app shares a single coordinated token. A token Linear rejects early (a secret rotation,
- * another scope request) is expired by the 401 path and replaced on the next call.
+ * clients to reuse one token and to request a new one after a 401, and cleans up an app's surplus
+ * tokens past 1,000 per workspace, so every saved credential for one app shares a single
+ * coordinated token, replaced daily. A token Linear rejects early with a 401 is expired by the
+ * tool-call path and replaced on the next call; a rotated secret never matches the stored token.
  *
  * @see https://linear.app/developers/oauth-2-0-authentication
  */

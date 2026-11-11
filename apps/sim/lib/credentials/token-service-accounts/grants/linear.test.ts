@@ -54,7 +54,7 @@ describe('Linear client credentials grant', () => {
     expect(minted.accessToken).toBe('lin_oauth_1')
   })
 
-  it('shares one token per app across credentials for its 30-day lifetime', async () => {
+  it('shares one token per app across credentials and replaces it daily', async () => {
     mockFetch.mockResolvedValue(
       jsonResponse({ access_token: 'lin_oauth_1', expires_in: 2_591_999 })
     )
@@ -64,7 +64,8 @@ describe('Linear client credentials grant', () => {
       clientId: ' linear-client ',
     })
 
-    expect(minted.expiresInSeconds).toBeGreaterThan(2_591_000)
+    expect(minted.expiresInSeconds).toBeGreaterThan(86_000)
+    expect(minted.expiresInSeconds).toBeLessThanOrEqual(86_400)
     expect(coordinated).toHaveBeenCalledWith(
       expect.objectContaining({
         namespace: 'linear',
