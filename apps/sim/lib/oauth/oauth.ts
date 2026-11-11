@@ -591,7 +591,8 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
       'vertex-ai': {
         name: 'Vertex AI',
-        description: 'Access Google Cloud Vertex AI for Gemini models with OAuth.',
+        description:
+          'Access Google Cloud Vertex AI for Gemini models with OAuth or a Google service account.',
         providerId: 'vertex-ai',
         icon: VertexIcon,
         baseProviderIcon: VertexIcon,
@@ -600,6 +601,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/cloud-platform',
         ],
+        serviceAccountProviderId: 'google-service-account',
       },
     },
     defaultService: 'gmail',
@@ -671,6 +673,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'microsoft-intune',
         icon: IntuneIcon,
         baseProviderIcon: MicrosoftIcon,
+        serviceAccountProviderId: 'microsoft-app-service-account',
         scopes: [
           'openid',
           'profile',

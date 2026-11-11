@@ -1,13 +1,10 @@
-import { db } from '@sim/db'
-import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
-import { eq } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { searchKnowledgeAsExecutor } from '@/lib/internal/knowledge/search'
+import { resolveVertexAccessToken } from '@/lib/internal/llm/credentials'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
-import { refreshTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -159,22 +156,11 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
 
     const providerId = getProviderFromModel(model)
 
-    let finalApiKey: string | undefined = apiKey
-    if (providerId === 'vertex' && providerCredentials?.vertexCredential) {
-      const credential = await db.query.account.findFirst({
-        where: eq(account.id, providerCredentials.vertexCredential),
-      })
-      if (credential) {
-        const { accessToken } = await refreshTokenIfNeeded(
-          requestId,
-          credential,
-          providerCredentials.vertexCredential
-        )
-        if (accessToken) {
-          finalApiKey = accessToken
-        }
-      }
-    }
+    // The guardrails operation authorized this credential before validation began.
+    const finalApiKey =
+      providerId === 'vertex' && providerCredentials?.vertexCredential
+        ? await resolveVertexAccessToken(requestId, providerCredentials.vertexCredential)
+        : apiKey
 
     const response = await executeProviderRequest(
       providerId,

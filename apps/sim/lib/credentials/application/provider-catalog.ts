@@ -235,7 +235,7 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
     return {
       name: 'Microsoft app credential',
       description:
-        'Use Microsoft Entra ID, SharePoint, Dataverse, and Dynamics 365 as an app registration (app-only), with a client secret or a certificate.',
+        'Use Microsoft Entra ID, SharePoint, Intune, Dataverse, and Dynamics 365 as an app registration (app-only), with a client secret or a certificate.',
       docsUrl: 'https://docs.sim.ai/integrations/microsoft-app-credentials',
       fields: [
         {

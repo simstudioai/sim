@@ -105,7 +105,8 @@ export const llmChatTool: InternalToolConfig<LLMChatParams, LLMChatResponse> = {
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description: 'Google Cloud OAuth credential ID for Vertex AI',
+      description:
+        'Google Cloud credential ID for Vertex AI (OAuth account or Google service account)',
     },
     bedrockAccessKeyId: {
       type: 'string',

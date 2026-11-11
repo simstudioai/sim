@@ -13,7 +13,7 @@ import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { decodeProtectedHeader, jwtVerify } from 'jose'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/credentials/workload-identity/issuer', () => ({
@@ -58,25 +58,31 @@ function derUtcTime(date: Date): Buffer {
   return der(0x17, Buffer.from(`${text}Z`))
 }
 
+const DAY_MS = 86_400_000
+
 /**
  * A self-signed RSA certificate (CN=sim-test-app) generated for this test run,
  * so no key material is committed.
  */
-function generateTestCertificate(): { certificate: string; privateKey: string } {
+function generateTestCertificate(
+  validity: { notBefore: number; notAfter: number } = {
+    notBefore: Date.now() - DAY_MS,
+    notAfter: Date.now() + 365 * DAY_MS,
+  }
+): { certificate: string; privateKey: string } {
   const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
   const sha256WithRsa = der(0x30, derOid('1.2.840.113549.1.1.11'), der(0x05))
   const name = der(
     0x30,
     der(0x31, der(0x30, derOid('2.5.4.3'), der(0x0c, Buffer.from('sim-test-app'))))
   )
-  const now = Date.now()
   const tbs = der(
     0x30,
     der(0xa0, der(0x02, Buffer.from([0x02]))),
     der(0x02, Buffer.from([0x01])),
     sha256WithRsa,
     name,
-    der(0x30, derUtcTime(new Date(now - 86_400_000)), derUtcTime(new Date(now + 365 * 86_400_000))),
+    der(0x30, derUtcTime(new Date(validity.notBefore)), derUtcTime(new Date(validity.notAfter))),
     name,
     publicKey.export({ type: 'spki', format: 'der' })
   )
@@ -114,14 +120,27 @@ interface TokenRequest {
  */
 function fakeMicrosoft(
   fetch: ReturnType<typeof vi.fn>,
-  options: { acceptAssertion?: (assertion: string) => boolean; tokenError?: Response } = {}
+  options: {
+    acceptAssertion?: (assertion: string) => boolean
+    tokenError?: Response
+    /** Refusals answered to the first token requests, in order, before Entra starts issuing tokens. */
+    tokenErrorsFirst?: Response[]
+    /** How long Entra takes to answer each token request. */
+    tokenDelayMs?: number
+  } = {}
 ) {
   const tokenRequests: TokenRequest[] = []
+  const pendingErrors = [...(options.tokenErrorsFirst ?? [])]
   fetch.mockImplementation(async (url: string, init: RequestInit = {}) => {
     if (url.startsWith('https://login.microsoftonline.com/')) {
       const form = Object.fromEntries(new URLSearchParams(String(init.body)))
       tokenRequests.push({ url, form, redirect: init.redirect })
+      if (options.tokenDelayMs) {
+        await new Promise((resolve) => setTimeout(resolve, options.tokenDelayMs))
+      }
       if (options.tokenError) return options.tokenError.clone()
+      const pendingError = pendingErrors.shift()
+      if (pendingError) return pendingError
       if (form.client_assertion && options.acceptAssertion?.(form.client_assertion) === false) {
         return jsonResponse(
           { error: 'invalid_client', error_codes: [700213], error_description: 'AADSTS700213: …' },
@@ -224,6 +243,18 @@ describe('saving a Microsoft app credential', () => {
     await expect(
       save({ authType: 'certificate', certificate: TEST_CERTIFICATE, privateKey: otherKey })
     ).rejects.toThrow(/does not belong to this certificate/)
+    expect(fetch).not.toHaveBeenCalled()
+    expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
+  })
+
+  it('refuses a certificate that is not valid yet before contacting Entra', async () => {
+    fakeMicrosoft(fetch)
+    const future = generateTestCertificate({
+      notBefore: Date.now() + 2 * DAY_MS,
+      notAfter: Date.now() + 365 * DAY_MS,
+    })
+
+    await expect(save({ authType: 'certificate', ...future })).rejects.toThrow(/not valid until/)
     expect(fetch).not.toHaveBeenCalled()
     expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
   })
@@ -425,6 +456,20 @@ describe('getting a Microsoft app token for a run', () => {
     expect(tokens.map((request) => request.form.scope)).toEqual([`${ENVIRONMENT}/.default`])
   })
 
+  it('mints a Microsoft Graph token for Intune, shared with the other Graph services', async () => {
+    const tokens = fakeMicrosoft(fetch)
+    storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-intune')
+    await expect(
+      resolveMicrosoftAppCredentialToken('cred-intune', 'microsoft-intune')
+    ).resolves.toEqual({ accessToken: 'at:https://graph.microsoft.com/.default' })
+    storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-intune')
+    await resolveMicrosoftAppCredentialToken('cred-intune', 'microsoft-ad')
+
+    expect(tokens.map((request) => request.form.scope)).toEqual([
+      'https://graph.microsoft.com/.default',
+    ])
+  })
+
   it('refuses Dataverse for a credential saved without an environment', async () => {
     fakeMicrosoft(fetch)
     storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-graph-only')
@@ -448,6 +493,127 @@ describe('getting a Microsoft app token for a run', () => {
     await resolveMicrosoftAppCredentialToken('cred-cache', 'sharepoint')
     expect(tokens).toHaveLength(2)
     expect(tokens[1]?.form.client_secret).toBe('rotated')
+  })
+
+  it('asks for a reconnect once the stored certificate has expired, without contacting Entra', async () => {
+    fakeMicrosoft(fetch)
+    const expired = generateTestCertificate({
+      notBefore: Date.now() - 400 * DAY_MS,
+      notAfter: Date.now() - DAY_MS,
+    })
+    storeCredential({ authType: 'certificate', ...expired }, 'ciphertext-expired-certificate')
+
+    await expect(
+      resolveMicrosoftAppCredentialToken('cred-expired-certificate', 'microsoft-ad')
+    ).rejects.toMatchObject({ code: 'invalid_credentials', status: 400 })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('reports an unreachable Entra as the provider being unavailable', async () => {
+    fetch.mockRejectedValue(new TypeError('fetch failed'))
+    storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-unreachable')
+
+    await expect(
+      resolveMicrosoftAppCredentialToken('cred-unreachable', 'microsoft-ad')
+    ).rejects.toMatchObject({ code: 'provider_unavailable', status: 502 })
+  })
+
+  describe('while a new federated credential propagates', () => {
+    const SUBJECT = 'sim:workspace:ws-1:credential:abcdef0123456789'
+    const refusal = (code: number) =>
+      jsonResponse(
+        {
+          error: 'invalid_client',
+          error_codes: [code],
+          error_description: `AADSTS${code}: No matching federated identity record found for presented assertion.`,
+        },
+        400
+      )
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'Date'] })
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    async function settle<T>(promise: Promise<T>): Promise<T> {
+      const settled = promise.then(
+        (value) => ({ value }),
+        (error: unknown) => ({ error })
+      )
+      await vi.runAllTimersAsync()
+      const outcome = await settled
+      if ('error' in outcome) throw outcome.error
+      return outcome.value
+    }
+
+    it('retries an AADSTS70021 refusal and returns the token Entra then issues', async () => {
+      const tokens = fakeMicrosoft(fetch, { tokenErrorsFirst: [refusal(70021), refusal(70021)] })
+      storeCredential({ authType: 'federated', subject: SUBJECT }, 'ciphertext-propagating')
+
+      await expect(
+        settle(resolveMicrosoftAppCredentialToken('cred-propagating', 'microsoft-ad'))
+      ).resolves.toEqual({ accessToken: 'at:https://graph.microsoft.com/.default' })
+      expect(tokens).toHaveLength(3)
+    })
+
+    it('does not retry AADSTS700213, the documented case-sensitive mismatch', async () => {
+      const tokens = fakeMicrosoft(fetch, { tokenErrorsFirst: [refusal(700213)] })
+      storeCredential({ authType: 'federated', subject: SUBJECT }, 'ciphertext-mismatched')
+
+      await expect(
+        settle(resolveMicrosoftAppCredentialToken('cred-mismatched', 'microsoft-ad'))
+      ).rejects.toMatchObject({
+        code: 'invalid_credentials',
+        logDetail: { reason: 'AADSTS700213' },
+      })
+      expect(tokens).toHaveLength(1)
+    })
+
+    it('stops retrying when a slow Entra would push the run past the shared mint deadline', async () => {
+      const tokens = fakeMicrosoft(fetch, { tokenError: refusal(70021), tokenDelayMs: 11_000 })
+      storeCredential({ authType: 'federated', subject: SUBJECT }, 'ciphertext-slow-refusal')
+
+      await expect(
+        settle(resolveMicrosoftAppCredentialToken('cred-slow-refusal', 'microsoft-ad'))
+      ).rejects.toMatchObject({ code: 'invalid_credentials' })
+      expect(tokens).toHaveLength(1)
+    })
+
+    it('asks for a reconnect once the retries are spent', async () => {
+      const tokens = fakeMicrosoft(fetch, { tokenError: refusal(70021) })
+      storeCredential({ authType: 'federated', subject: SUBJECT }, 'ciphertext-never-matches')
+
+      await expect(
+        settle(resolveMicrosoftAppCredentialToken('cred-never-matches', 'microsoft-ad'))
+      ).rejects.toMatchObject({ code: 'invalid_credentials' })
+      expect(tokens).toHaveLength(3)
+    })
+
+    it('does not retry any other refusal', async () => {
+      const tokens = fakeMicrosoft(fetch, { tokenError: refusal(700016) })
+      storeCredential({ authType: 'federated', subject: SUBJECT }, 'ciphertext-unknown-app')
+
+      await expect(
+        settle(resolveMicrosoftAppCredentialToken('cred-unknown-app', 'microsoft-ad'))
+      ).rejects.toMatchObject({ code: 'invalid_credentials' })
+      expect(tokens).toHaveLength(1)
+    })
+
+    it('does not retry the same refusal for a client secret credential', async () => {
+      const tokens = fakeMicrosoft(fetch, { tokenError: refusal(70021) })
+      storeCredential(
+        { authType: 'client_secret', clientSecret: SECRET },
+        'ciphertext-secret-70021'
+      )
+
+      await expect(
+        settle(resolveMicrosoftAppCredentialToken('cred-secret-70021', 'microsoft-ad'))
+      ).rejects.toMatchObject({ code: 'invalid_credentials' })
+      expect(tokens).toHaveLength(1)
+    })
   })
 
   it('reports an Entra outage as the provider being unavailable, not a bad credential', async () => {
