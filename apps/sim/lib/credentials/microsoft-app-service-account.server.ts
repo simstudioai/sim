@@ -24,7 +24,7 @@ import {
   bindWorkloadIdentitySubject,
   newWorkloadIdentitySubject,
   type WorkloadIdentityCredentialOwner,
-  WorkloadIdentitySubjectError,
+  WorkloadIdentityNotConfiguredError,
 } from '@/lib/credentials/workload-identity/subject'
 import { normalizeMicrosoftDataverseEnvironmentUrl } from '@/lib/oauth/microsoft-dataverse'
 import { MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
@@ -508,20 +508,13 @@ function bindSubject(
   subjectProof: string | undefined,
   owner: WorkloadIdentityCredentialOwner
 ): string {
-  try {
-    return bindWorkloadIdentitySubject({
-      provider: 'microsoft',
-      owner,
-      storedSubject: readStoredSubject(owner.storedSecret),
-      subject,
-      subjectProof,
-    })
-  } catch (error) {
-    if (error instanceof WorkloadIdentitySubjectError) {
-      throw new MicrosoftAppCredentialError(error.message)
-    }
-    throw error
-  }
+  return bindWorkloadIdentitySubject({
+    provider: 'microsoft',
+    owner,
+    storedSubject: readStoredSubject(owner.storedSecret),
+    subject,
+    subjectProof,
+  })
 }
 
 export interface MicrosoftAppCredentialSaveResult {
@@ -554,9 +547,7 @@ export async function verifyAndEncryptMicrosoftAppCredential(
   let config: MicrosoftAppConfig
   if (submitted.authType === 'federated') {
     if (!(await isWorkloadIdentityConfigured())) {
-      throw new MicrosoftAppCredentialError(
-        'Keyless connections are not available on this deployment. Use a client secret or certificate.'
-      )
+      throw new WorkloadIdentityNotConfiguredError('Use a client secret or certificate.')
     }
     const { subject, subjectProof, ...rest } = submitted
     config = { ...rest, subject: bindSubject(subject, subjectProof, owner) }

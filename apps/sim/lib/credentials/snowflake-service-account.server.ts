@@ -20,7 +20,7 @@ import {
 import {
   bindWorkloadIdentitySubject,
   type WorkloadIdentityCredentialOwner,
-  WorkloadIdentitySubjectError,
+  WorkloadIdentityNotConfiguredError,
 } from '@/lib/credentials/workload-identity/subject'
 import {
   normalizeSnowflakeHost,
@@ -153,26 +153,16 @@ export async function verifyAndEncryptSnowflakeKeylessCredential(
   )
   if (!parsed.success) throw new SnowflakeCredentialError(parsed.message)
   if (!(await isWorkloadIdentityConfigured())) {
-    throw new SnowflakeCredentialError(
-      'Keyless connections are not available on this deployment. Use a programmatic access token.'
-    )
+    throw new WorkloadIdentityNotConfiguredError('Use a programmatic access token.')
   }
   const { host, subject: submittedSubject, subjectProof } = parsed.data
-  let subject: string
-  try {
-    subject = bindWorkloadIdentitySubject({
-      provider: 'snowflake',
-      owner,
-      storedSubject: readStoredSubject(owner.storedSecret),
-      subject: submittedSubject,
-      subjectProof,
-    })
-  } catch (error) {
-    if (error instanceof WorkloadIdentitySubjectError) {
-      throw new SnowflakeCredentialError(error.message)
-    }
-    throw error
-  }
+  const subject = bindWorkloadIdentitySubject({
+    provider: 'snowflake',
+    owner,
+    storedSubject: readStoredSubject(owner.storedSecret),
+    subject: submittedSubject,
+    subjectProof,
+  })
 
   const validation = await validateSnowflakeWorkloadIdentity({
     domain: host,

@@ -2067,6 +2067,38 @@ export type CreateCredentialConnectionResponse = {
   data: CreateCredentialConnectionResponseRef0
 }
 
+/** `POST /api/v2/credentials/workload-identity/subjects` */
+export type CreateCredentialWorkloadIdentitySubjectQuery = Record<string, unknown>
+
+export type CreateCredentialWorkloadIdentitySubjectBody = {
+  workspaceId: string
+  providerId:
+    | 'aws-service-account'
+    | 'databricks-service-account'
+    | 'snowflake-service-account'
+    | 'microsoft-app-service-account'
+    | 'google-service-account'
+}
+
+type CreateCredentialWorkloadIdentitySubjectResponseRef0 = {
+  issuer: string
+  audience?: string
+  subject: string
+  subjectProof: string
+  expiresAt: string
+  keylessConfig: {
+    authType: string
+    subject: string
+    subjectProof: string
+  }
+  requiredConfigFields: Array<string>
+  optionalConfigFields: Array<string>
+}
+
+export type CreateCredentialWorkloadIdentitySubjectResponse = {
+  data: CreateCredentialWorkloadIdentitySubjectResponseRef0
+}
+
 /** `POST /api/v2/custom-tools` */
 export type CreateCustomToolQuery = Record<string, unknown>
 
@@ -8778,6 +8810,11 @@ type ListCredentialProvidersResponseRef0 =
         }>
         hint?: string
       }>
+      keyless?: {
+        authType: string
+        requiredConfigFields: Array<string>
+        optionalConfigFields: Array<string>
+      }
     }
 
 export type ListCredentialProvidersResponse = {
@@ -16888,6 +16925,34 @@ export const V2_OPERATIONS = {
     summary: 'Create credential connection',
     workspaceKeyUnsupported: true,
     opaqueBody: true,
+  },
+  createCredentialWorkloadIdentitySubject: {
+    method: 'POST',
+    path: '/api/v2/credentials/workload-identity/subjects',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create workload identity subject',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that will own the keyless credential.',
+      },
+      providerId: {
+        kind: 'enum',
+        required: true,
+        values: [
+          'aws-service-account',
+          'databricks-service-account',
+          'snowflake-service-account',
+          'microsoft-app-service-account',
+          'google-service-account',
+        ] as const,
+        describe:
+          'Service-account provider the keyless credential will be created under; pass the same value to Create service-account credential. The response and List credential providers name the fields its keyless configuration needs.',
+      },
+    },
   },
   createCustomTool: {
     method: 'POST',

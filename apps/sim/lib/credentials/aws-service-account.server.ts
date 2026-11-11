@@ -7,22 +7,23 @@ import {
 } from '@aws-sdk/client-sts'
 import { db } from '@sim/db'
 import { credential } from '@sim/db/schema'
-import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
-import { parseServiceAccountConfig } from '@/lib/credentials/service-account-config'
+import { failureClause, parseServiceAccountConfig } from '@/lib/credentials/service-account-config'
 import { WORKLOAD_IDENTITY_AUDIENCES } from '@/lib/credentials/workload-identity/audiences'
 import {
+  isWorkloadIdentityConfigured,
   mintWorkloadIdentityToken,
   type WorkloadIdentityOwner,
 } from '@/lib/credentials/workload-identity/issuer'
 import {
   bindWorkloadIdentitySubject,
+  KeylessCredentialRefusedError,
   newWorkloadIdentitySubject,
   type WorkloadIdentityCredentialOwner,
-  WorkloadIdentitySubjectError,
+  WorkloadIdentityNotConfiguredError,
 } from '@/lib/credentials/workload-identity/subject'
 import { AWS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 
@@ -227,22 +228,19 @@ function bindSubject(
   storedSubject: string | undefined,
   owner: WorkloadIdentityCredentialOwner
 ): string {
-  try {
-    return bindWorkloadIdentitySubject({
-      provider: 'aws',
-      owner,
-      storedSubject,
-      subject,
-      subjectProof,
-    })
-  } catch (error) {
-    if (error instanceof WorkloadIdentitySubjectError) throw new AwsCredentialError(error.message)
-    throw error
-  }
+  return bindWorkloadIdentitySubject({
+    provider: 'aws',
+    owner,
+    storedSubject,
+    subject,
+    subjectProof,
+  })
 }
 
-function verificationFailure(config: AwsCredentialConfig, error: unknown): AwsCredentialError {
-  const detail = getErrorMessage(error, 'Unknown error')
+function verificationFailure(config: AwsCredentialConfig, error: unknown): Error {
+  // A keyless refusal already names its cause and code; wrapping it would lose both.
+  if (error instanceof KeylessCredentialRefusedError) return error
+  const detail = failureClause(error)
   if (config.authType === 'oidc_role') {
     return new AwsCredentialError(
       `Sim could not assume this role: ${detail}. Check that the role trusts the Sim OIDC provider with this exact subject and audience ${AWS_WORKLOAD_IDENTITY_AUDIENCE}.`
@@ -271,6 +269,9 @@ export async function verifyAndEncryptAwsCredential(
   const submitted = parsed.data
   let config: AwsCredentialConfig
   if (submitted.authType === 'oidc_role') {
+    if (!(await isWorkloadIdentityConfigured())) {
+      throw new WorkloadIdentityNotConfiguredError('Use access keys.')
+    }
     const { subject, subjectProof, ...rest } = submitted
     config = {
       ...rest,
@@ -339,8 +340,9 @@ async function assertRolePinsSubject(
     })
   } catch (error) {
     if (error instanceof Error && error.name === 'AccessDenied') return
+    if (error instanceof KeylessCredentialRefusedError) throw error
     throw new AwsCredentialError(
-      `Sim could not confirm the role's trust policy limits it to this credential: ${getErrorMessage(error, 'Unknown error')}. Try again.`
+      `Sim could not confirm the role's trust policy limits it to this credential: ${failureClause(error)}. Try again.`
     )
   }
   throw new AwsCredentialError(

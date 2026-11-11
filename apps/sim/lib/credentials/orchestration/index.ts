@@ -39,6 +39,7 @@ import {
 } from '@/lib/credentials/environment'
 import { GOOGLE_WORKLOAD_IDENTITY_SECRET_TYPE } from '@/lib/credentials/google-workload-identity'
 import { OciCredentialVerificationError } from '@/lib/credentials/oci-api-key-service-account.server'
+import { keylessFailure } from '@/lib/credentials/orchestration/credential-create'
 import type {
   AtlassianProduct,
   ServiceAccountFieldId,
@@ -51,7 +52,7 @@ import { SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/credentials/token-s
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import {
   assertReconnectedSubjectUnclaimed,
-  WorkloadIdentitySubjectError,
+  KeylessCredentialRefusedError,
 } from '@/lib/credentials/workload-identity/subject'
 import { invalidateEffectiveDecryptedEnvCache } from '@/lib/environment/utils'
 import { findSlackSearchInstallation } from '@/lib/knowledge/application/slack-search/repository'
@@ -241,6 +242,8 @@ export interface PerformCredentialResult {
   errorCode?: CredentialOrchestrationErrorCode
   /** Provider-specific code (e.g. Atlassian `invalid_credentials`) for client message mapping. */
   providerErrorCode?: string
+  /** A refused keyless credential, carried unchanged so callers rethrow it with its detail code. */
+  keylessRefusal?: KeylessCredentialRefusedError
   workspaceId?: string
   updatedFields?: string[]
   previousDisplayName?: string
@@ -486,6 +489,7 @@ export async function updateCredentialRecord(
           }
         }
       } catch (error) {
+        if (error instanceof KeylessCredentialRefusedError) return keylessFailure(error)
         if (error instanceof ServiceAccountSecretError) {
           return { success: false, error: error.message, errorCode: 'validation' }
         }
@@ -547,9 +551,7 @@ export async function updateCredentialRecord(
           await tx.update(credential).set(updates).where(eq(credential.id, params.credentialId))
         })
       } catch (error) {
-        if (error instanceof WorkloadIdentitySubjectError) {
-          return { success: false, error: error.message, errorCode: 'conflict' }
-        }
+        if (error instanceof KeylessCredentialRefusedError) return keylessFailure(error)
         throw error
       }
     } else {

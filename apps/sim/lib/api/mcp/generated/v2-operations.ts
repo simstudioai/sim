@@ -43,6 +43,7 @@ import {
 } from '@/lib/api/contracts/v2/chat-deployments'
 import {
   v2CreateCredentialConnectionContract,
+  v2CreateCredentialWorkloadIdentitySubjectContract,
   v2CreateServiceAccountCredentialContract,
   v2DeleteCredentialContract,
   v2ListCredentialMembersContract,
@@ -656,6 +657,17 @@ export const V2_MCP_OPERATIONS = {
     workspaceKeyUnsupported: true,
     handler: () => import('@/app/api/v2/credentials/connections/route').then((route) => route.POST),
   },
+  createCredentialWorkloadIdentitySubject: {
+    contract: v2CreateCredentialWorkloadIdentitySubjectContract,
+    summary: 'Create workload identity subject',
+    description:
+      "Start a keyless credential. Returns the issuer, audience, and a fresh subject to configure in the cloud's trust policy, plus `keylessConfig`: a prefilled `serviceAccountJson` whose `subjectProof` is valid for 24 hours and only for the requesting user. Add the `requiredConfigFields`, then call Create service-account credential with the same `providerId`; Sim verifies the trust while saving. Google Cloud has no fixed audience: it is the credential's own pool provider. Without keyless support the deployment returns `400` with `details.code` `WORKLOAD_IDENTITY_NOT_CONFIGURED`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/credentials/workload-identity/subjects/route').then(
+        (route) => route.POST
+      ),
+  },
   createCustomTool: {
     contract: v2CreateCustomToolContract,
     summary: 'Create custom tool',
@@ -823,7 +835,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2CreateServiceAccountCredentialContract,
     summary: 'Create service-account credential',
     description:
-      'Verify and store a service-account credential. Use the fields from List credential providers, encoded as a JSON object string in `credentials`. Requires workspace write access. A matching source returns the existing credential with `200`; creation returns `201`. Stored secrets are omitted from the response. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+      'Verify and store a service-account credential. Use the fields from List credential providers, encoded as a JSON object string in `credentials`. For a keyless AWS, Databricks, Snowflake, Microsoft app, or Google Cloud credential, call Create workload identity subject first, configure the cloud to trust it, then send its `keylessConfig` as `serviceAccountJson`. A refused keyless credential names its cause in `details.code`: `409` for `WORKLOAD_IDENTITY_SUBJECT_IN_USE` or `WORKLOAD_IDENTITY_SUBJECT_UNVERIFIABLE`, otherwise `400`, such as `WORKLOAD_IDENTITY_PROOF_EXPIRED` (request a new subject). Requires workspace write access. A matching source returns the existing credential with `200`; creation returns `201`. Stored secrets are omitted from the response. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () => import('@/app/api/v2/credentials/route').then((route) => route.POST),
   },

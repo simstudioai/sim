@@ -31,6 +31,7 @@ vi.mock('@/lib/credentials/application/service-account', () => ({
 }))
 
 import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
+import { KeylessCredentialRefusedError } from '@/lib/credentials/workload-identity/subject'
 import { GET, POST } from '@/app/api/v2/credentials/route'
 
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
@@ -421,4 +422,59 @@ describe('POST /api/v2/credentials', () => {
     })
     expect(mocks.create).not.toHaveBeenCalled()
   })
+  function createKeyless(providerId: string, serviceAccountJson: object) {
+    return POST(
+      new NextRequest('http://localhost:3000/api/v2/credentials', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          providerId,
+          credentials: JSON.stringify({ serviceAccountJson: JSON.stringify(serviceAccountJson) }),
+        }),
+      })
+    )
+  }
+
+  it('accepts a keyless Snowflake configuration in place of the token fields', async () => {
+    const response = await createKeyless('snowflake-service-account', {
+      authType: 'workload_identity',
+      host: 'myorg-myaccount.snowflakecomputing.com',
+      subject: 'sim:workspace:ws:credential:abcdef0123456789',
+      subjectProof: 'proof',
+    })
+
+    expect(response.status).toBe(201)
+    expect(mocks.create).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    ['WORKLOAD_IDENTITY_NOT_CONFIGURED', 400, 'BAD_REQUEST'],
+    ['WORKLOAD_IDENTITY_PROOF_EXPIRED', 400, 'BAD_REQUEST'],
+    ['WORKLOAD_IDENTITY_PROOF_INVALID', 400, 'BAD_REQUEST'],
+    ['WORKLOAD_IDENTITY_SUBJECT_IN_USE', 409, 'CONFLICT'],
+    ['WORKLOAD_IDENTITY_SUBJECT_UNVERIFIABLE', 409, 'CONFLICT'],
+  ] as const)(
+    'names a refused keyless credential %s in details.code',
+    async (detailCode, status, code) => {
+      mocks.create.mockRejectedValue(
+        new KeylessCredentialRefusedError('Start the keyless connection again.', detailCode)
+      )
+
+      const response = await createKeyless('aws-service-account', {
+        authType: 'oidc_role',
+        roleArn: 'arn:aws:iam::123456789012:role/Sim',
+        subject: 'sim:workspace:ws:credential:abcdef0123456789',
+        subjectProof: 'proof',
+      })
+
+      expect(response.status).toBe(status)
+      expect((await response.json()).error).toEqual({
+        code,
+        message: 'Start the keyless connection again.',
+        details: { code: detailCode },
+      })
+    }
+  )
 })

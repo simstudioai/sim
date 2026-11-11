@@ -4,7 +4,10 @@ import { generateId } from '@sim/utils/id'
 import { calculateJwkThumbprint, type JWK, SignJWT } from 'jose'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { assertWorkloadIdentitySubjectOwner } from '@/lib/credentials/workload-identity/subject'
+import {
+  assertWorkloadIdentitySubjectOwner,
+  WorkloadIdentityNotConfiguredError,
+} from '@/lib/credentials/workload-identity/subject'
 
 /**
  * Sim's workload-identity issuer: a minimal OpenID Connect token issuer that
@@ -28,13 +31,6 @@ export const WORKLOAD_IDENTITY_TOKEN_TTL_SECONDS = 300
 export const MAX_WORKLOAD_IDENTITY_TOKEN_TTL_SECONDS = 3600
 
 const PRIVATE_JWK_FIELDS = ['d', 'p', 'q', 'dp', 'dq', 'qi'] as const
-
-export class WorkloadIdentityNotConfiguredError extends Error {
-  constructor() {
-    super('Workload identity is not configured on this deployment')
-    this.name = 'WorkloadIdentityNotConfiguredError'
-  }
-}
 
 interface SigningMaterial {
   privateKey: KeyObject

@@ -223,6 +223,16 @@ async function readResponseText(response: Response): Promise<string> {
   }
 }
 
+/** A refusal's machine-readable code: `details.code` when present, else the top-level `code`. */
+export function refusalCode(error: SimApiError): string | null {
+  const details = error.details
+  if (details && typeof details === 'object') {
+    const code = (details as { code?: unknown }).code
+    if (typeof code === 'string') return code
+  }
+  return error.code
+}
+
 /**
  * Whether this is the refusal a workspace-scoped key gets from an operation only
  * a personal key may perform, under either code that expresses it.
@@ -234,11 +244,8 @@ async function readResponseText(response: Response): Promise<string> {
  * is still accepted so a server that promotes the code stays covered.
  */
 function namesKeyScopeRefusal(error: SimApiError): boolean {
-  if (typeof error.code === 'string' && KEY_SCOPE_REFUSALS.has(error.code)) return true
-  const details = error.details
-  if (!details || typeof details !== 'object') return false
-  const code = (details as { code?: unknown }).code
-  return typeof code === 'string' && KEY_SCOPE_REFUSALS.has(code)
+  const code = refusalCode(error)
+  return code !== null && KEY_SCOPE_REFUSALS.has(code)
 }
 
 interface DetailIssue {

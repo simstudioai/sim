@@ -16,6 +16,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 vi.mock('@/lib/credentials/workload-identity/issuer', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/credentials/workload-identity/issuer')>()),
+  isWorkloadIdentityConfigured: async () => true,
   mintWorkloadIdentityToken: async ({ subject }: { subject: string }) => `token-for:${subject}`,
 }))
 

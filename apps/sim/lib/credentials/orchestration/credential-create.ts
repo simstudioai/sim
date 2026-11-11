@@ -31,7 +31,7 @@ import { isTokenServiceAccountProviderId } from '@/lib/credentials/token-service
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import {
   assertWorkloadIdentitySubjectUnclaimed,
-  WorkloadIdentitySubjectError,
+  KeylessCredentialRefusedError,
 } from '@/lib/credentials/workload-identity/subject'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
@@ -121,6 +121,8 @@ export interface PerformCreateCredentialResult {
   created?: boolean
   /** Verified provider identity metadata for the application audit projection. */
   auditMetadata?: Record<string, unknown>
+  /** A refused keyless credential, carried unchanged so callers rethrow it with its detail code. */
+  keylessRefusal?: KeylessCredentialRefusedError
 }
 
 interface ExistingCredentialSourceParams extends ResourceOwner {
@@ -226,6 +228,16 @@ function failure(
   extra: Partial<PerformCreateCredentialResult> = {}
 ): PerformCreateCredentialResult {
   return { success: false, error, errorCode, ...extra }
+}
+
+/** The failure result for a refused keyless credential: its class and code travel with it. */
+export function keylessFailure(refusal: KeylessCredentialRefusedError) {
+  return {
+    success: false as const,
+    error: refusal.message,
+    errorCode: refusal.code === 'conflict' ? ('conflict' as const) : ('validation' as const),
+    keylessRefusal: refusal,
+  }
 }
 
 export type CreateCredentialRecordParams = Omit<PerformCreateCredentialParams, 'workspaceId'> &
@@ -343,6 +355,7 @@ export async function createCredentialRecord(
         resolvedWorkloadIdentitySubject = secret.newWorkloadIdentitySubject
         Object.assign(extraAuditMetadata, secret.auditMetadata)
       } catch (error) {
+        if (error instanceof KeylessCredentialRefusedError) return keylessFailure(error)
         if (error instanceof ServiceAccountSecretError) {
           return failure(error.message, 'validation')
         }
@@ -530,8 +543,7 @@ export async function createCredentialRecord(
             scope,
           })
         } catch (error) {
-          if (error instanceof WorkloadIdentitySubjectError)
-            return failure(error.message, 'conflict')
+          if (error instanceof KeylessCredentialRefusedError) return keylessFailure(error)
           throw error
         }
       }

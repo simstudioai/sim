@@ -71,6 +71,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/credentials/providers/route'),
   },
   {
+    pattern: '/api/v2/credentials/workload-identity/subjects',
+    load: () => import('@/app/api/v2/credentials/workload-identity/subjects/route'),
+  },
+  {
     pattern: '/api/v2/custom-tools',
     load: () => import('@/app/api/v2/custom-tools/route'),
   },

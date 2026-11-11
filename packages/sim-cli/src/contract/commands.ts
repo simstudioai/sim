@@ -185,6 +185,7 @@ export const CLI_CONTRACT: CliContract = {
   // endpoint as an NDJSON stream so the reply prints as it generates.
   chat: { hidden: true },
   createCredentialConnection: { hidden: true },
+  createCredentialWorkloadIdentitySubject: { hidden: true },
   createServiceAccountCredential: { hidden: true },
   getBillingStatus: {
     command: 'billing status',

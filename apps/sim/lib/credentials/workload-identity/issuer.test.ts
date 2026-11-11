@@ -180,7 +180,7 @@ describe('workload identity issuer', () => {
         audience: 'sts.amazonaws.com',
         owner: { workspaceId: 'ws-1' },
       })
-    ).rejects.toBeInstanceOf(issuer.WorkloadIdentityNotConfiguredError)
+    ).rejects.toMatchObject({ detailCode: 'WORKLOAD_IDENTITY_NOT_CONFIGURED' })
   })
 
   it('uses the pinned issuer URL when one is configured', async () => {
