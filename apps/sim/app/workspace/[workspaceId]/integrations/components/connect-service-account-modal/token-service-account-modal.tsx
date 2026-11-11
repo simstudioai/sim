@@ -25,6 +25,7 @@ import {
   type TokenServiceAccountDescriptor,
   type TokenServiceAccountField,
 } from '@/lib/credentials/token-service-accounts/descriptors'
+import { ClientCredentialsFields } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/client-credentials-fields'
 import { withBrandIcon } from '@/blocks/brand-icon'
 import {
   useCreateScopedCredential,
@@ -234,37 +235,20 @@ function TokenServiceAccountModalForm({
         )}
 
         {clientCredentials && usesClientCredentials && (
-          <>
-            <ChipModalField
-              type='input'
-              title='Client ID'
-              value={clientId}
-              onChange={(value) => {
-                setClientId(value)
-                if (error) setError(null)
-              }}
-              placeholder='Paste the client ID'
-              required
-              autoComplete='off'
-              hint={clientCredentials.helpText}
-            />
-            <ChipModalField type='custom' title='Client secret' required>
-              <SecretInput
-                value={clientSecret}
-                onChange={(value) => {
-                  setClientSecret(value)
-                  if (error) setError(null)
-                }}
-                placeholder='Paste the client secret'
-                name={`${descriptor.providerId}_client_secret`}
-                autoComplete='new-password'
-                autoCorrect='off'
-                autoCapitalize='off'
-                data-lpignore='true'
-                data-form-type='other'
-              />
-            </ChipModalField>
-          </>
+          <ClientCredentialsFields
+            clientId={clientId}
+            clientSecret={clientSecret}
+            onClientIdChange={(value) => {
+              setClientId(value)
+              if (error) setError(null)
+            }}
+            onClientSecretChange={(value) => {
+              setClientSecret(value)
+              if (error) setError(null)
+            }}
+            clientIdHint={clientCredentials.helpText}
+            secretInputName={`${descriptor.providerId}_client_secret`}
+          />
         )}
 
         {tokenField && authMethod === 'token' && (

@@ -50,6 +50,7 @@ import {
 } from '@/lib/oauth/types'
 import { AwsAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/aws-account-modal'
 import { ClientCredentialAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/client-credential-account-modal'
+import { ClientCredentialsFields } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/client-credentials-fields'
 import { DatabricksAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/databricks-account-modal'
 import {
   buildGoogleKeylessConfig,
@@ -1083,44 +1084,24 @@ function AtlassianServiceAccountModalForm({
         />
 
         {usesClientCredentials ? (
-          <>
-            <ChipModalField
-              type='input'
-              title='Client ID'
-              value={clientId}
-              onChange={(value) => {
-                setClientId(value)
-                clearError()
-              }}
-              placeholder='Paste the client ID'
-              autoComplete='off'
-              required
-              hint={
-                atlassianProduct === 'confluence'
-                  ? 'Use an OAuth 2.0 credential with Confluence scopes. Required scopes are listed in the setup guide.'
-                  : 'Use an OAuth 2.0 credential with Jira scopes. Jira Service Management needs a scoped API token.'
-              }
-            />
-            <ChipModalField type='custom' title='Client secret' required>
-              {(aria) => (
-                <SecretInput
-                  {...aria}
-                  value={clientSecret}
-                  onChange={(value) => {
-                    setClientSecret(value)
-                    clearError()
-                  }}
-                  placeholder='Paste the client secret'
-                  name='atlassian_service_account_client_secret'
-                  autoComplete='new-password'
-                  autoCorrect='off'
-                  autoCapitalize='off'
-                  data-lpignore='true'
-                  data-form-type='other'
-                />
-              )}
-            </ChipModalField>
-          </>
+          <ClientCredentialsFields
+            clientId={clientId}
+            clientSecret={clientSecret}
+            onClientIdChange={(value) => {
+              setClientId(value)
+              clearError()
+            }}
+            onClientSecretChange={(value) => {
+              setClientSecret(value)
+              clearError()
+            }}
+            clientIdHint={
+              atlassianProduct === 'confluence'
+                ? 'Use an OAuth 2.0 credential with Confluence scopes. Required scopes are listed in the setup guide.'
+                : 'Use an OAuth 2.0 credential with Jira scopes. Jira Service Management needs a scoped API token.'
+            }
+            secretInputName='atlassian_service_account_client_secret'
+          />
         ) : authMethod === 'api_token' ? (
           <ChipModalField
             type='custom'
