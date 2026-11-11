@@ -184,6 +184,14 @@ export interface ProviderResponse {
   body: ReadableStream<Uint8Array> | null
 }
 
+/** Whether a 403 is the vendor's own JSON answer; an HTML one is a firewall or CDN page. */
+export function isVendorJsonForbidden(response: ProviderResponse): boolean {
+  return (
+    response.status === 403 &&
+    (response.headers.get('content-type') ?? '').includes('application/json')
+  )
+}
+
 /**
  * Reads a bounded snippet of a provider error body for server logs. Never
  * throws — an unreadable body logs as an empty string.

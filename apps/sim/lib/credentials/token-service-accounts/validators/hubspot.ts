@@ -1,10 +1,9 @@
 import { tenantPrincipal, userPrincipal } from '@/lib/credentials/principal'
 import {
   fetchProvider,
+  isVendorJsonForbidden,
   parseProviderJson,
   providerFailureCode,
-  readProviderErrorSnippet,
-  TokenServiceAccountValidationError,
   throwForProviderResponse,
 } from '@/lib/credentials/token-service-accounts/errors'
 import type {
@@ -44,10 +43,10 @@ async function verifyViaAccountInfo(
     },
     'account_info'
   )
-  if (res.status === 403 && (res.headers.get('content-type') ?? '').includes('application/json')) {
+  if (isVendorJsonForbidden(res)) {
     // The token is live but cannot read account info, so neither the portal
     // nor the creating user is knowable on this path.
-    await readProviderErrorSnippet(res)
+    await res.body?.cancel().catch(() => undefined)
     return {
       displayName: 'HubSpot',
       principal: null,
@@ -67,6 +66,9 @@ async function verifyViaAccountInfo(
   }
 }
 
+/** The documented prefix of HubSpot service keys and private app tokens. */
+const HUBSPOT_KEY_PREFIX = /^pat-/
+
 /**
  * Validates a HubSpot service key or private app access token.
  *
@@ -76,13 +78,15 @@ async function verifyViaAccountInfo(
  * tokens, so one code path covers both regions.
  *
  * That endpoint is documented only for private app tokens, and live probing
- * shows it returns a bare 404 (HTML) for a token it does not recognize, so
- * any non-transient 4xx falls back to the Account Information API, which
- * distinguishes a rejected token (JSON 401) from a live one (200/403).
+ * shows it returns a bare 404 (HTML) for a token it does not recognize. So a
+ * 400, 403 or 404, a 401 for a `pat-` key (which may be a service key), or a
+ * 200 without a portal falls back to the Account Information API, which
+ * distinguishes a rejected token (JSON 401) from a live one (200/403). Any
+ * other token it answers with 401 is rejected there.
  *
- * The display name is always `HubSpot portal {hubId}` — the account-info
- * `uiDomain` is the shared regional host (e.g. `app.hubspot.com`), not a
- * portal-specific name, so it is not used.
+ * The display name is `HubSpot portal {hubId}` when the portal is known — the
+ * account-info `uiDomain` is the shared regional host (e.g. `app.hubspot.com`),
+ * not a portal-specific name, so it is not used.
  */
 export async function validateHubspotServiceAccount(
   fields: TokenServiceAccountFields
@@ -102,22 +106,22 @@ export async function validateHubspotServiceAccount(
     },
     'access_token_info'
   )
-  if (!res.ok && providerFailureCode(res.status) === 'invalid_credentials') {
-    // Not decisive: this route 404s tokens it does not recognize and covers
-    // only private apps, so a service key may be refused here yet work on
-    // every REST route. Resolve via a regular API route with JSON errors.
-    await readProviderErrorSnippet(res)
+  const inconclusive =
+    !res.ok &&
+    providerFailureCode(res.status) === 'invalid_credentials' &&
+    (res.status !== 401 || HUBSPOT_KEY_PREFIX.test(accessToken))
+  if (inconclusive) {
+    // This route 404s tokens it does not recognize and covers only private
+    // apps, so a service key may be refused here yet work on every REST route.
+    // Resolve via a regular API route with JSON errors.
+    await res.body?.cancel().catch(() => undefined)
     return verifyViaAccountInfo(accessToken)
   }
   await throwForProviderResponse(res, 'access_token_info')
 
   const tokenInfo = await parseProviderJson<HubspotTokenInfo>(res, 'access_token_info')
-  if (typeof tokenInfo?.hubId !== 'number') {
-    throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
-      step: 'access_token_info',
-      reason: 'missing hubId in response',
-    })
-  }
+  // A 200 without a portal is not a private app's answer; let the REST route decide.
+  if (typeof tokenInfo?.hubId !== 'number') return verifyViaAccountInfo(accessToken)
 
   const hubId = String(tokenInfo.hubId)
 

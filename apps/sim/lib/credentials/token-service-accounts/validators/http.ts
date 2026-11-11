@@ -9,6 +9,7 @@ import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   fetchProvider,
   isHostNotFound,
+  isVendorJsonForbidden,
   type ProviderResponse,
   providerFailureCode,
   TokenServiceAccountValidationError,
@@ -258,11 +259,7 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
             ? undefined
             : { dnsFailureCode: 'site_not_found' }
         )
-    // A JSON 403 is the vendor's own answer; an HTML one is a firewall or CDN page.
-    const scopedForbidden =
-      check.forbiddenMeansScoped &&
-      response.status === 403 &&
-      (response.headers.get('content-type') ?? '').includes('application/json')
+    const scopedForbidden = check.forbiddenMeansScoped && isVendorJsonForbidden(response)
     if ((check.rejectsKey || check.provesKey) && !response.ok) {
       const unreadable = Symbol('unreadable')
       const errorBody = await readJsonBody(response, check.serviceLabel).catch(() => unreadable)

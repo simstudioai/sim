@@ -103,6 +103,31 @@ describe('validateHubspotServiceAccount', () => {
     expectFallbackCall()
   })
 
+  it('rejects a token token-info answers with a 401 when it is not a pat- key', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse({ status: 'error', category: 'INVALID_AUTHENTICATION' }, 401)
+      )
+      .mockResolvedValueOnce(jsonResponse({ portalId: 456, uiDomain: 'app.hubspot.com' }))
+
+    await expect(
+      validateHubspotServiceAccount({ apiToken: 'oauth-access-token' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials', status: 401 })
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('verifies through account-info a key token-info answers without a portal', async () => {
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse({}))
+      .mockResolvedValueOnce(jsonResponse({ portalId: 789, uiDomain: 'app.hubspot.com' }))
+
+    await expect(validateHubspotServiceAccount(FIELDS)).resolves.toMatchObject({
+      displayName: 'HubSpot portal 789',
+      principal: { kind: 'tenant', id: '789' },
+    })
+    expectFallbackCall()
+  })
+
   it('throws invalid_credentials when both routes answer 401', async () => {
     mockFetch
       .mockResolvedValueOnce(
