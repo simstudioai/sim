@@ -230,6 +230,7 @@ const GROUP_DOCUMENTATION: Record<string, GroupDocumentation> = {
     description: 'Build, deploy, run, and inspect workflows from the terminal.',
     related: [
       ['Workflow builder', '/workflows'],
+      ['Build and run workflows with the API', '/api-reference/build-and-run-workflows'],
       ['Import and workspace sync', '/cli/workflow-sync'],
       ['Scripting and exit codes', '/cli/scripting#exit-codes'],
     ],
