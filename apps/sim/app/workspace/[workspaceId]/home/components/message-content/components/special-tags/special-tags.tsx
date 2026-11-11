@@ -2540,6 +2540,7 @@ function ServiceAccountConnectDisplay({
             atlassianProduct={match?.providerId === 'confluence' ? 'confluence' : 'jira'}
             serviceName={target.serviceName}
             serviceIcon={target.serviceIcon}
+            oauthServiceId={service?.providerId}
             credentialId={reconnectCredentialId}
             credentialDisplayName={reconnectCredential?.displayName ?? undefined}
             onCreated={() => {

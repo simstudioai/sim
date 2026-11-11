@@ -4,6 +4,7 @@ import { type ComponentType, useState } from 'react'
 import {
   ChipModal,
   ChipModalBody,
+  ChipModalDescription,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
@@ -25,7 +26,10 @@ import {
   type ClientCredentialAccountProviderId,
   getClientCredentialAccountDescriptor,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
-import { GOOGLE_KEYLESS_SERVICES } from '@/lib/credentials/google-workload-identity'
+import {
+  GOOGLE_KEYLESS_SERVICES,
+  googleKeylessOffer,
+} from '@/lib/credentials/google-workload-identity'
 import type { ServiceAccountSecretFields } from '@/lib/credentials/service-account-secret'
 import {
   getTokenServiceAccountDescriptor,
@@ -668,7 +672,12 @@ function GoogleServiceAccountModalForm({
     onCreated,
     onClose: () => onOpenChange(false),
   })
-  const offerKeyless = Boolean(keyless.available) && (cloudService || keyless.reconnectsKeyless)
+  const keylessOffer = googleKeylessOffer({
+    oauthServiceId,
+    available: Boolean(keyless.available),
+    reconnectsKeyless: keyless.reconnectsKeyless,
+  })
+  const offerKeyless = keylessOffer === 'offer'
   const [selectedAuthType, setSelectedAuthType] = useState<GoogleAuthType | null>(null)
   const authType: GoogleAuthType = offerKeyless
     ? (selectedAuthType ?? (keyless.reconnectsKeyless ? 'workload_identity' : 'json_key'))
@@ -764,10 +773,12 @@ function GoogleServiceAccountModalForm({
 
   const isPending =
     createCredential.isPending || updateCredential.isPending || keylessSubmit.isPending
+  const cloudOnly = keylessOffer === 'cloud_only'
   const isDisabled =
-    authType === 'workload_identity'
+    cloudOnly ||
+    (authType === 'workload_identity'
       ? isPending || !keyless.ready || !isGoogleKeylessInputComplete(keylessInput)
-      : !jsonInput.trim() || isPending
+      : !jsonInput.trim() || isPending)
   const submitError = authType === 'workload_identity' ? keylessSubmit.error : error
 
   return (
@@ -817,7 +828,14 @@ function GoogleServiceAccountModalForm({
           />
         )}
 
-        {authType === 'json_key' && (
+        {cloudOnly && (
+          <ChipModalDescription>
+            This keyless credential works only with Google Cloud services (BigQuery, Vertex AI).
+            Reconnect it from one of those integrations or from the credential’s own page.
+          </ChipModalDescription>
+        )}
+
+        {authType === 'json_key' && !cloudOnly && (
           <>
             <ChipModalField
               type='textarea'

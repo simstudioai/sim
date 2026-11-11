@@ -21,6 +21,29 @@ export const GOOGLE_KEYLESS_SERVICES: ReadonlySet<string> = new Set([
   'vertex-ai',
 ])
 
+/**
+ * What a Google service account connect dialog offers for keyless setup.
+ *
+ * - `offer`: a Google Cloud service (new or reconnect), or a keyless credential
+ *   reconnected from a context that names no service (its own detail page).
+ * - `cloud_only`: a keyless credential reconnected from a Google Workspace
+ *   service, which can never use it; the dialog explains instead of saving.
+ * - `none`: JSON key only.
+ */
+export function googleKeylessOffer(input: {
+  /** The OAuth service the dialog was opened for, when it was opened for one. */
+  oauthServiceId?: string
+  /** This deployment can sign workload-identity tokens for this owner. */
+  available: boolean
+  /** The credential being reconnected is keyless. */
+  reconnectsKeyless: boolean
+}): 'offer' | 'cloud_only' | 'none' {
+  if (!input.available) return 'none'
+  if (input.oauthServiceId && GOOGLE_KEYLESS_SERVICES.has(input.oauthServiceId)) return 'offer'
+  if (!input.reconnectsKeyless) return 'none'
+  return input.oauthServiceId ? 'cloud_only' : 'offer'
+}
+
 /** The `type` of a keyless credential's stored secret; a JSON key's is `service_account`. */
 export const GOOGLE_WORKLOAD_IDENTITY_SECRET_TYPE = 'google_workload_identity_v1' as const
 
