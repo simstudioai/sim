@@ -11,7 +11,7 @@ import { Modal } from '@sim/emcn/modal'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { SearchField } from '@sim/emcn/search-field'
-import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { SettingsRow, SettingsSurface } from '@sim/emcn/settings-section'
 import { parseAsString, useQueryState } from 'nuqs'
 import {
   ActionRow,
@@ -22,10 +22,11 @@ import type {
   CredentialGroupActions,
   DatabricksDraft,
 } from '@/platform/lib/data/credential-group-actions'
-import type {
-  CredentialGroupsData,
-  CredentialProvider,
-  DatabricksConfiguration,
+import {
+  type CredentialGroupsData,
+  type CredentialProvider,
+  credentialProviderIconId,
+  type DatabricksConfiguration,
 } from '@/platform/lib/data/models/connected-accounts'
 
 interface GroupProvidersProps {
@@ -131,84 +132,87 @@ export function GroupProviders({ data, actions, renderSlackSetup }: GroupProvide
     if (item.provider === 'slack' || item.provider === 'databricks') setConfiguration(item)
     else return add(item)
   }
+  const searching = search.trim().length > 0
+  const addIntegration = (
+    <Button
+      size='compact'
+      disabled={!available.length}
+      disabledReason='Every available integration is already added'
+      onClick={() => {
+        setChoice(null)
+        setCatalog(true)
+      }}
+    >
+      Add integration
+    </Button>
+  )
   return (
     <SectionStack>
-      <SearchField
-        label='Search integrations'
-        value={search}
-        onValueChange={(value) => void setSearch(value)}
-      />
-      <SettingsSection title='Integrations'>
-        {visible.map((item) => (
-          <SettingsRow
-            key={item.key}
-            leading={
-              <Icon
-                providerId={
-                  item.provider === 'github-repositories'
-                    ? 'github'
-                    : item.provider.replaceAll('-', '_')
-                }
-              />
-            }
-            label={item.name}
-          >
-            <ActionRow>
-              {(item.provider === 'slack' || item.provider === 'databricks') && (
-                <Button size='compact' onClick={() => setConfiguration(item)}>
-                  Configure
-                </Button>
-              )}
-              <ActionMenu
-                icon='I108'
-                label={`${item.name} actions`}
-                actions={[
-                  {
-                    id: 'remove',
-                    label: 'Remove',
-                    destructive: true,
-                    onSelect: () => setRemoving(item),
-                  },
-                ]}
-              />
-            </ActionRow>
-          </SettingsRow>
-        ))}
-        {!visible.length && (
+      {configured.length > 0 && (
+        <SearchField
+          label='Search integrations'
+          placeholder='Search integrations…'
+          value={search}
+          onValueChange={(value) => void setSearch(value)}
+        />
+      )}
+      {visible.length === 0 ? (
+        searching && configured.length > 0 ? (
+          <EmptyState title='No matching integrations' />
+        ) : (
           <EmptyState
-            title={
-              search.trim()
-                ? 'No matching integrations'
-                : 'Add an integration to start connecting accounts.'
-            }
+            title='No integrations yet'
+            description='Choose which integrations people can connect'
+            action={addIntegration}
           />
-        )}
-        <SettingsRow
-          label='Available integrations'
-          description='Choose which integrations people can connect'
-        >
-          <Button
-            size='compact'
-            disabled={!available.length}
-            onClick={() => {
-              setChoice(null)
-              setCatalog(true)
-            }}
-          >
-            Add integration
-          </Button>
-        </SettingsRow>
-        {configured.some((item) => item.method === 'oauth') && (
+        )
+      ) : (
+        <SettingsSurface>
+          {visible.map((item) => (
+            <SettingsRow
+              key={item.key}
+              leading={<Icon providerId={credentialProviderIconId(item)} />}
+              label={item.name}
+            >
+              <ActionRow>
+                {(item.provider === 'slack' || item.provider === 'databricks') && (
+                  <Button size='compact' onClick={() => setConfiguration(item)}>
+                    Configure
+                  </Button>
+                )}
+                <ActionMenu
+                  icon='I108'
+                  label={`${item.name} actions`}
+                  actions={[
+                    {
+                      id: 'remove',
+                      label: 'Remove',
+                      destructive: true,
+                      onSelect: () => setRemoving(item),
+                    },
+                  ]}
+                />
+              </ActionRow>
+            </SettingsRow>
+          ))}
+          {configured.some((item) => item.method === 'oauth') && (
+            <SettingsRow
+              label='App configurations'
+              description='Apply this deployment’s current app settings; accounts whose app changed reconnect'
+            >
+              <Button size='compact' onClick={() => void actions.updateConfigurations()}>
+                Update configurations
+              </Button>
+            </SettingsRow>
+          )}
           <SettingsRow
-            label='App configurations'
-            description='Accounts whose app configuration changed will need to reconnect.'
+            label='Available integrations'
+            description='Choose which integrations people can connect'
           >
-            <Button size='compact' onClick={() => void actions.updateConfigurations()}>
-              Update configurations
-            </Button>
+            {addIntegration}
           </SettingsRow>
-        )}
-      </SettingsSection>
+        </SettingsSurface>
+      )}
       <Modal
         open={catalog}
         onOpenChange={setCatalog}

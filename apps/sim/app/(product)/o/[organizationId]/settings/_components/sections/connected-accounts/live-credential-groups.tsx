@@ -1,5 +1,6 @@
 'use client'
 
+import { useQueryState } from 'nuqs'
 import { CredentialGroups } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/credential-groups'
 import { SlackMemberSetup } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/slack-member-setup'
 import {
@@ -7,6 +8,10 @@ import {
   useDatabricksConfiguration,
   useLiveCredentialGroupActions,
 } from '@/platform/lib/data/credential-group-actions'
+import {
+  credentialGroupTabParser,
+  useLiveCredentialGroupPeople,
+} from '@/platform/lib/data/credential-group-people'
 import type { CredentialGroupsData } from '@/platform/lib/data/models/connected-accounts'
 
 interface LiveCredentialGroupsProps {
@@ -24,9 +29,15 @@ export function LiveCredentialGroups({
   const actions = useLiveCredentialGroupActions(organizationId, management)
   const databricks = useDatabricksConfiguration(organizationId, management.databricksConfigured)
   const { groupId } = management
+  const [tab] = useQueryState('tab', credentialGroupTabParser)
+  const people = useLiveCredentialGroupPeople(
+    organizationId,
+    Boolean(groupId) && data.canManage && tab === 'people'
+  )
   return (
     <CredentialGroups
       data={{ ...data, databricks }}
+      people={people}
       actions={actions}
       shallow={false}
       renderSlackSetup={(_provider, onClose) =>

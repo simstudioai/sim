@@ -1,11 +1,11 @@
 import 'server-only'
 import type { Scenario } from '@/platform/fixtures'
-import type { CredentialGroupsData } from '@/platform/lib/data/models/connected-accounts'
+import type { CredentialGroupsFixture } from '@/platform/lib/data/models/connected-accounts'
 import {
   credentialGroupCatalog,
   credentialTypeCatalog,
 } from '@/platform/lib/integrations/metadata.generated'
-export function credentialGroupsData(scenario: Scenario): CredentialGroupsData {
+export function credentialGroupsData(scenario: Scenario): CredentialGroupsFixture {
   return {
     setup: scenario !== 'empty',
     canManage: true,

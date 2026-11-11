@@ -5,13 +5,15 @@ import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
-import { parseAsStringLiteral, useQueryState } from 'nuqs'
-import { ActionRow, SectionStack } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { useQueryState } from 'nuqs'
+import { SectionStack } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { GroupAccess } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/group-access'
 import { GroupPeople } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/group-people'
 import { GroupProviders } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/group-providers'
 import type { CredentialGroupActions } from '@/platform/lib/data/credential-group-actions'
+import { credentialGroupTabParser } from '@/platform/lib/data/credential-group-people'
 import type {
+  CredentialGroupPeople,
   CredentialGroupsData,
   CredentialProvider,
 } from '@/platform/lib/data/models/connected-accounts'
@@ -21,14 +23,10 @@ const VIEWS = [
   { value: 'people', label: 'People' },
   { value: 'workspace-access', label: 'Access' },
 ] as const
-const tabParser = parseAsStringLiteral([
-  'providers',
-  'people',
-  'workspace-access',
-] as const).withDefault('providers')
 
 interface CredentialGroupsProps {
   data: CredentialGroupsData
+  people: CredentialGroupPeople
   actions: CredentialGroupActions
   /** URL changes stay on the client, where the data is already whole; otherwise the server reads them. */
   shallow: boolean
@@ -37,20 +35,20 @@ interface CredentialGroupsProps {
 
 export function CredentialGroups({
   data,
+  people,
   actions,
   shallow,
   renderSlackSetup,
 }: CredentialGroupsProps) {
-  const [tab, setTab] = useQueryState('tab', tabParser.withOptions({ shallow }))
+  const [tab, setTab] = useQueryState('tab', credentialGroupTabParser.withOptions({ shallow }))
   const [settingUp, setSettingUp] = useState(false)
-  if (!data.canManage)
-    return <EmptyState title='An organization admin manages credential groups.' />
+  if (!data.canManage) return <EmptyState title='An organization admin manages credential groups' />
   if (!data.setup)
     return (
       <SettingsSection title='Setup'>
         <SettingsRow
           label='Shared account pool'
-          description='Workspaces have no access until you allow them.'
+          description='Workspaces have no access until you allow them'
         >
           <Button
             size='compact'
@@ -67,25 +65,16 @@ export function CredentialGroups({
     )
   return (
     <SectionStack>
-      <ActionRow>
-        <SegmentedControl
-          label='Credential groups views'
-          options={VIEWS}
-          value={tab}
-          onSelect={(value) => void setTab(value)}
-        />
-      </ActionRow>
+      <SegmentedControl
+        label='Credential groups views'
+        options={VIEWS}
+        value={tab}
+        onSelect={(value) => void setTab(value)}
+      />
       {tab === 'providers' && (
         <GroupProviders data={data} actions={actions} renderSlackSetup={renderSlackSetup} />
       )}
-      {tab === 'people' && (
-        <GroupPeople
-          people={data.people}
-          nextCursor={data.nextCursor}
-          shallow={shallow}
-          actions={actions}
-        />
-      )}
+      {tab === 'people' && <GroupPeople people={people} actions={actions} />}
       {tab === 'workspace-access' && <GroupAccess data={data} actions={actions} />}
     </SectionStack>
   )

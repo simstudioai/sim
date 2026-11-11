@@ -15,4 +15,6 @@ export const organizationAccountsKeys = {
   details: () => [...organizationAccountsKeys.all, 'detail'] as const,
   detail: (organizationId?: string) =>
     [...organizationAccountsKeys.details(), organizationId ?? ''] as const,
+  people: (organizationId: string, search: string) =>
+    [...organizationAccountsKeys.detail(organizationId), 'people', search] as const,
 }

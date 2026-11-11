@@ -1,3 +1,4 @@
+import { HydrationBoundary } from '@tanstack/react-query'
 import { SettingsPageHeader } from '@/app/(product)/_components/settings-parts/settings-page'
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
 import { LiveCredentialGroups } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/live-credential-groups'
@@ -26,11 +27,13 @@ export default async function ConnectedAccountsSection({
   const organizationId = organization.organization.id
   const tab = typeof query.tab === 'string' ? query.tab : 'providers'
   const { readCredentialGroups } = await import('@/platform/lib/data/credential-groups')
-  const { data, management } = await readCredentialGroups(organizationId, tab, query)
+  const { data, management, state } = await readCredentialGroups(organizationId, tab, query)
   return (
     <>
       <SettingsPageHeader />
-      <LiveCredentialGroups organizationId={organizationId} data={data} management={management} />
+      <HydrationBoundary state={state}>
+        <LiveCredentialGroups organizationId={organizationId} data={data} management={management} />
+      </HydrationBoundary>
     </>
   )
 }
