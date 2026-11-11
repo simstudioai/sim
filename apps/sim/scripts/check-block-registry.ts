@@ -28,7 +28,8 @@
  *    resolved inputs.
  *
  * Integration BlockMeta coverage, sunset `replacedBy` targets, and the
- * saved-credential contract of credential-only successors are checked too.
+ * saved-credential contract of every block with a saved-credential picker are
+ * checked too.
  *
  * Usage:
  *   bun run apps/sim/scripts/check-block-registry.ts [base-ref]
@@ -42,17 +43,12 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import ts from '@typescript/typescript6'
 import { SUBBLOCK_ID_MIGRATIONS } from '@/lib/workflows/migrations/subblock-migrations'
-import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { getAllBlocks, getBlock, getBlockMeta, getBlockRegistry } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { readBlockRegistryAtRef } from '@/scripts/block-registry-snapshot'
-import { hostSteeringParams } from '@/scripts/saved-credential-contract'
+import { savedCredentialContractErrors } from '@/scripts/saved-credential-contract'
 import { getToolMetadata } from '@/tools/metadata'
-import {
-  credentialSuppliedParamsFor,
-  isSavedCredentialPicker,
-  OPERATION_RESOLVED_CREDENTIAL_PROVIDERS,
-} from '@/tools/shared/saved-credentials'
+import { credentialSuppliedParamsFor } from '@/tools/shared/saved-credentials'
 import { getTool } from '@/tools/utils'
 
 const baseRef = process.argv[2] || 'HEAD~1'
@@ -364,138 +360,23 @@ function findSelectorCoercions(file: string, source: ts.SourceFile): string[] {
   return errors
 }
 
-function operationIds(block: BlockConfig): (string | undefined)[] {
-  const operation = block.subBlocks.find((subBlock) => subBlock.id === 'operation')
-  const options =
-    typeof operation?.options === 'function' ? operation.options() : operation?.options
-  const ids = (options ?? []).map((option) => option.id).filter((id): id is string => Boolean(id))
-  return ids.length > 0 ? ids : [undefined]
-}
-
-function selectedToolId(block: BlockConfig, values: Record<string, unknown>): string | undefined {
-  const access = block.tools?.access ?? []
-  try {
-    return block.tools?.config?.tool?.(values) ?? (access.length === 1 ? access[0] : undefined)
-  } catch {
-    return access.length === 1 ? access[0] : undefined
-  }
-}
-
 /**
- * A credential-only successor (a block some legacy block's `sunset.replacedBy`
- * names, with a saved-credential picker) must actually receive its credential:
- * every tool authorizes the picker's provider, every param the credential
- * supplies is filled server-side, and every mapped param is one the tool takes.
- * Without this a missing mapping passes every other check and fails at run time
- * with the provider's 401.
+ * Every block with a saved-credential picker, and every credential-only successor
+ * (a block some legacy block's `sunset.replacedBy` names), must actually receive
+ * its credential and must not let a caller redirect it: see
+ * `savedCredentialContractErrors`.
  */
 function checkSavedCredentialContract(): CheckResult {
-  const errors: string[] = []
   const legaciesBySuccessor = new Map<string, BlockConfig[]>()
   for (const legacy of getAllBlocks()) {
     const successor = legacy.sunset?.replacedBy
     if (successor)
       legaciesBySuccessor.set(successor, [...(legaciesBySuccessor.get(successor) ?? []), legacy])
   }
-
-  for (const block of getAllBlocks()) {
-    const legacies = legaciesBySuccessor.get(block.type)
-    if (!legacies) continue
-    const picker = block.subBlocks.find(isSavedCredentialPicker)
-    const takesSavedCredential = (block.tools?.access ?? []).some(
-      (toolId) => (getToolMetadata(toolId)?.oauth?.credentialSuppliedParams?.length ?? 0) > 0
-    )
-    if (!takesSavedCredential && !picker) continue
-    if (!picker?.serviceId) {
-      errors.push(
-        `Block "${block.type}": its tools take a saved credential but it has no service-account picker with a serviceId and canonicalParamId 'oauthCredential'.`
-      )
-      continue
-    }
-
-    // Wherever the picker is hidden or optional, the selected tool must not need a credential-supplied param.
-    for (const operation of operationIds(block)) {
-      const values = operation === undefined ? {} : { operation }
-      const pickerNeeded =
-        evaluateSubBlockCondition(picker.condition, values) &&
-        (picker.required === true ||
-          (typeof picker.required === 'object' &&
-            evaluateSubBlockCondition(picker.required, values)))
-      if (pickerNeeded) continue
-      const toolId = selectedToolId(block, values)
-      const tool = toolId ? getToolMetadata(toolId) : undefined
-      for (const param of tool?.oauth?.credentialSuppliedParams ?? []) {
-        if (tool?.params?.[param]?.required) {
-          errors.push(
-            `Block "${block.type}" (operation ${operation ?? 'default'}) → tool "${toolId}": the credential is not required there but "${param}" is.`
-          )
-        }
-      }
-    }
-
-    const successorFields = new Set(block.subBlocks.map((subBlock) => subBlock.id))
-    const replacedSecrets = new Set(
-      legacies
-        .flatMap((legacy) => legacy.subBlocks.map((subBlock) => subBlock.id))
-        .filter((id) => !successorFields.has(id))
-    )
-
-    for (const toolId of block.tools?.access ?? []) {
-      const tool = getToolMetadata(toolId)
-      const oauth = tool?.oauth
-      if (!tool || !oauth) {
-        // A tool that takes none of the replaced secrets (its own per-call auth) needs no policy.
-        const takesReplacedSecret = Object.keys(tool?.params ?? {}).some((param) =>
-          replacedSecrets.has(param)
-        )
-        if (takesReplacedSecret) {
-          errors.push(`Block "${block.type}" → tool "${toolId}": no credential policy (oauth).`)
-        }
-        continue
-      }
-      if (oauth.credentialKind !== 'service-account') {
-        errors.push(
-          `Block "${block.type}" → tool "${toolId}": accepts "${oauth.credentialKind ?? 'any'}" credentials, not the picker's service-account credential.`
-        )
-      }
-      if (oauth.provider !== picker.serviceId) {
-        errors.push(
-          `Block "${block.type}" → tool "${toolId}": authorizes "${oauth.provider}" but the picker selects "${picker.serviceId}".`
-        )
-      }
-      const mapped = new Set(Object.keys(oauth.credentialParams ?? {}))
-      if (!OPERATION_RESOLVED_CREDENTIAL_PROVIDERS.has(oauth.provider)) {
-        for (const param of oauth.credentialSuppliedParams ?? []) {
-          if (!mapped.has(param)) {
-            errors.push(
-              `Block "${block.type}" → tool "${toolId}": "${param}" is credential-supplied but nothing fills it (add it to credentialParams).`
-            )
-          }
-        }
-        const pinned = new Set<string>([...mapped, ...(oauth.authoritativeParams ?? [])])
-        const executable = getTool(toolId)
-        if (!executable) {
-          errors.push(
-            `Block "${block.type}" → tool "${toolId}": not in the executable tool registry.`
-          )
-        }
-        for (const param of executable ? hostSteeringParams(executable).params : []) {
-          if (!pinned.has(param)) {
-            errors.push(
-              `Block "${block.type}" → tool "${toolId}": "${param}" decides the host the saved credential is sent to but the credential does not fill it (map it in credentialParams).`
-            )
-          }
-        }
-      }
-      for (const param of mapped) {
-        if (!tool.params?.[param]) {
-          errors.push(
-            `Block "${block.type}" → tool "${toolId}": credentialParams fills "${param}", which the tool does not declare.`
-          )
-        }
-      }
-    }
-  }
+  const tools = { metadata: getToolMetadata, executable: (toolId: string) => getTool(toolId) }
+  const errors = getAllBlocks().flatMap((block) =>
+    savedCredentialContractErrors(block, legaciesBySuccessor.get(block.type) ?? [], tools)
+  )
 
   if (errors.length === 0) {
     return { kind: 'pass', message: 'Saved-credential contract check passed' }

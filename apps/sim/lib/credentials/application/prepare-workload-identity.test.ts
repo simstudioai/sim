@@ -59,7 +59,9 @@ function reconnecting(
   encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: JSON.stringify(secret) })
 }
 
-function prepare(provider: 'snowflake' | 'google' | 'microsoft' = 'snowflake') {
+function prepare(
+  provider: 'aws' | 'databricks' | 'snowflake' | 'google' | 'microsoft' = 'snowflake'
+) {
   return prepareWorkloadIdentity.execute({
     principal,
     input: { workspaceId: 'workspace-1', provider, credentialId: 'cred-1' },
@@ -197,4 +199,81 @@ describe('preparing a Microsoft app credential reconnect', () => {
     )
     expect(await prepare('microsoft')).not.toHaveProperty('reconnectsKeyless')
   })
+})
+
+describe('preparing an AWS or Databricks reconnect', () => {
+  const subject = 'sim:workspace:workspace-1:credential:abcdef0123456789'
+  const roleArn = 'arn:aws:iam::123456789012:role/sim-role'
+  const accessKeys = { accessKeyId: 'TESTACCESSKEYID0000', secretAccessKey: 'test-secret' }
+  const databricksHost = 'dbc-00000000-0000.cloud.databricks.com'
+  const clientId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+
+  beforeEach(() => {
+    workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext.mockResolvedValue({
+      workspaceId: 'workspace-1',
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'user-1',
+    })
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
+  })
+
+  it.each([
+    {
+      provider: 'aws' as const,
+      providerId: 'aws-service-account',
+      config: { authType: 'oidc_role', roleArn, subject },
+      type: 'aws_credential_v1',
+    },
+    {
+      provider: 'databricks' as const,
+      providerId: 'databricks-service-account',
+      config: { authType: 'oidc_federation', host: databricksHost, clientId, subject },
+      type: 'databricks_credential_v1',
+    },
+  ])(
+    'opens a keyless $provider credential on keyless',
+    async ({ provider, providerId, ...secret }) => {
+      reconnecting(secret, { providerId })
+      await expect(prepare(provider)).resolves.toMatchObject({ reconnectsKeyless: true })
+    }
+  )
+
+  it.each([
+    {
+      provider: 'aws' as const,
+      providerId: 'aws-service-account',
+      config: { authType: 'access_keys', ...accessKeys },
+      type: 'aws_credential_v1',
+    },
+    {
+      provider: 'aws' as const,
+      providerId: 'aws-service-account',
+      config: { authType: 'assume_role', ...accessKeys, roleArn },
+      type: 'aws_credential_v1',
+    },
+    {
+      provider: 'databricks' as const,
+      providerId: 'databricks-service-account',
+      config: { authType: 'personal_access_token', host: databricksHost, token: 'test-token' },
+      type: 'databricks_credential_v1',
+    },
+    {
+      provider: 'databricks' as const,
+      providerId: 'databricks-service-account',
+      config: {
+        authType: 'service_principal',
+        host: databricksHost,
+        clientId,
+        clientSecret: 'test-secret',
+      },
+      type: 'databricks_credential_v1',
+    },
+  ])(
+    'opens a $config.authType $provider credential on its keyed mode',
+    async ({ provider, providerId, ...secret }) => {
+      reconnecting(secret, { providerId })
+      expect(await prepare(provider)).not.toHaveProperty('reconnectsKeyless')
+    }
+  )
 })

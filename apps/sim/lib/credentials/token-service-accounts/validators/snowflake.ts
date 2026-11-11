@@ -1,3 +1,4 @@
+import { EgressRefusedError } from '@/lib/core/network/transport.server'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { tenantPrincipal, userPrincipal } from '@/lib/credentials/principal'
 import {
@@ -197,6 +198,13 @@ export async function validateSnowflakeWorkloadIdentity(input: {
           logUrlValidationDetails: false,
         })
       } catch (error) {
+        // A host the egress policy refuses (a private address) is the user's input, not an outage.
+        if (error instanceof EgressRefusedError) {
+          throw new TokenServiceAccountValidationError('host_not_allowed', 400, {
+            step: 'identity_statement',
+            reason: 'account host not allowed',
+          })
+        }
         const notFound = isHostNotFound(error)
         throw new TokenServiceAccountValidationError(
           notFound ? 'site_not_found' : 'provider_unavailable',

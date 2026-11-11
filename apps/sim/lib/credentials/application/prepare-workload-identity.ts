@@ -4,23 +4,22 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import { credentialOperations } from '@/lib/credentials/application/operations'
+import { isKeylessAwsSecret } from '@/lib/credentials/aws-service-account.server'
+import { isKeylessDatabricksSecret } from '@/lib/credentials/databricks-service-account.server'
 import { isGoogleWorkloadIdentitySecret } from '@/lib/credentials/google-workload-identity'
 import { isKeylessMicrosoftAppSecret } from '@/lib/credentials/microsoft-app-service-account.server'
 import { isKeylessSnowflakeSecret } from '@/lib/credentials/snowflake-service-account.server'
-import { SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
   fixedWorkloadIdentityAudience,
+  isWorkloadIdentityServiceAccountProviderId,
   type WorkloadIdentityProvider,
+  workloadIdentityProviderFor,
 } from '@/lib/credentials/workload-identity/audiences'
 import {
   getWorkloadIdentityIssuer,
   isWorkloadIdentityConfigured,
 } from '@/lib/credentials/workload-identity/issuer'
 import { issueWorkloadIdentitySubject } from '@/lib/credentials/workload-identity/subject'
-import {
-  GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
-  MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
-} from '@/lib/oauth/types'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export interface PrepareWorkloadIdentityInput {
@@ -44,29 +43,20 @@ export type PrepareWorkloadIdentityResult =
       reconnectsKeyless?: true
     }
 
-/** Providers whose credentials can be keyless or key-based under one provider ID. */
-const MIXED_MODE_PROVIDERS: Partial<
-  Record<
-    WorkloadIdentityProvider,
-    { providerId: string; isKeyless: (decrypted: string) => boolean }
-  >
-> = {
-  snowflake: {
-    providerId: SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
-    isKeyless: isKeylessSnowflakeSecret,
-  },
-  microsoft: {
-    providerId: MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
-    isKeyless: isKeylessMicrosoftAppSecret,
-  },
-  google: {
-    providerId: GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
-    isKeyless: isGoogleWorkloadIdentitySecret,
-  },
+/**
+ * Every keyless provider also has key-based modes under the same provider ID, so a
+ * reconnect reads the stored secret to open the dialog on the mode it holds.
+ */
+const MIXED_MODE_PROVIDERS: Record<WorkloadIdentityProvider, (decrypted: string) => boolean> = {
+  aws: isKeylessAwsSecret,
+  databricks: isKeylessDatabricksSecret,
+  snowflake: isKeylessSnowflakeSecret,
+  microsoft: isKeylessMicrosoftAppSecret,
+  google: isGoogleWorkloadIdentitySecret,
 }
 
 /**
- * Whether a Snowflake, Microsoft app, or Google credential in this workspace, which this person
+ * Whether a credential of this provider in this workspace, which this person
  * administers, is keyless. Only that one bit leaves the stored secret, and only
  * for someone allowed to reconnect the credential.
  */
@@ -76,7 +66,6 @@ async function isKeylessCredential(
   workspaceId: string,
   userId: string
 ): Promise<boolean> {
-  const mixedMode = MIXED_MODE_PROVIDERS[provider]
   const access = await getCredentialActorContext(credentialId, userId, { workspaceId })
   const row = access.credential
   if (
@@ -84,14 +73,14 @@ async function isKeylessCredential(
     !row ||
     row.workspaceId !== workspaceId ||
     row.type !== 'service_account' ||
-    !mixedMode ||
-    row.providerId !== mixedMode.providerId ||
+    !isWorkloadIdentityServiceAccountProviderId(row.providerId) ||
+    workloadIdentityProviderFor(row.providerId) !== provider ||
     !row.encryptedServiceAccountKey
   ) {
     return false
   }
   const { decrypted } = await decryptSecret(row.encryptedServiceAccountKey)
-  return mixedMode.isKeyless(decrypted)
+  return MIXED_MODE_PROVIDERS[provider](decrypted)
 }
 
 /**
@@ -118,10 +107,9 @@ export const prepareWorkloadIdentity = defineAuthorizedWorkspaceUseCase({
       { workspaceId: input.workspaceId },
       userId
     )
-    const reconnectsKeyless =
-      MIXED_MODE_PROVIDERS[input.provider] && input.credentialId
-        ? await isKeylessCredential(input.provider, input.credentialId, input.workspaceId, userId)
-        : false
+    const reconnectsKeyless = input.credentialId
+      ? await isKeylessCredential(input.provider, input.credentialId, input.workspaceId, userId)
+      : false
     const audience = fixedWorkloadIdentityAudience(input.provider)
     return {
       available: true,

@@ -114,9 +114,17 @@ function AwsAccountForm({
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
   const [description, setDescription] = useState(initialDescription ?? '')
 
-  // Keyless is the default wherever this deployment supports it.
-  const authType: AwsAuthType =
-    selectedAuthType ?? (keyless.available ? 'oidc_role' : 'access_keys')
+  // A reconnect opens on keyless only for a keyless credential, so a key-based connection is
+  // never switched to keyless by default; a new connection defaults to keyless wherever this
+  // deployment supports it.
+  const defaultAuthType: AwsAuthType = credentialId
+    ? keyless.reconnectsKeyless
+      ? 'oidc_role'
+      : 'access_keys'
+    : keyless.available
+      ? 'oidc_role'
+      : 'access_keys'
+  const authType: AwsAuthType = selectedAuthType ?? defaultAuthType
   const needsKeys = authType === 'access_keys' || authType === 'assume_role'
   const needsRole = authType === 'oidc_role' || authType === 'assume_role'
   const disabled =

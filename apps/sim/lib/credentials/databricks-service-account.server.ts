@@ -219,6 +219,15 @@ async function resolveDatabricksAccessToken(
   )
 }
 
+/** Whether a decrypted Databricks secret is OIDC federation rather than a token or OAuth secret. */
+export function isKeylessDatabricksSecret(decrypted: string): boolean {
+  try {
+    return readStoredSubject(JSON.parse(decrypted)) !== undefined
+  } catch {
+    return false
+  }
+}
+
 function readStoredSubject(storedSecret: Record<string, unknown> | null | undefined) {
   const parsed = storedSecretSchema.safeParse(storedSecret)
   return parsed.success && parsed.data.config.authType === 'oidc_federation'

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { hostSteeringParams } from '@/scripts/saved-credential-contract'
-import type { ExecutableToolConfig, ToolConfig } from '@/tools/types'
+import type { BlockConfig } from '@/blocks/types'
+import {
+  hostSteeringParams,
+  savedCredentialContractErrors,
+} from '@/scripts/saved-credential-contract'
+import type { ToolMetadata } from '@/tools/metadata'
+import type { ExecutableToolConfig, OAuthConfig, ToolConfig } from '@/tools/types'
 
 const required = { type: 'string', required: true }
 const optional = { type: 'string', required: false }
@@ -137,11 +142,97 @@ describe('hostSteeringParams', () => {
     expect(hostSteeringParams(tool).params).toEqual(['accountId'])
   })
 
+  it('builds a URL that validates a base URL beside a numeric id, so the id is not mistaken for the host', () => {
+    const tool = requestTool({ instanceUrl: required, projectId: required }, (p) => {
+      if (!/^[1-9]\d*$/.test(String(p.projectId))) throw new Error('projectId must be numeric')
+      return `${new URL(String(p.instanceUrl)).origin}/rest/v1/tags?project=${p.projectId}`
+    })
+
+    expect(hostSteeringParams(tool)).toEqual({ params: ['instanceUrl'], probed: true })
+  })
+
   it('falls back to workspace-like names when the URL never builds', () => {
     const tool = requestTool({ workspaceSlug: required, query: required }, () => {
       throw new Error('validated elsewhere')
     })
 
     expect(hostSteeringParams(tool)).toEqual({ params: ['workspaceSlug'], probed: false })
+  })
+})
+
+/** A native token block: a service-account picker and one tool, no legacy block. */
+function nativeBlock(toolId: string): BlockConfig {
+  return {
+    type: 'native_fixture',
+    name: 'Native fixture',
+    subBlocks: [
+      {
+        id: 'credential',
+        type: 'oauth-input',
+        serviceId: 'native-fixture',
+        credentialKind: 'service-account',
+        canonicalParamId: 'oauthCredential',
+        mode: 'basic',
+        required: true,
+      },
+    ],
+    tools: { access: [toolId] },
+  } as BlockConfig
+}
+
+/** A tenant-host tool whose instance URL the saved credential supplies only when pinned. */
+function nativeHostTool(oauth: OAuthConfig) {
+  const executable = {
+    ...requestTool(
+      { accessToken: { type: 'string', required: true }, instanceUrl: required, id: required },
+      (p) => `${new URL(String(p.instanceUrl)).origin}/items/${p.id}`
+    ),
+    oauth,
+  }
+  return {
+    metadata: () => executable as ToolMetadata,
+    executable: () => executable,
+  }
+}
+
+const nativeOAuth = {
+  required: true,
+  provider: 'native-fixture',
+  credentialKind: 'service-account',
+} as const satisfies OAuthConfig
+
+describe('savedCredentialContractErrors', () => {
+  it('fails a native block whose host param the credential does not pin', () => {
+    const errors = savedCredentialContractErrors(
+      nativeBlock('probe_fixture'),
+      [],
+      nativeHostTool(nativeOAuth)
+    )
+
+    expect(errors).toEqual([expect.stringContaining('"instanceUrl" decides the host')])
+  })
+
+  it('passes a native block that pins its host param in authoritativeParams', () => {
+    const errors = savedCredentialContractErrors(
+      nativeBlock('probe_fixture'),
+      [],
+      nativeHostTool({ ...nativeOAuth, authoritativeParams: ['instanceUrl'] })
+    )
+
+    expect(errors).toEqual([])
+  })
+
+  it('fails a native block whose tool accepts any credential kind', () => {
+    const errors = savedCredentialContractErrors(
+      nativeBlock('probe_fixture'),
+      [],
+      nativeHostTool({
+        required: true,
+        provider: 'native-fixture',
+        authoritativeParams: ['instanceUrl'],
+      })
+    )
+
+    expect(errors).toEqual([expect.stringContaining('accepts "any" credentials')])
   })
 })
