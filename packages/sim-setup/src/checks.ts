@@ -17,12 +17,10 @@ import { portOpen } from './detect'
 import {
   type EnvFile,
   type EnvTarget,
-  type EnvValue,
   generateSecret,
   isPlaceholder,
   isTruthy,
   isUsableSecret,
-  isWritableEnvValue,
   readEnvFile,
   SECRET_KEYS,
   SHARED_KEYS,
@@ -33,12 +31,13 @@ import { httpHealth, pgProbe, redisPing } from './probes'
 import { FLAG_TWINS, LOGIN_PROVIDERS } from './twins'
 
 /**
- * A value copied out of `file` as it is written there, so a mirror keeps a `${VAR}`
- * reference a reference instead of escaping it into a literal.
+ * Whether `key` is written with an unescaped `$`, a reference Next, Bun, and
+ * Compose expand against the file it sits in. Copied to another file it can
+ * resolve differently, and copied as a literal it stops expanding, so doctor
+ * leaves such values for the user to mirror by hand.
  */
-function asWritten(file: EnvFile, key: string, value: string): EnvValue {
-  const verbatim = file.verbatim.get(key)
-  return verbatim === undefined ? value : { verbatim }
+function holdsReference(file: EnvFile, key: string): boolean {
+  return /(^|[^\\])\$/.test(file.verbatim.get(key) ?? '')
 }
 
 /**
@@ -47,10 +46,11 @@ function asWritten(file: EnvFile, key: string, value: string): EnvValue {
  */
 function sameEnvValue(a: EnvFile, b: EnvFile, key: string): boolean {
   if (a.vars.get(key) !== b.vars.get(key)) return false
-  const aWritten = a.verbatim.get(key) ?? ''
-  const bWritten = b.verbatim.get(key) ?? ''
-  return aWritten === bWritten || !(aWritten.includes('$') || bWritten.includes('$'))
+  if (!holdsReference(a, key) && !holdsReference(b, key)) return true
+  return a.verbatim.get(key) === b.verbatim.get(key)
 }
+
+const MANUAL_MIRROR = 'it contains a $ reference, so copy it and the variables it uses by hand'
 
 export type CheckGroup = 'files' | 'schema' | 'consistency' | 'coherence' | 'live'
 export type CheckStatus = 'pass' | 'warn' | 'fail' | 'skip'
@@ -161,12 +161,14 @@ function checkFiles(ctx: CheckContext): Finding[] {
       autofix: canSeed
         ? () => {
             const keys = target === 'db' ? ['DATABASE_URL'] : [...SHARED_KEYS]
-            const values: Record<string, EnvValue> = {}
+            const values: Record<string, string> = {}
             for (const key of keys) {
               const value = ctx.env.sim.vars.get(key)
               // Skip placeholders so seeding never copies an .env.example stub
               // into the new file (matches autofixForMissing).
-              if (value && !isPlaceholder(value)) values[key] = asWritten(ctx.env.sim, key, value)
+              if (value && !isPlaceholder(value) && !holdsReference(ctx.env.sim, key)) {
+                values[key] = value
+              }
             }
             writeEnvValues(target, values)
           }
@@ -186,9 +188,10 @@ function autofixForMissing(
     target !== 'sim' &&
     (SHARED_KEYS as readonly string[]).includes(key) &&
     simValue &&
-    !isPlaceholder(simValue)
+    !isPlaceholder(simValue) &&
+    !holdsReference(ctx.env.sim, key)
   ) {
-    return () => writeEnvValues(target, { [key]: asWritten(ctx.env.sim, key, simValue) })
+    return () => writeEnvValues(target, { [key]: simValue })
   }
   if (MIN_32_KEYS.has(key)) {
     return () => writeEnvValues(target, { [key]: generateSecret() })
@@ -285,12 +288,15 @@ function checkConsistency(ctx: CheckContext): Finding[] {
       const realtimeValue = realtime.vars.get(key)
       if (!simValue || !realtimeValue) continue
       if (!sameEnvValue(sim, realtime, key)) {
+        const manual = holdsReference(sim, key)
         findings.push({
           group: 'consistency',
           status: 'fail',
           message: `${key} differs between apps/sim/.env and apps/realtime/.env`,
-          fix: 'doctor --fix mirrors the apps/sim/.env value',
-          autofix: () => writeEnvValues('realtime', { [key]: asWritten(sim, key, simValue) }),
+          fix: manual
+            ? `mirror the apps/sim/.env value: ${MANUAL_MIRROR}`
+            : 'doctor --fix mirrors the apps/sim/.env value',
+          autofix: manual ? undefined : () => writeEnvValues('realtime', { [key]: simValue }),
         })
       }
     }
@@ -299,14 +305,16 @@ function checkConsistency(ctx: CheckContext): Finding[] {
     const simDsn = sim.vars.get('DATABASE_URL')
     const dbDsn = db.vars.get('DATABASE_URL')
     if (simDsn && dbDsn && !sameEnvValue(sim, db, 'DATABASE_URL')) {
+      const manual = holdsReference(sim, 'DATABASE_URL')
       findings.push({
         group: 'consistency',
         status: 'fail',
         message:
           'DATABASE_URL differs between apps/sim/.env and packages/db/.env — migrations would hit a different database',
-        fix: 'doctor --fix mirrors the apps/sim/.env value',
-        autofix: () =>
-          writeEnvValues('db', { DATABASE_URL: asWritten(sim, 'DATABASE_URL', simDsn) }),
+        fix: manual
+          ? `mirror the apps/sim/.env value: ${MANUAL_MIRROR}`
+          : 'doctor --fix mirrors the apps/sim/.env value',
+        autofix: manual ? undefined : () => writeEnvValues('db', { DATABASE_URL: simDsn }),
       })
     }
   }
@@ -316,32 +324,6 @@ function checkConsistency(ctx: CheckContext): Finding[] {
       status: 'pass',
       message: 'shared env subset is in sync across files',
     })
-  }
-  return findings
-}
-
-/**
- * Single quotes read literally in a shell and in Docker Compose, but Next and Bun
- * still expand `$NAME` inside them, so the app and Compose see different values.
- */
-function checkDollarQuoting(ctx: CheckContext): Finding[] {
-  const findings: Finding[] = []
-  for (const target of layoutTargets(ctx.layout)) {
-    const file = ctx.env[target]
-    for (const [key, written] of file.verbatim) {
-      if (!written.startsWith("'") || !written.includes('$')) continue
-      const value = file.vars.get(key) ?? ''
-      const writable = isWritableEnvValue(value)
-      findings.push({
-        group: 'schema',
-        status: 'warn',
-        message: `${rel(file)}: ${key} is single-quoted with a $, which the app expands but Docker Compose does not`,
-        fix: writable
-          ? 'doctor --fix rewrites it so every loader reads the $ literally'
-          : `rewrite ${key} without single quotes; escape each literal $ as \\$ inside double quotes`,
-        autofix: writable ? () => writeEnvValues(target, { [key]: value }) : undefined,
-      })
-    }
   }
   return findings
 }
@@ -475,10 +457,7 @@ function checkCoherence(ctx: CheckContext): Finding[] {
       message:
         'DISABLE_AUTH is on in apps/sim/.env but not apps/realtime/.env — the socket server still enforces auth, so the canvas breaks silently',
       fix: 'doctor --fix mirrors it into apps/realtime/.env',
-      autofix: () =>
-        writeEnvValues('realtime', {
-          DISABLE_AUTH: asWritten(sim, 'DISABLE_AUTH', disableAuth as string),
-        }),
+      autofix: () => writeEnvValues('realtime', { DISABLE_AUTH: disableAuth as string }),
     })
   }
 
@@ -751,7 +730,6 @@ export async function runChecks(ctx: CheckContext, groups?: CheckGroup[]): Promi
     ...checkFiles(ctx),
     ...checkSchema(ctx),
     ...checkConsistency(ctx),
-    ...checkDollarQuoting(ctx),
     ...checkCoherence(ctx),
   ]
   if (ctx.live) findings.push(...(await checkLive(ctx)))

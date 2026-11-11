@@ -1,6 +1,5 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { loadEnvConfig } from '@next/env'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { fakeRoot } = vi.hoisted(() => {
@@ -89,6 +88,7 @@ describe('doctor --fix on env files', () => {
     realtime: path.join(fakeRoot, 'apps/realtime/.env'),
     db: path.join(fakeRoot, 'packages/db/.env'),
   }
+  const referencingDsn = 'postgresql://${DB_USER}@localhost/sim'
 
   function writeFiles(contents: Record<keyof typeof files, string>) {
     for (const [target, content] of Object.entries(contents)) {
@@ -98,42 +98,41 @@ describe('doctor --fix on env files', () => {
     }
   }
 
-  async function fix(groups: Parameters<typeof runChecks>[1]) {
-    for (const finding of await runChecks(loadCheckContext(false), groups)) finding.autofix?.()
-  }
-
-  function nextLoads(file: string, key: string): string | undefined {
-    const silent = { info: () => {}, error: () => {} }
-    try {
-      return loadEnvConfig(path.dirname(file), false, silent, true).parsedEnv?.[key]
-    } finally {
-      Reflect.deleteProperty(process.env, key)
-    }
+  async function fixConsistency() {
+    const findings = await runChecks(loadCheckContext(false), ['consistency'])
+    for (const finding of findings) finding.autofix?.()
+    return findings.find((finding) => finding.message.startsWith('DATABASE_URL differs'))
   }
 
   beforeEach(() => rmSync(fakeRoot, { recursive: true, force: true }))
   afterAll(() => rmSync(fakeRoot, { recursive: true, force: true }))
 
   it.each([
-    ['a differing value', 'DATABASE_URL=postgresql://other@localhost/sim\n'],
+    ['a different URL', 'DATABASE_URL=postgresql://other@localhost/sim\n'],
     [
-      'a reference an earlier fix escaped',
+      'the reference escaped into a literal',
       'DATABASE_URL="postgresql://\\${DB_USER}@localhost/sim"\n',
     ],
-  ])('mirrors a hand-written ${VAR} reference as a reference over %s', async (_, dbFile) => {
-    const dsn = 'postgresql://${DB_USER}@localhost/sim'
-    writeFiles({ sim: `DB_USER=alice\nDATABASE_URL=${dsn}\n`, realtime: '', db: dbFile })
+  ])(
+    'reports a ${VAR} DATABASE_URL against %s and leaves it for a hand copy',
+    async (_, dbFile) => {
+      writeFiles({
+        sim: `DB_USER=alice\nDATABASE_URL=${referencingDsn}\n`,
+        realtime: '',
+        db: dbFile,
+      })
 
-    await fix(['consistency'])
+      const finding = await fixConsistency()
 
-    expect(readFileSync(files.db, 'utf8')).toBe(`DATABASE_URL=${dsn}\n`)
-  })
+      expect(finding).toMatchObject({ status: 'fail', autofix: undefined })
+      expect(readFileSync(files.db, 'utf8')).toBe(dbFile)
+    }
+  )
 
-  it('rewrites a single-quoted $ value so the app reads it literally', async () => {
-    writeFiles({ sim: "SMTP_PASSWORD='pa$$word$HOME'\n", realtime: '', db: '' })
+  it('accepts a ${VAR} DATABASE_URL written the same way in both files', async () => {
+    const line = `DATABASE_URL=${referencingDsn}\n`
+    writeFiles({ sim: `DB_USER=alice\n${line}`, realtime: '', db: line })
 
-    await fix(['schema'])
-
-    expect(nextLoads(files.sim, 'SMTP_PASSWORD')).toBe('pa$$word$HOME')
+    expect(await fixConsistency()).toBeUndefined()
   })
 })
