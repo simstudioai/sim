@@ -79,6 +79,9 @@ export const deleteInboxSenderBodySchema = z.object({
   senderId: z.string().min(1),
 })
 
+/** The most inbox tasks one page returns; the route clamps any larger `limit` to it. */
+export const INBOX_TASKS_PAGE_LIMIT = 50
+
 export const inboxTasksQuerySchema = z.object({
   status: inboxTaskStatusSchema.optional(),
   cursor: z.string().optional(),
@@ -87,7 +90,9 @@ export const inboxTasksQuerySchema = z.object({
     z.coerce
       .number()
       .optional()
-      .transform((value) => (value === undefined ? undefined : Math.min(value, 50)))
+      .transform((value) =>
+        value === undefined ? undefined : Math.min(value, INBOX_TASKS_PAGE_LIMIT)
+      )
   ),
 })
 

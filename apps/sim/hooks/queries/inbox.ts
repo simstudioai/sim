@@ -10,6 +10,7 @@ import { requestJson } from '@/lib/api/client/request'
 import {
   addInboxSenderContract,
   getInboxConfigContract,
+  INBOX_TASKS_PAGE_LIMIT,
   type InboxConfig,
   type InboxSendersResponseBody,
   type InboxTask,
@@ -70,6 +71,7 @@ async function fetchInboxTasks(
     query: {
       status: opts.status && opts.status !== 'all' ? opts.status : undefined,
       cursor: opts.cursor,
+      limit: INBOX_TASKS_PAGE_LIMIT,
     },
     signal,
   })
