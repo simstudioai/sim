@@ -9,7 +9,7 @@
  */
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
-import { db } from '@sim/db'
+import { db, runOutsideTransactionContext } from '@sim/db'
 import { auditLog, permissions, user, workflow, workflowBlocks, workspace } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
@@ -23,6 +23,7 @@ import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
+import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import { applyWorkflowOperations } from '@/lib/workflows/application/apply-workflow-operations'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
@@ -116,33 +117,43 @@ async function seedWorkflow(state: WorkflowState): Promise<string> {
   return id
 }
 
+/** Runs inside a permission-group scope, as every route handler does. */
 function addBlock(workflowId: string, name: string) {
-  return applyWorkflowOperations.execute({
-    principal,
-    input: {
-      workflowId,
-      operations: [
-        { operation_type: 'add', block_id: generateId(), params: { type: 'agent', name } },
-      ],
-    },
-  })
+  return withPermissionGroupScope(() =>
+    applyWorkflowOperations.execute({
+      principal,
+      input: {
+        workflowId,
+        operations: [
+          { operation_type: 'add', block_id: generateId(), params: { type: 'agent', name } },
+        ],
+      },
+    })
+  )
 }
 
 type Outcome = { ok: true } | { ok: false; error: unknown }
 
-function settle(run: Promise<unknown>): { outcome: Promise<Outcome>; settled: () => boolean } {
-  let done = false
-  const outcome = run.then(
-    (): Outcome => {
-      done = true
-      return { ok: true }
-    },
-    (error: unknown): Outcome => {
-      done = true
-      return { ok: false, error }
-    }
+interface PendingApply {
+  outcome: Promise<Outcome>
+  /** The outcome once settled, so a waiter can report it without awaiting the others. */
+  settled: () => Outcome | undefined
+}
+
+/**
+ * Starts an apply on its own connection. Called from inside the lock holder's
+ * transaction callback, so it leaves that transaction's context; otherwise it
+ * would count as a second query of the holder's transaction.
+ */
+function startApply(workflowId: string, name: string): PendingApply {
+  let result: Outcome | undefined
+  const outcome = runOutsideTransactionContext(() =>
+    addBlock(workflowId, name).then(
+      (): Outcome => (result = { ok: true }),
+      (error: unknown): Outcome => (result = { ok: false, error })
+    )
   )
-  return { outcome, settled: () => done }
+  return { outcome, settled: () => result }
 }
 
 /**
@@ -165,31 +176,29 @@ async function whileRowLocked(
 }
 
 /**
- * Waits until `count` sessions are blocked behind the holder. Throws instead
- * of proceeding when one of the applies settled first, since then the race
- * did not set up and its outcome is the thing to report.
+ * Waits until `count` sessions are blocked behind the holder. Throws as soon as
+ * an apply settles first, reporting only the settled ones: the rest are queued
+ * on the lock this caller holds, so awaiting them would hang.
  */
-async function waitForBlocked(
-  holderPid: number,
-  count: number,
-  applies: ReturnType<typeof settle>[]
-): Promise<void> {
-  for (let attempt = 0; attempt < 200; attempt++) {
-    if (applies.some((apply) => apply.settled())) {
-      const outcomes = await Promise.all(applies.map((apply) => apply.outcome))
-      throw new Error(
-        `An apply finished before reaching the row lock: ${outcomes
-          .map((outcome) => (outcome.ok ? 'committed' : getErrorMessage(outcome.error)))
-          .join('; ')}`
+function waitForBlocked(holderPid: number, count: number, applies: PendingApply[]): Promise<void> {
+  return runOutsideTransactionContext(async () => {
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const early = applies.flatMap((apply) => apply.settled() ?? [])
+      if (early.length > 0) {
+        throw new Error(
+          `An apply finished before reaching the row lock: ${early
+            .map((outcome) => (outcome.ok ? 'committed' : getErrorMessage(outcome.error)))
+            .join('; ')}`
+        )
+      }
+      const [row] = await db.execute<{ blocked: number }>(
+        sql`SELECT count(*)::int AS blocked FROM pg_stat_activity WHERE ${holderPid} = ANY(pg_blocking_pids(pid))`
       )
+      if ((row?.blocked ?? 0) >= count) return
+      await sleep(25)
     }
-    const [row] = await db.execute<{ blocked: number }>(
-      sql`SELECT count(*)::int AS blocked FROM pg_stat_activity WHERE ${holderPid} = ANY(pg_blocking_pids(pid))`
-    )
-    if ((row?.blocked ?? 0) >= count) return
-    await sleep(25)
-  }
-  throw new Error(`Expected ${count} session(s) blocked behind backend ${holderPid}`)
+    throw new Error(`Expected ${count} session(s) blocked behind backend ${holderPid}`)
+  })
 }
 
 async function storedBlockNames(workflowId: string): Promise<string[]> {
@@ -258,10 +267,10 @@ check('refuses a write when the workflow changed after the base read', async () 
   const seeded = seededState()
   const workflowId = await seedWorkflow(seeded)
   const concurrent = generateId()
-  let apply!: ReturnType<typeof settle>
+  let apply!: PendingApply
 
   await whileRowLocked(workflowId, async (tx, holderPid) => {
-    apply = settle(addBlock(workflowId, 'Stale edit'))
+    apply = startApply(workflowId, 'Stale edit')
     await waitForBlocked(holderPid, 1, [apply])
     const saved = await saveWorkflowToNormalizedTables(
       workflowId,
@@ -280,10 +289,10 @@ check('refuses a write when the workflow changed after the base read', async () 
 
 check('lets one of two concurrent applies commit and refuses the other', async () => {
   const workflowId = await seedWorkflow(seededState())
-  let applies: ReturnType<typeof settle>[] = []
+  let applies: PendingApply[] = []
 
   await whileRowLocked(workflowId, async (_tx, holderPid) => {
-    applies = [settle(addBlock(workflowId, 'First')), settle(addBlock(workflowId, 'Second'))]
+    applies = [startApply(workflowId, 'First'), startApply(workflowId, 'Second')]
     await waitForBlocked(holderPid, 2, applies)
   })
 
