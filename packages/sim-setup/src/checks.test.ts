@@ -15,7 +15,7 @@ vi.mock('./context', async (importOriginal) => {
 })
 
 import { type CheckContext, loadCheckContext, runChecks } from './checks'
-import type { EnvFile, EnvTarget } from './env-files'
+import { type EnvFile, type EnvTarget, parseEnv } from './env-files'
 
 function envFile(target: EnvTarget, values: Record<string, string> = {}): EnvFile {
   return {
@@ -126,18 +126,22 @@ describe('doctor --fix on env files', () => {
     expect(readFileSync(files.db, 'utf8')).toBe(dbFile)
   })
 
-  it('leaves a shared secret it cannot copy unset rather than generating a different one', async () => {
-    const secret = `BETTER_AUTH_SECRET=\${AUTH_SECRET_BASE}0123456789abcdef0123456789abcdef`
-    writeFiles({
-      sim: `${secret}\n`,
-      realtime: 'DATABASE_URL=postgresql://localhost/sim\n',
-      db: '',
-    })
+  it.each([
+    ['missing', 'DATABASE_URL=postgresql://localhost/sim\n'],
+    ['a placeholder', 'BETTER_AUTH_SECRET=your_auth_secret_here\n'],
+  ])(
+    'never generates a shared secret it cannot copy when realtime has it %s',
+    async (_, realtime) => {
+      const secret = `BETTER_AUTH_SECRET=\${AUTH_SECRET_BASE}0123456789abcdef0123456789abcdef`
+      writeFiles({ sim: `${secret}\n`, realtime, db: '' })
 
-    for (const finding of await runChecks(loadCheckContext(false), ['schema'])) finding.autofix?.()
+      for (const finding of await runChecks(loadCheckContext(false), ['schema']))
+        finding.autofix?.()
 
-    expect(readFileSync(files.realtime, 'utf8')).not.toContain('BETTER_AUTH_SECRET')
-  })
+      const after = parseEnv(readFileSync(files.realtime, 'utf8')).get('BETTER_AUTH_SECRET')
+      expect(after).toBe(parseEnv(realtime).get('BETTER_AUTH_SECRET'))
+    }
+  )
 
   it('reports a value it cannot write instead of aborting the other fixes', async () => {
     const unwritable = 'DATABASE_URL="postgresql://u:p\\$x\\y@localhost/sim"\n'

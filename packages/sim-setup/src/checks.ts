@@ -229,16 +229,16 @@ function checkSchema(ctx: CheckContext): Finding[] {
         continue
       }
       if (isPlaceholder(value)) {
+        // Same fix as a missing key: a shared secret is mirrored from the app, never regenerated.
+        const autofix = MIN_32_KEYS.has(key) ? autofixForMissing(ctx, target, key) : undefined
         findings.push({
           group: 'schema',
           status: production ? 'fail' : 'warn',
           message: `${rel(file)}: ${key} still has the .env.example placeholder`,
-          fix: MIN_32_KEYS.has(key)
-            ? 'doctor --fix generates a real value'
+          fix: autofix
+            ? 'doctor --fix sets a real value'
             : `replace the placeholder in ${rel(file)}`,
-          autofix: MIN_32_KEYS.has(key)
-            ? () => writeEnvValues(target, { [key]: generateSecret() })
-            : undefined,
+          autofix,
         })
         continue
       }
