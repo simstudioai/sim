@@ -77,3 +77,43 @@ export const workspaceMemberOperations = {
     delegatedServices: ['copilot'],
   }),
 } as const
+
+export const workspaceUpdateOperations = {
+  // permission-group-exempt: workspace administration has no module capability; the admin role is the gate, as it was before this operation existed
+  update: defineWorkspaceOperation({
+    id: 'workspaces.update',
+    minimumRole: 'admin',
+    capability: 'none',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session'],
+  }),
+  // permission-group-exempt: reading the workspace's own name and logo, which every member already sees in the workspace switcher
+  readIdentity: defineWorkspaceOperation({
+    id: 'workspaces.identity.read',
+    minimumRole: 'read',
+    capability: 'none',
+    contentDelivery: 'none',
+    workspaceApiKey: 'deny',
+    principalKinds: ['delegated'],
+    delegatedServices: ['copilot'],
+  }),
+  /**
+   * Name and logo only. Billing payer and the personal-key policy stay on
+   * {@link workspaceUpdateOperations.update}, which only a signed-in session
+   * reaches; this narrower operation is the one Copilot and the public API get.
+   *
+   * Workspace API keys stay denied: renaming needs Admin, above a workspace
+   * key's write ceiling.
+   */
+  // permission-group-exempt: same admin-role gate as the full workspace update, narrowed to presentation fields
+  updateIdentity: defineWorkspaceOperation({
+    id: 'workspaces.identity.update',
+    minimumRole: 'admin',
+    capability: 'none',
+    contentDelivery: 'none',
+    workspaceApiKey: 'deny',
+    oauthScope: 'api:write',
+    principalKinds: ['personal_api_key', 'oauth_access_token', 'delegated'],
+    delegatedServices: ['copilot'],
+  }),
+} as const

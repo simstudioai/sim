@@ -41,6 +41,27 @@ sim workspaces get
 
 API request and response schemas: [getWorkspace](/api-reference/workspaces/getWorkspace).
 
+### Update workspace
+
+OAuth login or personal API key required.
+
+```bash
+sim workspaces update [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | New workspace display name. |
+| `--logo-url <value>` | No | New workspace logo URL, or null to remove the logo. (--logo-url null sends the word, not JSON null). |
+
+</CommandTable>
+
+API request and response schemas: [updateWorkspace](/api-reference/workspaces/updateWorkspace).
+
 ### List workspace members
 
 ```bash

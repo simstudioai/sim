@@ -47,9 +47,10 @@ sim login [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--method <method>` | No | Credential to obtain: oauth requires OAuth support; api-key creates a permanent key through pairing (auto-selects when omitted). Accepted values: `oauth`, `api-key`. |
+| `--method <method>` | No | Credential to obtain: oauth requires OAuth support; api-key creates an API key through pairing (auto-selects when omitted). Accepted values: `oauth`, `api-key`. |
 | `--no-browser` | No | Print the approval URL without opening it (either login method). |
 | `--read-only` | No | Ask only for permission to read, never to change anything. |
+| `--expires-in <days>` | No | API-key login only: days until the key expires (1-365); omit for a key that never expires. |
 | `--callback-port <port>` | No | Pin the local port the browser returns to. |
 | `-y, --yes` | No | Overwrite an existing API-key profile without prompting. |
 
@@ -9238,6 +9239,27 @@ sim workspaces unlink [options]
 </CommandTable>
 
 API request and response schemas: [unlinkWorkspaceFork](/api-reference/workspace-sync/unlinkWorkspaceFork).
+
+### sim workspaces update
+
+Update workspace (OAuth login or personal API key required)
+
+```bash
+sim workspaces update [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | New workspace display name. |
+| `--logo-url <value>` | No | New workspace logo URL, or null to remove the logo. (--logo-url null sends the word, not JSON null). |
+
+</CommandTable>
+
+API request and response schemas: [updateWorkspace](/api-reference/workspaces/updateWorkspace).
 
 ### sim workspaces sync-exclusions
 

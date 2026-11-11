@@ -79,6 +79,7 @@ describe('POST /api/cli/auth/approve', () => {
       scope: 'platform',
       workspaceId: 'ws-1',
       workspaceBound: false,
+      access: 'write',
     })
   })
 
@@ -104,6 +105,19 @@ describe('POST /api/cli/auth/approve', () => {
         challenge: CHALLENGE,
         scope: 'copilot',
         workspaceId: 'ws-1',
+      })
+    )
+    expect(response.status).toBe(400)
+    expect(mockCreateApproval).not.toHaveBeenCalled()
+  })
+
+  it('refuses a read-only or expiring key on the copilot scope', async () => {
+    const response = await POST(
+      createMockRequest('POST', {
+        request: REQUEST,
+        challenge: CHALLENGE,
+        scope: 'copilot',
+        access: 'read',
       })
     )
     expect(response.status).toBe(400)

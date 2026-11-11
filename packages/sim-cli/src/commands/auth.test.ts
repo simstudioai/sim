@@ -33,6 +33,8 @@ const mocks = vi.hoisted(() => ({
       scope: 'platform' | 'copilot'
       workspaceBound?: boolean
       workspaceId?: string
+      access?: 'read' | 'write' | null
+      expiresAt?: string | null
     }>
   >(async () => ({
     id: 'key-id',
@@ -327,6 +329,26 @@ describe('login command', () => {
 
     expect(mocks.writeConfigProfile).not.toHaveBeenCalled()
     expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
+  })
+
+  it('stores nothing when a read-only request comes back as a full-access key', async () => {
+    setInteractive(false)
+    mocks.pollForKey.mockResolvedValue({
+      id: 'key-id',
+      apiKey: 'sim-key',
+      scope: 'platform',
+      workspaceBound: false,
+      workspaceId: 'ws_1',
+      access: null,
+      expiresAt: null,
+    })
+
+    await expect(login('--read-only')).rejects.toThrow('not the read-only key requested')
+
+    expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
+    expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain(
+      'API key key-id was created but could not be stored safely'
+    )
   })
 
   it('stores nothing when the server answers with a malformed key', async () => {

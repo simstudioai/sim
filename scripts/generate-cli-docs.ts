@@ -414,7 +414,7 @@ const GROUP_SECTIONS: Record<string, readonly CommandSection[]> = {
   workspaces: [
     {
       title: 'Workspace access',
-      prefixes: ['list', 'get', 'members', 'invitations', 'permission-config'],
+      prefixes: ['list', 'get', 'update', 'members', 'invitations', 'permission-config'],
     },
     {
       title: 'Access requests',

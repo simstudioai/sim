@@ -106,6 +106,42 @@ export const v2GetWorkspaceContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(v2WorkspaceSchema) },
 })
 
+const v2UpdateWorkspaceParamsSchema = z
+  .object({ workspaceId: workspaceIdSchema.describe('Workspace to update.') })
+  .strict()
+
+const v2UpdateWorkspaceBodySchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(1, 'name cannot be empty')
+      .max(255, 'name must be at most 255 characters')
+      .optional()
+      .describe('New workspace display name.'),
+    logoUrl: z
+      .string()
+      .refine((value) => value.startsWith('/') || value.startsWith('https://'), {
+        message: 'logoUrl must be an absolute path or an HTTPS URL',
+      })
+      .nullable()
+      .optional()
+      .describe('New workspace logo URL, or null to remove the logo.'),
+  })
+  .strict()
+  .refine((body) => body.name !== undefined || body.logoUrl !== undefined, {
+    message: 'Provide name or logoUrl',
+  })
+
+export const v2UpdateWorkspaceContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/workspaces/[workspaceId]',
+  query: noInputSchema,
+  params: v2UpdateWorkspaceParamsSchema,
+  body: v2UpdateWorkspaceBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2WorkspaceSchema) },
+})
+
 export const v2ListWorkspacesContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workspaces',

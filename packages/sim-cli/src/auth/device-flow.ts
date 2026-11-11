@@ -77,6 +77,22 @@ export interface MintedKey {
   workspaceId: string | null
   /** Whether the key can *only* reach that workspace. */
   workspaceBound: boolean
+  /**
+   * The access the key was minted with, or null from a server that predates
+   * read-only handoff keys — which mints full access whatever was asked.
+   */
+  access: KeyAccess | null
+  /** When the key expires; null when it never does or the server did not say. */
+  expiresAt: string | null
+}
+
+type KeyAccess = 'read' | 'write'
+
+/** What the terminal asks the minted key to be; the browser approval decides. */
+export interface KeyRequest {
+  readOnly: boolean
+  /** Whole days until the key expires; undefined for a key that never expires. */
+  expiresInDays?: number
 }
 
 /** 32 bytes of entropy, base64url — 43 characters, exactly what the contract accepts. */
@@ -105,7 +121,8 @@ export function createAuthRequest(): AuthRequest {
 export function buildApprovalUrl(
   endpoint: string,
   auth: AuthRequest,
-  workspaceId?: string
+  workspaceId?: string,
+  keyRequest: KeyRequest = { readOnly: false }
 ): string {
   return buildUrl(endpoint, APPROVAL_PATH, {
     request: auth.request,
@@ -113,6 +130,8 @@ export function buildApprovalUrl(
     pairing: auth.pairing,
     scope: 'platform',
     workspace: workspaceId,
+    access: keyRequest.readOnly ? 'read' : undefined,
+    expires: keyRequest.expiresInDays,
   })
 }
 
@@ -122,6 +141,8 @@ interface PollResponse {
   scope?: CliAuthScope
   workspaceId?: string | null
   workspaceBound?: boolean
+  access?: KeyAccess
+  expiresAt?: string | null
 }
 
 /**
@@ -245,6 +266,8 @@ export async function pollForKey(
             scope: body.scope ?? 'copilot',
             workspaceId: body.workspaceId ?? null,
             workspaceBound: body.workspaceBound === true,
+            access: body.access === 'read' || body.access === 'write' ? body.access : null,
+            expiresAt: typeof body.expiresAt === 'string' ? body.expiresAt : null,
           }
         }
       }

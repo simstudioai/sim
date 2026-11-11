@@ -361,6 +361,7 @@ import {
   v2ListWorkspaceMembersContract,
   v2ListWorkspacesContract,
   v2RemoveWorkspaceMemberContract,
+  v2UpdateWorkspaceContract,
   v2UpdateWorkspaceMemberContract,
 } from '@/lib/api/contracts/v2/workspaces'
 import type { V2McpOperation } from '@/lib/api/mcp/types'
@@ -1418,7 +1419,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2GetMetaContract,
     summary: 'Get API status',
     description:
-      'Get the calling credential’s type, expiry, and API scopes. Requires a valid API key or OAuth access token. `v2Enabled` is true whenever this endpoint is served; the response does not enumerate resource permissions.\n\nOAuth scope: `api:read`.',
+      'Get the calling credential’s type, identity, expiry, and API scopes, plus links to the OpenAPI document, API docs, and Sim MCP server. Requires a valid API key or OAuth access token. `v2Enabled` is true whenever this endpoint is served; the response does not enumerate resource permissions.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/meta/route').then((route) => route.GET),
   },
   getNextKnowledgeTagSlot: {
@@ -3030,6 +3031,15 @@ export const V2_MCP_OPERATIONS = {
       import('@/app/api/v2/workflows/[workflowId]/versions/[version]/route').then(
         (route) => route.PATCH
       ),
+  },
+  updateWorkspace: {
+    contract: v2UpdateWorkspaceContract,
+    summary: 'Update workspace',
+    description:
+      'Rename a workspace or change its logo. Omitted fields remain unchanged; send `logoUrl: null` to remove the logo. Requires workspace Admin access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/route').then((route) => route.PATCH),
   },
   updateWorkspaceForkExclusions: {
     contract: v2UpdateWorkspaceForkExclusionsContract,
