@@ -142,6 +142,7 @@ export const DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID = 'docusign-service-account' a
 export const CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID = 'crowdstrike-service-account' as const
 export const DATADOG_SERVICE_ACCOUNT_PROVIDER_ID = 'datadog-service-account' as const
 export const SAILPOINT_SERVICE_ACCOUNT_PROVIDER_ID = 'sailpoint-service-account' as const
+export const ZOOMINFO_SERVICE_ACCOUNT_PROVIDER_ID = 'zoominfo-service-account' as const
 
 /** Permissions requested when connecting a Manage Vanta application. */
 export const VANTA_PERMISSION_OPTIONS = [
@@ -171,6 +172,7 @@ export type ClientCredentialAccountProviderId =
   | typeof CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof DATADOG_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SAILPOINT_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ZOOMINFO_SERVICE_ACCOUNT_PROVIDER_ID
 
 /**
  * Exact account-specific SuiteTalk origin accepted by NetSuite's OAuth and
@@ -551,6 +553,27 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/jama',
     helpText:
       'Create API credentials in your Jama profile. Your account needs REST API access and a Named Creator license.',
+  },
+  [ZOOMINFO_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: ZOOMINFO_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'ZoomInfo',
+    connectNoun: 'API app',
+    fields: [
+      {
+        id: 'clientId',
+        label: 'Client ID',
+        placeholder: 'Paste the client ID',
+        secret: false,
+        hint: 'Create a client credentials app in the ZoomInfo Developer Portal. Its integration user and scopes apply to every call.',
+      },
+      {
+        id: 'clientSecret',
+        label: 'Client secret',
+        placeholder: 'Paste the client secret',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/zoominfo',
   },
   [SAILPOINT_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: SAILPOINT_SERVICE_ACCOUNT_PROVIDER_ID,

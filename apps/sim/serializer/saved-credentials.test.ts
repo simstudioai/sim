@@ -124,6 +124,7 @@ import { WhatsAppBlock, WhatsAppV2Block } from '@/blocks/blocks/whatsapp'
 import { YouComBlock, YouComV2Block } from '@/blocks/blocks/youcom'
 import { YouTubeBlock, YouTubeV2Block } from '@/blocks/blocks/youtube'
 import { ZepBlock, ZepV2Block } from '@/blocks/blocks/zep'
+import { ZoomInfoBlock, ZoomInfoV2Block } from '@/blocks/blocks/zoominfo'
 import type { BlockConfig } from '@/blocks/types'
 import { Serializer } from '@/serializer'
 import type { BlockState } from '@/stores/workflows/workflow/types'
@@ -353,6 +354,11 @@ const VERSIONS: Array<{
   { legacy: EmailBisonBlock, successor: EmailBisonV2Block, secretIds: ['apiKey'] },
   { legacy: DevinBlock, successor: DevinV2Block, secretIds: ['apiKey'] },
   { legacy: OktaBlock, successor: OktaV2Block, secretIds: ['apiKey'] },
+  {
+    legacy: ZoomInfoBlock,
+    successor: ZoomInfoV2Block,
+    secretIds: ['clientId', 'clientSecret'],
+  },
   {
     legacy: SailPointBlock,
     successor: SailPointV2Block,

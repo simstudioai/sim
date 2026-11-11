@@ -474,7 +474,7 @@ import { ZepBlock, ZepBlockMeta, ZepV2Block } from '@/blocks/blocks/zep'
 import { ZeroBounceBlock, ZeroBounceBlockMeta } from '@/blocks/blocks/zerobounce'
 import { ZohoDeskBlock, ZohoDeskBlockMeta } from '@/blocks/blocks/zoho-desk'
 import { ZoomBlock, ZoomBlockMeta } from '@/blocks/blocks/zoom'
-import { ZoomInfoBlock, ZoomInfoBlockMeta } from '@/blocks/blocks/zoominfo'
+import { ZoomInfoBlock, ZoomInfoBlockMeta, ZoomInfoV2Block } from '@/blocks/blocks/zoominfo'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 
 /** All block configs keyed by block type. The execution source of truth. */
@@ -974,6 +974,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   zoho_desk: ZohoDeskBlock,
   zoom: ZoomBlock,
   zoominfo: ZoomInfoBlock,
+  zoominfo_v2: ZoomInfoV2Block,
 }
 
 /**

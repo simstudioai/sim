@@ -21,6 +21,7 @@ import {
   VANTA_SERVICE_ACCOUNT_PROVIDER_ID,
   ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID,
   ZOOM_SERVICE_ACCOUNT_PROVIDER_ID,
+  ZOOMINFO_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { mintBoxServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/box'
 import { mintCrowdStrikeServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/crowdstrike'
@@ -39,6 +40,7 @@ import { mintSalesforceServiceAccountToken } from '@/lib/credentials/client-cred
 import { mintVantaServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/vanta'
 import { mintZohoDeskServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoho-desk'
 import { mintZoomServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoom'
+import { mintZoomInfoServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoominfo'
 import type { ServiceAccountPrincipal } from '@/lib/credentials/principal'
 
 /** Credential fields normalized according to the provider descriptor; passwords retain exact bytes. */
@@ -182,6 +184,7 @@ const CLIENT_CREDENTIAL_ACCOUNT_MINTERS: Record<
   [CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID]: mintCrowdStrikeServiceAccountToken,
   [DATADOG_SERVICE_ACCOUNT_PROVIDER_ID]: mintDatadogServiceAccountToken,
   [SAILPOINT_SERVICE_ACCOUNT_PROVIDER_ID]: mintSailPointServiceAccountToken,
+  [ZOOMINFO_SERVICE_ACCOUNT_PROVIDER_ID]: mintZoomInfoServiceAccountToken,
 }
 
 export function getClientCredentialAccountMinter(

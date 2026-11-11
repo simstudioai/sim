@@ -184,6 +184,7 @@ import {
   ZepIcon,
   ZohoDeskIcon,
   ZoomIcon,
+  ZoomInfoIcon,
 } from '@/components/icons'
 import { env } from '@/lib/core/config/env'
 import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
@@ -1661,6 +1662,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'fivetran',
+  },
+  zoominfo: {
+    name: 'ZoomInfo',
+    icon: ZoomInfoIcon,
+    services: {
+      zoominfo: {
+        name: 'ZoomInfo',
+        description: 'Search and enrich B2B company and contact data with ZoomInfo.',
+        providerId: 'zoominfo',
+        serviceAccountProviderId: 'zoominfo-service-account',
+        authType: 'service_account',
+        icon: ZoomInfoIcon,
+        baseProviderIcon: ZoomInfoIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'zoominfo',
   },
   sailpoint: {
     name: 'SailPoint',

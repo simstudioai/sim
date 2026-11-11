@@ -623,6 +623,7 @@ describe('ordinary tool credential binding', () => {
     ['crowdstrike', 'crowdstrike-service-account'],
     ['datadog', 'datadog-service-account'],
     ['sailpoint', 'sailpoint-service-account'],
+    ['zoominfo', 'zoominfo-service-account'],
     ['google-email', 'google-service-account'],
     ['jira', 'atlassian-service-account'],
     ['confluence', 'atlassian-service-account'],

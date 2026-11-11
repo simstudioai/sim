@@ -53,6 +53,9 @@ const OPERATION_PAYLOAD_PARAMS: Readonly<Record<string, readonly string[]>> = {
   fireflies_upload_audio: ['audioUrl'],
   // A filter on the asset's cloud account; the token goes to the credential's Vanta API domain.
   vanta_list_vulnerable_assets: ['assetExternalAccountId'],
+  // Search filters sent in the request body; the token goes only to api.zoominfo.com.
+  zoominfo_search_companies: ['companyWebsite', 'metroRegion'],
+  zoominfo_search_news: ['url'],
   // The status page's own domain, sent as a form field to the UptimeRobot API.
   uptimerobot_create_psp: ['customDomain'],
   uptimerobot_update_psp: ['customDomain'],

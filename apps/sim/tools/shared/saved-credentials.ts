@@ -155,6 +155,16 @@ export const SAILPOINT_CREDENTIAL_OAUTH = clientCredentialOAuth('sailpoint', { t
   'clientSecret',
 ])
 
+/**
+ * Credential policy for every ZoomInfo tool. A saved ZoomInfo app resolves to
+ * a token for ZoomInfo's single API host, which replaces the inline client id
+ * and secret.
+ */
+export const ZOOMINFO_CREDENTIAL_OAUTH = clientCredentialOAuth('zoominfo', {}, [
+  'clientId',
+  'clientSecret',
+])
+
 /** Token credential policies for tools that take an inline key or a saved token credential. */
 export const AFFINITY_CREDENTIAL_OAUTH = tokenCredentialOAuth('affinity', { apiKey: 'accessToken' })
 export const AGENTMAIL_CREDENTIAL_OAUTH = tokenCredentialOAuth('agentmail', {
@@ -490,6 +500,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   youcom: YOUCOM_CREDENTIAL_OAUTH,
   youtube: YOUTUBE_CREDENTIAL_OAUTH,
   zep: ZEP_CREDENTIAL_OAUTH,
+  zoominfo: ZOOMINFO_CREDENTIAL_OAUTH,
 } as const
 
 export type SavedCredentialService = keyof typeof SAVED_CREDENTIAL_OAUTH
