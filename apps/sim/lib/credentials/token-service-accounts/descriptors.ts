@@ -95,8 +95,8 @@ export interface TokenServiceAccountClientCredentials {
   preferred?: boolean
 }
 
-/** `authMethod` value selecting a token provider's client-credentials mode. */
-export const TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD = 'client_credentials' as const
+/** `authMethod` value selecting the client-credentials mode of a provider whose default is a pasted token (a token provider, or the Atlassian service account). */
+export const CLIENT_CREDENTIALS_AUTH_METHOD = 'client_credentials' as const
 
 export const HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID = 'hubspot-service-account' as const
 export const AIRTABLE_SERVICE_ACCOUNT_PROVIDER_ID = 'airtable-service-account' as const
@@ -2443,7 +2443,7 @@ export function getTokenServiceAccountErrorMessage(
   authMethod?: string
 ): string {
   const clientCredentials =
-    authMethod === TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD ? descriptor.clientCredentials : undefined
+    authMethod === CLIENT_CREDENTIALS_AUTH_METHOD ? descriptor.clientCredentials : undefined
   switch (code) {
     case 'invalid_credentials':
       return (

@@ -1444,3 +1444,90 @@ describe('token provider credentials saved in client-credentials mode', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })
+
+describe('Atlassian service-account resolution', () => {
+  const fetchMock = vi.fn<typeof fetch>()
+
+  beforeEach(() => {
+    resetDbChainMock()
+    vi.clearAllMocks()
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+    mocks.coalesceLocally.mockImplementation(
+      async (_key: string, producer: () => Promise<unknown>) => producer()
+    )
+  })
+
+  function storeBlob(blob: Record<string, unknown>, reads: number) {
+    for (let read = 0; read < reads; read++) {
+      queueTableRows(credential, [{ encryptedServiceAccountKey: 'enc-atlassian' }])
+    }
+    mocks.decryptSecret.mockResolvedValue({ decrypted: JSON.stringify(blob) })
+  }
+
+  it('mints a token for an OAuth 2.0 credential and keeps its site binding', async () => {
+    storeBlob(
+      {
+        type: 'atlassian_service_account',
+        authMethod: 'client_credentials',
+        clientId: 'atl-client',
+        clientSecret: 'atl-secret',
+        domain: 'acme.atlassian.net',
+        cloudId: 'cloud-1',
+        atlassianProduct: 'jira',
+      },
+      2
+    )
+    fetchMock.mockResolvedValue(Response.json({ access_token: 'atl-minted', expires_in: 3600 }))
+
+    await expect(
+      resolveServiceAccountToken('atl-cc', 'atlassian-service-account')
+    ).resolves.toEqual({
+      accessToken: 'atl-minted',
+      cloudId: 'cloud-1',
+      domain: 'acme.atlassian.net',
+    })
+    expect(new Request(fetchMock.mock.calls[0][0], fetchMock.mock.calls[0][1]).url).toBe(
+      'https://auth.atlassian.com/oauth/token'
+    )
+  })
+
+  it('still returns a scoped API token as is', async () => {
+    storeBlob(
+      {
+        type: 'atlassian_service_account',
+        apiToken: 'scoped-token',
+        domain: 'acme.atlassian.net',
+        cloudId: 'cloud-1',
+      },
+      1
+    )
+
+    await expect(
+      resolveServiceAccountToken('atl-token', 'atlassian-service-account')
+    ).resolves.toEqual({
+      accessToken: 'scoped-token',
+      cloudId: 'cloud-1',
+      domain: 'acme.atlassian.net',
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses a blob with neither a token nor a complete OAuth 2.0 credential', async () => {
+    storeBlob(
+      {
+        type: 'atlassian_service_account',
+        authMethod: 'client_credentials',
+        clientId: 'atl-client',
+        domain: 'acme.atlassian.net',
+        cloudId: 'cloud-1',
+      },
+      1
+    )
+
+    await expect(
+      resolveServiceAccountToken('atl-broken', 'atlassian-service-account')
+    ).rejects.toThrow('malformed')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})

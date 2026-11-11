@@ -25,6 +25,7 @@ import {
   CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID,
   CLERK_SERVICE_ACCOUNT_PROVIDER_ID,
   CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID,
+  CLIENT_CREDENTIALS_AUTH_METHOD,
   CLOUDFLARE_SERVICE_ACCOUNT_PROVIDER_ID,
   CODA_SERVICE_ACCOUNT_PROVIDER_ID,
   CONVEX_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -108,7 +109,6 @@ import {
   TELEGRAM_SERVICE_ACCOUNT_PROVIDER_ID,
   THRIVE_SERVICE_ACCOUNT_PROVIDER_ID,
   TINYBIRD_SERVICE_ACCOUNT_PROVIDER_ID,
-  TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD,
   TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
   type TokenServiceAccountProviderId,
   TRELLO_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -257,7 +257,7 @@ export interface TokenServiceAccountFields {
    * grant rather than pasted, for checks whose identity differs between the two (a Linear app
    * actor). Absent for a pasted token.
    */
-  authMethod?: typeof TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD
+  authMethod?: typeof CLIENT_CREDENTIALS_AUTH_METHOD
 }
 
 /** Result of a successful provider verification. */
@@ -450,7 +450,7 @@ export interface TokenServiceAccountSecretBlob {
 export interface TokenServiceAccountClientCredentialBlob {
   type: typeof TOKEN_SERVICE_ACCOUNT_SECRET_TYPE
   providerId: string
-  authMethod: typeof TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD
+  authMethod: typeof CLIENT_CREDENTIALS_AUTH_METHOD
   clientId: string
   clientSecret: string
   domain?: string
@@ -505,7 +505,7 @@ export function parseTokenServiceAccountSecret(
     }
   }
   if (
-    parsed.authMethod !== TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD ||
+    parsed.authMethod !== CLIENT_CREDENTIALS_AUTH_METHOD ||
     typeof parsed.clientId !== 'string' ||
     !parsed.clientId ||
     typeof parsed.clientSecret !== 'string' ||
@@ -516,7 +516,7 @@ export function parseTokenServiceAccountSecret(
   return {
     type: TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
     providerId: expectedProviderId,
-    authMethod: TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD,
+    authMethod: CLIENT_CREDENTIALS_AUTH_METHOD,
     clientId: parsed.clientId,
     clientSecret: parsed.clientSecret,
     ...optional,

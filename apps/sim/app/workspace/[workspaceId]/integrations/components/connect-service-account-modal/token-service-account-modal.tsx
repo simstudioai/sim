@@ -20,8 +20,8 @@ import {
 } from '@/lib/core/resource-scope'
 import type { ServiceAccountSecretFields } from '@/lib/credentials/service-account-secret'
 import {
+  CLIENT_CREDENTIALS_AUTH_METHOD,
   getTokenServiceAccountErrorMessage,
-  TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD,
   type TokenServiceAccountDescriptor,
   type TokenServiceAccountField,
 } from '@/lib/credentials/token-service-accounts/descriptors'
@@ -40,7 +40,7 @@ function normalizeDomainInput(raw: string): string {
     .replace(/[/?#].*$/, '')
 }
 
-type TokenAuthMethod = 'token' | typeof TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD
+type TokenAuthMethod = 'token' | typeof CLIENT_CREDENTIALS_AUTH_METHOD
 
 function openDocs(url: string): void {
   window.open(url, '_blank', 'noopener,noreferrer')
@@ -102,8 +102,8 @@ function TokenServiceAccountModalForm({
   const [selectedAuthMethod, setSelectedAuthMethod] = useState<TokenAuthMethod | null>(null)
   const authMethod: TokenAuthMethod =
     selectedAuthMethod ??
-    (clientCredentials?.preferred && !credentialId ? TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD : 'token')
-  const usesClientCredentials = authMethod === TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD
+    (clientCredentials?.preferred && !credentialId ? CLIENT_CREDENTIALS_AUTH_METHOD : 'token')
+  const usesClientCredentials = authMethod === CLIENT_CREDENTIALS_AUTH_METHOD
   const [apiToken, setApiToken] = useState('')
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
@@ -142,7 +142,7 @@ function TokenServiceAccountModalForm({
       const secretFields = {
         ...(usesClientCredentials
           ? {
-              authMethod: TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD,
+              authMethod: CLIENT_CREDENTIALS_AUTH_METHOD,
               clientId: clientId.trim(),
               clientSecret: clientSecret.trim(),
             }
@@ -215,7 +215,7 @@ function TokenServiceAccountModalForm({
               if (error) setError(null)
             }}
             options={[
-              { value: TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD, label: clientCredentials.label },
+              { value: CLIENT_CREDENTIALS_AUTH_METHOD, label: clientCredentials.label },
               { value: 'token', label: clientCredentials.tokenLabel },
             ]}
             required

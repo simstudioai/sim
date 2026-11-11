@@ -3,6 +3,10 @@ import { serviceAccountJsonSchema } from '@/lib/api/contracts/credentials'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import {
+  ATLASSIAN_CLIENT_CREDENTIAL_PRODUCTS,
+  mintAtlassianServiceAccountToken,
+} from '@/lib/credentials/atlassian-client-credentials'
+import {
   normalizeAtlassianDomain,
   validateAtlassianServiceAccount,
 } from '@/lib/credentials/atlassian-service-account'
@@ -50,10 +54,10 @@ import {
 } from '@/lib/credentials/snowflake-service-account.server'
 import { getTokenClientCredentialGrant } from '@/lib/credentials/token-service-accounts/client-credentials'
 import {
+  CLIENT_CREDENTIALS_AUTH_METHOD,
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
   SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
-  TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD,
   TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
   type TokenServiceAccountDescriptor,
 } from '@/lib/credentials/token-service-accounts/descriptors'
@@ -148,6 +152,9 @@ export class ServiceAccountSecretError extends Error {
 async function buildAtlassianServiceAccountSecret(
   fields: ServiceAccountSecretFields
 ): Promise<ServiceAccountSecretResult> {
+  if (fields.authMethod?.trim() === CLIENT_CREDENTIALS_AUTH_METHOD) {
+    return buildAtlassianClientCredentialSecret(fields)
+  }
   const { apiToken, domain } = fields
   if (!apiToken || !domain) {
     throw new ServiceAccountSecretError(
@@ -167,6 +174,66 @@ async function buildAtlassianServiceAccountSecret(
   const blob = JSON.stringify({
     type: ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
     apiToken,
+    domain: normalizedDomain,
+    cloudId: validation.cloudId,
+    atlassianProduct: product,
+    atlassianAccountId: validation.accountId,
+    metadata: serviceAccountPrincipalMetadata(principal),
+  })
+  const { encrypted } = await encryptSecret(blob)
+  return {
+    providerId: ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+    encryptedServiceAccountKey: encrypted,
+    displayName: validation.displayName,
+    auditMetadata: {
+      atlassianDomain: normalizedDomain,
+      atlassianCloudId: validation.cloudId,
+      ...serviceAccountPrincipalMetadata(principal),
+    },
+    principal,
+  }
+}
+
+/**
+ * Builds an Atlassian service-account secret for an OAuth 2.0 credential: mints a token with the
+ * client ID and secret, proves it against the product's identity endpoint exactly as a scoped
+ * API token is proven, and stores the client credentials so execution re-mints. Only products
+ * Atlassian documents for these credentials are accepted.
+ */
+async function buildAtlassianClientCredentialSecret(
+  fields: ServiceAccountSecretFields
+): Promise<ServiceAccountSecretResult> {
+  const clientId = fields.clientId?.trim()
+  const clientSecret = fields.clientSecret?.trim()
+  const domain = fields.domain?.trim()
+  if (!clientId || !clientSecret || !domain) {
+    throw new ServiceAccountSecretError(
+      'clientId, clientSecret, and domain are required for Atlassian OAuth 2.0 credentials'
+    )
+  }
+  const product = fields.atlassianProduct ?? 'jira'
+  if (!ATLASSIAN_CLIENT_CREDENTIAL_PRODUCTS.has(product)) {
+    throw new ServiceAccountSecretError(
+      `Atlassian OAuth 2.0 credentials do not support ${product}; use a scoped API token`
+    )
+  }
+  const normalizedDomain = normalizeAtlassianDomain(domain)
+  const minted = await mintAtlassianServiceAccountToken(clientId, clientSecret)
+  const validation = await validateAtlassianServiceAccount(
+    minted.accessToken,
+    normalizedDomain,
+    product
+  )
+  const principal: ServiceAccountPrincipal = {
+    kind: 'user',
+    id: validation.accountId,
+    ...(validation.emailAddress ? { label: validation.emailAddress } : {}),
+  }
+  const blob = JSON.stringify({
+    type: ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
+    authMethod: CLIENT_CREDENTIALS_AUTH_METHOD,
+    clientId,
+    clientSecret,
     domain: normalizedDomain,
     cloudId: validation.cloudId,
     atlassianProduct: product,
@@ -478,7 +545,7 @@ async function buildTokenServiceAccountSecret(
   }
   if (
     descriptor.clientCredentials &&
-    fields.authMethod?.trim() === TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD
+    fields.authMethod?.trim() === CLIENT_CREDENTIALS_AUTH_METHOD
   ) {
     return buildTokenClientCredentialSecret(descriptor, validator, fields)
   }
@@ -549,13 +616,13 @@ async function buildTokenClientCredentialSecret(
   const validation = await validator({
     apiToken: minted.accessToken,
     ...(requiresDomain ? { domain } : {}),
-    authMethod: TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD,
+    authMethod: CLIENT_CREDENTIALS_AUTH_METHOD,
   })
   const principalMetadata = serviceAccountPrincipalMetadata(validation.principal)
   const blob: TokenServiceAccountClientCredentialBlob = {
     type: TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
     providerId,
-    authMethod: TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD,
+    authMethod: CLIENT_CREDENTIALS_AUTH_METHOD,
     clientId,
     clientSecret,
     ...(requiresDomain ? { domain: validation.normalizedDomain ?? domain } : {}),

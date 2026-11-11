@@ -117,6 +117,57 @@ describe('verifyAndBuildServiceAccountSecret', () => {
     })
   })
 
+  it('stores an Atlassian OAuth 2.0 credential, not its minted token, after proving it', async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+    vi.stubGlobal('fetch', fetchMock)
+    fetchMock.mockResolvedValue(Response.json({ access_token: 'atl-minted', expires_in: 3600 }))
+    mockValidateAtlassian.mockResolvedValue({
+      accountId: 'svc-1',
+      displayName: 'Workflow bot',
+      cloudId: 'cloud-1',
+    })
+
+    const result = await verifyAndBuildServiceAccountSecret(ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID, {
+      authMethod: 'client_credentials',
+      clientId: 'atl-client',
+      clientSecret: 'atl-secret',
+      domain: 'Acme.atlassian.net',
+      atlassianProduct: 'confluence',
+    })
+
+    expect(mockValidateAtlassian).toHaveBeenCalledWith(
+      'atl-minted',
+      'acme.atlassian.net',
+      'confluence'
+    )
+    const blob = JSON.parse(result.encryptedServiceAccountKey)
+    expect(blob).toMatchObject({
+      type: 'atlassian_service_account',
+      authMethod: 'client_credentials',
+      clientId: 'atl-client',
+      clientSecret: 'atl-secret',
+      domain: 'acme.atlassian.net',
+      cloudId: 'cloud-1',
+      atlassianProduct: 'confluence',
+      atlassianAccountId: 'svc-1',
+    })
+    expect(blob.apiToken).toBeUndefined()
+    expect(result.encryptedServiceAccountKey).not.toContain('atl-minted')
+  })
+
+  it('requires the Atlassian client ID, secret, and site without minting', async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(
+      verifyAndBuildServiceAccountSecret(ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID, {
+        authMethod: 'client_credentials',
+        clientId: 'atl-client',
+        domain: 'acme.atlassian.net',
+      })
+    ).rejects.toBeInstanceOf(ServiceAccountSecretError)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('accepts a legacy Google create with an empty providerId', async () => {
     const json = JSON.stringify({
       type: 'service_account',

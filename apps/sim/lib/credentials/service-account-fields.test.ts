@@ -54,4 +54,16 @@ describe('required fields for a service-account create', () => {
       })
     ).toEqual(['apiToken'])
   })
+
+  it('asks an Atlassian OAuth 2.0 create for the client ID, secret, and site, not a token', () => {
+    expect(
+      getMissingServiceAccountFields('atlassian-service-account', {
+        authMethod: 'client_credentials',
+      })
+    ).toEqual(['clientId', 'clientSecret', 'domain'])
+    expect(getMissingServiceAccountFields('atlassian-service-account', {})).toEqual([
+      'apiToken',
+      'domain',
+    ])
+  })
 })

@@ -1,6 +1,6 @@
 import { CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS } from '@/lib/credentials/client-credential-accounts/descriptors'
 import {
-  TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD,
+  CLIENT_CREDENTIALS_AUTH_METHOD,
   TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS,
   TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS,
 } from '@/lib/credentials/token-service-accounts/descriptors'
@@ -112,6 +112,7 @@ function getServiceAccountRequiredFields(
  * offer a client-credentials grant, selected by `authMethod: 'client_credentials'`.
  */
 const CLIENT_CREDENTIALS_MODE_REQUIRED_FIELDS: Record<string, readonly ServiceAccountFieldId[]> = {
+  [ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID]: ['clientId', 'clientSecret', 'domain'],
   ...TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS,
 }
 
@@ -119,7 +120,7 @@ function getClientCredentialsModeFields(
   providerId: string | null | undefined,
   authMethod: unknown
 ): readonly ServiceAccountFieldId[] | undefined {
-  return authMethod === TOKEN_CLIENT_CREDENTIALS_AUTH_METHOD &&
+  return authMethod === CLIENT_CREDENTIALS_AUTH_METHOD &&
     providerId &&
     Object.hasOwn(CLIENT_CREDENTIALS_MODE_REQUIRED_FIELDS, providerId)
     ? CLIENT_CREDENTIALS_MODE_REQUIRED_FIELDS[providerId]

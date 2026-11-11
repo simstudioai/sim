@@ -4,12 +4,14 @@ import { account, credential } from '@sim/db/schema'
 import { sealedTextEquals } from '@sim/db/sealed-text'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { and, desc, eq, isNotNull, sql } from 'drizzle-orm'
 import { withLeaderLock } from '@/lib/concurrency/leader-lock'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { env } from '@/lib/core/config/env'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { waitWithAbort } from '@/lib/core/utils/concurrency'
+import { mintAtlassianServiceAccountToken } from '@/lib/credentials/atlassian-client-credentials'
 import {
   isClientCredentialAccountProviderId,
   VANTA_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -21,6 +23,7 @@ import {
 import { isGoogleWorkloadIdentitySecret } from '@/lib/credentials/google-workload-identity'
 import { getTokenClientCredentialGrant } from '@/lib/credentials/token-service-accounts/client-credentials'
 import {
+  CLIENT_CREDENTIALS_AUTH_METHOD,
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
   SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -499,16 +502,72 @@ export async function getSlackBotCredential(
   }
 }
 
-interface AtlassianServiceAccountSecret {
+interface AtlassianServiceAccountSecretBase {
   type: typeof ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE
-  apiToken: string
   domain: string
   cloudId: string
   atlassianAccountId?: string
 }
 
+/** A scoped API token, used as the bearer token as is. */
+interface AtlassianServiceAccountTokenSecret extends AtlassianServiceAccountSecretBase {
+  apiToken: string
+}
+
+/** An OAuth 2.0 credential, minted into a bearer token with the client-credentials grant. */
+interface AtlassianServiceAccountClientSecret extends AtlassianServiceAccountSecretBase {
+  authMethod: typeof CLIENT_CREDENTIALS_AUTH_METHOD
+  clientId: string
+  clientSecret: string
+}
+
+type AtlassianServiceAccountSecret =
+  | AtlassianServiceAccountTokenSecret
+  | AtlassianServiceAccountClientSecret
+
+function parseAtlassianServiceAccountSecret(decrypted: string): AtlassianServiceAccountSecret {
+  const malformed = new Error('Stored Atlassian service account secret is malformed')
+  const parsed: unknown = JSON.parse(decrypted)
+  if (
+    !isRecordLike(parsed) ||
+    parsed.type !== ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE ||
+    typeof parsed.cloudId !== 'string' ||
+    !parsed.cloudId
+  ) {
+    throw malformed
+  }
+  const base: AtlassianServiceAccountSecretBase = {
+    type: ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
+    domain: typeof parsed.domain === 'string' ? parsed.domain : '',
+    cloudId: parsed.cloudId,
+    ...(typeof parsed.atlassianAccountId === 'string'
+      ? { atlassianAccountId: parsed.atlassianAccountId }
+      : {}),
+  }
+  if (parsed.authMethod === undefined) {
+    if (typeof parsed.apiToken !== 'string' || !parsed.apiToken) throw malformed
+    return { ...base, apiToken: parsed.apiToken }
+  }
+  if (
+    parsed.authMethod !== CLIENT_CREDENTIALS_AUTH_METHOD ||
+    typeof parsed.clientId !== 'string' ||
+    !parsed.clientId ||
+    typeof parsed.clientSecret !== 'string' ||
+    !parsed.clientSecret
+  ) {
+    throw malformed
+  }
+  return {
+    ...base,
+    authMethod: CLIENT_CREDENTIALS_AUTH_METHOD,
+    clientId: parsed.clientId,
+    clientSecret: parsed.clientSecret,
+  }
+}
+
 /**
- * Loads the decrypted Atlassian service account secret blob for a credential.
+ * Loads the decrypted Atlassian service account secret blob for a credential:
+ * a scoped API token, or an OAuth 2.0 credential's client ID and secret.
  * Throws if the credential is missing or not an Atlassian service account.
  */
 export async function getAtlassianServiceAccountSecret(
@@ -525,15 +584,7 @@ export async function getAtlassianServiceAccountSecret(
   }
 
   const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
-  const parsed = JSON.parse(decrypted) as AtlassianServiceAccountSecret
-  if (
-    parsed.type !== ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE ||
-    !parsed.apiToken ||
-    !parsed.cloudId
-  ) {
-    throw new Error('Stored Atlassian service account secret is malformed')
-  }
-  return parsed
+  return parseAtlassianServiceAccountSecret(decrypted)
 }
 
 /**
@@ -907,9 +958,31 @@ const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolve
     }
     return resolveGitHubInstallationAccessToken(binding, githubRepositoryScope)
   },
-  [ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => {
+  [ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId, options) => {
     const secret = await getAtlassianServiceAccountSecret(credentialId)
-    return { accessToken: secret.apiToken, cloudId: secret.cloudId, domain: secret.domain }
+    if (!('authMethod' in secret)) {
+      return { accessToken: secret.apiToken, cloudId: secret.cloudId, domain: secret.domain }
+    }
+    return resolveMintedServiceAccountToken(
+      credentialId,
+      async (decrypted) => {
+        const stored = parseAtlassianServiceAccountSecret(decrypted)
+        if (!('authMethod' in stored)) {
+          throw new Error('Stored Atlassian service account secret changed mode')
+        }
+        const minted = await mintAtlassianServiceAccountToken(stored.clientId, stored.clientSecret)
+        return {
+          token: {
+            accessToken: minted.accessToken,
+            cloudId: stored.cloudId,
+            domain: stored.domain,
+          },
+          expiresInSeconds: minted.expiresInSeconds,
+        }
+      },
+      options,
+      true
+    )
   },
   [SLACK_CUSTOM_BOT_PROVIDER_ID]: async (credentialId) => {
     const botCredential = await getSlackBotCredential(credentialId)
