@@ -24,6 +24,8 @@ export interface TokenServiceAccountField {
   placeholder: string
   /** Rendered with SecretInput and never echoed back. */
   secret: boolean
+  /** Preserve exact password bytes instead of normalizing surrounding whitespace. */
+  preserveWhitespace?: boolean
   /**
    * The value is a URL whose scheme and path matter (a self-hosted instance or
    * deployment URL), so the connect form sends it as typed and the provider's
@@ -2468,6 +2470,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'Password',
         placeholder: 'Enter the ServiceNow user password',
         secret: true,
+        preserveWhitespace: true,
       },
       {
         id: 'providerWorkspaceId',

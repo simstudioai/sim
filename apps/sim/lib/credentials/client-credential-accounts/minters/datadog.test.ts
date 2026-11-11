@@ -95,4 +95,15 @@ describe('Datadog API and application key check', () => {
       code: 'invalid_credentials',
     })
   })
+
+  it.each([
+    ['no valid field', {}],
+    ['a non-boolean valid field', { valid: 'true' }],
+  ])('reports a validate answer with %s as a provider fault, not a bad key', async (_, body) => {
+    mockFetch.mockResolvedValue(jsonResponse(body))
+
+    await expect(mintDatadogServiceAccountToken(FIELDS)).rejects.toMatchObject({
+      code: 'provider_unavailable',
+    })
+  })
 })

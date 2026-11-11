@@ -1,4 +1,8 @@
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -16,6 +20,7 @@ const {
 }))
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 /** One stored token per application, served until it is invalidated, as the coordinated store does. */
 const storedCoordinatedTokens = vi.hoisted(() => new Map<string, string>())
 vi.mock('@/lib/credentials/coordinated-client-token', () => ({
@@ -139,10 +144,11 @@ describe('verifyAndBuildServiceAccountSecret', () => {
       emailAddress: 'bot@acme.com',
     })
     const result = await verifyAndBuildServiceAccountSecret(ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID, {
-      apiToken: 'tok',
+      apiToken: ' tok\n',
       domain: 'Acme.atlassian.net',
       atlassianProduct: 'confluence',
     })
+    expect(mockValidateAtlassian).toHaveBeenCalledWith('tok', 'acme.atlassian.net', 'confluence')
     const blob = JSON.parse(result.encryptedServiceAccountKey)
     expect(blob).toMatchObject({
       apiToken: 'tok',
@@ -734,7 +740,7 @@ describe('a token provider in client-credentials mode', () => {
     )
 
     const result = await verifyAndBuildServiceAccountSecret('shopify-service-account', {
-      apiToken: 'shpat_pasted',
+      apiToken: ' shpat_pasted\n',
       domain: 'acme.myshopify.com',
       clientId: 'ignored',
       clientSecret: 'ignored',
@@ -774,5 +780,54 @@ describe('a token provider in client-credentials mode', () => {
       })
     ).rejects.toThrow('apiToken is required')
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('a ServiceNow login', () => {
+  const secureFetch = inputValidationMockFns.mockSecureFetchWithPinnedIP
+
+  beforeEach(() => {
+    mockEncryptSecret.mockImplementation(async (value: string) => ({ encrypted: value }))
+    inputValidationMockFns.mockValidateUrlWithDNS.mockReset().mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.7',
+      originalHostname: 'acme.service-now.com',
+    })
+    secureFetch.mockReset().mockResolvedValue(
+      new Response(JSON.stringify({ result: [{ sys_id: 'abc' }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+  })
+
+  it('verifies and stores a password with surrounding spaces exactly as typed', async () => {
+    const result = await verifyAndBuildServiceAccountSecret('servicenow-service-account', {
+      apiToken: ' pass word ',
+      providerWorkspaceId: 'integration.user',
+      domain: 'acme.service-now.com',
+    })
+
+    expect(secureFetch).toHaveBeenCalledWith(
+      expect.any(String),
+      '203.0.113.7',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: `Basic ${Buffer.from('integration.user: pass word ').toString('base64')}`,
+        }),
+      })
+    )
+    expect(JSON.parse(result.encryptedServiceAccountKey).apiToken).toBe(' pass word ')
+  })
+
+  it('refuses a blank password without calling ServiceNow', async () => {
+    await expect(
+      verifyAndBuildServiceAccountSecret('servicenow-service-account', {
+        apiToken: '   ',
+        providerWorkspaceId: 'integration.user',
+        domain: 'acme.service-now.com',
+      })
+    ).rejects.toBeInstanceOf(ServiceAccountSecretError)
+    expect(secureFetch).not.toHaveBeenCalled()
   })
 })

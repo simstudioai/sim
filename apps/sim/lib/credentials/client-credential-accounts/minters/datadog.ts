@@ -91,7 +91,13 @@ export async function mintDatadogServiceAccountToken(
       reason: 'provider returned an invalid or oversized response',
     })
   }
-  if (body.valid !== true) throw invalidCredentials('Datadog did not report the API key valid')
+  if (typeof body.valid !== 'boolean') {
+    throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+      step: STEP,
+      reason: 'Datadog validate response did not report whether the key is valid',
+    })
+  }
+  if (!body.valid) throw invalidCredentials('Datadog did not report the API key valid')
 
   return {
     ...resolved,

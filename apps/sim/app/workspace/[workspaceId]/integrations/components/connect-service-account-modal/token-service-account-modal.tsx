@@ -158,7 +158,7 @@ function TokenServiceAccountModalForm({
               clientId: clientId.trim(),
               clientSecret: clientSecret.trim(),
             }
-          : { apiToken: trimmedToken }),
+          : { apiToken: tokenField?.preserveWhitespace ? apiToken : trimmedToken }),
         ...(workspaceField ? { providerWorkspaceId: providerWorkspaceId.trim() } : {}),
         ...(domainField ? { domain: normalizedDomain } : {}),
       }

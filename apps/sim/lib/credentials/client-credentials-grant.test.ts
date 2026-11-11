@@ -47,6 +47,16 @@ describe('exchangeClientCredentialsGrant', () => {
     expect(exchanged.expiresAt.getTime() - startedAt).toBeLessThanOrEqual(1800 * 1000 + 50)
   })
 
+  it.each(['grant_type', 'client_id', 'client_secret'])(
+    'refuses an extra field that would replace %s, before any request',
+    async (field) => {
+      await expect(
+        exchangeClientCredentialsGrant({ ...REQUEST, extraFields: { [field]: 'replaced' } })
+      ).rejects.toThrow(field)
+      expect(mockFetch).not.toHaveBeenCalled()
+    }
+  )
+
   it('never keeps a token longer than the lifetime cap', async () => {
     mockFetch.mockResolvedValue(jsonResponse({ access_token: 'token-1', expires_in: 9_999_999 }))
 

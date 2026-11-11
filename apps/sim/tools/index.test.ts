@@ -3689,6 +3689,7 @@ describe('Internal Route Trust', () => {
     beforeEach(() => {
       mockInvalidateCoordinatedClientToken.mockReset()
       mockInvalidateCoordinatedClientToken.mockResolvedValue(undefined)
+      mockForgetRejectedClientCredentialToken.mockReset()
       ;(tools as Record<string, unknown>)[toolId] = {
         id: toolId,
         name: 'Minted Token Rejection Test',
@@ -3738,10 +3739,17 @@ describe('Internal Route Trust', () => {
       })
     })
 
+    it('drops a token this instance cached on a 401 so the next call mints a replacement', async () => {
+      await callWith('service_account', 401)
+
+      expect(mockForgetRejectedClientCredentialToken).toHaveBeenCalledWith('shared-token')
+    })
+
     it('keeps the token for a refusal that does not reject it', async () => {
       await callWith('service_account', 403)
 
       expect(mockInvalidateCoordinatedClientToken).not.toHaveBeenCalled()
+      expect(mockForgetRejectedClientCredentialToken).not.toHaveBeenCalled()
     })
 
     it.each([
@@ -3753,12 +3761,14 @@ describe('Internal Route Trust', () => {
 
       expect(result.success).toBe(false)
       expect(mockInvalidateCoordinatedClientToken).not.toHaveBeenCalled()
+      expect(mockForgetRejectedClientCredentialToken).not.toHaveBeenCalled()
     })
 
     it('never touches shared tokens for a signed-in account', async () => {
       await callWith('oauth', 401)
 
       expect(mockInvalidateCoordinatedClientToken).not.toHaveBeenCalled()
+      expect(mockForgetRejectedClientCredentialToken).not.toHaveBeenCalled()
     })
 
     it('still reports the provider failure when the token cannot be expired', async () => {

@@ -9,6 +9,8 @@ import {
 } from '@/lib/credentials/token-service-accounts/errors'
 
 const MAX_TOKEN_RESPONSE_BYTES = 64 * 1024
+/** Form fields the grant itself sets, which an extra field may never replace. */
+const RESERVED_GRANT_FIELDS = ['grant_type', 'client_id', 'client_secret'] as const
 
 /** One OAuth 2.0 client-credentials token request to a fixed or validated token endpoint. */
 export interface ClientCredentialsGrantRequest {
@@ -16,7 +18,10 @@ export interface ClientCredentialsGrantRequest {
   url: string
   clientId: string
   clientSecret: string
-  /** Form fields sent after the client credentials, such as a fixed `scope`. */
+  /**
+   * Form fields sent after the client credentials, such as a fixed `scope`. A field named
+   * `grant_type`, `client_id`, or `client_secret` is refused, so the grant always sends its own.
+   */
   extraFields?: Record<string, string>
   /** The validation step named in errors and logs. */
   step: string
@@ -46,6 +51,9 @@ export async function exchangeClientCredentialsGrant(
   request: ClientCredentialsGrantRequest
 ): Promise<{ accessToken: string; expiresAt: Date }> {
   const { step, signal } = request
+  const extraFields = request.extraFields ?? {}
+  const replaced = RESERVED_GRANT_FIELDS.find((field) => Object.hasOwn(extraFields, field))
+  if (replaced) throw new Error(`An extra field cannot replace the grant's ${replaced}`)
   const startedAt = Date.now()
   const response = await fetchProvider(
     request.url,
@@ -59,7 +67,7 @@ export async function exchangeClientCredentialsGrant(
         grant_type: 'client_credentials',
         client_id: request.clientId,
         client_secret: request.clientSecret,
-        ...request.extraFields,
+        ...extraFields,
       }).toString(),
       redirect: 'error',
       cache: 'no-store',

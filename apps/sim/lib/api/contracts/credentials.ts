@@ -12,6 +12,15 @@ import {
 import type { OAuthProvider } from '@/lib/oauth/types'
 
 export const atlassianProductSchema = z.enum(ATLASSIAN_PRODUCTS)
+
+/**
+ * A pasted token or password, kept exactly as typed: a password's surrounding spaces are part of
+ * it, so each provider's builder decides whether to trim. A blank value is refused.
+ */
+export const nonBlankSecretSchema = z
+  .string()
+  .min(1)
+  .refine((value) => value.trim().length > 0, 'Must not be blank')
 export type AtlassianProduct = z.output<typeof atlassianProductSchema>
 
 const ENV_VAR_NAME_REGEX = /^[A-Za-z0-9_]+$/
@@ -151,7 +160,7 @@ export const createCredentialFieldsSchema = z.object({
     .string()
     .max(2 * 1024 * 1024)
     .optional(),
-  apiToken: z.string().trim().min(1).optional(),
+  apiToken: nonBlankSecretSchema.optional(),
   domain: z.string().trim().min(1).optional(),
   providerWorkspaceId: z.string().trim().min(1).max(256).optional(),
   atlassianProduct: atlassianProductSchema.optional(),
@@ -287,7 +296,7 @@ export const updateCredentialByIdBodySchema = z
     signingSecret: z.string().trim().min(1).optional(),
     botToken: z.string().trim().min(1).optional(),
     /** Atlassian service-account secret rotation (reconnect). */
-    apiToken: z.string().trim().min(1).optional(),
+    apiToken: nonBlankSecretSchema.optional(),
     domain: z.string().trim().min(1).optional(),
     providerWorkspaceId: z.string().trim().min(1).max(256).optional(),
     atlassianProduct: atlassianProductSchema.optional(),

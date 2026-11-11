@@ -155,7 +155,8 @@ async function buildAtlassianServiceAccountSecret(
   if (fields.authMethod?.trim() === CLIENT_CREDENTIALS_AUTH_METHOD) {
     return buildAtlassianClientCredentialSecret(fields)
   }
-  const { apiToken, domain } = fields
+  const apiToken = fields.apiToken?.trim()
+  const { domain } = fields
   if (!apiToken || !domain) {
     throw new ServiceAccountSecretError(
       'apiToken and domain are required for Atlassian service account credentials'
@@ -574,12 +575,19 @@ async function buildTokenServiceAccountSecret(
   ) {
     return buildTokenClientCredentialSecret(descriptor, validator, fields)
   }
-  const apiToken = fields.apiToken?.trim()
+  const apiToken = descriptor.fields.find((field) => field.id === 'apiToken')?.preserveWhitespace
+    ? fields.apiToken
+    : fields.apiToken?.trim()
   const domain = fields.domain?.trim()
   const requiresDomain = descriptor.fields.some((field) => field.id === 'domain')
   const providerWorkspaceId = fields.providerWorkspaceId?.trim()
   const requiresWorkspace = descriptor.fields.some((field) => field.id === 'providerWorkspaceId')
-  if (!apiToken || (requiresDomain && !domain) || (requiresWorkspace && !providerWorkspaceId)) {
+  if (
+    !apiToken ||
+    !apiToken.trim() ||
+    (requiresDomain && !domain) ||
+    (requiresWorkspace && !providerWorkspaceId)
+  ) {
     const required = descriptor.fields.map((field) => field.id).join(' and ')
     throw new ServiceAccountSecretError(
       `${required} ${descriptor.fields.length > 1 ? 'are' : 'is'} required for ${descriptor.serviceLabel} service account credentials`

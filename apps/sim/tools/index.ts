@@ -3061,11 +3061,11 @@ function reportsScopeRefusal(error: Error): boolean {
 
 /**
  * A 401 means the provider no longer accepts the token a saved service-account credential
- * resolved to. A token minted from client credentials is shared by every worker until it expires,
- * so the rejected one is expired at once and the next call mints a replacement rather than
- * re-sending it. A 401 that only reports a missing scope leaves the token in service, since a
- * replacement would carry the same scopes. A pasted token matches no shared token and is left
- * alone.
+ * resolved to. The rejected token is dropped from whichever cache holds it: a token coordinated
+ * across workers is expired at once, and a token cached on this instance is forgotten, so the
+ * next call mints a replacement rather than re-sending it. A 401 that only reports a missing scope
+ * leaves the token in service, since a replacement would carry the same scopes. A pasted token
+ * matches no cached token and is left alone.
  */
 async function expireRejectedServiceAccountToken(
   error: unknown,
@@ -3074,6 +3074,7 @@ async function expireRejectedServiceAccountToken(
 ): Promise<void> {
   if (!(error instanceof Error) || !('status' in error) || error.status !== 401) return
   if (typeof accessToken !== 'string' || !accessToken || reportsScopeRefusal(error)) return
+  await forgetRefusedServiceAccountToken(accessToken, requestId)
   try {
     const { invalidateCoordinatedClientToken } = await import(
       '@/lib/credentials/coordinated-client-token'
@@ -3090,10 +3091,10 @@ async function expireRejectedServiceAccountToken(
 }
 
 /**
- * An internal operation answers 401 or 403 when the provider refused a saved service account's
- * token. A client-credential token cached on this instance is dropped so the next call mints a
- * replacement: providers such as CrowdStrike Falcon and SailPoint fix a token's scopes when it is
- * minted, so a scope granted since then only reaches a new token.
+ * Drops a refused service-account token from this instance's client-credential cache: an internal
+ * operation answers 401 or 403, and an external request 401, when the provider refused it. The
+ * next call mints a replacement: providers such as CrowdStrike Falcon and SailPoint fix a token's
+ * scopes when it is minted, so a scope granted since then only reaches a new token.
  */
 async function forgetRefusedServiceAccountToken(
   accessToken: string,
