@@ -199,6 +199,26 @@ describe('v2 API key authentication', () => {
     )
   })
 
+  it('accepts a personal key whose owner has never had a ban state recorded', async () => {
+    queueTableRows(schemaMock.apiKey, [
+      {
+        id: 'key-1',
+        userId: 'user-1',
+        workspaceId: null,
+        type: 'personal',
+        access: 'write',
+        expiresAt: null,
+        ownerUserId: 'user-1',
+        userBanned: null,
+        userSuspendedAt: null,
+      },
+    ])
+
+    const result = await authenticateV2ApiKey({ apiKey: 'secret', bearer: null })
+
+    expect(result.principal).toEqual(createPersonalApiKeyPrincipal())
+  })
+
   it('refuses a personal key whose owner row is gone as invalid, expired or not', async () => {
     for (const expiresAt of [null, new Date(Date.now() - 1)]) {
       queueTableRows(schemaMock.apiKey, [
@@ -209,6 +229,7 @@ describe('v2 API key authentication', () => {
           type: 'personal',
           access: 'write',
           expiresAt,
+          ownerUserId: null,
           userBanned: null,
           userSuspendedAt: null,
         },

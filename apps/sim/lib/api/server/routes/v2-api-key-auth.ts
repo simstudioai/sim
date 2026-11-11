@@ -77,6 +77,8 @@ interface ApiKeyRow {
   type: string
   access: ApiKeyAccess
   expiresAt: Date | null
+  /** The joined owner's id: `null` only when the owner row is gone (`user.banned` is itself nullable). */
+  ownerUserId: string | null
   userBanned: boolean | null
   userSuspendedAt: Date | null
 }
@@ -84,7 +86,7 @@ interface ApiKeyRow {
 function requireValidRow(row: ApiKeyRow | undefined): ApiKeyRow {
   if (!row) throw new V2ApiKeyUnauthenticatedError()
   if (row.type === 'personal' && row.workspaceId === null) {
-    if (row.userBanned === null) {
+    if (row.ownerUserId === null) {
       logger.error('Personal API key is missing its credential owner', { keyId: row.id })
       throw new V2ApiKeyUnauthenticatedError()
     }
@@ -118,6 +120,7 @@ async function authenticateApiKey(apiKeyHeader: string): Promise<V2ApiKeyAuthCon
       type: apiKey.type,
       access: apiKey.access,
       expiresAt: apiKey.expiresAt,
+      ownerUserId: user.id,
       userBanned: user.banned,
       userSuspendedAt: user.suspendedAt,
     })
