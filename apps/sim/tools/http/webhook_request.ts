@@ -85,24 +85,6 @@ export const webhookRequestTool: ToolConfig<WebhookRequestParams, RequestRespons
       ? response.json()
       : response.text())
 
-    if (
-      contentType.includes('application/json') &&
-      typeof data === 'object' &&
-      data !== null &&
-      data.data !== undefined &&
-      data.status !== undefined
-    ) {
-      return {
-        success: data.success,
-        output: {
-          data: data.data,
-          status: data.status,
-          headers: data.headers || {},
-        },
-        error: data.success ? undefined : data.error,
-      }
-    }
-
     return {
       success: response.ok,
       output: {
