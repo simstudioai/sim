@@ -1,11 +1,16 @@
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { providersMock, providersMockFns } from '@sim/testing/mocks/providers.mock'
-import { providersUtilsMock } from '@sim/testing/mocks/providers-utils.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 
-const { mockSearchKnowledgeAsExecutor } = vi.hoisted(() => ({
+const { mockSearchKnowledgeAsExecutor, mockResolveVertexAccessToken } = vi.hoisted(() => ({
   mockSearchKnowledgeAsExecutor: vi.fn(),
+  mockResolveVertexAccessToken: vi.fn(),
+}))
+
+vi.mock('@/lib/internal/llm/credentials', () => ({
+  resolveVertexAccessToken: mockResolveVertexAccessToken,
 }))
 
 vi.mock('@/lib/internal/knowledge/search', () => ({
@@ -163,6 +168,59 @@ describe('validateHallucination', () => {
       error: 'Validation error: Failed to query knowledge base: Unauthorized',
     })
     expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+  })
+
+  describe('with a Vertex AI model', () => {
+    const vertexInput = (registry: ResolvedSecretTraceRegistry) => ({
+      ...createInput(registry),
+      model: 'vertex/gemini-2.5-pro',
+      apiKey: 'unused-key',
+      providerCredentials: {
+        vertexCredential: 'credential-vertex',
+        vertexProject: 'example-project',
+        vertexLocation: 'us-central1',
+      },
+    })
+
+    beforeEach(() => {
+      mockResolveVertexAccessToken.mockReset()
+      mockResolveVertexAccessToken.mockImplementation(
+        async (_requestId: string, credentialId: string) => `access-token-for:${credentialId}`
+      )
+    })
+
+    it('scores with the access token the saved credential resolves to', async () => {
+      providersUtilsMockFns.mockGetProviderFromModel.mockReturnValue('vertex')
+
+      const result = await validateHallucination(vertexInput(new ResolvedSecretTraceRegistry()))
+
+      expect(result).toMatchObject({ passed: true, score: 8 })
+      expect(mockExecuteProviderRequest.mock.calls[0]?.[1]).toMatchObject({
+        apiKey: 'access-token-for:credential-vertex',
+        vertexProject: 'example-project',
+        vertexLocation: 'us-central1',
+      })
+    })
+
+    it('fails the check instead of calling the model when the credential cannot be resolved', async () => {
+      providersUtilsMockFns.mockGetProviderFromModel.mockReturnValue('vertex')
+      mockResolveVertexAccessToken.mockRejectedValue(
+        new Error('Vertex AI credential not found: credential-vertex')
+      )
+
+      const result = await validateHallucination(vertexInput(new ResolvedSecretTraceRegistry()))
+
+      expect(result).toMatchObject({ passed: false })
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    })
+
+    it('leaves another provider’s key alone', async () => {
+      providersUtilsMockFns.mockGetProviderFromModel.mockReturnValue('openai')
+
+      await validateHallucination(vertexInput(new ResolvedSecretTraceRegistry()))
+
+      expect(mockExecuteProviderRequest.mock.calls[0]?.[1]).toMatchObject({ apiKey: 'unused-key' })
+    })
   })
 
   /**
