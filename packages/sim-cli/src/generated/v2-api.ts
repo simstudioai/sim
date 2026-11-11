@@ -5545,6 +5545,7 @@ export type ExecuteWorkflowBody = {
   run?:
     | {
         source: 'deployment'
+        version?: number
       }
     | {
         source: 'manual'
@@ -6629,6 +6630,7 @@ type GetMetaResponseRef0 = {
   v2Enabled: boolean
   keyType: 'personal' | 'workspace' | 'oauth_access_token'
   expiresAt: string | null
+  scopes: Array<'api:read' | 'api:write' | 'search:read'>
 }
 
 export type GetMetaResponse = {
@@ -7866,6 +7868,38 @@ export type GetWorkflowRunQuery = {
 }
 
 type GetWorkflowRunResponseRef0 = {
+  contextId: string
+  blockId: string
+  blockName: string | null
+  kind: 'human' | 'time'
+  status: 'paused' | 'queued' | 'resuming' | 'resumed' | 'failed'
+  registeredAt: string | null
+  resumeAt: string | null
+  parallel: {
+    parallelId: string
+    branchIndex: number
+    branchTotal: number | null
+  } | null
+  loop: {
+    loopId: string
+    iteration: number
+  } | null
+  inputFields: Array<GetWorkflowRunResponseRef1> | null
+  display: unknown | null
+  queuePosition: number | null
+}
+
+type GetWorkflowRunResponseRef1 = {
+  name: string
+  label: string
+  type: string
+  description?: string
+  placeholder?: string
+  required: boolean
+  options?: Array<unknown>
+}
+
+type GetWorkflowRunResponseRef2 = {
   message: string
   code:
     | 'TIMEOUT'
@@ -7880,7 +7914,7 @@ type GetWorkflowRunResponseRef0 = {
   blockType?: string
 }
 
-type GetWorkflowRunResponseRef1 = {
+type GetWorkflowRunResponseRef3 = {
   id: string
   name: string
   size: number
@@ -7889,7 +7923,7 @@ type GetWorkflowRunResponseRef1 = {
   base64: string | null
 }
 
-type GetWorkflowRunResponseRef2 = {
+type GetWorkflowRunResponseRef4 = {
   runId: string
   workflowId: string
   status:
@@ -7905,6 +7939,7 @@ type GetWorkflowRunResponseRef2 = {
   startedAt: string | null
   endedAt: string | null
   durationMs: number | null
+  version: number | null
   paused: {
     contextId: string | null
     pausedAt: string
@@ -7914,18 +7949,19 @@ type GetWorkflowRunResponseRef2 = {
     automaticResumeWaitingReason: string | null
     pausePointCount: number
     resumedCount: number
+    points: Array<GetWorkflowRunResponseRef0>
   } | null
   cost: {
     total: number
   } | null
-  error: GetWorkflowRunResponseRef0 | null
+  error: GetWorkflowRunResponseRef2 | null
   output: unknown | null
   blockOutputs: Record<string, unknown> | null
-  files: Array<GetWorkflowRunResponseRef1> | null
+  files: Array<GetWorkflowRunResponseRef3> | null
 }
 
 export type GetWorkflowRunResponse = {
-  data: GetWorkflowRunResponseRef2
+  data: GetWorkflowRunResponseRef4
 }
 
 /** `GET /api/v2/workflows/[workflowId]/state` */
@@ -10852,6 +10888,33 @@ type ListWorkflowsResponseRef0 = {
 
 export type ListWorkflowsResponse = {
   data: Array<ListWorkflowsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/workflows/[workflowId]/triggers` */
+export type ListWorkflowTriggersParams = {
+  workflowId: string
+}
+
+export type ListWorkflowTriggersQuery = Record<string, unknown>
+
+type ListWorkflowTriggersResponseRef0 = {
+  blockId: string
+  kind: 'schedule' | 'polling' | 'event' | 'webhook'
+  provider: string | null
+  enabled: boolean
+  status: 'active' | 'disabled' | 'completed'
+  failedCount: number
+  lastFailedAt: string | null
+  nextRunAt: string | null
+  lastRanAt: string | null
+  cronExpression: string | null
+  timezone: string | null
+  url: string | null
+}
+
+export type ListWorkflowTriggersResponse = {
+  data: Array<ListWorkflowTriggersResponseRef0>
   nextCursor: string | null
 }
 
@@ -15792,6 +15855,37 @@ export type UpdateWorkflowPublicApiResponse = {
   data: UpdateWorkflowPublicApiResponseRef0
 }
 
+/** `PATCH /api/v2/workflows/[workflowId]/triggers/[blockId]` */
+export type UpdateWorkflowTriggerParams = {
+  workflowId: string
+  blockId: string
+}
+
+export type UpdateWorkflowTriggerQuery = Record<string, unknown>
+
+export type UpdateWorkflowTriggerBody = {
+  enabled: boolean
+}
+
+type UpdateWorkflowTriggerResponseRef0 = {
+  blockId: string
+  kind: 'schedule' | 'polling' | 'event' | 'webhook'
+  provider: string | null
+  enabled: boolean
+  status: 'active' | 'disabled' | 'completed'
+  failedCount: number
+  lastFailedAt: string | null
+  nextRunAt: string | null
+  lastRanAt: string | null
+  cronExpression: string | null
+  timezone: string | null
+  url: string | null
+}
+
+export type UpdateWorkflowTriggerResponse = {
+  data: UpdateWorkflowTriggerResponseRef0
+}
+
 /** `PATCH /api/v2/workflows/[workflowId]/versions/[version]` */
 export type UpdateWorkflowVersionParams = {
   version: number
@@ -18602,7 +18696,7 @@ export const V2_OPERATIONS = {
       run: {
         kind: 'unknown',
         describe:
-          'Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.',
+          'Workflow state and entry point to execute. Omit for the active deployment; `source: "deployment"` with `version` runs that deployment version. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.',
       },
       async: {
         kind: 'boolean',
@@ -22370,6 +22464,14 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listWorkflowTriggers: {
+    method: 'GET',
+    path: '/api/v2/workflows/[workflowId]/triggers',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'List workflow triggers',
+  },
   listWorkflowVersions: {
     method: 'GET',
     path: '/api/v2/workflows/[workflowId]/versions',
@@ -25038,6 +25140,25 @@ export const V2_OPERATIONS = {
         required: true,
         describe:
           'Whether the deployed workflow should accept unauthenticated public API execution.',
+      },
+    },
+  },
+  updateWorkflowTrigger: {
+    method: 'PATCH',
+    path: '/api/v2/workflows/[workflowId]/triggers/[blockId]',
+    pathParams: ['workflowId', 'blockId'] as const,
+    pathParamDocs: {
+      workflowId: 'Unique workflow identifier.',
+      blockId: 'Trigger block in the deployed workflow.',
+    },
+    responseMode: 'json',
+    summary: 'Update workflow trigger',
+    body: {
+      enabled: {
+        kind: 'boolean',
+        required: true,
+        describe:
+          'Whether the trigger should fire. A disable lasts until the next deploy or version activation, which re-enables every trigger.',
       },
     },
   },

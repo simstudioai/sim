@@ -91,11 +91,17 @@ describe('indexed source content through real application access', () => {
   const ids = createKnowledgeAclFixtureIds()
   const { aliceId, bobId, workspaceId, knowledgeBaseId, connectorId, lockId, groups } = ids
   const alice: Principal = { kind: 'session', userId: aliceId, sessionId: 'fixture-alice' }
-  const bob: Principal = { kind: 'personal_api_key', userId: bobId, keyId: 'fixture-bob' }
+  const bob: Principal = {
+    kind: 'personal_api_key',
+    userId: bobId,
+    keyId: 'fixture-bob',
+    access: 'write',
+  }
   const workspaceKey: Principal = {
     kind: 'workspace_api_key',
     workspaceId,
     keyId: 'fixture-workspace',
+    access: 'write',
   }
   const content =
     'Orion project: the release readiness checklist is complete. Engineers approved the customer migration plan and documented every operational dependency.'

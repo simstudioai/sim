@@ -487,7 +487,7 @@ export async function findCascadingOrganizationContentTx(
  * deletion would delete must hold none of them by now (its membership aside), checked in one
  * statement. Every such table is moved (chats and runs into the owner's workspace, the rest into
  * the target), keyed, deleted as organization-bound (above), or refused on personal organizations
- * by migrations 0456 and 0457 (`personal-organization-join.integration.ts` proves the
+ * by migrations 0457 and 0458 (`personal-organization-join.integration.ts` proves the
  * classification is complete), so this only refuses a join over rows written around those guards,
  * rather than losing them.
  */

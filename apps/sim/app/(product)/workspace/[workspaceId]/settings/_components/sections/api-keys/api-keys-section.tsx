@@ -54,16 +54,22 @@ interface ApiKeyRowProps {
 function ApiKeyRow({ apiKey, overridden = false, canDelete, onDelete }: ApiKeyRowProps) {
   const { copy } = useClipboard()
   const lastUsed = apiKey.lastUsed ? formatInstantDate(apiKey.lastUsed) : 'never'
+  const expiry = apiKey.expiresAt
+    ? Date.parse(apiKey.expiresAt) <= Date.now()
+      ? ' · expired'
+      : ` · expires ${formatInstantDate(apiKey.expiresAt)}`
+    : ''
   return (
     <SettingsRow
       label={apiKey.name}
-      description={`${apiKey.displayKey} · last used ${lastUsed}${
+      description={`${apiKey.displayKey} · last used ${lastUsed}${expiry}${
         overridden
           ? ' · A workspace API key with the same name overrides this. Rename your personal key to use it.'
           : ''
       }`}
     >
       <span className={styles.controls}>
+        {apiKey.access === 'read' && <StatusTag label='Read only' />}
         {overridden && <StatusTag label='Overridden' intent='danger' />}
         <ActionMenu
           label={`Actions for ${apiKey.name}`}

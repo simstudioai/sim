@@ -54,6 +54,7 @@ import {
   v2ListWorkflowFoldersContract,
   v2ListWorkflowRunsContract,
   v2ListWorkflowsContract,
+  v2ListWorkflowTriggersContract,
   v2ListWorkflowVersionsContract,
   v2MoveWorkflowsContract,
   v2RelocateWorkflowFolderContract,
@@ -67,6 +68,7 @@ import {
   v2UndeployWorkflowContract,
   v2UpdateWorkflowContract,
   v2UpdateWorkflowPublicApiContract,
+  v2UpdateWorkflowTriggerContract,
   v2UpdateWorkflowVersionContract,
 } from '@/lib/api/contracts/v2/workflows'
 import {
@@ -94,6 +96,21 @@ const WORKFLOW_EXAMPLE = {
   lastRunAt: '2026-08-09T18:04:11.000Z',
   createdAt: '2026-05-01T09:00:00.000Z',
   updatedAt: '2026-08-09T18:04:11.000Z',
+} as const
+
+const WORKFLOW_TRIGGER_EXAMPLE = {
+  blockId: 'blk_01J8ZK3QW4M6X2R9T7B5C0V4',
+  kind: 'schedule',
+  provider: null,
+  enabled: false,
+  status: 'disabled',
+  failedCount: 100,
+  lastFailedAt: '2026-08-09T18:04:11.000Z',
+  nextRunAt: null,
+  lastRanAt: '2026-08-09T18:04:00.000Z',
+  cronExpression: '0 * * * *',
+  timezone: 'UTC',
+  url: null,
 } as const
 
 const WORKFLOW_FOLDER_EXAMPLE = {
@@ -905,6 +922,61 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
+    v2ListWorkflowTriggersContract,
+    workflowOperation({
+      applicationOperation: workflowOperations.readTriggers,
+      operationId: 'listWorkflowTriggers',
+      summary: 'List workflow triggers',
+      description: `List the schedules, polling triggers, internal-event triggers, and webhooks the live deployment serves, including disabled ones, with their failure counts. Requires workspace read access. Schedules and polling triggers disable themselves after 100 consecutive failures; a \`webhook\` trigger's failures happen at the sender, so its \`failedCount\` stays 0. Empty while the workflow is not deployed. ${FULL_SET_LIST}`,
+      errors: RESOURCE_ERRORS,
+      success: jsonSuccess("The live deployment's triggers."),
+    }),
+    {
+      query: v2ListWorkflowTriggersContract.query,
+      params: v2ListWorkflowTriggersContract.params,
+      response: documentedSchema(
+        v2ListWorkflowTriggersContract.response.schema,
+        'WorkflowTriggerListResponse',
+        'Workflow trigger list response',
+        'Every trigger the live deployment serves.',
+        [{ data: [WORKFLOW_TRIGGER_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2UpdateWorkflowTriggerContract,
+    workflowOperation({
+      applicationOperation: workflowOperations.setTriggerEnabled,
+      operationId: 'updateWorkflowTrigger',
+      summary: 'Update workflow trigger',
+      description: `Enable or disable one trigger of the live deployment without redeploying. Requires workspace write access. Enabling resets \`failedCount\`, schedules the next run, and clears any polling backoff; a schedule whose cron expression is invalid or has no future runs returns \`400\`. A permission group that blocks webhook triggers returns \`403\` when a member it governs enables a polling, internal-event, or webhook trigger; a workspace API key is not governed by permission groups, as with every other capability. Disabling a completed schedule marks it disabled. A block with several live rows switches them together. Requesting the current state changes nothing.\n\nDisabling only stops Sim from accepting the trigger; nothing is removed at the provider. A disable lasts until the next deploy or version activation, which re-enables every trigger, the same way it clears a trigger that disabled itself after repeated failures. Deliveries to a disabled webhook receive \`404\`, and some providers disable their subscription after repeated failures, which requires a redeploy to restore.`,
+      errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
+      success: jsonSuccess('The trigger after the update.'),
+    }),
+    {
+      query: v2UpdateWorkflowTriggerContract.query,
+      params: v2UpdateWorkflowTriggerContract.params,
+      body: v2UpdateWorkflowTriggerContract.body,
+      response: documentedSchema(
+        v2UpdateWorkflowTriggerContract.response.schema,
+        'UpdateWorkflowTriggerResponse',
+        'Update workflow trigger response',
+        'The trigger after the update.',
+        [
+          {
+            data: {
+              ...WORKFLOW_TRIGGER_EXAMPLE,
+              enabled: true,
+              status: 'active',
+              failedCount: 0,
+              nextRunAt: '2026-08-10T09:00:00.000Z',
+            },
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2DeployWorkflowContract,
     workflowOperation({
       applicationOperation: workflowOperations.deploy,
@@ -1210,7 +1282,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.execute,
       operationId: 'executeWorkflowV2',
       summary: 'Execute workflow',
-      description: `Run the active deployment, or set \`run.source: "manual"\` to run the saved draft. Deployed execution requires workspace read access and OAuth \`api:write\` scope or an API key; public deployments also allow anonymous synchronous or streamed runs. Manual runs require personal-key or OAuth write access and cannot be async.\n\nUse \`async: true\` for a queue receipt, or \`stream: true\` for SSE. For a synchronous run with both flags false, send \`Accept: application/x-ndjson\` for heartbeat frames and a final frame containing \`data\`. With \`waitTimeoutSeconds\`, a synchronous run still going when the wait elapses continues in the background and answers with its run receipt instead: \`202\` on a JSON response, or a closing \`detached\` frame on an NDJSON stream, which keeps its \`200\`. Timeouts return \`200\` with \`status: "failed"\` and \`error.code: "TIMEOUT"\`; inspect run status. See [Streaming](/workflows/deployment/api#streaming) for event formats. ${EXECUTE_OPTION_CONSTRAINTS}\n\nSupply \`X-Run-Id\` to prevent duplicate execution. Reuse returns \`409\`, without replaying results. A \`503\` with \`error.details.code: "ASYNC_ENQUEUE_AMBIGUOUS"\` omits \`Retry-After\` because the run may already have started. Reconcile using the returned run ID; do not start another run with a new or omitted ID.`,
+      description: `Run the active deployment, set \`run: { source: "deployment", version }\` to run an earlier deployment version, or set \`run.source: "manual"\` to run the saved draft. Deployed execution requires workspace read access and OAuth \`api:write\` scope or an API key; public deployments also allow anonymous synchronous or streamed runs. Running a chosen version requires workspace write access and an API key or OAuth access token; an unknown version returns \`404\`. Manual runs require personal-key or OAuth write access and cannot be async.\n\nUse \`async: true\` for a queue receipt, or \`stream: true\` for SSE. For a synchronous run with both flags false, send \`Accept: application/x-ndjson\` for heartbeat frames and a final frame containing \`data\`. With \`waitTimeoutSeconds\`, a synchronous run still going when the wait elapses continues in the background and answers with its run receipt instead: \`202\` on a JSON response, or a closing \`detached\` frame on an NDJSON stream, which keeps its \`200\`. Timeouts return \`200\` with \`status: "failed"\` and \`error.code: "TIMEOUT"\`; inspect run status. See [Streaming](/workflows/deployment/api#streaming) for event formats. ${EXECUTE_OPTION_CONSTRAINTS}\n\nSupply \`X-Run-Id\` to prevent duplicate execution. Reuse returns \`409\`, without replaying results. A \`503\` with \`error.details.code: "ASYNC_ENQUEUE_AMBIGUOUS"\` omits \`Retry-After\` because the run may already have started. Reconcile using the returned run ID; do not start another run with a new or omitted ID.`,
       errors: [
         'BadRequest',
         'Unauthorized',
@@ -1294,7 +1366,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.readRun,
       operationId: 'getWorkflowRunV2',
       summary: 'Get workflow run',
-      description: `Read current run state with workspace read access. Request final output and files with \`includeOutput\`, or block outputs with \`selectedOutputs\`. Organization permission groups can hide output, files, or cost.\n\n\`includeFileBase64\` inlines file bytes. A file or the total above 16 MiB returns \`413\` naming a download path; download large files individually. ${HEAD_MIRRORS_GET}`,
+      description: `Read current run state with workspace read access. Request final output and files with \`includeOutput\`, or block outputs with \`selectedOutputs\`. Organization permission groups can hide output, files, or cost. A paused run lists every pause point in \`paused.points\`, with the fields a human pause asks for and its content with resolved secrets redacted; resume one with Resume workflow run.\n\n\`includeFileBase64\` inlines file bytes. A file or the total above 16 MiB returns \`413\` naming a download path; download large files individually. ${HEAD_MIRRORS_GET}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The workflow run status.'),
     }),
@@ -1316,6 +1388,7 @@ const declaredRoutes = [
               startedAt: '2026-08-09T18:04:10.000Z',
               endedAt: '2026-08-09T18:04:11.000Z',
               durationMs: 1_000,
+              version: 3,
               paused: null,
               cost: { total: 12 },
               error: null,
@@ -1363,7 +1436,7 @@ const declaredRoutes = [
       operationId: 'resumeWorkflowRunV2',
       summary: 'Resume workflow run',
       description:
-        'Resume one human-in-the-loop pause with workspace write access. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.',
+        "Resume one human-in-the-loop pause with workspace write access, naming a `contextId` from the run's `paused.points`. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.",
       errors: [...RESOURCE_ERRORS, 'UsageLimitExceeded', 'Conflict', 'PayloadTooLarge'],
       success: {
         byStatus: {

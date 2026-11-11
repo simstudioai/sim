@@ -37,7 +37,10 @@ import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base6
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
 import { isRecordedWorkflowFailure } from '@/lib/workflows/executor/recorded-failure'
-import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
+import {
+  loadDeployedWorkflowState,
+  resolveDeployedRunVariables,
+} from '@/lib/workflows/persistence/utils'
 import { notifyScheduleAutoDisabled } from '@/lib/workflows/schedules/disable-notifications'
 import type { ScheduleDisableReason } from '@/lib/workflows/schedules/disable-reasons'
 import {
@@ -622,7 +625,7 @@ async function runWorkflowExecution({
       metadata,
       workflowRecord,
       input,
-      workflowRecord.variables || {},
+      resolveDeployedRunVariables(deployedData, workflowRecord.variables),
       []
     )
 

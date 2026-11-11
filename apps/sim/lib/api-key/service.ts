@@ -1,8 +1,10 @@
+import type { ApiKeyAccess } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { apiKey as apiKeyTable, user as userTable } from '@sim/db/schema'
 import { createLogger, setRequestAuth } from '@sim/logger'
 import { and, eq, isNull, lt, or } from 'drizzle-orm'
 import { hashApiKey } from '@/lib/api-key/crypto'
+import { API_KEY_EXPIRED } from '@/lib/api-key/policy-messages'
 import { getAuthPool } from '@/lib/auth/database-context'
 import { createDetachedTouch } from '@/lib/core/utils/background'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -21,8 +23,11 @@ export interface ApiKeyAuthResult {
   userId?: string
   keyId?: string
   keyType?: 'personal' | 'workspace'
+  access?: ApiKeyAccess
   workspaceId?: string
   error?: string
+  /** The key matched but is past its expiry, so callers can say so rather than "invalid". */
+  expired?: true
 }
 
 const INVALID = { success: false, error: 'Invalid API key' } as const
@@ -32,6 +37,7 @@ interface HashCandidate {
   userId: string
   workspaceId: string | null
   type: string
+  access: ApiKeyAccess
   expiresAt: Date | null
   userBanned: boolean | null
   userSuspendedAt: Date | null
@@ -41,8 +47,8 @@ interface HashCandidate {
  * Authenticate an API key from header with flexible filtering options.
  *
  * Looks up a single row by `sha256(apiKeyHeader)` and applies the scope /
- * expiry / permission gates. Any miss — no matching hash or a failed gate —
- * returns `INVALID`.
+ * expiry / permission gates. An expired key reports {@link API_KEY_EXPIRED};
+ * any other miss — no matching hash or a failed gate — returns `INVALID`.
  */
 export async function authenticateApiKeyFromHeader(
   apiKeyHeader: string,
@@ -69,6 +75,7 @@ export async function authenticateApiKeyFromHeader(
         userId: apiKeyTable.userId,
         workspaceId: apiKeyTable.workspaceId,
         type: apiKeyTable.type,
+        access: apiKeyTable.access,
         expiresAt: apiKeyTable.expiresAt,
         userBanned: userTable.banned,
         userSuspendedAt: userTable.suspendedAt,
@@ -95,7 +102,6 @@ export async function authenticateApiKeyFromHeader(
 
     if (options.userId && record.userId !== options.userId) return INVALID
     if (options.keyTypes?.length && !options.keyTypes.includes(keyType)) return INVALID
-    if (record.expiresAt && record.expiresAt < new Date()) return INVALID
 
     if (
       options.workspaceId &&
@@ -117,6 +123,11 @@ export async function authenticateApiKeyFromHeader(
       if (permission === null) return INVALID
     }
 
+    /** Last, so a key that fails any other gate reports invalid rather than expired. */
+    if (record.expiresAt && record.expiresAt < new Date()) {
+      return { success: false, error: API_KEY_EXPIRED, expired: true }
+    }
+
     logger.debug('API key matched via hash lookup', { keyId: record.id, keyType })
     setRequestAuth(
       { kind: keyType === 'personal' ? 'personal_api_key' : 'workspace_api_key' },
@@ -128,6 +139,7 @@ export async function authenticateApiKeyFromHeader(
       userId: record.userId,
       keyId: record.id,
       keyType,
+      access: record.access,
       workspaceId: record.workspaceId || options.workspaceId || undefined,
     }
   } catch (error) {

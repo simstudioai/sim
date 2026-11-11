@@ -367,6 +367,7 @@ export function ServerDetail({
           canManageWorkspaceKeys={canManage}
           defaultKeyType='workspace'
           source='settings'
+          fullAccessOnly
           onClose={closeDialog}
         />
       )}

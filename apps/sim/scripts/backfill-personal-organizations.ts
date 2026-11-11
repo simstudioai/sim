@@ -4,7 +4,7 @@
  * Gives every account outside a team its personal organization and attaches the workspaces it
  * owns without one (with their Projects), so every person belongs to an organization.
  *
- * Deploy order (see scripts/backfill-personal-organizations.md): migrations 0455 to 0458, then the
+ * Deploy order (see scripts/backfill-personal-organizations.md): migrations 0456 to 0459, then the
  * app, background workers and Trigger.dev tasks on the release that reads `organization.kind`,
  * all fully rolled out; only then run this script (`--apply` refuses while the
  * `pause-personal-organizations` flag is on; `scripts/revert-personal-organizations.ts` undoes it).

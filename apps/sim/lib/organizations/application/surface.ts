@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import type { OrganizationSurfaceResponse } from '@/lib/api/contracts/organization'
+import { isReadOnlyApiKeyCreationEnabled } from '@/lib/api-key/feature-flag'
 import { canUseBenchmarks } from '@/lib/benchmarks/config'
 import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
 import { isComputerUseAvailable } from '@/lib/computer-use/availability.server'
@@ -58,6 +59,7 @@ async function resolveOrganizationSurfaceFlags(organizationId: string, userId: s
     changelogEnabled,
     projectsEnabled,
     platformPreviewEnabled,
+    readOnlyApiKeysEnabled,
   ] = await Promise.all([
     isMothershipModelSelectorEnabled(),
     isDashboardsEnabled(organizationId),
@@ -70,6 +72,7 @@ async function resolveOrganizationSurfaceFlags(organizationId: string, userId: s
     isChangelogEnabled(organizationId),
     isProjectsEnabled(),
     isFeatureEnabled('platform-preview'),
+    isReadOnlyApiKeyCreationEnabled(),
   ])
   return {
     benchmarkEnabled,
@@ -83,6 +86,7 @@ async function resolveOrganizationSurfaceFlags(organizationId: string, userId: s
       'mothership-memory-spaces': benchmarkEnabled,
       projects: projectsEnabled,
       'platform-preview': platformPreviewEnabled,
+      'api-key-read-only': readOnlyApiKeysEnabled,
     },
   }
 }

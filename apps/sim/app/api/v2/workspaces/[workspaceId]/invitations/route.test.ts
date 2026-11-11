@@ -23,7 +23,12 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { POST } from '@/app/api/v2/workspaces/[workspaceId]/invitations/route'
 
 const workspaceId = 'workspace-123'
-const principal = { kind: 'personal_api_key', userId: 'caller', keyId: 'key' } as const
+const principal = {
+  kind: 'personal_api_key',
+  userId: 'caller',
+  keyId: 'key',
+  access: 'write',
+} as const
 const call = (body: unknown, query = '') =>
   POST(
     new NextRequest(`http://localhost/api/v2/workspaces/${workspaceId}/invitations${query}`, {

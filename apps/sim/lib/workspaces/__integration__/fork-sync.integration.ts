@@ -68,7 +68,12 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 const userId = generateId()
 const sourceWorkspaceId = generateId()
 const sourceWorkflowId = generateId()
-const principal = { kind: 'personal_api_key' as const, userId, keyId: generateId() }
+const principal = {
+  kind: 'personal_api_key' as const,
+  userId,
+  keyId: generateId(),
+  access: 'write' as const,
+}
 const createdWorkspaceIds: string[] = []
 const graph: WorkflowState = {
   blocks: {

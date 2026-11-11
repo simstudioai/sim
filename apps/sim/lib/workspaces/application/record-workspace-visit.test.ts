@@ -36,7 +36,7 @@ describe('recordWorkspaceVisit', () => {
   })
 
   it('rejects API-key principals before loading the workspace', async () => {
-    const apiKey = { kind: 'personal_api_key', keyId: 'key-1', userId: 'user-1' }
+    const apiKey = { kind: 'personal_api_key', keyId: 'key-1', access: 'write', userId: 'user-1' }
 
     await expect(
       recordWorkspaceVisit.execute({

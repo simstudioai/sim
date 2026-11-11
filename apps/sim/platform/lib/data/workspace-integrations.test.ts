@@ -107,6 +107,7 @@ const ORGANIZATION_A = {
     'mothership-memory-spaces': false,
     projects: false,
     'platform-preview': false,
+    'api-key-read-only': false,
   },
   settingsSections: [],
 } satisfies PlatformOrganization

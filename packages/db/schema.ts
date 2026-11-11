@@ -1446,6 +1446,9 @@ export const simTriggerState = pgTable(
   })
 )
 
+/** What an API key may do: `read` keys are refused every operation that changes state. */
+export const apiKeyAccessEnum = pgEnum('api_key_access', ['read', 'write'])
+
 export const apiKey = pgTable(
   'api_key',
   {
@@ -1460,6 +1463,7 @@ export const apiKey = pgTable(
     key: text('key').notNull().unique(),
     keyHash: text('key_hash'),
     type: text('type').notNull().default('personal'),
+    access: apiKeyAccessEnum('access').notNull().default('write'),
     lastUsed: timestamp('last_used'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),

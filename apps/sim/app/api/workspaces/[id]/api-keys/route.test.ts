@@ -57,6 +57,7 @@ describe('GET /api/workspaces/[id]/api-keys', () => {
       {
         id: 'key-1',
         name: 'Legacy key',
+        access: 'write',
         key: 'sim_plaintext_legacy_secret',
         createdAt: new Date('2026-07-01T00:00:00.000Z'),
         lastUsed: null,
@@ -79,6 +80,7 @@ describe('GET /api/workspaces/[id]/api-keys', () => {
       {
         id: 'key-1',
         name: 'Legacy key',
+        access: 'write',
         displayKey: 'sim_••••legacy',
         createdAt: '2026-07-01T00:00:00.000Z',
         lastUsed: null,

@@ -565,6 +565,7 @@ describe('destructive operations are gated', () => {
     'updateWorkflowGroup',
     'updateWorkflowMcpServer',
     'updateWorkflowPublicApi',
+    'updateWorkflowTrigger',
     'updateWorkflowVersion',
     'uploadKnowledgeDocument',
     'upsertFileShare',

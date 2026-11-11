@@ -125,11 +125,13 @@ describe.skipIf(!fixtureFile)('live self-hosted GitLab ingestion and permission 
     kind: 'personal_api_key',
     userId: person.simId,
     keyId: 'gitlab-live-fixture',
+    access: 'write',
   })
   const workspaceKey = (): Principal => ({
     kind: 'workspace_api_key',
     workspaceId: ids.workspaceId,
     keyId: 'gitlab-live-fixture',
+    access: 'write',
   })
 
   async function waitForProjectAccess(person: GitLabPerson, expectedStatus: number) {

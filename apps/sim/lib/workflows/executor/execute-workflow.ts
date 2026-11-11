@@ -60,6 +60,8 @@ export interface ExecuteWorkflowOptions {
   draftState?: NormalizedWorkflowData
   /** Immutable workflow state selected by a trusted server-side trigger boundary. */
   workflowStateOverride?: NonNullable<ExecutionMetadata['workflowStateOverride']>
+  /** See {@link ExecutionMetadata.pinnedDeploymentVersionId}. */
+  pinnedDeploymentVersionId?: string
   /** Stop execution after this block completes. Used for "run until block" feature. */
   stopAfterBlockId?: string
   /** Workflow test run: mocked blocks await these hooks instead of running. */
@@ -172,6 +174,7 @@ export async function executeWorkflow(
       triggerBlockId: streamConfig?.triggerBlockId,
       useDraftState: streamConfig?.useDraftState ?? false,
       workflowStateOverride: streamConfig?.workflowStateOverride,
+      pinnedDeploymentVersionId: streamConfig?.pinnedDeploymentVersionId,
       startTime: new Date().toISOString(),
       isClientSession: false,
       enforceCredentialAccess: streamConfig?.enforceCredentialAccess ?? false,

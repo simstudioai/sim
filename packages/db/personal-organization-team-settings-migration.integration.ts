@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 
 const databaseUrl = readTestDatabaseUrl()
 
-/** Tables 0457 refuses on a personal organization. */
+/** Tables 0458 refuses on a personal organization. */
 const TEAM_ONLY_TABLES = [
   'organization_byok_keys',
   'organization_member_usage_limit',
@@ -23,7 +23,7 @@ const TEAM_ONLY_TABLES = [
 ]
 
 /**
- * Applies 0456, 0457 and 0458 to a minimal schema holding a personal and a team organization (and
+ * Applies 0457, 0458 and 0459 to a minimal schema holding a personal and a team organization (and
  * the personal organization's owner).
  */
 async function createFixture() {
@@ -32,9 +32,9 @@ async function createFixture() {
   const sql = await client.reserve()
   const migrations = await Promise.all(
     [
-      '0456_personal_organization_team_settings',
-      '0457_personal_organization_team_only_tables',
-      '0458_personal_organization_single_owner',
+      '0457_personal_organization_team_settings',
+      '0458_personal_organization_team_only_tables',
+      '0459_personal_organization_single_owner',
     ].map((name) => readFile(new URL(`./migrations/${name}.sql`, import.meta.url), 'utf8'))
   )
   await sql.unsafe(`CREATE SCHEMA "${schema}"`)
@@ -112,7 +112,7 @@ describe('personal organization team-settings migration on PostgreSQL', () => {
     }
   })
 
-  it('refuses every 0457 team-only table on a personal organization and allows it on a team', async () => {
+  it('refuses every 0458 team-only table on a personal organization and allows it on a team', async () => {
     const fixture = await createFixture()
     try {
       const { sql } = fixture

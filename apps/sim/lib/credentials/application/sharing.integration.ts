@@ -11,7 +11,12 @@ describe('Credential sharing through user-held API credentials in PostgreSQL', (
   const workspaceId = generateId()
   const organizationId = generateId()
   const credentialId = generateId()
-  const principal = { kind: 'personal_api_key' as const, userId: actorId, keyId: generateId() }
+  const principal = {
+    kind: 'personal_api_key' as const,
+    userId: actorId,
+    keyId: generateId(),
+    access: 'write' as const,
+  }
   let runtime: Awaited<ReturnType<typeof loadRuntime>>
 
   async function loadRuntime() {
@@ -126,7 +131,7 @@ describe('Credential sharing through user-held API credentials in PostgreSQL', (
   it('denies workspace keys before looking up a credential', async () => {
     await expect(
       runtime.upsertCredentialMemberUseCase.execute({
-        principal: { kind: 'workspace_api_key', workspaceId, keyId: generateId() },
+        principal: { kind: 'workspace_api_key', workspaceId, keyId: generateId(), access: 'write' },
         input: { credentialId: generateId(), userId: readerId, role: 'admin' },
       })
     ).rejects.toMatchObject({ detailCode: 'WORKSPACE_KEY_OPERATION_NOT_PERMITTED' })

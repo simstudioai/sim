@@ -35,6 +35,7 @@
     "test:landing-seo:e2e": "bun --no-env-file scripts/test-landing-seo-e2e.ts",
     "test:workflow-version-compare:e2e": "bun --no-env-file scripts/test-workflow-version-compare-e2e.ts",
     "test:workflow-stop-after:e2e": "bun --no-env-file scripts/test-workflow-stop-after-e2e.ts",
+    "test:workflow-pinned-execute:e2e": "bun --no-env-file scripts/test-workflow-pinned-execute-e2e.ts",
     "test:desktop-inbox:e2e": "bun --no-env-file scripts/test-desktop-inbox-e2e.ts",
     "test:cli-run-latency:e2e": "bun --no-env-file scripts/test-cli-run-latency-e2e.ts",
     "test:watch": "vitest",

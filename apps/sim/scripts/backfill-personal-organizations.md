@@ -7,13 +7,13 @@ admin, the Admin API or SCIM removed it, or it left). The release that introduce
 
 ## Rollout
 
-1. **Migrations** `0455_personal_organizations` (adds `organization.kind`, default `team`),
-   `0456_personal_organization_team_settings` and `0457_personal_organization_team_only_tables`
+1. **Migrations** `0456_personal_organizations` (adds `organization.kind`, default `team`),
+   `0457_personal_organization_team_settings` and `0458_personal_organization_team_only_tables`
    (refuse team configuration, and organization rows that could not follow a person into a team,
-   on personal organizations), `0458_personal_organization_single_owner` (a personal
-   organization has exactly one member, its owner) and `0459_personal_chats_rehomed_workspace`
+   on personal organizations), `0459_personal_organization_single_owner` (a personal
+   organization has exactly one member, its owner) and `0460_personal_chats_rehomed_workspace`
    (adds the nullable `workspace.personal_chats_rehomed_at`, no default and no backfill). All are
-   additive; the previous release keeps working against them. 0459 is catalog-only and the
+   additive; the previous release keeps working against them. 0460 is catalog-only and the
    previous release neither reads nor writes the column. This release stamps it on the workspace
    a retiring personal organization's chats move into (joining a team, or the rollback below) and
    leaves every stamped workspace out of team attaches (joins, Team re-home, Enterprise claim and
@@ -139,7 +139,7 @@ batch the revert over hours.
 5. **Verify**: `SELECT count(*) FROM organization WHERE kind = 'personal'` equals the number of
    organizations deliberately kept, and the first verification query above counts every account
    whose personal organization was reverted.
-6. **Roll the release back** right away. Migrations 0455 to 0459 stay: they are additive, and with
+6. **Roll the release back** right away. Migrations 0456 to 0460 stay: they are additive, and with
    no personal organizations left their triggers never fire. Keep `personal_chats_rehomed_at`
    too, never clear or drop it: the previous release ignores the stamp, so while it runs a
    stamped workspace (one the revert or a team join moved chats into) can be attached to a team

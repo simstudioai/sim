@@ -8,7 +8,7 @@ import type { DbOrTx } from '@/lib/db/types'
 
 /**
  * Refuses, with a typed error, configuration a personal organization never holds because it could
- * not follow its owner into the team they join: migration 0457's triggers refuse the same rows for
+ * not follow its owner into the team they join: migration 0458's triggers refuse the same rows for
  * every writer, and this is the refusal a person reads before they would fire.
  */
 export async function requireTeamOrganization(

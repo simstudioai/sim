@@ -12989,6 +12989,20 @@
         {
           "lang": "bash",
           "meta": null,
+          "sha256": "7579bd6ac197afa0afa5f62d9b412a7e265725bd507c1c63b438a60fd72ce1d0",
+          "bytes": 40,
+          "line": 8235
+        },
+        {
+          "lang": "bash",
+          "meta": null,
+          "sha256": "63aac11606dc0eeb6cc452c20c405806840960425372cf2cf7c8b4b90a7de878",
+          "bytes": 62,
+          "line": 8255
+        },
+        {
+          "lang": "bash",
+          "meta": null,
           "sha256": "52be4758f4289e9f75875d8401cf57fda54283b2df00e413921d07303e728638",
           "bytes": 28,
           "line": 8155
@@ -17172,6 +17186,20 @@
           "sha256": "62d28b9be74c32c4ba00fefe878c492a6a5c671cc4a500373d7f2bdba9f7ef79",
           "bytes": 54,
           "line": 404
+        },
+        {
+          "lang": "bash",
+          "meta": null,
+          "sha256": "7579bd6ac197afa0afa5f62d9b412a7e265725bd507c1c63b438a60fd72ce1d0",
+          "bytes": 40,
+          "line": 436
+        },
+        {
+          "lang": "bash",
+          "meta": null,
+          "sha256": "63aac11606dc0eeb6cc452c20c405806840960425372cf2cf7c8b4b90a7de878",
+          "bytes": 62,
+          "line": 454
         },
         {
           "lang": "bash",
@@ -181699,6 +181727,13 @@
       ],
       "expressions": [],
       "codeFences": [
+        {
+          "lang": "bash",
+          "meta": null,
+          "sha256": "32c20ca5dbc0941290361d3ddba31d3585a80493e65c486960e2660fae4c03d0",
+          "bytes": 243,
+          "line": 21
+        },
         {
           "lang": "bash",
           "meta": null,

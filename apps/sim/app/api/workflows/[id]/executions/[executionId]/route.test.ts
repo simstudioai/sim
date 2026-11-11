@@ -53,6 +53,7 @@ describe('internal execution status route projection subject', () => {
       startedAt: '2026-08-05T12:00:00.000Z',
       endedAt: null,
       totalDurationMs: null,
+      deploymentVersion: null,
       paused: null,
       cost: null,
       error: null,

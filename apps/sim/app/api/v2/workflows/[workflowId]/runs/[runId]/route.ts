@@ -45,7 +45,13 @@ export const GET = defineV2JsonRoute({
       startedAt: status.startedAt,
       endedAt: status.endedAt,
       durationMs: status.totalDurationMs,
-      paused: status.paused ? v2WorkflowRunStatusSchema.shape.paused.parse(status.paused) : null,
+      version: status.deploymentVersion ?? null,
+      paused: status.paused
+        ? v2WorkflowRunStatusSchema.shape.paused.parse({
+            ...status.paused,
+            points: status.pausePoints ?? [],
+          })
+        : null,
       cost: status.cost,
       error: status.error ? classifyExecutionError(new Error(status.error)) : null,
       output: status.finalOutput,

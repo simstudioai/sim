@@ -210,6 +210,11 @@ export const LAUNCHDARKLY_CREDENTIAL_OAUTH = tokenCredentialOAuth('launchdarkly'
 })
 export const LEMLIST_CREDENTIAL_OAUTH = tokenCredentialOAuth('lemlist', { apiKey: 'accessToken' })
 export const LINQ_CREDENTIAL_OAUTH = tokenCredentialOAuth('linq', { apiKey: 'accessToken' })
+/**
+ * The stored `domain` is always the resolved base URL, which fills `host` and wins in
+ * `getLogfireBaseUrl`. `region` is mapped too only so the credential, not the block or
+ * the model, owns it; its value is never read while `host` is set.
+ */
 export const LOGFIRE_CREDENTIAL_OAUTH = tokenCredentialOAuth('logfire', {
   apiKey: 'accessToken',
   host: 'domain',

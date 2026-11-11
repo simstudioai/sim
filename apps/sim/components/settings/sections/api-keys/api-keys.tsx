@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChipConfirmModal, toast } from '@sim/emcn-legacy'
+import { ChipConfirmModal, ChipTag, toast } from '@sim/emcn-legacy'
 import { Plus } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -35,6 +35,31 @@ function copyKeyName(name: string) {
 function formatLastUsed(dateString?: string | null): string {
   if (!dateString) return 'Never'
   return formatDate(new Date(dateString))
+}
+
+interface ApiKeyRowBadgeProps {
+  apiKey: ApiKey
+}
+
+/** The row caption: last use and expiry, after a tag when the key is read-only. */
+function ApiKeyRowBadge({ apiKey }: ApiKeyRowBadgeProps) {
+  const parts = [`last used ${formatLastUsed(apiKey.lastUsed).toLowerCase()}`]
+  if (apiKey.expiresAt) {
+    const expiresAt = new Date(apiKey.expiresAt)
+    parts.push(
+      expiresAt.getTime() <= Date.now()
+        ? 'expired'
+        : `expires ${formatDate(expiresAt).toLowerCase()}`
+    )
+  }
+  return (
+    <span className='flex items-center gap-2'>
+      {apiKey.access === 'read' && <ChipTag variant='gray'>Read only</ChipTag>}
+      <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
+        {parts.join(' · ')}
+      </span>
+    </span>
+  )
 }
 
 interface ApiKeyRowMenuProps {
@@ -141,11 +166,7 @@ export function ApiKeys() {
                       key={key.id}
                       title={key.name}
                       description={key.displayKey}
-                      badge={
-                        <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
-                          {`last used ${formatLastUsed(key.lastUsed).toLowerCase()}`}
-                        </span>
-                      }
+                      badge={<ApiKeyRowBadge apiKey={key} />}
                       trailing={
                         <ApiKeyRowMenu
                           keyName={key.name}

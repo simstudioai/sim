@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import {
+  ChipButtonGroup,
+  ChipButtonGroupItem,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -12,9 +14,26 @@ import {
 } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { type ApiKeyAccessLevel, DAY_MS } from '@/lib/api/contracts/api-keys'
+import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import { type CreatedApiKey, useCreateApiKey } from '@/hooks/queries/api-keys'
 
 const logger = createLogger('CreateApiKeyModal')
+
+const EXPIRY_OPTIONS = [
+  { value: '30', label: '30 days' },
+  { value: '90', label: '90 days' },
+  { value: '365', label: '1 year' },
+  { value: 'never', label: 'Never' },
+] as const
+
+type ExpiryOption = (typeof EXPIRY_OPTIONS)[number]['value']
+
+const DEFAULT_EXPIRY: ExpiryOption = 'never'
+
+function expiresAtFor(expiry: ExpiryOption): string | null {
+  return expiry === 'never' ? null : new Date(Date.now() + Number(expiry) * DAY_MS).toISOString()
+}
 
 interface CreateApiKeyModalProps {
   open: boolean
@@ -29,10 +48,13 @@ export function CreateApiKeyModal({
   existingKeyNames,
 }: CreateApiKeyModalProps) {
   const [keyName, setKeyName] = useState('')
+  const [access, setAccess] = useState<ApiKeyAccessLevel>('write')
+  const [expiry, setExpiry] = useState<ExpiryOption>(DEFAULT_EXPIRY)
   const [createError, setCreateError] = useState<string | null>(null)
   const [newKey, setNewKey] = useState<CreatedApiKey | null>(null)
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
   const createApiKeyMutation = useCreateApiKey()
+  const readOnlyKeysEnabled = useFeatureFlag('api-key-read-only')
 
   /**
    * The form is reset when the modal OPENS, not when this component mounts: it
@@ -45,6 +67,8 @@ export function CreateApiKeyModal({
     setWasOpen(open)
     if (open) {
       setKeyName('')
+      setAccess('write')
+      setExpiry(DEFAULT_EXPIRY)
       setCreateError(null)
     }
   }
@@ -68,6 +92,8 @@ export function CreateApiKeyModal({
       const data = await createApiKeyMutation.mutateAsync({
         keyType: 'personal',
         name: trimmedName,
+        access: readOnlyKeysEnabled ? access : 'write',
+        expiresAt: expiresAtFor(expiry),
       })
 
       setNewKey(data.key)
@@ -111,6 +137,25 @@ export function CreateApiKeyModal({
             placeholder='e.g., Development, Production'
             autoComplete='off'
             required
+          />
+          {readOnlyKeysEnabled && (
+            <ChipModalField type='custom' title='Access'>
+              <ChipButtonGroup
+                value={access}
+                onValueChange={(value) => setAccess(value as ApiKeyAccessLevel)}
+              >
+                <ChipButtonGroupItem value='write'>Full access</ChipButtonGroupItem>
+                <ChipButtonGroupItem value='read'>Read only</ChipButtonGroupItem>
+              </ChipButtonGroup>
+            </ChipModalField>
+          )}
+          <ChipModalField
+            type='dropdown'
+            title='Expires'
+            value={expiry}
+            onChange={(value) => setExpiry(value as ExpiryOption)}
+            options={EXPIRY_OPTIONS}
+            align='start'
           />
           {/* Hidden decoy fields to prevent browser autofill */}
           <input

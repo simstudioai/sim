@@ -621,6 +621,7 @@ function DeployDialog({
           allowPersonalApiKeys={allowPersonalApiKeys}
           canManageWorkspaceKeys={canManageWorkspaceKeys}
           defaultKeyType={allowPersonalApiKeys ? 'personal' : 'workspace'}
+          fullAccessOnly
           onClose={() => setCreatingKey(false)}
         />
       )}

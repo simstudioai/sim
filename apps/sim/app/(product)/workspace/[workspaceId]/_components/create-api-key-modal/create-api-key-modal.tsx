@@ -1,17 +1,37 @@
 'use client'
 
 import { useState } from 'react'
-import { FieldFrame, TextField } from '@sim/emcn/field'
+import { FieldFrame, SelectField, TextField } from '@sim/emcn/field'
 import { AutofillDecoys } from '@sim/emcn/field/autofill-decoys'
 import { SecretField } from '@sim/emcn/field/value-fields'
 import { Modal } from '@sim/emcn/modal'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { getErrorMessage } from '@sim/utils/errors'
-import { type CreatedApiKey, createLogger, useCreateApiKey } from '@/platform/lib/data/api-keys'
+import {
+  type ApiKeyAccessLevel,
+  type CreatedApiKey,
+  createLogger,
+  DAY_MS,
+  useCreateApiKey,
+  useReadOnlyApiKeysEnabled,
+} from '@/platform/lib/data/api-keys'
 
 const logger = createLogger('CreateApiKeyModal')
 
 type KeyType = 'personal' | 'workspace'
+
+const EXPIRY_OPTIONS = [
+  { value: '30', label: '30 days' },
+  { value: '90', label: '90 days' },
+  { value: '365', label: '1 year' },
+  { value: 'never', label: 'Never' },
+] as const
+
+type ExpiryOption = (typeof EXPIRY_OPTIONS)[number]['value']
+
+function expiresAtFor(expiry: ExpiryOption): string | null {
+  return expiry === 'never' ? null : new Date(Date.now() + Number(expiry) * DAY_MS).toISOString()
+}
 
 interface CreateApiKeyModalProps {
   workspaceId: string
@@ -21,6 +41,8 @@ interface CreateApiKeyModalProps {
   defaultKeyType: KeyType
   /** Where the key was created, for the audit record: the deploy dialog unless a Settings page says so. */
   source?: 'settings' | 'deploy_modal'
+  /** For a key created to run workflows: hides the access choice and always issues full access. */
+  fullAccessOnly?: boolean
   onClose: () => void
 }
 
@@ -35,11 +57,15 @@ export function CreateApiKeyModal({
   canManageWorkspaceKeys,
   defaultKeyType,
   source = 'deploy_modal',
+  fullAccessOnly = false,
   onClose,
 }: CreateApiKeyModalProps) {
   const createApiKey = useCreateApiKey()
   const [name, setName] = useState('')
   const [keyType, setKeyType] = useState<KeyType>(defaultKeyType)
+  const [access, setAccess] = useState<ApiKeyAccessLevel>('write')
+  const [expiry, setExpiry] = useState<ExpiryOption>('never')
+  const canChooseAccess = useReadOnlyApiKeysEnabled() && !fullAccessOnly
   const [created, setCreated] = useState<CreatedApiKey | null>(null)
   const canCreate =
     keyType === 'personal' ? allowPersonalApiKeys : canManageWorkspaceKeys && Boolean(workspaceId)
@@ -52,10 +78,16 @@ export function CreateApiKeyModal({
         `A ${keyType} API key named "${trimmed}" already exists. Please choose a different name.`
       )
     try {
+      const settings = {
+        name: trimmed,
+        source,
+        access: canChooseAccess ? access : 'write',
+        expiresAt: expiresAtFor(expiry),
+      } as const
       const data = await createApiKey.mutateAsync(
         keyType === 'workspace'
-          ? { workspaceId, name: trimmed, keyType, source }
-          : { keyType: 'personal', name: trimmed, source }
+          ? { ...settings, workspaceId, keyType }
+          : { ...settings, keyType: 'personal' }
       )
       setCreated(data.key)
       return false
@@ -113,6 +145,25 @@ export function CreateApiKeyModal({
             onChange={setName}
             autoComplete='off'
             required
+          />
+          {canChooseAccess && (
+            <FieldFrame label='Access'>
+              <SegmentedControl
+                label='Access'
+                options={[
+                  { value: 'write', label: 'Full access' },
+                  { value: 'read', label: 'Read only' },
+                ]}
+                value={access}
+                onSelect={setAccess}
+              />
+            </FieldFrame>
+          )}
+          <SelectField
+            label='Expires'
+            options={EXPIRY_OPTIONS}
+            value={expiry}
+            onValueChange={setExpiry}
           />
           <AutofillDecoys />
         </>

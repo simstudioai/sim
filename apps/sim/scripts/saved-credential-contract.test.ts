@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { hostSteeringParams } from '@/scripts/saved-credential-contract'
-import type { ToolConfig } from '@/tools/types'
+import type { ExecutableToolConfig, ToolConfig } from '@/tools/types'
 
 const required = { type: 'string', required: true }
 const optional = { type: 'string', required: false }
@@ -25,7 +25,39 @@ function requestTool(
   } as ToolConfig
 }
 
+/** An operation-backed tool: its server handler, not a URL builder, picks the destination. */
+function operationTool(id: string, params: Record<string, { type: string }>): ExecutableToolConfig {
+  return {
+    id,
+    name: 'Operation fixture',
+    description: 'Fixture for an operation-backed tool',
+    version: '1.0.0',
+    params: Object.fromEntries(
+      Object.entries(params).map(([name, param]) => [
+        name,
+        { ...param, required: false, visibility: 'user-only' },
+      ])
+    ),
+    operation: { input: (values: Record<string, unknown>) => values },
+  } as ExecutableToolConfig
+}
+
 describe('hostSteeringParams', () => {
+  it('treats a destination-named param of an operation-backed tool as steering', () => {
+    const tool = operationTool('probe_operation_fixture', {
+      serverUrl: optional,
+      query: optional,
+    })
+
+    expect(hostSteeringParams(tool)).toEqual({ params: ['serverUrl'], probed: false })
+  })
+
+  it('leaves a known payload param of an operation-backed tool unpinned', () => {
+    const tool = operationTool('browser_use_run_task', { startUrl: optional, task: optional })
+
+    expect(hostSteeringParams(tool).params).toEqual([])
+  })
+
   it('finds an unvalidated host param that becomes the request origin', () => {
     const tool = requestTool(
       { apiKey: required, indexHost: required, id: required },

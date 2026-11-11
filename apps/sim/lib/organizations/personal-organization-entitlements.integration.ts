@@ -1,6 +1,6 @@
 /**
  * Team and Enterprise configuration is refused on a personal organization by the application, with
- * a typed error, before migration 0456's triggers would ever fire. Runs as a self-hosted deployment
+ * a typed error, before migration 0457's triggers would ever fire. Runs as a self-hosted deployment
  * with every Enterprise feature switched on, the case where only the organization's kind stands
  * between a personal organization and that configuration.
  */

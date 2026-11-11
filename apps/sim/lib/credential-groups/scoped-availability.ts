@@ -11,7 +11,7 @@ import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availabilit
 /**
  * Workspace callers inherit their canonical organization's entitlement; authorization remains
  * separate. A personal organization never collects connected accounts: its credential group could
- * not follow its owner into a team (migration 0457 refuses the row).
+ * not follow its owner into a team (migration 0458 refuses the row).
  */
 export async function isScopedCredentialGroupsAvailable(scope: ResourceScope): Promise<boolean> {
   if (scope.kind === 'workspace') {

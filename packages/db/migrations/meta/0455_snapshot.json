@@ -1,5 +1,5 @@
 {
-  "id": "d8de1b2e-f1d6-45c9-a3b1-db63d6114ac3",
+  "id": "47f71127-867a-4c55-8869-0e00cd2c4429",
   "prevId": "4265b908-fbe8-481a-9c67-67f8a79c2ee9",
   "version": "7",
   "dialect": "postgresql",
@@ -380,6 +380,14 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'personal'"
+        },
+        "access": {
+          "name": "access",
+          "type": "api_key_access",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'write'"
         },
         "last_used": {
           "name": "last_used",
@@ -15821,14 +15829,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "organization_kind",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'team'"
         },
         "logo": {
           "name": "logo",
@@ -32459,6 +32459,11 @@
     }
   },
   "enums": {
+    "public.api_key_access": {
+      "name": "api_key_access",
+      "schema": "public",
+      "values": ["read", "write"]
+    },
     "public.aws_marketplace_license_status": {
       "name": "aws_marketplace_license_status",
       "schema": "public",
@@ -32600,11 +32605,6 @@
       "name": "managed_oauth_credential_status",
       "schema": "public",
       "values": ["active", "needs_reauth", "revoked"]
-    },
-    "public.organization_kind": {
-      "name": "organization_kind",
-      "schema": "public",
-      "values": ["personal", "team"]
     },
     "public.permission_type": {
       "name": "permission_type",

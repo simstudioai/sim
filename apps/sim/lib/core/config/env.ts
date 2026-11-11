@@ -623,6 +623,7 @@ export const env = createEnv({
     PEOPLE:                                z.boolean().optional(),                 // Fallback for the `people` feature flag off AppConfig
     PLATFORM_PREVIEW:                      z.boolean().optional(),                 // Fallback for the `platform-preview` feature flag off AppConfig
     PAUSE_PERSONAL_ORGANIZATIONS:          z.boolean().optional(),                 // Fallback for the `pause-personal-organizations` feature flag off AppConfig
+    API_KEY_READ_ONLY:                     z.boolean().optional(),                 // Fallback for the `api-key-read-only` feature flag off AppConfig
     MSHIP_MODEL_SELECTOR: z.boolean().optional(),
     INBOX_ENABLED:                         z.boolean().optional(),                 // Enable inbox (Sim Mailer) on self-hosted (bypasses hosted requirements)
     SANDBOXES_ENABLED:                     z.boolean().optional(),                 // Enable custom sandboxes on self-hosted (bypasses hosted requirements)

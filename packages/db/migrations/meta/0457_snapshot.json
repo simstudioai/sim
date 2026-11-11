@@ -1,6 +1,6 @@
 {
-  "id": "76de577c-ce9f-482a-a875-d657b4ce18a6",
-  "prevId": "8e8ca49e-8d55-448e-8194-41db1c26b76a",
+  "id": "8e8ca49e-8d55-448e-8194-41db1c26b76a",
+  "prevId": "d8de1b2e-f1d6-45c9-a3b1-db63d6114ac3",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -380,6 +380,14 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'personal'"
+        },
+        "access": {
+          "name": "access",
+          "type": "api_key_access",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'write'"
         },
         "last_used": {
           "name": "last_used",
@@ -32459,6 +32467,11 @@
     }
   },
   "enums": {
+    "public.api_key_access": {
+      "name": "api_key_access",
+      "schema": "public",
+      "values": ["read", "write"]
+    },
     "public.aws_marketplace_license_status": {
       "name": "aws_marketplace_license_status",
       "schema": "public",

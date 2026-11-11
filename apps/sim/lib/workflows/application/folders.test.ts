@@ -1,4 +1,4 @@
-import type { Principal } from '@sim/auth/principal'
+import { type Principal, toPrincipalActor } from '@sim/auth/principal'
 import {
   createPersonalApiKeyPrincipal,
   createSessionPrincipal,
@@ -160,7 +160,9 @@ describe('workflow folder application operations', () => {
         actorId: null,
         actorName: 'Workspace API key',
         metadata: expect.objectContaining({
-          actor: createWorkspaceApiKeyPrincipal({ keyId: 'workspace-1', workspaceId: 'ws-1' }),
+          actor: toPrincipalActor(
+            createWorkspaceApiKeyPrincipal({ keyId: 'workspace-1', workspaceId: 'ws-1' })
+          ),
         }),
       })
     )

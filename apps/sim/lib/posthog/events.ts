@@ -335,6 +335,8 @@ export interface PostHogEventMap {
     key_name: string
     scope?: 'workspace' | 'personal'
     source?: 'settings' | 'deploy_modal'
+    access?: 'read' | 'write'
+    expires?: boolean
   }
 
   api_key_revoked: {

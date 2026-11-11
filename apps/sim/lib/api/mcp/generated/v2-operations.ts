@@ -316,6 +316,7 @@ import {
   v2ListWorkflowFoldersContract,
   v2ListWorkflowRunsContract,
   v2ListWorkflowsContract,
+  v2ListWorkflowTriggersContract,
   v2ListWorkflowVersionsContract,
   v2MoveWorkflowsContract,
   v2PreviewWorkflowImportContract,
@@ -328,6 +329,7 @@ import {
   v2UndeployWorkflowContract,
   v2UpdateWorkflowContract,
   v2UpdateWorkflowPublicApiContract,
+  v2UpdateWorkflowTriggerContract,
   v2UpdateWorkflowVersionContract,
 } from '@/lib/api/contracts/v2/workflows'
 import {
@@ -1250,7 +1252,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ExecuteWorkflowContract,
     summary: 'Execute workflow',
     description:
-      'Run the active deployment, or set `run.source: "manual"` to run the saved draft. Deployed execution requires workspace read access and OAuth `api:write` scope or an API key; public deployments also allow anonymous synchronous or streamed runs. Manual runs require personal-key or OAuth write access and cannot be async.\n\nUse `async: true` for a queue receipt, or `stream: true` for SSE. For a synchronous run with both flags false, send `Accept: application/x-ndjson` for heartbeat frames and a final frame containing `data`. With `waitTimeoutSeconds`, a synchronous run still going when the wait elapses continues in the background and answers with its run receipt instead: `202` on a JSON response, or a closing `detached` frame on an NDJSON stream, which keeps its `200`. Timeouts return `200` with `status: "failed"` and `error.code: "TIMEOUT"`; inspect run status. See [Streaming](/workflows/deployment/api#streaming) for event formats. Input descriptions specify compatible modes; invalid combinations return `400`.\n\nSupply `X-Run-Id` to prevent duplicate execution. Reuse returns `409`, without replaying results. A `503` with `error.details.code: "ASYNC_ENQUEUE_AMBIGUOUS"` omits `Retry-After` because the run may already have started. Reconcile using the returned run ID; do not start another run with a new or omitted ID.\n\nOAuth scope: `api:write`.',
+      'Run the active deployment, set `run: { source: "deployment", version }` to run an earlier deployment version, or set `run.source: "manual"` to run the saved draft. Deployed execution requires workspace read access and OAuth `api:write` scope or an API key; public deployments also allow anonymous synchronous or streamed runs. Running a chosen version requires workspace write access and an API key or OAuth access token; an unknown version returns `404`. Manual runs require personal-key or OAuth write access and cannot be async.\n\nUse `async: true` for a queue receipt, or `stream: true` for SSE. For a synchronous run with both flags false, send `Accept: application/x-ndjson` for heartbeat frames and a final frame containing `data`. With `waitTimeoutSeconds`, a synchronous run still going when the wait elapses continues in the background and answers with its run receipt instead: `202` on a JSON response, or a closing `detached` frame on an NDJSON stream, which keeps its `200`. Timeouts return `200` with `status: "failed"` and `error.code: "TIMEOUT"`; inspect run status. See [Streaming](/workflows/deployment/api#streaming) for event formats. Input descriptions specify compatible modes; invalid combinations return `400`.\n\nSupply `X-Run-Id` to prevent duplicate execution. Reuse returns `409`, without replaying results. A `503` with `error.details.code: "ASYNC_ENQUEUE_AMBIGUOUS"` omits `Retry-After` because the run may already have started. Reconcile using the returned run ID; do not start another run with a new or omitted ID.\n\nOAuth scope: `api:write`.',
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/execute/route').then((route) => route.POST),
   },
@@ -1404,7 +1406,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2GetMetaContract,
     summary: 'Get API status',
     description:
-      'Get the calling credential’s type and expiry. Requires a valid API key or OAuth access token. `v2Enabled` is true whenever this endpoint is served; the response does not enumerate resource permissions.\n\nOAuth scope: `api:read`.',
+      'Get the calling credential’s type, expiry, and API scopes. Requires a valid API key or OAuth access token. `v2Enabled` is true whenever this endpoint is served; the response does not enumerate resource permissions.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/meta/route').then((route) => route.GET),
   },
   getNextKnowledgeTagSlot: {
@@ -1651,7 +1653,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2GetWorkflowRunContract,
     summary: 'Get workflow run',
     description:
-      'Read current run state with workspace read access. Request final output and files with `includeOutput`, or block outputs with `selectedOutputs`. Organization permission groups can hide output, files, or cost.\n\n`includeFileBase64` inlines file bytes. A file or the total above 16 MiB returns `413` naming a download path; download large files individually. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success.\n\nOAuth scope: `api:read`.',
+      'Read current run state with workspace read access. Request final output and files with `includeOutput`, or block outputs with `selectedOutputs`. Organization permission groups can hide output, files, or cost. A paused run lists every pause point in `paused.points`, with the fields a human pause asks for and its content with resolved secrets redacted; resume one with Resume workflow run.\n\n`includeFileBase64` inlines file bytes. A file or the total above 16 MiB returns `413` naming a download path; download large files individually. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success.\n\nOAuth scope: `api:read`.',
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/runs/[runId]/route').then((route) => route.GET),
   },
@@ -2198,6 +2200,14 @@ export const V2_MCP_OPERATIONS = {
       'List active workflows in a workspace. Requires workspace read access.\n\nUse `scope=archived` to find workflows available for restoration. Filter by folder, deployment, or name; sort and page with the returned cursor. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/workflows/route').then((route) => route.GET),
   },
+  listWorkflowTriggers: {
+    contract: v2ListWorkflowTriggersContract,
+    summary: 'List workflow triggers',
+    description:
+      "List the schedules, polling triggers, internal-event triggers, and webhooks the live deployment serves, including disabled ones, with their failure counts. Requires workspace read access. Schedules and polling triggers disable themselves after 100 consecutive failures; a `webhook` trigger's failures happen at the sender, so its `failedCount` stays 0. Empty while the workflow is not deployed. Returns one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
+    handler: () =>
+      import('@/app/api/v2/workflows/[workflowId]/triggers/route').then((route) => route.GET),
+  },
   listWorkflowVersions: {
     contract: v2ListWorkflowVersionsContract,
     summary: 'List workflow versions',
@@ -2566,7 +2576,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ResumeWorkflowContract,
     summary: 'Resume workflow run',
     description:
-      'Resume one human-in-the-loop pause with workspace write access. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.\n\nOAuth scope: `api:write`.',
+      "Resume one human-in-the-loop pause with workspace write access, naming a `contextId` from the run's `paused.points`. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.\n\nOAuth scope: `api:write`.",
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/runs/[runId]/resume/route').then(
         (route) => route.POST
@@ -2988,6 +2998,16 @@ export const V2_MCP_OPERATIONS = {
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/deployment/route').then((route) => route.PATCH),
+  },
+  updateWorkflowTrigger: {
+    contract: v2UpdateWorkflowTriggerContract,
+    summary: 'Update workflow trigger',
+    description:
+      'Enable or disable one trigger of the live deployment without redeploying. Requires workspace write access. Enabling resets `failedCount`, schedules the next run, and clears any polling backoff; a schedule whose cron expression is invalid or has no future runs returns `400`. A permission group that blocks webhook triggers returns `403` when a member it governs enables a polling, internal-event, or webhook trigger; a workspace API key is not governed by permission groups, as with every other capability. Disabling a completed schedule marks it disabled. A block with several live rows switches them together. Requesting the current state changes nothing.\n\nDisabling only stops Sim from accepting the trigger; nothing is removed at the provider. A disable lasts until the next deploy or version activation, which re-enables every trigger, the same way it clears a trigger that disabled itself after repeated failures. Deliveries to a disabled webhook receive `404`, and some providers disable their subscription after repeated failures, which requires a redeploy to restore.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import('@/app/api/v2/workflows/[workflowId]/triggers/[blockId]/route').then(
+        (route) => route.PATCH
+      ),
   },
   updateWorkflowVersion: {
     contract: v2UpdateWorkflowVersionContract,
