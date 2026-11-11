@@ -73,7 +73,7 @@ export function IntegrationCapabilities({
             source: { providerId, name: skill.name },
           }}
           createLabel='Add to skills'
-          deleteLabel='Remove from Skills'
+          deleteLabel='Remove from skills'
           onSave={onSave}
           onClose={() => setSkill(null)}
           onDelete={selected ? () => onRemove(selected.id) : undefined}

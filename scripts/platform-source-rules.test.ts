@@ -178,6 +178,8 @@ describe('titleCaseWords', () => {
     [`const view = <Tab label={open ? 'Switch to Runs' : 'Runs'} />`, ['Runs']],
     [`const view = <Modal title='Single Sign-On is available' />`, ['Sign', 'On']],
     [`const view = <Row label='Open in Logs' />`, ['Logs']],
+    [`const view = <Capabilities deleteLabel='Remove from Skills' />`, ['Skills']],
+    [`const actions = { createLabel: 'Add to Skills' }`, ['Skills']],
   ])('flags %s', (source, words) => {
     expect(found(source)).toEqual(words)
   })
@@ -193,6 +195,7 @@ describe('titleCaseWords', () => {
     `const view = <Modal title={name} />`,
     `const view = <Row label='Search: Recent' />`,
     `const view = <Row label='Install the GitHub App' />`,
+    `const view = <Import helpLabel='Open Graph Explorer' />`,
     `const view = <Row label={\`\${name} · Admin\`} />`,
     `const view = <Button>Upgrade to Max</Button>`,
   ])('passes %s', (source) => {

@@ -255,9 +255,10 @@ export function isNativeTitle(node: ts.Node): boolean {
   return /^[a-z][\w-]*$/.test(tag) && !TITLED_EMBEDS.has(tag)
 }
 
-/** Attributes and data properties whose value is a control's or dialog's name. */
-const NAMING_ATTRIBUTES = new Set(['label', 'title', 'confirmLabel', 'pendingLabel', 'cancelLabel'])
-const NAMING_PROPERTIES = new Set(['label', 'confirmLabel', 'pendingLabel', 'cancelLabel'])
+/** A data property whose value names a control: `label` or any `*Label` (`confirmLabel`, `createLabel`, …). */
+const isNamingProperty = (name: string) => name === 'label' || name.endsWith('Label')
+/** An attribute whose value names a control or dialog: a naming property, or `title`. */
+const isNamingAttribute = (name: string) => name === 'title' || isNamingProperty(name)
 /** Controls whose text is their name: a button, a menu or list item, a chip. */
 const NAMED_CONTROL = /^(?:button|\w*Button|\w*Item|Chip)$/
 
@@ -363,6 +364,7 @@ export const PROPER_PHRASES: readonly string[] = [
   'Credential Groups',
   'Generic Secrets',
   'GitHub App',
+  'Graph Explorer',
   'Google Calendar',
   'Google Docs',
   'Google Drive',
@@ -430,16 +432,16 @@ function titleCaseIn(text: string): string[] {
 
 /**
  * The Title Case words in a control's or dialog's name, which Platform copy writes in sentence case:
- * a literal `label`, `title`, `confirmLabel`, `pendingLabel` or `cancelLabel` attribute, a `label`
- * in menu, column or option data, or the text of a button, menu item or chip.
+ * a literal `title`, `label` or any `*Label` attribute (`confirmLabel`, `createLabel`, …), a `label`
+ * or `*Label` in menu, column, option or action data, or the text of a button, menu item or chip.
  */
 export function titleCaseWords(node: ts.Node): string[] {
   let copy: string[] = []
-  if (ts.isJsxAttribute(node) && NAMING_ATTRIBUTES.has(node.name.getText()) && node.initializer)
+  if (ts.isJsxAttribute(node) && isNamingAttribute(node.name.getText()) && node.initializer)
     copy = namingCopy(node.initializer)
   else if (
     ts.isPropertyAssignment(node) &&
-    NAMING_PROPERTIES.has(node.name.getText()) &&
+    isNamingProperty(node.name.getText()) &&
     ts.isObjectLiteralExpression(node.parent)
   )
     copy = namingCopy(node.initializer)
