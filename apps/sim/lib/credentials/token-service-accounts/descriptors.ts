@@ -102,6 +102,14 @@ export const DEVIN_SERVICE_ACCOUNT_PROVIDER_ID = 'devin-service-account' as cons
 export const EMAILBISON_SERVICE_ACCOUNT_PROVIDER_ID = 'emailbison-service-account' as const
 export const UPSTASH_SERVICE_ACCOUNT_PROVIDER_ID = 'upstash-service-account' as const
 export const ALGOLIA_SERVICE_ACCOUNT_PROVIDER_ID = 'algolia-service-account' as const
+/**
+ * The Twilio credential's `apiToken` holds either the account auth token or an API key pair
+ * (`SKxxx:secret`), deliberately in one field: the pair is exactly the Basic username and password
+ * Twilio takes for a key, so every surface (saved credential, inline block field, API) carries it
+ * with no extra field. Build request auth only with `twilioAuthorization`; a consumer that needs
+ * the account auth token itself (webhook signature HMAC) must refuse a value `isTwilioApiKeyPair`
+ * matches, since an API key secret cannot sign.
+ */
 export const TWILIO_SERVICE_ACCOUNT_PROVIDER_ID = 'twilio-service-account' as const
 export const AZURE_DEVOPS_SERVICE_ACCOUNT_PROVIDER_ID = 'azure-devops-service-account' as const
 export const PLANE_SERVICE_ACCOUNT_PROVIDER_ID = 'plane-service-account' as const
@@ -2145,6 +2153,8 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'Auth token or API key',
         placeholder: 'Paste your auth token, or SKxxx:secret for an API key',
         secret: true,
+        hintPattern: /^(?!SK)|^SK[0-9a-fA-F]{32}:\S+$/,
+        hintMessage: 'Enter an API key as its SID and secret joined by a colon: SKxxx:secret.',
       },
       {
         id: 'providerWorkspaceId',

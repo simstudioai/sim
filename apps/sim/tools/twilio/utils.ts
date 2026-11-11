@@ -1,7 +1,8 @@
 /**
  * A Twilio API key and its secret as one value, `SK<32 hex>:<secret>`: the exact username and
- * password Twilio's HTTP Basic auth takes for an API key. An auth token is 32 hex characters
- * and never contains a colon, so the two can't be confused.
+ * password Twilio's HTTP Basic auth takes for an API key. Twilio documents a key SID as `SK` and
+ * 32 hex characters; the auth tokens it issues are 32 hex characters with no colon (the Account
+ * resource documents no pattern), so no issued auth token takes this shape.
  */
 const TWILIO_API_KEY_PAIR = /^SK[0-9a-fA-F]{32}:\S+$/
 
