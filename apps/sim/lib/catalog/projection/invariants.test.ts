@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from 'vitest'
  */
 vi.mock('@/tools/tool-ids', () => ({ resolveToolId: (toolId: string) => toolId }))
 
+import { projectBlockDetail } from '@/lib/catalog/projection/block-detail'
 import { projectBlockSummary } from '@/lib/catalog/projection/block-summary'
 import {
   AsyncOptionsFunctionError,
@@ -128,5 +129,33 @@ describe('options functions must be synchronous', () => {
     } as unknown as SubBlockConfig
 
     expect(() => resolveSubBlockOptions(subBlock)).toThrow(AsyncOptionsFunctionError)
+  })
+})
+
+describe('a field publishes the value type its block declares, never a guessed one', () => {
+  const config = block({
+    type: 'sheets',
+    subBlocks: [
+      { id: 'operation', type: 'dropdown', options: [{ id: 'read', label: 'Read' }] },
+      { id: 'spreadsheetSelector', type: 'file-selector', canonicalParamId: 'spreadsheetId' },
+      {
+        id: 'rowLimit',
+        type: 'short-input',
+        condition: { field: 'operation', value: 'read' },
+      },
+    ] as SubBlockConfig[],
+    inputs: {
+      operation: { type: 'string' },
+      spreadsheetId: { type: 'string' },
+      rowLimit: { type: 'number' },
+    },
+  })
+  const detail = projectBlockDetail(config, { deployment: { hostedKeys: false } })
+  const field = (fields: typeof detail.inputSchema, id: string) =>
+    fields.find((candidate) => candidate.id === id)
+
+  it('joins a picker through its canonical param and an operation field through its id', () => {
+    expect(field(detail.inputSchema, 'spreadsheetSelector')?.valueType).toBe('string')
+    expect(field(detail.operationInputSchema.read ?? [], 'rowLimit')?.valueType).toBe('number')
   })
 })
