@@ -58,9 +58,31 @@ export interface EnvFile {
   exists: boolean
   content: string
   vars: Map<string, string>
+  /** Each value as written in the file, quotes and escapes included, for copying it verbatim. */
+  verbatim: Map<string, string>
 }
 
+/**
+ * A value copied from another env file exactly as written there, so a `${VAR}`
+ * reference stays a reference and quoting is preserved rather than re-escaped.
+ */
+export interface VerbatimEnvValue {
+  verbatim: string
+}
+
+export type EnvValue = string | VerbatimEnvValue
+
 const LINE_RE = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/
+
+/** The value as written: a quoted value up to its closing quote, else up to an inline comment. */
+function verbatimValue(raw: string): string {
+  const trimmed = raw.trim()
+  if (trimmed.startsWith('"') || trimmed.startsWith("'")) {
+    const end = trimmed.indexOf(trimmed[0], 1)
+    return end === -1 ? trimmed : trimmed.slice(0, end + 1)
+  }
+  return trimmed.replace(/\s+#.*$/, '').trim()
+}
 
 function parseValue(raw: string): string {
   const trimmed = raw.trim()
@@ -82,11 +104,27 @@ export function parseEnv(content: string): Map<string, string> {
   return vars
 }
 
+function parseVerbatimEnv(content: string): Map<string, string> {
+  const vars = new Map<string, string>()
+  for (const line of content.split('\n')) {
+    const match = LINE_RE.exec(line)
+    if (match) vars.set(match[1], verbatimValue(match[2]))
+  }
+  return vars
+}
+
 export function readEnvFile(target: EnvTarget): EnvFile {
   const filePath = ENV_PATHS[target]
   const exists = existsSync(filePath)
   const content = exists ? readFileSync(filePath, 'utf8') : ''
-  return { target, path: filePath, exists, content, vars: parseEnv(content) }
+  return {
+    target,
+    path: filePath,
+    exists,
+    content,
+    vars: parseEnv(content),
+    verbatim: parseVerbatimEnv(content),
+  }
 }
 
 /**
@@ -96,31 +134,40 @@ export function readEnvFile(target: EnvTarget): EnvFile {
  * expand `$NAME` even inside single quotes, and the one spelling all four read as a
  * literal `$` is `\$` inside double quotes.
  */
-function formatEnvValue(key: string, value: string): string {
-  if (/[\r\n]/.test(value)) {
-    throw new Error(`${key} cannot be written to an environment file: it contains a line break`)
-  }
+function spellEnvValue(value: string): { text: string } | { refusal: string } {
+  if (/[\r\n]/.test(value)) return { refusal: 'it contains a line break' }
   if (value.includes('$')) {
     if (/["\\`]/.test(value)) {
-      throw new Error(
-        `${key} cannot be written to an environment file: it mixes $ with a double quote, backslash, or backtick`
-      )
+      return { refusal: 'it mixes $ with a double quote, backslash, or backtick' }
     }
-    return `"${value.replaceAll('$', '\\$')}"`
+    return { text: `"${value.replaceAll('$', '\\$')}"` }
   }
-  if (value === value.trim() && !value.includes('#') && !/^["'`]/.test(value)) return value
-  if (!value.includes("'")) return `'${value}'`
-  if (!/["\\`]/.test(value)) return `"${value}"`
-  throw new Error(
-    `${key} cannot be written to an environment file: it mixes quotes with a # or edge whitespace`
-  )
+  if (value === value.trim() && !value.includes('#') && !/^["'`]/.test(value)) {
+    return { text: value }
+  }
+  if (!value.includes("'")) return { text: `'${value}'` }
+  if (!/["\\`]/.test(value)) return { text: `"${value}"` }
+  return { refusal: 'it mixes quotes with a # or edge whitespace' }
+}
+
+/** Whether `upsertEnv` can write `value` so every loader reads it back unchanged. */
+export function isWritableEnvValue(value: string): boolean {
+  return 'text' in spellEnvValue(value)
+}
+
+function formatEnvValue(key: string, value: string): string {
+  const spelling = spellEnvValue(value)
+  if ('refusal' in spelling) {
+    throw new Error(`${key} cannot be written to an environment file: ${spelling.refusal}`)
+  }
+  return spelling.text
 }
 
 /**
  * Sets a key in env-file content: replaces the active line, uncomments a
  * commented-out line, or appends. Returns the new content.
  */
-export function upsertEnv(content: string, key: string, value: string): string {
+export function upsertEnv(content: string, key: string, value: EnvValue): string {
   const lines = content.split('\n')
   const activeRe = new RegExp(`^\\s*(?:export\\s+)?${key}\\s*=`)
   const commentedRe = new RegExp(`^#\\s*${key}\\s*=`)
@@ -130,7 +177,7 @@ export function upsertEnv(content: string, key: string, value: string): string {
   }
   const activeIdx = activeIndexes[0] ?? -1
   const idx = activeIdx !== -1 ? activeIdx : lines.findIndex((l) => commentedRe.test(l))
-  const newLine = `${key}=${formatEnvValue(key, value)}`
+  const newLine = `${key}=${typeof value === 'string' ? formatEnvValue(key, value) : value.verbatim}`
   if (idx === -1) {
     const trailing = lines.length > 0 && lines[lines.length - 1] === ''
     if (trailing) lines.splice(lines.length - 1, 0, newLine)
@@ -145,7 +192,7 @@ export function upsertEnv(content: string, key: string, value: string): string {
 export function reconcileEnvContent(
   content: string,
   remove: readonly string[],
-  values: Record<string, string>
+  values: Record<string, EnvValue>
 ): string {
   const replacementKeys = new Set(Object.keys(values))
   const removalKeys = new Set(remove.filter((key) => !replacementKeys.has(key)))
@@ -166,7 +213,7 @@ export function reconcileEnvContent(
 export function reconcileEnvValues(
   target: EnvTarget,
   remove: readonly string[],
-  values: Record<string, string>
+  values: Record<string, EnvValue>
 ): void {
   const filePath = ENV_PATHS[target]
   let content: string
@@ -185,7 +232,7 @@ export function writeEnvFile(filePath: string, contents: string): void {
 }
 
 /** Writes values into an env file, seeding a missing file from its .env.example. */
-export function writeEnvValues(target: EnvTarget, values: Record<string, string>): void {
+export function writeEnvValues(target: EnvTarget, values: Record<string, EnvValue>): void {
   reconcileEnvValues(target, [], values)
 }
 
