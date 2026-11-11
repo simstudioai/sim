@@ -1,7 +1,13 @@
 import { readFileSync } from 'node:fs'
+import vm from 'node:vm'
+import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
-import { evaluateSandboxBundle } from '@/lib/execution/sandbox/bundles/verify'
+import {
+  createBareSandboxContext,
+  evaluateSandboxBundle,
+} from '@/lib/execution/sandbox/bundles/verify'
 import type { SandboxBundleName } from '@/lib/execution/sandbox/types'
+import { docxGenerateTask } from '@/sandboxes/docx-generate'
 
 function loadCheckedInBundle(name: SandboxBundleName): Record<string, unknown> {
   const source = readFileSync(new URL(`./${name}.cjs`, import.meta.url), 'utf-8')
@@ -21,6 +27,26 @@ describe('sandbox bundles', () => {
     expect(typeof docx.Packer).toBe('function')
     expect(typeof docx.ImageRun).toBe('function')
     expect(typeof docx.Paragraph).toBe('function')
+  })
+
+  it('docx-generate packs a document with the checked-in bundle in a bare context', async () => {
+    const context = createBareSandboxContext()
+    evaluateSandboxBundle(
+      readFileSync(new URL('./docx.cjs', import.meta.url), 'utf-8'),
+      'docx',
+      context
+    )
+    const runAsync = (body: string) => vm.runInContext(`(async () => { ${body} })()`, context)
+
+    await runAsync(docxGenerateTask.bootstrap)
+    await runAsync(
+      "addSection({ children: [new docx.Paragraph({ children: [new docx.TextRun('R&D <ok>')] })] })"
+    )
+    const bytes: unknown = await runAsync(docxGenerateTask.finalize)
+
+    expect(ArrayBuffer.isView(bytes)).toBe(true)
+    const zip = await JSZip.loadAsync(bytes as Uint8Array)
+    expect(await zip.file('word/document.xml')?.async('string')).toContain('R&amp;D &lt;ok&gt;')
   })
 
   it('pdf-lib evaluates in a bare context and exposes the pdf-generate surface', () => {

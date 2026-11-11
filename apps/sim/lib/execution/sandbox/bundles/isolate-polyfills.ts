@@ -24,11 +24,10 @@ if (typeof g.global === 'undefined') g.global = globalThis
 
 /**
  * A library that inlines a CommonJS dependency ships esbuild's `__require`
- * helper around it (docx >= 9.7.1 does this for JSZip's UMD build). Bun's
- * browser/iife build rewrites the bare `require` references inside that helper
- * to its own `__require` runtime helper and then never emits it, so the bundle
- * throws `ReferenceError: __require is not defined` while it is still being
- * evaluated. The isolate has no `require` at all, so the only correct answer
+ * helper around it. Bun's browser/iife build rewrites the bare `require`
+ * references inside that helper to its own `__require` runtime helper and
+ * then never emits it, so the bundle throws `ReferenceError: __require is not
+ * defined` while it is still being evaluated. The isolate has no `require` at all, so the only correct answer
  * to a dynamic require is the one esbuild's helper gives when `require` is
  * absent: throw. Defining it here keeps every bundle self-contained; `build.ts`
  * evaluates each bundle in a bare context so a new variant of the defect fails
