@@ -229,12 +229,6 @@
 .link:hover {
   color: var(--ui-secondary);
 }
-.favicon {
-  flex: none;
-  inline-size: var(--spacing-12);
-  block-size: var(--spacing-12);
-  border-radius: var(--radius-2);
-}
 .statusCell {
   display: inline-flex;
   min-inline-size: 0;

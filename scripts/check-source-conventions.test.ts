@@ -250,6 +250,46 @@ describe('api-db-import', () => {
   })
 })
 
+describe('favicon-url', () => {
+  const VIEW = 'apps/sim/components/feature/site-row.tsx'
+
+  it('flags a hand-built favicon route URL, a third-party icon service, and the route helpers', () => {
+    const source = [
+      "import { faviconSrc } from '@/lib/favicon/url'",
+      "import { getFaviconContract } from '@/lib/api/contracts/favicon'",
+      `const own = \`/api/favicon?host=\${host}\``,
+      "const google = 'https://www.google.com/s2/favicons?domain=' + host",
+      "const gstatic = 'https://t1.gstatic.com/faviconV2?url=' + host",
+      "const ddg = 'https://icons.duckduckgo.com/ip3/' + host",
+      "const horse = 'https://icon.horse/icon/' + host",
+    ].join('\n')
+    expect(lines(VIEW, source, 'favicon-url')).toEqual([1, 2, 3, 4, 5, 6, 7])
+  })
+
+  it('allows the shared component and its host helper', () => {
+    const source = [
+      "import { Favicon } from '@/components/favicon/favicon'",
+      "import { siteHost } from '@/lib/favicon/url'",
+      "const label = 'Site favicon'",
+    ].join('\n')
+    expect(hits(VIEW, source, 'favicon-url')).toEqual([])
+  })
+
+  it('leaves the favicon owners and tests alone', () => {
+    const source = `const url = \`/api/favicon?host=\${host}\``
+    for (const owner of [
+      'apps/sim/components/favicon/favicon.tsx',
+      'apps/sim/lib/favicon/url.ts',
+      'apps/sim/lib/favicon/resolve.server.ts',
+      'apps/sim/lib/api/contracts/favicon.ts',
+      'apps/sim/app/api/favicon/route.ts',
+      'apps/sim/components/feature/site-row.test.tsx',
+    ]) {
+      expect(hits(owner, source, 'favicon-url')).toEqual([])
+    }
+  })
+})
+
 describe('bare-route-handler', () => {
   const ROUTE = 'apps/sim/app/api/things/route.ts'
 
@@ -482,6 +522,7 @@ describe('baseline ratchet', () => {
     'api-db-import': {},
     'bare-route-handler': {},
     'log-message-tag': {},
+    'favicon-url': {},
   }
   const counts = (partial: Partial<CurrentCounts>): CurrentCounts => ({ ...EMPTY, ...partial })
   const BASELINE: Baseline = { ...EMPTY, 'relative-import': { 'a.ts': 2, 'b.ts': 1 } }
@@ -565,7 +606,7 @@ describe('baseline ratchet', () => {
   it('rejects an --init-rule that names no rule', () => {
     expect(nextBaseline(BASELINE, EMPTY, 'no-such-rule')).toEqual({
       errors: [
-        '--init-rule no-such-rule: not a rule in this script (relative-import, text-size-literal, static-inline-style, api-db-import, bare-route-handler, log-message-tag)',
+        '--init-rule no-such-rule: not a rule in this script (relative-import, text-size-literal, static-inline-style, api-db-import, bare-route-handler, log-message-tag, favicon-url)',
       ],
     })
   })

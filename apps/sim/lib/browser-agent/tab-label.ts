@@ -1,13 +1,5 @@
 import type { BrowserTabState } from '@sim/browser-protocol'
-
-export function browserTabHostname(url: string): string | null {
-  if (!/^https?:\/\//i.test(url)) return null
-  try {
-    return new URL(url).hostname
-  } catch {
-    return null
-  }
-}
+import { siteHost } from '@/lib/favicon/url'
 
 /** Page loading needs a spinner only until the tab has a usable favicon. */
 export function shouldShowBrowserTabSpinner(
@@ -22,9 +14,9 @@ export function shouldShowBrowserTabSpinner(
 export function browserTabTitle(tab: BrowserTabState): string {
   if (tab.issue?.kind === 'crashed') return 'Page crashed'
   if (tab.issue?.kind === 'unresponsive') return 'Not responding'
-  if (tab.issue?.kind === 'load-error') return browserTabHostname(tab.url) ?? 'Page unavailable'
+  if (tab.issue?.kind === 'load-error') return siteHost(tab.url) ?? 'Page unavailable'
   const title = tab.title.trim()
   if (title) return title
   if (tab.loading) return 'Loading'
-  return browserTabHostname(tab.url) ?? 'New tab'
+  return siteHost(tab.url) ?? 'New tab'
 }

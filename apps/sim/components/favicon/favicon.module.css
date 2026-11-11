@@ -1,0 +1,10 @@
+/* A site icon is a glyph: it takes the glyph size and leading slot of the icon it stands in for. */
+@layer components {
+  .icon {
+    display: inline-block;
+    flex: none;
+    inline-size: var(--ui-glyph-size);
+    block-size: var(--ui-glyph-size);
+    border-radius: var(--radius-2);
+  }
+}

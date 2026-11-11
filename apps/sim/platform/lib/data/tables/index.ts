@@ -81,7 +81,7 @@ export type {
   UpdateWorkflowGroupBodyInput,
 } from '@/lib/api/contracts/tables'
 export { formatCreditCost } from '@/lib/billing/credits/conversion'
-export { faviconSrc } from '@/lib/favicon/url'
+export { siteHost } from '@/lib/favicon/url'
 export { attachSelectionContextToClipboard } from '@/lib/mothership/chat/selection-clipboard'
 export { captureClientEvent } from '@/lib/posthog/client'
 export { columnMatchesRef, getColumnId } from '@/lib/table/column-keys'

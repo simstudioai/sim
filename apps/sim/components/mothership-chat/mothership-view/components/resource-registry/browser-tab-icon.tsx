@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { cn } from '@sim/emcn-legacy'
 import { CircleAlert, Globe, Loader } from '@sim/emcn-legacy/icons'
+import { Favicon } from '@/components/favicon/favicon'
 import { ThinkingLoader } from '@/components/ui'
-import { browserTabHostname, shouldShowBrowserTabSpinner } from '@/lib/browser-agent/tab-label'
-import { faviconSrc } from '@/lib/favicon/url'
+import { shouldShowBrowserTabSpinner } from '@/lib/browser-agent/tab-label'
+import { siteHost } from '@/lib/favicon/url'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
 interface BrowserTabIconProps {
@@ -35,20 +36,12 @@ export function BrowserTabIcon({ tabId, scopeId, className }: BrowserTabIconProp
         (session.automationActive || session.agentRunIds.length > 0)
     )
   })
-  /** Outcome of the favicon request for one hostname; the image remounts per host. */
-  const [favicon, setFavicon] = useState<{ hostname: string; status: 'loaded' | 'failed' } | null>(
-    null
-  )
+  /** The host whose icon has painted; a failed icon never paints, so the globe stays. */
+  const [loadedHost, setLoadedHost] = useState<string | null>(null)
 
-  const hostname = tab ? browserTabHostname(tab.url) : null
-  const faviconStatus = hostname && favicon?.hostname === hostname ? favicon.status : null
-  const faviconLoaded = faviconStatus === 'loaded'
-  const faviconFailed = faviconStatus === 'failed'
-  const showSpinner = shouldShowBrowserTabSpinner(
-    tab?.loading ?? false,
-    hostname,
-    faviconLoaded ? hostname : null
-  )
+  const hostname = tab ? siteHost(tab.url) : null
+  const faviconLoaded = hostname !== null && loadedHost === hostname
+  const showSpinner = shouldShowBrowserTabSpinner(tab?.loading ?? false, hostname, loadedHost)
 
   return (
     <span className={cn('relative flex items-center justify-center', className)}>
@@ -58,26 +51,23 @@ export function BrowserTabIcon({ tabId, scopeId, className }: BrowserTabIconProp
         <CircleAlert className='size-[12px] text-[var(--text-icon)]' />
       ) : (
         <>
-          {hostname && !faviconFailed && (
-            <img
-              key={hostname}
-              src={faviconSrc(hostname)}
-              alt=''
-              className={cn(
-                'size-[16px] rounded-[3px]',
-                !faviconLoaded && 'pointer-events-none absolute opacity-0'
-              )}
-              onLoad={() => setFavicon({ hostname, status: 'loaded' })}
-              onError={() => setFavicon({ hostname, status: 'failed' })}
-            />
-          )}
+          <Favicon
+            key={hostname}
+            host={hostname}
+            fallback={null}
+            className={cn(
+              'size-[16px] rounded-[3px]',
+              !faviconLoaded && 'pointer-events-none absolute opacity-0'
+            )}
+            onLoad={() => setLoadedHost(hostname)}
+          />
           {showSpinner ? (
             <Loader
               animate
               className='size-[14px] text-[var(--text-icon)] [--loader-duration:650ms]'
               strokeWidth={2}
             />
-          ) : !faviconLoaded || faviconFailed ? (
+          ) : !faviconLoaded ? (
             <Globe className='size-[12px] text-[var(--text-icon)]' />
           ) : null}
         </>

@@ -1,13 +1,13 @@
 'use client'
 
-import { type ReactElement, useEffect, useReducer, useRef, useState } from 'react'
+import { type ReactElement, useEffect, useRef, useState } from 'react'
 import { Checkbox } from '@sim/emcn/checkbox'
 import { Icon } from '@sim/emcn/icon'
 import { StatusTag, StatusText } from '@sim/emcn/status'
 import { Tooltip } from '@sim/emcn/tooltip'
-import { LRUCache } from 'lru-cache'
 import Link from 'next/link'
 import { parse } from 'tldts'
+import { Favicon } from '@/components/favicon/favicon'
 import { workspacePath } from '@/lib/navigation/paths'
 import { resolveSelectOptions } from '@/app/(product)/_components/workspace/tables/select-field/select-field'
 import { InlineEditor } from '@/app/(product)/_components/workspace/tables/table-grid/inline-editors'
@@ -16,10 +16,10 @@ import { useKnowledgeBasesQuery } from '@/platform/lib/data/knowledge'
 import {
   columnTypeOf,
   type DisplayColumn,
-  faviconSrc,
   type RowExecutionMetadata,
   type SaveReason,
   type SelectOption,
+  siteHost,
   storageToDisplay,
   type TimezoneState,
   useTablesList,
@@ -187,12 +187,8 @@ function extractUrlInfo(text: string): { href: string; domain: string } | null {
   const trimmed = text.trim()
   if (!trimmed) return null
   if (/^https?:\/\//i.test(trimmed)) {
-    try {
-      const url = new URL(trimmed)
-      return { href: trimmed, domain: url.hostname }
-    } catch {
-      return null
-    }
+    const domain = siteHost(trimmed)
+    return domain ? { href: trimmed, domain } : null
   }
   if (BARE_DOMAIN_RE.test(trimmed)) {
     const parsed = parse(trimmed)
@@ -430,7 +426,7 @@ function CellRender({ kind, isEditing }: CellRenderProps): ReactElement | null {
     case 'url':
       return (
         <span className={styles.linkCell} data-hidden={hidden}>
-          <CellFavicon host={kind.domain} />
+          <Favicon host={kind.domain} fallback={<Icon name='I041' />} />
           <a
             href={kind.href}
             target='_blank'
@@ -492,30 +488,6 @@ function StatusCell({ label, intent, tip, hidden }: StatusCellProps) {
     </span>
   )
   return tip ? <Tooltip label={tip}>{tag}</Tooltip> : tag
-}
-
-/**
- * Hosts whose icon failed recently, so a remounted cell renders the globe at once instead of an
- * empty slot. An entry lasts only as long as the favicon route retries an outage.
- */
-const knownFaviconMisses = new LRUCache<string, true>({ max: 500, ttl: 5 * 60 * 1000 })
-
-function CellFavicon({ host }: { host: string }) {
-  const [, rerender] = useReducer((failures: number) => failures + 1, 0)
-  if (knownFaviconMisses.has(host)) return <Icon name='I041' />
-  return (
-    <img
-      src={faviconSrc(host)}
-      alt=''
-      loading='lazy'
-      decoding='async'
-      className={styles.favicon}
-      onError={() => {
-        knownFaviconMisses.set(host, true)
-        rerender()
-      }}
-    />
-  )
 }
 
 const FALLBACK_LABEL: Record<SimResourceType, string> = {

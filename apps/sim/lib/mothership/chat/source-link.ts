@@ -1,23 +1,10 @@
 import type { MouseEvent } from 'react'
 import { openInBrowserPanel, shouldOpenInBrowserPanel } from '@/lib/browser-agent/open-in-panel'
-
-/**
- * Hostname for an external http(s) link, used to fetch its favicon. Returns
- * null for relative, anchor, mailto, and unparsable hrefs so those keep the
- * plain text treatment.
- */
-export function externalLinkHostname(href?: string): string | null {
-  if (!href || !/^https?:\/\//i.test(href)) return null
-  try {
-    return new URL(href).hostname
-  } catch {
-    return null
-  }
-}
+import { siteHost } from '@/lib/favicon/url'
 
 /** The site a link belongs to: its known site name, else its hostname without `www.`. */
 export function linkSiteName(url: string, siteName?: string | null): string {
-  return siteName?.trim() || (externalLinkHostname(url) ?? url).replace(/^www\./, '')
+  return siteName?.trim() || (siteHost(url) ?? url).replace(/^www\./, '')
 }
 
 /**

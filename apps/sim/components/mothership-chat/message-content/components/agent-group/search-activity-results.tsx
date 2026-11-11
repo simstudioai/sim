@@ -16,7 +16,8 @@ import {
   sourceSiteName,
 } from '@/components/mothership-chat/message-content/components/source-chip'
 import type { SourceTagData } from '@/components/mothership-chat/message-content/components/special-tags'
-import { externalLinkHostname, handleExternalLinkClick } from '@/lib/mothership/chat/source-link'
+import { siteHost } from '@/lib/favicon/url'
+import { handleExternalLinkClick } from '@/lib/mothership/chat/source-link'
 
 interface SearchActivityResultsProps {
   sources: SourceTagData[]
@@ -47,7 +48,7 @@ export function SearchActivityResults({ sources, label }: SearchActivityResultsP
       >
         <ul className='m-0 list-none p-0'>
           {sources.map((source) => {
-            const hostname = externalLinkHostname(source.url)
+            const hostname = siteHost(source.url)
             return (
               <li key={source.url}>
                 <a

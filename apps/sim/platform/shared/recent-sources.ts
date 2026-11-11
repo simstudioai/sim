@@ -1,5 +1,6 @@
 import type { SearchHistoryResponse } from '@/lib/api/contracts/knowledge/search-history'
-import { externalLinkHostname, linkSiteName } from '@/lib/mothership/chat/source-link'
+import { siteHost } from '@/lib/favicon/url'
+import { linkSiteName } from '@/lib/mothership/chat/source-link'
 
 /** One chip's sources, newest first, with what it reads as and where it came from. */
 export interface RecentSourceGroup {
@@ -17,7 +18,7 @@ export function groupRecentSources(history: SearchHistoryResponse): RecentSource
   const groups = new Map<string, RecentSourceGroup>()
   for (const source of history.sources) {
     const label = source.title ?? linkSiteName(source.url, source.siteName)
-    const host = externalLinkHostname(source.url)
+    const host = siteHost(source.url)
     const key = `${source.connectorType ?? host}\0${label.toLowerCase()}`
     const existing = groups.get(key)
     if (existing) existing.urls.push(source.url)

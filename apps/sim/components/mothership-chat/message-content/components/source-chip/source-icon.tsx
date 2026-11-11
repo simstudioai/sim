@@ -3,11 +3,11 @@
 import { cn } from '@sim/emcn-legacy'
 import { FileText } from '@sim/emcn-legacy/icons'
 import { stripVersionSuffix } from '@sim/utils/string'
-import { Favicon } from '@/components/favicon'
+import { Favicon } from '@/components/favicon/favicon'
 import { GoogleDocsIcon, GoogleSheetsIcon, GoogleSlidesIcon } from '@/components/icons'
 import type { SourceTagData } from '@/components/mothership-chat/message-content/components/special-tags'
+import { siteHost } from '@/lib/favicon/url'
 import { blockTypeToIconMap } from '@/lib/integrations/icon-mapping'
-import { externalLinkHostname } from '@/lib/mothership/chat/source-link'
 import { BrandIcon, type StyleableIcon } from '@/blocks/brand-icon'
 
 /**
@@ -44,7 +44,7 @@ interface SourceIconProps {
 
 /** Shared document mark, connector mark, favicon and fallback across all source presentations. */
 export function SourceIcon({ source, size = 'default' }: SourceIconProps) {
-  const hostname = externalLinkHostname(source.url)
+  const hostname = siteHost(source.url)
   const ConnectorIcon = source.connectorType
     ? BRAND_ICON_BY_BASE_TYPE.get(stripVersionSuffix(source.connectorType))
     : undefined
@@ -63,7 +63,7 @@ export function SourceIcon({ source, size = 'default' }: SourceIconProps) {
   return (
     <Favicon
       host={hostname}
-      className={className}
+      className={cn(className, 'rounded-sm')}
       fallback={<FileText aria-hidden className={cn(className, 'text-[var(--text-icon)]')} />}
     />
   )

@@ -315,6 +315,8 @@ const platformHostModules: ReasonedAllowlist = {
     "The markdown editor's / and @ list slot, which the product fills with the composer's suggestions",
   'components/dashboard-panel/dashboard-panel': 'The dashboard panel the markdown editor embeds',
   'components/find-bar/find-bar': 'The one in-page find bar, which the file viewer also renders',
+  'components/favicon/favicon':
+    "The one site icon, with the shared miss cache, served only through Sim's favicon route",
 }
 
 /**

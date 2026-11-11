@@ -57,11 +57,12 @@ import {
 } from '@/components/mothership-chat/message-content/components/special-tags'
 import { indexSourcesByUrl } from '@/components/mothership-chat/message-content/sources-by-url'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
+import { siteHost } from '@/lib/favicon/url'
 import {
   inlineChatImageUrl,
   isInlineFileReference,
 } from '@/lib/mothership/chat/inline-image-reference'
-import { externalLinkHostname, PROSE_LINK_CLASS } from '@/lib/mothership/chat/source-link'
+import { PROSE_LINK_CLASS } from '@/lib/mothership/chat/source-link'
 import type { WorkspaceResourceRef } from '@/lib/mothership/chat/types'
 import { useSmoothText } from '@/hooks/use-smooth-text'
 
@@ -385,7 +386,7 @@ const MARKDOWN_COMPONENTS = {
         </WorkspaceReference>
       )
     }
-    const hostname = externalLinkHostname(href)
+    const hostname = siteHost(href)
     if (hostname && href) {
       return <ExternalLink href={href}>{children}</ExternalLink>
     }

@@ -39,6 +39,14 @@
  *   background tasks that bind one; elsewhere pass it as a field. A bracketed list mid-message
  *   (`columns [${ids.join(', ')}]`) is not a tag. Unlike the rules above, this one covers every
  *   `apps/*` and `packages/*` module that imports `@sim/logger`, not only `apps/sim`.
+ * - `favicon-url`: an `apps/sim` module outside the favicon owners builds a site icon URL itself:
+ *   a string naming Sim's favicon route (`/api/favicon`) or a third-party icon service (Google's
+ *   `s2/favicons` or `gstatic` `faviconV2`, DuckDuckGo's `icons.duckduckgo.com`, `icon.horse`), or
+ *   an import of the route helper `faviconSrc` or the favicon route contract. Every site icon
+ *   renders through `Favicon` (`components/favicon/favicon.tsx`), which keeps the one miss cache and
+ *   the guarantee that the browser never asks a third party; a URL is turned into a host with
+ *   `siteHost` (`lib/favicon/url.ts`). The owners are the component, `lib/favicon/`, the route and
+ *   its contract.
  *
  * Existing hits are counted per rule and file in `scripts/check-source-conventions.baseline.json`.
  * A file whose count rises, or that gains its first hit, fails. A count that drops also fails until
@@ -65,6 +73,7 @@ const RULES = [
   'api-db-import',
   'bare-route-handler',
   'log-message-tag',
+  'favicon-url',
 ] as const
 
 export type Rule = (typeof RULES)[number]
@@ -99,6 +108,8 @@ const HOW_TO_FIX: Record<Rule, string> = {
     'Export the verb as the result of a shared route builder (`defineInternalJsonRoute`, `defineV2JsonRoute`, …) or `withRouteHandler`, never a bare handler function (CLAUDE.md "API Contracts and Routes").',
   'log-message-tag':
     'Keep the message static and move the id into metadata: `logger.info(\'Started\', { requestId })`. Inside `withRouteHandler`, a `generateRequestId()` id is already on every line, so drop it (CLAUDE.md "Logging").',
+  'favicon-url':
+    "Render the site's icon with `<Favicon host={siteHost(url)} fallback={…} />` from `@/components/favicon/favicon`; never build a favicon URL or ask a third party from the browser.",
 }
 
 const HTTP_VERBS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'])
@@ -797,6 +808,38 @@ function findLogMessageTags(file: string, source: string, program: Node): Violat
 }
 
 /** Unit, integration and live tests, plus fixtures: they bind real boundaries on purpose. */
+/** Modules that own turning a host into an icon: the component, its helpers, the route and contract. */
+const FAVICON_OWNERS =
+  /^apps\/sim\/(?:components\/favicon\/|lib\/favicon\/|app\/api\/favicon\/|lib\/api\/contracts\/favicon\.ts$)/
+/** Sim's favicon route, or a third-party favicon service a browser could be pointed at. */
+const FAVICON_URL =
+  /\/api\/favicon\b|google\.com\/s2\/favicons|gstatic\.com\/favicon|icons\.duckduckgo\.com|icon\.horse/i
+const FAVICON_CONTRACT_MODULE = '@/lib/api/contracts/favicon'
+
+function findFaviconUrls(file: string, program: Node): Violation[] {
+  const violations: Violation[] = []
+  walk(program, (node) => {
+    const specifier = declarationSpecifier(node) ?? dynamicSpecifier(node)
+    if (specifier === FAVICON_CONTRACT_MODULE) {
+      violations.push({ rule: 'favicon-url', file, line: lineOf(node), detail: specifier })
+      return
+    }
+    const bindings = (node.specifiers as Node[] | undefined) ?? []
+    const namesRouteHelper = bindings.some((binding) => {
+      const imported = (binding.imported ?? binding.local) as Node | undefined
+      return imported?.name === 'faviconSrc'
+    })
+    if (specifier === '@/lib/favicon/url' && namesRouteHelper) {
+      violations.push({ rule: 'favicon-url', file, line: lineOf(node), detail: 'faviconSrc' })
+    }
+  })
+  for (const { text, line } of stringChunks(program)) {
+    const match = FAVICON_URL.exec(text)
+    if (match) violations.push({ rule: 'favicon-url', file, line, detail: match[0] })
+  }
+  return violations.sort((first, second) => first.line - second.line)
+}
+
 function isTestFile(file: string): boolean {
   return /\.(?:test|spec|integration)\.tsx?$/.test(file) || file.includes('/__fixtures__/')
 }
@@ -815,9 +858,24 @@ export function findViolations(file: string, source: string): Violation[] {
   const wantsStyle = inSim && !test && file.endsWith('.tsx') && /\bstyle\s*=\s*\{/.test(source)
   const wantsDb = isApi && source.includes('@sim/db')
   const wantsRoute = isApi && /(?:^|\/)route\.ts$/.test(file)
+  const wantsFavicon =
+    inSim &&
+    !test &&
+    !FAVICON_OWNERS.test(file) &&
+    (/favicon|icon\.horse/i.test(source) || source.includes(FAVICON_CONTRACT_MODULE))
   const wantsLogTag =
     !test && source.includes('@sim/logger') && /\[(?:\$\{|['"`]\s*\+)|req(?:uest)?Id/i.test(source)
-  if (!(wantsRelative || wantsTextSize || wantsStyle || wantsDb || wantsRoute || wantsLogTag)) {
+  if (
+    !(
+      wantsRelative ||
+      wantsTextSize ||
+      wantsStyle ||
+      wantsDb ||
+      wantsRoute ||
+      wantsLogTag ||
+      wantsFavicon
+    )
+  ) {
     return []
   }
 
@@ -829,6 +887,7 @@ export function findViolations(file: string, source: string): Violation[] {
     ...(wantsDb ? findApiDbImports(file, program) : []),
     ...(wantsRoute ? findBareRouteHandlers(file, program) : []),
     ...(wantsLogTag ? findLogMessageTags(file, source, program) : []),
+    ...(wantsFavicon ? findFaviconUrls(file, program) : []),
   ]
 }
 

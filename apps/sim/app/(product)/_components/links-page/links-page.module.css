@@ -22,12 +22,6 @@
   flex: 1 1 var(--spacing-128);
   min-inline-size: 0;
 }
-.favicon {
-  flex: none;
-  inline-size: var(--spacing-16);
-  block-size: var(--spacing-16);
-  border-radius: var(--radius-2);
-}
 .nameCell {
   display: grid;
   flex: 1;

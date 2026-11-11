@@ -10,7 +10,7 @@ import { isApiClientError } from '@/lib/api/client/errors'
 import { flattenFieldErrors } from '@/lib/api/contracts/primitives'
 import type { SimLink, SimLinkBody } from '@/lib/api/contracts/sim-links'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { faviconSrc } from '@/lib/favicon/url'
+import { siteHost } from '@/lib/favicon/url'
 import { simLinkPath, simLinkUrl } from '@/lib/navigation/paths'
 import {
   boundedSearch,
@@ -258,10 +258,9 @@ export const LINK_LIMITS = {
   variable: SIM_LINK_VARIABLE,
 } as const
 
-/** The destination's favicon through Sim's own route; null when it has no host to ask about. */
-export function linkFaviconSrc(link: Pick<SimLink, 'url'>): string | null {
-  const origin = simLinkOrigin(link.url)
-  return origin ? faviconSrc(new URL(origin).hostname) : null
+/** The host the destination's icon is looked up by; null when values could change where it lands. */
+export function linkHost(link: Pick<SimLink, 'url'>): string | null {
+  return siteHost(simLinkOrigin(link.url))
 }
 
 export function useLinksHosted(): boolean {

@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentGroupItem } from '@/components/mothership-chat/message-content/components/agent-group/agent-group-view'
 import {
   BrowserAgentIcon,
-  getBrowserAgentFaviconUrl,
+  getBrowserAgentPageHost,
 } from '@/components/mothership-chat/message-content/components/agent-group/browser-agent-icon'
 import type { ToolCallData } from '@/lib/mothership/chat/types'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
@@ -46,10 +46,10 @@ function tool(overrides: Partial<ToolCallData> = {}): AgentGroupItem {
   }
 }
 
-describe('getBrowserAgentFaviconUrl', () => {
+describe('getBrowserAgentPageHost', () => {
   it('keeps only the observed hostname, never credentials, port, path, or query', () => {
     expect(
-      getBrowserAgentFaviconUrl([
+      getBrowserAgentPageHost([
         tool({
           result: {
             success: true,
@@ -59,12 +59,12 @@ describe('getBrowserAgentFaviconUrl', () => {
           },
         }),
       ])
-    ).toBe('/api/favicon?host=example.com')
+    ).toBe('example.com')
   })
 
   it('ignores URLs from other tools and nested agent runs', () => {
     expect(
-      getBrowserAgentFaviconUrl([
+      getBrowserAgentPageHost([
         tool(),
         tool({
           toolName: 'browser_read_text',
@@ -87,7 +87,7 @@ describe('getBrowserAgentFaviconUrl', () => {
           },
         },
       ])
-    ).toBe('/api/favicon?host=example.com')
+    ).toBe('example.com')
   })
 })
 

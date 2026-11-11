@@ -13,14 +13,14 @@ import { OverflowText } from '@sim/emcn/overflow-text'
 import type { LoadMoreState } from '@sim/emcn/scroll-area/use-load-more'
 import { SearchField } from '@sim/emcn/search-field'
 import { FailureNotice } from '@sim/emcn/status'
+import { Favicon } from '@/components/favicon/favicon'
 import { LinkEditor } from '@/app/(product)/_components/links-page/link-editor'
-import { LinkIcon } from '@/app/(product)/_components/links-page/link-icon'
 import styles from '@/app/(product)/_components/links-page/links-page.module.css'
 import { SectionToolbar } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { useMinuteClock } from '@/platform/lib/data/clock'
 import {
   type LinkRecord,
-  linkFaviconSrc,
+  linkHost,
   openChromeStore,
   openLink,
   useLinksHosted,
@@ -158,7 +158,7 @@ const LinksTable = memo(function LinksTable({
         },
         cells: {
           name: (
-            <TableLabel leading={<LinkIcon src={linkFaviconSrc(link)} />}>
+            <TableLabel leading={<Favicon host={linkHost(link)} fallback={<Icon name='I041' />} />}>
               <span className={styles.nameCell}>
                 <OverflowText text={link.name}>{link.name}</OverflowText>
                 <LinkSummary link={link} updated={updated} />
