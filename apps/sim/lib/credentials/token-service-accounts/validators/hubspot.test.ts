@@ -40,6 +40,7 @@ function expectFallbackCall(): void {
 
 describe('validateHubspotServiceAccount', () => {
   beforeEach(() => {
+    mockFetch.mockReset()
     vi.stubGlobal('fetch', mockFetch)
   })
 
@@ -82,21 +83,62 @@ describe('validateHubspotServiceAccount', () => {
     const result = await validateHubspotServiceAccount(FIELDS)
 
     expect(result).toEqual({
-      displayName: 'HubSpot private app',
+      displayName: 'HubSpot',
       principal: null,
       auditMetadata: {},
     })
   })
 
-  it('throws invalid_credentials on primary 401 without calling the fallback', async () => {
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse({ status: 'error', category: 'INVALID_AUTHENTICATION' }, 401)
-    )
+  it('verifies through account-info a key the token-info route answers with a 401', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse({ status: 'error', category: 'INVALID_AUTHENTICATION' }, 401)
+      )
+      .mockResolvedValueOnce(jsonResponse({ portalId: 456, uiDomain: 'app.hubspot.com' }))
+
+    await expect(validateHubspotServiceAccount(FIELDS)).resolves.toMatchObject({
+      displayName: 'HubSpot portal 456',
+      principal: { kind: 'tenant', id: '456' },
+    })
+    expectFallbackCall()
+  })
+
+  it('throws invalid_credentials when both routes answer 401', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse({ status: 'error', category: 'INVALID_AUTHENTICATION' }, 401)
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ status: 'error', category: 'INVALID_AUTHENTICATION' }, 401)
+      )
 
     await expect(validateHubspotServiceAccount(FIELDS)).rejects.toMatchObject({
       name: 'TokenServiceAccountValidationError',
       code: 'invalid_credentials',
       status: 401,
+    })
+  })
+
+  it('does not take a firewall 403 page from account-info as a live token', async () => {
+    mockFetch
+      .mockResolvedValueOnce(htmlResponse(404, '<html><body>404 Not Found</body></html>'))
+      .mockResolvedValueOnce(
+        new Response('<html>Access denied</html>', {
+          status: 403,
+          headers: { 'Content-Type': 'text/html' },
+        })
+      )
+
+    await expect(validateHubspotServiceAccount(FIELDS)).rejects.toMatchObject({
+      code: 'invalid_credentials',
+    })
+  })
+
+  it('reports an outage without the fallback when token-info is unavailable', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ status: 'error' }, 503))
+
+    await expect(validateHubspotServiceAccount(FIELDS)).rejects.toMatchObject({
+      code: 'provider_unavailable',
     })
     expect(mockFetch).toHaveBeenCalledTimes(1)
   })

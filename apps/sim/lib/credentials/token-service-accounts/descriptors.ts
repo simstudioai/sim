@@ -327,21 +327,21 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
   [HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'HubSpot',
-    tokenNoun: 'private app access token',
-    connectNoun: 'private app token',
+    tokenNoun: 'service key or private app access token',
+    connectNoun: 'service key',
     fields: [
       {
         id: 'apiToken',
-        label: 'Private app access token',
+        label: 'Service key or private app token',
         placeholder: 'pat-na1-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
         secret: true,
         hintPattern: /^pat-/i,
-        hintMessage: 'HubSpot private app tokens usually start with pat-.',
+        hintMessage: 'HubSpot service keys and private app tokens usually start with pat-.',
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/hubspot-service-account',
     helpText:
-      'Tokens are tied to the super admin who created the private app; if that user is removed from the portal, some calls may start failing.',
+      'Create a service key in HubSpot under Development > Keys > Service keys; new legacy private apps can no longer be created, but existing private app tokens keep working. If the key rotates automatically, paste the new key here after each rotation.',
   },
   [AIRTABLE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: AIRTABLE_SERVICE_ACCOUNT_PROVIDER_ID,

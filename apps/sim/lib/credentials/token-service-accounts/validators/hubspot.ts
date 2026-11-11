@@ -2,6 +2,7 @@ import { tenantPrincipal, userPrincipal } from '@/lib/credentials/principal'
 import {
   fetchProvider,
   parseProviderJson,
+  providerFailureCode,
   readProviderErrorSnippet,
   TokenServiceAccountValidationError,
   throwForProviderResponse,
@@ -26,26 +27,29 @@ interface HubspotAccountInfo {
 }
 
 /**
- * Fallback verification via the Account Information API. Live probing shows
- * the documented access-token-info route returns a bare 404 for invalid
- * tokens, which is ambiguous (invalid token vs. missing route), while this
- * regular API route answers with a proper JSON 401 for bad tokens. A 200
- * proves the token is live; 401 means it was rejected; 403 means the token
- * authenticated but the app lacks account-info access — still a live token.
+ * Fallback verification via the Account Information API, a regular REST route
+ * that any HubSpot Bearer credential (service key or private app token) can
+ * call. It answers a bad token with a JSON 401. A 200 proves the token is
+ * live; a JSON 403 means the token authenticated but lacks account-info
+ * access, still a live token. An HTML 403 is a firewall page, not HubSpot.
  */
 async function verifyViaAccountInfo(
   accessToken: string
 ): Promise<TokenServiceAccountValidationResult> {
   const res = await fetchProvider(
     ACCOUNT_INFO_URL,
-    { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } },
+    {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+      redirect: 'error',
+    },
     'account_info'
   )
-  if (res.status === 403) {
-    // The token is live but the app cannot read account info, so neither the
-    // portal nor the creating user is knowable on this path.
+  if (res.status === 403 && (res.headers.get('content-type') ?? '').includes('application/json')) {
+    // The token is live but cannot read account info, so neither the portal
+    // nor the creating user is knowable on this path.
+    await readProviderErrorSnippet(res)
     return {
-      displayName: 'HubSpot private app',
+      displayName: 'HubSpot',
       principal: null,
       auditMetadata: {},
     }
@@ -55,7 +59,7 @@ async function verifyViaAccountInfo(
   const info = await parseProviderJson<HubspotAccountInfo>(res, 'account_info')
   const hubId = typeof info?.portalId === 'number' ? String(info.portalId) : undefined
   return {
-    displayName: hubId ? `HubSpot portal ${hubId}` : 'HubSpot private app',
+    displayName: hubId ? `HubSpot portal ${hubId}` : 'HubSpot',
     // This route never reports the private app's creating user, so the portal
     // is the finest identity available here.
     principal: hubId ? tenantPrincipal(hubId) : null,
@@ -64,16 +68,17 @@ async function verifyViaAccountInfo(
 }
 
 /**
- * Validates a HubSpot private app access token.
+ * Validates a HubSpot service key or private app access token.
  *
  * Primary path: the documented access-token-info endpoint, sending both the
  * JSON body (`tokenKey`) and the `Authorization: Bearer` header — the header
  * is optional for NA (`pat-na1`) tokens but required for EU (`pat-eu1`)
  * tokens, so one code path covers both regions.
  *
- * Live probing shows that endpoint returns a bare 404 (HTML) when the token
- * is not recognized, so a 404 falls back to the Account Information API,
- * which distinguishes a rejected token (JSON 401) from a live one (200/403).
+ * That endpoint is documented only for private app tokens, and live probing
+ * shows it returns a bare 404 (HTML) for a token it does not recognize, so
+ * any non-transient 4xx falls back to the Account Information API, which
+ * distinguishes a rejected token (JSON 401) from a live one (200/403).
  *
  * The display name is always `HubSpot portal {hubId}` — the account-info
  * `uiDomain` is the shared regional host (e.g. `app.hubspot.com`), not a
@@ -93,14 +98,14 @@ export async function validateHubspotServiceAccount(
         Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({ tokenKey: accessToken }),
+      redirect: 'error',
     },
     'access_token_info'
   )
-  if (res.status === 404 || res.status === 400 || res.status === 403) {
-    // Ambiguous: HubSpot 404s unrecognized tokens on this route (and 400s
-    // malformed ones); a 403 here is unexpected since the route needs no
-    // scopes, so it also defers to the fallback rather than blaming the
-    // token. Resolve via a regular API route with JSON errors.
+  if (!res.ok && providerFailureCode(res.status) === 'invalid_credentials') {
+    // Not decisive: this route 404s tokens it does not recognize and covers
+    // only private apps, so a service key may be refused here yet work on
+    // every REST route. Resolve via a regular API route with JSON errors.
     await readProviderErrorSnippet(res)
     return verifyViaAccountInfo(accessToken)
   }
