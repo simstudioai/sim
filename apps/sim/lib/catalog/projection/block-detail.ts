@@ -170,7 +170,7 @@ function authorableSubBlocks(block: BlockConfig): SubBlockConfig[] {
  */
 function projectField(
   subBlock: SubBlockConfig,
-  declaredInputs: BlockConfig['inputs'] = {}
+  declaredInputs?: BlockConfig['inputs']
 ): CatalogSubBlock {
   const projected = projectSubBlock(subBlock)
   const declared = declaredInputFor(subBlock, declaredInputs)
