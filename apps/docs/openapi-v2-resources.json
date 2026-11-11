@@ -15266,7 +15266,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "pattern": "^(\\/(?!\\/)|https:\\/\\/)"
+                "pattern": "^(\\/$|\\/[^/]|https:\\/\\/)"
               },
               {
                 "type": "null"
