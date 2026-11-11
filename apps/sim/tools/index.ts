@@ -517,13 +517,22 @@ function normalizeCopilotCredentialParams(params: Record<string, unknown>): void
   }
 }
 
+/**
+ * Whether this deployment and these params let Sim's hosted key fill
+ * `tool.hosting.apiKeyParam`, the gate {@link injectHostedKeyIfNeeded} opens with.
+ */
+function hostedKeyMayFill(tool: ToolDefinition, params: Record<string, unknown>): boolean {
+  if (!isHosted || !tool.hosting) return false
+  return !tool.hosting.enabled || tool.hosting.enabled(params)
+}
+
 function enforceCopilotCredentialSelection(
   toolId: string,
   tool: ToolDefinition,
   params: Record<string, unknown>,
   scope: ToolExecutionScope
 ): void {
-  if (!scope.copilotToolExecution || !tool.oauth?.required) {
+  if (!scope.copilotToolExecution || !tool.oauth) {
     return
   }
 
@@ -532,6 +541,22 @@ function enforceCopilotCredentialSelection(
   }
 
   const toolLabel = tool.name || toolId
+  if (!tool.oauth.required) {
+    // Copilot's schema lets credentialId stand in for these, so it no longer requires them.
+    const missing = (tool.oauth.credentialSuppliedParams ?? []).filter(
+      (paramId) =>
+        tool.params[paramId]?.required &&
+        !(paramId === tool.hosting?.apiKeyParam && hostedKeyMayFill(tool, params)) &&
+        (params[paramId] === undefined || params[paramId] === null || params[paramId] === '')
+    )
+    if (missing.length > 0) {
+      throw new Error(
+        `${toolLabel} needs credentialId (a saved ${tool.oauth.provider} credential) or ${missing.join(', ')}.`
+      )
+    }
+    return
+  }
+
   throw new Error(
     `Copilot must pass credentialId for ${toolLabel}. Run \`credentials list\` and pass the exact credentialId for provider "${tool.oauth.provider}".`
   )
@@ -639,11 +664,7 @@ async function injectHostedKeyIfNeeded(
   requestId: string,
   signal: AbortSignal | undefined
 ): Promise<HostedKeyInjectionResult> {
-  if (!tool.hosting) return { isUsingHostedKey: false }
-  if (!isHosted) return { isUsingHostedKey: false }
-  if (tool.hosting.enabled && !tool.hosting.enabled(params)) {
-    return { isUsingHostedKey: false }
-  }
+  if (!tool.hosting || !hostedKeyMayFill(tool, params)) return { isUsingHostedKey: false }
 
   const { envKeyPrefix, apiKeyParam, byokProviderId, rateLimit } = tool.hosting
   // A selected saved credential supplies this key; Sim's key must never stand in for it.

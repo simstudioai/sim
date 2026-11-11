@@ -140,14 +140,22 @@ async function requestWorkspaceToken(
   headers: Record<string, string> = {}
 ): Promise<string> {
   const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
-  const response = await fetch(`${workspaceOrigin(host)}/oidc/v1/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
-    body,
-    // A secret or subject token must never follow a redirect off the workspace host.
-    redirect: 'error',
-    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-  })
+  const url = `${workspaceOrigin(host)}/oidc/v1/token`
+  let response: Response
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
+      body,
+      // A secret or subject token must never follow a redirect off the workspace host.
+      redirect: 'error',
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+    })
+  } catch {
+    signal?.throwIfAborted()
+    // A network failure, timeout, or refused redirect says nothing about the credential.
+    throw new DatabricksCredentialError('Could not reach the Databricks workspace', 502)
+  }
   const payload = (await readResponseJsonWithLimit(response, {
     maxBytes: MAX_RESPONSE_BYTES,
     label: 'Databricks token response',

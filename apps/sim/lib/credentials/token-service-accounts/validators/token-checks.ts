@@ -1,5 +1,10 @@
 import { toArray, toRecord } from '@sim/utils/object'
-import { validateOktaDomain, validateSupabaseProjectId } from '@/lib/core/security/input-validation'
+import {
+  normalizeHttpBaseUrl,
+  refuseUnsafeTypedUrl,
+  validateOktaDomain,
+  validateSupabaseProjectId,
+} from '@/lib/core/security/input-validation'
 import {
   fetchProvider,
   TokenServiceAccountValidationError,
@@ -11,9 +16,7 @@ import type {
 } from '@/lib/credentials/token-service-accounts/server'
 import {
   allowedDomain,
-  normalizeHttpBaseUrl,
   readJsonBody,
-  refuseUnsafeTypedUrl,
   tokenCheckValidator,
 } from '@/lib/credentials/token-service-accounts/validators/http'
 import { buildJupyterAuthHeaders, normalizeJupyterServerUrl } from '@/lib/internal/jupyter/protocol'
