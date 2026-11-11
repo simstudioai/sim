@@ -370,13 +370,23 @@ describe('saved credentials whose connection names a host, region, or account', 
   ])(
     '%s refuses a typed value that could steer the request, before sending the key',
     async (_, validate, typed) => {
-      const fetch = vi.fn()
+      // Both transports would answer, so only the refusal itself can keep the key unsent.
+      const fetch = vi.fn().mockResolvedValue(jsonResponse({}, 401))
       vi.stubGlobal('fetch', fetch)
+      inputValidationMockFns.mockValidateUrlWithDNS.mockReset().mockResolvedValue({
+        isValid: true,
+        resolvedIP: '203.0.113.7',
+        originalHostname: 'instance.example.com',
+      })
+      inputValidationMockFns.mockSecureFetchWithPinnedIP
+        .mockReset()
+        .mockResolvedValue(jsonResponse({}, 401))
 
       await expect(validate({ apiToken: 'secret', ...typed })).rejects.toMatchObject({
         code: 'invalid_credentials',
       })
       expect(fetch).not.toHaveBeenCalled()
+      expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
     }
   )
 
@@ -515,15 +525,15 @@ describe('PlanetScale saved service token verification', () => {
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
   })
 
-  it('accepts a valid token that PlanetScale forbids from this read', async () => {
+  it('rejects a JSON 403, which PlanetScale does not document as a valid token', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(jsonResponse({ code: 'forbidden', message: 'Forbidden' }, 403))
     )
 
     await expect(
-      validatePlanetScaleServiceAccount({ apiToken: 'scoped', providerWorkspaceId: 'tok-id' })
-    ).resolves.toMatchObject({ principal: null })
+      validatePlanetScaleServiceAccount({ apiToken: 'any', providerWorkspaceId: 'tok-id' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
   })
 
   it('does not take a proxy 403 page as proof of the token', async () => {
