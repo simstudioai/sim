@@ -181,7 +181,6 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
   transformResponse: async (response: Response) => {
     const contentType = response.headers.get('content-type') || ''
 
-    // Standard response handling
     const headers: Record<string, string> = {}
     response.headers.forEach((value, key) => {
       headers[key] = value
@@ -194,26 +193,6 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
     })
     const data = contentType.includes('application/json') ? JSON.parse(responseText) : responseText
 
-    // Check if this is a proxy response (structured response from /api/proxy)
-    if (
-      contentType.includes('application/json') &&
-      typeof data === 'object' &&
-      data !== null &&
-      data.data !== undefined &&
-      data.status !== undefined
-    ) {
-      return {
-        success: data.success,
-        output: {
-          data: data.data,
-          status: data.status,
-          headers: data.headers || {},
-        },
-        error: data.success ? undefined : data.error,
-      }
-    }
-
-    // Direct response handling
     return {
       success: response.ok,
       output: {

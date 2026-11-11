@@ -85,6 +85,7 @@ import { fileGetContentTool } from '@/tools/file/get'
 import { fileFetchTool } from '@/tools/file/parser'
 import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
 import { searchUsersV2Tool } from '@/tools/github/search_users'
+import { httpRequestTool, webhookRequestTool } from '@/tools/http'
 import { jamaDeleteItemTool } from '@/tools/jama/delete_item'
 import { jamaDeleteRelationshipTool } from '@/tools/jama/delete_relationship'
 import { memoryAddTool } from '@/tools/memory/add'
@@ -5526,6 +5527,49 @@ describe('Internal Route Trust', () => {
 
     Object.assign(tools, originalTools)
   })
+})
+
+describe('HTTP tools report the real HTTP outcome', () => {
+  const stubbedHttpRequestTool = tools.http_request
+
+  beforeEach(() => {
+    Object.assign(tools, { http_request: httpRequestTool, webhook_request: webhookRequestTool })
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
+  })
+
+  afterEach(() => {
+    vi.resetAllMocks()
+    tools.http_request = stubbedHttpRequestTool
+    Reflect.deleteProperty(tools, 'webhook_request')
+  })
+
+  it.each([
+    ['http_request', { url: 'https://api.example.com/orders', method: 'POST', body: {} }],
+    ['webhook_request', { url: 'https://api.example.com/hooks', body: {} }],
+  ])(
+    '%s treats a 200 whose body has top-level status and data as a success',
+    async (toolId, params) => {
+      mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+        toSecureFetchResponse(
+          Response.json(
+            { status: 'success', data: { orderId: 'A-1001' } },
+            { headers: { 'x-request-id': 'req-123' } }
+          )
+        )
+      )
+
+      const result = await executeTool(toolId, params, { skipPostProcess: true })
+
+      expect(result, result.error).toMatchObject({
+        success: true,
+        output: {
+          status: 200,
+          data: { status: 'success', data: { orderId: 'A-1001' } },
+          headers: expect.objectContaining({ 'x-request-id': 'req-123' }),
+        },
+      })
+    }
+  )
 })
 
 describe('File Parameter Normalization', () => {
