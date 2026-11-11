@@ -595,9 +595,14 @@ async function reset(install: Install | null): Promise<void> {
   // With the daemon down nothing managed is visible, so a reset would archive the
   // env files while the volumes they unlock survive.
   if (install?.kind !== 'k8s' && executableExists('docker') && !dockerReachable()) {
+    // With no install detected, a Kubernetes install whose context isn't current looks the same.
+    const hints = [`start Docker, then re-run ${theme.command('npx sim-setup reset')}`]
+    if (!install) {
+      hints.push(`if Sim runs on Kubernetes, switch kubectl to its cluster's context and re-run`)
+    }
     throw new SetupError(
       "Docker isn't reachable, so the managed containers and volumes can't be removed. Your env files were left in place.",
-      [`start Docker, then re-run ${theme.command('npx sim-setup reset')}`]
+      hints
     )
   }
   const ok = await p.confirm({
