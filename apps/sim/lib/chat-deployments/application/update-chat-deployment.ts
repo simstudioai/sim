@@ -204,7 +204,9 @@ export const updateChatDeployment = defineAuthorizedWorkspaceUseCase({
 
     await redeployWorkflowIfDrifted(existing.workflowId, actingUserId)
 
-    const values: Partial<ChatDeploymentRow> = {}
+    // The workflow is live by now; this is the explicit re-enable for a chat restored with
+    // its archive's `isActive: false`.
+    const values: Partial<ChatDeploymentRow> = { isActive: true }
     if (input.identifier) values.identifier = input.identifier
     if (input.title) values.title = input.title
     if (input.description !== undefined) values.description = input.description

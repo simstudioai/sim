@@ -444,8 +444,8 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
      * `status: 'disabled'` with `nextRunAt` cleared, webhooks and chats to `isActive: false`.
      * Archive does not record what those were, so restoring them to a constant would re-enable
      * a schedule the user had disabled and re-run a completed one. Re-enabling stays explicit
-     * (redeploy re-activates a schedule), matching deployment state, which restore also leaves
-     * off on purpose.
+     * (redeploy re-activates a schedule; deploying or updating the chat re-activates the chat),
+     * matching deployment state, which restore also leaves off on purpose.
      */
     restoreDependents: [
       {

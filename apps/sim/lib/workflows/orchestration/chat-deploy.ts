@@ -284,6 +284,8 @@ export async function performChatDeploy(
         outputConfigs,
         includeThinking,
         includeToolCalls,
+        // Deploying is the explicit re-enable for a chat restored with its archive's `isActive: false`.
+        isActive: true,
         updatedAt: new Date(),
       })
       .where(eq(chat.id, chatId))
