@@ -11111,7 +11111,11 @@
           "sunset": null
         },
         { "id": "nvidia/nemotron-3-nano-30b-a3b", "inStaticCatalog": true, "sunset": null },
-        { "id": "nvidia/nemotron-3-super-120b-a12b", "inStaticCatalog": true, "sunset": null },
+        {
+          "id": "nvidia/nemotron-3-super-120b-a12b",
+          "inStaticCatalog": true,
+          "sunset": "deprecated"
+        },
         { "id": "nvidia/nemotron-3-ultra-550b-a55b", "inStaticCatalog": true, "sunset": null }
       ]
     },
