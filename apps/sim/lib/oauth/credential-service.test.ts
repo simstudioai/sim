@@ -1413,6 +1413,39 @@ describe('token provider credentials saved in client-credentials mode', () => {
     ).resolves.toMatchObject({ accessToken: 'minted-2' })
   })
 
+  it('keeps a Linear app token on the instance and re-mints only when its secret changes', async () => {
+    const linearBlob = {
+      type: 'token_service_account',
+      providerId: 'linear-service-account',
+      authMethod: 'client_credentials',
+      clientId: 'linear-client',
+      clientSecret: 'linear-secret',
+    }
+    fetchMock.mockImplementation(async () =>
+      Response.json({
+        access_token: `lin_oauth_${fetchMock.mock.calls.length}`,
+        expires_in: 2_591_999,
+      })
+    )
+    storeBlob('linear-cc', linearBlob, 4)
+
+    await expect(
+      resolveServiceAccountToken('linear-cc', 'linear-service-account')
+    ).resolves.toEqual({ accessToken: 'lin_oauth_1', domain: undefined })
+    await expect(
+      resolveServiceAccountToken('linear-cc', 'linear-service-account')
+    ).resolves.toMatchObject({ accessToken: 'lin_oauth_1' })
+    expect(fetchMock).toHaveBeenCalledOnce()
+
+    resetDbChainMock()
+    for (let read = 0; read < 2; read++) {
+      queueTableRows(credential, [{ encryptedServiceAccountKey: 'enc-linear-cc-rotated' }])
+    }
+    await expect(
+      resolveServiceAccountToken('linear-cc', 'linear-service-account')
+    ).resolves.toMatchObject({ accessToken: 'lin_oauth_2' })
+  })
+
   it('still returns a pasted Shopify token as is', async () => {
     storeBlob(
       'shopify-pasted',

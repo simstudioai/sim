@@ -492,6 +492,14 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/linear-service-account',
+    clientCredentials: {
+      label: 'OAuth app (client credentials)',
+      tokenLabel: 'Personal API key (lin_api_)',
+      helpText:
+        'Turn on client credentials tokens for the OAuth app in Linear first. Requesting a token replaces an existing authorization of this app in the workspace, and rotating the client secret invalidates its tokens until you reconnect here.',
+      invalidCredentialsHelp:
+        'Linear rejected these client credentials. Check the client ID and secret, and that client credentials tokens are turned on for the OAuth app.',
+    },
   },
   [MONDAY_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: MONDAY_SERVICE_ACCOUNT_PROVIDER_ID,

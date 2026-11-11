@@ -1,8 +1,10 @@
 import {
   isTokenServiceAccountProviderId,
+  LINEAR_SERVICE_ACCOUNT_PROVIDER_ID,
   SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID,
   type TokenServiceAccountProviderId,
 } from '@/lib/credentials/token-service-accounts/descriptors'
+import { mintLinearClientCredentialsToken } from '@/lib/credentials/token-service-accounts/grants/linear'
 import { mintShopifyClientCredentialsToken } from '@/lib/credentials/token-service-accounts/grants/shopify'
 
 /** What a token provider's client-credentials grant needs to mint an access token. */
@@ -44,6 +46,10 @@ const TOKEN_CLIENT_CREDENTIAL_GRANTS: Partial<
   [SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID]: {
     mint: mintShopifyClientCredentialsToken,
     sharedToken: true,
+  },
+  [LINEAR_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    mint: mintLinearClientCredentialsToken,
+    sharedToken: false,
   },
 }
 

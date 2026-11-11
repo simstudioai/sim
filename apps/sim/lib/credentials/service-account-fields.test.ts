@@ -66,4 +66,11 @@ describe('required fields for a service-account create', () => {
       'domain',
     ])
   })
+
+  it('asks a Linear client-credentials create for only the client ID and secret', () => {
+    expect(
+      getMissingServiceAccountFields('linear-service-account', { authMethod: 'client_credentials' })
+    ).toEqual(['clientId', 'clientSecret'])
+    expect(getMissingServiceAccountFields('linear-service-account', {})).toEqual(['apiToken'])
+  })
 })
