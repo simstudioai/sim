@@ -96,23 +96,45 @@ test.describe('governance settings', () => {
           (select id from "user" where email = ${adminEmail()}), ${providerId}, ${organizationId()})`
     })
     try {
-      // Signed in elsewhere first, so the body read here cannot belong to a page that navigated away.
+      // The section's first read runs on the server and reaches the browser inside the document,
+      // so the document, every response after it and the API itself are all checked for the secret.
       await openSection(page, 'general')
-      const providers = page.waitForResponse(
-        (response) =>
-          response.request().method() === 'GET' &&
-          response.url().includes('/api/auth/sso/providers')
+      const leaks: string[] = []
+      page.on('response', async (response) => {
+        const body = await response.text().catch(() => '')
+        if (body.includes(clientSecret)) leaks.push(response.url())
+      })
+      const document = await page.goto(liveRoute(`/settings/sso?provider=${providerId}`))
+      const html = (await document?.text()) ?? ''
+      expect(html, 'the document did not carry the seeded provider').toContain(providerId)
+      expect(html).not.toContain(clientSecret)
+
+      const api = await page.request.get(
+        `/api/auth/sso/providers?organizationId=${organizationId()}`
       )
-      await page.goto(liveRoute('/settings/sso'))
-      await expect(page.getByRole('tab', { name: 'Domains' })).toBeAttached()
-      const body = await (await providers).text()
+      const body = await api.text()
       expect(body).not.toContain(clientSecret)
       const listed = (
         JSON.parse(body) as { providers: { providerId: string; oidcConfig: string | null }[] }
       ).providers.find((provider) => provider.providerId === providerId)
       expect(listed?.oidcConfig, 'the seeded provider was not listed').toBeTruthy()
       expect(JSON.parse(listed?.oidcConfig ?? '{}').clientSecret).toBe('[REDACTED]')
+
+      // The provider's detail shows the saved secret as a masked fact, never as a value.
+      await expect(page.getByRole('heading', { level: 1, name: providerId })).toBeVisible()
+      await expect(page.getByRole('textbox', { name: 'Client secret (saved)' })).toBeVisible()
       await expect(page.getByRole('button', { name: /Copy Client secret/ })).toHaveCount(0)
+      for (const input of await page.locator('input').all())
+        expect(await input.inputValue()).not.toContain(clientSecret)
+
+      // Saving without retyping the secret asks the server to keep it, never to store a blank.
+      const registration = page.waitForRequest('**/api/auth/sso/register')
+      await page.route('**/api/auth/sso/register', (route) => route.abort())
+      await page.getByRole('textbox', { name: 'Client ID' }).fill('platform-live-client-edited')
+      await page.getByRole('button', { name: 'Save', exact: true }).click()
+      const sent = (await registration).postDataJSON() as { clientSecret?: string }
+      expect(sent.clientSecret).toBe('[REDACTED]')
+      expect(leaks).toEqual([])
     } finally {
       await withLiveDatabase(
         (sql) => sql`delete from sso_provider where provider_id = ${providerId}`

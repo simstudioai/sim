@@ -25,7 +25,10 @@ const pageHeading =
   (main) =>
     main.getByRole('heading', { level: 1, name, exact: typeof name === 'string' || undefined })
 
-/** A Settings section's `main` opens on the title its navigation gives it (`settings-navigation.ts`). */
+/**
+ * A Settings section's `main` opens on the title its navigation gives it (`settings-navigation.ts`),
+ * or on its sub-view's own title when the route opens one, since a page renders one header.
+ */
 const settingsHeading = pageHeading
 
 const composer: Landmark = (main) => main.getByRole('textbox').first()
@@ -49,7 +52,7 @@ const ADMIN_ROUTES: readonly (readonly [string, string, Landmark])[] = [
     liveRoute('/settings/keyboard-shortcuts'),
     settingsHeading('Keyboard shortcuts'),
   ],
-  ['settings-privacy', liveRoute('/settings/privacy'), settingsHeading('Preferences')],
+  ['settings-privacy', liveRoute('/settings/privacy'), settingsHeading('Privacy')],
   ['settings-account', liveRoute('/settings/account'), settingsHeading('Preferences')],
   [
     'settings-recently-deleted',
@@ -60,7 +63,7 @@ const ADMIN_ROUTES: readonly (readonly [string, string, Landmark])[] = [
   ['settings-requests', liveRoute('/settings/requests'), settingsHeading('Requests')],
   ['settings-billing', liveRoute('/settings/billing'), settingsHeading('Subscription')],
   ['settings-usage', liveRoute('/settings/usage'), settingsHeading('Insights')],
-  ['settings-usage-events', liveRoute('/settings/usage/events'), settingsHeading('Insights')],
+  ['settings-usage-events', liveRoute('/settings/usage/events'), settingsHeading('Usage events')],
   ['settings-links', liveRoute('/settings/links'), settingsHeading('Links')],
   [
     'settings-whitelabeling',

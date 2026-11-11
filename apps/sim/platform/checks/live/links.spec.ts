@@ -71,7 +71,8 @@ test('Links: header, Chrome install, columns, and a list that reads on as it scr
       if (request.url().includes('/sim-links') && request.url().includes('cursor='))
         pages.push(request.url())
     })
-    const list = page.getByRole('region', { name: 'Links' })
+    // The page is a region named by its heading, and the scrolling list a region inside it.
+    const list = page.getByRole('region', { name: 'Links' }).getByRole('region', { name: 'Links' })
     await expect(async () => {
       await list.evaluate((node) => {
         const scroller =

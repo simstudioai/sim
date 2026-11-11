@@ -126,7 +126,10 @@ test('a plan read on the server stands when the browser’s own read fails', asy
   await expect
     .poll(() => failedReads.length, 'the browser never gave up on its read')
     .toBeGreaterThanOrEqual(2)
-  await expect(page.getByRole('region', { name: 'Subscription' })).toBeVisible()
+  // The page is a region named Subscription, and its plan's section another inside it.
+  await expect(
+    page.getByRole('region', { name: 'Subscription' }).getByRole('region', { name: 'Subscription' })
+  ).toBeVisible()
   await expect(page.getByText('Enterprise plan')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Retry', exact: true })).toHaveCount(0)
 })
