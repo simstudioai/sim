@@ -359,7 +359,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
 
 ### Trigger Registry (`apps/sim/triggers/registry.ts`) - If triggers exist
 
-```typescript
+```typescript illustrative
 // Add import (alphabetically)
 import {
   {service}EventATrigger,
@@ -423,7 +423,9 @@ a resolvable capability must fail validation; an independent service account use
 ## Step 8: Generate and Validate the Catalog
 
 Run `bun run generate:tool-metadata`, `bun run scripts/generate-docs.ts`,
-`bun run generate:deployment-config`, then `bun run check:audits` (see the `validate-integration`
+`bun run generate:deployment-config`, `bun scripts/sync-platform-integration-metadata.ts` (the
+Platform integration catalog; `check:platform-integration-metadata` is in `check:audits`), then
+`bun run check:audits` (see the `validate-integration`
 skill → Regenerate Derived Artifacts for the full list and what each check verifies).
 
 The docs generator creates `apps/docs/content/docs/integrations/{service}.mdx` — one page per service carrying the block's Actions and, if it has one, its Triggers section. Never hand-edit generated pages; the only editable region is the `{/* MANUAL-CONTENT */}` block (see `scripts/README.md`).
@@ -652,7 +654,7 @@ tools: {
 
 #### 3. Define and register the in-process operation
 
-```typescript
+```typescript illustrative
 export const {service}UploadTool: InternalToolConfig<Params, Response> = {
   id: '{service}_upload',
   // ...
