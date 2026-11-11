@@ -642,8 +642,11 @@ const BITBUCKET_REPOSITORY = /^[A-Za-z0-9][A-Za-z0-9_-]{0,254}\/[A-Za-z0-9_-][A-
  * Reading one repository the token can see is the request Atlassian documents for all
  * three kinds (`GET /2.0/repositories/{workspace}/{repository}` with the `repository`
  * scope): 200 with the repository, 401 for a bad token, 403 without the scope, and 404 for
- * a repository that does not exist or that the token cannot reach.
+ * a repository that does not exist or that the token cannot reach. An Atlassian API token
+ * created for Bitbucket passes the same read, since Bitbucket takes it as a Bearer token
+ * without the account email.
  * https://support.atlassian.com/bitbucket-cloud/docs/using-access-tokens/
+ * https://support.atlassian.com/bitbucket-cloud/docs/using-api-tokens/
  */
 export const validateBitbucketServiceAccount = tokenCheckValidator({
   serviceLabel: 'Bitbucket',

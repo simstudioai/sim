@@ -1866,7 +1866,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'Access token',
-        placeholder: 'Paste a workspace, project, or repository access token',
+        placeholder: 'Paste an access token or a Bitbucket API token',
         secret: true,
       },
       {
@@ -1881,9 +1881,9 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/bitbucket-service-account',
     helpText:
-      'Use a Bitbucket Cloud workspace, project, or repository access token with at least the repository scope. Enter any repository the token can read, as workspace/repository; Sim reads it once to verify the token.',
+      'Use a Bitbucket Cloud workspace, project, or repository access token with at least the repository scope, or an Atlassian API token created for Bitbucket with at least repository read (app passwords no longer work). Enter any repository the token can read, as workspace/repository; Sim reads it once to verify the token.',
     invalidCredentialsHelp:
-      'Bitbucket rejected this token. Check that it has not expired or been revoked, has the repository scope, and can read the repository you entered.',
+      'Bitbucket rejected this token. Check that it has not expired or been revoked, has repository read access, and can read the repository you entered. App passwords no longer work; use an access token or an API token created for Bitbucket.',
   },
   [GRAFANA_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: GRAFANA_SERVICE_ACCOUNT_PROVIDER_ID,
