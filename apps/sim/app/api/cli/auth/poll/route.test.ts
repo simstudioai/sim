@@ -61,6 +61,9 @@ function approved(overrides: Record<string, unknown> = {}) {
   }
 }
 
+/** The name the terminal shows when it asks the caller to revoke a key it refused. */
+const CLI_KEY_NAME = expect.stringMatching(/^CLI \(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}Z\)$/)
+
 describe('POST /api/cli/auth/poll', () => {
   beforeEach(() => {
     mockEnforceIpRateLimit.mockResolvedValue(null)
@@ -91,17 +94,14 @@ describe('POST /api/cli/auth/poll', () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({
       status: 'complete',
-      key: { id: 'key-1', apiKey: 'sk-test' },
+      key: { id: 'key-1', apiKey: 'sk-test', name: CLI_KEY_NAME },
       scope: 'copilot',
       workspaceId: null,
       workspaceBound: false,
     })
     // Second precision, not day: a date-only name made the second login of the
     // day fail after the user had already approved in the browser.
-    expect(mockGenerateCopilotApiKey).toHaveBeenCalledWith(
-      'user-1',
-      expect.stringMatching(/^CLI \(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}Z\)$/)
-    )
+    expect(mockGenerateCopilotApiKey).toHaveBeenCalledWith('user-1', CLI_KEY_NAME)
     expect(mockCompleteApproval).toHaveBeenCalledWith(REQUEST)
     expect(mockReleaseMint).not.toHaveBeenCalled()
   })
@@ -115,15 +115,14 @@ describe('POST /api/cli/auth/poll', () => {
     expect(mockCreatePersonalApiKey).not.toHaveBeenCalled()
   })
 
-  it('mints with the access and lifetime the approval recorded, whatever the poll body says', async () => {
+  it('mints with the access and lifetime the approval recorded', async () => {
     mockPollApproval.mockResolvedValue(
       approved({ scope: 'platform', access: 'read', expiresInDays: 30 })
     )
     const before = Date.now()
-    const response = await POST(
-      pollRequest({ request: REQUEST, verifier: VERIFIER, access: 'write', expiresInDays: null }),
-      { params: Promise.resolve({}) }
-    )
+    const response = await POST(pollRequest({ request: REQUEST, verifier: VERIFIER }), {
+      params: Promise.resolve({}),
+    })
     expect(response.status).toBe(200)
     const [params] = mockCreatePersonalApiKey.mock.calls[0]
     expect(params.access).toBe('read')
@@ -192,7 +191,7 @@ describe('POST /api/cli/auth/poll', () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({
       status: 'complete',
-      key: { id: 'key-1', apiKey: 'sk-test' },
+      key: { id: 'key-1', apiKey: 'sk-test', name: CLI_KEY_NAME },
       scope: 'copilot',
       workspaceId: null,
       workspaceBound: false,

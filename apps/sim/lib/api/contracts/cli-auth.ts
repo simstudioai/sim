@@ -104,7 +104,12 @@ export const pollCliAuthContract = defineRouteContract({
       z.object({ status: z.literal('pending') }),
       z.object({
         status: z.literal('complete'),
-        key: z.object({ id: z.string(), apiKey: z.string() }),
+        key: z.object({
+          id: z.string(),
+          apiKey: z.string(),
+          /** The name the key is listed under in Settings → API keys. */
+          name: z.string(),
+        }),
         /**
          * Echoes what the approving user actually consented to. The CLI asked
          * for a scope in the browser URL, but the approval is what binds it —

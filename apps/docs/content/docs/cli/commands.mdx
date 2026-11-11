@@ -83,7 +83,7 @@ sim login [options]
 | `--method <method>` | No | Credential to obtain: oauth requires OAuth support; api-key creates an API key through pairing (auto-selects when omitted). Accepted values: `oauth`, `api-key`. |
 | `--no-browser` | No | Print the approval URL without opening it (either login method). |
 | `--read-only` | No | Ask only for permission to read, never to change anything. |
-| `--expires-in <days>` | No | API-key login only: days until the key expires (1-365); omit for a key that never expires. |
+| `--expires-in <days>` | No | Log in with an API key that expires after this many days (1-365); without it an API key never expires. |
 | `--callback-port <port>` | No | Pin the local port the browser returns to. |
 | `-y, --yes` | No | Overwrite an existing API-key profile without prompting. |
 

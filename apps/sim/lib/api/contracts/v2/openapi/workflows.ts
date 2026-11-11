@@ -359,7 +359,7 @@ const declaredRoutes = [
       operationId: 'getWorkflowOutline',
       summary: 'Get workflow outline',
       description:
-        'Read the saved draft as a compact outline: connections embedded in their source blocks, loop and parallel children nested under their container, and empty values and editor-only fields omitted. Requires workspace read access, and reveals nothing Get workflow state does not: its derived fields, such as `triggerWebhookUrl`, are computed from values that state already returns. The outline is read-only: it adds those derived fields and omits positions and edge handles, so never send it to Replace workflow state; edit with Apply workflow operations or a full state from Get workflow state. This read records no audit event; `HEAD` mirrors `GET`.',
+        'Read the saved draft as a compact outline: connections embedded in their source blocks, loop and parallel children nested under their container, and null values omitted. Fields hidden from agents are omitted too, some of them real configuration, as are blocks whose parent container no longer exists; compare with Get workflow state for the full configuration. Requires workspace read access, and reveals nothing Get workflow state does not: its derived fields, such as `triggerWebhookUrl`, are computed from values that state already returns. The outline is read-only: it adds those derived fields and omits positions and edge handles, so never send it to Replace workflow state; edit with Apply workflow operations or a full state from Get workflow state. This read records no audit event; `HEAD` mirrors `GET`.',
       errors: RESOURCE_ERRORS,
       success: jsonSuccess('The workflow draft outline.'),
     }),
@@ -438,7 +438,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.applyOperations,
       operationId: 'applyWorkflowOperations',
       summary: 'Apply workflow operations',
-      description: `Apply draft edits and block enablement changes in one write. Requires workspace write access. The live deployment is unchanged; lint is advisory.\n\nInspect \`skipped\` and \`inputValidationErrors\` for edits that did not apply. Deferred edges apply when their targets exist; do not resubmit them. With \`atomic=true\`, declined operations or dropped inputs return \`409\` (\`OPERATIONS_NOT_APPLIED\`) without saving. Use returned \`mintedBlockIds\` in later requests. \`dryRun=true\` evaluates without saving, auditing, or notifying. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Apply draft edits and block enablement changes in one write. Requires workspace write access. The live deployment is unchanged; lint is advisory.\n\nInspect \`skipped\` and \`inputValidationErrors\` for edits that did not apply. Deferred edges apply when their targets exist; do not resubmit them. With \`atomic=true\`, declined operations or dropped inputs return \`409\` (\`OPERATIONS_NOT_APPLIED\`) without saving. A \`409\` with code \`CONFLICT\` means the workflow changed after the batch read it and nothing was saved; re-read the workflow and retry. Use returned \`mintedBlockIds\` in later requests. \`dryRun=true\` evaluates without saving, auditing, or notifying. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_MUTATION_ERRORS,
       success: jsonSuccess('The batch was applied.'),
     }),

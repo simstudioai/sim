@@ -492,6 +492,39 @@ describe('applyWorkflowOperations', () => {
       expect(mockNotify).not.toHaveBeenCalled()
     })
 
+    /** A refused batch must not take the workflow's row lock just to re-read the graph first. */
+    it('refuses a withheld block type before the locked write', async () => {
+      mockPermissionConfig.mockResolvedValue({ allowedIntegrations: ['slack'] })
+      mocks.applyOperations.mockReturnValue({
+        state: graph({ 'block-1': BLOCK, 'block-2': { ...BLOCK, id: 'block-2', type: 'agent' } }),
+        validationErrors: [],
+        skippedItems: [],
+        declinedOperationCount: 0,
+        mintedBlockIds: {},
+      })
+
+      await expect(
+        applyWorkflowOperations.execute({
+          principal: sessionPrincipal,
+          input: { workflowId: 'workflow-1', operations },
+        })
+      ).rejects.toMatchObject({ code: 'forbidden' })
+
+      expect(mocks.replace).not.toHaveBeenCalled()
+    })
+
+    /** Under the lock the workflow exists, so a null re-read is a failed query, not a missing graph. */
+    it('reports a failed re-read under the lock as an internal error', async () => {
+      mockLoadNormalized.mockResolvedValueOnce(graph()).mockResolvedValueOnce(null)
+
+      await expect(
+        applyWorkflowOperations.execute({
+          principal: sessionPrincipal,
+          input: { workflowId: 'workflow-1', operations },
+        })
+      ).rejects.toMatchObject({ code: 'internal' })
+    })
+
     /** The loader orders neither rows nor record keys, so a re-read of the same rows must still match. */
     it('commits when the re-read differs only in row order', async () => {
       const EDGE_A = { id: 'edge-a', source: 'block-1', target: 'block-2' }

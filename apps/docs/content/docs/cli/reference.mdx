@@ -50,7 +50,7 @@ sim login [options]
 | `--method <method>` | No | Credential to obtain: oauth requires OAuth support; api-key creates an API key through pairing (auto-selects when omitted). Accepted values: `oauth`, `api-key`. |
 | `--no-browser` | No | Print the approval URL without opening it (either login method). |
 | `--read-only` | No | Ask only for permission to read, never to change anything. |
-| `--expires-in <days>` | No | API-key login only: days until the key expires (1-365); omit for a key that never expires. |
+| `--expires-in <days>` | No | Log in with an API key that expires after this many days (1-365); without it an API key never expires. |
 | `--callback-port <port>` | No | Pin the local port the browser returns to. |
 | `-y, --yes` | No | Overwrite an existing API-key profile without prompting. |
 
@@ -5126,7 +5126,7 @@ sim schedules list [options]
 | --- | --- | --- |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 | `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
-| `--sort-by <value>` | No | Field used to sort the result. Defaults to "createdAt". Accepted values: `createdAt`. |
+| `--sort-by <value>` | No | Field used to sort the result. `createdAt` is when the schedule was created for the deployment version that runs it: each deploy creates new schedule rows, so a redeployed workflow's schedules move to the newest end. Defaults to "createdAt". Accepted values: `createdAt`. |
 | `--sort-order <value>` | No | Sort direction. Defaults to "desc". Accepted values: `asc`, `desc`. |
 
 </CommandTable>

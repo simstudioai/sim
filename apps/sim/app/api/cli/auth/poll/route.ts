@@ -67,7 +67,7 @@ function approvedExpiresAt(grant: ApprovalGrant): string | null {
 async function mintForGrant(grant: ApprovalGrant): Promise<
   | {
       ok: true
-      key: { id: string; apiKey: string }
+      key: { id: string; apiKey: string; name: string }
       settings?: { access: ApiKeyAccess; expiresAt: string | null }
     }
   | { ok: false; status: number; message: string }
@@ -77,7 +77,7 @@ async function mintForGrant(grant: ApprovalGrant): Promise<
   if (grant.scope === 'copilot') {
     try {
       const key = await generateCopilotApiKey(grant.userId, name)
-      return { ok: true, key }
+      return { ok: true, key: { id: key.id, apiKey: key.apiKey, name } }
     } catch (error) {
       const status = error instanceof CopilotApiKeyError ? error.upstreamStatus : undefined
       return { ok: false, status: status ?? 500, message: 'Failed to generate copilot API key' }
@@ -117,7 +117,7 @@ async function mintForGrant(grant: ApprovalGrant): Promise<
 
   return {
     ok: true,
-    key: { id: result.key.id, apiKey: result.key.key },
+    key: { id: result.key.id, apiKey: result.key.key, name },
     settings: {
       access: result.key.access,
       expiresAt: result.key.expiresAt?.toISOString() ?? null,
