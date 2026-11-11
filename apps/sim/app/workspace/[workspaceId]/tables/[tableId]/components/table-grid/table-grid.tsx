@@ -4979,7 +4979,7 @@ export function TableGrid({
                     <td
                       colSpan={displayColumns.length + 1}
                       role='alert'
-                      className='px-4 py-3 text-[var(--text-error)] text-small'
+                      className='px-4 py-3 text-[var(--text-error)] text-caption'
                     >
                       {rowsError.message}
                     </td>

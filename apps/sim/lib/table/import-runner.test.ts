@@ -306,7 +306,6 @@ describe('runTableImport plan row limit', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetMaxRowsPerTable.mockResolvedValue(limit)
     mockGetTableById.mockResolvedValue(table)
     mockNextImportStartPosition.mockResolvedValue(0)
