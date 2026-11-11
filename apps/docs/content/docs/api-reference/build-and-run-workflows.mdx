@@ -253,7 +253,7 @@ Omit `run` to execute the active deployment. Choose how to wait:
   </Tab>
 </Tabs>
 
-Run failures are reported in the result, not as HTTP errors: branch on `status` (`completed`, `failed`, `paused`, `cancelled`). A run that exceeds its timeout returns `200` with `status: "failed"` and `error.code: "TIMEOUT"`. Poll the run resource until `status` is no longer `queued`, `pending`, or `running`; `sim workflows runs wait` does this and exits `0` completed, `1` failed, `2` cancelled, `3` needs input, or `4` timed out.
+Run failures are reported in the result, not as HTTP errors: branch on `status` (`completed`, `failed`, `paused`, `cancelled`). A run that exceeds its timeout returns `200` with `status: "failed"` and `error.code: "TIMEOUT"`. Poll the run resource until `status` is no longer `queued`, `pending`, `running`, or `redacting` (a finished run whose output is still being scrubbed); `sim workflows runs wait` does this and exits `0` completed, `1` failed, `2` cancelled, `3` needs input, or `4` timed out.
 
 `X-Run-Id` claims a run ID so a retry cannot start a second run. After an uncertain response, retry with the same ID: if the ID was already claimed, the request returns `409` with `RUN_ID_CONFLICT` and does not replay the result. Read the run instead. Do not retry with a new or omitted ID, which can start another run.
 
