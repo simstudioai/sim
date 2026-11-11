@@ -31,7 +31,7 @@ vi.mock('@sim/security/dns', async (importOriginal) => {
   }
 })
 
-import { resolveEnvironmentProxy } from '@/lib/core/network/environment-proxy.server'
+import { resolveEnvironmentProxy } from '@sim/security/environment-proxy'
 import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 import {
   createPinnedFetchWithDispatcher,

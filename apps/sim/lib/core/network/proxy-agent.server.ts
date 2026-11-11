@@ -1,14 +1,14 @@
 import http from 'node:http'
 import https from 'node:https'
 import { isIP } from 'node:net'
+import {
+  isEnvironmentProxyConfigured,
+  resolveEnvironmentProxy,
+} from '@sim/security/environment-proxy'
 import { NodeHttpHandler } from '@smithy/node-http-handler'
 import { Agent, type AgentConnectOpts } from 'agent-base'
 import { HttpProxyAgent } from 'http-proxy-agent'
 import { HttpsProxyAgent } from 'https-proxy-agent'
-import {
-  isEnvironmentProxyConfigured,
-  resolveEnvironmentProxy,
-} from '@/lib/core/network/environment-proxy.server'
 
 /** Matches the AWS SDK's own default agent, so swapping it in changes routing and nothing else. */
 const AGENT_OPTIONS: http.AgentOptions = { keepAlive: true, maxSockets: 50 }

@@ -1,5 +1,5 @@
 import { BlockList, isIP } from 'node:net'
-import { unwrapIpv6Brackets } from '@sim/security/hostnames'
+import { unwrapIpv6Brackets } from './hostnames'
 
 const DEFAULT_PORTS: Record<string, number> = { 'http:': 80, 'https:': 443 }
 

@@ -26,6 +26,10 @@
       "types": "./src/encryption.ts",
       "default": "./src/encryption.ts"
     },
+    "./environment-proxy": {
+      "types": "./src/environment-proxy.ts",
+      "default": "./src/environment-proxy.ts"
+    },
     "./hash": {
       "types": "./src/hash.ts",
       "default": "./src/hash.ts"
