@@ -621,7 +621,7 @@ export function createLogger(module: string, config?: LoggerConfig): Logger {
   return new Logger(module, config)
 }
 
-export type { RequestAuth, RequestContext, SetRequestAuthOptions } from './request-context'
+export type { RequestAuth, RequestContext } from './request-context'
 export {
   getRequestContext,
   runWithRequestContext,

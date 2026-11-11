@@ -52,7 +52,7 @@ interface GcsInlineCredentials {
  * Returns null when the variable is unset (Application Default Credentials).
  * @throws Error when the variable is set but not valid service-account JSON
  */
-export function parseGcsCredentials(): GcsInlineCredentials | null {
+function parseGcsCredentials(): GcsInlineCredentials | null {
   if (!env.GCS_CREDENTIALS_JSON) return null
 
   let parsed: unknown
