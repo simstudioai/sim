@@ -143,12 +143,21 @@ async function redeployWorkflowIfDrifted(workflowId: string, userId: string): Pr
     }
     throw new Error(message)
   }
+  if (deployResult.latestDeploymentAttempt?.isCurrent === false) {
+    throw new OrchestrationError(
+      'conflict',
+      'The workflow deployment attempt is historical and no longer describes production. Retry the chat update.'
+    )
+  }
   if (deployResult.latestDeploymentAttempt?.status !== 'active') {
     throw new OrchestrationError(
       'conflict',
       deployResult.warnings?.[0] ??
         'Workflow deployment is still preparing. Retry the chat update after it becomes active.'
     )
+  }
+  if (!deployResult.activeDeployment) {
+    throw new Error('Workflow deployment reported active without a live deployment version.')
   }
   logger.info(`Redeployed workflow ${workflowId} for chat update (v${deployResult.version})`)
 }
@@ -204,7 +213,9 @@ export const updateChatDeployment = defineAuthorizedWorkspaceUseCase({
 
     await redeployWorkflowIfDrifted(existing.workflowId, actingUserId)
 
-    const values: Partial<ChatDeploymentRow> = {}
+    // The workflow is live by now; this is the explicit re-enable for a chat restored with
+    // its archive's `isActive: false`.
+    const values: Partial<ChatDeploymentRow> = { isActive: true }
     if (input.identifier) values.identifier = input.identifier
     if (input.title) values.title = input.title
     if (input.description !== undefined) values.description = input.description
