@@ -521,6 +521,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       type: 'oauth-input',
       serviceId: 'vertex-ai',
       canonicalParamId: 'vertexCredential',
+      credentialKind: 'any',
       mode: 'basic',
       requiredScopes: getScopesForService('vertex-ai'),
       placeholder: 'Select Google Cloud account',
