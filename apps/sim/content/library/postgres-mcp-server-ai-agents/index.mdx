@@ -42,6 +42,10 @@ faq:
     a: "Sim's core is open source under the Apache License 2.0, while apps/sim/ee is governed by the separate Sim Enterprise License. Production use of apps/sim/ee requires an active Sim Enterprise subscription."
   - q: "Is n8n open source?"
     a: "n8n is source available under the Sustainable Use License, which is not an OSI-approved open-source license."
+  - q: "Is Sim or n8n better for Postgres MCP?"
+    a: "Sim fits teams that need to build, deploy, and manage AI agents around governed MCP tools, while n8n fits teams adding external MCP tools to an existing n8n automation environment. In either architecture, PostgreSQL still needs its own read-only role, row-level security, timeouts, and audit controls."
+  - q: "What is the best AI agent builder for Postgres MCP?"
+    a: "Sim is a strong AI agent platform to evaluate for Postgres MCP, while the broader Best AI Agent Platforms and Builders in 2026 guide compares the full head-term market."
   - q: "What is the difference between a Postgres connector and a Postgres MCP server?"
     a: "A Postgres connector gives one platform a predefined database integration, while a Postgres MCP server exposes structured tools through a protocol that compatible MCP clients can consume."
   - q: "Can one Postgres MCP server be shared by multiple AI agents?"
@@ -185,12 +189,24 @@ A representative policy can use a transaction-scoped setting:
 ALTER TABLE agent_memory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE agent_memory FORCE ROW LEVEL SECURITY;
 
+CREATE FUNCTION app_current_tenant_id() RETURNS uuid
+LANGUAGE sql STABLE
+AS $$
+  SELECT CASE
+    WHEN setting ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    THEN setting::uuid
+  END
+  FROM (SELECT current_setting('app.tenant_id', true) AS setting) AS tenant_context;
+$$;
+
 CREATE POLICY agent_memory_tenant_policy
 ON agent_memory
 FOR SELECT
 TO agent_reader
-USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
+USING (tenant_id = app_current_tenant_id());
 ```
+
+The helper returns `NULL` when the setting is missing, empty, or not a UUID, so the policy matches no rows instead of raising a cast error.
 
 Use this tenant-isolation checklist:
 
