@@ -13,12 +13,11 @@ export interface CrowdStrikeInlineCredentials {
 }
 
 /**
- * Inline API client credentials, or the token and cloud origin the executor
+ * Inline API client credentials, or the token and Falcon cloud the executor
  * resolves from a saved CrowdStrike credential in their place.
  */
 export interface CrowdStrikeBaseParams extends Partial<CrowdStrikeInlineCredentials> {
   accessToken?: string
-  instanceUrl?: string
 }
 
 export interface CrowdStrikeQuerySensorsParams extends CrowdStrikeBaseParams {

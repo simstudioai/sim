@@ -110,7 +110,7 @@ const crowdstrikeAggregatesResponseSchema = z.object({
 const baseRequestSchema = z.object({
   clientId: z.string().min(1, 'Client ID is required').optional(),
   clientSecret: z.string().min(1, 'Client Secret is required').optional(),
-  accessToken: z.string().min(1).optional(),
+  accessToken: z.string().min(1).max(16_384).optional(),
   cloud: z.enum(CROWDSTRIKE_CLOUDS),
 })
 

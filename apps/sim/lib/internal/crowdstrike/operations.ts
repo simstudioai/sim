@@ -1013,8 +1013,9 @@ function inlineCredentials(body: CrowdstrikeQueryBody): CrowdStrikeInlineCredent
 /**
  * Runs one CrowdStrike operation against `body.cloud`. A token minted from a
  * saved credential (`accessToken`) is used as is; inline credentials mint a
- * token, or reuse one cached for them, and a 401 drops that cached token so the
- * next request mints again.
+ * token, or reuse one cached for them. A 401 or 403 drops that cached token so
+ * the next request mints again: a rejected token, or one minted before the API
+ * client was granted a scope, is never reused.
  */
 export async function executeCrowdStrikeRequest(
   body: CrowdstrikeQueryBody,
@@ -1041,6 +1042,8 @@ export async function executeCrowdStrikeRequest(
     body.operation === 'crowdstrike_get_sensor_aggregates'
       ? await executeSensorOperation(body, baseUrl, accessToken, signal)
       : await executeCrowdStrikeOperation(body, baseUrl, accessToken, signal)
-  if (inline && !result.ok && result.status === 401) invalidateAccessToken(inline)
+  if (inline && !result.ok && (result.status === 401 || result.status === 403)) {
+    invalidateAccessToken(inline)
+  }
   return result
 }

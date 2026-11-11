@@ -116,6 +116,30 @@ describe('CrowdStrike operations', () => {
     expect(tokenUrls).toHaveLength(2)
   })
 
+  it('mints a new inline token after Falcon refuses one with 403, so a newly granted scope applies', async () => {
+    const body = {
+      operation: 'crowdstrike_query_sensors' as const,
+      clientId: 'scoped-client',
+      clientSecret: 'scoped-secret',
+      cloud: 'us-1' as const,
+    }
+    let minted = 0
+    fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+      if (url.endsWith('/oauth2/token')) {
+        minted += 1
+        return jsonResponse({ access_token: `token-${minted}`, expires_in: 1799 })
+      }
+      const auth = (init.headers as Record<string, string>).Authorization
+      return auth === 'Bearer token-1'
+        ? jsonResponse({ errors: [{ code: 403, message: 'access denied' }] }, 403)
+        : jsonResponse({ resources: [] })
+    })
+
+    await expect(executeCrowdStrikeRequest(body)).resolves.toMatchObject({ ok: false, status: 403 })
+    await expect(executeCrowdStrikeRequest(body)).resolves.toMatchObject({ ok: true })
+    expect(minted).toBe(2)
+  })
+
   it('never reuses an inline token for a different secret or cloud', async () => {
     fetchMock.mockImplementation(async (url: string) =>
       url.endsWith('/oauth2/token')

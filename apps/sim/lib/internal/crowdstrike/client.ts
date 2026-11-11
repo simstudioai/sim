@@ -169,10 +169,11 @@ export class CrowdStrikeAuthError extends Error {
   }
 }
 
-async function readFalconJson(response: Response): Promise<unknown> {
+async function readFalconJson(response: Response, signal?: AbortSignal): Promise<unknown> {
   const text = await readResponseTextWithLimit(response, {
     maxBytes: MAX_JSON_API_RESPONSE_BYTES,
     label: 'CrowdStrike response body',
+    signal,
   })
 
   try {
@@ -187,7 +188,7 @@ const CROWDSTRIKE_TOKEN_LIFETIME_SECONDS = 30 * 60
 const INLINE_TOKEN_EXPIRY_BUFFER_MS = 60_000
 
 /** A token response's `expires_in`, or Falcon's standard 30-minute lifetime when it is unusable. */
-export function getTokenLifetimeSeconds(expiresIn: unknown): number {
+function getTokenLifetimeSeconds(expiresIn: unknown): number {
   return typeof expiresIn === 'number' && Number.isFinite(expiresIn) && expiresIn > 0
     ? expiresIn
     : CROWDSTRIKE_TOKEN_LIFETIME_SECONDS
@@ -214,6 +215,92 @@ export function invalidateAccessToken(params: CrowdStrikeInlineCredentials): voi
   inlineTokenCache.delete(inlineTokenCacheKey(params))
 }
 
+/** API client credentials for one Falcon token request. */
+export interface CrowdStrikeTokenRequest extends CrowdStrikeInlineCredentials {
+  /** The child CID an MSSP parent's token is locked to. */
+  memberCid?: string
+}
+
+/**
+ * Raised when a token request that does not follow redirects is answered with
+ * one. Falcon redirects a token request sent to a cloud other than the API
+ * client's own and names that cloud in `X-Cs-Region`; `region` carries it only
+ * when it is one of the Falcon clouds Sim knows.
+ */
+export class CrowdStrikeTokenRedirectError extends Error {
+  constructor(
+    readonly status: number,
+    readonly region: CrowdStrikeCloud | null
+  ) {
+    super('CrowdStrike token endpoint answered with a redirect')
+    this.name = 'CrowdStrikeTokenRedirectError'
+  }
+}
+
+/**
+ * Exchanges API client credentials for a Falcon access token:
+ * `POST {cloud API origin}/oauth2/token` with `client_id`, `client_secret`,
+ * and, for an MSSP parent acting on one child, `member_cid`, as form fields.
+ * With `followRedirects: false` a redirect is never followed and throws
+ * {@link CrowdStrikeTokenRedirectError}, so the secret reaches no other host;
+ * the legacy block's inline path keeps following one as it always has. A
+ * refusal throws {@link CrowdStrikeAuthError} with Falcon's status.
+ *
+ * @see https://developer.crowdstrike.com/api-reference/collections/oauth2.md
+ */
+export async function requestCrowdStrikeToken(
+  request: CrowdStrikeTokenRequest,
+  options: { followRedirects: boolean; signal?: AbortSignal }
+): Promise<{ token: string; expiresInSeconds: number }> {
+  const { followRedirects, signal } = options
+  signal?.throwIfAborted()
+  const body = new URLSearchParams({
+    client_id: request.clientId,
+    client_secret: request.clientSecret,
+    grant_type: 'client_credentials',
+  })
+  if (request.memberCid) body.set('member_cid', request.memberCid)
+
+  const response = await fetch(`${getCloudBaseUrl(request.cloud)}/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: body.toString(),
+    cache: 'no-store',
+    redirect: followRedirects ? 'follow' : 'manual',
+    signal,
+  })
+
+  if (!followRedirects && response.status >= 300 && response.status < 400) {
+    await response.body?.cancel().catch(() => {})
+    const region = response.headers.get('x-cs-region')?.trim().toLowerCase()
+    throw new CrowdStrikeTokenRedirectError(
+      response.status,
+      isCrowdStrikeCloud(region) ? region : null
+    )
+  }
+
+  const data = await readFalconJson(response, signal)
+  signal?.throwIfAborted()
+  if (!response.ok) {
+    throw new CrowdStrikeAuthError(
+      getFalconErrorMessage(data, 'Failed to authenticate with CrowdStrike'),
+      response.status
+    )
+  }
+  if (!isRecordLike(data) || typeof data.access_token !== 'string' || !data.access_token.trim()) {
+    throw new CrowdStrikeAuthError('CrowdStrike authentication did not return an access token', 502)
+  }
+
+  return {
+    token: data.access_token,
+    expiresInSeconds: getTokenLifetimeSeconds(data.expires_in),
+  }
+}
+
+/** A token for inline (legacy block) credentials, reused from the cache until shortly before it lapses. */
 export async function getAccessToken(
   params: CrowdStrikeInlineCredentials,
   signal?: AbortSignal
@@ -223,40 +310,13 @@ export async function getAccessToken(
   const cached = inlineTokenCache.get(cacheKey)
   if (cached) return cached
 
-  const baseUrl = getCloudBaseUrl(params.cloud)
-  const response = await fetch(`${baseUrl}/oauth2/token`, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      client_id: params.clientId,
-      client_secret: params.clientSecret,
-      grant_type: 'client_credentials',
-    }).toString(),
-    cache: 'no-store',
+  const { token, expiresInSeconds } = await requestCrowdStrikeToken(params, {
+    followRedirects: true,
     signal,
   })
-
-  const data = await readFalconJson(response)
-  signal?.throwIfAborted()
-  if (!response.ok) {
-    throw new CrowdStrikeAuthError(
-      getFalconErrorMessage(data, 'Failed to authenticate with CrowdStrike'),
-      response.status
-    )
-  }
-
-  if (!isRecordLike(data) || typeof data.access_token !== 'string') {
-    throw new CrowdStrikeAuthError('CrowdStrike authentication did not return an access token', 502)
-  }
-
-  const ttl = Math.floor(
-    getTokenLifetimeSeconds(data.expires_in) * 1000 - INLINE_TOKEN_EXPIRY_BUFFER_MS
-  )
-  if (ttl > 0) inlineTokenCache.set(cacheKey, data.access_token, { ttl })
-  return data.access_token
+  const ttl = Math.floor(expiresInSeconds * 1000 - INLINE_TOKEN_EXPIRY_BUFFER_MS)
+  if (ttl > 0) inlineTokenCache.set(cacheKey, token, { ttl })
+  return token
 }
 
 interface CrowdStrikeRequestOptions {

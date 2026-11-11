@@ -17,7 +17,7 @@ describe('CrowdStrike API client token exchange', () => {
     vi.stubGlobal('fetch', mockFetch)
   })
 
-  it("posts the client credentials to the selected cloud's token endpoint and never follows a redirect", async () => {
+  it("posts the client credentials to the selected cloud's token endpoint without following redirects", async () => {
     const requests: Request[] = []
     mockFetch.mockImplementation(async (input, init) => {
       const request = new Request(input, init)
@@ -31,7 +31,7 @@ describe('CrowdStrike API client token exchange', () => {
     const [request] = requests
     expect(request.url).toBe('https://api.eu-1.crowdstrike.com/oauth2/token')
     expect(request.method).toBe('POST')
-    expect(request.redirect).toBe('error')
+    expect(request.redirect).toBe('manual')
     expect(request.headers.get('content-type')).toBe('application/x-www-form-urlencoded')
     expect(Object.fromEntries(new URLSearchParams(await request.text()))).toEqual({
       grant_type: 'client_credentials',
@@ -84,8 +84,45 @@ describe('CrowdStrike API client token exchange', () => {
     await expect(mintCrowdStrikeServiceAccountToken(FIELDS)).rejects.toMatchObject({ code })
   })
 
-  it('treats a redirect from the token endpoint as a provider failure, not a followed hop', async () => {
-    mockFetch.mockRejectedValue(new TypeError('fetch failed: unexpected redirect'))
+  it("reports a redirect to the API client's own cloud as a wrong cloud and never follows it", async () => {
+    mockFetch.mockResolvedValue(
+      new Response(null, {
+        status: 308,
+        headers: {
+          Location: 'https://api.us-2.crowdstrike.com/oauth2/token',
+          'X-Cs-Region': 'us-2',
+        },
+      })
+    )
+
+    const error = await mintCrowdStrikeServiceAccountToken(FIELDS).catch((caught) => caught)
+
+    expect(error).toMatchObject({
+      code: 'invalid_credentials',
+      status: 400,
+      logDetail: { cloud: 'eu-1', apiClientCloud: 'us-2' },
+    })
+    expect(JSON.stringify(error.logDetail)).not.toContain('https://')
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports any other redirect from the token endpoint as a wrong cloud without naming one', async () => {
+    mockFetch.mockResolvedValue(
+      new Response(null, {
+        status: 302,
+        headers: { Location: 'https://evil.example/oauth2/token', 'X-Cs-Region': 'evil.example' },
+      })
+    )
+
+    const error = await mintCrowdStrikeServiceAccountToken(FIELDS).catch((caught) => caught)
+
+    expect(error).toMatchObject({ code: 'invalid_credentials', status: 400 })
+    expect(JSON.stringify(error.logDetail)).not.toContain('evil.example')
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('treats a network failure reaching the token endpoint as a provider failure', async () => {
+    mockFetch.mockRejectedValue(new TypeError('fetch failed'))
 
     await expect(mintCrowdStrikeServiceAccountToken(FIELDS)).rejects.toMatchObject({
       code: 'provider_unavailable',
