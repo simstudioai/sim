@@ -1,9 +1,3 @@
-.controls {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ui-action-gap);
-}
-
 .count {
   color: var(--ui-secondary);
 }

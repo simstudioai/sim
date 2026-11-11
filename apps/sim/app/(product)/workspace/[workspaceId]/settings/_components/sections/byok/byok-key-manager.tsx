@@ -238,7 +238,7 @@ export function ByokProviderList({
                   leading={<BrandMark providerId={provider.id} icon={provider.icon} />}
                 >
                   {(inherited || keys.length > 0 || capabilities.add) && (
-                    <span className={styles.controls}>
+                    <>
                       {inherited && <StatusTag label='Inherited from organization' />}
                       {keys.length === 0 ? (
                         capabilities.add && (
@@ -256,7 +256,7 @@ export function ByokProviderList({
                           </Button>
                         </>
                       )}
-                    </span>
+                    </>
                   )}
                 </SettingsRow>
               )
@@ -309,7 +309,7 @@ export function ByokProviderKeys({ providerId, onBack, actions }: ByokProviderKe
         {keys.map((key) => (
           <SettingsRow key={key.id} label={key.name ?? 'Unnamed key'} description={key.maskedKey}>
             {(capabilities.update || capabilities.delete) && (
-              <span className={styles.controls}>
+              <>
                 {capabilities.update && (
                   <Button size='compact' onClick={() => edit(provider, key)}>
                     Update
@@ -325,7 +325,7 @@ export function ByokProviderKeys({ providerId, onBack, actions }: ByokProviderKe
                     Delete
                   </Button>
                 )}
-              </span>
+              </>
             )}
           </SettingsRow>
         ))}

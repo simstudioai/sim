@@ -19,7 +19,6 @@ import { SettingsRead } from '@/app/(product)/_components/settings-parts/setting
 import { SwitchRow } from '@/app/(product)/_components/settings-parts/switch-row'
 import { CreateApiKeyModal } from '@/app/(product)/workspace/[workspaceId]/_components/create-api-key-modal/create-api-key-modal'
 import type { WorkspaceSettingsSectionProps } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
-import styles from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/api-keys/api-keys.module.css'
 import {
   type ApiKey,
   createLogger,
@@ -66,7 +65,7 @@ function ApiKeyRow({ apiKey, overridden = false, canDelete, onDelete }: ApiKeyRo
         overridden ? ' · a workspace key has this name' : ''
       }`}
     >
-      <span className={styles.controls}>
+      <>
         {apiKey.access === 'read' && <StatusTag label='Read only' />}
         {overridden && <StatusTag label='Overridden' intent='danger' />}
         <ActionMenu
@@ -83,7 +82,7 @@ function ApiKeyRow({ apiKey, overridden = false, canDelete, onDelete }: ApiKeyRo
             },
           ]}
         />
-      </span>
+      </>
     </SettingsRow>
   )
 }

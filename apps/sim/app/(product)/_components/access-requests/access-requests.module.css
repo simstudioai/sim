@@ -1,9 +1,3 @@
-.controls {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ui-row-gap);
-}
-
 .changes {
   display: grid;
   gap: var(--ui-list-gap);

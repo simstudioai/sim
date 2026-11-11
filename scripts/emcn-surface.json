@@ -8785,7 +8785,7 @@
         "segmented": "52bf1d00ba1c"
       },
       "src/components/settings-section/settings-section.module.css": {
-        "control": "b369cf20e982",
+        "control": "4a8da99becfa",
         "copy": "f26d20906fff",
         "detail": "e5f38682f3dc",
         "identity": "5cf9a7df48d2",
@@ -8941,7 +8941,7 @@
       "src/components/segmented-control/segmented-control.module.css": "b618f87caf6c",
       "src/components/segmented-control/segmented-control.tsx": "08d99a232a85",
       "src/components/settings-section/save-actions.tsx": "a59ba2dd043d",
-      "src/components/settings-section/settings-section.module.css": "fa646cb00a3c",
+      "src/components/settings-section/settings-section.module.css": "d2409b96ac96",
       "src/components/settings-section/settings-section.tsx": "8b8bf9c52cd8",
       "src/components/stack/stack.module.css": "d60c765f4c2c",
       "src/components/stack/stack.tsx": "9c1282860523",

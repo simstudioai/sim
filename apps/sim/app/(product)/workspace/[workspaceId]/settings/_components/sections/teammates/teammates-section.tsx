@@ -21,7 +21,6 @@ import {
 import { SettingsRead } from '@/app/(product)/_components/settings-parts/settings-read'
 import type { WorkspaceSettingsSectionProps } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
 import { InviteTeammatesModal } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/teammates/invite-teammates-modal'
-import styles from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/teammates/teammates.module.css'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import {
   useCancelWorkspaceInvitation,
@@ -262,7 +261,7 @@ export default function TeammatesSection({ workspaceId }: WorkspaceSettingsSecti
                   description={`${teammate.email} · ${teammate.status}`}
                   leading={<Avatar name={teammate.name} src={teammate.image} />}
                 >
-                  <span className={styles.controls}>
+                  <>
                     <ChoiceMenu
                       label={`Workspace access for ${teammate.name}`}
                       options={ROLE_OPTIONS}
@@ -292,7 +291,7 @@ export default function TeammatesSection({ workspaceId }: WorkspaceSettingsSecti
                       align='end'
                       actions={rowActions(teammate)}
                     />
-                  </span>
+                  </>
                 </SettingsRow>
               ))}
               {canManage && (

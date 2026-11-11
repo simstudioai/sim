@@ -12,7 +12,6 @@ import { FailureNotice } from '@sim/emcn/status'
 import { RecipientField } from '@sim/emcn-platform/workspace-fields'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toast } from '@/lib/toast/sink'
-import styles from '@/app/(product)/_components/credential-members/credential-members.module.css'
 import {
   resolveAddEmail,
   useAddWorkspaceCredentialMembers,
@@ -117,7 +116,7 @@ export function CredentialMembers({
               description={member.userEmail || member.userId}
               leading={<Avatar name={name} src={member.userImage ?? undefined} />}
             >
-              <span className={styles.controls}>
+              <>
                 <ChoiceMenu
                   label={`Role for ${name}`}
                   options={MEMBER_ROLE_OPTIONS}
@@ -153,7 +152,7 @@ export function CredentialMembers({
                     </Button>
                   )
                 )}
-              </span>
+              </>
             </SettingsRow>
           )
         })

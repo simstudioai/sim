@@ -7,7 +7,6 @@ import { Pagination } from '@sim/emcn/pagination'
 import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSurface } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice, StatusTag } from '@sim/emcn/status'
-import styles from '@/app/(product)/_components/access-requests/access-requests.module.css'
 import { MyRequestModal } from '@/app/(product)/_components/access-requests/my-request-modal'
 import { RequestAccessModal } from '@/app/(product)/_components/request-access-modal/request-access-modal'
 import type { RequestScope, RequestTarget, useMyRequests } from '@/platform/lib/data/requests'
@@ -57,12 +56,12 @@ export function MyRequests({ scope, view, mine }: MyRequestsProps) {
           <SettingsSurface>
             {mine.rows.map((row) => (
               <SettingsRow key={row.id} label={row.title} description={row.date}>
-                <span className={styles.controls}>
+                <>
                   <StatusTag label={row.status.label} intent={row.status.intent} />
                   <Button size='compact' variant='quiet' onClick={() => viewRequest(row.id)}>
                     View
                   </Button>
-                </span>
+                </>
               </SettingsRow>
             ))}
           </SettingsSurface>
@@ -88,7 +87,7 @@ export function MyRequests({ scope, view, mine }: MyRequestsProps) {
         <SettingsSurface>
           {mine.entries.map((entry) => (
             <SettingsRow key={entry.key} label={entry.label}>
-              <span className={styles.controls}>
+              <>
                 {entry.state === 'allowed' && <StatusTag label='Available' />}
                 {entry.state === 'requestable' && entry.pendingRequestId ? (
                   <Button size='compact' onClick={() => viewRequest(entry.pendingRequestId ?? '')}>
@@ -105,7 +104,7 @@ export function MyRequests({ scope, view, mine }: MyRequestsProps) {
                     </Button>
                   )
                 )}
-              </span>
+              </>
             </SettingsRow>
           ))}
         </SettingsSurface>

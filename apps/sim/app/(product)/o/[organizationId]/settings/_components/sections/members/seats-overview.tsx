@@ -45,12 +45,12 @@ export function SeatsOverview({ seats }: SeatsOverviewProps) {
       </SettingsSection>
     )
   const tags = (
-    <span className={styles.controls}>
+    <>
       {model.pending > 0 && <StatusTag label={`${model.pending} pending`} />}
       {model.overLimit && model.kind === 'enterprise' && (
         <StatusTag label='Over limit' intent='warning' />
       )}
-    </span>
+    </>
   )
   if (model.kind === 'team')
     return (

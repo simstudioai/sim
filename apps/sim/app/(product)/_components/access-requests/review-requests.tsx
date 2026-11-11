@@ -1,14 +1,12 @@
 'use client'
 
 import { Button } from '@sim/emcn/button'
-import { EmptyState } from '@sim/emcn/empty-state'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { Pagination } from '@sim/emcn/pagination'
 import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection, SettingsSurface } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { toast } from '@/lib/toast/sink'
-import styles from '@/app/(product)/_components/access-requests/access-requests.module.css'
 import { ReviewModal } from '@/app/(product)/_components/access-requests/review-modal'
 import { SettingsList } from '@/app/(product)/_components/settings-parts/settings-list'
 import { SectionToolbar } from '@/app/(product)/_components/settings-parts/settings-parts'
@@ -114,7 +112,7 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
         >
           {list.rows.map((row) => (
             <SettingsRow key={row.id} label={row.title} description={row.detail}>
-              <span className={styles.controls}>
+              <>
                 <StatusTag label={row.status.label} intent={row.status.intent} />
                 <Button
                   size='compact'
@@ -123,7 +121,7 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
                 >
                   Review
                 </Button>
-              </span>
+              </>
             </SettingsRow>
           ))}
         </SettingsList>

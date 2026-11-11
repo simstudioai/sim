@@ -8,7 +8,6 @@ import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { SettingsRow } from '@sim/emcn/settings-section'
 import { StatusTag } from '@sim/emcn/status'
-import styles from '@/app/(product)/o/[organizationId]/settings/_components/sections/members/members.module.css'
 import type { MembersActions } from '@/platform/lib/data/members'
 import type {
   InvitationRowModel,
@@ -48,10 +47,10 @@ function RowFrame({ name, email, image, status, control, menuLabel, actions }: R
       description={`${email} · ${status}`}
       leading={<Avatar name={name} src={image} />}
     >
-      <span className={styles.controls}>
+      <>
         {control}
         <ActionMenu label={menuLabel} icon='I108' align='end' actions={actions} />
-      </span>
+      </>
     </SettingsRow>
   )
 }
