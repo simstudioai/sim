@@ -635,6 +635,12 @@ import {
   cbinsightsSearchFirmographicsTool,
 } from '@/tools/cbinsights'
 import {
+  chartQueryCreateBarcodeTool,
+  chartQueryCreateChartFromPromptTool,
+  chartQueryCreateChartTool,
+  chartQueryCreateQrCodeTool,
+} from '@/tools/chartquery'
+import {
   checkrAddReportTagTool,
   checkrApplyReportReviewActionTool,
   checkrCancelAdverseActionTool,
@@ -8568,6 +8574,10 @@ export const tools: Record<string, ExecutableToolConfig> = {
   cbinsights_lookup_organizations: cbinsightsLookupOrganizationsTool,
   cbinsights_rag: cbinsightsRagTool,
   cbinsights_search_firmographics: cbinsightsSearchFirmographicsTool,
+  chartquery_create_chart: chartQueryCreateChartTool,
+  chartquery_create_chart_from_prompt: chartQueryCreateChartFromPromptTool,
+  chartquery_create_qr_code: chartQueryCreateQrCodeTool,
+  chartquery_create_barcode: chartQueryCreateBarcodeTool,
   checkr_add_report_tag: checkrAddReportTagTool,
   checkr_apply_report_review_action: checkrApplyReportReviewActionTool,
   checkr_cancel_adverse_action: checkrCancelAdverseActionTool,
