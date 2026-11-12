@@ -905,6 +905,35 @@ export async function executeConfluenceGetPagesByLabel(
   }
 }
 
+const CQL_ORDER_BY = /\s*\border\s+by\s/iy
+
+/**
+ * Splits a trailing `order by` clause off a CQL fragment so the condition can be
+ * parenthesized while the ordering stays at the end, ignoring quoted values.
+ */
+function splitCqlOrderBy(cql: string): { condition: string; orderBy: string } {
+  let quote: string | null = null
+  let orderByStart = -1
+  for (let index = 0; index < cql.length; index++) {
+    const char = cql[index]
+    if (char === '"' || char === "'") {
+      let backslashes = 0
+      for (let cursor = index - 1; cursor >= 0 && cql[cursor] === '\\'; cursor--) backslashes++
+      if (backslashes % 2 === 0) {
+        if (quote === null) quote = char
+        else if (quote === char) quote = null
+      }
+      continue
+    }
+    if (quote !== null) continue
+    if (index > 0 && !/\s/.test(cql[index - 1])) continue
+    CQL_ORDER_BY.lastIndex = index
+    if (CQL_ORDER_BY.test(cql)) orderByStart = index
+  }
+  if (orderByStart === -1) return { condition: cql, orderBy: '' }
+  return { condition: cql.slice(0, orderByStart), orderBy: ` ${cql.slice(orderByStart).trim()}` }
+}
+
 function escapeCql(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 }
@@ -916,7 +945,11 @@ export async function executeConfluenceSearch(
   assertCursor(input.cursor)
   const client = await createConfluenceClient(input, context.signal)
   let cql = `text ~ "${escapeCql(input.query)}"`
-  if (input.cql?.trim()) cql += ` AND (${input.cql.trim()})`
+  const extraCql = input.cql?.trim()
+  if (extraCql) {
+    const { condition, orderBy } = splitCqlOrderBy(extraCql)
+    cql += condition.trim() ? ` AND (${condition.trim()})${orderBy}` : orderBy
+  }
   const query = new URLSearchParams({
     cql,
     limit: input.limit.toString(),

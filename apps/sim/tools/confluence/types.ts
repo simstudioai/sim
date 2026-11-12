@@ -246,18 +246,6 @@ export const COMMENT_OUTPUT: OutputProperty = {
 }
 
 /**
- * Comments array output definition for list endpoints.
- */
-export const COMMENTS_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of Confluence comments',
-  items: {
-    type: 'object',
-    properties: COMMENT_ITEM_PROPERTIES,
-  },
-}
-
-/**
  * Attachment item properties from Confluence API v2.
  * Based on GET /wiki/api/v2/attachments response structure.
  */

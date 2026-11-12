@@ -200,7 +200,13 @@ export async function executeJsmGetRequests(input: JsmRequestsBody, signal?: Abo
     const result = validateEnum(input.approvalStatus, APPROVAL_STATUS, 'approvalStatus')
     if (!result.isValid) throw new JsmOperationError(result.error || 'Invalid approvalStatus', 400)
   }
+  if (input.approvalStatus && input.requestOwnership !== 'APPROVER') {
+    throw new JsmOperationError('approvalStatus requires requestOwnership APPROVER', 400)
+  }
   if (input.organizationId) validateId(input.organizationId, 'organizationId')
+  if (input.organizationId && input.requestOwnership !== 'ORGANIZATION') {
+    throw new JsmOperationError('organizationId requires requestOwnership ORGANIZATION', 400)
+  }
   const client = await createJsmClient(input, signal)
   const query = new URLSearchParams()
   append(query, 'serviceDeskId', input.serviceDeskId)

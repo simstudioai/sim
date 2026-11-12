@@ -178,6 +178,26 @@ describe('Confluence operations', () => {
     })
   })
 
+  it('keeps a trailing CQL order by after the parenthesized filter', async () => {
+    const fetchMock = vi.fn(async () => Response.json({ results: [], totalSize: 0, _links: {} }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await executeConfluenceSearch(
+      {
+        ...CONNECTION,
+        query: 'release',
+        limit: 25,
+        cql: 'title ~ "sort order by x" ORDER BY lastmodified desc',
+      },
+      { headers: new Headers(), requestId: 'request-1' }
+    )
+
+    const sentCql = new URL(String(fetchMock.mock.calls[0]?.[0])).searchParams.get('cql')
+    expect(sentCql).toBe(
+      'text ~ "release" AND (title ~ "sort order by x") ORDER BY lastmodified desc'
+    )
+  })
+
   it('fails closed when stored-file authorization denies access', async () => {
     mockAssertToolFileAccess.mockResolvedValueOnce(Response.json({ error: 'Forbidden' }))
 

@@ -815,7 +815,7 @@ export const BitbucketBlock: BlockConfig = {
     },
     {
       id: 'targetRef',
-      title: 'Branch or Tag',
+      title: 'Branch',
       type: 'short-input',
       required: true,
       condition: { field: 'operation', value: 'bitbucket_trigger_pipeline' },

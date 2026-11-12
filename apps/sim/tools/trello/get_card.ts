@@ -4,10 +4,9 @@ import {
   extractTrelloErrorMessage,
   mapTrelloCard,
   TRELLO_API_BASE_URL,
-  TRELLO_CARD_OUTPUT_DESCRIPTION,
-  TRELLO_CARD_OUTPUT_PROPERTIES,
 } from '@/tools/trello/shared'
 import type { TrelloGetCardParams, TrelloGetCardResponse } from '@/tools/trello/types'
+import { TRELLO_CARD_OUTPUT_PROPERTIES } from '@/tools/trello/types'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -124,7 +123,8 @@ export const trelloGetCardTool: ToolConfig<TrelloGetCardParams, TrelloGetCardRes
   outputs: {
     card: {
       type: 'json',
-      description: `Card (${TRELLO_CARD_OUTPUT_DESCRIPTION})`,
+      description:
+        'Card (id, name, desc, url, shortUrl, shortLink, idShort, idBoard, idList, closed, pos, labelIds, labels, idMembers, idChecklists, due, start, dueComplete, dateLastActivity, badges, checklists, attachments, members)',
       optional: true,
       properties: TRELLO_CARD_OUTPUT_PROPERTIES,
     },

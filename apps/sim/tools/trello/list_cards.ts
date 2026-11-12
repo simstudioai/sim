@@ -4,9 +4,9 @@ import {
   extractTrelloErrorMessage,
   mapTrelloCard,
   TRELLO_API_BASE_URL,
-  TRELLO_CARD_OUTPUT_PROPERTIES,
 } from '@/tools/trello/shared'
 import type { TrelloListCardsParams, TrelloListCardsResponse } from '@/tools/trello/types'
+import { TRELLO_CARD_OUTPUT_PROPERTIES } from '@/tools/trello/types'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 

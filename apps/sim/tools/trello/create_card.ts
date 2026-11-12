@@ -4,10 +4,9 @@ import {
   extractTrelloErrorMessage,
   mapTrelloCard,
   TRELLO_API_BASE_URL,
-  TRELLO_CARD_OUTPUT_DESCRIPTION,
-  TRELLO_CARD_OUTPUT_PROPERTIES,
 } from '@/tools/trello/shared'
 import type { TrelloCreateCardParams, TrelloCreateCardResponse } from '@/tools/trello/types'
+import { TRELLO_CARD_OUTPUT_PROPERTIES } from '@/tools/trello/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const trelloCreateCardTool: ToolConfig<TrelloCreateCardParams, TrelloCreateCardResponse> = {
@@ -176,7 +175,8 @@ export const trelloCreateCardTool: ToolConfig<TrelloCreateCardParams, TrelloCrea
   outputs: {
     card: {
       type: 'json',
-      description: `Created card (${TRELLO_CARD_OUTPUT_DESCRIPTION})`,
+      description:
+        'Created card (id, name, desc, url, shortUrl, shortLink, idShort, idBoard, idList, closed, pos, labelIds, labels, idMembers, idChecklists, due, start, dueComplete, dateLastActivity, badges, checklists, attachments, members)',
       optional: true,
       properties: TRELLO_CARD_OUTPUT_PROPERTIES,
     },

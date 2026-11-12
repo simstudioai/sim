@@ -5324,7 +5324,6 @@
   "apps/sim/tools/confluence/types.ts#ATTACHMENT_ITEM_PROPERTIES",
   "apps/sim/tools/confluence/types.ts#ATTACHMENT_OUTPUT",
   "apps/sim/tools/confluence/types.ts#COMMENT_BODY_OUTPUT_PROPERTIES",
-  "apps/sim/tools/confluence/types.ts#COMMENT_ITEM_PROPERTIES",
   "apps/sim/tools/confluence/types.ts#COMMENT_OUTPUT",
   "apps/sim/tools/confluence/types.ts#LABELS_OUTPUT",
   "apps/sim/tools/confluence/types.ts#LABEL_OUTPUT",

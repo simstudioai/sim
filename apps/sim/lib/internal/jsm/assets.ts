@@ -147,14 +147,17 @@ const AQL_ORDER_BY = /\s+order\s+by\s/iy
 
 /**
  * Splits a trailing `order by` clause off an AQL query, ignoring matches inside
- * double-quoted values, since AQL requires the ordering to stay at the end.
+ * double-quoted values (including escaped `\\"`), since AQL requires the ordering to
+ * stay at the end.
  */
 function splitAqlOrderBy(qlQuery: string): { condition: string; orderBy: string } {
   let inQuotes = false
   let orderByStart = -1
   for (let index = 0; index < qlQuery.length; index++) {
     if (qlQuery[index] === '"') {
-      inQuotes = !inQuotes
+      let backslashes = 0
+      for (let cursor = index - 1; cursor >= 0 && qlQuery[cursor] === '\\'; cursor--) backslashes++
+      if (backslashes % 2 === 0) inQuotes = !inQuotes
       continue
     }
     if (inQuotes) continue

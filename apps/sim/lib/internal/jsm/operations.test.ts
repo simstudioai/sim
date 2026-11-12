@@ -167,4 +167,26 @@ describe('JSM operations', () => {
       }),
     })
   })
+
+  it.each([
+    [{ approvalStatus: 'MY_PENDING_APPROVAL', requestOwnership: 'OWNED_REQUESTS' }, 'APPROVER'],
+    [{ organizationId: '3', requestOwnership: 'APPROVER' }, 'ORGANIZATION'],
+  ])(
+    'rejects %o, which Atlassian only accepts with requestOwnership %s',
+    async (filters, owner) => {
+      await expect(executeJsmGetRequests({ ...BASE, ...filters })).rejects.toThrow(owner)
+    }
+  )
+
+  it('does not split an order by inside an escaped quote', async () => {
+    mocks.client.json.mockResolvedValueOnce({ values: [], total: 0, isLast: 'true' })
+    await executeJsmSearchObjectsAql({
+      ...BASE,
+      qlQuery: 'Name = "say \\" order by \\" x" order by Name',
+      objectTypeId: '7',
+    })
+    expect(JSON.parse(String(mocks.client.json.mock.calls.at(-1)?.[1]?.body))).toEqual({
+      qlQuery: '(Name = "say \\" order by \\" x") AND objectTypeId = 7 order by Name',
+    })
+  })
 })
