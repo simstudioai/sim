@@ -193,6 +193,18 @@ export interface EvaluationInput {
   questions: unknown
 }
 
+/** Signing credentials resolved from a saved AWS credential for one Bedrock request. */
+export interface BedrockCredentialSession {
+  /** The saved credential the session came from; scopes the provider client cache. */
+  credentialId: string
+  accessKeyId: string
+  secretAccessKey: string
+  /** Present for STS sessions (assumed and keyless roles); absent for long-lived keys. */
+  sessionToken?: string
+  /** When an STS session ends; absent for long-lived keys. */
+  expiration?: Date
+}
+
 export interface ProviderRequest {
   evaluation?: EvaluationInput
   /** Server-installed stable identity resolver; never accepted from an API payload. */
@@ -239,6 +251,12 @@ export interface ProviderRequest {
   bedrockAccessKeyId?: string
   bedrockSecretKey?: string
   bedrockRegion?: string
+  /**
+   * A saved AWS credential the caller authorized and resolved server-side; never
+   * taken from block or tool input. When set, Bedrock signs with it alone: never
+   * with inline keys or the deployment's own AWS credentials.
+   */
+  bedrockSession?: BedrockCredentialSession
   reasoningEffort?: string
   verbosity?: string
   thinkingLevel?: string

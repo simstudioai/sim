@@ -13,7 +13,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mockSend = vi.fn()
 const capturedRequestHistories = vi.hoisted(() => [] as unknown[])
 
+const mockGetAwsCredentials = vi.hoisted(() => vi.fn(() => 'deployment-credential-chain'))
+
 vi.mock('@/providers/conversation-history', () => providersConversationHistoryMock)
+
+vi.mock('@/lib/core/config/aws', () => ({ getAwsCredentials: mockGetAwsCredentials }))
 
 vi.mock('@aws-sdk/client-bedrock-runtime', () => ({
   BedrockRuntimeClient: vi.fn().mockImplementation(
@@ -87,6 +91,7 @@ describe('bedrockProvider credential handling', () => {
   beforeEach(() => {
     capturedRequestHistories.length = 0
     clearProviderClientCacheForTests()
+    mockGetAwsCredentials.mockClear()
     mockSend.mockResolvedValue({
       output: { message: { content: [{ text: 'response' }] } },
       usage: { inputTokens: 10, outputTokens: 5 },
@@ -154,6 +159,95 @@ describe('bedrockProvider credential handling', () => {
         secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
       },
     })
+  })
+
+  it("signs only with a saved credential's session, never the deployment's own credentials", async () => {
+    await bedrockProvider.executeRequest({
+      ...baseRequest,
+      bedrockSession: {
+        credentialId: 'cred-1',
+        accessKeyId: 'ASIASESSIONKEY000001',
+        secretAccessKey: 'session-secret',
+        sessionToken: 'session-token',
+        expiration: new Date('2030-01-01T00:00:00Z'),
+      },
+    })
+
+    expect(BedrockRuntimeClient).toHaveBeenLastCalledWith({
+      region: 'us-east-1',
+      credentials: {
+        accessKeyId: 'ASIASESSIONKEY000001',
+        secretAccessKey: 'session-secret',
+        sessionToken: 'session-token',
+      },
+    })
+    expect(mockGetAwsCredentials).not.toHaveBeenCalled()
+  })
+
+  it('prefers a saved credential over inline keys left on the request', async () => {
+    await bedrockProvider.executeRequest({
+      ...baseRequest,
+      bedrockAccessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+      bedrockSession: {
+        credentialId: 'cred-1',
+        accessKeyId: 'AKIASAVEDKEY00000001',
+        secretAccessKey: 'saved-secret',
+      },
+    })
+
+    expect(BedrockRuntimeClient).toHaveBeenLastCalledWith({
+      region: 'us-east-1',
+      credentials: { accessKeyId: 'AKIASAVEDKEY00000001', secretAccessKey: 'saved-secret' },
+    })
+    expect(mockGetAwsCredentials).not.toHaveBeenCalled()
+  })
+
+  it('reuses one client per session and builds a new one when the session changes', async () => {
+    const session = {
+      credentialId: 'cred-1',
+      accessKeyId: 'ASIASESSIONKEY000001',
+      secretAccessKey: 'session-secret',
+      sessionToken: 'session-token',
+      expiration: new Date('2030-01-01T00:00:00Z'),
+    }
+    vi.mocked(BedrockRuntimeClient).mockClear()
+
+    await bedrockProvider.executeRequest({ ...baseRequest, bedrockSession: session })
+    await bedrockProvider.executeRequest({ ...baseRequest, bedrockSession: { ...session } })
+    expect(BedrockRuntimeClient).toHaveBeenCalledTimes(1)
+
+    await bedrockProvider.executeRequest({
+      ...baseRequest,
+      bedrockSession: {
+        ...session,
+        accessKeyId: 'ASIASESSIONKEY000002',
+        sessionToken: 'next-token',
+        expiration: new Date('2030-01-01T01:00:00Z'),
+      },
+    })
+    expect(BedrockRuntimeClient).toHaveBeenCalledTimes(2)
+  })
+
+  it('builds a new client when a long-lived saved key pair is corrected', async () => {
+    const session = {
+      credentialId: 'cred-1',
+      accessKeyId: 'AKIASAVEDKEY00000001',
+      secretAccessKey: 'mistyped-secret',
+    }
+    vi.mocked(BedrockRuntimeClient).mockClear()
+
+    await bedrockProvider.executeRequest({ ...baseRequest, bedrockSession: session })
+    await bedrockProvider.executeRequest({
+      ...baseRequest,
+      bedrockSession: { ...session, secretAccessKey: 'corrected-secret' },
+    })
+
+    expect(BedrockRuntimeClient).toHaveBeenCalledTimes(2)
+    expect(BedrockRuntimeClient).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        credentials: { accessKeyId: 'AKIASAVEDKEY00000001', secretAccessKey: 'corrected-secret' },
+      })
+    )
   })
 
   it('omits temperature for catalog models that do not support it', async () => {
