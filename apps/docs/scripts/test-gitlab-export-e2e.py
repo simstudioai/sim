@@ -51,6 +51,10 @@ class GitLabFixture(BaseHTTPRequestHandler):
                                  "issues_access_level": "enabled", "wiki_access_level": "enabled"})
         elif endpoint == "projects/91/members/all":
             page = parse_qs(parsed.query).get("page", ["1"])[0]
+            total = "11" if scenario in ("truncated-membership", "changing-total") else "10"
+            if scenario == "changing-total" and page == "2":
+                total = "10"
+            headers = {} if scenario == "missing-pagination" else {"X-Total": total}
             if scenario == "page-failure" and page == "2":
                 self.reply(500, {"message": TOKEN})
             elif scenario == "pagination-loop":
@@ -60,13 +64,13 @@ class GitLabFixture(BaseHTTPRequestHandler):
             elif scenario == "empty":
                 self.reply(200, [member(3, access_level=10)])
             elif page == "1":
-                self.reply(200, [member(2), member(1)], {"X-Next-Page": "2"})
+                self.reply(200, [member(2), member(1)], {**headers, "X-Next-Page": "2"})
             else:
                 self.reply(200, [member(3, access_level=10), member(4, state="blocked"),
                                  member(5), member(6, expires_at="2000-01-01"),
                                  member(7), member(8, access_level=15), member(9),
                                  member(10, expires_at=datetime.now(timezone.utc).date().isoformat())],
-                           {"X-Next-Page": ""})
+                           {**headers, "X-Next-Page": ""})
         elif endpoint.startswith("users/"):
             user_id = int(endpoint.split("/")[1])
             email = {1: "ALICE@example.com", 2: "bob@example.com", 7: "carol@example.com"}.get(
@@ -117,6 +121,7 @@ def run():
                 for scenario, expected_error in [
                     ("success", None), ("numeric-project", None), ("missing-pagination", None),
                     ("issues-only", None), ("paced", None),
+                    ("truncated-membership", "total"), ("changing-total", "changed"),
                     ("hidden-email", "email"), ("duplicate-email", "email"),
                     ("wrong-identity", "identity"), ("denied", "403"),
                     ("page-failure", "500"), ("pagination-loop", "pagination"),

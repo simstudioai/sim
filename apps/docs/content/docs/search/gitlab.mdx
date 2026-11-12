@@ -102,7 +102,7 @@ This creates `gitlab-permissions/users.csv` and `gitlab-permissions/project-perm
 
 The export includes active, unlocked human members with Reporter access or higher. It excludes Guests, Planners, bots, and memberships expiring today or earlier in UTC. It does not infer access from public/internal visibility, administrator or Auditor privileges, or custom permissions below Reporter. GitLab policies such as SSO or external authorization are not represented by these CSVs. Review the grants against your organization's access requirements before uploading them.
 
-Requests run serially, paced at 60 per minute by default. Set `--requests-per-minute` to change this export-job ceiling; it does not configure live Search traffic. Each run uses one project request, one request per membership page, and one profile request per candidate reader. API errors, hidden emails, identity conflicts, and oversized exports stop the job without publishing either file.
+Requests run serially, paced at 60 per minute by default. Set `--requests-per-minute` to change this export-job ceiling; it does not configure live Search traffic. Each run uses one project request, one request per membership page, and one profile request per candidate reader. API errors, hidden emails, identity conflicts, inconsistent pagination totals (when GitLab provides them), and oversized exports stop the job without publishing either file. Run exports after bulk membership updates finish; paginated API reads are not a point-in-time snapshot.
 
 ## Access checks
 

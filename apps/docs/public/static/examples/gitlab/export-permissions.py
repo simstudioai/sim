@@ -100,11 +100,19 @@ def export(client, project):
     users, emails, seen_members = {}, {}, set()
     today = datetime.now(timezone.utc).date()
     page = 1
+    expected_total = None
     while page <= 1000:
         members, headers = client.get(f"projects/{project_id}/members/all",
                                       {"per_page": 100, "page": page})
         if not isinstance(members, list) or len(members) > 100:
             raise ExportError("GitLab returned an invalid membership page.")
+        total = headers.get("X-Total")
+        if total is not None:
+            if not re.fullmatch(r"[0-9]{1,6}", total) or int(total) > MAX_ROWS:
+                raise ExportError("GitLab membership total is invalid or exceeds the 100,000-row limit.")
+            if expected_total is not None and int(total) != expected_total:
+                raise ExportError("GitLab membership total changed during pagination. Rerun the export.")
+            expected_total = int(total)
         for member in members:
             if not isinstance(member, dict):
                 raise ExportError("GitLab returned an invalid membership.")
@@ -154,6 +162,8 @@ def export(client, project):
         page = int(next_page)
     else:
         raise ExportError("GitLab membership pagination exceeds 1,000 pages.")
+    if expected_total is not None and len(seen_members) != expected_total:
+        raise ExportError("Exported membership count does not match GitLab's total. Rerun the export.")
     if not users:
         raise ExportError("No eligible readers. Pause search in Sim; empty CSVs cannot revoke all grants.")
     return project_path, users
