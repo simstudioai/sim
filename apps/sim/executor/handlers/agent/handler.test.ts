@@ -1156,6 +1156,7 @@ describe('AgentBlockHandler', () => {
       await handler.execute(mockContext, mockBlock, {
         ...baseInputs,
         model: 'bedrock/claude',
+        bedrockAuthMode: 'credential',
         bedrockCredential: 'aws-cred',
         bedrockRegion: 'us-west-2',
       })
@@ -1175,7 +1176,7 @@ describe('AgentBlockHandler', () => {
     })
 
     it('fails a Bedrock call whose AWS credential cannot be used instead of sending it', async () => {
-      mockResolveBedrockCredentialSession.mockRejectedValue(
+      mockResolveBedrockCredentialSession.mockRejectedValueOnce(
         new Error('Not authorized to use this AWS credential')
       )
 
@@ -1183,11 +1184,11 @@ describe('AgentBlockHandler', () => {
         handler.execute(mockContext, mockBlock, {
           ...baseInputs,
           model: 'bedrock/claude',
+          bedrockAuthMode: 'credential',
           bedrockCredential: 'aws-cred',
         })
       ).rejects.toThrow('Not authorized to use this AWS credential')
       expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
-      mockResolveBedrockCredentialSession.mockReset()
     })
 
     it('fails a Bedrock call set to a saved AWS credential when the credential resolves blank', async () => {
@@ -1215,6 +1216,7 @@ describe('AgentBlockHandler', () => {
       await handler.execute(mockContext, mockBlock, {
         ...baseInputs,
         model: 'bedrock/claude',
+        bedrockAuthMode: 'credential',
         bedrockCredential: 'aws-cred',
         fallbackModels: [{ model: 'gpt-4o-mini' }],
       })

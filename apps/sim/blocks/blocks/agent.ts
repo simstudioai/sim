@@ -565,7 +565,8 @@ Return ONLY the JSON array.`,
     },
     bedrockCredential: {
       type: 'string',
-      description: 'Saved AWS credential ID for Bedrock, used instead of access keys',
+      description:
+        "Saved AWS credential ID for Bedrock, used instead of access keys when bedrockAuthMode is 'credential'",
     },
     responseFormat: {
       type: 'json',

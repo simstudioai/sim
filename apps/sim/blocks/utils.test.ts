@@ -163,6 +163,24 @@ describe('getSelectedBedrockCredential', () => {
     ).toBeUndefined()
     expect(getSelectedBedrockCredential({})).toBeUndefined()
   })
+
+  it('signs with a credential exactly when the block shows and serializes the credential picker', () => {
+    const picker = getProviderCredentialSubBlocks().find(
+      (subBlock) => subBlock.id === 'bedrockCredential'
+    )
+    const cases: Record<string, unknown>[] = [
+      { bedrockCredential: 'cred-1' },
+      { bedrockAuthMode: '', bedrockCredential: 'cred-1' },
+      { bedrockAuthMode: 'access_keys', bedrockCredential: 'cred-1' },
+      { bedrockAuthMode: 'credential', bedrockCredential: 'cred-1' },
+    ]
+    for (const values of cases) {
+      const withModel = { model: 'bedrock/my-inference-profile', ...values }
+      expect(getSelectedBedrockCredential(values) !== undefined, JSON.stringify(values)).toBe(
+        evaluateSubBlockCondition(picker?.condition, withModel)
+      )
+    }
+  })
 })
 
 describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {

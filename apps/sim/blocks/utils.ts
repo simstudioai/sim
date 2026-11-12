@@ -513,47 +513,49 @@ function getModelProviderCondition(...providerIds: ProviderId[]) {
 }
 
 /**
- * Bedrock fields shown for one AWS authentication mode. A block saved before
- * the mode existed has no `bedrockAuthMode` and keeps its access keys. Like
- * {@link getModelProviderCondition}, the answer is folded into a single `model`
- * clause, so blocks that wrap these fields in their own condition still can.
+ * Whether a block's Bedrock call signs with a saved AWS credential. The one rule
+ * behind both the fields a block shows and serializes and the credential its
+ * call uses: only an explicit `bedrockAuthMode: 'credential'` selects one, so a
+ * block saved before the mode existed (no `bedrockAuthMode`) keeps its access keys.
+ */
+function usesSavedBedrockCredential(values: { bedrockAuthMode?: unknown } | undefined): boolean {
+  return values?.bedrockAuthMode === 'credential'
+}
+
+/**
+ * Bedrock fields shown for one AWS authentication mode, decided by
+ * {@link usesSavedBedrockCredential}. Like {@link getModelProviderCondition}, the
+ * answer is folded into a single `model` clause.
  */
 function getBedrockAuthModeCondition(mode: 'access_keys' | 'credential') {
   return (values?: Record<string, unknown>) => {
     const model = typeof values?.model === 'string' ? values.model : ''
-    const usesCredential = values?.bedrockAuthMode === 'credential'
     return buildModelVisibilityCondition(
       model,
       findProviderFromModel(model.trim()) === 'bedrock' &&
-        usesCredential === (mode === 'credential')
+        usesSavedBedrockCredential(values) === (mode === 'credential')
     )
   }
 }
 
 /**
  * The saved AWS credential ID a block's Bedrock call signs with, or undefined
- * when the block uses access keys. A block saved before the auth mode existed
- * has no `bedrockAuthMode` and uses a credential only when one is set. A block
- * set to a saved credential whose ID resolves blank (an empty reference) is
- * refused, so its call never falls back to inline keys or the deployment's own
- * AWS credentials.
+ * when the block uses access keys (see {@link usesSavedBedrockCredential}). A
+ * block set to a saved credential whose ID resolves blank (an empty reference)
+ * is refused, so its call never falls back to inline keys or the deployment's
+ * own AWS credentials.
  */
-export function getSelectedBedrockCredential({
-  bedrockAuthMode,
-  bedrockCredential,
-}: {
+export function getSelectedBedrockCredential(values: {
   bedrockAuthMode?: unknown
   bedrockCredential?: unknown
 }): string | undefined {
-  if (bedrockAuthMode === 'access_keys') return undefined
-  const credentialId = typeof bedrockCredential === 'string' ? bedrockCredential.trim() : ''
+  if (!usesSavedBedrockCredential(values)) return undefined
+  const credentialId =
+    typeof values.bedrockCredential === 'string' ? values.bedrockCredential.trim() : ''
   if (credentialId) return credentialId
-  if (bedrockAuthMode === 'credential') {
-    throw new Error(
-      'Select an AWS credential for Bedrock, or switch AWS Authentication to access keys'
-    )
-  }
-  return undefined
+  throw new Error(
+    'Select an AWS credential for Bedrock, or switch AWS Authentication to access keys'
+  )
 }
 
 /**
@@ -727,7 +729,8 @@ export const PROVIDER_CREDENTIAL_INPUTS = {
   },
   bedrockCredential: {
     type: 'string',
-    description: 'Saved AWS credential ID for Bedrock, used instead of access keys',
+    description:
+      "Saved AWS credential ID for Bedrock, used instead of access keys when bedrockAuthMode is 'credential'",
   },
 } as const
 

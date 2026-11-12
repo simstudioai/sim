@@ -197,6 +197,7 @@ describe('EvaluatorBlockHandler', () => {
     await handler.execute(mockContext, mockBlock, {
       ...admissionInputs,
       model: 'bedrock/claude',
+      bedrockAuthMode: 'credential',
       bedrockCredential: 'aws-cred',
     })
 
@@ -240,6 +241,7 @@ describe('EvaluatorBlockHandler', () => {
     await handler.execute(mockContext, mockBlock, {
       ...admissionInputs,
       model: 'bedrock/claude',
+      bedrockAuthMode: 'credential',
       bedrockCredential: 'aws-cred',
       fallbackModels: [{ model: 'claude-sonnet-5' }],
     })
@@ -261,6 +263,7 @@ describe('EvaluatorBlockHandler', () => {
       handler.execute(mockContext, mockBlock, {
         ...admissionInputs,
         model: 'bedrock/claude',
+        bedrockAuthMode: 'credential',
         bedrockCredential: 'aws-cred',
       })
     ).rejects.toThrow('Not authorized to use this AWS credential')

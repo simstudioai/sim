@@ -199,6 +199,7 @@ describe('RouterBlockHandler', () => {
     await handler.execute(mockContext, mockBlock, {
       prompt: 'Pick a destination',
       model: 'bedrock/claude',
+      bedrockAuthMode: 'credential',
       bedrockCredential: 'aws-cred',
     })
 
@@ -578,6 +579,7 @@ describe('RouterBlockHandler V2', () => {
       context: 'Help me',
       model: 'bedrock/claude',
       routes: [{ id: 'route-support', title: 'Support', value: 'Needs help' }],
+      bedrockAuthMode: 'credential',
       bedrockCredential: 'aws-cred',
     })
 
