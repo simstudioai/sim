@@ -26,6 +26,7 @@ interface EditConnectorModalProps {
   knowledgeBaseId: string
   isSearchIndex?: boolean
   connector: ConnectorData
+  savedCredentialSetupEnabled?: boolean
 }
 
 export function EditConnectorModal({
@@ -35,6 +36,7 @@ export function EditConnectorModal({
   isSearchIndex = false,
   connector,
   scope,
+  savedCredentialSetupEnabled = false,
 }: EditConnectorModalProps) {
   const [activeTab, setActiveTab] = useState('settings')
   const [documentFilter, setDocumentFilter] = useState<ConnectorDocumentFilter>('active')
@@ -44,6 +46,7 @@ export function EditConnectorModal({
     isSearchIndex,
     connector,
     onSaved: () => onOpenChange(false),
+    savedCredentialSetupEnabled,
   })
 
   return (

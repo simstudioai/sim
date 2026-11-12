@@ -8,6 +8,11 @@ import {
   credentialsAccessMockFns,
 } from '@sim/testing/mocks/credentials-access.mock'
 import { environmentUtilsMockFns } from '@sim/testing/mocks/environment-utils.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import {
+  internalAwsCredentialsMock,
+  internalAwsCredentialsMockFns,
+} from '@sim/testing/mocks/internal-aws-credentials.mock'
 import {
   knowledgeAccessScopeMock,
   knowledgeAccessScopeMockFns,
@@ -71,6 +76,8 @@ vi.mock('@/lib/credentials/application/organization-credentials', () => ({
 }))
 
 vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
+vi.mock('@/lib/internal/aws/credentials', () => internalAwsCredentialsMock)
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/api-key/crypto', () => ({ decryptApiKey: hoisted.decryptApiKey }))
 
 vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
@@ -87,6 +94,15 @@ vi.mock('@/connectors/registry.server', () => ({
     },
     confluence: {
       auth: { mode: 'oauth', requiredScopes: ['read:confluence-content.all'] },
+      validateConfig: hoisted.validateConnectorConfig,
+    },
+    s3: {
+      name: 'Amazon S3',
+      auth: {
+        mode: 'apiKey',
+        label: 'Secret Access Key',
+        savedCredential: { provider: 'aws', label: 'Saved AWS credential' },
+      },
       validateConfig: hoisted.validateConnectorConfig,
     },
     google_drive: {
@@ -130,6 +146,7 @@ import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import { gmailConnectorMeta } from '@/connectors/gmail/meta'
 import { googleCalendarConnectorMeta } from '@/connectors/google-calendar/meta'
 import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
+import { s3ConnectorMeta } from '@/connectors/s3/meta'
 
 const mocks = {
   ...hoisted,
@@ -339,6 +356,43 @@ describe('knowledge connector application use cases', () => {
     })
     expect(mocks.resolveTokenBundle).not.toHaveBeenCalled()
     expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
+  })
+
+  it('refuses another service’s credential for an S3 connector before resolving it', async () => {
+    featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValueOnce(true)
+    mocks.getCredentialActorContext.mockResolvedValueOnce({
+      credential: {
+        id: 'credential-1',
+        workspaceId: 'workspace-b',
+        providerId: 'google-service-account',
+      },
+      member: { role: 'admin' },
+      hasWorkspaceAccess: true,
+      canWriteWorkspace: true,
+      isAdmin: true,
+    })
+    mocks.createConnector.mockImplementationOnce(
+      async (input: { resolveAccessToken: (credentialId: string) => Promise<unknown> }) => {
+        await input.resolveAccessToken('credential-1')
+        throw new Error('An ineligible credential reached connector persistence')
+      }
+    )
+    await expect(
+      createKnowledgeConnector.execute({
+        principal: patPrincipal,
+        input: {
+          knowledgeBaseId: 'knowledge-b',
+          connectorType: 's3',
+          credentialId: 'credential-1',
+          sourceConfig: { region: 'us-east-1', bucket: 'docs' },
+          syncIntervalMinutes: 1440,
+        },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('belongs to another service'),
+    })
+    expect(internalAwsCredentialsMockFns.mockResolveAuthorizedAwsCredential).not.toHaveBeenCalled()
   })
 
   it('rejects a personal Confluence OAuth credential before central token use', async () => {
@@ -1019,6 +1073,75 @@ describe('organization connector credential authorization', () => {
       )
       expect((error as Error).message).not.toContain('private provider payload')
       expect(mocks.authorizeOrganizationCredentialUse).toHaveBeenCalledOnce()
+    }
+  )
+
+  it.each([
+    ['refused by AWS', { name: 'AccessDenied' }, 400],
+    ['throttled by AWS', { name: 'ThrottlingException', $metadata: { httpStatusCode: 400 } }, 500],
+  ])(
+    'projects a saved AWS credential %s with the matching setup status',
+    async (_case, failure, status) => {
+      mocks.authorizeOrganizationCredentialUse.mockResolvedValueOnce({
+        credential: { ...credential, providerId: 'aws' },
+        userId: principal.userId,
+      })
+      internalAwsCredentialsMockFns.mockResolveAuthorizedAwsCredential.mockRejectedValueOnce(
+        Object.assign(new Error('AWS said no'), failure)
+      )
+      const error = await resolveConnectorCredentialAccessToken({
+        ...input,
+        auth: s3ConnectorMeta.auth,
+        accessMode: 'workspace',
+        sourceConfig: { region: 'us-east-1', bucket: 'docs' },
+      }).catch((error: unknown) => error)
+      expect(internalOrchestrationErrorPolicy.project(error)?.status ?? 500).toBe(status)
+    }
+  )
+
+  it.each(['result', 'exception'] as const)(
+    'redacts a saved AWS session from settings validation %s',
+    async (failure) => {
+      const awsSession = {
+        accessKeyId: 'ASIAEXAMPLE',
+        secretAccessKey: 'session/secret',
+        sessionToken: 'session-token',
+      }
+      mocks.authorizeOrganizationCredentialUse.mockResolvedValueOnce({
+        credential: { ...credential, providerId: 'aws' },
+        userId: principal.userId,
+      })
+      internalAwsCredentialsMockFns.mockResolveAuthorizedAwsCredential.mockResolvedValueOnce(
+        awsSession
+      )
+      const message = `Denied ${awsSession.secretAccessKey} ${awsSession.sessionToken}`
+      if (failure === 'exception') {
+        mocks.validateConnectorConfig.mockRejectedValueOnce(
+          new OrchestrationError('validation', message)
+        )
+      } else {
+        mocks.validateConnectorConfig.mockResolvedValueOnce({ valid: false, error: message })
+      }
+      const result = validateConnectorSourceConfig({
+        principal,
+        requestId: 'request',
+        organizationId: 'org',
+        actingUserId: principal.userId,
+        sourceConfig: { region: 'us-east-1', bucket: 'docs' },
+        connector: {
+          id: 'connector-s3',
+          connectorType: 's3',
+          credentialId: credential.id,
+          encryptedApiKey: null,
+          accessMode: 'workspace',
+        } as Parameters<typeof validateConnectorSourceConfig>[0]['connector'],
+      })
+      const redacted = 'Denied [REDACTED] [REDACTED]'
+      if (failure === 'exception') {
+        await expect(result).rejects.toMatchObject({ code: 'validation', message: redacted })
+      } else {
+        await expect(result).resolves.toEqual({ errorCode: 'validation', message: redacted })
+      }
     }
   )
 

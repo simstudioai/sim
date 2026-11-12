@@ -3,6 +3,10 @@ import {
   billingAttributionMockFns,
 } from '@sim/testing/mocks/billing-attribution.mock'
 import {
+  internalAwsCredentialsMock,
+  internalAwsCredentialsMockFns,
+} from '@sim/testing/mocks/internal-aws-credentials.mock'
+import {
   mothershipEnvironmentContextMock,
   mothershipEnvironmentContextMockFns,
 } from '@sim/testing/mocks/mothership-environment-context.mock'
@@ -16,7 +20,6 @@ const mocks = vi.hoisted(() => ({
   importProvenance: vi.fn(),
   isComplete: vi.fn(),
   resolveVertexAccessToken: vi.fn(),
-  resolveAuthorizedAwsCredential: vi.fn(),
 }))
 
 vi.mock('@/providers', () => providersMock)
@@ -28,11 +31,7 @@ vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentConte
 vi.mock('@/lib/internal/llm/credentials', () => ({
   resolveVertexAccessToken: mocks.resolveVertexAccessToken,
 }))
-vi.mock('@/lib/internal/aws/credentials', async (importOriginal) => ({
-  isTransientAwsFailure: (await importOriginal<typeof import('@/lib/internal/aws/credentials')>())
-    .isTransientAwsFailure,
-  resolveAuthorizedAwsCredential: mocks.resolveAuthorizedAwsCredential,
-}))
+vi.mock('@/lib/internal/aws/credentials', () => internalAwsCredentialsMock)
 vi.mock('@/lib/oauth/token-resolution', () => ({ recordCredentialAccess: vi.fn() }))
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
@@ -41,6 +40,7 @@ vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
 vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
 const { mockRequireBillingAttributionHeader } = billingAttributionMockFns
+const { mockResolveAuthorizedAwsCredential } = internalAwsCredentialsMockFns
 
 import type { LlmOperationError } from '@/lib/internal/llm/errors'
 import { executeLlmProviderOperation } from '@/lib/internal/llm/operations'
@@ -134,7 +134,7 @@ describe('executeLlmProviderOperation', () => {
 
   it("signs a Bedrock call with the selected AWS credential's session for the caller", async () => {
     mocks.authorizeCredential.mockResolvedValueOnce(AUTHORIZED_AWS_CREDENTIAL)
-    mocks.resolveAuthorizedAwsCredential.mockResolvedValueOnce({
+    mockResolveAuthorizedAwsCredential.mockResolvedValueOnce({
       accessKeyId: 'ASIASESSIONKEY000001',
       secretAccessKey: 'session-secret',
       sessionToken: 'session-token',
@@ -150,7 +150,7 @@ describe('executeLlmProviderOperation', () => {
       }
     )
 
-    expect(mocks.resolveAuthorizedAwsCredential).toHaveBeenCalledWith(
+    expect(mockResolveAuthorizedAwsCredential).toHaveBeenCalledWith(
       'aws-cred',
       { workspaceId: 'workspace-1', executionId: 'execution-1' },
       undefined
@@ -201,7 +201,7 @@ describe('executeLlmProviderOperation', () => {
   it('fails a Bedrock call whose AWS credential cannot be resolved before provider work', async () => {
     mockExecuteProviderRequest.mockClear()
     mocks.authorizeCredential.mockResolvedValueOnce(AUTHORIZED_AWS_CREDENTIAL)
-    mocks.resolveAuthorizedAwsCredential.mockRejectedValueOnce(new Error('AccessDenied'))
+    mockResolveAuthorizedAwsCredential.mockRejectedValueOnce(new Error('AccessDenied'))
 
     await expect(
       executeLlmProviderOperation(BEDROCK_CREDENTIAL_INPUT, {
@@ -219,7 +219,7 @@ describe('executeLlmProviderOperation', () => {
   it('reports an AWS credential STS could not resolve for a moment as unavailable, not invalid', async () => {
     mockExecuteProviderRequest.mockClear()
     mocks.authorizeCredential.mockResolvedValueOnce(AUTHORIZED_AWS_CREDENTIAL)
-    mocks.resolveAuthorizedAwsCredential.mockRejectedValueOnce(
+    mockResolveAuthorizedAwsCredential.mockRejectedValueOnce(
       Object.assign(new Error('Rate exceeded'), {
         name: 'ThrottlingException',
         $metadata: { httpStatusCode: 400 },

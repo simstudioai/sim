@@ -63,7 +63,11 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { withBrandIcon } from '@/blocks/brand-icon'
-import { getConnectorApiKeyConfig, isConnectorCredentialTypeAllowed } from '@/connectors/auth'
+import {
+  getConnectorApiKeyConfig,
+  isConnectorCredentialTypeAllowed,
+  isConnectorFieldForAuth,
+} from '@/connectors/auth'
 import { GitHubInstallationConnectionField } from '@/connectors/github/installation-connection-field'
 import {
   GitLabPermissionTabs,
@@ -109,6 +113,8 @@ interface AddConnectorModalProps {
   initialSyncIntervalMinutes?: number
   onCreated?: (connectorType: string, connector: ConnectorData) => void
   setupDraftKey?: string
+  /** Offers a key connector's saved-credential alternative, such as a saved AWS credential for S3. */
+  savedCredentialSetupEnabled?: boolean
 }
 
 type Step = 'select-type' | 'configure'
@@ -125,6 +131,7 @@ export function AddConnectorModal({
   lockedAccessMode,
   initialSyncIntervalMinutes = 1440,
   onCreated,
+  savedCredentialSetupEnabled = false,
   setupDraftKey,
   scope: explicitScope,
 }: AddConnectorModalProps) {
@@ -213,8 +220,14 @@ export function AddConnectorModal({
   const showGitLabPermissions = selectedType === 'gitlab' && access.accessMode === 'admin'
   const isMembersMode = access.accessMode === 'members'
   const apiKeyConfig = connectorConfig ? getConnectorApiKeyConfig(connectorConfig.auth) : undefined
+  const savedCredentialConfig =
+    savedCredentialSetupEnabled && connectorConfig?.auth.mode === 'apiKey'
+      ? connectorConfig.auth.savedCredential
+      : undefined
   const isApiKeyMode =
-    connectorConfig?.auth.mode === 'apiKey' || Boolean(apiKeyConfig && !isMembersMode && useApiKey)
+    connectorConfig?.auth.mode === 'apiKey'
+      ? !savedCredentialConfig || useApiKey
+      : Boolean(apiKeyConfig && !isMembersMode && useApiKey)
   const {
     integrationAvailability,
     oauthServiceAvailability,
@@ -249,10 +262,13 @@ export function AddConnectorModal({
   /** True when the connector declares its key optional (public sources need none). */
   const isApiKeyOptional =
     connectorConfig?.auth.mode === 'apiKey' && connectorConfig.auth.optional === true
-  const connectorProviderId =
+  const credentialServiceId =
     connectorConfig?.auth.mode === 'oauth'
-      ? (getProviderIdFromServiceId(connectorConfig.auth.provider) as OAuthProvider)
-      : null
+      ? connectorConfig.auth.provider
+      : savedCredentialConfig?.provider
+  const connectorProviderId = credentialServiceId
+    ? (getProviderIdFromServiceId(credentialServiceId) as OAuthProvider)
+    : null
 
   const serviceAccountProviderId = connectorProviderId
     ? getServiceAccountProviderForProviderId(connectorProviderId)
@@ -263,7 +279,7 @@ export function AddConnectorModal({
     !isConnectorCredentialTypeAllowed(connectorConfig.auth, access.accessMode, 'oauth')
   const serviceAccountTarget = useServiceAccountConnectTarget({
     serviceAccountProviderId:
-      isSearchIndex || requiresServiceAccount
+      isSearchIndex || requiresServiceAccount || savedCredentialConfig
         ? asServiceAccountProviderId(serviceAccountProviderId)
         : undefined,
     serviceName: connectorConfig?.name,
@@ -303,7 +319,7 @@ export function AddConnectorModal({
       isConnectorCredentialTypeAllowed(connectorConfig.auth, access.accessMode, credential.type)
   )
   const canConnectOAuth =
-    connectorConfig &&
+    connectorConfig?.auth.mode === 'oauth' &&
     isConnectorCredentialTypeAllowed(connectorConfig.auth, access.accessMode, 'oauth')
   const effectiveCredentialId =
     selectedCredentialId && credentials.some((credential) => credential.id === selectedCredentialId)
@@ -367,6 +383,7 @@ export function AddConnectorModal({
   )
   const isFieldVisible = (field: ConnectorConfigField) =>
     isConfigFieldVisible(field) &&
+    isConnectorFieldForAuth(field, isApiKeyMode) &&
     (connectorConfig?.auth.mode !== 'oauth' ||
       connectorConfig.auth.serviceAccountSubjectFieldId !== field.id ||
       indexingCredential?.type === 'service_account')
@@ -541,6 +558,13 @@ export function AddConnectorModal({
       )
   )
 
+  /** Key-only settings typed before switching to a saved credential are never sent with it. */
+  const keyOnlyFieldIds = new Set(
+    (connectorConfig?.configFields ?? [])
+      .filter((field) => !isConnectorFieldForAuth(field, isApiKeyMode))
+      .map((field) => field.canonicalParamId ?? field.id)
+  )
+
   const handleSubmit = () => {
     if (!selectedType || !canSubmit) return
 
@@ -548,7 +572,7 @@ export function AddConnectorModal({
 
     const resolvedConfig: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(resolveSourceConfig())) {
-      if (hiddenCapFieldIds.has(key)) continue
+      if (hiddenCapFieldIds.has(key) || keyOnlyFieldIds.has(key)) continue
       if (Array.isArray(value)) {
         if (value.length > 0) resolvedConfig[key] = value
       } else if (typeof value === 'string') {
@@ -714,23 +738,28 @@ export function AddConnectorModal({
 
               {!slackSetupRequired && (
                 <>
-                  {connectorConfig.auth.mode === 'oauth' && apiKeyConfig && !isMembersMode && (
-                    <ChipModalField type='custom' title='Authentication'>
-                      <ChipCombobox
-                        disabled={isCreating}
-                        value={isApiKeyMode ? 'apiKey' : 'oauth'}
-                        options={[
-                          { label: apiKeyConfig.label || 'API key', value: 'apiKey' },
-                          { label: 'Connected account', value: 'oauth' },
-                        ]}
-                        onChange={(value) => {
-                          setUseApiKey(value === 'apiKey')
-                          setApiKeyValue('')
-                          setSelectedCredentialId(null)
-                        }}
-                      />
-                    </ChipModalField>
-                  )}
+                  {apiKeyConfig &&
+                    (savedCredentialConfig ||
+                      (connectorConfig.auth.mode === 'oauth' && !isMembersMode)) && (
+                      <ChipModalField type='custom' title='Authentication'>
+                        <ChipCombobox
+                          disabled={isCreating}
+                          value={isApiKeyMode ? 'apiKey' : 'oauth'}
+                          options={[
+                            { label: apiKeyConfig.label || 'API key', value: 'apiKey' },
+                            {
+                              label: savedCredentialConfig?.label ?? 'Connected account',
+                              value: 'oauth',
+                            },
+                          ]}
+                          onChange={(value) => {
+                            setUseApiKey(value === 'apiKey')
+                            setApiKeyValue('')
+                            setSelectedCredentialId(null)
+                          }}
+                        />
+                      </ChipModalField>
+                    )}
                   {isApiKeyMode ? (
                     <ChipModalField type='custom' title={apiKeyConfig?.label || 'API Key'}>
                       <ConnectorApiKeyInput
@@ -748,7 +777,7 @@ export function AddConnectorModal({
                           ? 'Account for browsing'
                           : canConnectOAuth
                             ? 'Account'
-                            : 'Service account'
+                            : (savedCredentialConfig?.label ?? 'Service account')
                       }
                     >
                       {credentialsError && rawCredentials.length === 0 ? (
@@ -801,7 +830,9 @@ export function AddConnectorModal({
                           placeholder={
                             canConnectOAuth
                               ? `Select ${connectorConfig.name} account`
-                              : 'Select a service account'
+                              : savedCredentialConfig
+                                ? 'Select a credential'
+                                : 'Select a service account'
                           }
                           isLoading={credentialsLoading || isIntegrationAvailabilityLoading}
                           disabled={isCreating || !isIntegrationAvailabilityReady}

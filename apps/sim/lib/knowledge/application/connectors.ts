@@ -58,9 +58,12 @@ import {
 } from '@/lib/knowledge/connectors/access-modes'
 import {
   type ConnectorAccessToken,
+  ConnectorAwsCredentialError,
+  connectorTokenSecrets,
   resolveConnectorAccessToken,
   syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
+import { requireConnectorCredentialService } from '@/lib/knowledge/connectors/credential-service'
 import { requiresConnectorIndexing } from '@/lib/knowledge/connectors/indexing-policy'
 import {
   provisionKnowledgeConnectorMembersBinding,
@@ -78,6 +81,7 @@ import {
   readConnectorPermissionSummaries,
   readConnectorPermissionSummary,
 } from '@/lib/knowledge/connectors/permission-config.server'
+import { requireConnectorSavedCredentialSetup } from '@/lib/knowledge/connectors/saved-credential-rollout'
 import { MEMBER_OBSERVATION_STALE_AFTER_HOURS } from '@/lib/knowledge/connectors/sync-limits'
 import { connectorIsLive } from '@/lib/knowledge/connectors/sync-lock'
 import {
@@ -118,7 +122,12 @@ import { ServiceAccountTokenError } from '@/lib/oauth/credential-service'
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
-import { getConnectorApiKeyConfig, isConnectorCredentialTypeAllowed } from '@/connectors/auth'
+import {
+  connectorAuthModeLabel,
+  connectorUsesCredential,
+  getConnectorApiKeyConfig,
+  isConnectorCredentialTypeAllowed,
+} from '@/connectors/auth'
 import { getConnectorMeta } from '@/connectors/registry'
 import type { ConnectorAuthConfig } from '@/connectors/types'
 import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
@@ -322,12 +331,16 @@ export async function resolveConnectorCredentialAccessToken(input: {
     connector: { credentialId: input.credentialId, encryptedApiKey: null },
     userId: identity.kind === 'oauth' ? identity.userId : input.actingUserId,
     requestId: input.requestId,
+    scope: resourceScopeFromOwner(input),
     sourceConfig: input.sourceConfig,
   })
 }
 
 /** Exposes actionable credential refusals without returning raw provider payloads. */
 function rethrowConnectorCredentialError(error: unknown): never {
+  if (error instanceof ConnectorAwsCredentialError && !error.transient) {
+    throw new OrchestrationError('validation', error.message)
+  }
   if (error instanceof ServiceAccountTokenError && [400, 401, 403].includes(error.statusCode)) {
     let message: string
     switch (error.errorCode) {
@@ -420,10 +433,7 @@ export async function validateConnectorSourceConfig(input: {
    */
   let tokenUserId = input.actingUserId
   const apiKeyConfig = getConnectorApiKeyConfig(connectorConfig.auth)
-  if (
-    connectorConfig.auth.mode === 'apiKey' ||
-    (apiKeyConfig && !input.connector.credentialId && input.connector.encryptedApiKey)
-  ) {
+  if (!connectorUsesCredential(connectorConfig.auth, input.connector)) {
     if (!input.connector.encryptedApiKey && !apiKeyConfig?.optional) {
       return {
         message: 'API key not found. Please reconfigure the connector.',
@@ -464,6 +474,7 @@ export async function validateConnectorSourceConfig(input: {
     connector: input.connector,
     userId: tokenUserId,
     requestId: input.requestId,
+    scope: resourceScopeFromOwner(input),
     sourceConfig: input.sourceConfig,
   })
   if (!resolved) {
@@ -488,19 +499,21 @@ export async function validateConnectorSourceConfig(input: {
       )
     }
   }
+  const secrets = connectorTokenSecrets(resolved)
   const validation = await connectorConfig
     .validateConfig(resolved.accessToken, input.sourceConfig, validationContext)
     .catch((error: unknown) => {
       const sanitized = toError(error)
-      sanitized.message = redactKnownSensitiveValues(sanitized.message, [resolved.accessToken])
+      sanitized.message = redactKnownSensitiveValues(sanitized.message, secrets)
       throw sanitized
     })
   return validation.valid
     ? null
     : {
-        message: redactKnownSensitiveValues(validation.error || 'Invalid source configuration', [
-          resolved.accessToken,
-        ]),
+        message: redactKnownSensitiveValues(
+          validation.error || 'Invalid source configuration',
+          secrets
+        ),
         errorCode: 'validation',
       }
 }
@@ -741,6 +754,12 @@ async function executeCreateKnowledgeConnector({
   if (input.apiKey && input.credentialId) {
     throw new OrchestrationError('validation', 'Choose either an OAuth account or an API key')
   }
+  await requireConnectorSavedCredentialSetup(connectorMeta.auth, input.credentialId)
+  /** A key connector's saved credential must be of its declared service, as on an access update. */
+  const savedCredentialService =
+    connectorMeta.auth.mode === 'apiKey' && connectorMeta.auth.savedCredential && input.credentialId
+      ? requireConnectorCredentialService(connectorMeta)
+      : undefined
   if (
     context.knowledgeBase.isSearchIndex &&
     (!connectorMeta.search || !input.accessMode || input.accessMode === 'workspace')
@@ -840,6 +859,7 @@ async function executeCreateKnowledgeConnector({
         ...owner,
         actingUserId,
         requestId,
+        ...(savedCredentialService ? { service: savedCredentialService } : {}),
         auth: connectorMeta.auth,
         accessMode: input.accessMode ?? 'workspace',
         sourceConfig,
@@ -890,7 +910,10 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
             knowledgeBaseName: context.knowledgeBase.name,
             connectorType: result.connector.connectorType,
             syncIntervalMinutes: result.connector.syncIntervalMinutes,
-            authMode: result.connector.credentialId ? 'oauth' : 'apiKey',
+            authMode: connectorAuthModeLabel(
+              getConnectorMeta(result.connector.connectorType)?.auth.mode ?? 'oauth',
+              Boolean(result.connector.credentialId)
+            ),
             accessMode: result.connector.accessMode,
           },
         },

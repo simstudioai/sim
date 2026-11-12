@@ -13,6 +13,7 @@ import {
   credentialGroupsSelfEnrollmentMockFns,
 } from '@sim/testing/mocks/credential-groups-self-enrollment.mock'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import {
   githubInstallationMock,
   githubInstallationMockFns,
@@ -61,6 +62,7 @@ vi.mock('@/lib/knowledge/application/connector-credential', () => ({
   requireConnectorCredential: hoisted.credential,
 }))
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/oauth/github-installation', () => githubInstallationMock)
 vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 vi.mock('@/connectors/registry', () => ({ getConnectorMeta: hoisted.meta }))
@@ -132,6 +134,10 @@ const row = {
   encryptedApiKey: 'encrypted-fixture',
   sourceConfig: { host: 'gitlab.example.test', project: 'one' },
 }
+const savedAwsAuth = {
+  mode: 'apiKey',
+  savedCredential: { provider: 'aws', label: 'Saved AWS credential' },
+} as const
 
 beforeEach(() => {
   knowledgeContextsMockFns.mockResolveActiveKnowledgeConnectorContext.mockResolvedValue({
@@ -145,6 +151,7 @@ beforeEach(() => {
   })
   workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('admin')
   mocks.connector.mockResolvedValue(row)
+  featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(false)
   mocks.meta.mockReturnValue({ name: 'GitLab', auth: { mode: 'apiKey' }, mirrorsSourceAcls: true })
   mocks.validate.mockResolvedValue(null)
   mocks.token.mockResolvedValue({ accessToken: 'provider-fixture' })
@@ -355,6 +362,37 @@ describe('connector access application boundary', () => {
     ).rejects.toThrow()
     expect(mocks.connector).not.toHaveBeenCalled()
     expect(mocks.validate).not.toHaveBeenCalled()
+  })
+
+  it('refuses moving a key connector that stores its key onto a saved credential', async () => {
+    featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(true)
+    mocks.meta.mockReturnValue({ name: 'Amazon S3', auth: savedAwsAuth })
+    await expect(
+      updateKnowledgeConnectorAccess.execute({
+        principal,
+        input: { ...input, accessMode: 'workspace', credentialId: 'aws-credential' },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('lets a connector already on a saved credential move to another one', async () => {
+    featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(true)
+    mocks.meta.mockReturnValue({ name: 'Amazon S3', auth: savedAwsAuth })
+    mocks.connector.mockResolvedValue({
+      ...row,
+      credentialId: 'aws-credential',
+      encryptedApiKey: null,
+    })
+    await updateKnowledgeConnectorAccess.execute({
+      principal,
+      input: { ...input, accessMode: 'workspace', credentialId: 'other-aws-credential' },
+    })
+    expect(mocks.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: expect.objectContaining({ credentialId: 'other-aws-credential' }),
+      })
+    )
   })
 
   it('rejects separate content credentials for providers without the capability', async () => {

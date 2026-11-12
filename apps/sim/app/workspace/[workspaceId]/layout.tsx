@@ -13,6 +13,7 @@ import {
   hasDesktopBackgroundExecutor,
   isDesktopBackgroundExecutorAvailable,
 } from '@/lib/desktop/executor/availability'
+import { isConnectorSavedCredentialSetupEnabled } from '@/lib/knowledge/connectors/saved-credential-rollout'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { resolveOrganizationEntryPath } from '@/lib/navigation/resolve-app-entry'
 import { isProjectsEnabled } from '@/lib/projects/rollout.server'
@@ -137,6 +138,7 @@ async function WorkspaceContent({
     computerUseEnabled,
     projectsEnabled,
     simLinkOrganizationId,
+    connectorSavedCredentialsEnabled,
   ] = await Promise.all([
     cookies(),
     orgSettings,
@@ -157,6 +159,7 @@ async function WorkspaceContent({
     isComputerUseAvailable(hostContext.hostOrganizationId),
     isProjectsEnabled(),
     resolveSimLinkOrganization(principal),
+    isConnectorSavedCredentialSetupEnabled(),
     prefetchWorkspaceAccess(queryClient, workspaceId, principal),
     prefetchWorkspaceForkAvailability(queryClient, workspaceId, principal, hostContext),
   ])
@@ -173,6 +176,7 @@ async function WorkspaceContent({
           'mothership-computer-use': computerUseEnabled,
           'mothership-plan-mode': planModeEnabled,
           projects: projectsEnabled,
+          'knowledge-connector-saved-credentials': connectorSavedCredentialsEnabled,
         }}
       >
         <WorkspaceHostProvider workspaceId={workspaceId} initialContext={hostContext}>

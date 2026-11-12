@@ -8736,6 +8736,10 @@ type ListConnectorTypesResponseRef0 = {
         label?: string
         placeholder?: string
         optional: boolean
+        savedCredential?: {
+          provider: string
+          label: string
+        }
       }
   configFields: Array<ListConnectorTypesResponseRef1>
   supportsIncrementalSync: boolean
@@ -8768,6 +8772,7 @@ type ListConnectorTypesResponseRef1 = {
   mode?: 'basic' | 'advanced'
   canonicalParamId?: string
   multi?: boolean
+  apiKeyOnly?: boolean
 }
 
 type ListConnectorTypesResponseRef2 = {
@@ -17347,7 +17352,7 @@ export const V2_OPERATIONS = {
       credentialId: {
         kind: 'string',
         describe:
-          'OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types); omit it for `apiKey` connectors.',
+          'OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types), or, when this deployment enables it, a saved credential for an `apiKey` connector type that declares `auth.savedCredential` (such as Amazon S3 with a saved AWS credential); otherwise omit it for `apiKey` connectors.',
       },
       apiKey: {
         kind: 'string',

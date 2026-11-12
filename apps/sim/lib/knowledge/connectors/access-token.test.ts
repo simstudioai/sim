@@ -1,21 +1,30 @@
 import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import {
+  internalAwsCredentialsMock,
+  internalAwsCredentialsMockFns,
+} from '@sim/testing/mocks/internal-aws-credentials.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockDecryptApiKey } = vi.hoisted(() => ({ mockDecryptApiKey: vi.fn() }))
 
 vi.mock('@/lib/api-key/crypto', () => ({ decryptApiKey: mockDecryptApiKey }))
 vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
+vi.mock('@/lib/internal/aws/credentials', () => internalAwsCredentialsMock)
 
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import {
+  ConnectorAwsCredentialError,
   connectorServiceAccountScopes,
   connectorServiceAccountSubject,
+  createConnectorRunToken,
   resolveConnectorAccessToken,
   syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
 import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
+import { readAwsSession } from '@/connectors/aws-session'
 import { gmailConnectorMeta } from '@/connectors/gmail/meta'
 import { googleCalendarConnectorMeta } from '@/connectors/google-calendar/meta'
+import { s3ConnectorMeta } from '@/connectors/s3/meta'
 import type { ConnectorAuthConfig } from '@/connectors/types'
 
 const {
@@ -31,6 +40,8 @@ const OAUTH_AUTH: ConnectorAuthConfig = {
 }
 
 const NO_CREDENTIAL = { credentialId: null, encryptedApiKey: null }
+
+const WORKSPACE_SCOPE = { kind: 'workspace', workspaceId: 'workspace-1' } as const
 
 function credentialConnector(credentialId: string) {
   return { credentialId, encryptedApiKey: null }
@@ -62,6 +73,7 @@ describe('resolveConnectorAccessToken', () => {
         connector: credentialConnector('docusign-credential'),
         userId: 'user-1',
         requestId: 'req-1',
+        scope: WORKSPACE_SCOPE,
         sourceConfig: {},
       })
 
@@ -83,6 +95,7 @@ describe('resolveConnectorAccessToken', () => {
         connector: { credentialId: null, encryptedApiKey: 'cipher' },
         userId: 'user-1',
         requestId: 'req-1',
+        scope: WORKSPACE_SCOPE,
         sourceConfig: {},
       })
     ).rejects.toThrow('missing credential ID')
@@ -96,6 +109,7 @@ describe('resolveConnectorAccessToken', () => {
         connector: NO_CREDENTIAL,
         userId: 'user-1',
         requestId: 'req-1',
+        scope: WORKSPACE_SCOPE,
         sourceConfig: {},
       })
     ).rejects.toThrow('missing encrypted API key')
@@ -108,6 +122,7 @@ describe('resolveConnectorAccessToken', () => {
         connector: NO_CREDENTIAL,
         userId: 'user-1',
         requestId: 'req-1',
+        scope: WORKSPACE_SCOPE,
         sourceConfig: {},
       })
     ).rejects.toThrow('missing credential ID')
@@ -124,9 +139,107 @@ describe('resolveConnectorAccessToken', () => {
         connector: credentialConnector('credential-1'),
         userId: 'credential-owner',
         requestId: 'req-1',
+        scope: WORKSPACE_SCOPE,
         sourceConfig: {},
       })
     ).resolves.toBeNull()
+  })
+})
+
+describe('saved AWS credential on a key connector', () => {
+  const session = {
+    accessKeyId: 'ASIAIOSFODNN7EXAMPLE',
+    secretAccessKey: 'session-secret',
+    sessionToken: 'session-token',
+    expiration: new Date('2026-11-06T13:00:00Z'),
+  }
+
+  beforeEach(() => {
+    mockDecryptApiKey.mockResolvedValue({ decrypted: 'inline-secret-key' })
+    internalAwsCredentialsMockFns.mockResolveAuthorizedAwsCredential.mockReset()
+  })
+
+  it('asks for the credential in the knowledge base scope and seeds its session, not a bearer token', async () => {
+    internalAwsCredentialsMockFns.mockResolveAuthorizedAwsCredential.mockResolvedValueOnce(session)
+    const organizationScope = { kind: 'organization', organizationId: 'org-1' } as const
+
+    const token = await resolveConnectorAccessToken({
+      auth: s3ConnectorMeta.auth,
+      connector: credentialConnector('aws-credential'),
+      userId: 'user-1',
+      requestId: 'sync-run',
+      scope: organizationScope,
+      sourceConfig: {},
+    })
+    if (!token) throw new Error('Expected an AWS connector token')
+
+    const [credentialId, context] =
+      internalAwsCredentialsMockFns.mockResolveAuthorizedAwsCredential.mock.calls[0]
+    expect(credentialId).toBe('aws-credential')
+    expect(context).toMatchObject({ organizationId: 'org-1' })
+    expect(context.workspaceId).toBeUndefined()
+    expect(token.expiresAt).toEqual(session.expiration)
+    expect(token.accessToken).toBe('')
+    expect(readAwsSession(syncContextForToken(token))).toEqual({
+      accessKeyId: session.accessKeyId,
+      secretAccessKey: session.secretAccessKey,
+      sessionToken: session.sessionToken,
+    })
+    expect(mockResolveTokenBundle).not.toHaveBeenCalled()
+  })
+
+  it('keeps a stored-key S3 connector on its key without touching AWS', async () => {
+    const token = await resolveConnectorAccessToken({
+      auth: s3ConnectorMeta.auth,
+      connector: { credentialId: null, encryptedApiKey: 'encrypted' },
+      userId: 'user-1',
+      requestId: 'sync-run',
+      scope: WORKSPACE_SCOPE,
+      sourceConfig: {},
+    })
+
+    expect(token).toEqual({ accessToken: 'inline-secret-key' })
+    expect(internalAwsCredentialsMockFns.mockResolveAuthorizedAwsCredential).not.toHaveBeenCalled()
+  })
+
+  it('reports an unusable AWS credential without leaking its keys', async () => {
+    internalAwsCredentialsMockFns.mockResolveAuthorizedAwsCredential.mockRejectedValueOnce(
+      Object.assign(new Error('Not authorized to perform sts:AssumeRoleWithWebIdentity'), {
+        name: 'AccessDenied',
+      })
+    )
+
+    await expect(
+      resolveConnectorAccessToken({
+        auth: s3ConnectorMeta.auth,
+        connector: credentialConnector('aws-credential'),
+        userId: 'user-1',
+        requestId: 'sync-run',
+        scope: WORKSPACE_SCOPE,
+        sourceConfig: {},
+      })
+    ).rejects.toMatchObject({ name: 'ConnectorAwsCredentialError', transient: false })
+  })
+
+  it('marks an AWS outage as transient rather than a refused credential', async () => {
+    internalAwsCredentialsMockFns.mockResolveAuthorizedAwsCredential.mockRejectedValueOnce(
+      Object.assign(new Error('Rate exceeded'), {
+        name: 'ThrottlingException',
+        $metadata: { httpStatusCode: 400 },
+      })
+    )
+
+    const failure = await resolveConnectorAccessToken({
+      auth: s3ConnectorMeta.auth,
+      connector: credentialConnector('aws-credential'),
+      userId: 'user-1',
+      requestId: 'sync-run',
+      scope: WORKSPACE_SCOPE,
+      sourceConfig: {},
+    }).catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(ConnectorAwsCredentialError)
+    expect(failure).toMatchObject({ transient: true })
   })
 })
 
@@ -166,6 +279,7 @@ describe('delegated connector access', () => {
       connector: credentialConnector('service-credential'),
       userId: 'actor',
       requestId: 'request',
+      scope: WORKSPACE_SCOPE,
       sourceConfig: { adminEmail: 'admin@example.com' },
     })
   }
@@ -273,6 +387,7 @@ describe.each([
       connector: credentialConnector('google-service'),
       userId: 'actor',
       requestId: 'request',
+      scope: WORKSPACE_SCOPE,
       sourceConfig: {
         adminEmail: ' Directory.Admin@Example.com ',
         scopes: ['untrusted.write'],
@@ -349,6 +464,7 @@ describe('impersonation on the connector path', () => {
         connector: credentialConnector('credential-1'),
         userId: 'credential-owner',
         requestId: 'req-1',
+        scope: WORKSPACE_SCOPE,
         sourceConfig: { adminEmail: 'admin@corp.com' },
       })
     ).resolves.toEqual({ accessToken: 'access-token' })
@@ -360,5 +476,94 @@ describe('impersonation on the connector path', () => {
       'admin@corp.com',
       { service: 'google-drive' }
     )
+  })
+})
+
+describe('createConnectorRunToken', () => {
+  const NOW = new Date('2026-11-06T12:00:00Z')
+  const session = (accessKeyId: string, expiresAt: Date) => ({
+    accessToken: 'aws-credential',
+    awsSession: { accessKeyId, secretAccessKey: `${accessKeyId}-secret`, sessionToken: 'token' },
+    expiresAt,
+  })
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(NOW)
+  })
+
+  it('keeps an STS session that has time left instead of exchanging it on every page', async () => {
+    const resolve = vi.fn()
+    const syncContext: Record<string, unknown> = {}
+    const runToken = createConnectorRunToken({
+      token: session('ASIA1', new Date(NOW.getTime() + 30 * 60_000)),
+      syncContext,
+      resolve,
+    })
+
+    await runToken.refresh()
+
+    expect(resolve).not.toHaveBeenCalled()
+    expect(runToken.current().awsSession?.accessKeyId).toBe('ASIA1')
+  })
+
+  it('replaces a session close to expiry and signs later calls with the new one', async () => {
+    const renewed = session('ASIA2', new Date(NOW.getTime() + 60 * 60_000))
+    const syncContext: Record<string, unknown> = {}
+    const runToken = createConnectorRunToken({
+      token: session('ASIA1', new Date(NOW.getTime() + 60_000)),
+      syncContext,
+      resolve: async () => renewed,
+    })
+
+    await runToken.refresh()
+
+    expect(runToken.current()).toBe(renewed)
+    expect(readAwsSession(syncContext)?.accessKeyId).toBe('ASIA2')
+  })
+
+  it('re-resolves a token that states no expiry on every refresh', async () => {
+    const resolve = vi.fn(async () => ({ accessToken: 'fresh-oauth-token' }))
+    const runToken = createConnectorRunToken({
+      token: { accessToken: 'oauth-token' },
+      syncContext: {},
+      resolve,
+    })
+
+    await runToken.refresh()
+
+    expect(resolve).toHaveBeenCalledTimes(1)
+    expect(runToken.current().accessToken).toBe('fresh-oauth-token')
+  })
+
+  it('keeps long-lived saved AWS keys for the whole run instead of reloading them on every page', async () => {
+    const resolve = vi.fn()
+    const runToken = createConnectorRunToken({
+      token: {
+        accessToken: '',
+        awsSession: { accessKeyId: 'AKIA1', secretAccessKey: 'AKIA1-secret' },
+      },
+      syncContext: {},
+      resolve,
+    })
+
+    await runToken.refresh()
+
+    expect(resolve).not.toHaveBeenCalled()
+    expect(runToken.current().awsSession?.accessKeyId).toBe('AKIA1')
+  })
+
+  it('never re-resolves a stored key', async () => {
+    const resolve = vi.fn()
+    const runToken = createConnectorRunToken({
+      token: { accessToken: 'inline-key' },
+      syncContext: {},
+      resolve: undefined,
+    })
+
+    await runToken.refresh()
+
+    expect(resolve).not.toHaveBeenCalled()
+    expect(runToken.current().accessToken).toBe('inline-key')
   })
 })

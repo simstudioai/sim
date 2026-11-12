@@ -13,6 +13,10 @@ import {
   executorPrincipalMock,
   executorPrincipalMockFns,
 } from '@sim/testing/mocks/executor-principal.mock'
+import {
+  internalAwsCredentialsMock,
+  internalAwsCredentialsMockFns,
+} from '@sim/testing/mocks/internal-aws-credentials.mock'
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import {
   permissionCheckMock,
@@ -205,17 +209,11 @@ vi.mock(
   () => workspaceFileSecretProvenanceMock
 )
 
-const { mockResolveExecutorCredentialToken, mockResolveAuthorizedAwsCredential } = vi.hoisted(
-  () => ({
-    mockResolveExecutorCredentialToken: vi.fn(),
-    mockResolveAuthorizedAwsCredential: vi.fn(),
-  })
-)
-
-vi.mock('@/lib/internal/aws/credentials', () => ({
-  resolveAuthorizedAwsCredential: (...args: unknown[]) =>
-    mockResolveAuthorizedAwsCredential(...args),
+const { mockResolveExecutorCredentialToken } = vi.hoisted(() => ({
+  mockResolveExecutorCredentialToken: vi.fn(),
 }))
+
+vi.mock('@/lib/internal/aws/credentials', () => internalAwsCredentialsMock)
 
 vi.mock('@/executor/utils/credential-token', () => ({
   resolveExecutorCredentialToken: (...args: unknown[]) =>
@@ -500,6 +498,8 @@ import { createToolConfig, getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
 
 const mockGetBYOKKey = apiKeyByokMockFns.mockGetBYOKKey
+const mockResolveAuthorizedAwsCredential =
+  internalAwsCredentialsMockFns.mockResolveAuthorizedAwsCredential
 const mockResolveWorkspaceBillingPayer = billingAttributionMockFns.mockResolveWorkspaceBillingPayer
 const mockGenerateInternalToken = authInternalMockFns.mockGenerateInternalToken
 const mockCreateExecutorPrincipalFromExecutionContext =
