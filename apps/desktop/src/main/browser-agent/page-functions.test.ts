@@ -368,6 +368,17 @@ describe('combobox typing surfaces', () => {
     expect(input.value).toBe('cooking pot')
   })
 
+  it('still refuses a top-page field a modal dialog covers', () => {
+    document.body.innerHTML =
+      '<input type="text" aria-label="Search" /><div role="dialog" aria-modal="true"><p>Sign in</p></div>'
+    const input = visible(document.querySelector('input') as HTMLInputElement)
+    const cover = visible(document.querySelector('p') as HTMLParagraphElement)
+    register(input)
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => cover })
+
+    expect(focusElementForTyping(0)).toMatchObject({ error: 'obstructed' })
+  })
+
   it('still refuses a covered field inside a frame', () => {
     const frame = document.createElement('iframe')
     document.body.append(frame)
@@ -705,7 +716,8 @@ describe('collectSnapshot', () => {
   })
 
   it('keeps a connected ref whose name grew when its own submenu opened', () => {
-    document.body.innerHTML = '<div role="button" tabindex="0">Products ▾<ul></ul></div>'
+    document.body.innerHTML =
+      '<div role="button" tabindex="0" aria-haspopup="menu">Products ▾<ul></ul></div>'
     const menu = visible(document.querySelector('[role="button"]') as HTMLDivElement)
     const ref = refFor(outlineOf(collectSnapshot()), 'Products ▾')
 
@@ -730,6 +742,25 @@ describe('collectSnapshot', () => {
     const ref = refFor(outlineOf(collectSnapshot()), text.slice(0, 160))
 
     expect(clickElement(ref)).toMatchObject({ dispatched: true })
+  })
+
+  it('invalidates a recycled row whose new name merely extends the old one', () => {
+    document.body.innerHTML = '<div role="listitem">Alice</div>'
+    const row = visible(document.querySelector('[role="listitem"]') as HTMLDivElement)
+    const ref = refFor(outlineOf(collectSnapshot()), 'Alice')
+
+    row.textContent = 'Alice Smith'
+
+    expect(clickElement(ref)).toMatchObject({ error: 'stale' })
+  })
+
+  it('gives a row control a new ref when its row now shows a different record', () => {
+    document.body.innerHTML = '<div role="row"><span>Order 1</span><button>Delete</button></div>'
+    for (const el of Array.from(document.querySelectorAll('span, button'))) visible(el)
+    const first = refFor(outlineOf(collectSnapshot()), 'Delete')
+    ;(document.querySelector('span') as HTMLSpanElement).textContent = 'Order 2'
+
+    expect(refFor(outlineOf(collectSnapshot()), 'Delete')).not.toBe(first)
   })
 
   it('invalidates a connected ref whose name changed to a longer, different word', () => {

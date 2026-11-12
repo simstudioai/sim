@@ -37,6 +37,8 @@ interface SnapshotRefLocator {
   attributes: Record<string, string>
   ancestor: string
   context: string
+  /** Hash of the element's DOM text, to tell revealed content from replaced content. */
+  textHash: number
 }
 
 declare global {
@@ -606,6 +608,14 @@ export function collectSnapshot(
   const refOfElement = window.__simAgentRefOfElement ?? new WeakMap()
   window.__simAgentRefOfElement = refOfElement
   const issuedRefCap = 5000
+  const textHashOf = (el: Element): number => {
+    const text = el.textContent || ''
+    let hash = 0
+    for (let index = 0; index < text.length; index++) {
+      hash = (hash * 31 + text.charCodeAt(index)) | 0
+    }
+    return hash
+  }
   const registerElement = (el: Element, role: string, name: string): number => {
     const locator = {
       url: pageUrlFor(el),
@@ -615,6 +625,7 @@ export function collectSnapshot(
       attributes: locatorAttributes(el),
       ancestor: ancestorSignature(el),
       context: contextSignature(el),
+      textHash: textHashOf(el),
     }
     const priorId = refOfElement.get(el)
     const prior = priorId === undefined ? undefined : issuedRefs.get(priorId)
@@ -624,6 +635,8 @@ export function collectSnapshot(
       prior.locator.tag === locator.tag &&
       prior.locator.role === locator.role &&
       prior.locator.name === locator.name &&
+      prior.locator.ancestor === locator.ancestor &&
+      prior.locator.context === locator.context &&
       Object.keys({ ...prior.locator.attributes, ...locator.attributes }).every(
         (key) => prior.locator.attributes[key] === locator.attributes[key]
       )
@@ -889,7 +902,10 @@ export function collectSnapshot(
    * real stale ref, never permission to click something nearby.
    */
   window.__simAgentResolveElement = (id: number, allowRecovery = true) => {
-    if (scopedRoot && !scopedRoot.isConnected) {
+    // A ref from an earlier snapshot resolves only to its own live node: no
+    // lookalike recovery, and the latest snapshot's scope does not apply to it.
+    const inLatestSnapshot = locators[id] !== undefined
+    if (inLatestSnapshot && scopedRoot && !scopedRoot.isConnected) {
       window.__simAgentStaleReason = 'the scoped snapshot root left the DOM'
       return null
     }
@@ -937,12 +953,22 @@ export function collectSnapshot(
       ) {
         return false
       }
-      // A still-mounted control whose own menu or disclosure opened (often by
-      // the hover or click being validated) appends its new content to its
-      // name; a recycled row replaces the name instead.
+      // A mounted control whose own menu opened (often by the hover or click
+      // being validated) appends that menu to its name: either hidden content
+      // was revealed (its DOM text is unchanged) or it declares a popup. A
+      // recycled row changes its DOM text with neither.
       const name = nameFor(candidate)
+      const opensPopup =
+        textHashOf(candidate) === locator.textHash ||
+        ['aria-haspopup', 'aria-expanded', 'aria-controls'].some(
+          (attribute) => (candidate.getAttribute(attribute) || 'false') !== 'false'
+        ) ||
+        candidate.querySelector(
+          '[role="menu"], [role="menubar"], [role="listbox"], [role="tooltip"], [role="dialog"], [role="tree"]'
+        ) !== null
       const nameGrewInPlace =
         connected &&
+        opensPopup &&
         locator.name.length > 0 &&
         name.startsWith(locator.name) &&
         (locator.name.length >= 120 || /\s/.test(name.charAt(locator.name.length)))
@@ -1037,7 +1063,7 @@ export function collectSnapshot(
       }
     }
 
-    if (!allowRecovery) {
+    if (!allowRecovery || !inLatestSnapshot) {
       window.__simAgentStaleReason = 'the original snapshot node is detached or hidden'
       return null
     }
@@ -1915,11 +1941,30 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
       coveredByRelatedPopup = true
     }
   }
-  // Top-page typing goes through keyboard focus, so a non-modal overlay does not block it (modals
-  // fail the aria-hidden/inert checks above); framed fields keep the check for their mapped point.
+  // Top-page typing goes through keyboard focus, so a non-modal overlay does not block it; a modal
+  // or dialog cover still refuses, and framed fields keep the check for their mapped point.
   const topPageField = view === window && window.top === window
+  const insideModal = (node: Element | null): boolean => {
+    for (let current = node; current; current = composedParent(current)) {
+      const role = current.getAttribute('role')
+      if (
+        current.getAttribute('aria-modal') === 'true' ||
+        role === 'dialog' ||
+        role === 'alertdialog' ||
+        tagFor(current) === 'DIALOG'
+      ) {
+        return true
+      }
+    }
+    return false
+  }
   let coveredBy: string | undefined
-  if (!chosenPoint && topPageField && blockedPoints.length > 0) {
+  if (
+    !chosenPoint &&
+    topPageField &&
+    blockedPoints.length > 0 &&
+    !blockedPoints.some((point) => insideModal(point.hit))
+  ) {
     chosenPoint = { x: blockedPoints[0].x, y: blockedPoints[0].y }
     coveredBy = blockerLabel(firstBlocker)
   }

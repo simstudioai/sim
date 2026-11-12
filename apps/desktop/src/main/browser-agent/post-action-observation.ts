@@ -22,7 +22,8 @@ const OBSERVABLE_ACTIONS: ReadonlySet<BrowserToolName> = new Set([
 
 /** The call's post-action observation request; a wait observes by default, to show what the page became. */
 export function observeRequest(tool: BrowserToolName, params: Record<string, unknown>): unknown {
-  return params.observe ?? (tool === 'browser_wait_for' ? {} : undefined)
+  if (params.observe !== undefined) return params.observe
+  return tool === 'browser_wait_for' ? {} : undefined
 }
 
 /** Preserves a dispatched action when its acknowledgement or observation is interrupted. */

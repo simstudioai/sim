@@ -22,6 +22,14 @@ describe('post-action observation', () => {
     })
   })
 
+  it('rejects an explicit null observe on a wait instead of treating it as omitted', async () => {
+    const action = vi.fn(async () => ({ found: true }))
+    await expect(
+      withPostActionObservation('browser_wait_for', { observe: null }, action, vi.fn(), vi.fn())
+    ).rejects.toThrow('observe must be')
+    expect(action).not.toHaveBeenCalled()
+  })
+
   it('observes after the action, preserving partial form results and replacing refs', async () => {
     const order: string[] = []
     const result = await withPostActionObservation(

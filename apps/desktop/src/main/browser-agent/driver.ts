@@ -37,7 +37,6 @@ import { interruptibleSleep, sleep } from '@sim/utils/helpers'
 import { isRecordLike, omit, toArray, toRecord } from '@sim/utils/object'
 import type { BrowserWindow, MenuItemConstructorOptions, WebContents, WebFrameMain } from 'electron'
 import { Menu } from 'electron'
-import { LRUCache } from 'lru-cache'
 import * as cdp from '@/main/browser-agent/cdp'
 import { steppedZoomFactor, zoomPercentOf } from '@/main/browser-agent/context-menu'
 import { ToolError } from '@/main/browser-agent/errors'
@@ -145,9 +144,6 @@ function isBrowserWaitElementState(value: string): value is BrowserWaitElementSt
 }
 
 type PageExecutionTarget = WebContents | WebFrameMain
-
-/** Matches the page's own memory of issued refs; an evicted ref simply gets a new id. */
-const ISSUED_REF_MEMORY = 5000
 
 /** Whether two targets are the same page or frame; Electron may hand out separate wrappers for one frame. */
 function samePageTarget(
@@ -343,7 +339,7 @@ interface DriverScopeState {
   /** Monotonic ref floor shared by every frame in this browser scope. */
   nextElementRefId: number
   /** Every ref this scope issued and its frame: a later snapshot may reuse it there, and an action may still name it. */
-  issuedRefTargets: LRUCache<number, PageExecutionTarget>
+  issuedRefTargets: Map<number, PageExecutionTarget>
   /** Invalidates captures that finish after a tab/navigation/timeout race. */
   snapshotCaptureEpoch: number
   /** Cancels a timed-out multi-step action before any later native dispatch. */
@@ -385,7 +381,7 @@ function createDriverScopeState(): DriverScopeState {
     snapshotTabId: null,
     snapshotTargets: new Map(),
     nextElementRefId: 0,
-    issuedRefTargets: new LRUCache({ max: ISSUED_REF_MEMORY }),
+    issuedRefTargets: new Map(),
     snapshotCaptureEpoch: 0,
     toolExecutionEpoch: 0,
   }
@@ -2608,6 +2604,11 @@ async function captureSnapshot(
         (targetLineIndexes.get(elementId) ?? Number.POSITIVE_INFINITY) < visibleOutlineLines.length
     )
   )
+  // Never forget a ref a live page may still hand back (the page itself
+  // decides when to reissue); only refs of closed tabs and frames go.
+  for (const [ref, target] of state.issuedRefTargets) {
+    if ('isDestroyed' in target && target.isDestroyed()) state.issuedRefTargets.delete(ref)
+  }
   for (const [ref, target] of targets) state.issuedRefTargets.set(ref, target)
   state.snapshotTabId = capturedTabId
   return {
