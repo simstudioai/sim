@@ -155,9 +155,28 @@ export const azureDataExplorerQueryTool: InternalToolConfig<
         type: 'object',
         properties: {
           tableName: { type: 'string', description: 'Result table name', nullable: true },
-          columns: { type: 'array', description: 'Column metadata (name, type, dataType)' },
-          rows: { type: 'array', description: 'Rows as positional arrays' },
-          records: { type: 'array', description: 'Rows keyed by column name' },
+          columns: {
+            type: 'array',
+            description: 'Column metadata',
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', description: 'Column name' },
+                type: { type: 'string', description: 'Kusto scalar type', nullable: true },
+                dataType: { type: 'string', description: 'Approximate .NET type', nullable: true },
+              },
+            },
+          },
+          rows: {
+            type: 'array',
+            description: 'Rows as positional arrays matching the columns order',
+            items: { type: 'array' },
+          },
+          records: {
+            type: 'array',
+            description: 'Rows keyed by column name',
+            items: { type: 'object' },
+          },
           rowCount: { type: 'number', description: 'Rows carried after the caps' },
           totalRowCount: { type: 'number', description: 'Rows Kusto returned' },
           truncated: { type: 'boolean', description: 'Whether rows were dropped by the caps' },

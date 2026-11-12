@@ -1472,6 +1472,12 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           top: cleanString(top) ? Number(cleanString(top)) : undefined,
         }
 
+        if (result.includeColumns === true && rest.operation === 'sharepoint_get_list') {
+          result.filter = undefined
+          result.top = undefined
+          result.selectFields = undefined
+        }
+
         if (columnDefinitions && rest.operation === 'sharepoint_create_list') {
           result.pageContent = columnDefinitions
         }

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { escapeRegExp } from '@sim/utils/string'
 import type {
   DataverseListRecordsParams,
   DataverseListRecordsResponse,
@@ -34,7 +35,7 @@ function environmentHost(url: URL): string {
  * environment this request is bound to, so a supplied link can never carry the bearer token to
  * another host.
  */
-function assertNextLink(nextLink: string, baseUrl: string): string {
+function assertNextLink(nextLink: string, baseUrl: string, entitySetName: string): string {
   const value = nextLink.trim()
   if (!value || value.length > DATAVERSE_MAX_NEXT_LINK_LENGTH) {
     throw new Error(
@@ -52,9 +53,13 @@ function assertNextLink(nextLink: string, baseUrl: string): string {
     url.username !== '' ||
     url.password !== '' ||
     environmentHost(url) !== environmentHost(new URL(baseUrl)) ||
-    !url.pathname.startsWith('/api/data/')
+    !new RegExp(`^/api/data/v[0-9.]+/${escapeRegExp(entitySetName.trim())}$`, 'i').test(
+      url.pathname
+    )
   ) {
-    throw new Error('nextLink must be a Web API URL on the selected Dataverse environment')
+    throw new Error(
+      'nextLink must be a Web API URL for the selected table on the selected Dataverse environment'
+    )
   }
   return value
 }
@@ -132,7 +137,7 @@ export const dataverseListRecordsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Records per page (Prefer: odata.maxpagesize, 1-5000). Defaults to 100 when Max Results is not set. Dataverse ignores $top when a page size is sent.',
+        'Records per page (Prefer: odata.maxpagesize, 1-5000). Defaults to 100 when Max Results is not set. Dataverse ignores $top when a page size is sent. When following nextLink, pass the same pageSize used for the first page, as Dataverse requires.',
     },
     nextLink: {
       type: 'string',
@@ -147,7 +152,7 @@ export const dataverseListRecordsTool: ToolConfig<
     url: (params) => {
       const baseUrl = getDataverseRequestBaseUrl(params)
       getExplicitPageSize(params)
-      if (params.nextLink) return assertNextLink(params.nextLink, baseUrl)
+      if (params.nextLink) return assertNextLink(params.nextLink, baseUrl, params.entitySetName)
       const queryParts: string[] = []
       if (params.select) queryParts.push(`$select=${encodeURIComponent(params.select)}`)
       if (params.filter) queryParts.push(`$filter=${encodeURIComponent(params.filter)}`)
