@@ -716,12 +716,12 @@ describe('collectSnapshot', () => {
   })
 
   it('refuses to click through to a form field or through a synthetic fallback', () => {
-    document.body.innerHTML = '<label id="wrap" role="button"><input type="file" /></label>'
-    const wrap = visible(document.querySelector('#wrap') as HTMLLabelElement)
+    document.body.innerHTML = '<div id="wrap" role="button"><input type="text" /></div>'
+    const wrap = visible(document.querySelector('#wrap') as HTMLDivElement)
     const input = visible(document.querySelector('input') as HTMLInputElement)
     register(wrap)
     Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => input })
-    expect(clickElement(0, false)).not.toMatchObject({ clickedThrough: expect.anything() })
+    expect(clickElement(0, false)).toMatchObject({ error: 'nested-control' })
 
     document.body.innerHTML = '<a href="#slot"><span role="button">3:00 PM</span></a>'
     const link = visible(document.querySelector('a') as HTMLAnchorElement)
