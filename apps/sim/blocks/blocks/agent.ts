@@ -559,6 +559,14 @@ Return ONLY the JSON array.`,
     bedrockAccessKeyId: { type: 'string', description: 'AWS Access Key ID for Bedrock' },
     bedrockSecretKey: { type: 'string', description: 'AWS Secret Access Key for Bedrock' },
     bedrockRegion: { type: 'string', description: 'AWS region for Bedrock' },
+    bedrockAuthMode: {
+      type: 'string',
+      description: "How Bedrock authenticates: 'access_keys' (default) or 'credential'",
+    },
+    bedrockCredential: {
+      type: 'string',
+      description: 'Saved AWS credential ID for Bedrock, used instead of access keys',
+    },
     responseFormat: {
       type: 'json',
       description: 'JSON response format schema',

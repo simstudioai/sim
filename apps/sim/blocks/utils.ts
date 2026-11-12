@@ -513,8 +513,27 @@ function getModelProviderCondition(...providerIds: ProviderId[]) {
 }
 
 /**
+ * Bedrock fields shown for one AWS authentication mode. A block saved before
+ * the mode existed has no `bedrockAuthMode` and keeps its access keys. Like
+ * {@link getModelProviderCondition}, the answer is folded into a single `model`
+ * clause, so blocks that wrap these fields in their own condition still can.
+ */
+function getBedrockAuthModeCondition(mode: 'access_keys' | 'credential') {
+  return (values?: Record<string, unknown>) => {
+    const model = typeof values?.model === 'string' ? values.model : ''
+    const usesCredential = values?.bedrockAuthMode === 'credential'
+    return buildModelVisibilityCondition(
+      model,
+      findProviderFromModel(model.trim()) === 'bedrock' &&
+        usesCredential === (mode === 'credential')
+    )
+  }
+}
+
+/**
  * Returns the standard provider credential subblocks used by LLM-based blocks.
- * This includes: Vertex AI OAuth, API Key, Azure (OpenAI + Anthropic), Vertex AI config, and Bedrock config.
+ * This includes: Vertex AI OAuth, API Key, Azure (OpenAI + Anthropic), Vertex AI config, and Bedrock
+ * config (access keys or a saved AWS credential).
  *
  * Usage: Spread into your block's subBlocks array after block-specific fields
  */
@@ -592,6 +611,40 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       condition: getModelProviderCondition('vertex'),
     },
     {
+      id: 'bedrockAuthMode',
+      title: 'AWS Authentication',
+      type: 'dropdown',
+      options: [
+        { label: 'Access keys', id: 'access_keys' },
+        { label: 'Saved AWS credential', id: 'credential' },
+      ],
+      value: () => 'access_keys',
+      connectionDroppable: false,
+      condition: getModelProviderCondition('bedrock'),
+    },
+    {
+      id: 'bedrockCredential',
+      title: 'AWS Credential',
+      type: 'oauth-input',
+      serviceId: 'aws',
+      canonicalParamId: 'bedrockCredential',
+      credentialKind: 'service-account',
+      mode: 'basic',
+      placeholder: 'Select AWS credential',
+      required: true,
+      condition: getBedrockAuthModeCondition('credential'),
+    },
+    {
+      id: 'bedrockManualCredential',
+      title: 'AWS Credential',
+      type: 'short-input',
+      canonicalParamId: 'bedrockCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
+      required: true,
+      condition: getBedrockAuthModeCondition('credential'),
+    },
+    {
       id: 'bedrockAccessKeyId',
       title: 'AWS Access Key ID',
       type: 'short-input',
@@ -600,7 +653,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       connectionDroppable: false,
       required: true,
       hideWhenEnvSet: 'NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS',
-      condition: getModelProviderCondition('bedrock'),
+      condition: getBedrockAuthModeCondition('access_keys'),
     },
     {
       id: 'bedrockSecretKey',
@@ -611,7 +664,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       connectionDroppable: false,
       required: true,
       hideWhenEnvSet: 'NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS',
-      condition: getModelProviderCondition('bedrock'),
+      condition: getBedrockAuthModeCondition('access_keys'),
     },
     {
       id: 'bedrockRegion',
@@ -642,6 +695,14 @@ export const PROVIDER_CREDENTIAL_INPUTS = {
   bedrockAccessKeyId: { type: 'string', description: 'AWS Access Key ID for Bedrock' },
   bedrockSecretKey: { type: 'string', description: 'AWS Secret Access Key for Bedrock' },
   bedrockRegion: { type: 'string', description: 'AWS region for Bedrock' },
+  bedrockAuthMode: {
+    type: 'string',
+    description: "How Bedrock authenticates: 'access_keys' (default) or 'credential'",
+  },
+  bedrockCredential: {
+    type: 'string',
+    description: 'Saved AWS credential ID for Bedrock, used instead of access keys',
+  },
 } as const
 
 /**

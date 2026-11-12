@@ -59,9 +59,11 @@ vi.mock('@/stores/providers/store', () => ({
 vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 
 import { S3Icon } from '@/components/icons'
+import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig } from '@/blocks/types'
 import {
   getApiKeyCondition,
+  getProviderCredentialSubBlocks,
   getSerializedModelProviderId,
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
@@ -99,6 +101,42 @@ describe('requiresProviderFamilyCredentials', () => {
     expect(requiresProviderFamilyCredentials('azure-anthropic/my-deployment')).toBe(true)
     setEnvFlags({ isAzureConfigured: true })
     expect(requiresProviderFamilyCredentials('azure/my-deployment')).toBe(false)
+  })
+})
+
+describe('Bedrock credential fields', () => {
+  const BEDROCK_FIELDS = [
+    'bedrockAuthMode',
+    'bedrockCredential',
+    'bedrockManualCredential',
+    'bedrockAccessKeyId',
+    'bedrockSecretKey',
+    'bedrockRegion',
+  ]
+
+  const visibleBedrockFields = (values: Record<string, unknown>) =>
+    getProviderCredentialSubBlocks()
+      .filter((subBlock) => BEDROCK_FIELDS.includes(subBlock.id))
+      .filter((subBlock) => evaluateSubBlockCondition(subBlock.condition, values))
+      .map((subBlock) => subBlock.id)
+
+  it('keeps showing access keys, and no credential picker, on a block saved before auth modes', () => {
+    expect(visibleBedrockFields({ model: 'bedrock/my-inference-profile' })).toEqual([
+      'bedrockAuthMode',
+      'bedrockAccessKeyId',
+      'bedrockSecretKey',
+      'bedrockRegion',
+    ])
+  })
+
+  it('swaps the access keys for the AWS credential picker when a saved credential is chosen', () => {
+    expect(
+      visibleBedrockFields({ model: 'bedrock/my-inference-profile', bedrockAuthMode: 'credential' })
+    ).toEqual(['bedrockAuthMode', 'bedrockCredential', 'bedrockManualCredential', 'bedrockRegion'])
+  })
+
+  it('shows no Bedrock field for a model of another provider', () => {
+    expect(visibleBedrockFields({ model: 'gpt-4o', bedrockAuthMode: 'credential' })).toEqual([])
   })
 })
 

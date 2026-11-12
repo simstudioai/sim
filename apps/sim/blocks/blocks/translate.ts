@@ -80,6 +80,7 @@ export const TranslateBlock: BlockConfig = {
         bedrockAccessKeyId: params.bedrockAccessKeyId,
         bedrockSecretKey: params.bedrockSecretKey,
         bedrockRegion: params.bedrockRegion,
+        bedrockCredential: params.bedrockCredential,
       }),
     },
   },
