@@ -689,20 +689,42 @@ describe('initUpdater state machine', () => {
       expect(squirrelUpdater.on).not.toHaveBeenCalled()
     })
 
-    it('installs silently and relaunches after the restart is confirmed', async () => {
-      const { handle } = await createUpdater({ platform: 'win32' })
+    async function readyWindowsUpdater(withRunningWork?: string) {
+      const { handle } = await createUpdater({ platform: 'win32', withRunningWork })
       handle.check()
       await vi.advanceTimersByTimeAsync(0)
       emit('update-available', { version: '2.0.0' })
       emit('update-downloaded', { version: '2.0.0' })
+      return handle
+    }
 
-      vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({
-        response: 1,
-        checkboxChecked: false,
-      })
+    it('installs silently and relaunches without a prompt when nothing is running', async () => {
+      const handle = await readyWindowsUpdater()
+
       handle.install()
       await vi.advanceTimersByTimeAsync(0)
 
+      expect(dialog.showMessageBox).not.toHaveBeenCalled()
+      expect(autoUpdaterMock.quitAndInstall).toHaveBeenCalledWith(true, true)
+    })
+
+    it('installs silently and relaunches once restarting over running work is confirmed', async () => {
+      const handle = await readyWindowsUpdater('claude is still running in a terminal.')
+
+      handle.install()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(dialog.showMessageBox).toHaveBeenCalledTimes(1)
+      expect(autoUpdaterMock.quitAndInstall).toHaveBeenCalledWith(true, true)
+    })
+
+    it('installs a required update silently without asking about running work', async () => {
+      const handle = await readyWindowsUpdater('claude is still running in a terminal.')
+
+      handle.install({ mandatory: true })
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(dialog.showMessageBox).not.toHaveBeenCalled()
       expect(autoUpdaterMock.quitAndInstall).toHaveBeenCalledWith(true, true)
     })
 
@@ -735,10 +757,6 @@ describe('initUpdater state machine', () => {
       await vi.advanceTimersByTimeAsync(0)
       expect(handle.getState()).toEqual({ status: 'ready', version: '2.0.0' })
 
-      vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({
-        response: 1,
-        checkboxChecked: false,
-      })
       handle.install()
       await vi.advanceTimersByTimeAsync(0)
       emit('error', new Error('No update filepath provided'))
