@@ -1983,7 +1983,7 @@ export const v2ResumeWorkflowContract = defineRouteContract({
 })
 
 const RUN_STATUS_DESCRIPTION =
-  "Current or terminal run status. `redacting` is transient, reported while a finished run's output is being scrubbed. `paused` means the run is waiting at a human or time pause, or a resume attempt did not complete. The single-run response provides the pause kind, resume time, and any automatic-resume waiting reason."
+  "Current or terminal run status. `redacting` is transient, reported while a finished run's output is being scrubbed. `paused` means the run has a human or time pause that can still be resumed; once the run has finished and every pause point has resumed or failed, it reports the finished status and its error. The single-run response provides the pause kind, resume time, and any automatic-resume waiting reason."
 
 /**
  * The list projection passes `workflow_execution_logs.status` through except where it
