@@ -1382,6 +1382,8 @@ export function clickElement(
   let clientY = 0
   let blocker: Element | null = null
   const blockedHits: Array<Element | null> = []
+  let firstBlockedPoint: { x: number; y: number } | null = null
+  let filledByControl: Element | null = null
   let foundPoint = false
   const blockerLabel = (element: Element | null): string =>
     (
@@ -1409,6 +1411,7 @@ export function clickElement(
           break
         }
         blocker ??= hit
+        firstBlockedPoint ??= { x, y }
         blockedHits.push(hit)
       }
       if (foundPoint) break
@@ -1511,21 +1514,59 @@ export function clickElement(
         break
       }
     }
-    if (nested) {
-      let control = blocker
+    const nestedControlOf = (hit: Element | null): Element | null => {
+      let control = hit
       while (control && control !== el && !isIndependentInteractive(control)) {
         control = composedParent(control)
       }
+      return control && control !== el ? control : null
+    }
+    const control = nested ? nestedControlOf(blocker) : null
+    // One nested control filling the whole target (a time-slot label inside
+    // its link) is what a person clicking the target hits, so a native click
+    // on the top page goes there. Form fields and disabled controls keep
+    // their own refusals, and any uncovered edge leaves the target clickable
+    // in its own right, so both refuse.
+    const fillsTarget = (node: Element): boolean => {
+      const bounds = node.getBoundingClientRect()
+      return rects.every(
+        (rect) =>
+          bounds.left <= rect.left + 1 &&
+          bounds.top <= rect.top + 1 &&
+          bounds.right >= rect.right - 1 &&
+          bounds.bottom >= rect.bottom - 1
+      )
+    }
+    const controlTag = control ? String(control.tagName || '').toUpperCase() : ''
+    if (
+      control &&
+      firstBlockedPoint &&
+      !dispatchSynthetic &&
+      !focusForKeyboard &&
+      el.ownerDocument.defaultView === window &&
+      window.top === window &&
+      !['INPUT', 'TEXTAREA', 'SELECT'].includes(controlTag) &&
+      !(control as HTMLElement).isContentEditable &&
+      !(control as HTMLButtonElement).disabled &&
+      control.getAttribute('aria-disabled') !== 'true' &&
+      fillsTarget(control) &&
+      blockedHits.every((hit) => hit !== null && nestedControlOf(hit) === control)
+    ) {
+      clientX = firstBlockedPoint.x
+      clientY = firstBlockedPoint.y
+      filledByControl = control
+    } else if (nested) {
       return {
         error: 'nested-control',
         blocker: blockerLabel(blocker),
-        controlId: control && control !== el ? window.__simAgentRefOf(control) : null,
+        controlId: control ? window.__simAgentRefOf(control) : null,
       }
-    }
-    return {
-      error: 'obstructed',
-      blocker: blockerLabel(blocker),
-      blockerControls: window.__simAgentOverlayControls(blocker),
+    } else {
+      return {
+        error: 'obstructed',
+        blocker: blockerLabel(blocker),
+        blockerControls: window.__simAgentOverlayControls(blocker),
+      }
     }
   }
 
@@ -1636,6 +1677,7 @@ export function clickElement(
     frameDepth,
     focusSucceeded: focusForKeyboard && el.ownerDocument.activeElement === el,
     refRecovered: resolved?.recovered === true,
+    ...(filledByControl ? { clickedThrough: blockerLabel(filledByControl) } : {}),
   }
 }
 

@@ -693,6 +693,57 @@ describe('collectSnapshot', () => {
     expect(focusElementForTyping(ref)).toMatchObject({ error: 'stale' })
   })
 
+  it('clicks through a nested control that fills the whole target', () => {
+    document.body.innerHTML = '<a href="#slot"><span role="button">3:00 PM</span></a>'
+    const link = visible(document.querySelector('a') as HTMLAnchorElement)
+    const slot = visible(document.querySelector('span') as HTMLSpanElement)
+    register(link)
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => slot })
+
+    expect(clickElement(0, false)).toMatchObject({ clickedThrough: '3:00 PM' })
+  })
+
+  it('refuses a nested control that leaves the target edges uncovered', () => {
+    document.body.innerHTML = '<a href="#card"><span role="button">Open</span></a>'
+    const link = visible(document.querySelector('a') as HTMLAnchorElement)
+    const inner = document.querySelector('span') as HTMLSpanElement
+    inner.getBoundingClientRect = () =>
+      ({ x: 15, y: 3, width: 70, height: 14, left: 15, top: 3, right: 85, bottom: 17 }) as DOMRect
+    register(link)
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => inner })
+
+    expect(clickElement(0, false)).toMatchObject({ error: 'nested-control' })
+  })
+
+  it('refuses to click through to a form field or through a synthetic fallback', () => {
+    document.body.innerHTML = '<div id="wrap" role="button"><input type="text" /></div>'
+    const wrap = visible(document.querySelector('#wrap') as HTMLDivElement)
+    const input = visible(document.querySelector('input') as HTMLInputElement)
+    register(wrap)
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => input })
+    expect(clickElement(0, false)).toMatchObject({ error: 'nested-control' })
+
+    document.body.innerHTML = '<a href="#slot"><span role="button">3:00 PM</span></a>'
+    const link = visible(document.querySelector('a') as HTMLAnchorElement)
+    const slot = visible(document.querySelector('span') as HTMLSpanElement)
+    register(link)
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => slot })
+    expect(clickElement(0)).toMatchObject({ error: 'nested-control' })
+  })
+
+  it('still refuses a nested control that covers only part of the target', () => {
+    document.body.innerHTML = '<a href="#card">Card title <button>Save</button></a>'
+    const link = visible(document.querySelector('a') as HTMLAnchorElement)
+    const save = visible(document.querySelector('button') as HTMLButtonElement)
+    register(link)
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: (x: number) => (x <= 50 ? save : document.body),
+    })
+
+    expect(clickElement(0)).toMatchObject({ error: 'nested-control' })
+  })
+
   it('refuses to recover a ref when replacement is ambiguous', () => {
     document.body.innerHTML = '<button>Close</button>'
     const original = visible(document.querySelector('button') as HTMLButtonElement)
