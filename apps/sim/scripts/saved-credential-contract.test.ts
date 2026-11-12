@@ -316,8 +316,33 @@ describe('savedCredentialContractErrors', () => {
     )
 
     expect(errors).toContainEqual(
-      expect.stringContaining('needs credentialParams to fill "accessToken"')
+      expect.stringContaining('tokenReplacesParams needs a credentialParams entry filled with')
     )
+  })
+
+  it('passes a token-replaced sign-in when the token fills a param not named accessToken', () => {
+    const executable = {
+      ...operationTool('token_fixture', {
+        authToken: { type: 'string' },
+        username: { type: 'string' },
+        password: { type: 'string' },
+      }),
+      oauth: {
+        required: false,
+        provider: PROVIDER,
+        credentialKind: 'service-account',
+        credentialParams: { authToken: 'accessToken' },
+        tokenReplacesParams: ['username', 'password'],
+        credentialSuppliedParams: ['authToken', 'username', 'password'],
+      } satisfies OAuthConfig,
+    }
+
+    const errors = savedCredentialContractErrors(nativeBlock('token_fixture'), [], {
+      metadata: () => executable as ToolMetadata,
+      executable: () => executable,
+    })
+
+    expect(errors).toEqual([])
   })
 
   it('still fails a credential-supplied secret that neither the credential nor its token fills', () => {
