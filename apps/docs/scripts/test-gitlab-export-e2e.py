@@ -78,7 +78,14 @@ class GitLabFixture(BaseHTTPRequestHandler):
             if scenario == "duplicate-email" and user_id == 2:
                 email = "alice@example.com"
             profile = {"id": user_id, "state": "active", "locked": user_id == 9,
-                       "bot": user_id == 5, "email": email}
+                       "bot": user_id == 5, "email": email, "confirmed_at": "2025-01-01T00:00:00Z"}
+            if user_id == 2:
+                if scenario == "unconfirmed-email":
+                    profile["confirmed_at"] = None
+                elif scenario == "missing-confirmation":
+                    profile.pop("confirmed_at")
+                elif scenario == "invalid-confirmation":
+                    profile["confirmed_at"] = "not-a-timestamp"
             if scenario == "hidden-email":
                 profile.pop("email")
                 profile["public_email"] = f"public-alias-{user_id}@example.com"
@@ -121,6 +128,8 @@ def run():
                 for scenario, expected_error in [
                     ("success", None), ("numeric-project", None), ("missing-pagination", None),
                     ("issues-only", None), ("paced", None),
+                    ("unconfirmed-email", None), ("missing-confirmation", None),
+                    ("invalid-confirmation", None),
                     ("truncated-membership", "total"), ("changing-total", "changed"),
                     ("hidden-email", "email"), ("duplicate-email", "email"),
                     ("wrong-identity", "identity"), ("denied", "403"),
@@ -157,6 +166,8 @@ def run():
                         expected = [["7", "carol@example.com"]] if scenario == "missing-pagination" else [
                             ["1", "alice@example.com"], ["2", "bob@example.com"],
                             ["7", "carol@example.com"]]
+                        if scenario in ("unconfirmed-email", "missing-confirmation", "invalid-confirmation"):
+                            expected = [["1", "alice@example.com"], ["7", "carol@example.com"]]
                         assert users == [["user_id", "email"], *expected], users
                         assert grants == [["project_path", "user_id"], *[
                             ["engineering/platform", row[0]] for row in expected]], grants

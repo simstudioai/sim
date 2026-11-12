@@ -140,6 +140,13 @@ def export(client, project):
                 raise ExportError("GitLab returned a mismatched user identity.")
             if not active(profile) or profile.get("bot", False):
                 continue
+            confirmed_at = profile.get("confirmed_at")
+            if not isinstance(confirmed_at, str):
+                continue
+            try:
+                datetime.fromisoformat(confirmed_at.replace("Z", "+00:00"))
+            except ValueError:
+                continue
             email = profile.get("email")
             if not isinstance(email, str):
                 raise ExportError(
