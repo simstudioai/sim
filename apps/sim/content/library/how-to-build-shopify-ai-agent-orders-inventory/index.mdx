@@ -7,7 +7,7 @@ date: 2026-11-12
 updated: 2026-11-12
 authors:
   - andrew
-readingTime: 9
+readingTime: 10
 tags: [AI Agents, Ecommerce, Shopify, Automation, Sim]
 ogImage: /library/how-to-build-shopify-ai-agent-orders-inventory/cover.jpg
 draft: false
@@ -112,7 +112,9 @@ A small store may check once or twice per day, while a high-volume operation may
 
 Use Sim's native Shopify inventory-reading operation and preserve Shopify's inventory item and location identifiers throughout the workflow. Shopify models an [inventory level as an item at a specific location](https://shopify.dev/docs/api/admin-graphql/latest/queries/inventorylevel), so location-level evaluation avoids hiding a fulfillment shortage behind stock held elsewhere.
 
-Configure the Shopify step to return the inventory records needed for the monitored catalog. Normalize each record into fields such as:
+Configure Shopify List Inventory Items to return the inventory records needed for the monitored catalog. The operation returns 50 inventory items by default, so repeat it with `pageInfo.endCursor` in the `after` field while `pageInfo.hasNextPage` is true. Each inventory item includes up to 10 locations; when `inventoryLevelsPageInfo.hasNextPage` is true, use Shopify Get Inventory Level with the inventory item ID, repeat it with its `pageInfo.endCursor` in `after`, and evaluate every returned location record.
+
+Normalize each record into fields such as:
 
 - Product title
 - Variant title
@@ -157,7 +159,7 @@ Build a Shopify order status agent by accepting an order identifier, retrieving 
 
 ### How should the Shopify order status agent receive a request?
 
-Receive an exact order ID or order number together with the minimum customer information needed to validate the request.
+Receive an exact Shopify order ID or order number together with the minimum customer information needed to validate the request. Shopify Get Order requires a GraphQL ID such as `gid://shopify/Order/123456789`, so an order number such as `#1001` must first be resolved with Shopify List Orders and its returned order ID passed to Shopify Get Order.
 
 The request can originate from an internal form, a support workflow, Chat, or another authenticated system. Do not let a customer retrieve an order by supplying only a common name or email address. Require an appropriate identity check before exposing order details.
 
@@ -165,7 +167,7 @@ The request can originate from an internal form, a support workflow, Chat, or an
 
 Use Sim's Shopify order lookup operation and treat Shopify as the source of truth for payment, fulfillment, cancellation, and shipment fields. Shopify's [order query retrieves an order by ID and exposes financial and fulfillment information](https://shopify.dev/docs/api/admin-graphql/latest/queries/order).
 
-Pass the exact order identifier into the Shopify step. If no matching order is found, route the run to a support queue instead of asking the model to infer an order or fabricate a status.
+Pass the exact Shopify GraphQL order ID into Shopify Get Order. If the request supplies an order number, query Shopify List Orders for that number, verify the match, and pass the returned `id` into Shopify Get Order. If no matching order is found, route the run to a support queue instead of asking the model to infer an order or fabricate a status.
 
 ### How should Sim draft the customer update?
 
