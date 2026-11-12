@@ -96,6 +96,7 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   'microsoft-ad': 'microsoft-app-service-account',
   'microsoft-dataverse': 'microsoft-app-service-account',
   'microsoft-intune': 'microsoft-app-service-account',
+  'microsoft-powerbi': 'microsoft-app-service-account',
   monday: 'monday-service-account',
   new_relic: 'new-relic-service-account',
   notion: 'notion-service-account',

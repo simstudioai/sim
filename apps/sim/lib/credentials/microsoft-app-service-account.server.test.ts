@@ -544,6 +544,36 @@ describe('getting a Microsoft app token for a run', () => {
     ])
   })
 
+  it('mints a Power BI token beside the Graph one, each cached under its own audience', async () => {
+    const tokens = fakeMicrosoft(fetch)
+    for (const service of ['microsoft-ad', 'microsoft-powerbi', 'microsoft-powerbi']) {
+      storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-powerbi')
+      await resolveMicrosoftAppCredentialToken('cred-powerbi', service)
+    }
+
+    storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-powerbi')
+    await expect(
+      resolveMicrosoftAppCredentialToken('cred-powerbi', 'microsoft-powerbi')
+    ).resolves.toEqual({ accessToken: 'at:https://analysis.windows.net/powerbi/api/.default' })
+    expect(tokens.map((request) => request.form.scope)).toEqual([
+      'https://graph.microsoft.com/.default',
+      'https://analysis.windows.net/powerbi/api/.default',
+    ])
+  })
+
+  it('refuses a national-cloud credential for Power BI, whose tools call the global service', async () => {
+    fakeMicrosoft(fetch)
+    storeCredential(
+      { authType: 'client_secret', clientSecret: SECRET, cloud: 'china' },
+      'ciphertext-powerbi-china'
+    )
+
+    await expect(
+      resolveMicrosoftAppCredentialToken('cred-powerbi-china', 'microsoft-powerbi')
+    ).rejects.toMatchObject({ code: 'invalid_credentials', status: 400 })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
   it('refuses Dataverse for a credential saved without an environment', async () => {
     fakeMicrosoft(fetch)
     storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-graph-only')

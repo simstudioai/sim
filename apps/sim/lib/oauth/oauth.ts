@@ -715,6 +715,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'microsoft-powerbi',
         icon: PowerBIIcon,
         baseProviderIcon: MicrosoftIcon,
+        serviceAccountProviderId: 'microsoft-app-service-account',
         scopes: [
           'https://analysis.windows.net/powerbi/api/Workspace.Read.All',
           'https://analysis.windows.net/powerbi/api/Report.Read.All',

@@ -696,6 +696,14 @@ function globalGraph(config: MicrosoftAppConfig): MicrosoftAppResource {
 }
 
 /**
+ * The Power BI REST API's token audience in the global cloud. A service principal needs no Entra
+ * API permissions for it; the Power BI tenant setting that lets service principals use the APIs
+ * and workspace membership decide what it can reach.
+ * @see https://learn.microsoft.com/en-us/power-bi/developer/embedded/embed-service-principal
+ */
+const POWERBI_RESOURCE = 'https://analysis.windows.net/powerbi/api'
+
+/**
  * The Microsoft services that may use this credential, and the resource each one's token is for.
  * Each service's `serviceAccountProviderId` in `oauth.ts` offers the credential in its picker;
  * this table is what the resolver accepts. The resource comes from the service and the stored
@@ -708,6 +716,10 @@ const MICROSOFT_APP_SERVICE_RESOURCES: Record<
   'microsoft-ad': globalGraph,
   sharepoint: globalGraph,
   'microsoft-intune': globalGraph,
+  'microsoft-powerbi': (config) => {
+    requireCloud(config, 'global', 'Power BI')
+    return { resource: POWERBI_RESOURCE }
+  },
   'microsoft-dataverse': (config) => {
     if (!config.environmentUrl) {
       throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
@@ -730,9 +742,10 @@ const tokenCache = new LRUCache<string, MicrosoftAppCredentialToken>({ max: TOKE
  * Resolves an executor-authorized Microsoft app credential (the executor
  * already checked the caller may use it) to a token for the service the tool
  * belongs to. The resource is decided by the tool's service, never by caller
- * params: Graph for Entra ID, SharePoint, and Intune, the stored environment for
- * Dataverse. Any other service is refused, so a Microsoft block that needs a
- * signed-in user can never receive an app-only token.
+ * params: Graph for Entra ID, SharePoint, and Intune, the Power BI REST API for
+ * Power BI, the stored environment for Dataverse. Any other service is refused,
+ * so a Microsoft block that needs a signed-in user can never receive an app-only
+ * token.
  */
 export async function resolveMicrosoftAppCredentialToken(
   credentialId: string,
