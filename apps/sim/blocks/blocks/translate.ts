@@ -3,6 +3,7 @@ import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import {
   getModelOptions,
   getProviderCredentialSubBlocks,
+  getSelectedBedrockCredential,
   PROVIDER_CREDENTIAL_INPUTS,
 } from '@/blocks/utils'
 
@@ -80,7 +81,7 @@ export const TranslateBlock: BlockConfig = {
         bedrockAccessKeyId: params.bedrockAccessKeyId,
         bedrockSecretKey: params.bedrockSecretKey,
         bedrockRegion: params.bedrockRegion,
-        bedrockCredential: params.bedrockCredential,
+        bedrockCredential: getSelectedBedrockCredential(params),
       }),
     },
   },

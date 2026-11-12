@@ -98,6 +98,7 @@ export class RouterBlockHandler implements BlockHandler {
       bedrockSecretKey: inputs.bedrockSecretKey,
       bedrockRegion: inputs.bedrockRegion,
       bedrockCredential: inputs.bedrockCredential,
+      bedrockAuthMode: inputs.bedrockAuthMode,
     }
 
     try {
@@ -126,11 +127,7 @@ export class RouterBlockHandler implements BlockHandler {
           callerLabel: 'vertex-router',
         })
       }
-      const bedrockSession = await resolveBlockBedrockSession(
-        ctx,
-        providerId,
-        routerConfig.bedrockCredential
-      )
+      const bedrockSession = await resolveBlockBedrockSession(ctx, providerId, routerConfig)
 
       const providerRequest: ProviderRequest = {
         model: resolved.model,
@@ -275,6 +272,7 @@ export class RouterBlockHandler implements BlockHandler {
       bedrockSecretKey: inputs.bedrockSecretKey,
       bedrockRegion: inputs.bedrockRegion,
       bedrockCredential: inputs.bedrockCredential,
+      bedrockAuthMode: inputs.bedrockAuthMode,
     }
 
     try {
@@ -303,11 +301,7 @@ export class RouterBlockHandler implements BlockHandler {
           callerLabel: 'vertex-router',
         })
       }
-      const bedrockSession = await resolveBlockBedrockSession(
-        ctx,
-        providerId,
-        routerConfig.bedrockCredential
-      )
+      const bedrockSession = await resolveBlockBedrockSession(ctx, providerId, routerConfig)
 
       const providerRequest: ProviderRequest = {
         model: resolved.model,

@@ -208,6 +208,20 @@ describe('RouterBlockHandler', () => {
     expect(mockExecuteProviderRequest.mock.calls[0][1].bedrockSession).toEqual(session)
   })
 
+  it('fails a Bedrock routing call set to a saved AWS credential when none resolves', async () => {
+    mockGetProviderFromModel.mockReturnValue('bedrock')
+
+    await expect(
+      handler.execute(mockContext, mockBlock, {
+        prompt: 'Pick a destination',
+        model: 'bedrock/claude',
+        bedrockAuthMode: 'credential',
+        bedrockCredential: '',
+      })
+    ).rejects.toThrow('Select an AWS credential for Bedrock')
+    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+  })
+
   it('selects the same legacy destination when a fallback provider answers', async () => {
     mockExecuteProviderRequest
       .mockRejectedValueOnce(new Error('overloaded'))

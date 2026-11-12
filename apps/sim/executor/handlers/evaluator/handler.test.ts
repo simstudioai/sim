@@ -206,6 +206,19 @@ describe('EvaluatorBlockHandler', () => {
     expect(mockExecuteProviderRequest.mock.calls[0][1].bedrockSession).toEqual(session)
   })
 
+  it('fails a Bedrock evaluation set to a saved AWS credential when none resolves', async () => {
+    mockGetProviderFromModel.mockReturnValue('bedrock')
+
+    await expect(
+      handler.execute(mockContext, mockBlock, {
+        ...admissionInputs,
+        model: 'bedrock/claude',
+        bedrockAuthMode: 'credential',
+      })
+    ).rejects.toThrow('Select an AWS credential for Bedrock')
+    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+  })
+
   it('keeps the AWS credential session off a fallback on another provider', async () => {
     mockGetProviderFromModel.mockImplementation((model: string) =>
       model.startsWith('claude') ? 'anthropic' : 'bedrock'

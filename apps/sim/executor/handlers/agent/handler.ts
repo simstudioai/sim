@@ -2712,6 +2712,7 @@ export class AgentBlockHandler implements BlockHandler {
                 ...PROVIDER_FAMILY_CREDENTIAL_FIELDS,
                 'vertexCredential',
                 'bedrockCredential',
+                'bedrockAuthMode',
               ])),
           apiKey: resolveFallbackApiKey({
             candidate,
@@ -2927,6 +2928,7 @@ export class AgentBlockHandler implements BlockHandler {
       bedrockSecretKey: inputs.bedrockSecretKey,
       bedrockRegion: inputs.bedrockRegion,
       bedrockCredential: inputs.bedrockCredential,
+      bedrockAuthMode: inputs.bedrockAuthMode,
       responseFormat,
       workflowId: ctx.workflowId,
       workspaceId: ctx.workspaceId,
@@ -2999,11 +3001,7 @@ export class AgentBlockHandler implements BlockHandler {
           callerLabel: 'vertex-agent',
         })
       }
-      const bedrockSession = await resolveBlockBedrockSession(
-        ctx,
-        providerId,
-        providerRequest.bedrockCredential
-      )
+      const bedrockSession = await resolveBlockBedrockSession(ctx, providerId, providerRequest)
 
       const { blockData, blockNameMapping } = collectBlockData(ctx)
       const agentMemoryRetrieval = agentConversation?.memoryId

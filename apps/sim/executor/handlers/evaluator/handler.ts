@@ -52,6 +52,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
       bedrockSecretKey: inputs.bedrockSecretKey,
       bedrockRegion: inputs.bedrockRegion,
       bedrockCredential: inputs.bedrockCredential,
+      bedrockAuthMode: inputs.bedrockAuthMode,
     }
 
     let systemPromptObj: { systemPrompt: string; responseFormat: any } = {
@@ -191,11 +192,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
         callerLabel: 'vertex-evaluator',
       })
     }
-    const bedrockSession = await resolveBlockBedrockSession(
-      ctx,
-      providerId,
-      evaluatorConfig.bedrockCredential
-    )
+    const bedrockSession = await resolveBlockBedrockSession(ctx, providerId, evaluatorConfig)
 
     try {
       const providerRequest: ProviderRequest = {

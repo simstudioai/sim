@@ -1190,6 +1190,18 @@ describe('AgentBlockHandler', () => {
       mockResolveBedrockCredentialSession.mockReset()
     })
 
+    it('fails a Bedrock call set to a saved AWS credential when the credential resolves blank', async () => {
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          ...baseInputs,
+          model: 'bedrock/claude',
+          bedrockAuthMode: 'credential',
+          bedrockCredential: '  ',
+        })
+      ).rejects.toThrow('Select an AWS credential for Bedrock')
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    })
+
     it('keeps the AWS credential off a fallback on another provider', async () => {
       mockExecuteProviderRequest
         .mockRejectedValueOnce(new Error('overloaded'))

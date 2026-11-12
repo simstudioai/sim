@@ -64,6 +64,7 @@ import type { BlockConfig } from '@/blocks/types'
 import {
   getApiKeyCondition,
   getProviderCredentialSubBlocks,
+  getSelectedBedrockCredential,
   getSerializedModelProviderId,
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
@@ -137,6 +138,30 @@ describe('Bedrock credential fields', () => {
 
   it('shows no Bedrock field for a model of another provider', () => {
     expect(visibleBedrockFields({ model: 'gpt-4o', bedrockAuthMode: 'credential' })).toEqual([])
+  })
+})
+
+describe('getSelectedBedrockCredential', () => {
+  it('returns the trimmed saved credential a block signs Bedrock calls with', () => {
+    expect(
+      getSelectedBedrockCredential({ bedrockAuthMode: 'credential', bedrockCredential: ' cred-1 ' })
+    ).toBe('cred-1')
+  })
+
+  it('refuses a block set to a saved credential whose ID resolves blank', () => {
+    expect(() =>
+      getSelectedBedrockCredential({ bedrockAuthMode: 'credential', bedrockCredential: '' })
+    ).toThrow('Select an AWS credential for Bedrock')
+    expect(() => getSelectedBedrockCredential({ bedrockAuthMode: 'credential' })).toThrow(
+      'Select an AWS credential for Bedrock'
+    )
+  })
+
+  it('returns nothing for a block on access keys or saved before auth modes', () => {
+    expect(
+      getSelectedBedrockCredential({ bedrockAuthMode: 'access_keys', bedrockCredential: 'cred-1' })
+    ).toBeUndefined()
+    expect(getSelectedBedrockCredential({})).toBeUndefined()
   })
 })
 

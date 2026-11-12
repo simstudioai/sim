@@ -531,6 +531,32 @@ function getBedrockAuthModeCondition(mode: 'access_keys' | 'credential') {
 }
 
 /**
+ * The saved AWS credential ID a block's Bedrock call signs with, or undefined
+ * when the block uses access keys. A block saved before the auth mode existed
+ * has no `bedrockAuthMode` and uses a credential only when one is set. A block
+ * set to a saved credential whose ID resolves blank (an empty reference) is
+ * refused, so its call never falls back to inline keys or the deployment's own
+ * AWS credentials.
+ */
+export function getSelectedBedrockCredential({
+  bedrockAuthMode,
+  bedrockCredential,
+}: {
+  bedrockAuthMode?: unknown
+  bedrockCredential?: unknown
+}): string | undefined {
+  if (bedrockAuthMode === 'access_keys') return undefined
+  const credentialId = typeof bedrockCredential === 'string' ? bedrockCredential.trim() : ''
+  if (credentialId) return credentialId
+  if (bedrockAuthMode === 'credential') {
+    throw new Error(
+      'Select an AWS credential for Bedrock, or switch AWS Authentication to access keys'
+    )
+  }
+  return undefined
+}
+
+/**
  * Returns the standard provider credential subblocks used by LLM-based blocks.
  * This includes: Vertex AI OAuth, API Key, Azure (OpenAI + Anthropic), Vertex AI config, and Bedrock
  * config (access keys or a saved AWS credential).
