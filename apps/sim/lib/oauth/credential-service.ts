@@ -39,6 +39,7 @@ import {
   isTokenServiceAccountProviderId,
   SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/token-service-accounts/descriptors'
+import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import {
   parseStoredSecretMode,
   parseTokenServiceAccountSecret,
@@ -729,6 +730,16 @@ function secretFingerprintOf(encryptedServiceAccountKey: string): string {
 }
 
 /**
+ * Whether a `sharedToken` mint failed with a failure the coordinated layer remembers for every
+ * worker. Only those are replayed here, for exactly as long as that layer still replays them; a
+ * failure it does not remember (a lock timeout, a database error) may already be over for
+ * another worker, so the next resolution asks again.
+ */
+function isCoordinatedReplay(error: unknown): boolean {
+  return error instanceof TokenServiceAccountValidationError && error.replayForMs !== undefined
+}
+
+/**
  * Resolves a stored secret that mints short-lived tokens, read-through the
  * per-instance cache: re-reads the credential row, serves a cached token minted
  * from the same ciphertext while enough of it remains, replays a recent mint
@@ -738,8 +749,8 @@ function secretFingerprintOf(encryptedServiceAccountKey: string): string {
  * `coalesceLocally` so concurrent block executions on one instance share a
  * single mint. `sharedToken` providers coordinate one token per application
  * themselves (including the in-request retry and the fallback), so their tokens
- * are never cached here and a failure is replayed only as long as their own
- * replay reports; a caller that already read the secret to choose its mode
+ * are never cached here and only a failure their own layer remembers is
+ * replayed, for as long as it reports; a caller that already read the secret to choose its mode
  * passes it as `stored` rather than reading it twice.
  */
 async function resolveMintedServiceAccountToken(
@@ -807,6 +818,10 @@ async function resolveMintedServiceAccountToken(
       return { ...minted.token }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') throw error
+      if (sharedToken && !isCoordinatedReplay(error)) {
+        clientCredentialMintFailureCache.delete(cacheIdentity)
+        throw error
+      }
       const failure = assessTokenRequestFailure(error, failed)
       const retryAtMs = Date.now() + failure.replayMs
       clientCredentialMintFailureCache.set(cacheIdentity, {

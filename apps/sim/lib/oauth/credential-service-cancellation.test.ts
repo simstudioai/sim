@@ -446,4 +446,27 @@ describe('client credential token refresh after a failed mint', () => {
       resolveFor('vanta-coordinated-replay', VANTA_SERVICE_ACCOUNT_PROVIDER_ID)
     ).resolves.toEqual({ value: { accessToken: token.accessToken } })
   })
+
+  it('asks the coordinated layer again at once after a failure it does not remember', async () => {
+    encryptionMockFns.mockDecryptSecret.mockResolvedValue({
+      decrypted: JSON.stringify({
+        type: CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE,
+        providerId: VANTA_SERVICE_ACCOUNT_PROVIDER_ID,
+        clientId: 'vanta-client',
+        clientSecret: 'vanta-client-secret',
+      }),
+    })
+    const mint = minter()
+    mint
+      .mockRejectedValueOnce(
+        new TokenServiceAccountValidationError('provider_unavailable', 503, { step: 'mint' })
+      )
+      .mockResolvedValueOnce(token)
+
+    await resolveFor('vanta-coordination-failed', VANTA_SERVICE_ACCOUNT_PROVIDER_ID)
+
+    await expect(
+      resolveFor('vanta-coordination-failed', VANTA_SERVICE_ACCOUNT_PROVIDER_ID)
+    ).resolves.toEqual({ value: { accessToken: token.accessToken } })
+  })
 })
