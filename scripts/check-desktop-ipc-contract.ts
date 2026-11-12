@@ -17,6 +17,10 @@
  *    `gate` and `requires` values agree, unless the outlier carries an
  *    explicit acknowledgment. A surface toggle that a new channel forgets is
  *    invisible in review — the channel simply works when it should not.
+ * 3. A channel the preload exposes only inside a `...(features.<name> ? …)`
+ *    block declares the same `platformFeature`, and an ungated call declares
+ *    none. Otherwise a platform that omits the bridge method still registers
+ *    the handler, or a platform that exposes the method finds nothing behind it.
  *
  * Deviations are legitimate and common: a channel that READS or RESETS a
  * surface's settings must keep working while the surface is off, or the user
@@ -83,6 +87,8 @@ interface ChannelDecl {
   line: number
   /** The channel's own `deviationReason`, or null when it declares none. */
   deviationReason: string | null
+  /** The `DesktopFeatures` key the channel is registered under, or '' for every platform. */
+  platformFeature: string
 }
 
 /** The handler table is one `'channel': {` entry per line at a fixed depth. */
@@ -104,6 +110,7 @@ function parseChannelTable(source: string): ChannelDecl[] {
       requires: /requires:\s*'([^']+)'/.exec(body)?.[1] ?? '',
       line: i + 1,
       deviationReason: reason ? (reason[1] ?? reason[2] ?? '').trim() : null,
+      platformFeature: /platformFeature:\s*'([^']+)'/.exec(body)?.[1] ?? '',
     })
   }
   return decls
@@ -157,8 +164,11 @@ async function channelsPushedFromMain(): Promise<Set<string>> {
   return pushed
 }
 
-function channelsFromPreload(source: string, methods: string): Set<string> {
-  const constants = channelConstants(source)
+function channelsFromPreload(
+  source: string,
+  methods: string,
+  constants = channelConstants(source)
+): Set<string> {
   const found = new Set<string>()
   const pattern = new RegExp(
     `ipcRenderer\\.(?:${methods})\\(\\s*(?:'([^']+)'|([A-Za-z_$][\\w$]*))`,
@@ -169,6 +179,28 @@ function channelsFromPreload(source: string, methods: string): Set<string> {
     if (name) found.add(name)
   }
   return found
+}
+
+/**
+ * Channels the preload calls only inside a `...(features.<name> ? { … } : {})`
+ * spread, keyed to that feature. The spread's extent is its balanced parens.
+ */
+function featureGatedChannels(source: string): Map<string, string> {
+  const constants = channelConstants(source)
+  const gated = new Map<string, string>()
+  for (const match of source.matchAll(/\.\.\.\(features\.(\w+)/g)) {
+    const start = match.index + '...'.length
+    let depth = 0
+    let end = start
+    for (; end < source.length; end++) {
+      if (source[end] === '(') depth++
+      else if (source[end] === ')' && --depth === 0) break
+    }
+    for (const name of channelsFromPreload(source.slice(start, end), 'invoke|send', constants)) {
+      gated.set(name, match[1])
+    }
+  }
+  return gated
 }
 
 async function main(): Promise<void> {
@@ -208,9 +240,11 @@ async function main(): Promise<void> {
 
   const called = new Set<string>()
   const subscribed = new Set<string>()
+  const gatedByFeature = new Map<string, string>()
   for (const source of preloadSources) {
     for (const name of channelsFromPreload(source, 'invoke|send')) called.add(name)
     for (const name of channelsFromPreload(source, 'on|once')) subscribed.add(name)
+    for (const [name, feature] of featureGatedChannels(source)) gatedByFeature.set(name, feature)
   }
   const declaredNames = new Set(declared.map((channel) => channel.name))
   const preloadLabel = 'apps/desktop/src/preload'
@@ -230,6 +264,18 @@ async function main(): Promise<void> {
     failures.push(
       `${relative(ROOT, IPC_SOURCE_PATH)}:${channel.line}: '${channel.name}' is handled but never ` +
         'called from the preload — dead channel, or a bridge method that was dropped.'
+    )
+  }
+
+  for (const channel of declared) {
+    if (!called.has(channel.name)) continue
+    const exposedUnder = gatedByFeature.get(channel.name) ?? ''
+    if (channel.platformFeature === exposedUnder) continue
+    const shown = (feature: string) => (feature === '' ? 'every platform' : `features.${feature}`)
+    failures.push(
+      `${relative(ROOT, IPC_SOURCE_PATH)}:${channel.line}: '${channel.name}' is registered for ` +
+        `${shown(channel.platformFeature)}, but the preload exposes it for ${shown(exposedUnder)}. ` +
+        'Match its `platformFeature` to the preload so the handler and the bridge method ship together.'
     )
   }
 
