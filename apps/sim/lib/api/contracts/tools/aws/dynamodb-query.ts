@@ -34,7 +34,7 @@ const QuerySchema = z.object({
     }),
   projectionExpression: z.string().optional(),
   consistentRead: z
-    .union([z.boolean(), z.string()])
+    .union([z.boolean(), z.enum(['true', 'false'])])
     .optional()
     .transform((val) => {
       if (val === true || val === 'true') return true

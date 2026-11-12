@@ -26,7 +26,7 @@ const ScanSchema = z
     exclusiveStartKey: z.record(z.string(), z.unknown()).optional(),
     indexName: z.string().optional(),
     consistentRead: z
-      .union([z.boolean(), z.string()])
+      .union([z.boolean(), z.enum(['true', 'false'])])
       .optional()
       .transform((val) => {
         if (val === true || val === 'true') return true

@@ -8,6 +8,11 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import { validateAwsRegion } from '@/lib/core/security/input-validation'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 
+/** SES `MessageTag` name or value: 1-256 letters, digits, underscores, or hyphens. */
+const sesMessageTagPartSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]{1,256}$/, 'Tag names and values may contain only letters, digits, _ and -')
+
 const SendTemplatedEmailSchema = z.object({
   region: z
     .string()
@@ -26,7 +31,9 @@ const SendTemplatedEmailSchema = z.object({
   configurationSetName: z.string().nullish(),
   replyToAddresses: z.string().nullish(),
   fromName: z.string().nullish(),
-  emailTags: z.array(z.object({ name: z.string().min(1), value: z.string() })).nullish(),
+  emailTags: z
+    .array(z.object({ name: sesMessageTagPartSchema, value: sesMessageTagPartSchema }))
+    .nullish(),
   attachments: RawFileInputArraySchema.nullish(),
 })
 
