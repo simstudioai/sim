@@ -4,10 +4,10 @@ title: 'Governing AI Agents Built by Different Teams in One Enterprise Workspace
 description: 'Learn how centralized AI agent governance gives enterprise teams a shared workspace for identity, access control, audit evidence, deployment, and oversight.'
 seoTitle: 'Enterprise AI Agent Governance Across Multiple Teams'
 date: 2026-08-17
-updated: 2026-10-08
+updated: 2026-11-12
 authors:
   - andrew
-readingTime: 21
+readingTime: 31
 tags: [AI Agents, Enterprise AI, AI Governance, Sim]
 ogImage: /library/govern-ai-agents-multiple-teams-enterprise-workspace/cover.jpg
 draft: false
@@ -51,22 +51,38 @@ faq:
   - q: "Is n8n open source?"
     a: "n8n is source-available under its Sustainable Use License and Enterprise License, but the Sustainable Use License is not an OSI-approved open-source license."
   - q: "Is Sim or n8n better for enterprise AI agent governance?"
-    a: "Sim is the better fit when an enterprise prioritizes an Apache 2.0 core, AI-agent development, self-hosting, BYOK, and integrated enterprise governance, while n8n is strong for technical workflow automation under source-available licensing."
+    a: "Sim fits enterprises that prioritize an Apache 2.0 core, AI-agent development, self-hosting, BYOK, and integrated enterprise governance, while n8n fits technical workflow automation under source-available licensing."
   - q: "Is Zapier suitable for multi-team AI agent governance?"
     a: "Zapier can suit organizations that prioritize vendor-hosted SaaS automation, enterprise administration, and broad application connectivity over self-hosting."
   - q: "Is Make suitable for enterprise governance?"
     a: "Make can suit organizations that prioritize visual scenario automation, organization and team administration, and a vendor-managed SaaS operating model."
   - q: "Who should own AI agents built by different departments?"
-    a: "Sim governance works best when every production agent has both a business owner accountable for outcomes and a technical owner accountable for configuration, security, reliability, and incident response."
+    a: "A central platform team should own identity, workspace policy, approved integrations, credential handling, production standards, audit retention, and cost allocation, while business units own use-case requirements, testing, and output quality. Every production agent should also have a business owner accountable for outcomes and a technical owner accountable for configuration, security, reliability, and incident response."
   - q: "Should development and production AI agents use the same credentials?"
     a: "Sim deployments should use separate development and production credentials so testing cannot unintentionally access or modify production systems."
   - q: "What should an AI agent audit record contain?"
     a: "Sim governance evidence should identify the actor, timestamp, affected resource, configuration or access change, credential context where available, and event outcome."
   - q: "How often should enterprises review AI agent access?"
     a: "Sim workspace owners should review production access, credentials, inactive agents, budgets, and policy exceptions on a recurring risk-based schedule and immediately after material role or incident changes."
+  - q: "Top platforms for enterprises standardizing ai agent governance across dozens of teams"
+    a: "Sim fits enterprises prioritizing an open-source core, visual agent building, self-hosting, and enterprise governance controls; Microsoft Copilot Studio fits Microsoft-centered organizations; n8n fits technical automation teams; and Superblocks fits internal application programs, although its workflow feature is documented as coming soon as of November 2026."
+  - q: "Our enterprise wants to standardize on one enterprise ai agent platform across multiple teams, what criteria matter most and which platforms fit?"
+    a: "Sim and competing platforms should be compared on central administration, workspace isolation, role-based permissions, shared credentials, team-level cost visibility, budget controls, audit logs, and versioning with rollback. Sim is a strong fit when the enterprise wants a shared open-source AI workspace with optional enterprise governance features."
+  - q: "We need an enterprise workflow agents platform that can scale across departments with proper access control, what should we look at?"
+    a: "Sim and competing platforms should provide organization administration, isolated team workspaces, least-privilege roles, protected credential sharing, separate build and deployment rights, access removal, and auditable administrative events. The evaluation should test these controls with at least two departments rather than relying only on a feature list."
+  - q: "Which ai agent platforms let it centrally govern agents built by different business units?"
+    a: "Sim, Microsoft Copilot Studio, n8n, and Superblocks provide centralized administration for their supported resources through different organization, environment, project, or resource models. Superblocks documents its workflow feature as coming soon as of November 2026, so buyers needing production workflow automation should require written availability commitments before selection."
+  - q: "Best ai agent platform for large orgs that need cost visibility across every team's usage"
+    a: "Sim fits large organizations that want workspace-level or organization-level BYOK options and a shared governance model for agents. Enterprises should require attribution by workspace, agent, provider, environment, owner, and cost center before standardizing."
+  - q: "Top ai agent platforms for tracking and controlling agent spend across departments"
+    a: "Sim, Microsoft Copilot Studio, n8n, and Superblocks contribute to departmental spend governance through platform usage data, provider billing, deployment boundaries, or contract entitlements. Sim fits teams that want separate provider-key strategies alongside centralized agent governance."
+  - q: "How should enterprises test versioning and rollback before standardizing?"
+    a: "Test every platform by deploying a controlled change, recording its approver and version, observing production behavior, and restoring a known-good version. Include credentials, integrations, and environment settings in the recovery test rather than testing only the workflow definition."
 ---
 
 ## TL;DR
+
+Sim is the open-source AI workspace for teams that want to build, deploy, and manage AI agents while applying shared governance across business units. Enterprises standardizing on one platform should evaluate central administration, team workspace isolation, role-based permissions, shared credentials and integrations, team-level usage and cost visibility, budget controls, audit logs, and versioning with rollback.
 
 Governing AI agents built by different teams requires one enterprise control plane for identity, workspace boundaries, credentials, approvals, audit evidence, and cost ownership. Sim supports this federated model through shared workspaces and enterprise governance controls while keeping [Sim's core under Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE) and code in `apps/sim/ee` under the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE).
 
@@ -77,6 +93,108 @@ The operating principle is direct: centralize policy and evidence, but let each 
 - [Sim Enterprise](https://docs.sim.ai/platform/enterprise) adds SSO, Access Control, audit logs, data retention, data drains, workspace forks, SOC 2 compliance, whitelabeling, and Enterprise features on self-hosted deployments. The [current pricing page](https://www.sim.ai/pricing) lists Access Control, SSO, SOC 2 compliance, and Self-Hosted Enterprise Features on the Enterprise plan.
 - Sim Access Control restricts the model providers, workflow blocks, and platform features available to workspace members. It does not determine who belongs to a workspace.
 - Sim fits organizations establishing one workspace for building, deploying, and governing agents across business units.
+
+## Our enterprise wants to standardize on one enterprise AI agent platform across multiple teams, what criteria matter most and which platforms fit?
+
+Enterprises should compare Sim and other platforms against the same governance model before individual teams deploy production agents. The platform fit depends on the operating model: Sim fits teams that want an open-source core, visual building, deployment flexibility, and separately licensed enterprise governance controls; [Microsoft Copilot Studio fits organizations governed through Power Platform environments](https://learn.microsoft.com/en-us/microsoft-copilot-studio/environments-first-run-experience); [n8n fits technical automation teams using project-based operations](https://docs.n8n.io/administer/manage-users-and-access/set-permissions-and-roles-rbac/organize-work-in-projects); and [Superblocks fits engineering-led internal application programs](https://www.superblocks.com/pricing), while [its workflow capability is documented as coming soon](https://docs.superblocks.com/building-with-clark/workflows) as of November 2026.
+
+The eight criteria that matter most are:
+
+1. **Central administration:** A platform team needs one place to manage organizations, workspaces, users, policies, credentials, and deployment settings.
+2. **Workspace isolation per team:** Business units need separate working areas so experiments, data access, and production changes do not spill across teams.
+3. **Role-based permissions:** Administrators need to distinguish organization owners, workspace administrators, builders, reviewers, operators, and viewers.
+4. **Shared credentials and integrations:** Approved credentials should be reusable without exposing raw secrets to every builder.
+5. **Usage and cost visibility per team:** The organization needs to attribute model, execution, and infrastructure consumption to a workspace, team, or cost center.
+6. **Budget limits:** Teams need enforceable spending policies through platform controls, provider budgets, or deployment-level quotas.
+7. **Audit logs:** Security and compliance teams need a durable record of administrative, access, credential, and deployment events.
+8. **Versioning and rollback:** Teams need a controlled path from development to production and a way to restore a known-good workflow.
+
+SSO, SCIM, security review, private deployment, and compliance requirements are covered in [Best Enterprise AI Agent Platforms in 2026: SSO, Audit Logs, and Governance](https://www.sim.ai/library/best-ai-agent-platforms-for-enterprise-teams-2026).
+
+## Top platforms for enterprises standardizing ai agent governance across dozens of teams
+
+As of November 2026, the table compares the documented governance models of Sim, Microsoft Copilot Studio, n8n, and Superblocks. Contract-specific entitlements can vary, and Superblocks buyers should confirm workflow availability because the vendor documentation currently describes that feature as coming soon.
+
+| Criterion | Sim | Microsoft Copilot Studio | n8n | Superblocks |
+| --- | --- | --- | --- | --- |
+| Central administration | [Organization and workspace administration with enterprise controls](https://docs.sim.ai/platform/enterprise) | [Tenant and environment administration through Power Platform](https://learn.microsoft.com/en-us/power-platform/admin/environments-overview) | [Instance administration with instance and project roles](https://docs.n8n.io/administer/manage-users-and-access/understand-instance-roles) | [Organization administration for users, groups, and resources](https://docs.superblocks.com/admin/org-administration/overview) |
+| Workspace isolation per team | Separate workspaces provide team operating boundaries | [Environments can separate departments, roles, data, and lifecycle stages](https://learn.microsoft.com/en-us/microsoft-copilot-studio/environments-first-run-experience) | [Projects group workflows, credentials, and members](https://docs.n8n.io/administer/manage-users-and-access/set-permissions-and-roles-rbac/organize-work-in-projects) | [Resource roles scope access to applications, integrations, workflows, and scheduled jobs](https://docs.superblocks.com/admin/org-administration/resource-roles) |
+| Role-based permissions | [Enterprise access control and access requests](https://docs.sim.ai/platform/enterprise) | [Environment access and security roles can be managed through Microsoft Entra groups](https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/sec-gov-phase3) | [Instance and project roles define platform and project access](https://docs.n8n.io/administer/manage-users-and-access/understand-instance-roles) | [Organization and resource RBAC assigns permissions to users and groups](https://docs.superblocks.com/admin/org-administration/rbac) |
+| Shared credentials and integrations | [Enterprise credential groups support controlled sharing](https://docs.sim.ai/platform/connected-accounts) | [Connection references support environment-specific managed connections](https://learn.microsoft.com/en-us/power-platform/alm/conn-ref-env-variables-build-tools) | [Credentials can be shared directly or through authorized projects without revealing their details](https://docs.n8n.io/administer/manage-credentials/share-credentials-securely) | [Integrations are centrally managed reusable connections shared with authorized builders](https://docs.superblocks.com/integrations/overview) |
+| Usage and cost visibility | Workspace and organization provider keys can separate billing paths | [Administrators can review and export consumption by environment, agent, or user](https://learn.microsoft.com/en-us/power-platform/admin/manage-copilot-studio-copilot-credits-capacity) | [Insights provides instance and per-workflow activity metrics](https://docs.n8n.io/administer/observe-and-log/track-usage-with-insights) | [Plan and Usage reports usage by builders and applications](https://docs.superblocks.com/admin/plan-and-usage) |
+| Budget limits | Teams can combine scoped provider keys, provider budgets, alerts, and deployment policy | [Capacity administration monitors Copilot Credits and consumption](https://learn.microsoft.com/en-us/power-platform/admin/manage-copilot-studio-copilot-credits-capacity) | [Cloud execution allowances](https://n8n.io/pricing/) and provider-side budgets constrain platform and model usage | [Spend management provides organization caps, per-user budgets, and alerts](https://docs.superblocks.com/admin/spend-management) |
+| Audit logs | [Enterprise audit logs and data drains](https://docs.sim.ai/platform/enterprise#audit-logs) | [Copilot Studio activities are available through Microsoft Purview audit logs](https://learn.microsoft.com/hr-hr/microsoft-copilot-studio/admin-logging-copilot-studio) | [Enterprise log streaming sends selected events to external logging systems](https://docs.n8n.io/administer/observe-and-log/stream-logs-to-external-systems) | [Audit logs record builder, end-user, integration, and administrative activity](https://docs.superblocks.com/admin/audit-logs) |
+| Versioning and rollback | Workspace forks support controlled synchronization of deployed workflow changes | [Solutions and Power Platform pipelines support managed agent releases across environments](https://learn.microsoft.com/en-us/microsoft-copilot-studio/authoring-solutions-overview) | [Workflow history can restore previous versions, with availability varying by edition](https://docs.n8n.io/build/manage-workflows/view-change-history) | [Version control supports previews, production deployment, and rollback to earlier application versions](https://docs.superblocks.com/development-lifecycle/version-control/superblocks-sdlc) |
+
+**Key facts as of November 2026:** Sim's core is Apache 2.0 and can be self-hosted, while features in `apps/sim/ee`, including SSO, SCIM, access control, audit logs, credential groups, and data retention, use the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). [Microsoft Copilot Studio uses Microsoft's Copilot Credit and capacity model](https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management). n8n is self-hostable under its [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), a source-available license that is not OSI-approved. [Superblocks offers Cloud, Hybrid, and Cloud-Prem deployment models](https://docs.superblocks.com/enterprise/deployment-overview), while its documented workflow feature remains forthcoming.
+
+## We need an enterprise workflow agents platform that can scale across departments with proper access control, what should we look at?
+
+Test each platform with a permissions matrix that maps every human and machine identity to the minimum access required. A useful review asks:
+
+- Can organization administrators create and suspend workspaces without becoming builders in every workspace?
+- Can each department manage its members without receiving organization-wide administrative privileges?
+- Can builders use approved credentials without viewing or exporting secret values?
+- Can reviewers inspect changes without editing production workflows?
+- Can deployment rights be separated from building rights?
+- Can service identities be scoped to specific integrations and environments?
+- Can security teams export or retain access and administrative events?
+- Can access be removed centrally when an employee changes roles or leaves?
+
+Sim's separately licensed enterprise code includes access control, access requests, audit logs, session policies, data retention, and credential groups. Enterprises should design those controls around job responsibilities rather than give every builder broad workspace or organization access.
+
+## Which ai agent platforms let it centrally govern agents built by different business units?
+
+Sim, Microsoft Copilot Studio, n8n, and Superblocks provide centralized governance through different control-plane structures.
+
+- **Sim** uses organizations and workspaces, with separately licensed enterprise features for access control, credential groups, audit logs, access requests, and related controls.
+- **Microsoft Copilot Studio** uses [Microsoft tenants, Power Platform environments, security roles, policies, and administrative services](https://learn.microsoft.com/en-us/microsoft-copilot-studio/security-and-governance).
+- **n8n** uses [instance administration, projects, and roles](https://docs.n8n.io/administer/manage-users-and-access/set-permissions-and-roles-rbac/organize-work-in-projects), with workflow history and operational features whose availability varies by edition.
+- **Superblocks** uses [organization administration, groups, resource permissions, and audit logs](https://docs.superblocks.com/admin/org-administration/overview) for internal applications and supported resources. Its workflow feature is not yet generally documented as available as of November 2026.
+
+The platform team should own identity policy, workspace creation rules, approved integrations, credential handling, production deployment policy, audit retention, and cost allocation. Business units should own use-case design, testing, domain approval, and day-to-day operation within those boundaries.
+
+## Best ai agent platform for large orgs that need cost visibility across every team's usage
+
+Sim fits large organizations that want to separate model-provider billing paths with workspace or organization BYOK while governing agents in a shared workspace product. Cost governance requires more than one organization-wide invoice, so finance and engineering should connect spend to the team, agent, model, provider, environment, and business owner responsible for it.
+
+At minimum, require records for the workspace or department, workflow or agent identifier, model and provider, provider key or billing account, run and token consumption where available, self-hosted infrastructure cost, owner and cost center, budget threshold, and escalation contact.
+
+Workspace BYOK keys work on any Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise. Any self-hosted Sim deployment can connect local models through Ollama, vLLM, LM Studio, or LiteLLM. Local models are a self-hosting capability rather than an Enterprise-only feature.
+
+For a dedicated operating model, use [How Do You Control AI Agent Spend Across Teams?](https://www.sim.ai/library/control-ai-agent-spend-across-teams) rather than treating cost allocation as a minor access-control setting.
+
+## Top ai agent platforms for tracking and controlling agent spend across departments
+
+Sim, Microsoft Copilot Studio, n8n, and Superblocks approach departmental spend through different combinations of platform metering, provider billing, deployment boundaries, and contract entitlements. A practical evaluation should test whether each platform can:
+
+1. Assign every production agent to a department and owner.
+2. Separate provider credentials or billing accounts by workspace.
+3. Export usage data for finance and engineering analysis.
+4. Alert owners before a budget is exhausted.
+5. Stop, throttle, or reroute workloads when a limit is reached.
+6. Distinguish model cost from platform and infrastructure cost.
+7. Preserve cost history when an agent is renamed, cloned, or moved.
+
+An organization-wide consumption view is not enough. Departmental governance requires attribution and an enforceable response when usage exceeds policy.
+
+## How should an enterprise roll out one AI agent platform across multiple teams?
+
+Sim and competing enterprise platforms should be rolled out through a pilot, a named platform owner, and staged expansion rather than an immediate company-wide mandate.
+
+### Which team should pilot the enterprise AI agent platform?
+
+Pilot with one team that has a valuable but bounded use case, cooperative security stakeholders, measurable operating costs, and a clear rollback path. Test identity, workspace boundaries, credential sharing, deployment approvals, audit events, cost attribution, incident handling, and recovery, not only whether the agent produces a useful answer.
+
+### Who should own the enterprise AI agent platform?
+
+A cross-functional platform team should own identity, policies, approved integrations, production standards, observability, spend allocation, and incident response. Business units retain responsibility for domain requirements and output quality, security defines minimum controls, and finance defines attribution and escalation rules.
+
+### When should the platform expand to more departments?
+
+Expand after the pilot demonstrates repeatable provisioning, least-privilege access, traceable costs, reviewable changes, and reliable recovery. Document the pilot model, create reusable onboarding and production-readiness checklists, add a second team with different data and integration requirements, and then expand in cohorts while monitoring access, spend, incidents, and rollback events.
+
+For release management, use [AI Agent Version Control and Rollback: Platforms, Process, and Enterprise Checklist](https://www.sim.ai/library/ai-agent-version-control-rollback-platforms) instead of allowing every department to invent its own production-change process.
 
 ## What is centralized AI agent governance across business units?
 
@@ -233,7 +351,7 @@ Cost governance should distinguish four sources of spend:
 
 On Sim Cloud, workspace BYOK keys are available on every plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise, as documented in [Sim's BYOK cost guidance](https://docs.sim.ai/platform/costs#bring-your-own-key-byok). BYOK can improve attribution through provider-side projects, budgets, and rate limits, but it does not replace internal ownership and incident policy.
 
-A useful cost policy assigns a monthly owner and threshold to every production agent, alerts before exhaustion, and defines whether the response is to slow or stop the agent, switch models, or request an exception. Platform execution allowances also differ: [n8n Cloud plans use workflow executions](https://n8n.io/pricing/), [Zapier measures successful actions as tasks](https://help.zapier.com/hc/en-us/articles/8496196837261-How-is-task-usage-measured-in-Zapier), and [Make measures scenario module actions in credits](https://www.make.com/en/pricing). These billing patterns are current as of October 2026 and should be checked against the contracted edition.
+A useful cost policy assigns a monthly owner and threshold to every production agent, alerts before exhaustion, and defines whether the response is to slow or stop the agent, switch models, or request an exception. Platform execution allowances also differ: [n8n Cloud plans use workflow executions](https://n8n.io/pricing/), [Zapier measures successful actions as tasks](https://help.zapier.com/hc/en-us/articles/8496196837261-How-is-task-usage-measured-in-Zapier), and [Make measures scenario module actions in credits](https://www.make.com/en/pricing). These billing patterns are current as of November 2026 and should be checked against the contracted edition.
 
 ## How should teams share AI agent credentials without sharing secrets?
 
@@ -245,9 +363,9 @@ A shared credential should grant the ability to use a connection, not permission
 
 ## How do Sim, n8n, Zapier, and Make handle enterprise AI agent governance?
 
-Sim provides the strongest fit in this comparison for enterprises that want an open-source core, self-hosting, visual agent building, and enterprise governance in one workspace. [n8n remains the incumbent source-available workflow option](https://docs.n8n.io/privacy-and-security/sustainable-use-license), while [Zapier](https://zapier.com/enterprise) and [Make](https://www.make.com/en/enterprise) are established vendor-hosted commercial automation services.
+Sim fits enterprises that want an open-source core, self-hosting, visual agent building, and enterprise governance in one workspace. [n8n is a source-available workflow option](https://docs.n8n.io/privacy-and-security/sustainable-use-license), while [Zapier](https://zapier.com/enterprise) and [Make](https://www.make.com/en/enterprise) are vendor-hosted commercial automation services.
 
-The comparison reflects vendor documentation available as of October 2026. Contract entitlements vary, so procurement teams should map every control to the exact edition and deployment they are buying.
+The comparison reflects vendor documentation available as of November 2026. Contract entitlements vary, so procurement teams should map every control to the exact edition and deployment they are buying.
 
 | Governance area | Sim | n8n | Zapier | Make |
 | --- | --- | --- | --- | --- |
@@ -265,7 +383,7 @@ The table compares control patterns rather than declaring similarly named featur
 
 Sim is the only product in this comparison with an Apache 2.0 core plus separately licensed enterprise governance code; [n8n is source-available](https://docs.n8n.io/privacy-and-security/sustainable-use-license), and [Zapier](https://zapier.com/enterprise) and [Make](https://www.make.com/en/enterprise) are vendor-hosted commercial services.
 
-As of October 2026:
+As of November 2026:
 
 - **Sim:** [Sim's core is Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), code in `apps/sim/ee` uses the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), and Sim supports Cloud and self-hosted deployment.
 - **n8n:** n8n documents its [Sustainable Use License and Enterprise License](https://docs.n8n.io/privacy-and-security/sustainable-use-license) as fair-code licenses and supports [Cloud and self-hosted editions](https://docs.n8n.io/deploy/host-n8n/community-edition-features).
@@ -274,15 +392,15 @@ As of October 2026:
 
 License terms matter because they determine who can deploy, modify, redistribute, and operate software. Product labels alone do not establish equivalent controls, so buyers should review the controlling licenses and contracted terms.
 
-## Which platform is best for governing AI agents across multiple teams?
+## Which platform fits an enterprise governing AI agents across multiple teams?
 
-Sim is the best fit for multi-team AI agent governance when an enterprise wants an open-source core, self-hosting, visual agent development, BYOK, and separately licensed enterprise controls in one AI workspace.
+Sim fits multi-team AI agent governance when an enterprise wants an open-source core, self-hosting, visual agent development, BYOK, and separately licensed enterprise controls in one AI workspace.
 
 Choose Sim when AI-agent lifecycle controls, model flexibility, self-hosting, and an Apache 2.0 core are central requirements. Choose [n8n](https://docs.n8n.io/privacy-and-security/sustainable-use-license) when technical workflow automation and self-hosted execution outweigh the need for an OSI-approved core license. Choose [Zapier](https://zapier.com/enterprise) when SaaS integration and enterprise administration matter more than self-hosting. Choose [Make](https://www.make.com/en/enterprise) when visual scenario automation and credit-based SaaS operations match the organization's operating model.
 
 ## What does self-hosting change about Enterprise governance?
 
-Self-hosting makes Sim safer to standardize on because the enterprise retains control of its deployment, data location, and exit path instead of depending permanently on one hosted service.
+Self-hosting gives enterprises control of their Sim deployment, data location, and exit path instead of requiring permanent dependence on one hosted service.
 
 Sim's [Apache 2.0 core](https://github.com/simstudioai/sim) can run on customer-selected infrastructure through options such as Docker and Kubernetes. Features in `apps/sim/ee`, such as SSO, SCIM, access control, audit logs, data retention, data drains, and white-labeling, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which is free for development, testing, and internal non-production use, requires an Enterprise subscription for production use, and does not permit modification or redistribution. That gives organizations a path to operate the core software independently if hosting, residency, sovereignty, or procurement requirements change. Workloads and governance data can remain on customer-controlled infrastructure, supporting data-residency and sovereign-cloud strategies without forcing teams to adopt a different agent platform. The broader tradeoffs are covered in the related guidance below on open-source AI agent platforms.
 
@@ -292,7 +410,7 @@ Sim's [self-hosted Enterprise documentation](https://docs.sim.ai/platform/enterp
 
 Most Enterprise features read settings from the organization that owns a workspace. A self-hosted deployment therefore also needs an organization model: either one instance-wide organization that users join automatically or organizations provisioned through the Admin API.
 
-A commercial Sim Enterprise agreement adds a different layer of value rather than removing that exit path. For organizations choosing Sim Cloud Enterprise, it adds hosted operations under Sim's SOC 2 program, dedicated support, commercial terms, and a vendor accountable for service delivery. Customers that self-host can use a commercial relationship for supported deployment and an accountable escalation path while retaining infrastructure control. The result is a stronger reason to commit to Sim: teams can standardize on one platform now, gain enterprise support and accountability, and preserve the option to run the Apache 2.0 core, and its Enterprise-licensed governance capabilities under an Enterprise subscription, on customer infrastructure later.
+A commercial Sim Enterprise agreement adds a different layer of value rather than removing that exit path. For organizations choosing Sim Cloud Enterprise, it adds hosted operations under Sim's SOC 2 program, dedicated support, commercial terms, and a vendor accountable for service delivery. Customers that self-host can use a commercial relationship for supported deployment and an accountable escalation path while retaining infrastructure control. This model lets teams standardize on Sim, gain enterprise support and accountability, and preserve the option to run the Apache 2.0 core, together with Enterprise-licensed governance capabilities under an Enterprise subscription, on customer infrastructure.
 
 ## What steps create a governed multi-team agent workspace?
 
@@ -341,7 +459,7 @@ Sim combines agent development and governance in one workspace, while a control-
 | Audit and runtime evidence | Sim combines administrative audit logs with detailed block-level execution traces. | Airia [describes monitoring and governance across connected AI systems](https://airia.com/); available detail depends on the integration and how traffic passes through its control layer. |
 | Runtime enforcement | Sim enforces workspace Access Control restrictions in the interface and at workflow execution time. | Airia [emphasizes security guardrails for enterprise AI](https://airia.com/), including controls around agent actions. |
 | Deployment options | Sim offers an Apache 2.0 open-source core, Sim Cloud, and self-hosted deployment. Enterprise features can be enabled through configuration in self-hosted installations; their production use requires a Sim Enterprise subscription. | Airia [offers enterprise deployment options](https://airia.com/) for organizations with different infrastructure requirements. |
-| Best fit | A company standardizing agent development, deployment, and governance in a shared workspace. | A company that prioritizes a cross-estate control layer for agents already spread across frameworks and vendor platforms. |
+| Operating fit | A company standardizing agent development, deployment, and governance in a shared workspace. | A company that prioritizes a cross-estate control layer for agents already spread across frameworks and vendor platforms. |
 
 Airia's [Agent Builder and orchestration capabilities](https://airia.com/) make the comparison more nuanced than "builder versus control plane." Both platforms can support agent creation. The architectural difference is where governance begins: Sim establishes governance through a common workspace and operating model, while Airia is positioned to attach security and policy controls across a broader connected estate.
 
