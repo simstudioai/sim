@@ -1,5 +1,6 @@
 import type { KalshiAuthParams, KalshiOrder } from '@/tools/kalshi/types'
 import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
+import { KALSHI_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface KalshiCreateOrderParams extends KalshiAuthParams {
@@ -35,6 +36,7 @@ export const kalshiCreateOrderTool: ToolConfig<KalshiCreateOrderParams, KalshiCr
     name: 'Create Order on Kalshi',
     description: 'Create a new order on a Kalshi prediction market',
     version: '1.0.0',
+    oauth: KALSHI_CREDENTIAL_OAUTH,
 
     params: {
       keyId: {
@@ -282,6 +284,7 @@ export const kalshiCreateOrderV2Tool: ToolConfig<
   name: 'Create Order on Kalshi V2',
   description: 'Create a new order on a Kalshi prediction market',
   version: '2.0.0',
+  oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {
     keyId: {

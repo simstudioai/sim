@@ -333,6 +333,15 @@ export const JUPYTER_CREDENTIAL_OAUTH = tokenCredentialOAuth('jupyter', {
   serverUrl: 'domain',
   token: 'accessToken',
 })
+/**
+ * Credential policy for the Kalshi tools that sign requests. A saved Kalshi API key holds the
+ * key ID (as its account id) and the private key (as its token); the tools sign each request
+ * with them, so the key never leaves Sim.
+ */
+export const KALSHI_CREDENTIAL_OAUTH = tokenCredentialOAuth('kalshi', {
+  keyId: 'providerWorkspaceId',
+  privateKey: 'accessToken',
+})
 export const LANGSMITH_CREDENTIAL_OAUTH = tokenCredentialOAuth('langsmith', {
   apiKey: 'accessToken',
   region: 'domain',
@@ -543,6 +552,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   intercom: INTERCOM_CREDENTIAL_OAUTH,
   jotform: JOTFORM_CREDENTIAL_OAUTH,
   jupyter: JUPYTER_CREDENTIAL_OAUTH,
+  kalshi: KALSHI_CREDENTIAL_OAUTH,
   langsmith: LANGSMITH_CREDENTIAL_OAUTH,
   launchdarkly: LAUNCHDARKLY_CREDENTIAL_OAUTH,
   lemlist: LEMLIST_CREDENTIAL_OAUTH,

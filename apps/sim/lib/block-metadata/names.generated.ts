@@ -149,7 +149,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   jira_service_management: 'Jira Service Management',
   jotform_v2: 'Jotform',
   jupyter_v3: 'Jupyter',
-  kalshi_v2: 'Kalshi',
+  kalshi_v3: 'Kalshi',
   ketch: 'Ketch',
   knowledge: 'Knowledge',
   lambda_v2: 'Lambda',

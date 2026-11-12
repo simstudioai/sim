@@ -69,6 +69,7 @@ import { InstantlyBlock, InstantlyV2Block } from '@/blocks/blocks/instantly'
 import { IntercomV2Block, IntercomV3Block } from '@/blocks/blocks/intercom'
 import { JotformBlock, JotformV2Block } from '@/blocks/blocks/jotform'
 import { JupyterV2Block, JupyterV3Block } from '@/blocks/blocks/jupyter'
+import { KalshiV2Block, KalshiV3Block } from '@/blocks/blocks/kalshi'
 import { LambdaBlock, LambdaV2Block } from '@/blocks/blocks/lambda'
 import { LangsmithBlock, LangsmithV2Block } from '@/blocks/blocks/langsmith'
 import { LaunchDarklyBlock, LaunchDarklyV2Block } from '@/blocks/blocks/launchdarkly'
@@ -569,6 +570,57 @@ describe.each(VERSIONS)('$successor.type credential-only block', ({ successor, s
       expect(message, operation).not.toMatch(
         /access key|secret access|api key|token is required|host is required|cannot read properties of undefined/i
       )
+    }
+  })
+})
+
+describe('kalshi_v3 signed and public calls', () => {
+  const SECRET_IDS = ['keyId', 'privateKey']
+
+  it('kalshi_v2 still serializes its inline key for signed calls', () => {
+    vi.spyOn(blocks, 'getBlock').mockReturnValue(KalshiV2Block)
+    const params = serialize(
+      buildBlock(KalshiV2Block, { operation: 'get_balance', ...valuesFor(SECRET_IDS, 'inline') })
+    )
+
+    for (const id of SECRET_IDS) expect(params[id]).toBe(`inline-${id}`)
+    expect(params.oauthCredential).toBeUndefined()
+  })
+
+  it('requires a saved credential for signed calls only', () => {
+    vi.spyOn(blocks, 'getBlock').mockReturnValue(KalshiV3Block)
+    const credentialTitle = fieldTitles(KalshiV3Block, ['credential'])[0]
+
+    expect(
+      missingRequiredFields(buildBlock(KalshiV3Block, { operation: 'get_balance' }))
+    ).toContain(credentialTitle)
+    expect(
+      missingRequiredFields(buildBlock(KalshiV3Block, { operation: 'get_markets' }))
+    ).not.toContain(credentialTitle)
+  })
+
+  it('sends the saved credential and never inline secrets left in its state', () => {
+    vi.spyOn(blocks, 'getBlock').mockReturnValue(KalshiV3Block)
+    const params = serialize(
+      buildBlock(KalshiV3Block, {
+        operation: 'create_order',
+        credential: 'cred-1',
+        ...valuesFor(SECRET_IDS, 'stale'),
+      })
+    )
+
+    expect(params.oauthCredential).toBe('cred-1')
+    for (const id of SECRET_IDS) expect(params[id]).toBeUndefined()
+  })
+
+  it('never asks for the inline key, in any operation', () => {
+    vi.spyOn(blocks, 'getBlock').mockReturnValue(KalshiV3Block)
+    for (const operation of operations(KalshiV3Block)) {
+      const message = missingRequiredFields(
+        buildBlock(KalshiV3Block, { operation: operation ?? '', credential: 'cred-1' })
+      )
+
+      for (const id of SECRET_IDS) expect(message, operation).not.toContain(id)
     }
   })
 })

@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { jsonResponse } from '@sim/testing/helpers/http'
 import {
   inputValidationMock,
@@ -26,6 +27,7 @@ import {
   validateInstantlyServiceAccount,
   validateJotformServiceAccount,
   validateJupyterServiceAccount,
+  validateKalshiServiceAccount,
   validateLogfireServiceAccount,
   validateMailgunServiceAccount,
   validateNewRelicServiceAccount,
@@ -763,6 +765,61 @@ describe('Amplitude saved project key verification', () => {
         providerWorkspaceId: 'api-key',
         domain: 'us',
       })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('Kalshi saved API key verification', () => {
+  const ed25519 = () => {
+    const { privateKey, publicKey } = crypto.generateKeyPairSync('ed25519')
+    return { pem: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(), publicKey }
+  }
+
+  it('reads the balance with a request signed by the pasted Ed25519 key, as the tools sign', async () => {
+    const { pem, publicKey } = ed25519()
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({ balance: 0, portfolio_value: 0 }))
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateKalshiServiceAccount({ apiToken: pem, providerWorkspaceId: ' key-id ' })
+    ).resolves.toMatchObject({ normalizedWorkspaceId: 'key-id' })
+    const [url, init] = fetch.mock.calls[0]
+    expect(url).toBe('https://api.elections.kalshi.com/trade-api/v2/portfolio/balance')
+    expect(init).toMatchObject({ method: 'GET', redirect: 'error' })
+    const headers = init.headers as Record<string, string>
+    expect(headers['KALSHI-ACCESS-KEY']).toBe('key-id')
+    const signed = `${headers['KALSHI-ACCESS-TIMESTAMP']}GET/trade-api/v2/portfolio/balance`
+    expect(
+      crypto.verify(
+        null,
+        Buffer.from(signed),
+        publicKey,
+        Buffer.from(headers['KALSHI-ACCESS-SIGNATURE'], 'base64')
+      )
+    ).toBe(true)
+  })
+
+  it('rejects a key Kalshi refuses to authenticate', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ error: { code: 'authentication_error' } }, 401))
+    )
+
+    await expect(
+      validateKalshiServiceAccount({ apiToken: ed25519().pem, providerWorkspaceId: 'key-id' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it.each([
+    ['a value that is not a private key', 'not a key', 'key-id'],
+    ['a key ID that would break the header', ed25519().pem, 'key id'],
+  ])('refuses %s before any request', async (_, apiToken, providerWorkspaceId) => {
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateKalshiServiceAccount({ apiToken, providerWorkspaceId })
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
     expect(fetch).not.toHaveBeenCalled()
   })

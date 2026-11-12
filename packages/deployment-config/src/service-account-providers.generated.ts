@@ -84,6 +84,7 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   jira: 'atlassian-service-account',
   jotform: 'jotform-service-account',
   jupyter: 'jupyter-service-account',
+  kalshi: 'kalshi-service-account',
   langsmith: 'langsmith-service-account',
   launchdarkly: 'launchdarkly-service-account',
   lemlist: 'lemlist-service-account',

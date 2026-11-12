@@ -1,7 +1,7 @@
 import { KalshiIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector } from '@/blocks/utils'
+import { createVersionedToolSelector, withSavedCredential } from '@/blocks/utils'
 
 /*
  * Mutually exclusive alternates, not canonical pairs — an order carries either
@@ -22,7 +22,7 @@ export const KalshiBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.Analytics,
   hideFromToolbar: true,
-  sunset: { status: 'legacy', replacedBy: 'kalshi_v2' },
+  sunset: { status: 'legacy', replacedBy: 'kalshi_v3' },
   bgColor: '#09C285',
   iconColor: '#09C285',
   icon: KalshiIcon,
@@ -824,14 +824,14 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
 
 export const KalshiV2Block: BlockConfig = {
   ...KalshiBlock,
-  sunset: undefined,
+  sunset: { status: 'legacy', replacedBy: 'kalshi_v3' },
   type: 'kalshi_v2',
   name: 'Kalshi',
   description: 'Access prediction markets and trade on Kalshi',
   longDescription:
     'Integrate Kalshi prediction markets into the workflow. Can get markets, market, events, event, balance, positions, orders, orderbook, trades, candlesticks, fills, series, exchange status, and place/cancel/amend trades.',
   integrationType: IntegrationType.Analytics,
-  hideFromToolbar: false,
+  hideFromToolbar: true,
   tools: {
     ...KalshiBlock.tools,
     access: [
@@ -994,6 +994,24 @@ export const KalshiV2Block: BlockConfig = {
     // Pagination (flat cursor instead of nested paging object)
     cursor: { type: 'string', description: 'Pagination cursor for fetching more results' },
   },
+}
+
+/**
+ * Signs account and trading requests with a saved Kalshi API key; the market-data operations
+ * stay public and need no credential.
+ */
+export const KalshiV3Block: BlockConfig = {
+  ...KalshiV2Block,
+  type: 'kalshi_v3',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(KalshiV2Block, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'kalshi',
+    title: 'Kalshi Credential',
+  }),
 }
 
 export const KalshiBlockMeta = {

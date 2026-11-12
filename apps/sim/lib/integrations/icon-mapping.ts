@@ -510,7 +510,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   jupyter: JupyterIcon,
   jupyter_v3: JupyterIcon,
   kalshi: KalshiIcon,
-  kalshi_v2: KalshiIcon,
+  kalshi_v3: KalshiIcon,
   ketch: KetchIcon,
   knowledge: PackageSearchIcon,
   lambda: LambdaIcon,

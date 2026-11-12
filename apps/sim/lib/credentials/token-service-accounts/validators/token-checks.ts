@@ -33,6 +33,7 @@ import { gongAuthorization } from '@/tools/gong/utils'
 import { GRANOLA_API_BASE, granolaHeaders } from '@/tools/granola/utils'
 import { DEFAULT_HEX_HOST, hexApiBase, normalizeHexHost } from '@/tools/hex/utils'
 import { buildJotformHeaders, buildJotformUrl, JOTFORM_REGION_HOSTS } from '@/tools/jotform/utils'
+import { buildKalshiAuthHeaders, buildKalshiUrl } from '@/tools/kalshi/types'
 import { LANGSMITH_REGIONS } from '@/tools/langsmith/utils'
 import { LAUNCHDARKLY_INSTANCES } from '@/tools/launchdarkly/utils'
 import {
@@ -1109,6 +1110,46 @@ export const validateMailchimpServiceAccount = tokenCheckValidator({
     return {
       url: `https://${dataCenter}.api.mailchimp.com/3.0/ping`,
       headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+    }
+  },
+})
+
+/** A Kalshi API key ID travels as a header value, so only printable ASCII without spaces. */
+const KALSHI_KEY_ID = /^[\x21-\x7e]{1,128}$/
+const KALSHI_BALANCE_PATH = '/portfolio/balance'
+
+/**
+ * Reading the account balance is a free, read-only request signed the way the tools sign every
+ * authenticated call (`buildKalshiAuthHeaders`), so it succeeds only when the signature verifies
+ * against the key ID's registered public key; any refusal rejects the key. A private key that cannot sign
+ * (not PEM, or neither RSA nor Ed25519) is refused before any request.
+ * https://docs.kalshi.com/getting_started/api_keys
+ */
+export const validateKalshiServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Kalshi',
+  workspaceId: ({ providerWorkspaceId }) => {
+    const keyId = (providerWorkspaceId ?? '').trim()
+    if (!KALSHI_KEY_ID.test(keyId)) throw new Error('invalid API key ID')
+    return keyId
+  },
+  request: ({ apiToken, providerWorkspaceId = '' }) => {
+    let headers: Record<string, string>
+    try {
+      headers = buildKalshiAuthHeaders(
+        providerWorkspaceId,
+        apiToken,
+        'GET',
+        new URL(buildKalshiUrl(KALSHI_BALANCE_PATH)).pathname
+      )
+    } catch {
+      throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+        step: 'verify',
+        reason: 'Kalshi private key cannot sign',
+      })
+    }
+    return {
+      url: buildKalshiUrl(KALSHI_BALANCE_PATH),
+      headers: { ...headers, Accept: 'application/json' },
     }
   },
 })

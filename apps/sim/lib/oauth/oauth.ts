@@ -100,6 +100,7 @@ import {
   JiraIcon,
   JotformIcon,
   JupyterIcon,
+  KalshiIcon,
   LangsmithIcon,
   LaunchDarklyIcon,
   LemlistIcon,
@@ -1909,6 +1910,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'amplitude',
+  },
+  kalshi: {
+    name: 'Kalshi',
+    icon: KalshiIcon,
+    services: {
+      kalshi: {
+        name: 'Kalshi',
+        description: 'Read markets and trade on Kalshi with an account API key.',
+        providerId: 'kalshi',
+        serviceAccountProviderId: 'kalshi-service-account',
+        icon: KalshiIcon,
+        baseProviderIcon: KalshiIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'kalshi',
   },
   tavily: {
     name: 'Tavily',

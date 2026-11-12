@@ -15498,7 +15498,7 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "kalshi_v2",
+      "type": "kalshi_v3",
       "slug": "kalshi",
       "name": "Kalshi",
       "description": "Access prediction markets and trade on Kalshi",
@@ -15599,11 +15599,12 @@
       "operationCount": 22,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "kalshi",
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["prediction-markets", "data-analytics"],
-      "updatedAt": "2026-08-18"
+      "updatedAt": "2026-11-12"
     },
     {
       "type": "ketch",

@@ -36,6 +36,11 @@ export interface TokenServiceAccountField {
   /** Preserve exact password bytes instead of normalizing surrounding whitespace. */
   preserveWhitespace?: boolean
   /**
+   * The token spans several lines (a PEM private key), so the connect form renders a multi-line
+   * control that keeps its line breaks instead of a single-line input.
+   */
+  multiline?: boolean
+  /**
    * The value is a URL whose scheme and path matter (a self-hosted instance or
    * deployment URL), so the connect form sends it as typed and the provider's
    * check normalizes it. Other domains are reduced to a bare host first.
@@ -252,6 +257,7 @@ export const AGENTMAIL_SERVICE_ACCOUNT_PROVIDER_ID = 'agentmail-service-account'
 export const AFFINITY_SERVICE_ACCOUNT_PROVIDER_ID = 'affinity-service-account' as const
 export const TAVILY_SERVICE_ACCOUNT_PROVIDER_ID = 'tavily-service-account' as const
 export const AMPLITUDE_SERVICE_ACCOUNT_PROVIDER_ID = 'amplitude-service-account' as const
+export const KALSHI_SERVICE_ACCOUNT_PROVIDER_ID = 'kalshi-service-account' as const
 
 const SHOPIFY_DOMAIN_HINT_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i
 
@@ -385,6 +391,7 @@ export type TokenServiceAccountProviderId =
   | typeof AFFINITY_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof TAVILY_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof AMPLITUDE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof KALSHI_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof FLOW_SERVICE_ACCOUNT_PROVIDER_ID
 
 export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
@@ -2624,6 +2631,32 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       "In Amplitude, open Settings > Projects, choose the project, and copy the API key and secret key from its General tab. Enter eu only for a project hosted in Amplitude's EU data center.",
     invalidCredentialsHelp:
       'Amplitude rejected this API key and secret key. Check that both come from the same project, and that the data residency matches the region the project is hosted in.',
+  },
+  [KALSHI_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: KALSHI_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Kalshi',
+    tokenNoun: 'private key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Private key',
+        placeholder: '-----BEGIN PRIVATE KEY-----',
+        secret: true,
+        multiline: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'API key ID',
+        placeholder: 'Paste the API key ID',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/kalshi',
+    helpText:
+      'In Kalshi, open Account Settings > Profile Settings > API Keys and create a key, then paste its key ID and the private key Kalshi shows only once. Ed25519 and RSA keys both work. The key can trade for your account, so share this credential only with people who may place orders.',
+    invalidCredentialsHelp:
+      'Kalshi rejected this key. Check that the key ID and private key belong to the same API key, that the key has not been deleted, and that you pasted the whole private key file.',
   },
 }
 

@@ -1,5 +1,6 @@
 import type { KalshiAuthParams, KalshiOrder } from '@/tools/kalshi/types'
 import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
+import { KALSHI_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface KalshiCancelOrderParams extends KalshiAuthParams {
@@ -20,6 +21,7 @@ export const kalshiCancelOrderTool: ToolConfig<KalshiCancelOrderParams, KalshiCa
     name: 'Cancel Order on Kalshi',
     description: 'Cancel an existing order on Kalshi',
     version: '1.0.0',
+    oauth: KALSHI_CREDENTIAL_OAUTH,
 
     params: {
       keyId: {
@@ -134,6 +136,7 @@ export const kalshiCancelOrderV2Tool: ToolConfig<
   name: 'Cancel Order on Kalshi V2',
   description: 'Cancel an existing order on Kalshi',
   version: '2.0.0',
+  oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {
     keyId: {

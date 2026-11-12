@@ -8,6 +8,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipTextarea,
   SecretInput,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
@@ -308,20 +309,42 @@ function TokenServiceAccountModalForm({
             required
             hint={hintFor(tokenField, trimmedToken) ?? descriptor.helpText}
           >
-            <SecretInput
-              value={apiToken}
-              onChange={(value) => {
-                setApiToken(value)
-                if (error) setError(null)
-              }}
-              placeholder={tokenField.placeholder}
-              name={`${descriptor.providerId}_api_token`}
-              autoComplete='new-password'
-              autoCorrect='off'
-              autoCapitalize='off'
-              data-lpignore='true'
-              data-form-type='other'
-            />
+            {tokenField.multiline ? (
+              (aria) => (
+                <ChipTextarea
+                  {...aria}
+                  value={apiToken}
+                  onChange={(event) => {
+                    setApiToken(event.target.value)
+                    if (error) setError(null)
+                  }}
+                  placeholder={tokenField.placeholder}
+                  className='min-h-[120px] font-mono'
+                  // Spell-check and autofill would ship a pasted private key to third parties.
+                  spellCheck={false}
+                  autoComplete='off'
+                  autoCorrect='off'
+                  autoCapitalize='off'
+                  data-lpignore='true'
+                  data-form-type='other'
+                />
+              )
+            ) : (
+              <SecretInput
+                value={apiToken}
+                onChange={(value) => {
+                  setApiToken(value)
+                  if (error) setError(null)
+                }}
+                placeholder={tokenField.placeholder}
+                name={`${descriptor.providerId}_api_token`}
+                autoComplete='new-password'
+                autoCorrect='off'
+                autoCapitalize='off'
+                data-lpignore='true'
+                data-form-type='other'
+              />
+            )}
           </ChipModalField>
         )}
 

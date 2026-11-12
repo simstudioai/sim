@@ -236,6 +236,7 @@ import {
   KalshiBlockMeta,
   KalshiV2Block,
   KalshiV2BlockMeta,
+  KalshiV3Block,
 } from '@/blocks/blocks/kalshi'
 import { KetchBlock, KetchBlockMeta } from '@/blocks/blocks/ketch'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
@@ -728,6 +729,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   jupyter_v3: JupyterV3Block,
   kalshi: KalshiBlock,
   kalshi_v2: KalshiV2Block,
+  kalshi_v3: KalshiV3Block,
   ketch: KetchBlock,
   knowledge: KnowledgeBlock,
   lambda: LambdaBlock,
