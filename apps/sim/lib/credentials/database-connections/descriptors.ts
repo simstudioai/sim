@@ -153,12 +153,17 @@ function tlsFieldIds<Fields extends readonly DatabaseTlsField[]>(
   return fields.map((field) => field.id)
 }
 
+/** Whether a provider id names a saved database connection (`postgresql-service-account`, `mysql-service-account`, or `mssql-service-account`). */
 export function isDatabaseConnectionProviderId(
   value: string | null | undefined
 ): value is DatabaseConnectionProviderId {
   return typeof value === 'string' && Object.hasOwn(DATABASE_CONNECTION_DESCRIPTORS, value)
 }
 
+/**
+ * The saved-connection descriptor for a database provider id, or `undefined`
+ * when the id is missing or names a provider that is not a database connection.
+ */
 export function getDatabaseConnectionDescriptor(
   providerId: string | null | undefined
 ): DatabaseConnectionDescriptor | undefined {
