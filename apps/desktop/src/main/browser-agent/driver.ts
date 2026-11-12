@@ -97,6 +97,7 @@ import { checkAgentUrl } from '@/main/browser-agent/url-guard'
 import { clearCredentials, fillCoordinator, initFillCoordinator } from '@/main/browser-credentials'
 import type { ConfigStore } from '@/main/config'
 import { trackInputActivity } from '@/main/input-activity'
+import { desktopFeatures } from '@/shared/platform-features'
 
 const logger = createLogger('BrowserAgentDriver')
 
@@ -931,7 +932,9 @@ export function showToolbarMenu(
       },
     },
     { label: 'Passwords', click: () => sendCommand('passwords') },
-    { label: 'Import Passwords', click: () => sendCommand('import') },
+    ...(desktopFeatures(process.platform).browserImport
+      ? [{ label: 'Import Passwords', click: () => sendCommand('import') }]
+      : []),
     { type: 'separator' },
     { label: 'Browser Settings', click: () => sendCommand('browser-settings') },
   ]

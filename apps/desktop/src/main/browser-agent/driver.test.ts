@@ -1,7 +1,7 @@
 import { BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS } from '@sim/browser-protocol'
 import { toRecord } from '@sim/utils/object'
 import type { WebContents } from 'electron'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
@@ -15,7 +15,7 @@ vi.mock('@/main/browser-agent/file-transfer', () => ({
   discardStagedUploads: vi.fn(async () => {}),
 }))
 
-import { BrowserWindow, type nativeImage } from 'electron'
+import { BrowserWindow, Menu, type nativeImage } from 'electron'
 import * as cdp from '@/main/browser-agent/cdp'
 import * as driverModule from '@/main/browser-agent/driver'
 import * as session from '@/main/browser-agent/session'
@@ -3565,4 +3565,26 @@ describe('credential protection', () => {
     expect(result.ok).toBe(false)
     expect(result.error).toMatch(/page changed while its screenshot was being captured/)
   })
+})
+
+describe('showToolbarMenu', () => {
+  const realPlatform = process.platform
+
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: realPlatform, configurable: true })
+  })
+
+  it.each([
+    ['darwin', true],
+    ['win32', false],
+  ] as const)(
+    'lists Import Passwords on %s only where browser import ships (%s)',
+    (platform, offered) => {
+      Object.defineProperty(process, 'platform', { value: platform, configurable: true })
+      freshDriver().showToolbarMenu('chat-test', new BrowserWindow(), { x: 0, y: 0 })
+
+      const template = vi.mocked(Menu.buildFromTemplate).mock.calls.at(-1)?.[0] ?? []
+      expect(template.some((item) => item.label === 'Import Passwords')).toBe(offered)
+    }
+  )
 })
