@@ -620,12 +620,14 @@ export const SEARCH_ISSUE_ITEM_PROPERTIES = {
   },
   descriptionAdf: {
     type: 'json',
-    description: 'Issue description as the raw Atlassian Document Format (ADF) document',
+    description:
+      'Issue description as the raw Atlassian Document Format (ADF) document. Only included when the fields param is set',
     optional: true,
   },
   renderedDescription: {
     type: 'string',
-    description: 'Issue description rendered as HTML (requires the renderedFields expansion)',
+    description:
+      'Issue description rendered as HTML. Only included when expand includes renderedFields',
     optional: true,
   },
   environment: {
@@ -728,13 +730,13 @@ export const SEARCH_ISSUE_ITEM_PROPERTIES = {
   },
   issuelinks: {
     type: 'array',
-    description: 'Linked issues',
+    description: 'Linked issues. Only included when the fields param is set',
     items: { type: 'object', properties: ISSUE_LINK_ITEM_PROPERTIES },
     optional: true,
   },
   subtasks: {
     type: 'array',
-    description: 'Subtask issues',
+    description: 'Subtask issues. Only included when the fields param is set',
     items: { type: 'object', properties: SUBTASK_ITEM_PROPERTIES },
     optional: true,
   },
@@ -758,14 +760,15 @@ export const SEARCH_ISSUE_ITEM_PROPERTIES = {
   },
   attachments: {
     type: 'array',
-    description: 'Attachment metadata (no file contents)',
+    description:
+      'Attachment metadata (no file contents). Only included when the fields param is set',
     items: { type: 'object', properties: ATTACHMENT_ITEM_PROPERTIES },
     optional: true,
   },
   customFields: {
     type: 'json',
     description:
-      'Every customfield_* value Jira returned, keyed by field ID (e.g., sprint, story points, team). Use the names output or Get Fields to map IDs to names.',
+      'Every customfield_* value Jira returned, keyed by field ID (e.g., sprint, story points, team). Only included when the fields param is set; use the names output or Get Fields to map IDs to names.',
     optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
@@ -820,9 +823,9 @@ export interface JiraRetrieveResponse extends ToolResponse {
     status: {
       id: string
       name: string
-      description?: string
+      description?: string | null
       statusCategory?: {
-        id: number
+        id?: number
         key: string
         name: string
         colorName: string
@@ -831,20 +834,20 @@ export interface JiraRetrieveResponse extends ToolResponse {
     issuetype: {
       id: string
       name: string
-      description?: string
+      description?: string | null
       subtask: boolean
-      iconUrl?: string
+      iconUrl?: string | null
     }
     project: {
       id: string
       key: string
       name: string
-      projectTypeKey?: string
+      projectTypeKey?: string | null
     }
     priority: {
       id: string
       name: string
-      iconUrl?: string
+      iconUrl?: string | null
     } | null
     statusName: string
     assignee: {
@@ -876,34 +879,49 @@ export interface JiraRetrieveResponse extends ToolResponse {
       timeZone: string | null
     } | null
     labels: string[]
-    components: Array<{ id: string; name: string; description?: string }>
-    fixVersions: Array<{ id: string; name: string; released?: boolean; releaseDate?: string }>
-    resolution: { id: string; name: string; description?: string } | null
+    components: Array<{ id: string; name: string; description?: string | null }>
+    fixVersions: Array<{
+      id: string
+      name: string
+      released?: boolean | null
+      releaseDate?: string | null
+    }>
+    resolution: { id: string; name: string; description?: string | null } | null
     duedate: string | null
     created: string
     updated: string
     resolutiondate: string | null
     timetracking: {
-      originalEstimate?: string
-      remainingEstimate?: string
-      timeSpent?: string
-      originalEstimateSeconds?: number
-      remainingEstimateSeconds?: number
-      timeSpentSeconds?: number
+      originalEstimate?: string | null
+      remainingEstimate?: string | null
+      timeSpent?: string | null
+      originalEstimateSeconds?: number | null
+      remainingEstimateSeconds?: number | null
+      timeSpentSeconds?: number | null
     } | null
-    parent: { id: string; key: string; summary?: string } | null
+    parent: { id: string; key: string; summary?: string | null } | null
     issuelinks: Array<{
       id: string
       type: { id: string; name: string; inward: string; outward: string }
-      inwardIssue?: { id: string; key: string; statusName?: string; summary?: string }
-      outwardIssue?: { id: string; key: string; statusName?: string; summary?: string }
+      inwardIssue?: {
+        id: string
+        key: string
+        statusName?: string | null
+        summary?: string | null
+      } | null
+      outwardIssue?: {
+        id: string
+        key: string
+        statusName?: string | null
+        summary?: string | null
+      } | null
     }>
     subtasks: Array<{
       id: string
       key: string
       summary: string
       statusName: string
-      issueTypeName?: string
+      issueTypeName?: string | null
     }>
     votes: { votes: number; hasVoted: boolean } | null
     watches: { watchCount: number; isWatching: boolean } | null

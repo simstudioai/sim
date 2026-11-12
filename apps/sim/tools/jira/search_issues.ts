@@ -1,30 +1,53 @@
-import { transformIssueData } from '@/tools/jira/retrieve'
 import type { JiraSearchIssuesParams, JiraSearchIssuesResponse } from '@/tools/jira/types'
 import { SEARCH_ISSUE_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
-import { extractAdfText, getJiraCloudId, transformUser } from '@/tools/jira/utils'
+import {
+  extractAdfText,
+  getJiraCloudId,
+  transformIssueData,
+  transformUser,
+} from '@/tools/jira/utils'
 import type { ToolConfig, ToolResponseContext } from '@/tools/types'
 
+/** The caller's explicit `fields` list, or null when the search falls back to `*all`. */
+function explicitFields(params: JiraSearchIssuesParams | undefined): string[] | null {
+  return Array.isArray(params?.fields) && params.fields.length > 0 ? params.fields : null
+}
+
+function expandsRenderedFields(expand: string | undefined): boolean {
+  return (expand ?? '').split(',').some((expansion) => expansion.trim() === 'renderedFields')
+}
+
 /**
- * Transforms a raw Jira search result issue into typed output.
+ * Transforms a raw Jira search result issue into typed output. The heavy fields
+ * (`descriptionAdf`, `customFields`, `attachments`, `issuelinks`, `subtasks`) are only
+ * included when the caller asked for specific `fields`, since the default `*all` search
+ * would otherwise attach every custom field to every item.
  */
-function transformSearchIssue(issue: any) {
+function transformSearchIssue(issue: any, params: JiraSearchIssuesParams | undefined) {
   const fields = issue?.fields ?? {}
   const full = transformIssueData(issue)
+  const heavyFields = explicitFields(params)
+    ? {
+        descriptionAdf: full.descriptionAdf,
+        issuelinks: full.issuelinks,
+        subtasks: full.subtasks,
+        attachments: full.attachments,
+        customFields: full.customFields,
+      }
+    : {}
   return {
-    descriptionAdf: full.descriptionAdf,
-    renderedDescription: full.renderedDescription,
+    ...heavyFields,
+    ...(expandsRenderedFields(params?.expand)
+      ? { renderedDescription: full.renderedDescription }
+      : {}),
     environment: full.environment,
     creator: full.creator,
     fixVersions: full.fixVersions,
     resolutiondate: full.resolutiondate,
     timetracking: full.timetracking,
     parent: full.parent,
-    issuelinks: full.issuelinks,
-    subtasks: full.subtasks,
     votes: full.votes,
     watches: full.watches,
-    attachments: full.attachments,
-    customFields: full.customFields,
     id: issue.id ?? '',
     key: issue.key ?? '',
     self: issue.self ?? '',
@@ -133,7 +156,8 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Array of field names to return (default: all fields).',
+      description:
+        'Array of field names to return (default: all fields). When set, each issue also includes descriptionAdf, customFields, attachments, issuelinks, and subtasks.',
     },
     expand: {
       type: 'string',
@@ -159,11 +183,7 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
         if (params.nextPageToken) query.set('nextPageToken', params.nextPageToken)
         if (typeof params.maxResults === 'number')
           query.set('maxResults', String(params.maxResults))
-        if (Array.isArray(params.fields) && params.fields.length > 0) {
-          query.set('fields', params.fields.join(','))
-        } else {
-          query.set('fields', '*all')
-        }
+        query.set('fields', explicitFields(params)?.join(',') ?? '*all')
         if (params.expand) query.set('expand', params.expand)
         const qs = query.toString()
         return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/search/jql${qs ? `?${qs}` : ''}`
@@ -189,11 +209,7 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
       if (params?.jql) query.set('jql', params.jql)
       if (params?.nextPageToken) query.set('nextPageToken', params.nextPageToken)
       if (typeof params?.maxResults === 'number') query.set('maxResults', String(params.maxResults))
-      if (Array.isArray(params?.fields) && params.fields.length > 0) {
-        query.set('fields', params.fields.join(','))
-      } else {
-        query.set('fields', '*all')
-      }
+      query.set('fields', explicitFields(params)?.join(',') ?? '*all')
       if (params?.expand) query.set('expand', params.expand)
       const searchUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${query.toString()}`
       const searchResponse = await fetch(searchUrl, {
@@ -240,7 +256,7 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
       success: true,
       output: {
         ts: new Date().toISOString(),
-        issues: (data?.issues ?? []).map(transformSearchIssue),
+        issues: (data?.issues ?? []).map((issue: unknown) => transformSearchIssue(issue, params)),
         nextPageToken: data?.nextPageToken ?? null,
         isLast: data?.isLast ?? !data?.nextPageToken,
         total: null,

@@ -1619,7 +1619,7 @@ Return ONLY the comment text - no explanations.`,
     issues: {
       type: 'json',
       description:
-        'Array of matching issues with key, summary, description, descriptionAdf, status, assignee, reporter, priority, labels, components, fixVersions, parent, subtasks, issuelinks, attachments, timetracking, customFields, dates',
+        'Array of matching issues with key, summary, description, status, assignee, reporter, priority, labels, components, fixVersions, parent, timetracking, dates. descriptionAdf, subtasks, issuelinks, attachments, and customFields are only included when Fields is set; renderedDescription needs the renderedFields expansion',
     },
 
     comments: {

@@ -185,8 +185,8 @@ export interface TrelloUpdateCardParams {
   start?: string
   pos?: string
   idBoard?: string
-  labelIds?: string[]
-  memberIds?: string[]
+  labelIds?: string[] | string
+  memberIds?: string[] | string
 }
 
 export interface TrelloDeleteCardParams {

@@ -10,6 +10,12 @@ import { TRELLO_CARD_OUTPUT_PROPERTIES } from '@/tools/trello/types'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
+/** Joins an ID array, or trims a comma-separated ID string, into Trello's comma-separated form. */
+function joinIdList(ids: string[] | string | undefined): string {
+  if (Array.isArray(ids)) return ids.join(',')
+  return typeof ids === 'string' ? ids.trim() : ''
+}
+
 export const trelloUpdateCardTool: ToolConfig<TrelloUpdateCardParams, TrelloUpdateCardResponse> = {
   id: 'trello_update_card',
   name: 'Trello Update Card',
@@ -93,7 +99,7 @@ export const trelloUpdateCardTool: ToolConfig<TrelloUpdateCardParams, TrelloUpda
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Replace the card labels with these label IDs. An empty list leaves labels unchanged; use Remove Label to take one off',
+        'Replace the card labels with these label IDs (array or comma-separated string). An empty list leaves labels unchanged; use Remove Label to take one off',
       items: {
         type: 'string',
         description: 'A Trello label ID',
@@ -104,7 +110,7 @@ export const trelloUpdateCardTool: ToolConfig<TrelloUpdateCardParams, TrelloUpda
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Replace the card members with these member IDs. An empty list leaves members unchanged; use Remove Member to take one off',
+        'Replace the card members with these member IDs (array or comma-separated string). An empty list leaves members unchanged; use Remove Member to take one off',
       items: {
         type: 'string',
         description: 'A Trello member ID',
@@ -148,8 +154,10 @@ export const trelloUpdateCardTool: ToolConfig<TrelloUpdateCardParams, TrelloUpda
       if (params.start !== undefined) body.start = params.start
       if (params.pos !== undefined) body.pos = params.pos
       if (params.idBoard !== undefined) body.idBoard = params.idBoard.trim()
-      if (params.labelIds?.length) body.idLabels = params.labelIds.join(',')
-      if (params.memberIds?.length) body.idMembers = params.memberIds.join(',')
+      const idLabels = joinIdList(params.labelIds)
+      if (idLabels) body.idLabels = idLabels
+      const idMembers = joinIdList(params.memberIds)
+      if (idMembers) body.idMembers = idMembers
 
       if (Object.keys(body).length === 0) {
         throw new Error('At least one field must be provided to update')

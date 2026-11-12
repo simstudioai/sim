@@ -938,6 +938,16 @@ function escapeCql(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 }
 
+/**
+ * Pages the v1 `/search` endpoint forward. Confluence's own `_links.next` URLs carry
+ * `next=true` alongside the cursor, so a resumed page sends both.
+ */
+function setSearchCursor(query: URLSearchParams, cursor: string | undefined) {
+  if (!cursor) return
+  query.set('next', 'true')
+  query.set('cursor', cursor)
+}
+
 export async function executeConfluenceSearch(
   input: ConfluenceSearchBody,
   context: ConfluenceOperationContext
@@ -955,7 +965,7 @@ export async function executeConfluenceSearch(
     limit: input.limit.toString(),
     expand: 'content.space',
   })
-  if (input.cursor) query.set('cursor', input.cursor)
+  setSearchCursor(query, input.cursor)
   const data = await client.json(client.rest(`/search?${query}`), {}, context.signal)
   const results = toArray(data.results).map((value) => {
     const result = toRecord(value)
@@ -1005,7 +1015,7 @@ export async function executeConfluenceSearchInSpace(
   if (input.contentType) cql += ` AND type = "${escapeCql(input.contentType)}"`
   assertCursor(input.cursor)
   const query = new URLSearchParams({ cql, limit: cappedLimit(input.limit) })
-  if (input.cursor) query.set('cursor', input.cursor)
+  setSearchCursor(query, input.cursor)
   const data = await client.json(client.rest(`/search?${query}`), {}, context.signal)
   const results = toArray(data.results).map((value) => {
     const result = toRecord(value)

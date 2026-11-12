@@ -1,3 +1,4 @@
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
@@ -188,5 +189,49 @@ describe('JSM operations', () => {
     expect(JSON.parse(String(mocks.client.json.mock.calls.at(-1)?.[1]?.body))).toEqual({
       qlQuery: '(Name = "say \\" order by \\" x") AND objectTypeId = 7 order by Name',
     })
+  })
+
+  it.each([
+    ['order by Name', 'objectTypeId = 7 order by Name'],
+    ['  ORDER BY "Created Date" desc', 'objectTypeId = 7 ORDER BY "Created Date" desc'],
+    [
+      'object having inboundReferences(objectType = Host order by Name)',
+      '(object having inboundReferences(objectType = Host order by Name)) AND objectTypeId = 7',
+    ],
+    [
+      'object having inboundReferences(objectType = Host order by Name) order by Key',
+      '(object having inboundReferences(objectType = Host order by Name)) AND objectTypeId = 7 order by Key',
+    ],
+  ])('scopes the AQL query %j as %j', async (qlQuery, expected) => {
+    mocks.client.json.mockResolvedValueOnce({ values: [], total: 0, isLast: 'true' })
+    await executeJsmSearchObjectsAql({ ...BASE, qlQuery, objectTypeId: '7' })
+    expect(JSON.parse(String(mocks.client.json.mock.calls.at(-1)?.[1]?.body))).toEqual({
+      qlQuery: expected,
+    })
+  })
+
+  it('returns the empty schema listing when the flat fallback fails', async () => {
+    mocks.client.value.mockReset()
+    mocks.client.value
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error('Jira request failed with status 404'))
+    const result = await executeJsmListObjectTypes({ ...BASE, schemaId: '6' })
+    expect(result.output).toMatchObject({ objectTypes: [], total: 0 })
+    expect(getMockLogger('JsmAssets').warn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ schemaId: '6' })
+    )
+  })
+
+  it('still propagates an abort from the flat fallback', async () => {
+    const controller = new AbortController()
+    mocks.client.value.mockReset()
+    mocks.client.value.mockResolvedValueOnce([]).mockImplementationOnce(async () => {
+      controller.abort()
+      throw new DOMException('The operation was aborted.', 'AbortError')
+    })
+    await expect(
+      executeJsmListObjectTypes({ ...BASE, schemaId: '6' }, controller.signal)
+    ).rejects.toThrow('aborted')
   })
 })

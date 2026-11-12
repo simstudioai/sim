@@ -1,3 +1,5 @@
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { toArray, toRecord } from '@sim/utils/object'
 import type { ContractBody } from '@/lib/api/contracts'
 import type {
@@ -14,6 +16,8 @@ import type {
 import { createJsmAssetsClient } from '@/lib/internal/jsm/client'
 import { JsmOperationError } from '@/lib/internal/jsm/errors'
 import { mapAssetObject } from '@/tools/jsm/utils'
+
+const logger = createLogger('JsmAssets')
 
 type ListObjectSchemasInput = ContractBody<typeof jsmListObjectSchemasContract>
 type GetObjectSchemaInput = ContractBody<typeof jsmGetObjectSchemaContract>
@@ -85,6 +89,36 @@ function toObjectTypeList(value: unknown): unknown[] {
  * documented `/flat` listing, which returns every type in the schema, with
  * `excludeAbstract` applied client-side because `/flat` does not accept it.
  */
+function isAbort(error: unknown, signal?: AbortSignal): boolean {
+  if (signal?.aborted) return true
+  return error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError')
+}
+
+/**
+ * Reads the flat object-types listing used as a fallback for an empty schema listing.
+ * A failure other than an abort yields an empty list, so the fallback never fails a
+ * request the primary listing already answered.
+ */
+async function listFlatObjectTypes(
+  client: Awaited<ReturnType<typeof createJsmAssetsClient>>,
+  schemaPath: string,
+  schemaId: string,
+  signal?: AbortSignal
+): Promise<unknown[]> {
+  try {
+    return toObjectTypeList(
+      await client.value(client.assets(`${schemaPath}/flat`), {}, signal, true)
+    )
+  } catch (error) {
+    if (isAbort(error, signal)) throw error
+    logger.warn('Flat object-types fallback failed, returning the empty schema listing', {
+      schemaId,
+      error: getErrorMessage(error),
+    })
+    return []
+  }
+}
+
 export async function executeJsmListObjectTypes(input: ListObjectTypesInput, signal?: AbortSignal) {
   const client = await createJsmAssetsClient(input, signal)
   const query = new URLSearchParams()
@@ -101,9 +135,7 @@ export async function executeJsmListObjectTypes(input: ListObjectTypesInput, sig
     )
   )
   if (objectTypes.length === 0) {
-    const flat = toObjectTypeList(
-      await client.value(client.assets(`${schemaPath}/flat`), {}, signal, true)
-    )
+    const flat = await listFlatObjectTypes(client, schemaPath, input.schemaId, signal)
     objectTypes =
       String(input.excludeAbstract) === 'true'
         ? flat.filter((objectType) => toRecord(objectType).abstractObjectType !== true)
@@ -143,24 +175,32 @@ export async function executeJsmGetObjectTypeAttributes(
 
 const ASSETS_NUMERIC_ID = /^\d+$/
 
-const AQL_ORDER_BY = /\s+order\s+by\s/iy
+const AQL_ORDER_BY = /order\s+by\s/iy
+const AQL_CLAUSE_BOUNDARY = /[\s)"]/
 
 /**
- * Splits a trailing `order by` clause off an AQL query, ignoring matches inside
- * double-quoted values (including escaped `\\"`), since AQL requires the ordering to
- * stay at the end.
+ * Splits a trailing `order by` clause off an AQL query, since AQL requires the ordering
+ * to stay at the end. Only a clause at parenthesis depth 0 and outside double-quoted
+ * values (including escaped `\\"`) counts, so `order by` inside a function argument or
+ * a string stays in the condition.
  */
 function splitAqlOrderBy(qlQuery: string): { condition: string; orderBy: string } {
   let inQuotes = false
+  let depth = 0
   let orderByStart = -1
   for (let index = 0; index < qlQuery.length; index++) {
-    if (qlQuery[index] === '"') {
+    const char = qlQuery[index]
+    if (char === '"') {
       let backslashes = 0
       for (let cursor = index - 1; cursor >= 0 && qlQuery[cursor] === '\\'; cursor--) backslashes++
       if (backslashes % 2 === 0) inQuotes = !inQuotes
       continue
     }
     if (inQuotes) continue
+    if (char === '(') depth++
+    else if (char === ')') depth = Math.max(0, depth - 1)
+    if (depth !== 0) continue
+    if (index > 0 && !AQL_CLAUSE_BOUNDARY.test(qlQuery[index - 1] ?? '')) continue
     AQL_ORDER_BY.lastIndex = index
     if (AQL_ORDER_BY.test(qlQuery)) orderByStart = index
   }
@@ -185,7 +225,11 @@ function scopeAqlQuery(input: SearchObjectsAqlInput): string {
   ].filter((scope): scope is string => scope !== null)
   if (scopes.length === 0) return input.qlQuery
   const { condition, orderBy } = splitAqlOrderBy(input.qlQuery)
-  return `(${condition.trim()}) AND ${scopes.join(' AND ')}${orderBy}`
+  const trimmedCondition = condition.trim()
+  const scoped = trimmedCondition
+    ? `(${trimmedCondition}) AND ${scopes.join(' AND ')}`
+    : scopes.join(' AND ')
+  return orderBy ? `${scoped} ${orderBy}` : scoped
 }
 
 export async function executeJsmSearchObjectsAql(
