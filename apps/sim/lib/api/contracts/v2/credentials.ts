@@ -305,6 +305,7 @@ export const V2_OAUTH_CONNECTION_PROVIDER_IDS = [
   'ramp',
   'helpscout',
   'hubspot',
+  'apollo',
   'linkedin',
   'instagram',
   'salesforce',

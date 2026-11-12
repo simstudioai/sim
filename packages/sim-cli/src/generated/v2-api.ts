@@ -2038,6 +2038,7 @@ export type CreateCredentialConnectionBody =
         | 'ramp'
         | 'helpscout'
         | 'hubspot'
+        | 'apollo'
         | 'linkedin'
         | 'instagram'
         | 'salesforce'

@@ -15,6 +15,7 @@ import {
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { createApolloProvider } from '@/lib/oauth/apollo'
 import { exchangeAtlassianAuthorizationCode } from '@/lib/oauth/atlassian-token'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
 import { createGitHubRepositoriesProvider } from '@/lib/oauth/github-repositories'
@@ -1041,6 +1042,13 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
         }
       },
     },
+
+    createApolloProvider({
+      clientId: env.APOLLO_CLIENT_ID as string,
+      clientSecret: env.APOLLO_CLIENT_SECRET as string,
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/apollo`,
+      scopes: getCanonicalScopesForProvider('apollo'),
+    }),
 
     {
       providerId: 'pipedrive',

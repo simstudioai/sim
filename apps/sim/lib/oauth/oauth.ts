@@ -197,6 +197,7 @@ import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import { APOLLO_TOKEN_URL } from '@/lib/oauth/apollo'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import {
@@ -1993,8 +1994,34 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         serviceAccountProviderId: 'apollo-service-account',
         icon: ApolloIcon,
         baseProviderIcon: ApolloIcon,
-        scopes: [],
-        authType: 'service_account',
+        scopes: [
+          'read_user_profile',
+          'mixed_people_api_search',
+          'people_match',
+          'people_bulk_match',
+          'mixed_companies_search',
+          'organizations_enrich',
+          'organizations_bulk_enrich',
+          'contact_write',
+          'contact_update',
+          'contacts_search',
+          'contacts_bulk_create',
+          'contacts_bulk_update',
+          'account_write',
+          'account_update',
+          'accounts_search',
+          'account_bulk_create',
+          'account_stages_update',
+          'opportunity_write',
+          'opportunities_list',
+          'opportunity_read',
+          'opportunity_update',
+          'emailer_campaigns_search',
+          'emailer_campaigns_add_contact_ids',
+          'tasks_create',
+          'tasks_list',
+          'email_accounts_list',
+        ],
       },
     },
     defaultService: 'apollo',
@@ -4243,6 +4270,20 @@ function getProviderAuthConfig(
         clientId,
         clientSecret,
         useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'apollo': {
+      const { clientId, clientSecret } = getConfiguredClientCredentials(
+        'apollo',
+        'APOLLO_CLIENT_ID',
+        'APOLLO_CLIENT_SECRET'
+      )
+      return {
+        tokenEndpoint: APOLLO_TOKEN_URL,
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
         supportsRefreshTokenRotation: true,
       }
     }

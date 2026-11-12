@@ -100,7 +100,7 @@ export function isSavedCredentialPicker(
 ): boolean {
   return (
     subBlock.type === 'oauth-input' &&
-    subBlock.credentialKind === 'service-account' &&
+    (subBlock.credentialKind === 'service-account' || subBlock.credentialKind === 'any') &&
     subBlock.canonicalParamId === 'oauthCredential'
   )
 }
@@ -192,7 +192,13 @@ export const ALGOLIA_CREDENTIAL_OAUTH = tokenCredentialOAuth('algolia', {
   apiKey: 'accessToken',
 })
 export const APIFY_CREDENTIAL_OAUTH = tokenCredentialOAuth('apify', { apiKey: 'accessToken' })
-export const APOLLO_CREDENTIAL_OAUTH = tokenCredentialOAuth('apollo', { apiKey: 'accessToken' })
+export const APOLLO_CREDENTIAL_OAUTH = {
+  required: false,
+  provider: 'apollo',
+  credentialParams: { apiKey: 'accessToken' },
+  credentialSuppliedParams: ['apiKey'],
+  authoritativeParams: ['credentialType'],
+} as const satisfies OAuthConfig
 export const ASHBY_CREDENTIAL_OAUTH = tokenCredentialOAuth('ashby', { apiKey: 'accessToken' })
 export const AZURE_DEVOPS_CREDENTIAL_OAUTH = tokenCredentialOAuth('azure_devops', {
   accessToken: 'accessToken',

@@ -62,6 +62,7 @@ interface SavedCredentialPicker {
   type: 'oauth-input'
   serviceId: SavedCredentialService
   title: string
+  credentialKind?: 'service-account' | 'any'
 }
 
 interface SavedCredentialOptions {
@@ -160,7 +161,7 @@ export function withSavedCredential(
     0,
     {
       ...picker,
-      credentialKind: 'service-account',
+      credentialKind: picker.credentialKind ?? 'service-account',
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       // 'AWS Credential' → 'Select AWS credential': sentence case, brand casing kept.
