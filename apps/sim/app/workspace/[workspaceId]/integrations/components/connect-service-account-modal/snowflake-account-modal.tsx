@@ -53,7 +53,7 @@ type SnowflakeAuthType = 'workload_identity' | 'key_pair' | 'programmatic_access
 
 const SNOWFLAKE_DESCRIPTOR = getTokenServiceAccountDescriptor(SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID)
 const SNOWFLAKE_DOCS_URL = 'https://docs.sim.ai/integrations/snowflake-service-account'
-const HOST_PATTERN = /^[a-z0-9][a-z0-9.-]*\.snowflakecomputing\.(com|cn)$/i
+const HOST_PATTERN = /^[a-z0-9][a-z0-9_.-]*\.snowflakecomputing\.(com|cn)$/i
 
 const AUTH_TYPE_HINTS: Record<SnowflakeAuthType, string> = {
   workload_identity:
@@ -335,7 +335,7 @@ function SnowflakeAccountForm({
               type='custom'
               title='Private key'
               required
-              hint='An unencrypted PKCS#8 PEM RSA key of 2048 bits or more, such as one created with openssl pkcs8 -topk8 -nocrypt.'
+              hint='An unencrypted PKCS#8 PEM RSA key of 2048 to 4096 bits, such as one created with openssl pkcs8 -topk8 -nocrypt.'
             >
               {(aria) => (
                 <ChipTextarea
