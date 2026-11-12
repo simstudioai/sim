@@ -219,6 +219,26 @@ describe('running an Azure Data Explorer tool', () => {
       )
     })
 
+    it('refuses a resource override in another cloud than the cluster before decrypting', async () => {
+      storeAppCredential()
+
+      const response = await run(
+        {
+          clusterUri: CLUSTER,
+          resource: 'https://mycluster.usgovvirginia.kusto.usgovcloudapi.net',
+        },
+        authorized
+      )
+
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toMatchObject({
+        error: expect.stringMatching(/same Microsoft cloud/),
+      })
+      expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
+      expect(entra).not.toHaveBeenCalled()
+      expect(secureFetch).not.toHaveBeenCalled()
+    })
+
     it('refuses a host outside the Kusto allowlist without minting', async () => {
       const response = await run({ clusterUri: 'https://evil.example.com' }, authorized)
 

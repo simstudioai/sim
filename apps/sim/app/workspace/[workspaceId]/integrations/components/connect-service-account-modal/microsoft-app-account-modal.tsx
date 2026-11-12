@@ -108,10 +108,15 @@ function MicrosoftAppAccountForm({
       ? 'federated'
       : 'client_secret'
   const authType: MicrosoftAuthType = selectedAuthType ?? defaultAuthType
-  // A reconnect also opens on the credential's stored cloud.
-  const cloud: MicrosoftCloudId = selectedCloud ?? keyless.reconnectCloud ?? 'global'
+  // A reconnect opens on the credential's stored cloud. Until that is known (still loading, a
+  // failed lookup, or an organization credential) the cloud must be chosen, so a rotation never
+  // silently moves a national-cloud credential to the global cloud.
+  const storedCloudKnown = !credentialId || keyless.reconnectFieldsLoaded
+  const cloud: MicrosoftCloudId | undefined =
+    selectedCloud ?? (storedCloudKnown ? (keyless.reconnectCloud ?? 'global') : undefined)
   const disabled =
     isPending ||
+    !cloud ||
     !tenantId.trim() ||
     !clientId.trim() ||
     (authType === 'client_secret' && !clientSecret.trim()) ||
@@ -123,13 +128,13 @@ function MicrosoftAppAccountForm({
     clearError()
   }
 
-  const buildConfig = (): Record<string, unknown> => {
-    const isGlobal = cloud === 'global'
+  const buildConfig = (appCloud: MicrosoftCloudId): Record<string, unknown> => {
+    const isGlobal = appCloud === 'global'
     const base = {
       authType,
       tenantId: tenantId.trim(),
       clientId: clientId.trim(),
-      ...(isGlobal ? {} : { cloud }),
+      ...(isGlobal ? {} : { cloud: appCloud }),
       ...(isGlobal && environmentUrl.trim() ? { environmentUrl: environmentUrl.trim() } : {}),
     }
     if (authType === 'federated') return { ...base, ...keylessSubjectFields(keyless) }
@@ -178,6 +183,7 @@ function MicrosoftAppAccountForm({
             clearError()
           }}
           options={CLOUD_OPTIONS}
+          placeholder='Choose the app’s cloud'
           required
           hint='The Microsoft cloud the app is registered in. Only Azure Data Explorer runs outside the global cloud.'
         />
@@ -287,7 +293,9 @@ function MicrosoftAppAccountForm({
         primaryAction={{
           label: isPending ? 'Verifying...' : `${action} credential`,
           onClick: () => {
-            if (!disabled) void submit({ config: buildConfig(), displayName, description })
+            if (!disabled && cloud) {
+              void submit({ config: buildConfig(cloud), displayName, description })
+            }
           },
           disabled,
         }}

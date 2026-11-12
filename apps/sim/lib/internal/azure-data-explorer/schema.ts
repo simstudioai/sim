@@ -125,6 +125,19 @@ function refineHosts(
       path: ['resource'],
       message: resourceCheck.message,
     })
+    return
+  }
+  if (!clusterCheck.ok) return
+  const clusterClouds = kustoCredentialClouds(clusterCheck.url.hostname)
+  const sharesCloud = kustoCredentialClouds(resourceCheck.url.hostname).some((cloud) =>
+    clusterClouds.includes(cloud)
+  )
+  if (!sharesCloud) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['resource'],
+      message: 'resource must be in the same Microsoft cloud as clusterUri',
+    })
   }
 }
 
