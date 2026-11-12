@@ -244,6 +244,21 @@ describe('client credential token refresh after a failed mint', () => {
     })
   })
 
+  it('does not serve a cached token the provider refused while its failed refresh was in flight', async () => {
+    const mint = minter()
+    mint.mockResolvedValueOnce({ accessToken: 'current-token', expiresInSeconds: 600 })
+    await resolveFor('ramp-refresh-rejected-midway')
+    mint.mockImplementation(async () => {
+      forgetRejectedClientCredentialToken('current-token')
+      throw unavailable()
+    })
+    vi.advanceTimersByTime(6 * 60_000)
+
+    await expect(resolveFor('ramp-refresh-rejected-midway')).resolves.toEqual({
+      error: expect.objectContaining({ code: 'provider_unavailable' }),
+    })
+  })
+
   it('stops serving the cached token once the provider refuses the credentials', async () => {
     const mint = minter()
     mint.mockResolvedValueOnce({ accessToken: 'current-token', expiresInSeconds: 600 })

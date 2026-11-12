@@ -789,9 +789,16 @@ async function resolveMintedServiceAccountToken(
     if (cached && cached.expiresAtMs - Date.now() > CLIENT_CREDENTIAL_TOKEN_MIN_TTL_MS) {
       return { ...cached.token }
     }
-    /** The cached token while more than the expiry margin of it is left, checked at each use. */
+    /**
+     * The cached token while it is still the one in the cache (a provider may refuse it while a
+     * refresh is in flight) and more than the expiry margin of it is left, checked at each use.
+     */
     const stillValid = () =>
-      cached && cached.expiresAtMs - Date.now() > TOKEN_EXPIRY_MARGIN_MS ? cached : undefined
+      cached &&
+      clientCredentialTokenCache.get(cacheIdentity) === cached &&
+      cached.expiresAtMs - Date.now() > TOKEN_EXPIRY_MARGIN_MS
+        ? cached
+        : undefined
 
     const failedEntry = clientCredentialMintFailureCache.get(cacheIdentity)
     const failed = failedEntry?.secretFingerprint === secretFingerprint ? failedEntry : undefined
