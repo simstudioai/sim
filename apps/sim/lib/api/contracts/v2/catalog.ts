@@ -750,7 +750,7 @@ export const v2ConnectorTypeSchema = z
             .object({
               provider: z
                 .string()
-                .describe('OAuth service the saved credential must authenticate, e.g. `aws`.'),
+                .describe('Service the saved credential must authenticate with, e.g. `aws`.'),
               label: z.string().describe('Label for the saved-credential option.'),
             })
             .optional()

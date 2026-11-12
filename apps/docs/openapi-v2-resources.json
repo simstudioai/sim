@@ -21733,7 +21733,7 @@
                     "properties": {
                       "provider": {
                         "type": "string",
-                        "description": "OAuth service the saved credential must authenticate, e.g. `aws`."
+                        "description": "Service the saved credential must authenticate with, e.g. `aws`."
                       },
                       "label": {
                         "type": "string",
