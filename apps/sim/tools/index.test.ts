@@ -79,6 +79,7 @@ import {
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 import { prepareToolExecution, transformBlockTool } from '@/providers/utils'
+import { userProfileTool as amplitudeUserProfileTool } from '@/tools/amplitude/user_profile'
 import { bitbucketGetPipelineStepLogTool } from '@/tools/bitbucket/get_pipeline_step_log'
 import { docusignGetEnvelopeTool } from '@/tools/docusign/get_envelope'
 import { ErrorExtractorId } from '@/tools/error-extractors'
@@ -253,6 +254,7 @@ vi.mock('@/executor/handlers/workflow/custom-block-tool-runner', () => ({
 // Mock the tools registry to avoid loading the full 4500+ line registry file.
 // Only the tools actually exercised in tests are provided.
 const mockRegistryTools: Record<string, any> = {
+  amplitude_user_profile: amplitudeUserProfileTool,
   stripe_list_subscriptions: stripeListSubscriptionsTool,
   stripe_search_subscriptions: stripeSearchSubscriptionsTool,
   slack_lists_items_list: slackListsItemsListTool,
@@ -4292,6 +4294,53 @@ describe('Internal Route Trust', () => {
         error: expect.stringContaining('needs a saved credential with a host'),
       })
       expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    })
+
+    it('reads an Amplitude profile with Basic auth over both keys of a saved credential', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-secret-key',
+        credentialType: 'service_account',
+        providerWorkspaceId: 'saved-api-key',
+      })
+      mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+        toSecureFetchResponse(Response.json({ userData: {} }))
+      )
+
+      const result = await executeTool('amplitude_user_profile', {
+        credential: 'saved-credential',
+        userId: 'user-1',
+      })
+
+      expect(result.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        'https://profile-api.amplitude.com/v1/userprofile?user_id=user-1',
+        expect.anything(),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            authorization: `Basic ${Buffer.from('saved-api-key:saved-secret-key').toString('base64')}`,
+          }),
+        })
+      )
+    })
+
+    it('keeps the secret-key-only Api-Key header for an inline Amplitude profile read', async () => {
+      mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+        toSecureFetchResponse(Response.json({ userData: {} }))
+      )
+
+      const result = await executeTool('amplitude_user_profile', {
+        secretKey: 'inline-secret-key',
+        userId: 'user-1',
+      })
+
+      expect(result.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        'https://profile-api.amplitude.com/v1/userprofile?user_id=user-1',
+        expect.anything(),
+        expect.objectContaining({
+          headers: expect.objectContaining({ authorization: 'Api-Key inline-secret-key' }),
+        })
+      )
     })
 
     it('makes copilot pass credentialId or the inline values, and honors credentialId alone', async () => {

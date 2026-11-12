@@ -70,17 +70,22 @@ export function savedCredentialTokenParam(serviceLabel: string) {
  * credential field that fills it server-side; the same keys are the params
  * the credential supplies, so the two can never drift apart. Mapped params are
  * always overwritten, so a bound host can never be steered by the caller.
+ *
+ * `tokenReplacesParams` names inline sign-in alternatives the token makes unused (a username and
+ * password the tools read only without a token), so a credential-only block drops them too.
  */
 export function tokenCredentialOAuth(
   provider: OAuthService,
-  credentialParams: Readonly<Record<string, CredentialParamSource>>
+  credentialParams: Readonly<Record<string, CredentialParamSource>>,
+  tokenReplacesParams: readonly string[] = []
 ) {
   return {
     required: false,
     provider,
     credentialKind: 'service-account',
     credentialParams,
-    credentialSuppliedParams: Object.keys(credentialParams),
+    ...(tokenReplacesParams.length > 0 ? { tokenReplacesParams } : {}),
+    credentialSuppliedParams: [...Object.keys(credentialParams), ...tokenReplacesParams],
   } as const satisfies OAuthConfig
 }
 
@@ -205,6 +210,26 @@ export const ALGOLIA_CREDENTIAL_OAUTH = tokenCredentialOAuth('algolia', {
   applicationId: 'providerWorkspaceId',
   apiKey: 'accessToken',
 })
+/**
+ * Credential policies for the Amplitude tools. A saved Amplitude project credential holds the
+ * project API key (as its account id), the secret key (as its token), and the data residency
+ * region (as its domain). Each policy maps only the params its tools declare: the Dashboard REST
+ * tools send both keys to the region's host, the ingestion tools send the API key to the
+ * region's host, and the User Profile tool sends both keys to its single US host.
+ */
+export const AMPLITUDE_CREDENTIAL_OAUTH = tokenCredentialOAuth('amplitude', {
+  apiKey: 'providerWorkspaceId',
+  secretKey: 'accessToken',
+  dataResidency: 'domain',
+})
+export const AMPLITUDE_INGESTION_CREDENTIAL_OAUTH = tokenCredentialOAuth('amplitude', {
+  apiKey: 'providerWorkspaceId',
+  dataResidency: 'domain',
+})
+export const AMPLITUDE_PROFILE_CREDENTIAL_OAUTH = tokenCredentialOAuth('amplitude', {
+  apiKey: 'providerWorkspaceId',
+  secretKey: 'accessToken',
+})
 export const APIFY_CREDENTIAL_OAUTH = tokenCredentialOAuth('apify', { apiKey: 'accessToken' })
 export const APOLLO_CREDENTIAL_OAUTH = {
   required: false,
@@ -227,6 +252,14 @@ export const BROWSER_USE_CREDENTIAL_OAUTH = tokenCredentialOAuth('browser_use', 
 })
 export const BUFFER_CREDENTIAL_OAUTH = tokenCredentialOAuth('buffer', { apiKey: 'accessToken' })
 export const CALENDLY_CREDENTIAL_OAUTH = tokenCredentialOAuth('calendly', { apiKey: 'accessToken' })
+/**
+ * Credential policy for every CB Insights tool. A saved CB Insights API client fills the client
+ * ID and secret the tools exchange for an access token on each run, as they do inline.
+ */
+export const CBINSIGHTS_CREDENTIAL_OAUTH = tokenCredentialOAuth('cbinsights', {
+  clientId: 'providerWorkspaceId',
+  clientSecret: 'accessToken',
+})
 export const CHECKR_CREDENTIAL_OAUTH = tokenCredentialOAuth('checkr', { apiKey: 'accessToken' })
 export const CIRCLEBACK_CREDENTIAL_OAUTH = tokenCredentialOAuth('circleback', {
   apiKey: 'accessToken',
@@ -314,6 +347,15 @@ export const JUPYTER_CREDENTIAL_OAUTH = tokenCredentialOAuth('jupyter', {
   serverUrl: 'domain',
   token: 'accessToken',
 })
+/**
+ * Credential policy for the Kalshi tools that sign requests. A saved Kalshi API key holds the
+ * key ID (as its account id) and the private key (as its token); the tools sign each request
+ * with them, so the key never leaves Sim.
+ */
+export const KALSHI_CREDENTIAL_OAUTH = tokenCredentialOAuth('kalshi', {
+  keyId: 'providerWorkspaceId',
+  privateKey: 'accessToken',
+})
 export const LANGSMITH_CREDENTIAL_OAUTH = tokenCredentialOAuth('langsmith', {
   apiKey: 'accessToken',
   region: 'domain',
@@ -367,8 +409,25 @@ export const PLANETSCALE_CREDENTIAL_OAUTH = tokenCredentialOAuth('planetscale', 
 })
 export const PROFOUND_CREDENTIAL_OAUTH = tokenCredentialOAuth('profound', { apiKey: 'accessToken' })
 export const PULSE_CREDENTIAL_OAUTH = tokenCredentialOAuth('pulse', { apiKey: 'accessToken' })
+/**
+ * Credential policy for every Qdrant tool. A saved Qdrant API key fills the key and the instance
+ * URL it was verified against, so a run reaches only that instance.
+ */
+export const QDRANT_CREDENTIAL_OAUTH = tokenCredentialOAuth('qdrant', {
+  apiKey: 'accessToken',
+  url: 'domain',
+})
 export const QUARTR_CREDENTIAL_OAUTH = tokenCredentialOAuth('quartr', { apiKey: 'accessToken' })
 export const QUIVER_CREDENTIAL_OAUTH = tokenCredentialOAuth('quiver', { apiKey: 'accessToken' })
+/**
+ * Credential policy for every Railway tool. A saved Railway token fills the token and its type
+ * (account, workspace, or project), so a project token is sent in the Project-Access-Token header
+ * and the others as a Bearer token, as the tools do inline.
+ */
+export const RAILWAY_CREDENTIAL_OAUTH = tokenCredentialOAuth('railway', {
+  apiKey: 'accessToken',
+  tokenType: 'domain',
+})
 export const RB2B_CREDENTIAL_OAUTH = tokenCredentialOAuth('rb2b', { apiKey: 'accessToken' })
 export const REDUCTO_CREDENTIAL_OAUTH = tokenCredentialOAuth('reducto', { apiKey: 'accessToken' })
 export const RESEND_CREDENTIAL_OAUTH = tokenCredentialOAuth('resend', {
@@ -404,6 +463,16 @@ export const SMARTLEAD_CREDENTIAL_OAUTH = tokenCredentialOAuth('smartlead', {
 export const SPORTMONKS_CREDENTIAL_OAUTH = tokenCredentialOAuth('sportmonks', {
   apiKey: 'accessToken',
 })
+/**
+ * Credential policy for every Splunk tool. A saved Splunk credential fills the authentication
+ * token and the management URL; the tools send the token whenever one is set, so the inline
+ * username and password are never read and the credential-only block drops them.
+ */
+export const SPLUNK_CREDENTIAL_OAUTH = tokenCredentialOAuth(
+  'splunk',
+  { authToken: 'accessToken', baseUrl: 'domain' },
+  ['username', 'password']
+)
 export const SQUARE_CREDENTIAL_OAUTH = tokenCredentialOAuth('square', {
   apiKey: 'accessToken',
   environment: 'domain',
@@ -475,6 +544,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   agentphone: AGENTPHONE_CREDENTIAL_OAUTH,
   ahrefs: AHREFS_CREDENTIAL_OAUTH,
   algolia: ALGOLIA_CREDENTIAL_OAUTH,
+  amplitude: AMPLITUDE_CREDENTIAL_OAUTH,
   apify: APIFY_CREDENTIAL_OAUTH,
   apollo: APOLLO_CREDENTIAL_OAUTH,
   ashby: ASHBY_CREDENTIAL_OAUTH,
@@ -486,6 +556,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   browser_use: BROWSER_USE_CREDENTIAL_OAUTH,
   buffer: BUFFER_CREDENTIAL_OAUTH,
   calendly: CALENDLY_CREDENTIAL_OAUTH,
+  cbinsights: CBINSIGHTS_CREDENTIAL_OAUTH,
   checkr: CHECKR_CREDENTIAL_OAUTH,
   circleback: CIRCLEBACK_CREDENTIAL_OAUTH,
   clerk: CLERK_CREDENTIAL_OAUTH,
@@ -523,6 +594,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   intercom: INTERCOM_CREDENTIAL_OAUTH,
   jotform: JOTFORM_CREDENTIAL_OAUTH,
   jupyter: JUPYTER_CREDENTIAL_OAUTH,
+  kalshi: KALSHI_CREDENTIAL_OAUTH,
   langsmith: LANGSMITH_CREDENTIAL_OAUTH,
   launchdarkly: LAUNCHDARKLY_CREDENTIAL_OAUTH,
   lemlist: LEMLIST_CREDENTIAL_OAUTH,
@@ -542,8 +614,10 @@ export const SAVED_CREDENTIAL_OAUTH = {
   planetscale: PLANETSCALE_CREDENTIAL_OAUTH,
   profound: PROFOUND_CREDENTIAL_OAUTH,
   pulse: PULSE_CREDENTIAL_OAUTH,
+  qdrant: QDRANT_CREDENTIAL_OAUTH,
   quartr: QUARTR_CREDENTIAL_OAUTH,
   quiver: QUIVER_CREDENTIAL_OAUTH,
+  railway: RAILWAY_CREDENTIAL_OAUTH,
   rb2b: RB2B_CREDENTIAL_OAUTH,
   reducto: REDUCTO_CREDENTIAL_OAUTH,
   resend: RESEND_CREDENTIAL_OAUTH,
@@ -557,6 +631,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   similarweb: SIMILARWEB_CREDENTIAL_OAUTH,
   sixtyfour: SIXTYFOUR_CREDENTIAL_OAUTH,
   smartlead: SMARTLEAD_CREDENTIAL_OAUTH,
+  splunk: SPLUNK_CREDENTIAL_OAUTH,
   sportmonks: SPORTMONKS_CREDENTIAL_OAUTH,
   square: SQUARE_CREDENTIAL_OAUTH,
   stripe: STRIPE_CREDENTIAL_OAUTH,

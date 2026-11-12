@@ -36,11 +36,29 @@ export interface TokenServiceAccountField {
   /** Preserve exact password bytes instead of normalizing surrounding whitespace. */
   preserveWhitespace?: boolean
   /**
+   * The token spans several lines (a PEM private key), so the connect form renders a multi-line
+   * control that keeps its line breaks instead of a single-line input.
+   */
+  multiline?: boolean
+  /**
    * The value is a URL whose scheme and path matter (a self-hosted instance or
    * deployment URL), so the connect form sends it as typed and the provider's
    * check normalizes it. Other domains are reduced to a bare host first.
    */
   url?: boolean
+  /**
+   * The connection can be saved without this field (a workspace ID only one token type needs),
+   * so the connect form, the create body, and the stored secret do not require it; the provider's
+   * check decides when it must be set. Applies to a domain or workspace field in pasted-token
+   * mode; the token itself is always required.
+   */
+  optional?: boolean
+  /**
+   * Only on an `optional` field: the `domain` value that makes it required after all (Railway's
+   * workspace ID once the token type is `workspace`), so the connect form blocks a submit the
+   * provider's check would reject. Compared case-insensitively against the typed domain.
+   */
+  requiredForDomain?: string
   /** Soft-format hint shown while the current value doesn't match `hintPattern`. */
   hintPattern?: RegExp
   hintMessage?: string
@@ -251,6 +269,12 @@ export const AGENTPHONE_SERVICE_ACCOUNT_PROVIDER_ID = 'agentphone-service-accoun
 export const AGENTMAIL_SERVICE_ACCOUNT_PROVIDER_ID = 'agentmail-service-account' as const
 export const AFFINITY_SERVICE_ACCOUNT_PROVIDER_ID = 'affinity-service-account' as const
 export const TAVILY_SERVICE_ACCOUNT_PROVIDER_ID = 'tavily-service-account' as const
+export const AMPLITUDE_SERVICE_ACCOUNT_PROVIDER_ID = 'amplitude-service-account' as const
+export const KALSHI_SERVICE_ACCOUNT_PROVIDER_ID = 'kalshi-service-account' as const
+export const SPLUNK_SERVICE_ACCOUNT_PROVIDER_ID = 'splunk-service-account' as const
+export const CBINSIGHTS_SERVICE_ACCOUNT_PROVIDER_ID = 'cbinsights-service-account' as const
+export const RAILWAY_SERVICE_ACCOUNT_PROVIDER_ID = 'railway-service-account' as const
+export const QDRANT_SERVICE_ACCOUNT_PROVIDER_ID = 'qdrant-service-account' as const
 
 const SHOPIFY_DOMAIN_HINT_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i
 
@@ -383,6 +407,12 @@ export type TokenServiceAccountProviderId =
   | typeof AGENTMAIL_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof AFFINITY_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof TAVILY_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof AMPLITUDE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof KALSHI_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof SPLUNK_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof CBINSIGHTS_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof RAILWAY_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof QDRANT_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof FLOW_SERVICE_ACCOUNT_PROVIDER_ID
 
 export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
@@ -2590,11 +2620,186 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     invalidCredentialsHelp:
       'ServiceNow rejected this username and password. Check the instance URL, and that the user is active, not locked out, and not required to use multi-factor authentication.',
   },
+  [AMPLITUDE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: AMPLITUDE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Amplitude',
+    tokenNoun: 'secret key',
+    connectNoun: 'project keys',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Secret key',
+        placeholder: 'Paste the project secret key',
+        secret: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'API key',
+        placeholder: 'Paste the project API key',
+        secret: false,
+      },
+      {
+        id: 'domain',
+        label: 'Data residency',
+        placeholder: 'us or eu',
+        secret: false,
+        defaultValue: 'us',
+        hintPattern: /^(us|eu|US|EU)$/,
+        hintMessage: 'Enter us or eu, the region your Amplitude project stores data in.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/amplitude',
+    helpText:
+      "In Amplitude, open Settings > Projects, choose the project, and copy the API key and secret key from its General tab. Change the data residency to eu only for a project hosted in Amplitude's EU data center.",
+    invalidCredentialsHelp:
+      'Amplitude rejected this API key and secret key. Check that both come from the same project, and that the data residency matches the region the project is hosted in.',
+  },
+  [KALSHI_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: KALSHI_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Kalshi',
+    tokenNoun: 'private key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Private key',
+        placeholder: '-----BEGIN PRIVATE KEY-----',
+        secret: true,
+        multiline: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'API key ID',
+        placeholder: 'Paste the API key ID',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/kalshi',
+    helpText:
+      'In Kalshi, open Account Settings > Profile Settings > API Keys and create a key, then paste its key ID and the private key Kalshi shows only once. Ed25519 and RSA keys both work. The key can trade for your account, so share this credential only with people who may place orders.',
+    invalidCredentialsHelp:
+      'Kalshi rejected this key. Check that the key ID and private key belong to the same API key, that the key has not been deleted, and that you pasted the whole private key file.',
+  },
+  [SPLUNK_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: SPLUNK_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Splunk',
+    tokenNoun: 'authentication token',
+    connectNoun: 'authentication token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Authentication token',
+        placeholder: 'Paste a Splunk authentication token',
+        secret: true,
+      },
+      {
+        id: 'domain',
+        label: 'Management URL',
+        placeholder: 'https://splunk.example.com:8089',
+        secret: false,
+        url: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/splunk',
+    helpText:
+      'Create a token in Splunk Web under Settings > Tokens, and enter the management URL with its port (8089 by default). The URL must be reachable from Sim over https with a certificate from a public certificate authority; Sim does not skip certificate checks.',
+    invalidCredentialsHelp:
+      'Splunk rejected this token. Check that token authentication is turned on, that the token is enabled and not expired, and that the management URL points at the same deployment.',
+  },
+  [CBINSIGHTS_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: CBINSIGHTS_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'CB Insights',
+    tokenNoun: 'client secret',
+    connectNoun: 'API client',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Client secret',
+        placeholder: 'Paste the CB Insights client secret',
+        secret: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Client ID',
+        placeholder: 'Paste the CB Insights client ID',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/cbinsights',
+    helpText:
+      'CB Insights issues the API client ID and secret; contact your CB Insights representative for production credentials. Sim exchanges them for a short-lived access token on each run.',
+    invalidCredentialsHelp:
+      'CB Insights did not authorize this client ID and secret. Check that both were issued together and are still active.',
+  },
+  [RAILWAY_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: RAILWAY_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Railway',
+    tokenNoun: 'token',
+    connectNoun: 'token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Token',
+        placeholder: 'Paste a Railway account, workspace, or project token',
+        secret: true,
+      },
+      {
+        id: 'domain',
+        label: 'Token type',
+        placeholder: 'account, workspace, or project',
+        secret: false,
+        hintPattern: /^(account|workspace|project)$/i,
+        hintMessage: 'Enter account, workspace, or project: the scope you chose for this token.',
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Workspace ID',
+        placeholder: 'Required for a workspace token',
+        secret: false,
+        optional: true,
+        requiredForDomain: 'workspace',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/railway',
+    helpText:
+      "Create an account or workspace token in your Railway account settings, or a project token in a project's settings. A workspace token is scoped to one workspace, so enter that workspace's ID as well.",
+    invalidCredentialsHelp:
+      'Railway rejected this token. Check that the token type matches the scope you created it with, and for a workspace token that the workspace ID is the one it was created in.',
+  },
+  [QDRANT_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: QDRANT_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Qdrant',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste a Qdrant database API key',
+        secret: true,
+      },
+      {
+        id: 'domain',
+        label: 'Instance URL',
+        placeholder: 'https://xyz-example.eu-central.aws.cloud.qdrant.io:6333',
+        secret: false,
+        url: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/qdrant',
+    helpText:
+      'For Qdrant Cloud, create a database API key on the cluster and enter the cluster URL with its port (6333). For a self-hosted instance, enter the key set as its service API key and a URL Sim can reach.',
+    invalidCredentialsHelp:
+      'Qdrant rejected this API key. Check that the key belongs to this cluster or instance and has not expired.',
+  },
 }
 
-/** Whether a create must give the field: every field is required unless it has a default. */
+/**
+ * Whether a create must give the field: every field is required unless it is optional or has a
+ * default.
+ */
 export function isTokenServiceAccountFieldRequired(field: TokenServiceAccountField): boolean {
-  return field.defaultValue === undefined
+  return !field.optional && field.defaultValue === undefined
 }
 
 /**
@@ -2623,8 +2828,8 @@ export const TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS: Record<
 /**
  * Required contract fields per token service-account provider, consumed by the
  * `createCredentialBodySchema` superRefine so validation errors name the exact
- * missing field. Derived from each descriptor's field list; a field with a
- * `defaultValue` is optional.
+ * missing field. Derived from each descriptor's field list; a field marked `optional` or
+ * carrying a `defaultValue` is not required.
  */
 export const TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS: Record<string, TokenServiceAccountFieldId[]> =
   Object.fromEntries(

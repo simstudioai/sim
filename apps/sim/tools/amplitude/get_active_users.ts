@@ -3,6 +3,7 @@ import type {
   AmplitudeGetActiveUsersResponse,
 } from '@/tools/amplitude/types'
 import { getDashboardHost } from '@/tools/amplitude/utils'
+import { AMPLITUDE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getActiveUsersTool: ToolConfig<
@@ -13,6 +14,7 @@ export const getActiveUsersTool: ToolConfig<
   name: 'Amplitude Get Active Users',
   description: 'Get active or new user counts over a date range from the Dashboard REST API.',
   version: '1.0.0',
+  oauth: AMPLITUDE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

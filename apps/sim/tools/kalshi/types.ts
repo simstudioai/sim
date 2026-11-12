@@ -433,8 +433,13 @@ function normalizePemKey(privateKey: string): string {
 }
 
 /**
- * Signs `timestamp + METHOD + path` (query string excluded). Kalshi requires
- * RSA-PSS with SHA-256, not plain PKCS#1 v1.5.
+ * Signs `timestamp + METHOD + path` (query string excluded) with the algorithm Kalshi derives
+ * from the registered public key: Ed25519 (RFC 8032) over the text for an Ed25519 key, and
+ * RSA-PSS with SHA-256 (MGF1 SHA-256, salt length equal to the digest) for an RSA key. The PEM
+ * header cannot tell them apart, since a PKCS#8 RSA key and an Ed25519 key share it, so the type
+ * is read from the parsed key.
+ *
+ * @see https://docs.kalshi.com/getting_started/api_keys
  */
 export function generateKalshiSignature(
   privateKey: string,
@@ -443,17 +448,23 @@ export function generateKalshiSignature(
   path: string
 ): string {
   const pathWithoutQuery = path.split('?')[0]
-  const message = timestamp + method.toUpperCase() + pathWithoutQuery
+  const message = Buffer.from(timestamp + method.toUpperCase() + pathWithoutQuery, 'utf-8')
 
-  const pemKey = normalizePemKey(privateKey)
+  const key = crypto.createPrivateKey(normalizePemKey(privateKey))
 
-  const signature = crypto.sign('sha256', Buffer.from(message, 'utf-8'), {
-    key: pemKey,
-    padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
-    saltLength: crypto.constants.RSA_PSS_SALTLEN_DIGEST,
-  })
-
-  return signature.toString('base64')
+  if (key.asymmetricKeyType === 'ed25519') {
+    return crypto.sign(null, message, key).toString('base64')
+  }
+  if (key.asymmetricKeyType === 'rsa') {
+    return crypto
+      .sign('sha256', message, {
+        key,
+        padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
+        saltLength: crypto.constants.RSA_PSS_SALTLEN_DIGEST,
+      })
+      .toString('base64')
+  }
+  throw new Error('Kalshi private keys must be RSA or Ed25519')
 }
 
 export function buildKalshiAuthHeaders(

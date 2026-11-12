@@ -1,5 +1,6 @@
 import { AmplitudeIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 /*
  * Amplitude identifies a person by user id or device id — either one alone is
@@ -12,6 +13,8 @@ const PROFILE_IDENTITY_FIELD = ['profileUserId', 'profileDeviceId'] as const
 
 export const AmplitudeBlock: BlockConfig = {
   type: 'amplitude',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'amplitude_v2' },
   name: 'Amplitude',
   description: 'Track events and query analytics from Amplitude',
   longDescription:
@@ -1229,6 +1232,29 @@ export const AmplitudeBlock: BlockConfig = {
         'Funnel results per segment (stepByStep, cumulative, medianTransTimes, dayFunnels, etc.) (funnels)',
     },
   },
+}
+
+/**
+ * Every operation authenticates with the project credential: the ingestion operations send its
+ * API key, and the analytics and User Profile operations send both keys, so the picker shows for
+ * all of them.
+ */
+export const AmplitudeV2Block: BlockConfig = {
+  ...AmplitudeBlock,
+  type: 'amplitude_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    AmplitudeBlock,
+    {
+      id: 'credential',
+      type: 'oauth-input',
+      serviceId: 'amplitude',
+      title: 'Amplitude Credential',
+    },
+    { condition: null, required: true }
+  ),
 }
 
 export const AmplitudeBlockMeta = {

@@ -928,6 +928,23 @@ describe('a token provider whose region or host defaults to the one it always us
   })
 
   it.each([
+    [undefined, 'https://amplitude.com/api/2/events/list', 'us'],
+    ['eu', 'https://analytics.eu.amplitude.com/api/2/events/list', 'eu'],
+  ])(
+    'checks an Amplitude project with residency %s at %s and stores it as %s',
+    async (domain, url, stored) => {
+      const result = await verifyAndBuildServiceAccountSecret('amplitude-service-account', {
+        apiToken: 'secret-1',
+        providerWorkspaceId: 'api-key-1',
+        ...(domain === undefined ? {} : { domain }),
+      })
+
+      expect(requestedUrl()).toBe(url)
+      expect(JSON.parse(result.encryptedServiceAccountKey)).toMatchObject({ domain: stored })
+    }
+  )
+
+  it.each([
     ['launchdarkly-service-account', 'LaunchDarkly'],
     ['langsmith-service-account', 'LangSmith'],
     ['square-service-account', 'Square'],
@@ -1009,4 +1026,46 @@ describe('a token provider whose region or host defaults to the one it always us
       expect(fetchMock).not.toHaveBeenCalled()
     }
   )
+})
+
+describe('a Railway token', () => {
+  const fetchMock = vi.fn<typeof fetch>()
+
+  beforeEach(() => {
+    mockEncryptSecret.mockImplementation(async (value: string) => ({ encrypted: value }))
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  it('saves a project token without the workspace ID only workspace tokens need', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({ data: { projectToken: { projectId: 'p1', environmentId: 'e1' } } })
+    )
+
+    const result = await verifyAndBuildServiceAccountSecret('railway-service-account', {
+      apiToken: 'project-token',
+      domain: 'project',
+    })
+
+    const blob = JSON.parse(result.encryptedServiceAccountKey)
+    expect(blob).toMatchObject({ apiToken: 'project-token', domain: 'project' })
+    expect(blob).not.toHaveProperty('providerWorkspaceId')
+  })
+
+  it('stores the workspace ID a workspace token was verified against', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({ data: { workspace: { id: 'ws-1', name: 'Acme' } } })
+    )
+
+    const result = await verifyAndBuildServiceAccountSecret('railway-service-account', {
+      apiToken: 'workspace-token',
+      domain: 'workspace',
+      providerWorkspaceId: ' ws-1 ',
+    })
+
+    expect(JSON.parse(result.encryptedServiceAccountKey)).toMatchObject({
+      domain: 'workspace',
+      providerWorkspaceId: 'ws-1',
+    })
+  })
 })

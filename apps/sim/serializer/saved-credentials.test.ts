@@ -9,6 +9,7 @@ import { AgentMailBlock, AgentMailV2Block } from '@/blocks/blocks/agentmail'
 import { AgentPhoneBlock, AgentPhoneV2Block } from '@/blocks/blocks/agentphone'
 import { AhrefsBlock, AhrefsV2Block } from '@/blocks/blocks/ahrefs'
 import { AlgoliaBlock, AlgoliaV2Block } from '@/blocks/blocks/algolia'
+import { AmplitudeBlock, AmplitudeV2Block } from '@/blocks/blocks/amplitude'
 import { ApifyBlock, ApifyV2Block } from '@/blocks/blocks/apify'
 import { ApolloBlock, ApolloV2Block } from '@/blocks/blocks/apollo'
 import { AppConfigBlock, AppConfigV2Block } from '@/blocks/blocks/appconfig'
@@ -24,6 +25,7 @@ import { BrightDataBlock, BrightDataV2Block } from '@/blocks/blocks/brightdata'
 import { BrowserUseBlock, BrowserUseV2Block } from '@/blocks/blocks/browser_use'
 import { BufferBlock, BufferV2Block } from '@/blocks/blocks/buffer'
 import { CalendlyBlock, CalendlyV2Block } from '@/blocks/blocks/calendly'
+import { CbInsightsBlock, CbInsightsV2Block } from '@/blocks/blocks/cbinsights'
 import { CheckrBlock, CheckrV2Block } from '@/blocks/blocks/checkr'
 import { CirclebackBlock, CirclebackV2Block } from '@/blocks/blocks/circleback'
 import { ClerkBlock, ClerkV2Block } from '@/blocks/blocks/clerk'
@@ -68,6 +70,7 @@ import { InstantlyBlock, InstantlyV2Block } from '@/blocks/blocks/instantly'
 import { IntercomV2Block, IntercomV3Block } from '@/blocks/blocks/intercom'
 import { JotformBlock, JotformV2Block } from '@/blocks/blocks/jotform'
 import { JupyterV2Block, JupyterV3Block } from '@/blocks/blocks/jupyter'
+import { KalshiV2Block, KalshiV3Block } from '@/blocks/blocks/kalshi'
 import { LambdaBlock, LambdaV2Block } from '@/blocks/blocks/lambda'
 import { LangsmithBlock, LangsmithV2Block } from '@/blocks/blocks/langsmith'
 import { LaunchDarklyBlock, LaunchDarklyV2Block } from '@/blocks/blocks/launchdarkly'
@@ -88,8 +91,10 @@ import { PlaneBlock, PlaneV2Block } from '@/blocks/blocks/plane'
 import { PlanetScaleBlock, PlanetScaleV2Block } from '@/blocks/blocks/planetscale'
 import { ProfoundBlock, ProfoundV2Block } from '@/blocks/blocks/profound'
 import { PulseV2Block, PulseV3Block } from '@/blocks/blocks/pulse'
+import { QdrantBlock, QdrantV2Block } from '@/blocks/blocks/qdrant'
 import { QuartrBlock, QuartrV2Block } from '@/blocks/blocks/quartr'
 import { QuiverV2Block, QuiverV3Block } from '@/blocks/blocks/quiver'
+import { RailwayBlock, RailwayV2Block } from '@/blocks/blocks/railway'
 import { RB2BBlock, RB2BV2Block } from '@/blocks/blocks/rb2b'
 import { RDSBlock, RDSV2Block } from '@/blocks/blocks/rds'
 import { ReductoV2Block, ReductoV3Block } from '@/blocks/blocks/reducto'
@@ -107,6 +112,7 @@ import { SESBlock, SESV2Block } from '@/blocks/blocks/ses'
 import { SimilarwebBlock, SimilarwebV2Block } from '@/blocks/blocks/similarweb'
 import { SixtyfourBlock, SixtyfourV2Block } from '@/blocks/blocks/sixtyfour'
 import { SmartleadBlock, SmartleadV2Block } from '@/blocks/blocks/smartlead'
+import { SplunkBlock, SplunkV2Block } from '@/blocks/blocks/splunk'
 import { SportmonksBlock, SportmonksV2Block } from '@/blocks/blocks/sportmonks'
 import { SQSBlock, SQSV2Block } from '@/blocks/blocks/sqs'
 import { SquareBlock, SquareV2Block } from '@/blocks/blocks/square'
@@ -415,6 +421,37 @@ const VERSIONS: Array<{
   },
   { legacy: GongBlock, successor: GongV2Block, secretIds: ['accessKey', 'accessKeySecret'] },
   {
+    legacy: QdrantBlock,
+    successor: QdrantV2Block,
+    secretIds: ['url', 'apiKey'],
+    optionalIds: ['apiKey'],
+    legacyOperation: 'upsert',
+  },
+  {
+    legacy: RailwayBlock,
+    successor: RailwayV2Block,
+    secretIds: ['apiKey', 'tokenType'],
+    optionalIds: ['tokenType'],
+  },
+  {
+    legacy: CbInsightsBlock,
+    successor: CbInsightsV2Block,
+    secretIds: ['clientId', 'clientSecret'],
+  },
+  {
+    legacy: SplunkBlock,
+    successor: SplunkV2Block,
+    secretIds: ['baseUrl', 'authToken', 'username', 'password'],
+    optionalIds: ['authToken', 'username', 'password'],
+  },
+  {
+    legacy: AmplitudeBlock,
+    successor: AmplitudeV2Block,
+    secretIds: ['apiKey', 'secretKey', 'dataResidency'],
+    optionalIds: ['secretKey', 'dataResidency'],
+    legacyOperation: 'list_events',
+  },
+  {
     legacy: ServiceNowV2Block,
     successor: ServiceNowV3Block,
     secretIds: ['instanceUrl', 'username', 'password'],
@@ -438,10 +475,14 @@ function firstOperation(config: BlockConfig): string | undefined {
   return operations(config)[0]
 }
 
+/** One title per field id: a field repeated per operation (Qdrant's URL) is still one field. */
 function fieldTitles(config: BlockConfig, ids: readonly string[]): string[] {
-  return config.subBlocks
-    .filter((subBlock) => ids.includes(subBlock.id) && !isTriggerModeSubBlock(subBlock))
-    .map((subBlock) => subBlock.title ?? subBlock.id)
+  const titles = new Map<string, string>()
+  for (const subBlock of config.subBlocks) {
+    if (!ids.includes(subBlock.id) || isTriggerModeSubBlock(subBlock)) continue
+    if (!titles.has(subBlock.id)) titles.set(subBlock.id, subBlock.title ?? subBlock.id)
+  }
+  return [...titles.values()]
 }
 
 function buildBlock(config: BlockConfig, values: Record<string, string>): BlockState {
@@ -561,6 +602,57 @@ describe.each(VERSIONS)('$successor.type credential-only block', ({ successor, s
       expect(message, operation).not.toMatch(
         /access key|secret access|api key|token is required|host is required|cannot read properties of undefined/i
       )
+    }
+  })
+})
+
+describe('kalshi_v3 signed and public calls', () => {
+  const SECRET_IDS = ['keyId', 'privateKey']
+
+  it('kalshi_v2 still serializes its inline key for signed calls', () => {
+    vi.spyOn(blocks, 'getBlock').mockReturnValue(KalshiV2Block)
+    const params = serialize(
+      buildBlock(KalshiV2Block, { operation: 'get_balance', ...valuesFor(SECRET_IDS, 'inline') })
+    )
+
+    for (const id of SECRET_IDS) expect(params[id]).toBe(`inline-${id}`)
+    expect(params.oauthCredential).toBeUndefined()
+  })
+
+  it('requires a saved credential for signed calls only', () => {
+    vi.spyOn(blocks, 'getBlock').mockReturnValue(KalshiV3Block)
+    const credentialTitle = fieldTitles(KalshiV3Block, ['credential'])[0]
+
+    expect(
+      missingRequiredFields(buildBlock(KalshiV3Block, { operation: 'get_balance' }))
+    ).toContain(credentialTitle)
+    expect(
+      missingRequiredFields(buildBlock(KalshiV3Block, { operation: 'get_markets' }))
+    ).not.toContain(credentialTitle)
+  })
+
+  it('sends the saved credential and never inline secrets left in its state', () => {
+    vi.spyOn(blocks, 'getBlock').mockReturnValue(KalshiV3Block)
+    const params = serialize(
+      buildBlock(KalshiV3Block, {
+        operation: 'create_order',
+        credential: 'cred-1',
+        ...valuesFor(SECRET_IDS, 'stale'),
+      })
+    )
+
+    expect(params.oauthCredential).toBe('cred-1')
+    for (const id of SECRET_IDS) expect(params[id]).toBeUndefined()
+  })
+
+  it('never asks for the inline key, in any operation', () => {
+    vi.spyOn(blocks, 'getBlock').mockReturnValue(KalshiV3Block)
+    for (const operation of operations(KalshiV3Block)) {
+      const message = missingRequiredFields(
+        buildBlock(KalshiV3Block, { operation: operation ?? '', credential: 'cred-1' })
+      )
+
+      for (const id of SECRET_IDS) expect(message, operation).not.toContain(id)
     }
   })
 })

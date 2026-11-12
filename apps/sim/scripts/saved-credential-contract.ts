@@ -45,6 +45,8 @@ const DESTINATION_PARAM =
 const OPERATION_PAYLOAD_PARAMS: Readonly<Record<string, readonly string[]>> = {
   // The page the remote browser opens; the token goes to api.browser-use.com.
   browser_use_run_task: ['startUrl'],
+  // A CB Insights profile URL resolved by the lookup, sent in the body to api.cbinsights.com.
+  cbinsights_lookup_organizations: ['profileUrl'],
   // A label CrowdStrike records on the RTR session; the token goes to the credential's Falcon cloud.
   crowdstrike_init_rtr_session: ['origin'],
   // A guild id the operation never sends; it posts only to the channel's discord.com endpoint.
@@ -325,10 +327,10 @@ export function savedCredentialContractErrors(
     if (!OPERATION_RESOLVED_CREDENTIAL_PROVIDERS.has(oauth.provider)) {
       if (
         oauth.tokenReplacesParams?.length &&
-        oauth.credentialParams?.accessToken !== 'accessToken'
+        !Object.values(oauth.credentialParams ?? {}).includes('accessToken')
       ) {
         errors.push(
-          `Block "${block.type}" → tool "${toolId}": tokenReplacesParams needs credentialParams to fill "accessToken" with the minted token.`
+          `Block "${block.type}" → tool "${toolId}": tokenReplacesParams needs a credentialParams entry filled with the credential's token.`
         )
       }
       const replacedByToken = new Set(oauth.tokenReplacesParams ?? [])

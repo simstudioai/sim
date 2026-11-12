@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SPLUNK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SplunkCreateSearchJobParams,
   SplunkCreateSearchJobResponse,
@@ -47,6 +48,7 @@ export const createSearchJobTool: ToolConfig<
   description:
     'Start a Splunk search job and return its search ID (sid). The search runs asynchronously — poll its status and fetch results separately.',
   version: '1.0.0',
+  oauth: SPLUNK_CREDENTIAL_OAUTH,
 
   params: {
     ...SPLUNK_CONNECTION_PARAMS,

@@ -3,6 +3,7 @@ import {
   QDRANT_RESPONSE_OUTPUT_PROPERTIES,
   SCORED_POINT_OUTPUT_PROPERTIES,
 } from '@/tools/qdrant/types'
+import { QDRANT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = {
@@ -10,6 +11,7 @@ export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = 
   name: 'Qdrant Search Vector',
   description: 'Search for similar vectors in a Qdrant collection',
   version: '1.0',
+  oauth: QDRANT_CREDENTIAL_OAUTH,
 
   params: {
     url: {

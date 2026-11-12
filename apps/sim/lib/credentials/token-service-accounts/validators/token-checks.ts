@@ -21,8 +21,10 @@ import {
 } from '@/lib/credentials/token-service-accounts/validators/http'
 import { githubTokenExpiration, gitlabTokenExpiration } from '@/lib/credentials/vendor-token-expiry'
 import { buildJupyterAuthHeaders, normalizeJupyterServerUrl } from '@/lib/internal/jupyter/protocol'
+import { getDashboardHost } from '@/tools/amplitude/utils'
 import { ashbyAuthHeaders } from '@/tools/ashby/utils'
 import { BITBUCKET_API_BASE, bitbucketHeaders } from '@/tools/bitbucket/utils'
+import { CBINSIGHTS_API_BASE } from '@/tools/cbinsights/utils'
 import { checkrHeaders } from '@/tools/checkr/utils'
 import { convexApiUrl, convexAuthHeaders } from '@/tools/convex/utils'
 import { buildDynatraceUrl, dynatraceHeaders } from '@/tools/dynatrace/utils'
@@ -32,6 +34,7 @@ import { gongAuthorization } from '@/tools/gong/utils'
 import { GRANOLA_API_BASE, granolaHeaders } from '@/tools/granola/utils'
 import { DEFAULT_HEX_HOST, hexApiBase, normalizeHexHost } from '@/tools/hex/utils'
 import { buildJotformHeaders, buildJotformUrl, JOTFORM_REGION_HOSTS } from '@/tools/jotform/utils'
+import { buildKalshiAuthHeaders, buildKalshiUrl } from '@/tools/kalshi/types'
 import { LANGSMITH_REGIONS } from '@/tools/langsmith/utils'
 import { LAUNCHDARKLY_INSTANCES } from '@/tools/launchdarkly/utils'
 import {
@@ -49,10 +52,12 @@ import {
   PLANETSCALE_API_ORIGIN,
   planetScaleHeaders,
 } from '@/tools/planetscale/utils'
+import { RAILWAY_GRAPHQL_URL, railwayHeaders } from '@/tools/railway/utils'
 import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
 import { SENTRY_REGIONS } from '@/tools/sentry/utils'
 import { createBasicAuthHeader } from '@/tools/servicenow/utils'
 import type { CredentialRegions } from '@/tools/shared/credential-regions'
+import { buildSplunkHeaders, buildSplunkUrl } from '@/tools/splunk/utils'
 import { SQUARE_ENVIRONMENTS } from '@/tools/square/types'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import { getThriveBaseUrl, getThriveHeaders, THRIVE_HOSTS } from '@/tools/thrive/utils'
@@ -166,6 +171,43 @@ export const validateAlgoliaServiceAccount = tokenCheckValidator({
       })
     }
     return true
+  },
+})
+
+/** Printable ASCII without a colon: what an Amplitude API key can be as a Basic username. */
+const AMPLITUDE_API_KEY = /^[\x21-\x39\x3b-\x7e]{1,256}$/
+/** Printable ASCII, so the Basic credential encodes exactly as the tools' `btoa` does. */
+const AMPLITUDE_SECRET_KEY = /^[\x21-\x7e]{1,256}$/
+
+/**
+ * Amplitude's Dashboard REST API lists a project's visible events for the API key and secret key
+ * sent as HTTP Basic credentials, on the region's host the tools build with `getDashboardHost`.
+ * Amplitude answers 403 when either key is invalid (401 is a malformed header), so the check
+ * proves the pair and its region together; it is a read with no billing cost.
+ * https://amplitude.com/docs/apis/analytics/dashboard-rest
+ */
+export const validateAmplitudeServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Amplitude',
+  domain: allowedDomain(US_OR_EU),
+  workspaceId: ({ providerWorkspaceId }) => {
+    const apiKey = (providerWorkspaceId ?? '').trim()
+    if (!AMPLITUDE_API_KEY.test(apiKey)) throw new Error('invalid API key')
+    return apiKey
+  },
+  request: ({ apiToken, providerWorkspaceId = '', domain }) => {
+    if (!AMPLITUDE_SECRET_KEY.test(apiToken)) {
+      throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+        step: 'verify',
+        reason: 'invalid Amplitude secret key',
+      })
+    }
+    return {
+      url: `${getDashboardHost(domain)}/api/2/events/list`,
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${providerWorkspaceId}:${apiToken}`).toString('base64')}`,
+        Accept: 'application/json',
+      },
+    }
   },
 })
 
@@ -312,6 +354,41 @@ export const validateBufferServiceAccount = tokenCheckValidator({
   acceptsBody: (body) => {
     const account = toRecord(toRecord(toRecord(body).data).account)
     return typeof account.id === 'string' && account.id.length > 0
+  },
+})
+
+/** A CB Insights client ID: printable ASCII, sent only in the authorize request body. */
+const CBINSIGHTS_CLIENT_ID = /^[\x21-\x7e]{1,256}$/
+
+/**
+ * Exchanging the client ID and secret for an access token at `POST /v2/authorize`, the call the
+ * tools make before their first request, proves the pair; a success without a token is not
+ * proof. The token is discarded: the tools mint their own on each run.
+ * https://api-docs.cbinsights.com/portal/docs/CBI-API/Authentication
+ */
+export const validateCbInsightsServiceAccount = tokenCheckValidator({
+  serviceLabel: 'CB Insights',
+  workspaceId: ({ providerWorkspaceId }) => {
+    const clientId = (providerWorkspaceId ?? '').trim()
+    if (!CBINSIGHTS_CLIENT_ID.test(clientId)) throw new Error('invalid client ID')
+    return clientId
+  },
+  errorBodyEchoesToken: true,
+  request: ({ apiToken, providerWorkspaceId = '' }) => ({
+    url: `${CBINSIGHTS_API_BASE}/v2/authorize`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ clientId: providerWorkspaceId, clientSecret: apiToken }),
+  }),
+  acceptsBody: (body) => {
+    const token = toRecord(body).token
+    if (typeof token !== 'string' || !token) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'CB Insights authorization returned no token',
+      })
+    }
+    return true
   },
 })
 
@@ -943,6 +1020,81 @@ export const validateJupyterServiceAccount = tokenCheckValidator({
 })
 
 /**
+ * Listing collections (`GET /collections`) is a read every Qdrant key may run (a collection-scoped
+ * key sees a filtered list), sent with the `api-key` header the tools send. The instance URL is
+ * one the user chose, so the check runs through the guarded egress, and an answer without a
+ * collection list (a proxy or login page) is not taken as proof. A self-hosted instance with no
+ * API key configured accepts any key; the credential still binds the instance URL.
+ * https://api.qdrant.tech/api-reference/collections/get-collections
+ */
+export const validateQdrantServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Qdrant',
+  domain: ({ domain }) => normalizeHttpBaseUrl(domain),
+  egress: 'configuredEndpoint',
+  request: ({ apiToken, domain = '' }) => ({
+    url: `${domain}/collections`,
+    headers: { 'api-key': apiToken, Accept: 'application/json' },
+  }),
+  acceptsBody: (body) => {
+    if (!Array.isArray(toRecord(toRecord(body).result).collections)) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'Qdrant returned no collection list',
+      })
+    }
+    return true
+  },
+})
+
+/** The token types a Railway credential names, each read by the query its scope allows. */
+const RAILWAY_TOKEN_TYPES = new Set(['account', 'workspace', 'project'])
+/** A Railway workspace ID, sent only as a GraphQL variable. */
+const RAILWAY_WORKSPACE_ID = /^[A-Za-z0-9-]{1,64}$/
+
+/**
+ * Each Railway token type has its own documented read, because `me` answers only an account
+ * token: an account token reads `me`, a workspace token reads its workspace by ID (the only
+ * workspace it can see), and a project token reads `projectToken` with the Project-Access-Token
+ * header the tools send for it. Railway reports a refused token as a GraphQL error, so only a
+ * body carrying the queried object proves it.
+ * https://docs.railway.com/integrations/api
+ */
+export const validateRailwayServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Railway',
+  domain: allowedDomain(RAILWAY_TOKEN_TYPES),
+  request: ({ apiToken, domain, providerWorkspaceId = '' }) => {
+    if (domain === 'workspace' && !RAILWAY_WORKSPACE_ID.test(providerWorkspaceId)) {
+      throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+        step: 'verify',
+        reason: 'a workspace token needs its workspace ID',
+      })
+    }
+    const query =
+      domain === 'project'
+        ? { query: 'query { projectToken { projectId environmentId } }' }
+        : domain === 'workspace'
+          ? {
+              query:
+                'query Workspace($workspaceId: String!) { workspace(workspaceId: $workspaceId) { id } }',
+              variables: { workspaceId: providerWorkspaceId },
+            }
+          : { query: 'query { me { id } }' }
+    return {
+      url: RAILWAY_GRAPHQL_URL,
+      method: 'POST',
+      headers: railwayHeaders(apiToken, domain === 'project' ? 'project' : 'account'),
+      body: JSON.stringify(query),
+    }
+  },
+  acceptsBody: (body) => {
+    const record = toRecord(body)
+    if (toArray(record.errors).length > 0) return false
+    const [queried] = Object.values(toRecord(record.data))
+    return Object.keys(toRecord(queried)).length > 0
+  },
+})
+
+/**
  * LangSmith's workspace list answers 200 for a valid API key and 401/403 otherwise, in the region
  * the key's organization lives in; a key from another region is not recognized.
  */
@@ -1072,6 +1224,74 @@ export const validateMailchimpServiceAccount = tokenCheckValidator({
       url: `https://${dataCenter}.api.mailchimp.com/3.0/ping`,
       headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
     }
+  },
+})
+
+/** A Kalshi API key ID travels as a header value, so only printable ASCII without spaces. */
+const KALSHI_KEY_ID = /^[\x21-\x7e]{1,128}$/
+const KALSHI_BALANCE_PATH = '/portfolio/balance'
+
+/**
+ * Reading the account balance is a free, read-only request signed the way the tools sign every
+ * authenticated call (`buildKalshiAuthHeaders`), so it succeeds only when the signature verifies
+ * against the key ID's registered public key; any refusal rejects the key. A private key that cannot sign
+ * (not PEM, or neither RSA nor Ed25519) is refused before any request.
+ * https://docs.kalshi.com/getting_started/api_keys
+ */
+export const validateKalshiServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Kalshi',
+  workspaceId: ({ providerWorkspaceId }) => {
+    const keyId = (providerWorkspaceId ?? '').trim()
+    if (!KALSHI_KEY_ID.test(keyId)) throw new Error('invalid API key ID')
+    return keyId
+  },
+  request: ({ apiToken, providerWorkspaceId = '' }) => {
+    let headers: Record<string, string>
+    try {
+      headers = buildKalshiAuthHeaders(
+        providerWorkspaceId,
+        apiToken,
+        'GET',
+        new URL(buildKalshiUrl(KALSHI_BALANCE_PATH)).pathname
+      )
+    } catch {
+      throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+        step: 'verify',
+        reason: 'Kalshi private key cannot sign',
+      })
+    }
+    return {
+      url: buildKalshiUrl(KALSHI_BALANCE_PATH),
+      headers: { ...headers, Accept: 'application/json' },
+    }
+  },
+})
+
+/**
+ * Splunk's `authentication/current-context` returns the user a request authenticates as and
+ * needs no capability, so any valid authentication token reads it; a refused token answers 401.
+ * The management URL is one the user chose, so the check runs through the guarded egress, and
+ * an answer without a user context (a proxy or login page) is not taken as proof.
+ * https://help.splunk.com/en/splunk-enterprise/leverage-rest-apis/rest-api-reference/10.6/access-endpoints/access-endpoint-descriptions
+ */
+export const validateSplunkServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Splunk',
+  domain: ({ domain }) => normalizeHttpBaseUrl(domain),
+  egress: 'configuredEndpoint',
+  request: ({ apiToken, domain = '' }) => ({
+    url: buildSplunkUrl({ baseUrl: domain }, '/authentication/current-context'),
+    headers: buildSplunkHeaders({ baseUrl: domain, authToken: apiToken }),
+  }),
+  acceptsBody: (body) => {
+    const [entry] = toArray(toRecord(body).entry)
+    const username = toRecord(toRecord(entry).content).username
+    if (typeof username !== 'string' || !username.trim()) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'Splunk returned no user context',
+      })
+    }
+    return true
   },
 })
 

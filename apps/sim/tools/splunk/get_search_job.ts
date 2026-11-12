@@ -1,5 +1,6 @@
 import { toStringOrNull } from '@sim/utils/coerce'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SPLUNK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SplunkGetSearchJobParams, SplunkGetSearchJobResponse } from '@/tools/splunk/types'
 import {
   asBoolean,
@@ -19,6 +20,7 @@ export const getSearchJobTool: ToolConfig<SplunkGetSearchJobParams, SplunkGetSea
   description:
     'Get the status and progress of a Splunk search job by search ID, including dispatch state, completion progress, and event/result counts.',
   version: '1.0.0',
+  oauth: SPLUNK_CREDENTIAL_OAUTH,
 
   params: {
     ...SPLUNK_CONNECTION_PARAMS,

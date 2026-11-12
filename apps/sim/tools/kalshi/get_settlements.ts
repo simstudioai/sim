@@ -9,6 +9,7 @@ import {
   handleKalshiError,
   KALSHI_SETTLEMENT_OUTPUT_PROPERTIES,
 } from '@/tools/kalshi/types'
+import { KALSHI_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface KalshiGetSettlementsParams extends KalshiAuthParams, KalshiPaginationParams {
@@ -34,6 +35,7 @@ export const kalshiGetSettlementsTool: ToolConfig<
   name: 'Get Settlements from Kalshi',
   description: 'Retrieve your portfolio settlement history from Kalshi',
   version: '1.0.0',
+  oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {
     keyId: {
@@ -183,6 +185,7 @@ export const kalshiGetSettlementsV2Tool: ToolConfig<
   name: 'Get Settlements from Kalshi V2',
   description: 'Retrieve your portfolio settlement history from Kalshi',
   version: '2.0.0',
+  oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {
     keyId: {

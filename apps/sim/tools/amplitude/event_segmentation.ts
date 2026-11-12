@@ -3,6 +3,7 @@ import type {
   AmplitudeEventSegmentationResponse,
 } from '@/tools/amplitude/types'
 import { getDashboardHost } from '@/tools/amplitude/utils'
+import { AMPLITUDE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const eventSegmentationTool: ToolConfig<
@@ -14,6 +15,7 @@ export const eventSegmentationTool: ToolConfig<
   description:
     'Query event analytics data with segmentation. Get event counts, uniques, averages, and more.',
   version: '1.0.0',
+  oauth: AMPLITUDE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

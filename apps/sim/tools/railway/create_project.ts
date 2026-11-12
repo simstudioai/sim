@@ -10,6 +10,7 @@ import {
   RAILWAY_GRAPHQL_URL,
   railwayHeaders,
 } from '@/tools/railway/utils'
+import { RAILWAY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface RailwayCreateProjectData {
@@ -24,6 +25,7 @@ export const railwayCreateProjectTool: ToolConfig<
   name: 'Railway Create Project',
   description: 'Create a Railway project',
   version: '1.0.0',
+  oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

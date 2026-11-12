@@ -1,5 +1,6 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { CBINSIGHTS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 export const cbinsightsGetOrgFundingWindowTool: InternalToolConfig<
@@ -11,6 +12,7 @@ export const cbinsightsGetOrgFundingWindowTool: InternalToolConfig<
   description:
     'Retrieve the estimated window in which an organization is likely to raise its next round, with the cohort it was compared against.',
   version: '1.0.0',
+  oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {

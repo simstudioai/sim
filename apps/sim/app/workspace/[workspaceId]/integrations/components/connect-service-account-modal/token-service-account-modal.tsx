@@ -8,6 +8,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipTextarea,
   SecretInput,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
@@ -143,11 +144,15 @@ function TokenServiceAccountModalForm({
   const trimmedWorkspaceId = providerWorkspaceId.trim()
   const isPending =
     createCredential.isPending || updateCredential.isPending || submitPending === true
+  const isFieldRequired = (field: TokenServiceAccountField): boolean =>
+    isTokenServiceAccountFieldRequired(field) ||
+    (field.requiredForDomain !== undefined &&
+      normalizedDomain.toLowerCase() === field.requiredForDomain)
   const isDisabled =
     !authMethod ||
     (usesClientCredentials ? !clientId.trim() || !clientSecret.trim() : !trimmedToken) ||
-    Boolean(domainField && isTokenServiceAccountFieldRequired(domainField) && !normalizedDomain) ||
-    (Boolean(workspaceField) && !trimmedWorkspaceId) ||
+    Boolean(domainField && isFieldRequired(domainField) && !normalizedDomain) ||
+    Boolean(workspaceField && isFieldRequired(workspaceField) && !trimmedWorkspaceId) ||
     isPending
 
   const hintFor = (field: TokenServiceAccountField, value: string): string | undefined => {
@@ -166,7 +171,7 @@ function TokenServiceAccountModalForm({
       if (error) setError(null)
     }
     const placeholder =
-      credentialId && !isTokenServiceAccountFieldRequired(field)
+      credentialId && field.defaultValue !== undefined
         ? `Keep the current ${field.label.toLowerCase()}`
         : field.placeholder
     if (field.options) {
@@ -179,7 +184,7 @@ function TokenServiceAccountModalForm({
           options={field.options}
           placeholder={placeholder}
           align='start'
-          required={isTokenServiceAccountFieldRequired(field)}
+          required={isFieldRequired(field)}
         />
       )
     }
@@ -191,7 +196,7 @@ function TokenServiceAccountModalForm({
         onChange={onChange}
         placeholder={placeholder}
         autoComplete='off'
-        required={isTokenServiceAccountFieldRequired(field)}
+        required={isFieldRequired(field)}
         error={formatError}
       />
     )
@@ -209,7 +214,9 @@ function TokenServiceAccountModalForm({
               clientSecret: clientSecret.trim(),
             }
           : { apiToken: tokenField?.preserveWhitespace ? apiToken : trimmedToken }),
-        ...(workspaceField ? { providerWorkspaceId: trimmedWorkspaceId } : {}),
+        ...(workspaceField && trimmedWorkspaceId
+          ? { providerWorkspaceId: trimmedWorkspaceId }
+          : {}),
         ...(domainField && normalizedDomain ? { domain: normalizedDomain } : {}),
       }
       if (onSubmitCredentials) {
@@ -308,20 +315,42 @@ function TokenServiceAccountModalForm({
             required
             hint={hintFor(tokenField, trimmedToken) ?? descriptor.helpText}
           >
-            <SecretInput
-              value={apiToken}
-              onChange={(value) => {
-                setApiToken(value)
-                if (error) setError(null)
-              }}
-              placeholder={tokenField.placeholder}
-              name={`${descriptor.providerId}_api_token`}
-              autoComplete='new-password'
-              autoCorrect='off'
-              autoCapitalize='off'
-              data-lpignore='true'
-              data-form-type='other'
-            />
+            {tokenField.multiline ? (
+              (aria) => (
+                <ChipTextarea
+                  {...aria}
+                  value={apiToken}
+                  onChange={(event) => {
+                    setApiToken(event.target.value)
+                    if (error) setError(null)
+                  }}
+                  placeholder={tokenField.placeholder}
+                  className='min-h-[120px] font-mono'
+                  // Spell-check and autofill would ship a pasted private key to third parties.
+                  spellCheck={false}
+                  autoComplete='off'
+                  autoCorrect='off'
+                  autoCapitalize='off'
+                  data-lpignore='true'
+                  data-form-type='other'
+                />
+              )
+            ) : (
+              <SecretInput
+                value={apiToken}
+                onChange={(value) => {
+                  setApiToken(value)
+                  if (error) setError(null)
+                }}
+                placeholder={tokenField.placeholder}
+                name={`${descriptor.providerId}_api_token`}
+                autoComplete='new-password'
+                autoCorrect='off'
+                autoCapitalize='off'
+                data-lpignore='true'
+                data-form-type='other'
+              />
+            )}
           </ChipModalField>
         )}
 

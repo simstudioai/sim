@@ -1,9 +1,12 @@
 import { QdrantIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const QdrantBlock: BlockConfig = {
   type: 'qdrant',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'qdrant_v2' },
   name: 'Qdrant',
   description: 'Use Qdrant vector database',
   authMode: AuthMode.ApiKey,
@@ -261,6 +264,21 @@ Return ONLY the JSON object.`,
     data: { type: 'json', description: 'Response data' },
     status: { type: 'string', description: 'Operation status' },
   },
+}
+
+/** Every operation runs with a saved Qdrant API key and the instance URL it was verified against. */
+export const QdrantV2Block: BlockConfig = {
+  ...QdrantBlock,
+  type: 'qdrant_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    QdrantBlock,
+    { id: 'credential', type: 'oauth-input', serviceId: 'qdrant', title: 'Qdrant Credential' },
+    // The URL shows per operation and the key in every one; one credential carries both.
+    { condition: null, required: true }
+  ),
 }
 
 export const QdrantBlockMeta = {

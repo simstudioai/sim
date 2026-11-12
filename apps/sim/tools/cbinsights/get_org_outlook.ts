@@ -1,5 +1,6 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { CBINSIGHTS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 export const cbinsightsGetOrgOutlookTool: InternalToolConfig<CbInsightsOrgParams, ToolResponse> = {
@@ -8,6 +9,7 @@ export const cbinsightsGetOrgOutlookTool: InternalToolConfig<CbInsightsOrgParams
   description:
     "Retrieve an organization's current Mosaic Score, Commercial Maturity level, and two-year IPO and M&A exit probabilities, with the signals driving each.",
   version: '1.0.0',
+  oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {

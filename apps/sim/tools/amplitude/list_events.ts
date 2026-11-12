@@ -3,6 +3,7 @@ import type {
   AmplitudeListEventsResponse,
 } from '@/tools/amplitude/types'
 import { getDashboardHost } from '@/tools/amplitude/utils'
+import { AMPLITUDE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listEventsTool: ToolConfig<AmplitudeListEventsParams, AmplitudeListEventsResponse> = {
@@ -11,6 +12,7 @@ export const listEventsTool: ToolConfig<AmplitudeListEventsParams, AmplitudeList
   description:
     'List all event types in the Amplitude project with their weekly totals and unique counts.',
   version: '1.0.0',
+  oauth: AMPLITUDE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
