@@ -673,6 +673,26 @@ describe('collectSnapshot', () => {
     expect(clickElement(ref)).toMatchObject({ error: 'stale' })
   })
 
+  it('keeps a connected ref whose name grew when its own submenu opened', () => {
+    document.body.innerHTML = '<div role="button" tabindex="0">Products ▾<ul></ul></div>'
+    const menu = visible(document.querySelector('[role="button"]') as HTMLDivElement)
+    const ref = refFor(outlineOf(collectSnapshot()), 'Products ▾')
+
+    ;(menu.querySelector('ul') as HTMLUListElement).innerHTML = ' <li>Starter</li> <li>Business</li>'
+
+    expect(clickElement(ref)).toMatchObject({ dispatched: true })
+  })
+
+  it('invalidates a connected ref whose name changed to a longer, different word', () => {
+    document.body.innerHTML = '<div role="listitem">Item 1</div>'
+    const row = visible(document.querySelector('[role="listitem"]') as HTMLDivElement)
+    const ref = refFor(outlineOf(collectSnapshot()), 'Item 1')
+
+    row.textContent = 'Item 12'
+
+    expect(clickElement(ref)).toMatchObject({ error: 'stale' })
+  })
+
   it('never recycles numeric refs across snapshots', () => {
     document.body.innerHTML = '<button>Pins</button>'
     visible(document.querySelector('button') as HTMLButtonElement)

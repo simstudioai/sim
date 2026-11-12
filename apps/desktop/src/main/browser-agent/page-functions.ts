@@ -897,7 +897,16 @@ export function collectSnapshot(
       ) {
         return false
       }
-      if (nameFor(candidate) !== locator.name) return false
+      // A still-mounted control whose own menu or disclosure opened (often by
+      // the hover or click being validated) appends its new content to its
+      // name; a recycled row replaces the name instead.
+      const name = nameFor(candidate)
+      const nameGrewInPlace =
+        connected &&
+        locator.name.length > 0 &&
+        name.startsWith(locator.name) &&
+        (locator.name.length >= 120 || /\s/.test(name.charAt(locator.name.length)))
+      if (name !== locator.name && !nameGrewInPlace) return false
       const candidateAttributes = locatorAttributes(candidate)
       const attributes = connected ? connectedIdentityAttributes : stableAttributes
       const genericName =
