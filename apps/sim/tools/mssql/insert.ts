@@ -1,4 +1,5 @@
 import type { MSSQLInsertParams, MSSQLInsertResponse } from '@/tools/mssql/types'
+import { MSSQL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const insertTool: InternalToolConfig<MSSQLInsertParams, MSSQLInsertResponse> = {
@@ -6,6 +7,7 @@ export const insertTool: InternalToolConfig<MSSQLInsertParams, MSSQLInsertRespon
   name: 'Microsoft SQL Server Insert',
   description: 'Insert data into a Microsoft SQL Server table',
   version: '1.0',
+  oauth: MSSQL_CREDENTIAL_OAUTH,
 
   params: {
     host: {

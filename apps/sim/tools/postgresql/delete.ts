@@ -1,4 +1,5 @@
 import type { PostgresDeleteParams, PostgresDeleteResponse } from '@/tools/postgresql/types'
+import { POSTGRESQL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const deleteTool: InternalToolConfig<PostgresDeleteParams, PostgresDeleteResponse> = {
@@ -6,6 +7,7 @@ export const deleteTool: InternalToolConfig<PostgresDeleteParams, PostgresDelete
   name: 'PostgreSQL Delete',
   description: 'Delete data from PostgreSQL database',
   version: '1.0',
+  oauth: POSTGRESQL_CREDENTIAL_OAUTH,
 
   params: {
     host: {

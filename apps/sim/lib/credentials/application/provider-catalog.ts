@@ -5,6 +5,7 @@ import {
   CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS,
   type ClientCredentialAccountField,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
+import { getDatabaseConnectionDescriptor } from '@/lib/credentials/database-connections/descriptors'
 import {
   SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
   TOKEN_SERVICE_ACCOUNT_DESCRIPTORS,
@@ -273,6 +274,39 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
           secret: true,
           multiline: true,
           hint: `JSON object with authType: "access_keys" (accessKeyId, secretAccessKey, optional stsRegion) or "assume_role" (accessKeyId, secretAccessKey, roleArn, optional externalId and stsRegion).`,
+        },
+      ],
+    }
+  }
+  const database = getDatabaseConnectionDescriptor(providerId)
+  if (database) {
+    const tls = database.tls
+      .map(
+        (field) =>
+          `${field.id} (${field.options.map((option) => option.value).join(', ')}; default ${field.defaultValue})`
+      )
+      .join(' and ')
+    const tlsTradeoffs = database.tls.map((field) => `${field.id}: ${field.hint}`).join(' ')
+    return {
+      name: `${database.label} connection`,
+      description: `Connect to ${database.label} with a saved host, database, login, and transport-security settings.`,
+      docsUrl: database.docsUrl,
+      fields: [
+        {
+          id: 'serviceAccountJson',
+          label: 'Connection configuration',
+          placeholder: JSON.stringify({
+            host: 'db.example.com',
+            port: database.defaultPort,
+            database: 'app',
+            username: database.usernamePlaceholder,
+            password: '...',
+            ...Object.fromEntries(database.tls.map((field) => [field.id, field.defaultValue])),
+          }),
+          required: true,
+          secret: true,
+          multiline: true,
+          hint: `JSON object with host, port, database, username, password, and optional ${tls}. Sim verifies it with SELECT 1 before saving. ${tlsTradeoffs}`,
         },
       ],
     }

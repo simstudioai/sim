@@ -1,4 +1,5 @@
 import type { MySQLInsertParams, MySQLResponse } from '@/tools/mysql/types'
+import { MYSQL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const insertTool: InternalToolConfig<MySQLInsertParams, MySQLResponse> = {
@@ -6,6 +7,7 @@ export const insertTool: InternalToolConfig<MySQLInsertParams, MySQLResponse> = 
   name: 'MySQL Insert',
   description: 'Insert new record into MySQL database',
   version: '1.0',
+  oauth: MYSQL_CREDENTIAL_OAUTH,
 
   params: {
     host: {

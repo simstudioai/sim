@@ -2,7 +2,7 @@
 title: MySQL
 description: Connect to MySQL database
 integration:
-  type: "mysql"
+  type: "mysql_v2"
   color: "#FFFFFF"
 ---
 
@@ -10,9 +10,20 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [MySQL](https://www.mysql.com/) to query rows, insert or modify records, execute raw SQL, and inspect databases, tables, columns, keys, and indexes. Configure the host, port, database, credentials, and SSL mode for the target server.
+Use [MySQL](https://www.mysql.com/) to query rows, insert or modify records, execute raw SQL, and inspect databases, tables, columns, keys, and indexes.
 
 Query returns rows and a row count. Insert, update, and delete operations accept the data or WHERE clause documented below. Raw SQL can also change schema; use a database account with the permissions the workflow needs.
+
+### Connection setup
+
+In **Integrations**, add a connection with the host, port, database, username, password, and transport-security settings. Sim proves the connection with `SELECT 1` before saving it encrypted, then reads it on the server for each run; the block, the workflow, and agents never see the password. Reconnect the connection from Integrations when its credentials change. The runtime must be able to reach the database host.
+
+- **Preferred** encrypts without verifying the server certificate.
+- **Required** encrypts and verifies the certificate chain against the runtime's trust store, but does not check the host name, like MySQL's `VERIFY_CA`.
+- Both refuse a server that offers no TLS rather than connect unencrypted, so Sim's **Preferred** behaves like MySQL's `REQUIRED`, not its `PREFERRED`.
+- **Disabled** never encrypts. Use it only on a network whose confidentiality you control.
+
+Workflows built before saved connections keep their inline connection fields and run unchanged.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
@@ -31,12 +42,6 @@ Execute SELECT query on MySQL database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | MySQL server hostname or IP address |
-| `port` | number | Yes | MySQL server port \(default: 3306\) |
-| `database` | string | Yes | Database name to connect to \(e.g., my_database\) |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `query` | string | Yes | SQL SELECT query to execute \(e.g., SELECT * FROM users WHERE active = 1\) |
 
 #### Output
@@ -59,12 +64,6 @@ Insert new record into MySQL database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | MySQL server hostname or IP address |
-| `port` | number | Yes | MySQL server port \(default: 3306\) |
-| `database` | string | Yes | Database name to connect to \(e.g., my_database\) |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `table` | string | Yes | Table name to insert into \(e.g., users, orders\) |
 | `data` | object | Yes | Data to insert as key-value pairs |
 
@@ -88,12 +87,6 @@ Update existing records in MySQL database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | MySQL server hostname or IP address |
-| `port` | number | Yes | MySQL server port \(default: 3306\) |
-| `database` | string | Yes | Database name to connect to \(e.g., my_database\) |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `table` | string | Yes | Table name to update \(e.g., users, orders\) |
 | `data` | object | Yes | Data to update as key-value pairs |
 | `where` | string | Yes | WHERE clause condition \(without WHERE keyword\) |
@@ -118,12 +111,6 @@ Delete records from MySQL database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | MySQL server hostname or IP address |
-| `port` | number | Yes | MySQL server port \(default: 3306\) |
-| `database` | string | Yes | Database name to connect to \(e.g., my_database\) |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `table` | string | Yes | Table name to delete from \(e.g., users, orders\) |
 | `where` | string | Yes | WHERE clause condition \(without WHERE keyword\) |
 
@@ -147,12 +134,6 @@ Execute raw SQL query on MySQL database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | MySQL server hostname or IP address |
-| `port` | number | Yes | MySQL server port \(default: 3306\) |
-| `database` | string | Yes | Database name to connect to \(e.g., my_database\) |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `query` | string | Yes | Raw SQL query to execute \(e.g., CREATE TABLE users \(id INT PRIMARY KEY, name VARCHAR\(255\)\)\) |
 
 #### Output
@@ -175,12 +156,6 @@ Introspect MySQL database schema to retrieve table structures, columns, and rela
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | MySQL server hostname or IP address |
-| `port` | number | Yes | MySQL server port \(default: 3306\) |
-| `database` | string | Yes | Database name to connect to \(e.g., my_database\) |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 
 #### Output
 

@@ -82,6 +82,8 @@ import { LumaBlock, LumaV2Block } from '@/blocks/blocks/luma'
 import { MailchimpBlock, MailchimpV2Block } from '@/blocks/blocks/mailchimp'
 import { MailgunBlock, MailgunV2Block } from '@/blocks/blocks/mailgun'
 import { Mem0Block, Mem0V2Block } from '@/blocks/blocks/mem0'
+import { MSSQLBlock, MSSQLV2Block } from '@/blocks/blocks/mssql'
+import { MySQLBlock, MySQLV2Block } from '@/blocks/blocks/mysql'
 import { NewRelicBlock, NewRelicV2Block } from '@/blocks/blocks/new_relic'
 import { OktaBlock, OktaV2Block } from '@/blocks/blocks/okta'
 import { OtterBlock, OtterV2Block } from '@/blocks/blocks/otter'
@@ -89,6 +91,7 @@ import { PagerDutyBlock, PagerDutyV2Block } from '@/blocks/blocks/pagerduty'
 import { PersonaBlock, PersonaV2Block } from '@/blocks/blocks/persona'
 import { PlaneBlock, PlaneV2Block } from '@/blocks/blocks/plane'
 import { PlanetScaleBlock, PlanetScaleV2Block } from '@/blocks/blocks/planetscale'
+import { PostgreSQLBlock, PostgreSQLV2Block } from '@/blocks/blocks/postgresql'
 import { ProfoundBlock, ProfoundV2Block } from '@/blocks/blocks/profound'
 import { PulseV2Block, PulseV3Block } from '@/blocks/blocks/pulse'
 import { QdrantBlock, QdrantV2Block } from '@/blocks/blocks/qdrant'
@@ -455,6 +458,32 @@ const VERSIONS: Array<{
     legacy: ServiceNowV2Block,
     successor: ServiceNowV3Block,
     secretIds: ['instanceUrl', 'username', 'password'],
+  },
+  {
+    legacy: PostgreSQLBlock,
+    successor: PostgreSQLV2Block,
+    secretIds: ['host', 'port', 'database', 'username', 'password', 'ssl'],
+    optionalIds: ['port', 'ssl'],
+  },
+  {
+    legacy: MySQLBlock,
+    successor: MySQLV2Block,
+    secretIds: ['host', 'port', 'database', 'username', 'password', 'ssl'],
+    optionalIds: ['port', 'database', 'ssl'],
+  },
+  {
+    legacy: MSSQLBlock,
+    successor: MSSQLV2Block,
+    secretIds: [
+      'host',
+      'port',
+      'database',
+      'username',
+      'password',
+      'encrypt',
+      'trustServerCertificate',
+    ],
+    optionalIds: ['port', 'encrypt', 'trustServerCertificate'],
   },
 ]
 

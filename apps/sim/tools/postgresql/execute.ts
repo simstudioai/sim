@@ -1,4 +1,5 @@
 import type { PostgresExecuteParams, PostgresExecuteResponse } from '@/tools/postgresql/types'
+import { POSTGRESQL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const executeTool: InternalToolConfig<PostgresExecuteParams, PostgresExecuteResponse> = {
@@ -6,6 +7,7 @@ export const executeTool: InternalToolConfig<PostgresExecuteParams, PostgresExec
   name: 'PostgreSQL Execute',
   description: 'Execute raw SQL query on PostgreSQL database',
   version: '1.0',
+  oauth: POSTGRESQL_CREDENTIAL_OAUTH,
 
   params: {
     host: {

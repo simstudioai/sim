@@ -27,6 +27,10 @@ import {
   getClientCredentialAccountDescriptor,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import {
+  type DatabaseConnectionProviderId,
+  getDatabaseConnectionDescriptor,
+} from '@/lib/credentials/database-connections/descriptors'
+import {
   googleDelegationServiceFor,
   googleKeylessOffer,
   isGoogleKeylessService,
@@ -52,6 +56,7 @@ import {
 import { AwsAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/aws-account-modal'
 import { ClientCredentialAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/client-credential-account-modal'
 import { ClientCredentialsFields } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/client-credentials-fields'
+import { DatabaseConnectionAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/database-connection-account-modal'
 import { DatabricksAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/databricks-account-modal'
 import {
   buildGoogleKeylessConfig,
@@ -87,6 +92,7 @@ export type ServiceAccountProviderId =
   | typeof AWS_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID
+  | DatabaseConnectionProviderId
   | TokenServiceAccountProviderId
   | ClientCredentialAccountProviderId
 
@@ -284,6 +290,25 @@ export function ConnectServiceAccountModal({
         initialDisplayName={credentialDisplayName}
         initialDescription={credentialDescription}
         onCreated={onCreated}
+      />
+    )
+  }
+  const databaseConnectionDescriptor = getDatabaseConnectionDescriptor(serviceAccountProviderId)
+  if (databaseConnectionDescriptor) {
+    return (
+      <DatabaseConnectionAccountModal
+        open={open}
+        onOpenChange={onOpenChange}
+        workspaceId={workspaceId}
+        organizationId={organizationId}
+        descriptor={databaseConnectionDescriptor}
+        serviceIcon={serviceIcon}
+        credentialId={credentialId}
+        initialDisplayName={credentialDisplayName}
+        initialDescription={credentialDescription}
+        onCreated={onCreated}
+        onSubmitCredentials={onSubmitCredentials}
+        submitPending={submitPending}
       />
     )
   }

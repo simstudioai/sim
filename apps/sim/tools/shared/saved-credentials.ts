@@ -1,4 +1,14 @@
+import {
+  DATABASE_CONNECTION_DESCRIPTORS,
+  type DatabaseConnectionProviderId,
+  databaseConnectionFieldIds,
+} from '@/lib/credentials/database-connections/descriptors'
 import type { OAuthService } from '@/lib/oauth'
+import {
+  MSSQL_SERVICE_ACCOUNT_PROVIDER_ID,
+  MYSQL_SERVICE_ACCOUNT_PROVIDER_ID,
+  POSTGRESQL_SERVICE_ACCOUNT_PROVIDER_ID,
+} from '@/lib/oauth/types'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { CredentialParamSource, OAuthConfig, ToolConfig } from '@/tools/types'
 
@@ -42,13 +52,40 @@ export const AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH = {
 } as const satisfies OAuthConfig
 
 /**
+ * Credential policy for a SQL family's tools. `required: false` keeps the
+ * inline connection fields working unchanged; with a saved connection
+ * selected, the tool operation reads it server-side
+ * (`withSavedDatabaseConnection`) and every connection field it stores
+ * replaces the call's. The stored fields and the params declared here are the
+ * same list (`databaseConnectionFieldIds`).
+ */
+function databaseConnectionOAuth(providerId: DatabaseConnectionProviderId) {
+  return {
+    required: false,
+    provider: DATABASE_CONNECTION_DESCRIPTORS[providerId].service,
+    credentialKind: 'service-account',
+    credentialSuppliedParams: databaseConnectionFieldIds(providerId),
+  } as const satisfies OAuthConfig
+}
+
+export const POSTGRESQL_CREDENTIAL_OAUTH = databaseConnectionOAuth(
+  POSTGRESQL_SERVICE_ACCOUNT_PROVIDER_ID
+)
+export const MYSQL_CREDENTIAL_OAUTH = databaseConnectionOAuth(MYSQL_SERVICE_ACCOUNT_PROVIDER_ID)
+export const MSSQL_CREDENTIAL_OAUTH = databaseConnectionOAuth(MSSQL_SERVICE_ACCOUNT_PROVIDER_ID)
+
+/**
  * Saved-credential providers whose tools resolve the credential inside their
  * own operation (AWS mints session keys per call, Azure Data Explorer a token
- * for the cluster each call names) rather than through `credentialParams`.
+ * for the cluster each call names, and a saved database connection is read and
+ * bound to the run's owner) rather than through `credentialParams`.
  */
 export const OPERATION_RESOLVED_CREDENTIAL_PROVIDERS: ReadonlySet<string> = new Set([
   AWS_CREDENTIAL_OAUTH.provider,
   AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH.provider,
+  POSTGRESQL_CREDENTIAL_OAUTH.provider,
+  MYSQL_CREDENTIAL_OAUTH.provider,
+  MSSQL_CREDENTIAL_OAUTH.provider,
 ])
 
 /**
@@ -614,6 +651,8 @@ export const SAVED_CREDENTIAL_OAUTH = {
   mailchimp: MAILCHIMP_CREDENTIAL_OAUTH,
   mailgun: MAILGUN_CREDENTIAL_OAUTH,
   mem0: MEM0_CREDENTIAL_OAUTH,
+  mssql: MSSQL_CREDENTIAL_OAUTH,
+  mysql: MYSQL_CREDENTIAL_OAUTH,
   new_relic: NEW_RELIC_CREDENTIAL_OAUTH,
   okta: OKTA_CREDENTIAL_OAUTH,
   otter: OTTER_CREDENTIAL_OAUTH,
@@ -621,6 +660,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   persona: PERSONA_CREDENTIAL_OAUTH,
   plane: PLANE_CREDENTIAL_OAUTH,
   planetscale: PLANETSCALE_CREDENTIAL_OAUTH,
+  postgresql: POSTGRESQL_CREDENTIAL_OAUTH,
   profound: PROFOUND_CREDENTIAL_OAUTH,
   pulse: PULSE_CREDENTIAL_OAUTH,
   qdrant: QDRANT_CREDENTIAL_OAUTH,
