@@ -1236,8 +1236,8 @@ export const AmplitudeBlock: BlockConfig = {
 
 /**
  * Every operation authenticates with the project credential: the ingestion operations send its
- * API key, the analytics operations both keys, and User Profile its secret key, so the picker
- * shows for all of them.
+ * API key, and the analytics and User Profile operations send both keys, so the picker shows for
+ * all of them.
  */
 export const AmplitudeV2Block: BlockConfig = {
   ...AmplitudeBlock,
