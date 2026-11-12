@@ -84,9 +84,9 @@ export const WORKLOAD_IDENTITY_KEYLESS_CONFIGS: Record<
   google: {
     authType: 'workload_identity',
     requiredFields: ['projectNumber', 'poolId', 'providerId', 'serviceAccountEmail'],
-    optionalFields: [],
+    optionalFields: ['delegation'],
     scope:
-      'Keyless works only for Google Cloud services such as BigQuery and Vertex AI, not Google Workspace (Gmail, Drive, Sheets, Calendar, and the like), which need a JSON key with domain-wide delegation.',
+      'Keyless works for Google Cloud services such as BigQuery and Vertex AI. For Gmail, Google Drive, Google Docs, Google Sheets, and Google Calendar, add `delegation` as {"user": "<Workspace user email>", "services": ["gmail", "google-drive", "google-docs", "google-sheets", "google-calendar"]} (the services you need) for domain-wide delegation: grant the subject roles/iam.serviceAccountTokenCreator instead of roles/iam.workloadIdentityUser, authorize the service account’s client ID for those services’ scopes in the Google Workspace Admin console, and workflows act only as that user. Other Google Workspace services need a JSON key.',
   },
 }
 

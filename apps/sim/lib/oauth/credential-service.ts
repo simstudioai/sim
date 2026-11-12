@@ -20,7 +20,10 @@ import {
   getClientCredentialAccountMinter,
   parseClientCredentialAccountSecretBlob,
 } from '@/lib/credentials/client-credential-accounts/server'
-import { isGoogleWorkloadIdentitySecret } from '@/lib/credentials/google-workload-identity'
+import {
+  GOOGLE_SERVICE_ACCOUNT_EXCLUDED_SCOPES,
+  isGoogleWorkloadIdentitySecret,
+} from '@/lib/credentials/google-workload-identity'
 import { getTokenClientCredentialMinter } from '@/lib/credentials/token-service-accounts/client-credentials'
 import {
   type CLIENT_CREDENTIALS_AUTH_METHOD,
@@ -219,16 +222,6 @@ export async function resolveOAuthAccountId(
   return { accountId: credentialId, usedCredentialTable: false }
 }
 
-/**
- * Userinfo scopes are excluded because service accounts don't represent a user
- * and cannot request user identity information. Google rejects token requests
- * that include these scopes for service account credentials.
- */
-const SA_EXCLUDED_SCOPES = new Set([
-  'https://www.googleapis.com/auth/userinfo.email',
-  'https://www.googleapis.com/auth/userinfo.profile',
-])
-
 /** Google's documented JWT error codes are safe to retain without the provider description. */
 const SA_DIAGNOSTIC_ERROR_CODES = new Set([
   'access_denied',
@@ -309,7 +302,7 @@ export async function getServiceAccountToken(
     readGoogleServiceAccountKey(credentialId),
     options?.signal
   )
-  const filteredScopes = scopes.filter((s) => !SA_EXCLUDED_SCOPES.has(s))
+  const filteredScopes = scopes.filter((s) => !GOOGLE_SERVICE_ACCOUNT_EXCLUDED_SCOPES.has(s))
 
   if (isGoogleWorkloadIdentitySecret(decrypted)) {
     const { resolveGoogleWorkloadIdentityToken } = await import(

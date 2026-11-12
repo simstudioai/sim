@@ -5,21 +5,92 @@
  * token is exchanged at Google STS against the customer's workload identity
  * provider, and the federated token impersonates the service account.
  *
- * Every value here ends up in a Google URL or audience, so each one is checked
- * against Google's documented format and nothing else can reach the request.
+ * Every value here ends up in a Google URL, audience, or signed claim, so each
+ * one is checked against Google's documented format and nothing else can reach
+ * the request.
+ *
+ * A keyless credential may also opt into domain-wide delegation: it then acts
+ * as one Google Workspace user, for the Workspace services its admin chose.
  *
  * @see https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-other-providers
+ * @see https://knowledge.workspace.google.com/admin/apps/domain-wide-delegation-best-practices
  */
 
+import { impersonateEmailSchema } from '@/lib/api/contracts/oauth-connections'
+import { getProviderIdFromServiceId, getScopesForService } from '@/lib/oauth/utils'
+
 /**
- * The Google services a keyless credential may mint for: Google Cloud APIs the
- * service account calls as itself. Google Workspace services need domain-wide
- * delegation, which keyless credentials do not support.
+ * The Google services a keyless credential may mint for as the service account
+ * itself: Google Cloud APIs. Google Workspace services need domain-wide
+ * delegation; see {@link GOOGLE_DELEGATION_SERVICES}.
  */
 export const GOOGLE_KEYLESS_SERVICES: ReadonlySet<string> = new Set([
   'google-bigquery',
   'vertex-ai',
 ])
+
+/**
+ * The Google Workspace services a keyless credential can reach through
+ * domain-wide delegation, by OAuth service id.
+ */
+export const GOOGLE_DELEGATION_SERVICES = [
+  'gmail',
+  'google-drive',
+  'google-docs',
+  'google-sheets',
+  'google-calendar',
+] as const
+
+export type GoogleDelegationService = (typeof GOOGLE_DELEGATION_SERVICES)[number]
+
+const DELEGATION_SERVICE_SET: ReadonlySet<string> = new Set(GOOGLE_DELEGATION_SERVICES)
+
+export function isGoogleDelegationService(value: string): value is GoogleDelegationService {
+  return DELEGATION_SERVICE_SET.has(value)
+}
+
+/**
+ * The delegated service a tool or selector names. Tools name their OAuth
+ * provider id (`google-email`) and selectors their service id (`gmail`).
+ */
+export function googleDelegationServiceFor(
+  service: string | undefined
+): GoogleDelegationService | undefined {
+  if (!service) return undefined
+  if (isGoogleDelegationService(service)) return service
+  return GOOGLE_DELEGATION_SERVICES.find((id) => getProviderIdFromServiceId(id) === service)
+}
+
+/**
+ * User-identity scopes, which a service account can't be granted: Google
+ * rejects a service-account token request that includes them.
+ */
+export const GOOGLE_SERVICE_ACCOUNT_EXCLUDED_SCOPES: ReadonlySet<string> = new Set([
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile',
+])
+
+/** The scopes Sim requests for a delegated service, which the Admin console must authorize. */
+export function googleDelegationScopes(service: GoogleDelegationService): string[] {
+  return getScopesForService(service).filter(
+    (scope) => !GOOGLE_SERVICE_ACCOUNT_EXCLUDED_SCOPES.has(scope)
+  )
+}
+
+/** Every scope the given delegated services need, deduplicated and sorted. */
+export function googleDelegationScopesFor(services: readonly GoogleDelegationService[]): string[] {
+  return [...new Set(services.flatMap(googleDelegationScopes))].sort()
+}
+
+/** RFC 5321's limit on a forward path, which a Workspace sign-in address can't exceed. */
+const MAX_DELEGATION_USER_LENGTH = 254
+
+/** A Google Workspace user's email address, the `sub` a delegated token acts as. */
+export function isGoogleDelegationUser(value: string): boolean {
+  return (
+    value.length <= MAX_DELEGATION_USER_LENGTH && impersonateEmailSchema.safeParse(value).success
+  )
+}
 
 /**
  * What a Google service account connect dialog offers for keyless setup.
@@ -152,16 +223,31 @@ export function googleWorkloadIdentityPrincipal(
 }
 
 /**
+ * The role this credential's subject needs on the service account.
+ * `roles/iam.workloadIdentityUser` grants `getAccessToken` but not `signJwt`,
+ * which domain-wide delegation signs its assertion with;
+ * `roles/iam.serviceAccountTokenCreator` grants both.
+ * @see https://docs.cloud.google.com/iam/docs/roles-permissions/iam
+ */
+export function googleWorkloadIdentityRole(domainWideDelegation: boolean): string {
+  return domainWideDelegation
+    ? 'roles/iam.serviceAccountTokenCreator'
+    : 'roles/iam.workloadIdentityUser'
+}
+
+/**
  * The gcloud commands that set up trust for one credential: the pool, an OIDC
  * provider for Sim's issuer that accepts only this credential's subject, and
- * the binding that lets that subject impersonate the service account. The
- * provider sets no allowed audiences, so it accepts its own resource name.
+ * the binding that lets that subject impersonate the service account (and, with
+ * domain-wide delegation, sign for it). The provider sets no allowed audiences,
+ * so it accepts its own resource name.
  */
 export function googleWorkloadIdentitySetupCommands(input: {
   ref: GoogleWorkloadIdentityProviderRef
   serviceAccountEmail: string
   issuer: string
   subject: string
+  domainWideDelegation?: boolean
 }): string {
   const { ref, serviceAccountEmail, issuer, subject } = input
   return [
@@ -180,7 +266,7 @@ export function googleWorkloadIdentitySetupCommands(input: {
     '',
     `gcloud iam service-accounts add-iam-policy-binding ${serviceAccountEmail} \\`,
     `    --project="${ref.projectNumber}" \\`,
-    '    --role="roles/iam.workloadIdentityUser" \\',
+    `    --role="${googleWorkloadIdentityRole(input.domainWideDelegation ?? false)}" \\`,
     `    --member="${googleWorkloadIdentityPrincipal(ref, subject)}"`,
   ].join('\n')
 }

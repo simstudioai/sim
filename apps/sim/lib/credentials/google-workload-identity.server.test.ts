@@ -32,6 +32,18 @@ const SUBJECT = 'sim:workspace:ws-1:credential:abcdef0123456789'
 const IMPERSONATE_URL = `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${encodeURIComponent(SA_EMAIL)}:generateAccessToken`
 const CLOUD_PLATFORM = 'https://www.googleapis.com/auth/cloud-platform'
 const BIGQUERY = 'https://www.googleapis.com/auth/bigquery'
+const SIGN_JWT_URL = `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${encodeURIComponent(SA_EMAIL)}:signJwt`
+const GMAIL_SCOPES = [
+  'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/gmail.labels',
+]
+const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar'
+const GMAIL_PROFILE = 'https://gmail.googleapis.com/gmail/v1/users/me/profile'
+const CALENDAR_LIST = 'https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=1'
+const DRIVE_ABOUT = 'https://www.googleapis.com/drive/v3/about?fields=user'
+const WORKSPACE_READS = [GMAIL_PROFILE, CALENDAR_LIST, DRIVE_ABOUT]
+const WORKSPACE_USER = 'alice@example.com'
 
 const owner = { workspaceId: 'ws-1', actorUserId: 'user-1' }
 const storedConfig = {
@@ -64,19 +76,62 @@ function fakeGoogle(
   options: {
     acceptSubject?: (subject: string) => boolean
     canImpersonate?: (subject: string) => boolean
+    /** Who may call signJwt; defaults to `canImpersonate`. */
+    canSign?: (subject: string) => boolean
     stsError?: Response
     iamError?: Response
+    /** Answers the OAuth token endpoint instead of issuing a delegated token. */
+    tokenError?: Response
+    /** Answers a Workspace read instead of 200. */
+    readError?: Response
   } = {}
 ) {
   const sts: RecordedRequest[] = []
   const iam: RecordedRequest[] = []
+  const signJwt: RecordedRequest[] = []
+  const token: RecordedRequest[] = []
+  const reads: RecordedRequest[] = []
   fetch.mockImplementation(async (url: string, init: RequestInit = {}) => {
+    const headers = Object.fromEntries(new Headers(init.headers).entries())
     const record = () => ({
       url,
-      headers: Object.fromEntries(new Headers(init.headers).entries()),
-      body: init.body ? JSON.parse(String(init.body)) : {},
+      headers,
+      body:
+        headers['content-type'] === 'application/x-www-form-urlencoded'
+          ? Object.fromEntries(new URLSearchParams(String(init.body)))
+          : init.body
+            ? JSON.parse(String(init.body))
+            : {},
       redirect: init.redirect,
     })
+    if (url.endsWith(':signJwt')) {
+      const request = record()
+      signJwt.push(request)
+      const subject = (request.headers.authorization ?? '').replace('Bearer fed:', '')
+      const canSign = options.canSign ?? options.canImpersonate
+      if (canSign && !canSign(subject)) {
+        return jsonResponse(
+          { error: { code: 403, status: 'PERMISSION_DENIED', message: 'denied' } },
+          403
+        )
+      }
+      return jsonResponse({ keyId: 'key-1', signedJwt: `signed|${request.body.payload}` })
+    }
+    if (url === 'https://oauth2.googleapis.com/token') {
+      const request = record()
+      token.push(request)
+      if (options.tokenError) return options.tokenError.clone()
+      const claims = JSON.parse(String(request.body.assertion).replace('signed|', ''))
+      return jsonResponse({
+        access_token: `ya29.dwd-${claims.sub}-${claims.scope}`,
+        expires_in: 3599,
+        token_type: 'Bearer',
+      })
+    }
+    if (WORKSPACE_READS.some((read) => url === read)) {
+      reads.push(record())
+      return options.readError ? options.readError.clone() : jsonResponse({})
+    }
     if (url === 'https://sts.googleapis.com/v1/token') {
       const request = record()
       sts.push(request)
@@ -116,7 +171,7 @@ function fakeGoogle(
     }
     return jsonResponse({}, 404)
   })
-  return { sts, iam }
+  return { sts, iam, signJwt, token, reads }
 }
 
 function save(
@@ -399,5 +454,257 @@ describe('getting a keyless Google Cloud token for a run', () => {
     await expect(resolve({ credentialId: 'cred-outage' })).rejects.toMatchObject({
       code: 'provider_unavailable',
     })
+  })
+})
+
+function claimsOf(request: RecordedRequest | undefined): Record<string, unknown> {
+  return JSON.parse(String(request?.body.payload))
+}
+
+describe('saving a keyless credential with domain-wide delegation', () => {
+  const fetch = vi.fn()
+  const delegation = { user: WORKSPACE_USER, services: ['gmail', 'google-calendar'] }
+
+  beforeEach(() => {
+    fetch.mockReset()
+    vi.stubGlobal('fetch', fetch)
+    workloadIdentityConfigured.value = true
+    encryptionMockFns.mockEncryptSecret.mockReset()
+    encryptionMockFns.mockEncryptSecret.mockResolvedValue({ encrypted: 'ciphertext', iv: 'iv' })
+  })
+
+  it('signs an assertion for the Workspace user per service, exchanges it, and reads as that user', async () => {
+    const google = fakeGoogle(fetch, { canImpersonate: (subject) => subject === SUBJECT })
+
+    await expect(
+      save({ delegation: { user: 'Alice@Example.com', services: ['google-calendar', 'gmail'] } })
+    ).resolves.toMatchObject({ serviceAccountEmail: SA_EMAIL, delegation })
+
+    const own = google.signJwt.filter((r) => r.headers.authorization === `Bearer fed:${SUBJECT}`)
+    expect(own.map((r) => r.url)).toEqual([SIGN_JWT_URL, SIGN_JWT_URL])
+    expect(own.every((r) => r.redirect === 'error')).toBe(true)
+    const [gmail, calendar] = own.map(claimsOf)
+    expect(gmail).toMatchObject({
+      iss: SA_EMAIL,
+      sub: WORKSPACE_USER,
+      aud: 'https://oauth2.googleapis.com/token',
+      scope: GMAIL_SCOPES.join(' '),
+    })
+    expect(calendar).toMatchObject({ sub: WORKSPACE_USER, scope: CALENDAR_SCOPE })
+    expect(Number(gmail.exp) - Number(gmail.iat)).toBe(3600)
+
+    expect(google.token).toHaveLength(2)
+    expect(google.token[0]).toMatchObject({
+      redirect: 'error',
+      body: {
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion: `signed|${own[0].body.payload}`,
+      },
+    })
+    expect(google.reads.map((r) => [r.url, r.headers.authorization])).toEqual([
+      [GMAIL_PROFILE, `Bearer ya29.dwd-${WORKSPACE_USER}-${GMAIL_SCOPES.join(' ')}`],
+      [CALENDAR_LIST, `Bearer ya29.dwd-${WORKSPACE_USER}-${CALENDAR_SCOPE}`],
+    ])
+    expect(encryptionMockFns.mockEncryptSecret).toHaveBeenCalledWith(
+      JSON.stringify({
+        type: 'google_workload_identity_v1',
+        config: { ...storedConfig, delegation },
+      })
+    )
+  })
+
+  it('names the token-creator role when the subject may impersonate but not sign', async () => {
+    fakeGoogle(fetch, {
+      canImpersonate: (subject) => subject === SUBJECT,
+      canSign: () => false,
+    })
+
+    await expect(save({ delegation })).rejects.toThrow(
+      `Grant roles/iam.serviceAccountTokenCreator on the service account to principal://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${POOL}/subject/${SUBJECT}`
+    )
+    expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
+  })
+
+  it('refuses a service account another Sim subject can sign for', async () => {
+    fakeGoogle(fetch, {
+      canImpersonate: (subject) => subject === SUBJECT,
+      canSign: () => true,
+    })
+
+    await expect(save({ delegation })).rejects.toThrow(
+      /also trusts other Sim credentials.*roles\/iam\.serviceAccountTokenCreator/
+    )
+    expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
+  })
+
+  it('names the Admin console step and scopes when Workspace refuses the delegation', async () => {
+    const google = fakeGoogle(fetch, {
+      canImpersonate: (subject) => subject === SUBJECT,
+      tokenError: jsonResponse(
+        { error: 'unauthorized_client', error_description: 'Client is unauthorized ya29.LEAK' },
+        401
+      ),
+    })
+
+    const error: Error = await save({ delegation }).catch((caught) => caught)
+    expect(error.message).toMatch(/domain-wide delegation/)
+    expect(error.message).toContain(GMAIL_SCOPES.join(','))
+    expect(error.message).toContain('(unauthorized_client)')
+    expect(error.message).not.toContain('LEAK')
+    expect(error.message).not.toContain('signed|')
+    expect(google.reads).toHaveLength(0)
+    expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
+  })
+
+  it('names the API to enable when a delegated read is refused', async () => {
+    fakeGoogle(fetch, {
+      canImpersonate: (subject) => subject === SUBJECT,
+      readError: jsonResponse({ error: { code: 403, status: 'PERMISSION_DENIED' } }, 403),
+    })
+
+    await expect(save({ delegation })).rejects.toThrow(/Gmail API/)
+    expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { user: 'not-an-email', services: ['gmail'] },
+    { user: `${'a'.repeat(250)}@example.com`, services: ['gmail'] },
+    { user: WORKSPACE_USER, services: [] },
+    { user: WORKSPACE_USER, services: ['google-forms'] },
+    { user: WORKSPACE_USER, services: ['google-bigquery'] },
+    { user: WORKSPACE_USER },
+    { services: ['gmail'] },
+    { user: WORKSPACE_USER, services: ['gmail'], scopes: ['https://mail.google.com/'] },
+  ])('refuses the delegation %o without contacting Google', async (invalid) => {
+    fakeGoogle(fetch)
+
+    await expect(save({ delegation: invalid })).rejects.toThrow()
+    expect(fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('getting a delegated Google Workspace token for a run', () => {
+  const fetch = vi.fn()
+  const secret = JSON.stringify({
+    type: 'google_workload_identity_v1',
+    config: { ...storedConfig, delegation: { user: WORKSPACE_USER, services: ['gmail'] } },
+  })
+
+  function resolve(overrides: Partial<Parameters<typeof resolveGoogleWorkloadIdentityToken>[0]>) {
+    return resolveGoogleWorkloadIdentityToken({
+      credentialId: 'dwd-cred',
+      decrypted: secret,
+      secretVersion: 'v1',
+      owner: { workspaceId: 'ws-1' },
+      scopes: GMAIL_SCOPES,
+      service: 'google-email',
+      ...overrides,
+    })
+  }
+
+  beforeEach(() => {
+    fetch.mockReset()
+    vi.stubGlobal('fetch', fetch)
+  })
+
+  it.each([
+    { label: 'a tool’s provider id', service: 'google-email', credentialId: 'dwd-tool' },
+    { label: 'a selector’s service id', service: 'gmail', credentialId: 'dwd-selector' },
+  ])('acts as the delegated user for $label', async ({ service, credentialId }) => {
+    const google = fakeGoogle(fetch)
+
+    await expect(resolve({ service, credentialId })).resolves.toBe(
+      `ya29.dwd-${WORKSPACE_USER}-${[...GMAIL_SCOPES].sort().join(' ')}`
+    )
+    expect(claimsOf(google.signJwt[0])).toMatchObject({ iss: SA_EMAIL, sub: WORKSPACE_USER })
+    expect(google.iam).toHaveLength(0)
+    expect(google.reads).toHaveLength(0)
+  })
+
+  it('accepts an Impersonated Account that names the delegated user in any case', async () => {
+    fakeGoogle(fetch)
+
+    await expect(
+      resolve({ credentialId: 'dwd-same-user', impersonateEmail: 'ALICE@example.com' })
+    ).resolves.toContain(WORKSPACE_USER)
+  })
+
+  it('refuses another Workspace user before contacting Google', async () => {
+    fakeGoogle(fetch)
+
+    await expect(
+      resolve({ credentialId: 'dwd-other-user', impersonateEmail: 'bob@example.com' })
+    ).rejects.toMatchObject({ code: 'unsupported_use' })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it.each(['google-calendar', 'google-drive', 'google-forms', undefined])(
+    'refuses the service %s it was not delegated, before contacting Google',
+    async (service) => {
+      fakeGoogle(fetch)
+
+      await expect(
+        resolve({ credentialId: `dwd-${service}`, service, scopes: [CALENDAR_SCOPE] })
+      ).rejects.toMatchObject({ code: 'unsupported_use' })
+      expect(fetch).not.toHaveBeenCalled()
+    }
+  )
+
+  it('still mints a service account token for a Google Cloud service', async () => {
+    const google = fakeGoogle(fetch)
+
+    await expect(
+      resolve({ credentialId: 'dwd-bq', service: 'google-bigquery', scopes: [BIGQUERY] })
+    ).resolves.toBe(`ya29.sa-token-for-${BIGQUERY}`)
+    expect(google.signJwt).toHaveLength(0)
+    expect(google.iam[0]?.url).toBe(IMPERSONATE_URL)
+  })
+
+  it('reuses a delegated token per credential, user, and scopes', async () => {
+    const google = fakeGoogle(fetch)
+    await resolve({ credentialId: 'dwd-cache' })
+    await resolve({ credentialId: 'dwd-cache', service: 'gmail' })
+    expect(google.signJwt).toHaveLength(1)
+
+    await resolve({ credentialId: 'dwd-cache', scopes: [GMAIL_SCOPES[1]] })
+    expect(google.signJwt).toHaveLength(2)
+
+    await resolve({ credentialId: 'dwd-cache', secretVersion: 'v2' })
+    expect(google.signJwt).toHaveLength(3)
+  })
+
+  it('never answers a service account request with a delegated token of the same scopes', async () => {
+    fakeGoogle(fetch)
+    const delegated = await resolve({ credentialId: 'dwd-identity', scopes: [CLOUD_PLATFORM] })
+    const own = await resolve({
+      credentialId: 'dwd-identity',
+      service: 'vertex-ai',
+      scopes: [CLOUD_PLATFORM],
+    })
+
+    expect(delegated).toBe(`ya29.dwd-${WORKSPACE_USER}-${CLOUD_PLATFORM}`)
+    expect(own).toBe(`ya29.sa-token-for-${CLOUD_PLATFORM}`)
+  })
+
+  it.each([
+    {
+      label: 'a refused signature',
+      google: { canSign: () => false },
+      code: 'invalid_credentials',
+    },
+    {
+      label: 'Workspace refusing the client',
+      google: { tokenError: jsonResponse({ error: 'unauthorized_client' }, 401) },
+      code: 'invalid_credentials',
+    },
+    {
+      label: 'an unavailable token endpoint',
+      google: { tokenError: jsonResponse({ error: 'internal_failure' }, 503) },
+      code: 'provider_unavailable',
+    },
+  ])('reports $label in the shared service-account codes', async ({ label, google, code }) => {
+    fakeGoogle(fetch, google)
+
+    await expect(resolve({ credentialId: `dwd-${label}` })).rejects.toMatchObject({ code })
   })
 })
