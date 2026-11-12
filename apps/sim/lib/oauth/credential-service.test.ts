@@ -1487,6 +1487,7 @@ describe('token credentials saved before their provider had a region or host to 
     ['square-service-account', 'production'],
     ['sendgrid-service-account', 'global'],
     ['hex-service-account', 'app.hex.tech'],
+    ['sentry-service-account', 'us'],
   ])(
     'resolves a %s token stored without one to the host it always used (%s)',
     async (providerId, domain) => {

@@ -1,9 +1,5 @@
 import type { LangsmithGetRunParams, LangsmithGetRunResponse } from '@/tools/langsmith/types'
-import {
-  LANGSMITH_REGION_PARAM,
-  langsmithApiBase,
-  truncateLangsmithErrorText,
-} from '@/tools/langsmith/utils'
+import { LANGSMITH_REGIONS, truncateLangsmithErrorText } from '@/tools/langsmith/utils'
 import { LANGSMITH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -14,7 +10,7 @@ export const langsmithGetRunTool: ToolConfig<LangsmithGetRunParams, LangsmithGet
   version: '1.0.0',
   oauth: LANGSMITH_CREDENTIAL_OAUTH,
   params: {
-    region: LANGSMITH_REGION_PARAM,
+    region: LANGSMITH_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -30,7 +26,7 @@ export const langsmithGetRunTool: ToolConfig<LangsmithGetRunParams, LangsmithGet
   },
   request: {
     url: (params) =>
-      `${langsmithApiBase(params.region)}/runs/${encodeURIComponent(params.runId.trim())}`,
+      `${LANGSMITH_REGIONS.apiBase(params.region)}/runs/${encodeURIComponent(params.runId.trim())}`,
     method: 'GET',
     headers: (params) => ({
       'X-Api-Key': params.apiKey,

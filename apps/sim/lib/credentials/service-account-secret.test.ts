@@ -928,6 +928,68 @@ describe('a token provider whose region or host defaults to the one it always us
   })
 
   it.each([
+    ['launchdarkly-service-account', 'LaunchDarkly'],
+    ['langsmith-service-account', 'LangSmith'],
+    ['square-service-account', 'Square'],
+    ['sendgrid-service-account', 'SendGrid'],
+    ['hex-service-account', 'Hex'],
+    ['sentry-service-account', 'Sentry'],
+  ])(
+    'names a %s credential on its default host %s, as before the field existed',
+    async (providerId, label) => {
+      const result = await verifyAndBuildServiceAccountSecret(providerId, { apiToken: 'token-1' })
+
+      expect(result.displayName).toBe(label)
+    }
+  )
+
+  it.each([
+    ['sentry-service-account', 'de', 'Sentry (de)'],
+    ['hex-service-account', 'eu.hex.tech', 'Hex (eu.hex.tech)'],
+  ])('names a %s credential in %s after it', async (providerId, domain, displayName) => {
+    const result = await verifyAndBuildServiceAccountSecret(providerId, {
+      apiToken: 'token-1',
+      domain,
+    })
+
+    expect(result.displayName).toBe(displayName)
+  })
+
+  const hostNotFound = () =>
+    Object.assign(new TypeError('fetch failed'), { cause: { code: 'ENOTFOUND' } })
+
+  it.each([
+    ['sendgrid-service-account', undefined],
+    ['sendgrid-service-account', 'eu'],
+    ['sentry-service-account', 'de'],
+    ['launchdarkly-service-account', 'federal'],
+    ['hex-service-account', undefined],
+  ])(
+    'reports a %s vendor host (%s) that does not resolve as the vendor being unavailable',
+    async (providerId, domain) => {
+      fetchMock.mockRejectedValue(hostNotFound())
+
+      await expect(
+        verifyAndBuildServiceAccountSecret(providerId, {
+          apiToken: 'token-1',
+          ...(domain === undefined ? {} : { domain }),
+        })
+      ).rejects.toMatchObject({ code: 'provider_unavailable' })
+    }
+  )
+
+  it('reports a typed Hex host that does not resolve as a host not found', async () => {
+    fetchMock.mockRejectedValue(hostNotFound())
+
+    await expect(
+      verifyAndBuildServiceAccountSecret('hex-service-account', {
+        apiToken: 'token-1',
+        domain: 'acme.hex.tech',
+      })
+    ).rejects.toMatchObject({ code: 'site_not_found' })
+  })
+
+  it.each([
     ['launchdarkly-service-account', 'app.launchdarkly.example.com'],
     ['langsmith-service-account', 'eu.api.smith.langchain.com.example.com'],
     ['square-service-account', 'connect.squareupsandbox.com'],
@@ -935,6 +997,8 @@ describe('a token provider whose region or host defaults to the one it always us
     ['hex-service-account', 'hex.tech.example.com'],
     ['hex-service-account', 'acme.hex.tech@example.com'],
     ['hex-service-account', 'a.b.hex.tech'],
+    ['hex-service-account', 'status.hex.tech'],
+    ['hex-service-account', 'learn.hex.tech'],
     ['sentry-service-account', 'de.sentry.io.example.com'],
   ])(
     'refuses %s with an unlisted region or host %s without sending the token',

@@ -29,10 +29,10 @@ import { normalizeEmailBisonBaseUrl } from '@/tools/emailbison/utils'
 import { normalizeGitLabHost } from '@/tools/gitlab/utils'
 import { gongAuthorization } from '@/tools/gong/utils'
 import { GRANOLA_API_BASE, granolaHeaders } from '@/tools/granola/utils'
-import { hexApiBase, normalizeHexHost } from '@/tools/hex/utils'
+import { DEFAULT_HEX_HOST, hexApiBase, normalizeHexHost } from '@/tools/hex/utils'
 import { buildJotformHeaders, buildJotformUrl, JOTFORM_REGION_HOSTS } from '@/tools/jotform/utils'
-import { LANGSMITH_REGIONS, langsmithApiBase } from '@/tools/langsmith/utils'
-import { LAUNCHDARKLY_INSTANCES, launchDarklyApiBase } from '@/tools/launchdarkly/utils'
+import { LANGSMITH_REGIONS } from '@/tools/langsmith/utils'
+import { LAUNCHDARKLY_INSTANCES } from '@/tools/launchdarkly/utils'
 import {
   getLogfireBaseUrl,
   LOGFIRE_READ_TOKEN_INFO_PATH,
@@ -48,10 +48,11 @@ import {
   PLANETSCALE_API_ORIGIN,
   planetScaleHeaders,
 } from '@/tools/planetscale/utils'
-import { SENDGRID_REGIONS, sendGridApiBase } from '@/tools/sendgrid/utils'
-import { SENTRY_REGIONS, sentryApiBase } from '@/tools/sentry/utils'
+import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
+import { SENTRY_REGIONS } from '@/tools/sentry/utils'
 import { createBasicAuthHeader } from '@/tools/servicenow/utils'
-import { SQUARE_ENVIRONMENTS, squareBaseUrl } from '@/tools/square/types'
+import type { CredentialRegions } from '@/tools/shared/credential-regions'
+import { SQUARE_ENVIRONMENTS } from '@/tools/square/types'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import { getThriveBaseUrl, getThriveHeaders, THRIVE_HOSTS } from '@/tools/thrive/utils'
 import { isTwilioApiKeyPair, twilioAuthorization } from '@/tools/twilio/utils'
@@ -67,6 +68,18 @@ import { WHATSAPP_GRAPH_VERSION } from '@/tools/whatsapp/utils'
 
 /** Regions for vendors with one US and one EU API host. */
 const US_OR_EU: ReadonlySet<string> = new Set(['us', 'eu'])
+
+/**
+ * The connection fields of a credential whose domain is one of the vendor's fixed regions: only a
+ * listed region is accepted, and the default one is the host the vendor always used.
+ */
+function vendorRegion(regions: CredentialRegions<string>) {
+  return {
+    domain: allowedDomain(regions),
+    defaultDomain: regions.defaultRegion,
+    domainIsVendorRegion: true,
+  }
+}
 
 /** Affinity's whoami endpoint answers 200 for a valid key and 401 otherwise. */
 export const validateAffinityServiceAccount = tokenCheckValidator({
@@ -810,6 +823,7 @@ export const validateGranolaServiceAccount = tokenCheckValidator({
 export const validateHexServiceAccount = tokenCheckValidator({
   serviceLabel: 'Hex',
   domain: ({ domain }) => normalizeHexHost(domain),
+  defaultDomain: DEFAULT_HEX_HOST,
   request: ({ apiToken, domain }) => ({
     url: `${hexApiBase(domain)}/projects?limit=1`,
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
@@ -930,9 +944,9 @@ export const validateJupyterServiceAccount = tokenCheckValidator({
  */
 export const validateLangsmithServiceAccount = tokenCheckValidator({
   serviceLabel: 'LangSmith',
-  domain: allowedDomain(LANGSMITH_REGIONS),
+  ...vendorRegion(LANGSMITH_REGIONS),
   request: ({ apiToken, domain }) => ({
-    url: `${langsmithApiBase(domain)}/workspaces`,
+    url: `${LANGSMITH_REGIONS.apiBase(domain)}/workspaces`,
     headers: { 'X-Api-Key': apiToken, Accept: 'application/json' },
   }),
 })
@@ -944,9 +958,9 @@ export const validateLangsmithServiceAccount = tokenCheckValidator({
  */
 export const validateLaunchdarklyServiceAccount = tokenCheckValidator({
   serviceLabel: 'LaunchDarkly',
-  domain: allowedDomain(LAUNCHDARKLY_INSTANCES),
+  ...vendorRegion(LAUNCHDARKLY_INSTANCES),
   request: ({ apiToken, domain }) => ({
-    url: `${launchDarklyApiBase(domain)}/caller-identity`,
+    url: `${LAUNCHDARKLY_INSTANCES.apiBase(domain)}/caller-identity`,
     headers: { Authorization: apiToken, Accept: 'application/json' },
   }),
 })
@@ -1370,9 +1384,9 @@ export const validateRootlyServiceAccount = tokenCheckValidator({
  */
 export const validateSendGridServiceAccount = tokenCheckValidator({
   serviceLabel: 'SendGrid',
-  domain: allowedDomain(SENDGRID_REGIONS),
+  ...vendorRegion(SENDGRID_REGIONS),
   request: ({ apiToken, domain }) => ({
-    url: `${sendGridApiBase(domain)}/scopes`,
+    url: `${SENDGRID_REGIONS.apiBase(domain)}/scopes`,
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
 })
@@ -1386,9 +1400,9 @@ export const validateSendGridServiceAccount = tokenCheckValidator({
 export const validateSentryServiceAccount = tokenCheckValidator({
   serviceLabel: 'Sentry',
   forbiddenMeansScoped: true,
-  domain: allowedDomain(SENTRY_REGIONS),
+  ...vendorRegion(SENTRY_REGIONS),
   request: ({ apiToken, domain }) => ({
-    url: `${sentryApiBase(domain)}/organizations/`,
+    url: `${SENTRY_REGIONS.apiBase(domain)}/organizations/`,
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
 })
@@ -1486,9 +1500,9 @@ export const validateSportmonksServiceAccount = tokenCheckValidator({
  */
 export const validateSquareServiceAccount = tokenCheckValidator({
   serviceLabel: 'Square',
-  domain: allowedDomain(SQUARE_ENVIRONMENTS),
+  ...vendorRegion(SQUARE_ENVIRONMENTS),
   request: ({ apiToken, domain }) => ({
-    url: `${squareBaseUrl(domain)}/v2/locations`,
+    url: `${SQUARE_ENVIRONMENTS.apiBase(domain)}/v2/locations`,
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
   forbiddenMeansScoped: true,

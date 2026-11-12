@@ -1,7 +1,7 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { DeleteInvoiceParams, InvoiceDeleteResponse } from '@/tools/square/types'
-import { SQUARE_ENVIRONMENT_PARAM, squareBaseUrl, squareHeaders } from '@/tools/square/types'
+import { SQUARE_ENVIRONMENTS, squareHeaders } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const squareDeleteInvoiceTool: ToolConfig<DeleteInvoiceParams, InvoiceDeleteResponse> = {
@@ -13,7 +13,7 @@ export const squareDeleteInvoiceTool: ToolConfig<DeleteInvoiceParams, InvoiceDel
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
-    environment: SQUARE_ENVIRONMENT_PARAM,
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -37,7 +37,7 @@ export const squareDeleteInvoiceTool: ToolConfig<DeleteInvoiceParams, InvoiceDel
   request: {
     url: (params) => {
       const url = new URL(
-        `${squareBaseUrl(params.environment)}/v2/invoices/${encodeURIComponent(params.invoiceId)}`
+        `${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/invoices/${encodeURIComponent(params.invoiceId)}`
       )
       if (params.version !== undefined)
         url.searchParams.append('version', params.version.toString())

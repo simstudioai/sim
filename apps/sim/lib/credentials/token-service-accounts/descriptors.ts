@@ -12,15 +12,14 @@
  * `@/lib/credentials/token-service-accounts/server`.
  */
 
+import type { ClientCredentialAccountOption } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { DEFAULT_HEX_HOST, HEX_HOST_PATTERN } from '@/tools/hex/utils'
-import { DEFAULT_LANGSMITH_REGION, LANGSMITH_REGION_OPTIONS } from '@/tools/langsmith/utils'
-import {
-  DEFAULT_LAUNCHDARKLY_INSTANCE,
-  LAUNCHDARKLY_INSTANCE_OPTIONS,
-} from '@/tools/launchdarkly/utils'
-import { DEFAULT_SENDGRID_REGION, SENDGRID_REGION_OPTIONS } from '@/tools/sendgrid/utils'
-import { DEFAULT_SENTRY_REGION, SENTRY_REGION_OPTIONS } from '@/tools/sentry/utils'
-import { DEFAULT_SQUARE_ENVIRONMENT, SQUARE_ENVIRONMENT_OPTIONS } from '@/tools/square/types'
+import { LANGSMITH_REGIONS } from '@/tools/langsmith/utils'
+import { LAUNCHDARKLY_INSTANCES } from '@/tools/launchdarkly/utils'
+import { NEW_RELIC_REGIONS } from '@/tools/new_relic/utils'
+import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
+import { SENTRY_REGIONS } from '@/tools/sentry/utils'
+import { SQUARE_ENVIRONMENTS } from '@/tools/square/types'
 
 /** Discriminator stored inside every encrypted token service-account secret blob. */
 export const TOKEN_SERVICE_ACCOUNT_SECRET_TYPE = 'token_service_account' as const
@@ -46,19 +45,15 @@ export interface TokenServiceAccountField {
   hintPattern?: RegExp
   hintMessage?: string
   /** Fixed value set (a region or instance), rendered by the connect modal as a dropdown. */
-  options?: ReadonlyArray<TokenServiceAccountFieldOption>
+  options?: ReadonlyArray<ClientCredentialAccountOption>
   /**
-   * For a non-secret connection field (a region, instance, or host): the value the connection
-   * takes when none is given. It is also what a credential saved before the field existed
-   * resolves to, so adding the field leaves existing credentials, and API callers that omit it,
-   * on the host they used before. A field with a default is not required.
+   * Only on the `domain` field (a region, instance, or host): the value the connection takes when
+   * none is given. It is also what a credential saved before the field existed resolves to, and
+   * what a reconnect that leaves the field blank keeps when nothing is stored, so adding the field
+   * leaves existing credentials, and API callers that omit it, on the host they used before. A
+   * field with a default is not required.
    */
   defaultValue?: string
-}
-
-interface TokenServiceAccountFieldOption {
-  value: string
-  label: string
 }
 
 export interface TokenServiceAccountDescriptor {
@@ -1179,8 +1174,8 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'Region',
         placeholder: 'Select a region',
         secret: false,
-        options: LANGSMITH_REGION_OPTIONS,
-        defaultValue: DEFAULT_LANGSMITH_REGION,
+        options: LANGSMITH_REGIONS.options,
+        defaultValue: LANGSMITH_REGIONS.defaultRegion,
         hintMessage:
           'us (default), eu, apac, aws-us, or azure-us: the LangSmith region your organization is in.',
       },
@@ -1208,8 +1203,8 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'Instance',
         placeholder: 'Select an instance',
         secret: false,
-        options: LAUNCHDARKLY_INSTANCE_OPTIONS,
-        defaultValue: DEFAULT_LAUNCHDARKLY_INSTANCE,
+        options: LAUNCHDARKLY_INSTANCES.options,
+        defaultValue: LAUNCHDARKLY_INSTANCES.defaultRegion,
         hintMessage:
           'us (default), eu, or federal: the LaunchDarkly instance the token was created in.',
       },
@@ -1378,8 +1373,8 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'Region',
         placeholder: 'Select a region',
         secret: false,
-        options: SENDGRID_REGION_OPTIONS,
-        defaultValue: DEFAULT_SENDGRID_REGION,
+        options: SENDGRID_REGIONS.options,
+        defaultValue: SENDGRID_REGIONS.defaultRegion,
         hintMessage:
           'global (default), or eu for a key of an EU regional subuser, which SendGrid serves from api.eu.sendgrid.com.',
       },
@@ -1465,8 +1460,8 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'Environment',
         placeholder: 'Select an environment',
         secret: false,
-        options: SQUARE_ENVIRONMENT_OPTIONS,
-        defaultValue: DEFAULT_SQUARE_ENVIRONMENT,
+        options: SQUARE_ENVIRONMENTS.options,
+        defaultValue: SQUARE_ENVIRONMENTS.defaultRegion,
         hintMessage:
           'production (default) or sandbox: the Square environment the access token was issued for.',
       },
@@ -1886,8 +1881,8 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'Data storage region',
         placeholder: 'Select a region',
         secret: false,
-        options: SENTRY_REGION_OPTIONS,
-        defaultValue: DEFAULT_SENTRY_REGION,
+        options: SENTRY_REGIONS.options,
+        defaultValue: SENTRY_REGIONS.defaultRegion,
         hintMessage:
           'us (default) or de: the data storage location shown in your organization settings.',
       },
@@ -2176,11 +2171,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'Region',
         placeholder: 'Select a data center',
         secret: false,
-        options: [
-          { value: 'us', label: 'US' },
-          { value: 'eu', label: 'EU' },
-          { value: 'jp', label: 'JP' },
-        ],
+        options: NEW_RELIC_REGIONS.options,
         hintMessage: 'us, eu, or jp: the data center your New Relic account is in.',
       },
     ],
@@ -2601,9 +2592,15 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
   },
 }
 
+/** Whether a create must give the field: every field is required unless it has a default. */
+export function isTokenServiceAccountFieldRequired(field: TokenServiceAccountField): boolean {
+  return field.defaultValue === undefined
+}
+
 /**
  * Required contract fields per token provider in client-credentials mode: the client ID and
- * secret replace the token, and every other descriptor field (a store domain) stays required.
+ * secret replace the token, and every other descriptor field without a default (a store domain)
+ * stays required.
  */
 export const TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS: Record<
   string,
@@ -2617,7 +2614,7 @@ export const TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS: Record<
         'clientId',
         'clientSecret',
         ...descriptor.fields.flatMap((field) =>
-          field.id === 'apiToken' || field.defaultValue !== undefined ? [] : [field.id]
+          field.id !== 'apiToken' && isTokenServiceAccountFieldRequired(field) ? [field.id] : []
         ),
       ],
     ])
@@ -2633,21 +2630,18 @@ export const TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS: Record<string, TokenServiceA
   Object.fromEntries(
     Object.values(TOKEN_SERVICE_ACCOUNT_DESCRIPTORS).map((descriptor) => [
       descriptor.providerId,
-      descriptor.fields
-        .filter((field) => field.defaultValue === undefined)
-        .map((field) => field.id),
+      descriptor.fields.filter(isTokenServiceAccountFieldRequired).map((field) => field.id),
     ])
   )
 
 /**
- * The value a token credential's connection field (`domain` or `providerWorkspaceId`) takes when
- * none was given or stored: the descriptor's `defaultValue`, or `undefined` when it has none.
+ * The region or host a token credential's `domain` takes when none was given or stored: the
+ * descriptor's `defaultValue`, or `undefined` when it has none.
  */
-export function getTokenServiceAccountFieldDefault(
-  providerId: string | null | undefined,
-  fieldId: Exclude<TokenServiceAccountFieldId, 'apiToken'>
+export function getTokenServiceAccountDomainDefault(
+  providerId: string | null | undefined
 ): string | undefined {
-  return getTokenServiceAccountDescriptor(providerId)?.fields.find((field) => field.id === fieldId)
+  return getTokenServiceAccountDescriptor(providerId)?.fields.find((field) => field.id === 'domain')
     ?.defaultValue
 }
 

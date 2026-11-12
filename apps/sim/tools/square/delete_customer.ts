@@ -1,7 +1,7 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CustomerDeleteResponse, DeleteCustomerParams } from '@/tools/square/types'
-import { SQUARE_ENVIRONMENT_PARAM, squareBaseUrl, squareHeaders } from '@/tools/square/types'
+import { SQUARE_ENVIRONMENTS, squareHeaders } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const squareDeleteCustomerTool: ToolConfig<DeleteCustomerParams, CustomerDeleteResponse> = {
@@ -13,7 +13,7 @@ export const squareDeleteCustomerTool: ToolConfig<DeleteCustomerParams, Customer
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
-    environment: SQUARE_ENVIRONMENT_PARAM,
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -30,7 +30,7 @@ export const squareDeleteCustomerTool: ToolConfig<DeleteCustomerParams, Customer
 
   request: {
     url: (params) =>
-      `${squareBaseUrl(params.environment)}/v2/customers/${encodeURIComponent(params.customerId)}`,
+      `${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/customers/${encodeURIComponent(params.customerId)}`,
     method: 'DELETE',
     headers: (params) => squareHeaders(params.apiKey),
   },

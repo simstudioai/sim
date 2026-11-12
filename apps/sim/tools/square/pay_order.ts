@@ -9,8 +9,7 @@ import type { OrderResponse, PayOrderParams } from '@/tools/square/types'
 import {
   ORDER_METADATA_OUTPUT_PROPERTIES,
   ORDER_OUTPUT,
-  SQUARE_ENVIRONMENT_PARAM,
-  squareBaseUrl,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -32,7 +31,7 @@ export const squarePayOrderTool: ToolConfig<
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
-    environment: SQUARE_ENVIRONMENT_PARAM,
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -67,7 +66,7 @@ export const squarePayOrderTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${squareBaseUrl(params.environment)}/v2/orders/${encodeURIComponent(params.orderId)}/pay`,
+      `${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/orders/${encodeURIComponent(params.orderId)}/pay`,
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
     body: (params) => {

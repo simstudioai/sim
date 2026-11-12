@@ -4,8 +4,7 @@ import type { CustomerListResponse, SearchCustomersParams } from '@/tools/square
 import {
   CUSTOMER_OUTPUT,
   LIST_METADATA_OUTPUT_PROPERTIES,
-  SQUARE_ENVIRONMENT_PARAM,
-  squareBaseUrl,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -19,7 +18,7 @@ export const squareSearchCustomersTool: ToolConfig<SearchCustomersParams, Custom
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
-    environment: SQUARE_ENVIRONMENT_PARAM,
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -48,7 +47,7 @@ export const squareSearchCustomersTool: ToolConfig<SearchCustomersParams, Custom
   },
 
   request: {
-    url: (params) => `${squareBaseUrl(params.environment)}/v2/customers/search`,
+    url: (params) => `${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/customers/search`,
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
     body: (params) => {

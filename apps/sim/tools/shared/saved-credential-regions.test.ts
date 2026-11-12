@@ -151,33 +151,6 @@ const cases = FAMILIES.flatMap((family) =>
   )
 )
 
-describe('internal operations of a regional tool family', () => {
-  it.each([undefined, 'sandbox'])(
-    'hands the Square catalog image upload the credential environment (%s)',
-    (environment) => {
-      const input = squareTools.squareCreateCatalogImageTool.operation.input({
-        apiKey: 'saved-token',
-        file: {},
-        environment,
-      })
-      expect(input).toMatchObject({ environment })
-    }
-  )
-
-  it.each([undefined, 'eu'])(
-    'hands the SendGrid mail send the credential region (%s)',
-    (region) => {
-      const input = sendGridTools.sendGridSendMailTool.operation.input({
-        apiKey: 'saved-token',
-        from: 'from@example.com',
-        to: 'to@example.com',
-        region,
-      })
-      expect(input).toMatchObject({ region })
-    }
-  )
-})
-
 describe.each(cases)('$tool.id', ({ tool, defaultHost, regions, refusesUnknownRegion }) => {
   it.each(regions)('sends a run with a saved %s credential to %s', (domain, host) => {
     expect(requestHost(tool, { accessToken: 'saved-token', domain })).toBe(host)

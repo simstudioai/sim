@@ -3,7 +3,7 @@ import type {
   LaunchDarklyGetFlagStatusResponse,
 } from '@/tools/launchdarkly/types'
 import { FLAG_STATUS_OUTPUT_PROPERTIES } from '@/tools/launchdarkly/types'
-import { LAUNCHDARKLY_INSTANCE_PARAM, launchDarklyApiBase } from '@/tools/launchdarkly/utils'
+import { LAUNCHDARKLY_INSTANCES } from '@/tools/launchdarkly/utils'
 import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -19,7 +19,7 @@ export const launchDarklyGetFlagStatusTool: ToolConfig<
   oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {
-    instance: LAUNCHDARKLY_INSTANCE_PARAM,
+    instance: LAUNCHDARKLY_INSTANCES.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -48,7 +48,7 @@ export const launchDarklyGetFlagStatusTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${launchDarklyApiBase(params.instance)}/flag-statuses/${encodeURIComponent(params.projectKey.trim())}/${encodeURIComponent(params.environmentKey.trim())}/${encodeURIComponent(params.flagKey.trim())}`,
+      `${LAUNCHDARKLY_INSTANCES.apiBase(params.instance)}/flag-statuses/${encodeURIComponent(params.projectKey.trim())}/${encodeURIComponent(params.environmentKey.trim())}/${encodeURIComponent(params.flagKey.trim())}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: params.apiKey.trim(),

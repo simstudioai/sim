@@ -4,8 +4,7 @@ import type { CustomerListResponse, ListCustomersParams } from '@/tools/square/t
 import {
   CUSTOMER_OUTPUT,
   LIST_METADATA_OUTPUT_PROPERTIES,
-  SQUARE_ENVIRONMENT_PARAM,
-  squareBaseUrl,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -19,7 +18,7 @@ export const squareListCustomersTool: ToolConfig<ListCustomersParams, CustomerLi
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
-    environment: SQUARE_ENVIRONMENT_PARAM,
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -54,7 +53,7 @@ export const squareListCustomersTool: ToolConfig<ListCustomersParams, CustomerLi
 
   request: {
     url: (params) => {
-      const url = new URL(`${squareBaseUrl(params.environment)}/v2/customers`)
+      const url = new URL(`${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/customers`)
       if (params.limit !== undefined) url.searchParams.append('limit', params.limit.toString())
       if (params.cursor) url.searchParams.append('cursor', params.cursor)
       if (params.sortField) url.searchParams.append('sort_field', params.sortField)

@@ -1,7 +1,7 @@
 import { toRecord } from '@sim/utils/object'
 import { consumeOrCancelBody, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { SendGridOperationError } from '@/lib/internal/sendgrid/errors'
-import { sendGridApiBase } from '@/tools/sendgrid/utils'
+import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
 
 const MAX_SENDGRID_ERROR_BYTES = 64 * 1024
 
@@ -26,7 +26,7 @@ export async function sendSendGridMail(
   signal?: AbortSignal
 ): Promise<string | undefined> {
   signal?.throwIfAborted()
-  const response = await fetch(`${sendGridApiBase(region)}/mail/send`, {
+  const response = await fetch(`${SENDGRID_REGIONS.apiBase(region)}/mail/send`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,

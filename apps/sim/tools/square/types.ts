@@ -1,4 +1,5 @@
-import type { OutputProperty, ToolConfig, ToolResponse } from '@/tools/types'
+import { defineCredentialRegions } from '@/tools/shared/credential-regions'
+import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /**
  * Shared constants, output property definitions, and TypeScript interfaces for
@@ -13,42 +14,21 @@ import type { OutputProperty, ToolConfig, ToolResponse } from '@/tools/types'
  * cannot be used in the other, so a sandbox access token only works against the sandbox.
  * @see https://developer.squareup.com/docs/devtools/sandbox/overview
  */
-const SQUARE_ENVIRONMENT_BASE_URLS = {
-  production: 'https://connect.squareup.com',
-  sandbox: 'https://connect.squareupsandbox.com',
-} as const
-
-type SquareEnvironment = keyof typeof SQUARE_ENVIRONMENT_BASE_URLS
-
-export const SQUARE_ENVIRONMENTS: ReadonlySet<string> = new Set(
-  Object.keys(SQUARE_ENVIRONMENT_BASE_URLS)
-)
-
-/** The environment every Square credential and tool used before the sandbox could be chosen. */
-export const DEFAULT_SQUARE_ENVIRONMENT: SquareEnvironment = 'production'
-
-export const SQUARE_ENVIRONMENT_OPTIONS = [
-  { value: 'production', label: 'Production (connect.squareup.com)' },
-  { value: 'sandbox', label: 'Sandbox (connect.squareupsandbox.com)' },
-] as const satisfies ReadonlyArray<{ value: SquareEnvironment; label: string }>
-
-/**
- * The API base URL of a Square environment. Absent means production, so tools run without a saved
- * credential keep their host; an unknown environment is refused rather than guessed.
- */
-export function squareBaseUrl(environment?: string): string {
-  const key = environment ?? DEFAULT_SQUARE_ENVIRONMENT
-  if (!SQUARE_ENVIRONMENTS.has(key)) throw new Error(`Unknown Square environment: ${key}`)
-  return SQUARE_ENVIRONMENT_BASE_URLS[key as SquareEnvironment]
-}
-
-/** The environment a saved Square credential was verified in; only the credential fills it. */
-export const SQUARE_ENVIRONMENT_PARAM = {
-  type: 'string',
-  required: false,
-  visibility: 'hidden',
-  description: 'Square environment of the selected credential: production or sandbox',
-} as const satisfies ToolConfig['params'][string]
+export const SQUARE_ENVIRONMENTS = defineCredentialRegions({
+  service: 'Square',
+  noun: 'environment',
+  regions: {
+    production: {
+      origin: 'https://connect.squareup.com',
+      label: 'Production (connect.squareup.com)',
+    },
+    sandbox: {
+      origin: 'https://connect.squareupsandbox.com',
+      label: 'Sandbox (connect.squareupsandbox.com)',
+    },
+  },
+  defaultRegion: 'production',
+})
 
 /**
  * Square API version pinned for every request via the `Square-Version` header.

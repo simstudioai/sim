@@ -1,4 +1,5 @@
-import type { NewRelicEntity, NewRelicRegion } from '@/tools/new_relic/types'
+import type { NewRelicEntity } from '@/tools/new_relic/types'
+import { defineCredentialRegions } from '@/tools/shared/credential-regions'
 
 interface GraphQLError {
   message?: string
@@ -21,21 +22,25 @@ interface GraphQLResponse<TData> {
 
 /**
  * NerdGraph endpoint of each New Relic data center; a User API key only works in its own.
+ * FedRAMP accounts have no NerdGraph host of their own and use the US endpoint.
  * See https://docs.newrelic.com/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/
+ * and https://docs.newrelic.com/docs/security/security-privacy/compliance/fedramp-compliant-endpoints/
  */
-const NERDGRAPH_ENDPOINTS: Record<NewRelicRegion, string> = {
-  us: 'https://api.newrelic.com/graphql',
-  eu: 'https://api.eu.newrelic.com/graphql',
-  jp: 'https://api.jp.newrelic.com/graphql',
-}
-
-export const NEW_RELIC_REGIONS: ReadonlySet<string> = new Set(Object.keys(NERDGRAPH_ENDPOINTS))
+export const NEW_RELIC_REGIONS = defineCredentialRegions({
+  service: 'New Relic',
+  noun: 'region',
+  regions: {
+    us: { origin: 'https://api.newrelic.com', label: 'US' },
+    eu: { origin: 'https://api.eu.newrelic.com', label: 'EU' },
+    jp: { origin: 'https://api.jp.newrelic.com', label: 'JP' },
+  },
+  defaultRegion: 'us',
+  basePath: '/graphql',
+})
 
 /** Anything but a known region resolves to the US endpoint, as workflows saved before regions expect. */
 export const getNerdGraphEndpoint = (region?: string): string =>
-  region && NEW_RELIC_REGIONS.has(region)
-    ? NERDGRAPH_ENDPOINTS[region as NewRelicRegion]
-    : NERDGRAPH_ENDPOINTS.us
+  NEW_RELIC_REGIONS.apiBase(region && NEW_RELIC_REGIONS.has(region) ? region : undefined)
 
 export const newRelicHeaders = (apiKey: string): Record<string, string> => ({
   'API-Key': apiKey,

@@ -1,5 +1,5 @@
 import type { ListTemplatesParams, SendGridTemplate, TemplatesResult } from '@/tools/sendgrid/types'
-import { SENDGRID_REGION_PARAM, sendGridApiBase } from '@/tools/sendgrid/utils'
+import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
 import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -11,7 +11,7 @@ export const sendGridListTemplatesTool: ToolConfig<ListTemplatesParams, Template
   oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
-    region: SENDGRID_REGION_PARAM,
+    region: SENDGRID_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -43,7 +43,7 @@ export const sendGridListTemplatesTool: ToolConfig<ListTemplatesParams, Template
 
   request: {
     url: (params) => {
-      const url = new URL(`${sendGridApiBase(params.region)}/templates`)
+      const url = new URL(`${SENDGRID_REGIONS.apiBase(params.region)}/templates`)
       if (params.generations) {
         url.searchParams.append('generations', params.generations)
       }

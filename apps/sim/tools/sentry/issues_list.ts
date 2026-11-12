@@ -1,5 +1,5 @@
 import type { SentryListIssuesParams, SentryListIssuesResponse } from '@/tools/sentry/types'
-import { SENTRY_REGION_PARAM, sentryApiBase } from '@/tools/sentry/utils'
+import { SENTRY_REGIONS } from '@/tools/sentry/utils'
 import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -12,7 +12,7 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
   oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {
-    region: SENTRY_REGION_PARAM,
+    region: SENTRY_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -75,7 +75,7 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
 
   request: {
     url: (params) => {
-      const baseUrl = `${sentryApiBase(params.region)}/organizations/${params.organizationSlug}/issues/`
+      const baseUrl = `${SENTRY_REGIONS.apiBase(params.region)}/organizations/${params.organizationSlug}/issues/`
       const queryParams: string[] = []
 
       if (params.projectSlug && params.projectSlug !== null && params.projectSlug !== '') {

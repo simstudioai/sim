@@ -9,8 +9,7 @@ import type { CreateOrderParams, OrderResponse } from '@/tools/square/types'
 import {
   ORDER_METADATA_OUTPUT_PROPERTIES,
   ORDER_OUTPUT,
-  SQUARE_ENVIRONMENT_PARAM,
-  squareBaseUrl,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -32,7 +31,7 @@ export const squareCreateOrderTool: ToolConfig<
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
-    environment: SQUARE_ENVIRONMENT_PARAM,
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -55,7 +54,7 @@ export const squareCreateOrderTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `${squareBaseUrl(params.environment)}/v2/orders`,
+    url: (params) => `${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/orders`,
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
     body: (params) => withSquareIdempotencyKey(DELIVERY, params, { order: params.order }),

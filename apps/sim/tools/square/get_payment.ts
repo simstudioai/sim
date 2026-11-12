@@ -4,8 +4,7 @@ import type { GetPaymentParams, PaymentResponse } from '@/tools/square/types'
 import {
   PAYMENT_METADATA_OUTPUT_PROPERTIES,
   PAYMENT_OUTPUT,
-  SQUARE_ENVIRONMENT_PARAM,
-  squareBaseUrl,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -19,7 +18,7 @@ export const squareGetPaymentTool: ToolConfig<GetPaymentParams, PaymentResponse>
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
-    environment: SQUARE_ENVIRONMENT_PARAM,
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -36,7 +35,7 @@ export const squareGetPaymentTool: ToolConfig<GetPaymentParams, PaymentResponse>
 
   request: {
     url: (params) =>
-      `${squareBaseUrl(params.environment)}/v2/payments/${encodeURIComponent(params.paymentId)}`,
+      `${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/payments/${encodeURIComponent(params.paymentId)}`,
     method: 'GET',
     headers: (params) => squareHeaders(params.apiKey),
   },

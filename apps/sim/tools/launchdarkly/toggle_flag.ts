@@ -3,7 +3,7 @@ import type {
   LaunchDarklyToggleFlagResponse,
 } from '@/tools/launchdarkly/types'
 import { FLAG_OUTPUT_PROPERTIES } from '@/tools/launchdarkly/types'
-import { LAUNCHDARKLY_INSTANCE_PARAM, launchDarklyApiBase } from '@/tools/launchdarkly/utils'
+import { LAUNCHDARKLY_INSTANCES } from '@/tools/launchdarkly/utils'
 import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -18,7 +18,7 @@ export const launchDarklyToggleFlagTool: ToolConfig<
   oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {
-    instance: LAUNCHDARKLY_INSTANCE_PARAM,
+    instance: LAUNCHDARKLY_INSTANCES.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -53,7 +53,7 @@ export const launchDarklyToggleFlagTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${launchDarklyApiBase(params.instance)}/flags/${encodeURIComponent(params.projectKey.trim())}/${encodeURIComponent(params.flagKey.trim())}`,
+      `${LAUNCHDARKLY_INSTANCES.apiBase(params.instance)}/flags/${encodeURIComponent(params.projectKey.trim())}/${encodeURIComponent(params.flagKey.trim())}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: params.apiKey.trim(),

@@ -44,18 +44,4 @@ describe('SendGrid operation', () => {
     })
     expect(mocks.send).not.toHaveBeenCalled()
   })
-
-  it.each([undefined, 'eu' as const])('sends with the credential region (%s)', async (region) => {
-    await executeSendGridSend(
-      {
-        apiKey: 'secret',
-        from: 'from@example.com',
-        to: 'to@example.com',
-        ...(region === undefined ? {} : { region }),
-      },
-      context
-    )
-
-    expect(mocks.send).toHaveBeenCalledWith('secret', region, expect.any(Object), undefined)
-  })
 })

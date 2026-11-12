@@ -7,12 +7,17 @@ import type { ToolConfig } from '@/tools/types'
  */
 export const DEFAULT_HEX_HOST = 'app.hex.tech'
 
-/** One DNS label under hex.tech: a host Hex itself serves, never one a caller could own. */
-export const HEX_HOST_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.hex\.tech$/i
+/**
+ * One DNS label under hex.tech, the shape of every workspace host Hex documents. The pattern alone
+ * cannot tell a workspace from Hex's other sites, some of which third parties serve (the status
+ * page, the docs site), so those known non-workspace labels are refused by name.
+ */
+export const HEX_HOST_PATTERN =
+  /^(?!(?:www|docs|learn|status|help|community|blog)\.)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.hex\.tech$/i
 
 /**
  * Reduces a typed Hex workspace address (`https://eu.hex.tech/`, `Acme.hex.tech`) to its host,
- * refusing anything but a single label under hex.tech, so a token is only sent to Hex.
+ * refusing anything but a single label under hex.tech.
  */
 export function normalizeHexHost(raw: string | undefined): string {
   const host = (raw ?? '')

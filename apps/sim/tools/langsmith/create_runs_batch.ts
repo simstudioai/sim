@@ -5,8 +5,7 @@ import type {
   LangsmithRunPayload,
 } from '@/tools/langsmith/types'
 import {
-  LANGSMITH_REGION_PARAM,
-  langsmithApiBase,
+  LANGSMITH_REGIONS,
   normalizeLangsmithRunPayload,
   prepareLangsmithPatchPayload,
   truncateLangsmithErrorText,
@@ -24,7 +23,7 @@ export const langsmithCreateRunsBatchTool: ToolConfig<
   version: '1.0.0',
   oauth: LANGSMITH_CREDENTIAL_OAUTH,
   params: {
-    region: LANGSMITH_REGION_PARAM,
+    region: LANGSMITH_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -45,7 +44,7 @@ export const langsmithCreateRunsBatchTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => `${langsmithApiBase(params.region)}/runs/batch`,
+    url: (params) => `${LANGSMITH_REGIONS.apiBase(params.region)}/runs/batch`,
     method: 'POST',
     headers: (params) => ({
       'X-Api-Key': params.apiKey,

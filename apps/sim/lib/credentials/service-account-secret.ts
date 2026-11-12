@@ -55,6 +55,7 @@ import { getTokenClientCredentialMinter } from '@/lib/credentials/token-service-
 import {
   CLIENT_CREDENTIALS_AUTH_METHOD,
   getTokenServiceAccountDescriptor,
+  isTokenServiceAccountFieldRequired,
   isTokenServiceAccountProviderId,
   SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
   TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
@@ -581,16 +582,15 @@ async function buildTokenServiceAccountSecret(
   const domainField = descriptor.fields.find((field) => field.id === 'domain')
   const domain = fields.domain?.trim() || domainField?.defaultValue
   const requiresDomain = Boolean(domainField)
-  const workspaceField = descriptor.fields.find((field) => field.id === 'providerWorkspaceId')
-  const providerWorkspaceId = fields.providerWorkspaceId?.trim() || workspaceField?.defaultValue
-  const requiresWorkspace = Boolean(workspaceField)
+  const providerWorkspaceId = fields.providerWorkspaceId?.trim()
+  const requiresWorkspace = descriptor.fields.some((field) => field.id === 'providerWorkspaceId')
   if (
     !apiToken ||
     !apiToken.trim() ||
     (requiresDomain && !domain) ||
     (requiresWorkspace && !providerWorkspaceId)
   ) {
-    const requiredFields = descriptor.fields.filter((field) => field.defaultValue === undefined)
+    const requiredFields = descriptor.fields.filter(isTokenServiceAccountFieldRequired)
     throw new ServiceAccountSecretError(
       `${requiredFields.map((field) => field.id).join(' and ')} ${requiredFields.length > 1 ? 'are' : 'is'} required for ${descriptor.serviceLabel} service account credentials`
     )

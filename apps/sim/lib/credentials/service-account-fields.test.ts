@@ -20,6 +20,7 @@ describe('required fields for a service-account create', () => {
     'square-service-account',
     'sendgrid-service-account',
     'hex-service-account',
+    'sentry-service-account',
   ])(
     'lets a %s create omit the region or host it defaults, as it could before one existed',
     (providerId) => {

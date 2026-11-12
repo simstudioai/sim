@@ -22,6 +22,7 @@ import type { ServiceAccountSecretFields } from '@/lib/credentials/service-accou
 import {
   CLIENT_CREDENTIALS_AUTH_METHOD,
   getTokenServiceAccountErrorMessage,
+  isTokenServiceAccountFieldRequired,
   type TokenServiceAccountDescriptor,
   type TokenServiceAccountField,
 } from '@/lib/credentials/token-service-accounts/descriptors'
@@ -119,18 +120,17 @@ function TokenServiceAccountModalForm({
   const domainField = descriptor.fields.find((field) => field.id === 'domain')
   const workspaceField = descriptor.fields.find((field) => field.id === 'providerWorkspaceId')
   /**
-   * A new connection starts on a field's default (the region or host it had before the field
+   * A new connection starts on the domain's default (the region or host it had before the field
    * existed). A reconnect starts blank, which keeps the stored value: the server carries it
    * forward, since the stored one is never returned to the client.
    */
-  const initialValue = (field: TokenServiceAccountField | undefined) =>
-    credentialId ? '' : (field?.defaultValue ?? '')
+  const initialDomain = credentialId ? '' : (domainField?.defaultValue ?? '')
 
   const [apiToken, setApiToken] = useState('')
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
-  const [domain, setDomain] = useState(() => initialValue(domainField))
-  const [providerWorkspaceId, setProviderWorkspaceId] = useState(() => initialValue(workspaceField))
+  const [domain, setDomain] = useState(initialDomain)
+  const [providerWorkspaceId, setProviderWorkspaceId] = useState('')
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
   const [description, setDescription] = useState(initialDescription ?? '')
   const [error, setError] = useState<string | null>(null)
@@ -141,14 +141,13 @@ function TokenServiceAccountModalForm({
   const trimmedToken = apiToken.trim()
   const normalizedDomain = domainField?.url ? domain.trim() : normalizeDomainInput(domain)
   const trimmedWorkspaceId = providerWorkspaceId.trim()
-  const isRequired = (field: TokenServiceAccountField) => field.defaultValue === undefined
   const isPending =
     createCredential.isPending || updateCredential.isPending || submitPending === true
   const isDisabled =
     !authMethod ||
     (usesClientCredentials ? !clientId.trim() || !clientSecret.trim() : !trimmedToken) ||
-    Boolean(domainField && isRequired(domainField) && !normalizedDomain) ||
-    Boolean(workspaceField && isRequired(workspaceField) && !trimmedWorkspaceId) ||
+    Boolean(domainField && isTokenServiceAccountFieldRequired(domainField) && !normalizedDomain) ||
+    (Boolean(workspaceField) && !trimmedWorkspaceId) ||
     isPending
 
   const hintFor = (field: TokenServiceAccountField, value: string): string | undefined => {
@@ -167,7 +166,7 @@ function TokenServiceAccountModalForm({
       if (error) setError(null)
     }
     const placeholder =
-      credentialId && !isRequired(field)
+      credentialId && !isTokenServiceAccountFieldRequired(field)
         ? `Keep the current ${field.label.toLowerCase()}`
         : field.placeholder
     if (field.options) {
@@ -180,7 +179,7 @@ function TokenServiceAccountModalForm({
           options={field.options}
           placeholder={placeholder}
           align='start'
-          required={isRequired(field)}
+          required={isTokenServiceAccountFieldRequired(field)}
         />
       )
     }
@@ -192,7 +191,7 @@ function TokenServiceAccountModalForm({
         onChange={onChange}
         placeholder={placeholder}
         autoComplete='off'
-        required={isRequired(field)}
+        required={isTokenServiceAccountFieldRequired(field)}
         error={formatError}
       />
     )
@@ -210,9 +209,7 @@ function TokenServiceAccountModalForm({
               clientSecret: clientSecret.trim(),
             }
           : { apiToken: tokenField?.preserveWhitespace ? apiToken : trimmedToken }),
-        ...(workspaceField && trimmedWorkspaceId
-          ? { providerWorkspaceId: trimmedWorkspaceId }
-          : {}),
+        ...(workspaceField ? { providerWorkspaceId: trimmedWorkspaceId } : {}),
         ...(domainField && normalizedDomain ? { domain: normalizedDomain } : {}),
       }
       if (onSubmitCredentials) {

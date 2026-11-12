@@ -50,7 +50,7 @@ import {
   verifyAndBuildServiceAccountSecret,
 } from '@/lib/credentials/service-account-secret'
 import {
-  getTokenServiceAccountFieldDefault,
+  getTokenServiceAccountDomainDefault,
   SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/token-service-accounts/descriptors'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
@@ -370,8 +370,7 @@ export async function updateCredentialRecord(
       // A token provider's defaulted region or host is left blank on a reconnect that keeps it;
       // filling the default instead would move an EU or sandbox credential to the default host.
       const needsStoredDomain =
-        !params.domain?.trim() &&
-        getTokenServiceAccountFieldDefault(providerId, 'domain') !== undefined
+        !params.domain?.trim() && getTokenServiceAccountDomainDefault(providerId) !== undefined
       // A keyless AWS role, Databricks principal, Microsoft app, Google service account, or
       // Snowflake service user keeps its trusted subject across reconnects.
       const needsStoredBoundSubject =

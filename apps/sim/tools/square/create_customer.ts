@@ -9,8 +9,7 @@ import type { CreateCustomerParams, CustomerResponse } from '@/tools/square/type
 import {
   CUSTOMER_METADATA_OUTPUT_PROPERTIES,
   CUSTOMER_OUTPUT,
-  SQUARE_ENVIRONMENT_PARAM,
-  squareBaseUrl,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -32,7 +31,7 @@ export const squareCreateCustomerTool: ToolConfig<
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
-    environment: SQUARE_ENVIRONMENT_PARAM,
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -108,7 +107,7 @@ export const squareCreateCustomerTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `${squareBaseUrl(params.environment)}/v2/customers`,
+    url: (params) => `${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/customers`,
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
     body: (params) => {

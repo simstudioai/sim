@@ -4,8 +4,7 @@ import type { ListPaymentsParams, PaymentListResponse } from '@/tools/square/typ
 import {
   LIST_METADATA_OUTPUT_PROPERTIES,
   PAYMENT_OUTPUT,
-  SQUARE_ENVIRONMENT_PARAM,
-  squareBaseUrl,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -19,7 +18,7 @@ export const squareListPaymentsTool: ToolConfig<ListPaymentsParams, PaymentListR
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
-    environment: SQUARE_ENVIRONMENT_PARAM,
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -60,7 +59,7 @@ export const squareListPaymentsTool: ToolConfig<ListPaymentsParams, PaymentListR
 
   request: {
     url: (params) => {
-      const url = new URL(`${squareBaseUrl(params.environment)}/v2/payments`)
+      const url = new URL(`${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/payments`)
       if (params.locationId) url.searchParams.append('location_id', params.locationId)
       if (params.beginTime) url.searchParams.append('begin_time', params.beginTime)
       if (params.endTime) url.searchParams.append('end_time', params.endTime)

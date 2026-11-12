@@ -9,7 +9,7 @@ import {
   CATALOG_OBJECT_OUTPUT,
   type CatalogObjectResponse,
   type CreateCatalogImageParams,
-  SQUARE_ENVIRONMENT_PARAM,
+  SQUARE_ENVIRONMENTS,
 } from '@/tools/square/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -29,7 +29,7 @@ export const squareCreateCatalogImageTool: InternalToolConfig<
   oauth: SQUARE_CREDENTIAL_OAUTH,
 
   params: {
-    environment: SQUARE_ENVIRONMENT_PARAM,
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,

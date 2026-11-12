@@ -4,8 +4,7 @@ import type { CatalogListResponse, ListCatalogParams } from '@/tools/square/type
 import {
   CATALOG_OBJECT_OUTPUT,
   LIST_METADATA_OUTPUT_PROPERTIES,
-  SQUARE_ENVIRONMENT_PARAM,
-  squareBaseUrl,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -19,7 +18,7 @@ export const squareListCatalogTool: ToolConfig<ListCatalogParams, CatalogListRes
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
-    environment: SQUARE_ENVIRONMENT_PARAM,
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -43,7 +42,7 @@ export const squareListCatalogTool: ToolConfig<ListCatalogParams, CatalogListRes
 
   request: {
     url: (params) => {
-      const url = new URL(`${squareBaseUrl(params.environment)}/v2/catalog/list`)
+      const url = new URL(`${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/catalog/list`)
       if (params.types) url.searchParams.append('types', params.types)
       if (params.cursor) url.searchParams.append('cursor', params.cursor)
       return url.toString()

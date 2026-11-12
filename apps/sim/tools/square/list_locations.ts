@@ -1,12 +1,7 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ListLocationsParams, LocationListResponse } from '@/tools/square/types'
-import {
-  LOCATION_OUTPUT,
-  SQUARE_ENVIRONMENT_PARAM,
-  squareBaseUrl,
-  squareHeaders,
-} from '@/tools/square/types'
+import { LOCATION_OUTPUT, SQUARE_ENVIRONMENTS, squareHeaders } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const squareListLocationsTool: ToolConfig<ListLocationsParams, LocationListResponse> = {
@@ -18,7 +13,7 @@ export const squareListLocationsTool: ToolConfig<ListLocationsParams, LocationLi
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
-    environment: SQUARE_ENVIRONMENT_PARAM,
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -28,7 +23,7 @@ export const squareListLocationsTool: ToolConfig<ListLocationsParams, LocationLi
   },
 
   request: {
-    url: (params) => `${squareBaseUrl(params.environment)}/v2/locations`,
+    url: (params) => `${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/locations`,
     method: 'GET',
     headers: (params) => squareHeaders(params.apiKey),
   },

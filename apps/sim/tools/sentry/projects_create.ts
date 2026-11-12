@@ -1,5 +1,5 @@
 import type { SentryCreateProjectParams, SentryCreateProjectResponse } from '@/tools/sentry/types'
-import { SENTRY_REGION_PARAM, sentryApiBase } from '@/tools/sentry/utils'
+import { SENTRY_REGIONS } from '@/tools/sentry/utils'
 import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -13,7 +13,7 @@ export const createProjectTool: ToolConfig<SentryCreateProjectParams, SentryCrea
     oauth: SENTRY_CREDENTIAL_OAUTH,
 
     params: {
-      region: SENTRY_REGION_PARAM,
+      region: SENTRY_REGIONS.param,
       apiKey: {
         type: 'string',
         required: true,
@@ -61,7 +61,7 @@ export const createProjectTool: ToolConfig<SentryCreateProjectParams, SentryCrea
 
     request: {
       url: (params) =>
-        `${sentryApiBase(params.region)}/teams/${params.organizationSlug}/${params.teamSlug}/projects/`,
+        `${SENTRY_REGIONS.apiBase(params.region)}/teams/${params.organizationSlug}/${params.teamSlug}/projects/`,
       method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,
