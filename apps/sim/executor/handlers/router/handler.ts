@@ -17,6 +17,7 @@ import {
   ROUTER,
 } from '@/executor/constants'
 import type { BlockHandler, BlockNodeMetadata, ExecutionContext } from '@/executor/types'
+import { resolveBlockBedrockSession } from '@/executor/utils/bedrock-credential'
 import { executeModelRequestWithFallbacks } from '@/executor/utils/model-fallback-request'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
@@ -96,6 +97,8 @@ export class RouterBlockHandler implements BlockHandler {
       bedrockAccessKeyId: inputs.bedrockAccessKeyId,
       bedrockSecretKey: inputs.bedrockSecretKey,
       bedrockRegion: inputs.bedrockRegion,
+      bedrockCredential: inputs.bedrockCredential,
+      bedrockAuthMode: inputs.bedrockAuthMode,
     }
 
     try {
@@ -124,6 +127,7 @@ export class RouterBlockHandler implements BlockHandler {
           callerLabel: 'vertex-router',
         })
       }
+      const bedrockSession = await resolveBlockBedrockSession(ctx, providerId, routerConfig)
 
       const providerRequest: ProviderRequest = {
         model: resolved.model,
@@ -138,6 +142,7 @@ export class RouterBlockHandler implements BlockHandler {
         bedrockAccessKeyId: routerConfig.bedrockAccessKeyId,
         bedrockSecretKey: routerConfig.bedrockSecretKey,
         bedrockRegion: routerConfig.bedrockRegion,
+        bedrockSession,
         workflowId: ctx.workflowId,
         workspaceId: ctx.workspaceId,
       }
@@ -266,6 +271,8 @@ export class RouterBlockHandler implements BlockHandler {
       bedrockAccessKeyId: inputs.bedrockAccessKeyId,
       bedrockSecretKey: inputs.bedrockSecretKey,
       bedrockRegion: inputs.bedrockRegion,
+      bedrockCredential: inputs.bedrockCredential,
+      bedrockAuthMode: inputs.bedrockAuthMode,
     }
 
     try {
@@ -294,6 +301,7 @@ export class RouterBlockHandler implements BlockHandler {
           callerLabel: 'vertex-router',
         })
       }
+      const bedrockSession = await resolveBlockBedrockSession(ctx, providerId, routerConfig)
 
       const providerRequest: ProviderRequest = {
         model: resolved.model,
@@ -308,6 +316,7 @@ export class RouterBlockHandler implements BlockHandler {
         bedrockAccessKeyId: routerConfig.bedrockAccessKeyId,
         bedrockSecretKey: routerConfig.bedrockSecretKey,
         bedrockRegion: routerConfig.bedrockRegion,
+        bedrockSession,
         workflowId: ctx.workflowId,
         workspaceId: ctx.workspaceId,
         responseFormat: {

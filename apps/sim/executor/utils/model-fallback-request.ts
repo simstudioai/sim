@@ -93,7 +93,9 @@ export async function executeModelRequestWithFallbacks({
         request
       )
       candidateRequest = {
-        ...(sameProvider ? request : omit(request, [...PROVIDER_FAMILY_CREDENTIAL_FIELDS])),
+        ...(sameProvider
+          ? request
+          : omit(request, [...PROVIDER_FAMILY_CREDENTIAL_FIELDS, 'bedrockSession'])),
         ...tuning,
         temperature: tuning.temperature === undefined ? undefined : Number(tuning.temperature),
         maxTokens: tuning.maxTokens === undefined ? undefined : Number(tuning.maxTokens),

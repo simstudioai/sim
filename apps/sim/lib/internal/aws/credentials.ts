@@ -120,7 +120,7 @@ const THROTTLING_ERROR_NAMES = new Set(['Throttling', 'ThrottlingException'])
  * (IDPCommunicationError, when STS could not reach Sim's OIDC issuer), throttling,
  * an STS 5xx, or a network failure. The SDK has already retried these.
  */
-function isTransientAwsFailure(error: unknown): boolean {
+export function isTransientAwsFailure(error: unknown): boolean {
   if (!isRecordLike(error)) return false
   const status = isRecordLike(error.$metadata) ? error.$metadata.httpStatusCode : undefined
   return (

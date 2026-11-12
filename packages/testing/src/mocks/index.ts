@@ -482,6 +482,11 @@ export {
   libDesktopMockFns,
 } from './lib-desktop.mock'
 export {
+  llmBedrockCredentialMock,
+  llmBedrockCredentialMockFns,
+  MockBedrockCredentialError,
+} from './llm-bedrock-credential.mock'
+export {
   createMockLogger,
   getAllMockLoggers,
   getMockLogger,

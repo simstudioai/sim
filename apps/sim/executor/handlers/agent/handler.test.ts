@@ -6,6 +6,10 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import {
+  llmBedrockCredentialMock,
+  llmBedrockCredentialMockFns,
+} from '@sim/testing/mocks/llm-bedrock-credential.mock'
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import {
   permissionCheckMock,
@@ -61,6 +65,8 @@ mockGetBlock.mockReturnValue(undefined)
 const mockImportWorkspaceFileSecretProvenanceForModelView =
   workspaceFileSecretProvenanceMockFns.mockImportWorkspaceFileSecretProvenanceForModelView
 const mockValidateModelProvider = permissionCheckMockFns.mockValidateModelProvider
+const mockResolveBedrockCredentialSession =
+  llmBedrockCredentialMockFns.mockResolveBedrockCredentialSession
 mockImportWorkspaceFileSecretProvenanceForModelView.mockResolvedValue(true)
 providersUtilsMockFns.mockGetProviderFromModel.mockReturnValue('mock-provider')
 providersUtilsMockFns.mockIsDeepResearchModel.mockImplementation((model: string) =>
@@ -74,6 +80,8 @@ const { mockDiscoverMcpServerToolsAsExecutor, mockOpenAgentTurnSession } = vi.ho
   mockDiscoverMcpServerToolsAsExecutor: vi.fn().mockResolvedValue([]),
   mockOpenAgentTurnSession: vi.fn().mockResolvedValue(undefined),
 }))
+
+vi.mock('@/lib/internal/llm/bedrock-credential', () => llmBedrockCredentialMock)
 
 vi.mock('@/lib/memory/agent-turn-session', () => ({
   openAgentTurnSession: mockOpenAgentTurnSession,
@@ -817,6 +825,7 @@ describe('AgentBlockHandler', () => {
       if (model.startsWith('gpt')) return 'openai'
       if (model.startsWith('claude')) return 'anthropic'
       if (model.startsWith('vertex/')) return 'vertex'
+      if (model.startsWith('bedrock/')) return 'bedrock'
       if (model === 'blacklisted-model') throw new Error('provider blacklisted')
       return 'openai'
     }
@@ -1132,6 +1141,91 @@ describe('AgentBlockHandler', () => {
       )
       expect(sameProvider.bedrockSecretKey).toBe('bedrock-secret')
       expect(sameProvider.azureEndpoint).toBe('https://azure.example.com')
+    })
+
+    it("signs a Bedrock call with the selected AWS credential's session for the run's user", async () => {
+      const session = {
+        credentialId: 'aws-cred',
+        accessKeyId: 'ASIASESSIONKEY000001',
+        secretAccessKey: 'session-secret',
+        sessionToken: 'session-token',
+      }
+      mockResolveBedrockCredentialSession.mockResolvedValueOnce(session)
+      mockExecuteProviderRequest.mockResolvedValueOnce(providerResponse('bedrock/claude'))
+
+      await handler.execute(mockContext, mockBlock, {
+        ...baseInputs,
+        model: 'bedrock/claude',
+        bedrockAuthMode: 'credential',
+        bedrockCredential: 'aws-cred',
+        bedrockRegion: 'us-west-2',
+      })
+
+      expect(mockResolveBedrockCredentialSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          credentialId: 'aws-cred',
+          actingUserId: mockContext.userId,
+          workflowId: mockContext.workflowId,
+          workspaceId: mockContext.workspaceId,
+        })
+      )
+      const [providerId, request] = mockExecuteProviderRequest.mock.calls[0]
+      expect(providerId).toBe('bedrock')
+      expect(request.bedrockSession).toEqual(session)
+      expect(request.bedrockRegion).toBe('us-west-2')
+    })
+
+    it('fails a Bedrock call whose AWS credential cannot be used instead of sending it', async () => {
+      mockResolveBedrockCredentialSession.mockRejectedValueOnce(
+        new Error('Not authorized to use this AWS credential')
+      )
+
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          ...baseInputs,
+          model: 'bedrock/claude',
+          bedrockAuthMode: 'credential',
+          bedrockCredential: 'aws-cred',
+        })
+      ).rejects.toThrow('Not authorized to use this AWS credential')
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    })
+
+    it('fails a Bedrock call set to a saved AWS credential when the credential resolves blank', async () => {
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          ...baseInputs,
+          model: 'bedrock/claude',
+          bedrockAuthMode: 'credential',
+          bedrockCredential: '  ',
+        })
+      ).rejects.toThrow('Select an AWS credential for Bedrock')
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    })
+
+    it('keeps the AWS credential off a fallback on another provider', async () => {
+      mockExecuteProviderRequest
+        .mockRejectedValueOnce(new Error('overloaded'))
+        .mockResolvedValueOnce(providerResponse('gpt-4o-mini'))
+      mockResolveBedrockCredentialSession.mockResolvedValueOnce({
+        credentialId: 'aws-cred',
+        accessKeyId: 'AKIASAVEDKEY00000001',
+        secretAccessKey: 'saved-secret',
+      })
+
+      await handler.execute(mockContext, mockBlock, {
+        ...baseInputs,
+        model: 'bedrock/claude',
+        bedrockAuthMode: 'credential',
+        bedrockCredential: 'aws-cred',
+        fallbackModels: [{ model: 'gpt-4o-mini' }],
+      })
+
+      const [fallbackProvider, fallbackRequest] = mockExecuteProviderRequest.mock.calls[1]
+      expect(fallbackProvider).toBe('openai')
+      expect(fallbackRequest.bedrockSession).toBeUndefined()
+      expect(JSON.stringify(fallbackRequest)).not.toMatch(/aws-cred|saved-secret/)
+      expect(mockResolveBedrockCredentialSession).toHaveBeenCalledTimes(1)
     })
 
     it('re-resolves tuning for the fallback: row value wins, caps clamp, undeclared values drop', async () => {

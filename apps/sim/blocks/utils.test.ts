@@ -59,9 +59,12 @@ vi.mock('@/stores/providers/store', () => ({
 vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 
 import { S3Icon } from '@/components/icons'
+import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig } from '@/blocks/types'
 import {
   getApiKeyCondition,
+  getProviderCredentialSubBlocks,
+  getSelectedBedrockCredential,
   getSerializedModelProviderId,
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
@@ -99,6 +102,96 @@ describe('requiresProviderFamilyCredentials', () => {
     expect(requiresProviderFamilyCredentials('azure-anthropic/my-deployment')).toBe(true)
     setEnvFlags({ isAzureConfigured: true })
     expect(requiresProviderFamilyCredentials('azure/my-deployment')).toBe(false)
+  })
+})
+
+describe('Bedrock credential fields', () => {
+  const BEDROCK_FIELDS = [
+    'bedrockAuthMode',
+    'bedrockCredential',
+    'bedrockManualCredential',
+    'bedrockAccessKeyId',
+    'bedrockSecretKey',
+    'bedrockRegion',
+  ]
+
+  const visibleBedrockFields = (
+    values: Record<string, unknown>,
+    subBlocks = getProviderCredentialSubBlocks({ bedrockSavedCredential: true })
+  ) =>
+    subBlocks
+      .filter((subBlock) => BEDROCK_FIELDS.includes(subBlock.id))
+      .filter((subBlock) => evaluateSubBlockCondition(subBlock.condition, values))
+      .map((subBlock) => subBlock.id)
+
+  it('keeps showing access keys, and no credential picker, on a block saved before auth modes', () => {
+    expect(visibleBedrockFields({ model: 'bedrock/my-inference-profile' })).toEqual([
+      'bedrockAuthMode',
+      'bedrockAccessKeyId',
+      'bedrockSecretKey',
+      'bedrockRegion',
+    ])
+  })
+
+  it('swaps the access keys for the AWS credential picker when a saved credential is chosen', () => {
+    expect(
+      visibleBedrockFields({ model: 'bedrock/my-inference-profile', bedrockAuthMode: 'credential' })
+    ).toEqual(['bedrockAuthMode', 'bedrockCredential', 'bedrockManualCredential', 'bedrockRegion'])
+  })
+
+  it('shows no Bedrock field for a model of another provider', () => {
+    expect(visibleBedrockFields({ model: 'gpt-4o', bedrockAuthMode: 'credential' })).toEqual([])
+  })
+
+  it('offers no saved credential, and keeps the access keys, for a block that cannot forward one', () => {
+    expect(
+      visibleBedrockFields(
+        { model: 'bedrock/my-inference-profile', bedrockAuthMode: 'credential' },
+        getProviderCredentialSubBlocks()
+      )
+    ).toEqual(['bedrockAccessKeyId', 'bedrockSecretKey', 'bedrockRegion'])
+  })
+})
+
+describe('getSelectedBedrockCredential', () => {
+  it('returns the trimmed saved credential a block signs Bedrock calls with', () => {
+    expect(
+      getSelectedBedrockCredential({ bedrockAuthMode: 'credential', bedrockCredential: ' cred-1 ' })
+    ).toBe('cred-1')
+  })
+
+  it('refuses a block set to a saved credential whose ID resolves blank', () => {
+    expect(() =>
+      getSelectedBedrockCredential({ bedrockAuthMode: 'credential', bedrockCredential: '' })
+    ).toThrow('Select an AWS credential for Bedrock')
+    expect(() => getSelectedBedrockCredential({ bedrockAuthMode: 'credential' })).toThrow(
+      'Select an AWS credential for Bedrock'
+    )
+  })
+
+  it('returns nothing for a block on access keys or saved before auth modes', () => {
+    expect(
+      getSelectedBedrockCredential({ bedrockAuthMode: 'access_keys', bedrockCredential: 'cred-1' })
+    ).toBeUndefined()
+    expect(getSelectedBedrockCredential({})).toBeUndefined()
+  })
+
+  it('signs with a credential exactly when the block shows and serializes the credential picker', () => {
+    const picker = getProviderCredentialSubBlocks({ bedrockSavedCredential: true }).find(
+      (subBlock) => subBlock.id === 'bedrockCredential'
+    )
+    const cases: Record<string, unknown>[] = [
+      { bedrockCredential: 'cred-1' },
+      { bedrockAuthMode: '', bedrockCredential: 'cred-1' },
+      { bedrockAuthMode: 'access_keys', bedrockCredential: 'cred-1' },
+      { bedrockAuthMode: 'credential', bedrockCredential: 'cred-1' },
+    ]
+    for (const values of cases) {
+      const withModel = { model: 'bedrock/my-inference-profile', ...values }
+      expect(getSelectedBedrockCredential(values) !== undefined, JSON.stringify(values)).toBe(
+        evaluateSubBlockCondition(picker?.condition, withModel)
+      )
+    }
   })
 })
 

@@ -54,6 +54,7 @@ export const executeLlmTool: InternalToolOperationHandler = async (request) => {
       actorUserId: request.context.userId,
       headers: request.headers,
       requestId: request.requestId,
+      executionId: request.context.executionId,
       signal: request.signal,
     })
     request.signal?.throwIfAborted()
