@@ -46,13 +46,6 @@ interface SesEmailTag {
   value: string
 }
 
-/** File bytes attached to a Simple or Template message. */
-export interface SesEmailAttachment {
-  fileName: string
-  contentType: string
-  content: Uint8Array
-}
-
 /**
  * The `FromEmailAddress` value with an optional friendly name. AWS requires a
  * non-ASCII friendly name in MIME encoded-word syntax; an ASCII one is quoted.
@@ -90,18 +83,6 @@ function toMessageTags(tags?: SesEmailTag[] | null) {
   return tags?.length ? tags.map((tag) => ({ Name: tag.name, Value: tag.value })) : undefined
 }
 
-function toAttachments(attachments?: SesEmailAttachment[] | null) {
-  return attachments?.length
-    ? attachments.map((attachment) => ({
-        RawContent: attachment.content,
-        FileName: attachment.fileName,
-        ContentType: attachment.contentType,
-        ContentDisposition: 'ATTACHMENT' as const,
-        ContentTransferEncoding: 'BASE64' as const,
-      }))
-    : undefined
-}
-
 export function createSESClient(config: SESConnectionConfig): SESv2Client {
   return new SESv2Client({
     ...awsClientConfig(config.region, config.accessKeyId, config.secretAccessKey),
@@ -122,12 +103,10 @@ export async function sendEmail(
     configurationSetName?: string | null
     fromName?: string | null
     emailTags?: SesEmailTag[] | null
-    attachments?: SesEmailAttachment[] | null
   },
   signal?: AbortSignal
 ) {
   const emailTags = toMessageTags(params.emailTags)
-  const attachments = toAttachments(params.attachments)
   const command = new SendEmailCommand({
     FromEmailAddress: formatFromAddress(params.fromAddress, params.fromName),
     Destination: {
@@ -142,7 +121,6 @@ export async function sendEmail(
           ...(params.bodyText ? { Text: { Data: params.bodyText } } : {}),
           ...(params.bodyHtml ? { Html: { Data: params.bodyHtml } } : {}),
         },
-        ...(attachments ? { Attachments: attachments } : {}),
       },
     },
     ...(params.replyToAddresses?.length ? { ReplyToAddresses: params.replyToAddresses } : {}),
@@ -170,12 +148,10 @@ export async function sendTemplatedEmail(
     configurationSetName?: string | null
     fromName?: string | null
     emailTags?: SesEmailTag[] | null
-    attachments?: SesEmailAttachment[] | null
   },
   signal?: AbortSignal
 ) {
   const emailTags = toMessageTags(params.emailTags)
-  const attachments = toAttachments(params.attachments)
   const command = new SendEmailCommand({
     FromEmailAddress: formatFromAddress(params.fromAddress, params.fromName),
     Destination: {
@@ -187,7 +163,6 @@ export async function sendTemplatedEmail(
       Template: {
         TemplateName: params.templateName,
         TemplateData: params.templateData,
-        ...(attachments ? { Attachments: attachments } : {}),
       },
     },
     ...(params.replyToAddresses?.length ? { ReplyToAddresses: params.replyToAddresses } : {}),

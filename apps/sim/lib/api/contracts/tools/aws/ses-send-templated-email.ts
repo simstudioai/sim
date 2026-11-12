@@ -6,7 +6,6 @@ import type {
 } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { validateAwsRegion } from '@/lib/core/security/input-validation'
-import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 
 /** SES `MessageTag` name or value: 1-256 letters, digits, underscores, or hyphens. */
 const sesMessageTagPartSchema = z
@@ -34,7 +33,6 @@ const SendTemplatedEmailSchema = z.object({
   emailTags: z
     .array(z.object({ name: sesMessageTagPartSchema, value: sesMessageTagPartSchema }))
     .nullish(),
-  attachments: RawFileInputArraySchema.nullish(),
 })
 
 const SendTemplatedEmailResponseSchema = z.object({

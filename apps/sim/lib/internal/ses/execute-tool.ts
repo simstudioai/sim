@@ -40,7 +40,6 @@ import {
   executeSesSendTemplatedEmail,
   executeSesUpdateTemplate,
   SesOperationInputError,
-  type SesSendContext,
 } from '@/lib/internal/ses/operations'
 import { parseInternalToolInput } from '@/lib/internal/tool-operations/parse-input'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
@@ -62,21 +61,14 @@ async function executeOperation<C extends AnyApiRouteContract>(
   } catch (error) {
     signal?.throwIfAborted()
     if (error instanceof SesOperationInputError) {
-      return Response.json({ error: error.message }, { status: error.status })
+      return Response.json({ error: error.message }, { status: 400 })
     }
     return Response.json({ error: `${errorMessage}: ${toError(error).message}` }, { status: 500 })
   }
 }
 
-export const executeSesTool: InternalToolOperationHandler = async ({
-  toolId,
-  input,
-  signal,
-  context,
-  requestId,
-}) => {
+export const executeSesTool: InternalToolOperationHandler = async ({ toolId, input, signal }) => {
   signal?.throwIfAborted()
-  const sendContext: SesSendContext = { requestId, userId: context.userId }
 
   switch (toolId) {
     case 'ses_create_configuration_set':
@@ -211,7 +203,7 @@ export const executeSesTool: InternalToolOperationHandler = async ({
       return executeOperation(
         awsSesSendEmailContract,
         input,
-        (body, sendSignal) => executeSesSendEmail(body, sendSignal, sendContext),
+        executeSesSendEmail,
         'Failed to send email',
         signal
       )
@@ -219,7 +211,7 @@ export const executeSesTool: InternalToolOperationHandler = async ({
       return executeOperation(
         awsSesSendTemplatedEmailContract,
         input,
-        (body, sendSignal) => executeSesSendTemplatedEmail(body, sendSignal, sendContext),
+        executeSesSendTemplatedEmail,
         'Failed to send templated email',
         signal
       )

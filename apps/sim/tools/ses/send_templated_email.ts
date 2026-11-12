@@ -92,12 +92,6 @@ export const sendTemplatedEmailTool: InternalToolConfig<
       description:
         'Message tags for filtering sending events, as a JSON array of {"name", "value"} objects (letters, digits, _ and - only, up to 256 characters)',
     },
-    attachments: {
-      type: 'file[]',
-      required: false,
-      visibility: 'user-only',
-      description: 'Files to attach to the email (up to 28MB in total)',
-    },
   },
 
   operation: {
@@ -115,7 +109,6 @@ export const sendTemplatedEmailTool: InternalToolConfig<
       configurationSetName: params.configurationSetName,
       fromName: params.fromName,
       emailTags: Array.isArray(params.emailTags) ? params.emailTags : undefined,
-      attachments: params.attachments,
     }),
   },
 

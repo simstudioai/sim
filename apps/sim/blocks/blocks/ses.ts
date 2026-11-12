@@ -1,7 +1,7 @@
 import { SESIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const SESBlock: BlockConfig = {
   type: 'ses',
@@ -346,27 +346,6 @@ export const SESBlock: BlockConfig = {
       mode: 'advanced',
     },
     {
-      id: 'attachmentFiles',
-      title: 'Attachments',
-      type: 'file-upload',
-      canonicalParamId: 'attachments',
-      placeholder: 'Upload files to attach',
-      condition: { field: 'operation', value: ['send_email', 'send_templated_email'] },
-      mode: 'basic',
-      multiple: true,
-      required: false,
-    },
-    {
-      id: 'attachments',
-      title: 'Attachments',
-      type: 'short-input',
-      canonicalParamId: 'attachments',
-      placeholder: 'Reference files from previous blocks',
-      condition: { field: 'operation', value: ['send_email', 'send_templated_email'] },
-      mode: 'advanced',
-      required: false,
-    },
-    {
       id: 'emailTags',
       title: 'Email Tags (JSON)',
       type: 'code',
@@ -693,7 +672,7 @@ export const SESBlock: BlockConfig = {
         }
       },
       params: (params) => {
-        const { operation, pageSize, attachments, ...rest } = params
+        const { operation, pageSize, ...rest } = params
 
         const parseEmailTags = (value: unknown) => {
           if (value === undefined || value === null || value === '') return undefined
@@ -710,8 +689,6 @@ export const SESBlock: BlockConfig = {
           }
           return parsed
         }
-
-        const sendAttachments = normalizeFileInput(attachments)
 
         const applySendOptions = (target: Record<string, unknown>, replyToAddresses: unknown) => {
           target.fromName = rest.fromName || undefined
@@ -792,7 +769,6 @@ export const SESBlock: BlockConfig = {
             if (rest.bccAddresses) result.bccAddresses = rest.bccAddresses
             if (rest.configurationSetName) result.configurationSetName = rest.configurationSetName
             applySendOptions(result, rest.replyToAddresses)
-            result.attachments = sendAttachments
             break
           case 'send_templated_email':
             result.fromAddress = rest.fromAddress
@@ -803,7 +779,6 @@ export const SESBlock: BlockConfig = {
             if (rest.bccAddresses) result.bccAddresses = rest.bccAddresses
             if (rest.configurationSetName) result.configurationSetName = rest.configurationSetName
             applySendOptions(result, rest.templateReplyToAddresses)
-            result.attachments = sendAttachments
             break
           case 'send_bulk_email':
             result.fromAddress = rest.fromAddress
@@ -877,7 +852,6 @@ export const SESBlock: BlockConfig = {
       description: 'Comma-separated reply-to addresses for templated and bulk sends',
     },
     fromName: { type: 'string', description: 'Friendly sender name shown with the From address' },
-    attachments: { type: 'array', description: 'Files to attach to the email (canonical param)' },
     emailTags: {
       type: 'json',
       description: 'Message tags as a JSON array of {name, value} objects',

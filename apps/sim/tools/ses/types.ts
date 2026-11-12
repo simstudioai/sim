@@ -1,4 +1,3 @@
-import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 export interface SESConnectionConfig {
@@ -19,7 +18,6 @@ export interface SESSendEmailParams extends SESConnectionConfig {
   configurationSetName?: string | null
   fromName?: string | null
   emailTags?: Array<{ name: string; value: string }> | null
-  attachments?: UserFile[] | null
 }
 
 export interface SESSendTemplatedEmailParams extends SESConnectionConfig {
@@ -33,7 +31,6 @@ export interface SESSendTemplatedEmailParams extends SESConnectionConfig {
   configurationSetName?: string | null
   fromName?: string | null
   emailTags?: Array<{ name: string; value: string }> | null
-  attachments?: UserFile[] | null
 }
 
 export interface SESSendBulkEmailParams extends SESConnectionConfig {
