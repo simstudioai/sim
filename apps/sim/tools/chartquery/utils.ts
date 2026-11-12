@@ -15,15 +15,15 @@ export function chartQueryHeaders(apiKey: string): Record<string, string> {
 
 /**
  * Builds a request body: every ChartQuery tool asks for `share: true` so the API returns
- * public links instead of binary image data, and empty optional values are left out.
+ * public links instead of binary image data. Unset optional values are left out; strings are
+ * sent as given, since spaces can be part of the value to encode.
  */
 export function chartQueryBody(fields: Record<string, unknown>): Record<string, unknown> {
   const body: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(fields)) {
-    if (value === undefined || value === null) continue
-    if (typeof value === 'string' && value.trim() === '') continue
+    if (value === undefined || value === null || value === '') continue
     if (typeof value === 'number' && !Number.isFinite(value)) continue
-    body[key] = typeof value === 'string' ? value.trim() : value
+    body[key] = value
   }
   body.share = true
   return body
