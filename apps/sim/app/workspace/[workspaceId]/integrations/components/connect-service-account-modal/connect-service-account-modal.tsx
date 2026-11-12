@@ -27,8 +27,8 @@ import {
   getClientCredentialAccountDescriptor,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import {
+  googleDelegationServiceFor,
   googleKeylessOffer,
-  isGoogleDelegationService,
   isGoogleKeylessService,
 } from '@/lib/credentials/google-workload-identity'
 import type { ServiceAccountSecretFields } from '@/lib/credentials/service-account-secret'
@@ -182,8 +182,9 @@ interface ConnectServiceAccountModalProps {
   /** Existing description, used to seed reconnect-capable modals. */
   credentialDescription?: string
   /**
-   * The OAuth service the dialog was opened for (`google-bigquery`). A Google service account
-   * offers keyless setup only for a Google Cloud service or a Workspace service it can delegate.
+   * The OAuth service or provider id the dialog was opened for (`google-bigquery`, `gmail` or
+   * `google-email`). A Google service account offers keyless setup only for a Google Cloud
+   * service or a Workspace service it can delegate.
    */
   oauthServiceId?: string
   /** Called with the new credential id after a successful create (token-paste providers). */
@@ -673,8 +674,7 @@ function GoogleServiceAccountModalForm({
   oauthServiceId,
   onCreated,
 }: GoogleServiceAccountModalProps) {
-  const delegableService =
-    oauthServiceId && isGoogleDelegationService(oauthServiceId) ? oauthServiceId : undefined
+  const delegableService = googleDelegationServiceFor(oauthServiceId)
   const keylessService = Boolean(oauthServiceId && isGoogleKeylessService(oauthServiceId))
   const keyless = useKeylessSetup({
     provider: 'google',

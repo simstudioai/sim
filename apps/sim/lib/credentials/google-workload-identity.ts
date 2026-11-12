@@ -45,21 +45,23 @@ export type GoogleDelegationService = (typeof GOOGLE_DELEGATION_SERVICES)[number
 
 const DELEGATION_SERVICE_SET: ReadonlySet<string> = new Set(GOOGLE_DELEGATION_SERVICES)
 
-export function isGoogleDelegationService(value: string): value is GoogleDelegationService {
+function isGoogleDelegationService(value: string): value is GoogleDelegationService {
   return DELEGATION_SERVICE_SET.has(value)
 }
 
 /**
- * Whether a keyless credential can serve this OAuth service id: a Google Cloud
- * service as the service account, or a Workspace service through delegation.
+ * Whether a keyless credential can serve this OAuth service or provider id: a
+ * Google Cloud service as the service account, or a Workspace service through
+ * delegation.
  */
 export function isGoogleKeylessService(service: string): boolean {
-  return GOOGLE_KEYLESS_SERVICES.has(service) || isGoogleDelegationService(service)
+  return GOOGLE_KEYLESS_SERVICES.has(service) || googleDelegationServiceFor(service) !== undefined
 }
 
 /**
- * The delegated service a tool or selector names. Tools name their OAuth
- * provider id (`google-email`) and selectors their service id (`gmail`).
+ * The delegated service a caller names. Tools and the Integrations page name
+ * the OAuth provider id (`google-email`); selectors and blocks name the
+ * service id (`gmail`).
  */
 export function googleDelegationServiceFor(
   service: string | undefined
@@ -79,7 +81,8 @@ export function googleInitialDelegatedServices(
   storedServices: readonly string[] = []
 ): GoogleDelegationService[] {
   const services = new Set(storedServices)
-  if (oauthServiceId) services.add(oauthServiceId)
+  const openedFor = googleDelegationServiceFor(oauthServiceId)
+  if (openedFor) services.add(openedFor)
   return GOOGLE_DELEGATION_SERVICES.filter((service) => services.has(service))
 }
 
@@ -125,7 +128,7 @@ export function isGoogleDelegationUser(value: string): boolean {
  * - `none`: JSON key only.
  */
 export function googleKeylessOffer(input: {
-  /** The OAuth service the dialog was opened for, when it was opened for one. */
+  /** The OAuth service or provider id the dialog was opened for, when it was opened for one. */
   oauthServiceId?: string
   /** This deployment can sign workload-identity tokens for this owner. */
   available: boolean

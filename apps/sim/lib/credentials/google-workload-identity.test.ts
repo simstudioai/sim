@@ -41,6 +41,15 @@ describe('keyless setup in the Google service account dialog', () => {
   )
 
   it.each([true, false])(
+    'offers Gmail keyless from the Integrations page and chat card, which name its provider id (reconnect: %s)',
+    (reconnectsKeyless) => {
+      expect(
+        googleKeylessOffer({ oauthServiceId: 'google-email', available: true, reconnectsKeyless })
+      ).toBe('offer')
+    }
+  )
+
+  it.each([true, false])(
     'offers keyless for BigQuery whether or not the reconnected credential is keyless (%s)',
     (reconnectsKeyless) => {
       expect(
@@ -79,6 +88,13 @@ describe('the services a keyless dialog opens delegating', () => {
     expect(googleInitialDelegatedServices('google-docs', ['gmail'])).toEqual([
       'gmail',
       'google-docs',
+    ])
+  })
+
+  it('delegates Gmail when opened by its provider id', () => {
+    expect(googleInitialDelegatedServices('google-email', ['google-drive'])).toEqual([
+      'gmail',
+      'google-drive',
     ])
   })
 
