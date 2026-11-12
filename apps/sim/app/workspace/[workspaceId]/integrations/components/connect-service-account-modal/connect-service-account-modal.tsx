@@ -27,9 +27,9 @@ import {
   getClientCredentialAccountDescriptor,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import {
-  GOOGLE_KEYLESS_SERVICES,
   googleKeylessOffer,
   isGoogleDelegationService,
+  isGoogleKeylessService,
 } from '@/lib/credentials/google-workload-identity'
 import type { ServiceAccountSecretFields } from '@/lib/credentials/service-account-secret'
 import {
@@ -675,9 +675,7 @@ function GoogleServiceAccountModalForm({
 }: GoogleServiceAccountModalProps) {
   const delegableService =
     oauthServiceId && isGoogleDelegationService(oauthServiceId) ? oauthServiceId : undefined
-  const keylessService =
-    Boolean(delegableService) ||
-    Boolean(oauthServiceId && GOOGLE_KEYLESS_SERVICES.has(oauthServiceId))
+  const keylessService = Boolean(oauthServiceId && isGoogleKeylessService(oauthServiceId))
   const keyless = useKeylessSetup({
     provider: 'google',
     workspaceId,

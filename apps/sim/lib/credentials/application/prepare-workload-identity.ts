@@ -38,9 +38,9 @@ export interface PrepareWorkloadIdentityInput {
  * What a reconnect reopens on, read from the stored secret: absent without a
  * credential being reconnected, or for anyone but its admin.
  */
-interface ReconnectFields {
+interface ReconnectFields<P extends WorkloadIdentityProvider = WorkloadIdentityProvider> {
   /** The stored mode. */
-  reconnectAuthType?: WorkloadIdentityProviderAuthType
+  reconnectAuthType?: WorkloadIdentityProviderAuthType<P>
   /** A keyless Google credential's domain-wide delegation, so a reconnect keeps it. */
   reconnectDelegation?: GoogleStoredDelegation
 }
@@ -57,29 +57,44 @@ export type PrepareWorkloadIdentityResult =
       expiresAt: string
     } & ReconnectFields)
 
-/**
- * Every keyless provider also has key-based modes under the same provider ID, so a
- * reconnect reads the stored secret's mode and the dialog reopens on it rather than
- * on a default that would drop the credential's role, secret, or certificate.
- */
-const STORED_AUTH_TYPE: {
-  [P in WorkloadIdentityProvider]: (
-    decrypted: string
-  ) => WorkloadIdentityProviderAuthType<P> | undefined
-} = {
-  aws: storedAwsAuthType,
-  databricks: storedDatabricksAuthType,
-  snowflake: storedSnowflakeAuthType,
-  microsoft: storedMicrosoftAppAuthType,
-  google: (decrypted) =>
-    isGoogleWorkloadIdentitySecret(decrypted) ? 'workload_identity' : 'json_key',
+function authTypeOnly<P extends WorkloadIdentityProvider>(
+  read: (decrypted: string) => WorkloadIdentityProviderAuthType<P> | undefined
+): (decrypted: string) => ReconnectFields<P> {
+  return (decrypted) => {
+    const reconnectAuthType = read(decrypted)
+    return reconnectAuthType ? { reconnectAuthType } : {}
+  }
+}
+
+function storedGoogleReconnect(decrypted: string): ReconnectFields<'google'> {
+  const reconnectDelegation = storedGoogleDelegation(decrypted)
+  return {
+    reconnectAuthType: isGoogleWorkloadIdentitySecret(decrypted) ? 'workload_identity' : 'json_key',
+    ...(reconnectDelegation ? { reconnectDelegation } : {}),
+  }
 }
 
 /**
- * The stored auth mode of a credential of this provider in this workspace, which
- * this person administers, and a keyless Google credential's delegation. Only
- * these non-secret fields leave the stored secret, and only for someone allowed
- * to reconnect the credential.
+ * Every keyless provider also has key-based modes under the same provider ID, so a
+ * reconnect reads the stored secret's mode and the dialog reopens on it rather than
+ * on a default that would drop the credential's role, secret, or certificate. A
+ * provider whose mode has further non-secret settings a reconnect must keep (a
+ * Google credential's domain-wide delegation) reads those here too.
+ */
+const STORED_RECONNECT: {
+  [P in WorkloadIdentityProvider]: (decrypted: string) => ReconnectFields<P>
+} = {
+  aws: authTypeOnly<'aws'>(storedAwsAuthType),
+  databricks: authTypeOnly<'databricks'>(storedDatabricksAuthType),
+  snowflake: authTypeOnly<'snowflake'>(storedSnowflakeAuthType),
+  microsoft: authTypeOnly<'microsoft'>(storedMicrosoftAppAuthType),
+  google: storedGoogleReconnect,
+}
+
+/**
+ * What a reconnect of this provider's credential in this workspace, which this
+ * person administers, reopens on. Only these non-secret fields leave the stored
+ * secret, and only for someone allowed to reconnect the credential.
  */
 async function storedReconnectFields(
   provider: WorkloadIdentityProvider,
@@ -101,12 +116,7 @@ async function storedReconnectFields(
     return {}
   }
   const { decrypted } = await decryptSecret(row.encryptedServiceAccountKey)
-  const reconnectAuthType = STORED_AUTH_TYPE[provider](decrypted)
-  const reconnectDelegation = provider === 'google' ? storedGoogleDelegation(decrypted) : undefined
-  return {
-    ...(reconnectAuthType ? { reconnectAuthType } : {}),
-    ...(reconnectDelegation ? { reconnectDelegation } : {}),
-  }
+  return STORED_RECONNECT[provider](decrypted)
 }
 
 /**

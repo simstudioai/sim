@@ -50,6 +50,14 @@ export function isGoogleDelegationService(value: string): value is GoogleDelegat
 }
 
 /**
+ * Whether a keyless credential can serve this OAuth service id: a Google Cloud
+ * service as the service account, or a Workspace service through delegation.
+ */
+export function isGoogleKeylessService(service: string): boolean {
+  return GOOGLE_KEYLESS_SERVICES.has(service) || isGoogleDelegationService(service)
+}
+
+/**
  * The delegated service a tool or selector names. Tools name their OAuth
  * provider id (`google-email`) and selectors their service id (`gmail`).
  */
@@ -126,9 +134,7 @@ export function googleKeylessOffer(input: {
 }): 'offer' | 'cloud_only' | 'none' {
   if (!input.available) return 'none'
   const service = input.oauthServiceId
-  if (service && (GOOGLE_KEYLESS_SERVICES.has(service) || isGoogleDelegationService(service))) {
-    return 'offer'
-  }
+  if (service && isGoogleKeylessService(service)) return 'offer'
   if (!input.reconnectsKeyless) return 'none'
   return service ? 'cloud_only' : 'offer'
 }

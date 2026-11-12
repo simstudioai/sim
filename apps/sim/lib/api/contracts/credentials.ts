@@ -580,6 +580,8 @@ const reconnectDelegationSchema = z
   .object({ user: z.string(), services: z.array(z.string()) })
   .optional()
 
+export type ReconnectDelegation = NonNullable<z.output<typeof reconnectDelegationSchema>>
+
 export const workloadIdentitySubjectGrantShape = {
   issuer: z
     .string()

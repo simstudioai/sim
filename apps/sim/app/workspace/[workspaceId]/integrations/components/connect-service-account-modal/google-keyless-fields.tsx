@@ -1,6 +1,7 @@
 'use client'
 
 import { ChipDropdown, ChipModalField, ChipTextarea } from '@sim/emcn'
+import type { ReconnectDelegation } from '@/lib/api/contracts/credentials'
 import {
   GOOGLE_DELEGATION_SERVICES,
   type GoogleDelegationService,
@@ -32,19 +33,13 @@ export interface GoogleKeylessInput {
   delegatedUser: string
 }
 
-/** A reconnected credential's stored domain-wide delegation. */
-interface StoredGoogleDelegation {
-  user: string
-  services: readonly string[]
-}
-
 /**
  * The form a dialog opens on: a reconnect keeps the credential's stored
  * delegation, and the Workspace service the dialog was opened for is added to it.
  */
 export function emptyGoogleKeylessInput(
   oauthServiceId?: string,
-  stored?: StoredGoogleDelegation
+  stored?: ReconnectDelegation
 ): GoogleKeylessInput {
   return {
     projectNumber: '',
