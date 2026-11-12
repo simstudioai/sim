@@ -1,5 +1,5 @@
 {
-  "id": "7e636cc9-1659-46ab-927e-da45dec1efc2",
+  "id": "b8d5fbd7-96f6-4c95-bb70-f2562c0c83de",
   "prevId": "47f71127-867a-4c55-8869-0e00cd2c4429",
   "version": "7",
   "dialect": "postgresql",
@@ -1457,7 +1457,7 @@
           "name": "organization_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "license_id": {
           "name": "license_id",
@@ -1602,7 +1602,7 @@
           "tableTo": "organization",
           "columnsFrom": ["organization_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "aws_marketplace_usage_report_license_id_aws_marketplace_license_id_fk": {

@@ -2040,9 +2040,10 @@ export const awsMarketplaceUsageReport = pgTable(
   'aws_marketplace_usage_report',
   {
     id: text('id').primaryKey(),
-    organizationId: text('organization_id')
-      .notNull()
-      .references(() => organization.id, { onDelete: 'cascade' }),
+    /** Kept null when the organization is deleted, so usage already charged is still sent. */
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'set null',
+    }),
     licenseId: text('license_id')
       .notNull()
       .references(() => awsMarketplaceLicense.id, { onDelete: 'cascade' }),

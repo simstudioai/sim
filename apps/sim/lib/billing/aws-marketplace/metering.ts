@@ -39,6 +39,7 @@ import {
 import { getMeteringClient } from '@/lib/billing/aws-marketplace/client'
 import { getAwsMarketplaceProducts } from '@/lib/billing/aws-marketplace/config'
 import type { AwsMarketplaceUsagePricing } from '@/lib/billing/aws-marketplace/products'
+import { MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS } from '@/lib/billing/execution-timeout-defaults'
 import { toDecimal, toFixedString } from '@/lib/billing/utils/decimal'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbTransaction } from '@/lib/db/types'
@@ -53,10 +54,10 @@ const MONTH_GRACE_MS = 6 * HOUR_MS
 /** AWS takes a license's last usage for about an hour after it ends. */
 const AFTER_END_MS = HOUR_MS
 /**
- * A billing period stops changing once it ends, since a request that outlives it records the rest
- * in the next period; a day of margin covers a request still finishing as the period turns.
+ * How long a usage row's cost can keep growing: a request tops up its row in place while it runs,
+ * and no run outlasts the longest execution timeout. A day of margin covers late cost callbacks.
  */
-const PERIOD_SETTLE_MS = 24 * HOUR_MS
+const ROW_SETTLE_MS = MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS * 1000 + 24 * HOUR_MS
 /** BatchMeterUsage takes at most 25 records. */
 const RECORDS_PER_CALL = 25
 /** Rows sent per run, oldest first; any beyond it go in the next run. */
@@ -97,7 +98,7 @@ interface MeteredLicense {
 /** A ledger row awaiting AWS, with the license it bills. */
 interface PendingReport {
   id: string
-  organizationId: string
+  organizationId: string | null
   dimension: string
   hourStart: Date
   quantity: number
@@ -171,29 +172,42 @@ async function listMeteredLicenses(
 }
 
 /**
+ * When a license stopped being in force, or null while it still is: the earlier of its expiry, once
+ * passed, and the moment a check first found it inactive.
+ */
+function licenseEnd(license: MeteredLicense, now: number): number | null {
+  const expiry = license.expiresAt?.getTime()
+  const ends = [
+    ...(expiry !== undefined && expiry <= now ? [expiry] : []),
+    ...(license.status === 'active' ? [] : [license.endedAt?.getTime() ?? now]),
+  ]
+  return ends.length > 0 ? Math.min(...ends) : null
+}
+
+/**
  * The license an organization's newly counted usage is charged to, and the hour it is charged in.
  * A license still in force wins, the earliest-linked first, so overlapping licenses during a
- * renewal never both bill. With none in force, a license that ended within the hour AWS allows
- * takes the usage at the hour it ended, until that record has gone to AWS.
+ * renewal never both bill. With none in force, the license that ended most recently, within the
+ * hour AWS allows, takes the usage at the hour it ended. That record is sent as soon as the end is
+ * known, because AWS counts its hour from the unsubscribe itself, which a check only finds later:
+ * usage that lands after the send, from work still finishing once access is gone, is not billed.
  */
 function chargeTarget(
   licenses: MeteredLicense[],
   now: number
 ): { license: MeteredLicense; hourStart: number } | null {
-  const inForce = licenses.find(
-    (license) =>
-      license.status === 'active' && (!license.expiresAt || license.expiresAt.getTime() > now)
-  )
-  if (inForce) return { license: inForce, hourStart: floorHour(now) }
-  const ended = licenses
-    .filter((license) => license.endedAt && license.endedAt.getTime() >= now - AFTER_END_MS)
-    .sort((left, right) => (right.endedAt?.getTime() ?? 0) - (left.endedAt?.getTime() ?? 0))[0]
-  return ended?.endedAt ? { license: ended, hourStart: floorHour(ended.endedAt.getTime()) } : null
+  let ended: { license: MeteredLicense; end: number } | null = null
+  for (const license of licenses) {
+    const end = licenseEnd(license, now)
+    if (end === null) return { license, hourStart: floorHour(now) }
+    if (end >= now - AFTER_END_MS && (!ended || end > ended.end)) ended = { license, end }
+  }
+  return ended ? { license: ended.license, hourStart: floorHour(ended.end) } : null
 }
 
 /**
- * Counts the organization's usage in each billing period still open to change, and returns the
- * whole units not yet charged. Each period's tally is updated to what it now covers; a period's
+ * Counts the organization's usage in each billing period with a row still able to change, and
+ * returns the whole units not yet charged. Each period's tally is updated to what it now covers; a period's
  * first tally fixes where its count starts.
  */
 async function countNewUnits(
@@ -221,7 +235,7 @@ async function countNewUnits(
       and(
         eq(usageLog.billingEntityType, 'organization'),
         eq(usageLog.billingEntityId, organizationId),
-        gt(usageLog.billingPeriodEnd, new Date(now - PERIOD_SETTLE_MS))
+        gt(usageLog.createdAt, new Date(now - ROW_SETTLE_MS))
       )
     )
 
@@ -391,9 +405,13 @@ function recordKey(dimension: string | undefined, timestamp: Date | undefined): 
  */
 async function freezeForSending(rows: PendingReport[]): Promise<PendingReport[]> {
   return db.transaction(async (tx) => {
-    const scopes = new Map(rows.map((row) => [`${row.organizationId}:${row.dimension}`, row]))
+    const scopes = new Map<string, { organizationId: string; dimension: string }>()
+    for (const { organizationId, dimension } of rows) {
+      if (organizationId)
+        scopes.set(`${organizationId}:${dimension}`, { organizationId, dimension })
+    }
     const ordered = [...scopes].sort(([left], [right]) => compareStrings(left, right))
-    for (const [, row] of ordered) await lockUsage(tx, row.organizationId, row.dimension)
+    for (const [, scope] of ordered) await lockUsage(tx, scope.organizationId, scope.dimension)
     const frozen = await tx
       .update(awsMarketplaceUsageReport)
       .set({ sentAt: sql`coalesce(${awsMarketplaceUsageReport.sentAt}, now())` })
@@ -483,8 +501,8 @@ async function sendBatch(
 }
 
 /**
- * Sends every pending row whose hour has closed, or whose license has ended so no more usage can
- * join it, oldest first and grouped by license.
+ * Sends every pending row whose hour has closed, or whose license has ended or expired so no more
+ * usage can join it, oldest first and grouped by license.
  */
 async function sendPendingReports(now: number, summary: AwsMarketplaceMeteringSummary) {
   summary.rejected += await rejectExpiredReports(now)
@@ -508,7 +526,8 @@ async function sendPendingReports(now: number, summary: AwsMarketplaceMeteringSu
         eq(awsMarketplaceUsageReport.status, 'pending'),
         or(
           lt(awsMarketplaceUsageReport.hourStart, new Date(floorHour(now))),
-          eq(awsMarketplaceLicense.status, 'inactive')
+          eq(awsMarketplaceLicense.status, 'inactive'),
+          lte(awsMarketplaceLicense.expiresAt, new Date(now))
         )
       )
     )

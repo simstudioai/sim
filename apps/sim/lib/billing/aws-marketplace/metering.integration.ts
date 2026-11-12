@@ -329,12 +329,12 @@ describe('AWS Marketplace usage metering', () => {
     expect((await reportsFor(owner.organizationId)).map((row) => row.quantity)).toEqual([4])
   })
 
-  it('keeps counting a period that ended within a day, and leaves an older one alone', async () => {
+  it('keeps counting a period while a long run can still raise its rows, and leaves a settled one alone', async () => {
     const owner = await createOrganization()
     await insertLicense(owner.organizationId, { organizationLinkedAt: new Date(NOW - 70 * DAY_MS) })
-    const justEnded = { start: new Date(NOW - 31 * DAY_MS), end: minutesAgo(120) }
+    const justEnded = { start: new Date(NOW - 31 * DAY_MS), end: new Date(NOW - 3 * DAY_MS) }
     const longEnded = { start: new Date(NOW - 62 * DAY_MS), end: new Date(NOW - 31 * DAY_MS) }
-    await logUsage(owner, { at: new Date(NOW - 3 * HOUR_MS), cost: 0.04, period: justEnded })
+    await logUsage(owner, { at: new Date(NOW - 4 * DAY_MS), cost: 0.04, period: justEnded })
     await logUsage(owner, { at: new Date(NOW - 35 * DAY_MS), cost: 9, period: longEnded })
 
     await meterAwsMarketplaceUsage(NOW)
@@ -519,5 +519,36 @@ describe('AWS Marketplace usage metering', () => {
         error: expect.stringMatching(/window/),
       }),
     ])
+  })
+
+  it('flushes a license at its expiry before any check marks it inactive', async () => {
+    const owner = await createOrganization()
+    const expiresAt = minutesAgo(30)
+    const { licenseArn } = await insertLicense(owner.organizationId, { expiresAt })
+    await logUsage(owner, { at: minutesAgo(35), cost: 0.03 })
+
+    await meterAwsMarketplaceUsage(NOW)
+
+    expect(sentRecords(licenseArn)).toEqual([
+      expect.objectContaining({ Quantity: 3, Timestamp: floorHour(expiresAt.getTime()) }),
+    ])
+  })
+
+  it('still sends usage already charged after its organization is deleted', async () => {
+    const owner = await createOrganization()
+    const { id, licenseArn } = await insertLicense(owner.organizationId)
+    await logUsage(owner, { at: minutesAgo(10), cost: 0.02 })
+    await meterAwsMarketplaceUsage(NOW)
+
+    await db.delete(organization).where(eq(organization.id, owner.organizationId))
+    await meterAwsMarketplaceUsage(NEXT_HOUR)
+
+    expect(sentRecords(licenseArn)).toEqual([expect.objectContaining({ Quantity: 2 })])
+    expect(
+      await db
+        .select({ status: awsMarketplaceUsageReport.status })
+        .from(awsMarketplaceUsageReport)
+        .where(eq(awsMarketplaceUsageReport.licenseId, id))
+    ).toEqual([{ status: 'reported' }])
   })
 })
