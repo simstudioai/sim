@@ -1,6 +1,7 @@
 import { SplunkIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 /**
  * Normalize a Splunk toggle. A dropdown supplies the strings `'true'`/`'false'`,
@@ -41,6 +42,8 @@ function assignSplunkNumber(target: Record<string, unknown>, key: string, value:
 
 export const SplunkBlock: BlockConfig = {
   type: 'splunk',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'splunk_v2' },
   name: 'Splunk',
   description: 'Run SPL searches and manage saved searches and alerts in Splunk',
   authMode: AuthMode.ApiKey,
@@ -683,6 +686,20 @@ Examples:
       description: 'Offset of the first entry in the returned page, from the paging envelope',
     },
   },
+}
+
+/** Every operation runs with a saved Splunk authentication token and its management URL. */
+export const SplunkV2Block: BlockConfig = {
+  ...SplunkBlock,
+  type: 'splunk_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    SplunkBlock,
+    { id: 'credential', type: 'oauth-input', serviceId: 'splunk', title: 'Splunk Credential' },
+    { required: true }
+  ),
 }
 
 export const SplunkBlockMeta = {

@@ -258,6 +258,7 @@ export const AFFINITY_SERVICE_ACCOUNT_PROVIDER_ID = 'affinity-service-account' a
 export const TAVILY_SERVICE_ACCOUNT_PROVIDER_ID = 'tavily-service-account' as const
 export const AMPLITUDE_SERVICE_ACCOUNT_PROVIDER_ID = 'amplitude-service-account' as const
 export const KALSHI_SERVICE_ACCOUNT_PROVIDER_ID = 'kalshi-service-account' as const
+export const SPLUNK_SERVICE_ACCOUNT_PROVIDER_ID = 'splunk-service-account' as const
 
 const SHOPIFY_DOMAIN_HINT_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i
 
@@ -392,6 +393,7 @@ export type TokenServiceAccountProviderId =
   | typeof TAVILY_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof AMPLITUDE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof KALSHI_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof SPLUNK_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof FLOW_SERVICE_ACCOUNT_PROVIDER_ID
 
 export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
@@ -2657,6 +2659,32 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       'In Kalshi, open Account Settings > Profile Settings > API Keys and create a key, then paste its key ID and the private key Kalshi shows only once. Ed25519 and RSA keys both work. The key can trade for your account, so share this credential only with people who may place orders.',
     invalidCredentialsHelp:
       'Kalshi rejected this key. Check that the key ID and private key belong to the same API key, that the key has not been deleted, and that you pasted the whole private key file.',
+  },
+  [SPLUNK_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: SPLUNK_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Splunk',
+    tokenNoun: 'authentication token',
+    connectNoun: 'authentication token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Authentication token',
+        placeholder: 'Paste a Splunk authentication token',
+        secret: true,
+      },
+      {
+        id: 'domain',
+        label: 'Management URL',
+        placeholder: 'https://splunk.example.com:8089',
+        secret: false,
+        url: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/splunk',
+    helpText:
+      'Create a token in Splunk Web under Settings > Tokens, and enter the management URL with its port (8089 by default). The URL must be reachable from Sim over https with a certificate from a public certificate authority; Sim does not skip certificate checks.',
+    invalidCredentialsHelp:
+      'Splunk rejected this token. Check that token authentication is turned on, that the token is enabled and not expired, and that the management URL points at the same deployment.',
   },
 }
 

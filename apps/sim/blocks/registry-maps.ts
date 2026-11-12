@@ -404,7 +404,7 @@ import { SlackBlock, SlackBlockMeta, SlackV2Block, SlackV2BlockMeta } from '@/bl
 import { SmartleadBlock, SmartleadBlockMeta, SmartleadV2Block } from '@/blocks/blocks/smartlead'
 import { SmtpBlock, SmtpBlockMeta } from '@/blocks/blocks/smtp'
 import { SnowflakeBlock, SnowflakeBlockMeta } from '@/blocks/blocks/snowflake'
-import { SplunkBlock, SplunkBlockMeta } from '@/blocks/blocks/splunk'
+import { SplunkBlock, SplunkBlockMeta, SplunkV2Block } from '@/blocks/blocks/splunk'
 import { SportmonksBlock, SportmonksBlockMeta, SportmonksV2Block } from '@/blocks/blocks/sportmonks'
 import { SpotifyBlock, SpotifyBlockMeta } from '@/blocks/blocks/spotify'
 import { SQSBlock, SQSBlockMeta, SQSV2Block } from '@/blocks/blocks/sqs'
@@ -902,6 +902,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   smtp: SmtpBlock,
   snowflake: SnowflakeBlock,
   splunk: SplunkBlock,
+  splunk_v2: SplunkV2Block,
   sportmonks: SportmonksBlock,
   sportmonks_v2: SportmonksV2Block,
   spotify: SpotifyBlock,

@@ -1,5 +1,6 @@
 import { toStringOrNull } from '@sim/utils/coerce'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SPLUNK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SplunkListFiredAlertsParams,
   SplunkListFiredAlertsResponse,
@@ -29,6 +30,7 @@ export const listFiredAlertsTool: ToolConfig<
   description:
     'List the saved searches with currently triggered (unexpired) Splunk alerts and how many times each has fired.',
   version: '1.0.0',
+  oauth: SPLUNK_CREDENTIAL_OAUTH,
 
   params: {
     ...SPLUNK_CONNECTION_PARAMS,

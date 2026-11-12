@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SPLUNK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SplunkRunSearchParams, SplunkSearchResultsResponse } from '@/tools/splunk/types'
 import {
   buildSplunkFormBody,
@@ -27,6 +28,7 @@ export const runSearchTool: ToolConfig<SplunkRunSearchParams, SplunkSearchResult
   description:
     'Run an SPL search synchronously and return its results in a single call (oneshot mode). A oneshot search buffers the whole result set in one response with no paging, so use it for short searches; for anything large use Create Search Job with Get Search Results, which defaults to 100 rows and pages with offset.',
   version: '1.0.0',
+  oauth: SPLUNK_CREDENTIAL_OAUTH,
 
   params: {
     ...SPLUNK_CONNECTION_PARAMS,

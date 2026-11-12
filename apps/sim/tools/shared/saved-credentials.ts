@@ -70,17 +70,22 @@ export function savedCredentialTokenParam(serviceLabel: string) {
  * credential field that fills it server-side; the same keys are the params
  * the credential supplies, so the two can never drift apart. Mapped params are
  * always overwritten, so a bound host can never be steered by the caller.
+ *
+ * `tokenReplacesParams` names inline sign-in alternatives the token makes unused (a username and
+ * password the tools read only without a token), so a credential-only block drops them too.
  */
 export function tokenCredentialOAuth(
   provider: OAuthService,
-  credentialParams: Readonly<Record<string, CredentialParamSource>>
+  credentialParams: Readonly<Record<string, CredentialParamSource>>,
+  tokenReplacesParams: readonly string[] = []
 ) {
   return {
     required: false,
     provider,
     credentialKind: 'service-account',
     credentialParams,
-    credentialSuppliedParams: Object.keys(credentialParams),
+    ...(tokenReplacesParams.length > 0 ? { tokenReplacesParams } : {}),
+    credentialSuppliedParams: [...Object.keys(credentialParams), ...tokenReplacesParams],
   } as const satisfies OAuthConfig
 }
 
@@ -432,6 +437,16 @@ export const SMARTLEAD_CREDENTIAL_OAUTH = tokenCredentialOAuth('smartlead', {
 export const SPORTMONKS_CREDENTIAL_OAUTH = tokenCredentialOAuth('sportmonks', {
   apiKey: 'accessToken',
 })
+/**
+ * Credential policy for every Splunk tool. A saved Splunk credential fills the authentication
+ * token and the management URL; the tools send the token whenever one is set, so the inline
+ * username and password are never read and the credential-only block drops them.
+ */
+export const SPLUNK_CREDENTIAL_OAUTH = tokenCredentialOAuth(
+  'splunk',
+  { authToken: 'accessToken', baseUrl: 'domain' },
+  ['username', 'password']
+)
 export const SQUARE_CREDENTIAL_OAUTH = tokenCredentialOAuth('square', {
   apiKey: 'accessToken',
   environment: 'domain',
@@ -587,6 +602,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   similarweb: SIMILARWEB_CREDENTIAL_OAUTH,
   sixtyfour: SIXTYFOUR_CREDENTIAL_OAUTH,
   smartlead: SMARTLEAD_CREDENTIAL_OAUTH,
+  splunk: SPLUNK_CREDENTIAL_OAUTH,
   sportmonks: SPORTMONKS_CREDENTIAL_OAUTH,
   square: SQUARE_CREDENTIAL_OAUTH,
   stripe: STRIPE_CREDENTIAL_OAUTH,

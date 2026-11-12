@@ -133,6 +133,7 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   sixtyfour: 'sixtyfour-service-account',
   slack: 'slack-custom-bot',
   smartlead: 'smartlead-service-account',
+  splunk: 'splunk-service-account',
   sportmonks: 'sportmonks-service-account',
   square: 'square-service-account',
   stripe: 'stripe-service-account',

@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SPLUNK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SplunkGetSearchResultsParams,
   SplunkSearchResultsResponse,
@@ -49,6 +50,7 @@ export const getSearchResultsTool: ToolConfig<
   description:
     'Fetch the transformed results of a completed Splunk search job by search ID, with pagination.',
   version: '1.0.0',
+  oauth: SPLUNK_CREDENTIAL_OAUTH,
 
   params: {
     ...SPLUNK_CONNECTION_PARAMS,

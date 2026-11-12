@@ -26878,7 +26878,7 @@
       "updatedAt": "2026-09-26"
     },
     {
-      "type": "splunk",
+      "type": "splunk_v2",
       "slug": "splunk",
       "name": "Splunk",
       "description": "Run SPL searches and manage saved searches and alerts in Splunk",
@@ -26939,11 +26939,12 @@
       "operationCount": 12,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "splunk",
       "category": "tools",
       "integrationType": "observability",
       "tags": ["monitoring", "data-analytics"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-12"
     },
     {
       "type": "sportmonks_v2",

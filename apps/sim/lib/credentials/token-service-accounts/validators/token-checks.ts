@@ -55,6 +55,7 @@ import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
 import { SENTRY_REGIONS } from '@/tools/sentry/utils'
 import { createBasicAuthHeader } from '@/tools/servicenow/utils'
 import type { CredentialRegions } from '@/tools/shared/credential-regions'
+import { buildSplunkHeaders, buildSplunkUrl } from '@/tools/splunk/utils'
 import { SQUARE_ENVIRONMENTS } from '@/tools/square/types'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import { getThriveBaseUrl, getThriveHeaders, THRIVE_HOSTS } from '@/tools/thrive/utils'
@@ -1151,6 +1152,34 @@ export const validateKalshiServiceAccount = tokenCheckValidator({
       url: buildKalshiUrl(KALSHI_BALANCE_PATH),
       headers: { ...headers, Accept: 'application/json' },
     }
+  },
+})
+
+/**
+ * Splunk's `authentication/current-context` returns the user a request authenticates as and
+ * needs no capability, so any valid authentication token reads it; a refused token answers 401.
+ * The management URL is one the user chose, so the check runs through the guarded egress, and
+ * an answer without a user context (a proxy or login page) is not taken as proof.
+ * https://help.splunk.com/en/splunk-enterprise/leverage-rest-apis/rest-api-reference/10.6/access-endpoints/access-endpoint-descriptions
+ */
+export const validateSplunkServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Splunk',
+  domain: ({ domain }) => normalizeHttpBaseUrl(domain),
+  egress: 'configuredEndpoint',
+  request: ({ apiToken, domain = '' }) => ({
+    url: buildSplunkUrl({ baseUrl: domain }, '/authentication/current-context'),
+    headers: buildSplunkHeaders({ baseUrl: domain, authToken: apiToken }),
+  }),
+  acceptsBody: (body) => {
+    const [entry] = toArray(toRecord(body).entry)
+    const username = toRecord(toRecord(entry).content).username
+    if (typeof username !== 'string' || !username.trim()) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'Splunk returned no user context',
+      })
+    }
+    return true
   },
 })
 

@@ -109,6 +109,7 @@ import { SESBlock, SESV2Block } from '@/blocks/blocks/ses'
 import { SimilarwebBlock, SimilarwebV2Block } from '@/blocks/blocks/similarweb'
 import { SixtyfourBlock, SixtyfourV2Block } from '@/blocks/blocks/sixtyfour'
 import { SmartleadBlock, SmartleadV2Block } from '@/blocks/blocks/smartlead'
+import { SplunkBlock, SplunkV2Block } from '@/blocks/blocks/splunk'
 import { SportmonksBlock, SportmonksV2Block } from '@/blocks/blocks/sportmonks'
 import { SQSBlock, SQSV2Block } from '@/blocks/blocks/sqs'
 import { SquareBlock, SquareV2Block } from '@/blocks/blocks/square'
@@ -416,6 +417,12 @@ const VERSIONS: Array<{
     secretIds: ['serviceTokenId', 'serviceToken'],
   },
   { legacy: GongBlock, successor: GongV2Block, secretIds: ['accessKey', 'accessKeySecret'] },
+  {
+    legacy: SplunkBlock,
+    successor: SplunkV2Block,
+    secretIds: ['baseUrl', 'authToken', 'username', 'password'],
+    optionalIds: ['authToken', 'username', 'password'],
+  },
   {
     legacy: AmplitudeBlock,
     successor: AmplitudeV2Block,

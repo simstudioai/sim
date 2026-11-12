@@ -671,6 +671,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   smtp: SmtpIcon,
   snowflake: SnowflakeIcon,
   splunk: SplunkIcon,
+  splunk_v2: SplunkIcon,
   sportmonks: SportmonksIcon,
   sportmonks_v2: SportmonksIcon,
   sqs: SQSIcon,

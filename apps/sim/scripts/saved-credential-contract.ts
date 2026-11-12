@@ -325,10 +325,10 @@ export function savedCredentialContractErrors(
     if (!OPERATION_RESOLVED_CREDENTIAL_PROVIDERS.has(oauth.provider)) {
       if (
         oauth.tokenReplacesParams?.length &&
-        oauth.credentialParams?.accessToken !== 'accessToken'
+        !Object.values(oauth.credentialParams ?? {}).includes('accessToken')
       ) {
         errors.push(
-          `Block "${block.type}" → tool "${toolId}": tokenReplacesParams needs credentialParams to fill "accessToken" with the minted token.`
+          `Block "${block.type}" → tool "${toolId}": tokenReplacesParams needs a credentialParams entry filled with the credential's token.`
         )
       }
       const replacedByToken = new Set(oauth.tokenReplacesParams ?? [])

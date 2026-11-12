@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SPLUNK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SplunkDispatchSavedSearchParams,
   SplunkDispatchSavedSearchResponse,
@@ -32,6 +33,7 @@ export const dispatchSavedSearchTool: ToolConfig<
   description:
     'Run a Splunk saved search immediately and return the search ID (sid) of the dispatched job.',
   version: '1.0.0',
+  oauth: SPLUNK_CREDENTIAL_OAUTH,
 
   params: {
     ...SPLUNK_CONNECTION_PARAMS,

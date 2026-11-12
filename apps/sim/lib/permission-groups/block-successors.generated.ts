@@ -154,6 +154,7 @@ export const BLOCK_ACCESS_SUCCESSORS: Record<string, string> = {
   sixtyfour: 'sixtyfour_v2',
   slack: 'slack_v2',
   smartlead: 'smartlead_v2',
+  splunk: 'splunk_v2',
   sportmonks: 'sportmonks_v2',
   sqs: 'sqs_v2',
   square: 'square_v2',

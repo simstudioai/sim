@@ -160,6 +160,7 @@ import {
   SlackIcon,
   SmartleadIcon,
   SnowflakeIcon,
+  SplunkIcon,
   SportmonksIcon,
   SpotifyIcon,
   SquareIcon,
@@ -1927,6 +1928,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'kalshi',
+  },
+  splunk: {
+    name: 'Splunk',
+    icon: SplunkIcon,
+    services: {
+      splunk: {
+        name: 'Splunk',
+        description: 'Run searches and read saved searches, alerts, indexes, and apps in Splunk.',
+        providerId: 'splunk',
+        serviceAccountProviderId: 'splunk-service-account',
+        icon: SplunkIcon,
+        baseProviderIcon: SplunkIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'splunk',
   },
   tavily: {
     name: 'Tavily',

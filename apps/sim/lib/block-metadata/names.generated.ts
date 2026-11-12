@@ -269,7 +269,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   smartlead_v2: 'Smartlead',
   smtp: 'SMTP',
   snowflake: 'Snowflake',
-  splunk: 'Splunk',
+  splunk_v2: 'Splunk',
   sportmonks_v2: 'Sportmonks',
   spotify: 'Spotify',
   sqs_v2: 'Amazon SQS',

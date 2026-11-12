@@ -36,6 +36,7 @@ import {
   validatePlanetScaleServiceAccount,
   validateResendServiceAccount,
   validateServiceNowServiceAccount,
+  validateSplunkServiceAccount,
   validateSupabaseServiceAccount,
   validateThriveServiceAccount,
   validateTinybirdServiceAccount,
@@ -534,6 +535,7 @@ describe('saved credentials for a host the user chose', () => {
     ['Jupyter', validateJupyterServiceAccount],
     ['Logfire', validateLogfireServiceAccount],
     ['Plane', validatePlaneServiceAccount],
+    ['Splunk', validateSplunkServiceAccount],
     ['Tinybird', validateTinybirdServiceAccount],
     ['Upstash', validateUpstashServiceAccount],
   ] as const
@@ -822,6 +824,57 @@ describe('Kalshi saved API key verification', () => {
       validateKalshiServiceAccount({ apiToken, providerWorkspaceId })
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
     expect(fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('Splunk saved authentication token verification', () => {
+  const secureFetch = inputValidationMockFns.mockSecureFetchWithPinnedIP
+
+  function reply(response: Response) {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockReset().mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.7',
+      originalHostname: 'splunk.example.com',
+    })
+    secureFetch.mockReset().mockResolvedValue(response)
+  }
+
+  it('reads the token owner on the management URL the tools use, through the guarded egress', async () => {
+    reply(jsonResponse({ entry: [{ content: { username: 'svc-sim' } }] }))
+
+    await expect(
+      validateSplunkServiceAccount({
+        apiToken: 'splunk-token',
+        domain: 'splunk.example.com:8089/',
+      })
+    ).resolves.toMatchObject({ normalizedDomain: 'https://splunk.example.com:8089' })
+    expect(secureFetch).toHaveBeenCalledWith(
+      'https://splunk.example.com:8089/services/authentication/current-context?output_mode=json',
+      '203.0.113.7',
+      expect.objectContaining({
+        method: 'GET',
+        maxRedirects: 0,
+        headers: expect.objectContaining({ Authorization: 'Bearer splunk-token' }),
+      })
+    )
+  })
+
+  it('rejects a token Splunk refuses', async () => {
+    reply(
+      jsonResponse({ messages: [{ type: 'WARN', text: 'call not properly authenticated' }] }, 401)
+    )
+
+    await expect(
+      validateSplunkServiceAccount({ apiToken: 'bad', domain: 'https://splunk.example.com:8089' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it('does not take a 200 without a user context, such as a proxy page, as proof', async () => {
+    reply(jsonResponse({ ok: true }))
+
+    await expect(
+      validateSplunkServiceAccount({ apiToken: 'any', domain: 'https://splunk.example.com:8089' })
+    ).rejects.toMatchObject({ code: 'provider_unavailable' })
   })
 })
 
