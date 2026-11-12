@@ -130,7 +130,45 @@ try:
         button = find(snapshot, role='AXButton', label='Increment')
         snapshot = mutate('perform_action', snapshot, elementId=button['elementId'], accessibilityAction='AXPress')
         assert any(f'Count: {baseline + 2}' in node.get('value', '') or f'Count: {baseline + 2}' in node.get('label', '') for node in snapshot['nodes']), 'Explicit AX action did not increment'
-        print('PASS: real fixture state, secure suppression, AX click/set/action, Unicode typing, keyboard chord, coordinate drag and scrolling, text refused by a slider, typing into a date picker, a window target typing into its focused editor, a title-bar click; every mutation verified in fresh state; screenshot=' + ('verified' if permissions['screenRecording'] else 'BLOCKED'))
+        def count(snapshot):
+            return int(next(node.get('value', node.get('label', '')) for node in snapshot['nodes'] if node.get('value', node.get('label', '')).startswith('Count: ')).split(': ')[1])
+
+        def batch(snapshot, steps):
+            result = call('batch', bundleId=bundle, snapshotId=snapshot['snapshotId'], steps=steps)
+            assert result['action'] == 'batch' and result['dispatched'] and not result['verified'], result
+            return result['sequence'], state()
+
+        snapshot = state()
+        before = count(snapshot)
+        field = find(snapshot, role='AXTextField', label='Fixture editable text')
+        button = find(snapshot, role='AXButton', label='Increment')
+        progress, snapshot = batch(snapshot, [
+            {'action': 'set_value', 'elementId': field['elementId'], 'value': 'Batched'},
+            {'action': 'click', 'elementId': button['elementId']},
+            {'action': 'perform_action', 'elementId': button['elementId'], 'accessibilityAction': 'AXPress'},
+        ])
+        assert progress == {'completedSteps': 3, 'totalSteps': 3}, progress
+        assert find(snapshot, role='AXTextField', label='Fixture editable text')['value'] == 'Batched' and count(snapshot) == before + 2, 'Batch steps did not all apply'
+        slider = find(snapshot, role='AXSlider')
+        progress, snapshot = batch(snapshot, [
+            {'action': 'click', 'elementId': find(snapshot, role='AXButton', label='Increment')['elementId']},
+            {'action': 'type_text', 'elementId': slider['elementId'], 'text': 'x'},
+            {'action': 'click', 'elementId': find(snapshot, role='AXButton', label='Increment')['elementId']},
+        ])
+        assert progress['completedSteps'] == 1 and 'Step 2 failed' in progress['error'] and count(snapshot) == before + 3, progress
+        error = refused('batch', snapshot, steps=[
+            {'action': 'type_text', 'elementId': find(snapshot, role='AXSlider')['elementId'], 'text': 'x'},
+            {'action': 'click', 'elementId': find(snapshot, role='AXButton', label='Increment')['elementId']},
+        ])
+        assert error['dispatchState'] == 'not_started' and count(state()) == before + 3, error
+        snapshot = state()
+        progress, snapshot = batch(snapshot, [
+            {'action': 'click', 'elementId': find(snapshot, role='AXButton', label='Show sheet')['elementId']},
+            {'action': 'click', 'elementId': find(snapshot, role='AXButton', label='Increment')['elementId']},
+        ])
+        assert progress['completedSteps'] == 1 and 'opened or closed' in progress['error'] and count(snapshot) == before + 3, progress
+        snapshot = mutate('click', snapshot, elementId=find(snapshot, role='AXButton', label='Dismiss')['elementId'])
+        print('PASS: real fixture state, secure suppression, AX click/set/action, Unicode typing, keyboard chord, coordinate drag and scrolling, text refused by a slider, typing into a date picker, a window target typing into its focused editor, a title-bar click, a batch that applies, stops at a failing step, refuses before dispatch and stops when a sheet opens; every mutation verified in fresh state; screenshot=' + ('verified' if permissions['screenRecording'] else 'BLOCKED'))
 finally:
     if fixture:
         fixture.terminate()

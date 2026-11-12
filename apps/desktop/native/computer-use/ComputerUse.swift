@@ -16,9 +16,10 @@ struct ComputerError: Error {
     let dispatchState: String?
     init(_ code: String, _ message: String, dispatchState: String? = nil) { self.code = code; self.message = message; self.dispatchState = dispatchState }
 }
-struct InputStep: Decodable { let action: String; let text: String?; let key: String? }
+/// A request's arguments. An input sequence or batch step is itself a request's arguments, with its action.
 struct Parameters: Decodable {
-    var steps: [InputStep]?
+    var action: String?
+    var steps: [Parameters]?
     var activateFirst: Bool?
     var permission: String?
     var bundleId: String?
@@ -460,7 +461,20 @@ func parseKey(_ key: String) throws -> (CGKeyCode, CGEventFlags) {
             let aliases = ["esc": "escape", "arrowleft": "left", "arrowright": "right", "arrowup": "up", "arrowdown": "down", "forwarddelete": "delete", "pgup": "pageup", "pgdn": "pagedown", "pgdown": "pagedown", "minus": "-", "equal": "=", "equals": "=", "comma": ",", "period": ".", "slash": "/", "semicolon": ";", "quote": "'", "backslash": "\\", "backtick": "`", "grave": "`", "leftbracket": "[", "rightbracket": "]"]
             guard let code = keys[aliases[name] ?? name] else { throw ComputerError("unsupported_key", "Unsupported key name. Use names such as Enter, Tab, Escape, Backspace, Delete (forward delete), Left, PageUp, F5, or a single character, with Cmd/Shift/Alt/Ctrl modifiers.") }; return (code, flags)
 }
-func validateInputSteps(_ steps: [InputStep]) throws {
+/// The actions a batch may run; each is validated again by its own action path when it runs.
+let BATCH_ACTIONS: Set<String> = ["click", "type_text", "set_value", "press_key", "scroll", "perform_action"]
+func validateBatchSteps(_ steps: [Parameters]) throws {
+    guard (2...8).contains(steps.count) else { throw ComputerError("invalid_arguments", "A batch requires 2 to 8 steps.") }
+    var units = 0
+    for step in steps {
+        guard let action = step.action, BATCH_ACTIONS.contains(action), step.bundleId == nil, step.snapshotId == nil, step.steps == nil else {
+            throw ComputerError("invalid_arguments", "Batch steps are click, type_text, set_value, press_key, scroll or perform_action, without their own app or snapshot.")
+        }
+        units += (step.text?.utf16.count ?? 0) + (step.value?.utf16.count ?? 0)
+    }
+    guard units <= 32000 else { throw ComputerError("invalid_arguments", "Combined batch text exceeds 32000 UTF-16 units.") }
+}
+func validateInputSteps(_ steps: [Parameters]) throws {
     guard (1...32).contains(steps.count) else { throw ComputerError("invalid_arguments", "Input sequence requires 1 to 32 steps.") }
     var units = 0
     for step in steps {
@@ -700,7 +714,7 @@ final class Driver {
             }
             result["isActive"] = app.isActive
             return result
-        case "click", "type_text", "input_sequence", "press_key", "scroll", "drag", "set_value", "perform_action": break
+        case "click", "type_text", "input_sequence", "press_key", "scroll", "drag", "set_value", "perform_action", "batch": break
         default: throw ComputerError("unknown_method", "Unknown computer-use method.")
         }
         try requireAccessibility()
@@ -725,6 +739,29 @@ final class Driver {
         let p = request.params
         let pid = app.processIdentifier
         switch request.method {
+        case "batch":
+            let steps = try required(p.steps, "steps")
+            try validateBatchSteps(steps)
+            var completed = 0
+            func stopped(_ message: String) -> [String: Any] {
+                ["kind": "action", "action": "batch", "bundleId": bundle, "dispatched": true, "verified": false,
+                 "sequence": ["completedSteps": completed, "totalSteps": steps.count, "error": String((message + " The remaining steps were not run; observe the app before continuing, and do not retry the batch.").prefix(2000))]]
+            }
+            for (index, step) in steps.enumerated() {
+                var params = step; params.bundleId = p.bundleId; params.snapshotId = p.snapshotId
+                let before = uiStructure(pid: pid)
+                do { _ = try await act(Request(id: request.id, method: try required(step.action, "action"), params: params), app: app, bundle: bundle, snapshot: snapshot) }
+                catch {
+                    // A first step that sent nothing fails like the single action, keeping the snapshot valid.
+                    if !inputDispatched { throw error }
+                    return stopped("Step \(index + 1) failed: " + ((error as? ComputerError)?.message ?? "its outcome is unknown."))
+                }
+                completed += 1
+                if completed < steps.count, uiStructure(pid: pid) != before {
+                    return stopped("Step \(index + 1) opened or closed a window, sheet, menu or popover.")
+                }
+            }
+            return ["kind": "action", "action": "batch", "bundleId": bundle, "dispatched": true, "verified": false, "sequence": ["completedSteps": completed, "totalSteps": steps.count]]
         case "perform_action":
             let element = try snapshot.element(p.elementId); let action = try required(p.accessibilityAction, "accessibilityAction")
             var names: CFArray?; try axCheck(AXUIElementCopyActionNames(element, &names))
@@ -761,7 +798,7 @@ final class Driver {
             }
         case "type_text", "input_sequence":
             let element = try snapshot.element(p.elementId)
-            let steps = request.method == "type_text" ? [InputStep(action: "type_text", text: try required(p.text, "text"), key: nil)] : try required(p.steps, "steps")
+            let steps = request.method == "type_text" ? [Parameters(action: "type_text", text: try required(p.text, "text"))] : try required(p.steps, "steps")
             try validateInputSteps(steps)
             let root = AXUIElementCreateApplication(pid)
             // Keystrokes go to whatever holds keyboard focus: a text control (terminals included, read-only
@@ -908,6 +945,21 @@ final class Driver {
         try await Task.sleep(for: .milliseconds(200))
         return ["kind": "action", "action": request.method, "bundleId": bundle, "dispatched": true, "verified": false]
     }
+}
+/// The app's window structure: its windows, which one has focus and its direct content (a sheet is
+/// a child of its window), and on-screen surfaces such as menus and popovers.
+func uiStructure(pid: pid_t) -> [Int] {
+    let root = AXUIElementCreateApplication(pid)
+    AXUIElementSetMessagingTimeout(root, 0.1)
+    var structure = [(attribute(root, kAXWindowsAttribute) as? [AXUIElement])?.count ?? -1]
+    if let raw = attribute(root, kAXFocusedWindowAttribute), CFGetTypeID(raw) == AXUIElementGetTypeID() {
+        var count = 0
+        structure.append(Int(bitPattern: UInt(CFHash(raw))))
+        structure.append(AXUIElementGetAttributeValueCount(unsafeBitCast(raw, to: AXUIElement.self), kAXChildrenAttribute as CFString, &count) == .success ? count : -1)
+    }
+    structure.append((CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? [])
+        .filter { ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid }.count)
+    return structure
 }
 func nextLine() throws -> String? {
     var bytes = [UInt8](); bytes.reserveCapacity(4096)
