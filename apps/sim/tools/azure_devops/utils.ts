@@ -172,8 +172,8 @@ function identityField(value: unknown): AzureDevOpsIdentityRef | null {
   }
 }
 
-/** Output schema for the work item fields beyond the original summary set. */
-export const WORK_ITEM_DETAIL_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
+/** Output schema for the work item fields beyond the original summary set, on every read. */
+export const WORK_ITEM_LIST_DETAIL_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
   rev: {
     type: 'number',
     description: 'Revision number of the work item',
@@ -246,6 +246,10 @@ export const WORK_ITEM_DETAIL_OUTPUT_PROPERTIES: Record<string, OutputProperty> 
     optional: true,
     nullable: true,
   },
+}
+
+/** Output schema for the raw field bag and relations, returned by single-item reads only. */
+export const WORK_ITEM_RAW_DETAIL_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
   relations: {
     type: 'array',
     description:
@@ -268,14 +272,6 @@ export const WORK_ITEM_DETAIL_OUTPUT_PROPERTIES: Record<string, OutputProperty> 
     optional: true,
   },
 }
-
-/** Detail output schema for multi-item reads, which omit the raw field bag and relations. */
-export const WORK_ITEM_LIST_DETAIL_OUTPUT_PROPERTIES: Record<string, OutputProperty> =
-  Object.fromEntries(
-    Object.entries(WORK_ITEM_DETAIL_OUTPUT_PROPERTIES).filter(
-      ([key]) => key !== 'relations' && key !== 'fields'
-    )
-  )
 
 export function formatWorkItem(w: AzureDevOpsWorkItem): string {
   return [

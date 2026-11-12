@@ -79,6 +79,14 @@ describe('OutlookBlock values stored for another operation', () => {
     }
   )
 
+  it.each(['reply_outlook', 'reply_all_outlook', 'forward_outlook'])(
+    'clears an Update Message importance on %s',
+    (operation) => {
+      const mapped = mapParams({ operation, oauthCredential: 'cred-1', importance: 'high' })
+      expect(mapped).toHaveProperty('importance', undefined)
+    }
+  )
+
   it('clears an Update Message importance on send and draft', () => {
     for (const operation of ['send_outlook', 'draft_outlook']) {
       const mapped = mapParams({ operation, oauthCredential: 'cred-1', importance: 'high' })

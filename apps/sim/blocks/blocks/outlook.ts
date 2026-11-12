@@ -1017,6 +1017,7 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
         if (['reply_outlook', 'reply_all_outlook', 'forward_outlook'].includes(rest.operation)) {
           rest.cc = rest.operation === 'reply_all_outlook' ? null : replyCc || null
           rest.bcc = replyBcc || null
+          rest.importance = undefined
         }
 
         if (rest.operation === 'search_outlook' && searchQuery) {
