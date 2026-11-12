@@ -1,23 +1,26 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
 import { AuthType } from '@/lib/auth/hybrid'
-import { resolveAuthorizedAwsCredential } from '@/lib/internal/aws/credentials'
+import {
+  isTransientAwsFailure,
+  resolveAuthorizedAwsCredential,
+} from '@/lib/internal/aws/credentials'
 import { recordCredentialAccess } from '@/lib/oauth/token-resolution'
 import { AWS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import type { BedrockCredentialSession } from '@/providers/types'
 
+type BedrockCredentialFailure = 'unauthorized' | 'unusable' | 'unavailable'
+
 /**
  * A saved AWS credential could not be used for a Bedrock request: the caller is
- * not allowed to use it (`unauthorized`), or it is not a live AWS credential or
- * AWS refused it (`unusable`).
+ * not allowed to use it (`unauthorized`), it is not a live AWS credential or AWS
+ * refused it (`unusable`), or AWS was briefly unreachable while resolving it
+ * (`unavailable`, worth retrying).
  */
 export class BedrockCredentialError extends Error {
-  readonly reason: 'unauthorized' | 'unusable'
+  readonly reason: BedrockCredentialFailure
 
-  constructor(
-    message: string,
-    options?: { reason?: 'unauthorized' | 'unusable'; cause?: unknown }
-  ) {
+  constructor(message: string, options?: { reason?: BedrockCredentialFailure; cause?: unknown }) {
     super(message, { cause: options?.cause })
     this.name = 'BedrockCredentialError'
     this.reason = options?.reason ?? 'unusable'
@@ -94,7 +97,7 @@ export async function resolveBedrockCredentialSession({
     signal?.throwIfAborted()
     throw new BedrockCredentialError(
       `Could not use the AWS credential: ${getErrorMessage(error, 'Unknown error')}`,
-      { cause: error }
+      { reason: isTransientAwsFailure(error) ? 'unavailable' : 'unusable', cause: error }
     )
   }
 

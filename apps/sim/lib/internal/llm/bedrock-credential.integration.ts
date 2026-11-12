@@ -1,5 +1,6 @@
 /** A saved AWS credential resolved for a Bedrock model call against real credential rows. */
 
+import { withAuditRollupScope } from '@sim/audit'
 import { db } from '@sim/db'
 import {
   auditLog,
@@ -11,7 +12,7 @@ import {
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
-import { inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import {
@@ -155,11 +156,19 @@ describe('resolveBedrockCredentialSession', () => {
   })
 
   it("resolves a credential member's saved access keys for the credential's workspace", async () => {
-    await expect(resolveAs(memberId, awsCredentialId)).resolves.toEqual({
-      credentialId: awsCredentialId,
-      accessKeyId: ACCESS_KEY_ID,
-      secretAccessKey: SECRET_ACCESS_KEY,
-    })
+    await expect(withAuditRollupScope(() => resolveAs(memberId, awsCredentialId))).resolves.toEqual(
+      {
+        credentialId: awsCredentialId,
+        accessKeyId: ACCESS_KEY_ID,
+        secretAccessKey: SECRET_ACCESS_KEY,
+      }
+    )
+
+    const audits = await db
+      .select({ actorId: auditLog.actorId })
+      .from(auditLog)
+      .where(and(eq(auditLog.workspaceId, workspaceId), eq(auditLog.resourceId, awsCredentialId)))
+    expect(audits).toEqual([{ actorId: memberId }])
   })
 
   it('refuses a run with no acting user', async () => {

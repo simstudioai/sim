@@ -7,6 +7,7 @@ import {
   getSelectedBedrockCredential,
   PROVIDER_CREDENTIAL_INPUTS,
 } from '@/blocks/utils'
+import { findProviderFromModel } from '@/providers/models'
 
 const getTranslationPrompt = (targetLanguage: string) =>
   `Translate the following text into ${targetLanguage || 'English'}. Output ONLY the translated text with no additional commentary, explanations, or notes.`
@@ -82,7 +83,11 @@ export const TranslateBlock: BlockConfig = {
         bedrockAccessKeyId: params.bedrockAccessKeyId,
         bedrockSecretKey: params.bedrockSecretKey,
         bedrockRegion: params.bedrockRegion,
-        bedrockCredential: getSelectedBedrockCredential(params),
+        bedrockCredential:
+          typeof params.model === 'string' &&
+          findProviderFromModel(params.model.trim()) === 'bedrock'
+            ? getSelectedBedrockCredential(params)
+            : undefined,
       }),
     },
   },

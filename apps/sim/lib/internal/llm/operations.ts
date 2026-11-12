@@ -40,6 +40,8 @@ export interface LlmProviderOperationContext {
   actorUserId: string
   headers: Headers
   requestId: string
+  /** The trusted workflow run this call belongs to, when it comes from one. */
+  executionId?: string
   signal?: AbortSignal
 }
 
@@ -140,6 +142,7 @@ async function prepareProviderRequest(
         actingUserId: context.actorUserId,
         workflowId: input.workflowId || undefined,
         workspaceId: input.workspaceId,
+        executionId: context.executionId,
         signal: context.signal,
       })
     }
@@ -151,6 +154,9 @@ async function prepareProviderRequest(
         credentialId: input.bedrockCredential,
       })
       fail(401, error.message)
+    }
+    if (error instanceof BedrockCredentialError && error.reason === 'unavailable') {
+      fail(503, error.message)
     }
     logger.error('Failed to resolve provider credential', {
       requestId: context.requestId,

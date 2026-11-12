@@ -6,6 +6,10 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import {
+  llmBedrockCredentialMock,
+  llmBedrockCredentialMockFns,
+} from '@sim/testing/mocks/llm-bedrock-credential.mock'
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import {
   permissionCheckMock,
@@ -61,6 +65,8 @@ mockGetBlock.mockReturnValue(undefined)
 const mockImportWorkspaceFileSecretProvenanceForModelView =
   workspaceFileSecretProvenanceMockFns.mockImportWorkspaceFileSecretProvenanceForModelView
 const mockValidateModelProvider = permissionCheckMockFns.mockValidateModelProvider
+const mockResolveBedrockCredentialSession =
+  llmBedrockCredentialMockFns.mockResolveBedrockCredentialSession
 mockImportWorkspaceFileSecretProvenanceForModelView.mockResolvedValue(true)
 providersUtilsMockFns.mockGetProviderFromModel.mockReturnValue('mock-provider')
 providersUtilsMockFns.mockIsDeepResearchModel.mockImplementation((model: string) =>
@@ -75,13 +81,7 @@ const { mockDiscoverMcpServerToolsAsExecutor, mockOpenAgentTurnSession } = vi.ho
   mockOpenAgentTurnSession: vi.fn().mockResolvedValue(undefined),
 }))
 
-const { mockResolveBedrockCredentialSession } = vi.hoisted(() => ({
-  mockResolveBedrockCredentialSession: vi.fn(),
-}))
-
-vi.mock('@/lib/internal/llm/bedrock-credential', () => ({
-  resolveBedrockCredentialSession: mockResolveBedrockCredentialSession,
-}))
+vi.mock('@/lib/internal/llm/bedrock-credential', () => llmBedrockCredentialMock)
 
 vi.mock('@/lib/memory/agent-turn-session', () => ({
   openAgentTurnSession: mockOpenAgentTurnSession,

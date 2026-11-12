@@ -28,7 +28,9 @@ vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentConte
 vi.mock('@/lib/internal/llm/credentials', () => ({
   resolveVertexAccessToken: mocks.resolveVertexAccessToken,
 }))
-vi.mock('@/lib/internal/aws/credentials', () => ({
+vi.mock('@/lib/internal/aws/credentials', async (importOriginal) => ({
+  isTransientAwsFailure: (await importOriginal<typeof import('@/lib/internal/aws/credentials')>())
+    .isTransientAwsFailure,
   resolveAuthorizedAwsCredential: mocks.resolveAuthorizedAwsCredential,
 }))
 vi.mock('@/lib/oauth/token-resolution', () => ({ recordCredentialAccess: vi.fn() }))
@@ -140,7 +142,18 @@ describe('executeLlmProviderOperation', () => {
 
     await executeLlmProviderOperation(
       { ...BEDROCK_CREDENTIAL_INPUT, bedrockRegion: 'eu-west-1', workflowId: 'workflow-1' },
-      { actorUserId: 'user-1', headers: new Headers(), requestId: 'request-1' }
+      {
+        actorUserId: 'user-1',
+        headers: new Headers(),
+        requestId: 'request-1',
+        executionId: 'execution-1',
+      }
+    )
+
+    expect(mocks.resolveAuthorizedAwsCredential).toHaveBeenCalledWith(
+      'aws-cred',
+      { workspaceId: 'workspace-1', executionId: 'execution-1' },
+      undefined
     )
 
     expect(mocks.authorizeCredential).toHaveBeenCalledWith(
@@ -199,6 +212,29 @@ describe('executeLlmProviderOperation', () => {
     ).rejects.toMatchObject({
       status: 400,
       body: { error: 'Could not use the AWS credential: AccessDenied' },
+    })
+    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+  })
+
+  it('reports an AWS credential STS could not resolve for a moment as unavailable, not invalid', async () => {
+    mockExecuteProviderRequest.mockClear()
+    mocks.authorizeCredential.mockResolvedValueOnce(AUTHORIZED_AWS_CREDENTIAL)
+    mocks.resolveAuthorizedAwsCredential.mockRejectedValueOnce(
+      Object.assign(new Error('Rate exceeded'), {
+        name: 'ThrottlingException',
+        $metadata: { httpStatusCode: 400 },
+      })
+    )
+
+    await expect(
+      executeLlmProviderOperation(BEDROCK_CREDENTIAL_INPUT, {
+        actorUserId: 'user-1',
+        headers: new Headers(),
+        requestId: 'request-1',
+      })
+    ).rejects.toMatchObject({
+      status: 503,
+      body: { error: 'Could not use the AWS credential: Rate exceeded' },
     })
     expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
   })

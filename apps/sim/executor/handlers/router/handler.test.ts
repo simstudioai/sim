@@ -2,6 +2,10 @@ import {
   credentialsAccessMock,
   credentialsAccessMockFns,
 } from '@sim/testing/mocks/credentials-access.mock'
+import {
+  llmBedrockCredentialMock,
+  llmBedrockCredentialMockFns,
+} from '@sim/testing/mocks/llm-bedrock-credential.mock'
 import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import '@sim/testing/mocks/executor'
 
@@ -18,13 +22,7 @@ const { mockResolveAutoModel } = vi.hoisted(() => ({
   mockResolveAutoModel: vi.fn(),
 }))
 
-const { mockResolveBedrockCredentialSession } = vi.hoisted(() => ({
-  mockResolveBedrockCredentialSession: vi.fn(),
-}))
-
-vi.mock('@/lib/internal/llm/bedrock-credential', () => ({
-  resolveBedrockCredentialSession: mockResolveBedrockCredentialSession,
-}))
+vi.mock('@/lib/internal/llm/bedrock-credential', () => llmBedrockCredentialMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
@@ -67,6 +65,8 @@ credentialsAccessMockFns.mockGetCredentialActorContext.mockResolvedValue({
 })
 
 const mockCheckWorkspaceAccess = permissionsMockFns.mockCheckWorkspaceAccess
+const mockResolveBedrockCredentialSession =
+  llmBedrockCredentialMockFns.mockResolveBedrockCredentialSession
 
 const mockGenerateRouterPrompt = generateRouterPrompt as Mock
 const mockGenerateRouterV2Prompt = generateRouterV2Prompt as Mock
