@@ -3121,6 +3121,37 @@ describe('credential protection', () => {
     expect(forged).toMatchObject({ ok: false })
   })
 
+  it("forgets a page's oldest refs once its history passes the retention bound", async () => {
+    const contents = await openPage()
+    const snapshot = (refIds: number[], nextElementId: number) => ({
+      url: 'https://example.com/',
+      title: 'Example',
+      outline: refIds.map((ref) => `- button "B${ref}" [ref=${ref}]`).join('\n'),
+      truncated: false,
+      refIds,
+      refLineIndexes: Object.fromEntries(refIds.map((ref, index) => [ref, index])),
+      nextElementId,
+    })
+    let next = 0
+    for (let round = 0; round < 19; round++) {
+      const refIds = Array.from({ length: 300 }, (_, index) => next + index)
+      next += 300
+      respondWith(contents, { collectSnapshot: snapshot(refIds, next) })
+      expect(await driver.executeTool('chat-test', 'browser_snapshot', {})).toMatchObject({
+        ok: true,
+      })
+    }
+    respondWith(contents, { collectSnapshot: snapshot([next - 1], next) })
+    expect(await driver.executeTool('chat-test', 'browser_snapshot', {})).toMatchObject({
+      ok: true,
+    })
+    respondWith(contents, { collectSnapshot: snapshot([0], next) })
+
+    expect(await driver.executeTool('chat-test', 'browser_snapshot', {})).toMatchObject({
+      ok: false,
+    })
+  })
+
   it('acts on a ref an earlier snapshot of the same page issued', async () => {
     const contents = await openPage()
     respondWith(contents, {

@@ -145,6 +145,13 @@ function isBrowserWaitElementState(value: string): value is BrowserWaitElementSt
 
 type PageExecutionTarget = WebContents | WebFrameMain
 
+/**
+ * Refs remembered per page or frame. Above the page's own 5000-ref store by
+ * one snapshot's 300 refs, and refreshed by the same snapshots, so the driver
+ * never forgets a ref the page can still hand back.
+ */
+const ISSUED_REFS_PER_TARGET = 5300
+
 /** Whether two targets are the same page or frame; Electron may hand out separate wrappers for one frame. */
 function samePageTarget(
   left: PageExecutionTarget | undefined,
@@ -340,6 +347,8 @@ interface DriverScopeState {
   nextElementRefId: number
   /** Every ref this scope issued and its frame: a later snapshot may reuse it there, and an action may still name it. */
   issuedRefTargets: Map<number, PageExecutionTarget>
+  /** The same refs per page or frame, oldest first, so each page's history stays bounded. */
+  issuedRefsByTarget: Map<PageExecutionTarget, Set<number>>
   /** Invalidates captures that finish after a tab/navigation/timeout race. */
   snapshotCaptureEpoch: number
   /** Cancels a timed-out multi-step action before any later native dispatch. */
@@ -382,6 +391,7 @@ function createDriverScopeState(): DriverScopeState {
     snapshotTargets: new Map(),
     nextElementRefId: 0,
     issuedRefTargets: new Map(),
+    issuedRefsByTarget: new Map(),
     snapshotCaptureEpoch: 0,
     toolExecutionEpoch: 0,
   }
@@ -1781,6 +1791,25 @@ function requireSnapshotForElementAction(): void {
   )
 }
 
+function rememberIssuedRef(
+  state: DriverScopeState,
+  ref: number,
+  target: PageExecutionTarget
+): void {
+  const previous = state.issuedRefTargets.get(ref)
+  if (previous && previous !== target) state.issuedRefsByTarget.get(previous)?.delete(ref)
+  state.issuedRefTargets.set(ref, target)
+  const refs = state.issuedRefsByTarget.get(target) ?? new Set<number>()
+  state.issuedRefsByTarget.set(target, refs)
+  refs.delete(ref)
+  refs.add(ref)
+  const oldest = refs.values().next()
+  if (refs.size > ISSUED_REFS_PER_TARGET && !oldest.done) {
+    refs.delete(oldest.value)
+    state.issuedRefTargets.delete(oldest.value)
+  }
+}
+
 /**
  * The frame that owns a ref: the latest snapshot's, or for a ref an earlier
  * snapshot issued, its frame while that frame still belongs to the tab the
@@ -2604,12 +2633,12 @@ async function captureSnapshot(
         (targetLineIndexes.get(elementId) ?? Number.POSITIVE_INFINITY) < visibleOutlineLines.length
     )
   )
-  // Never forget a ref a live page may still hand back (the page itself
-  // decides when to reissue); only refs of closed tabs and frames go.
-  for (const [ref, target] of state.issuedRefTargets) {
-    if ('isDestroyed' in target && target.isDestroyed()) state.issuedRefTargets.delete(ref)
+  for (const [target, refs] of state.issuedRefsByTarget) {
+    if (!('isDestroyed' in target && target.isDestroyed())) continue
+    for (const ref of refs) state.issuedRefTargets.delete(ref)
+    state.issuedRefsByTarget.delete(target)
   }
-  for (const [ref, target] of targets) state.issuedRefTargets.set(ref, target)
+  for (const [ref, target] of targets) rememberIssuedRef(state, ref, target)
   state.snapshotTabId = capturedTabId
   return {
     ...omit(mainSnapshot, ['refIds', 'refLineIndexes', 'nextElementId']),
