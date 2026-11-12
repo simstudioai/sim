@@ -88,6 +88,7 @@ import {
 } from '@/main/browser-agent/page-prompts'
 import { isPanelVisible, panelWindow } from '@/main/browser-agent/panel'
 import {
+  observesAfterAction,
   withFailedPostActionObservation,
   withPostActionObservation,
 } from '@/main/browser-agent/post-action-observation'
@@ -5367,7 +5368,9 @@ export async function executeTool(
                   actionOutcome = outcome
                 }
               )
-              if (params.observe !== undefined) actionOutcome = { status: 'acknowledged', result }
+              if (observesAfterAction(tool, params)) {
+                actionOutcome = { status: 'acknowledged', result }
+              }
               return result
             },
             (query) =>
@@ -5392,7 +5395,7 @@ export async function executeTool(
                     tool === 'browser_snapshot' ||
                     tool === 'browser_open_url' ||
                     tool === 'browser_find' ||
-                    params.observe !== undefined
+                    observesAfterAction(tool, params)
                   ) {
                     invalidateSnapshot(state)
                   }
@@ -5402,7 +5405,7 @@ export async function executeTool(
             observedResult = await guardedExecution
           } catch (error) {
             if (!actionOutcome) {
-              if (params.observe !== undefined) cancelPendingSnapshotCapture(state)
+              if (observesAfterAction(tool, params)) cancelPendingSnapshotCapture(state)
               throw error
             }
             invalidateSnapshot(state)
