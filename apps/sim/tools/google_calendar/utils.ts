@@ -127,7 +127,10 @@ function parseReminders(
   }
 
   if (isRecordLike(parsed) && !Array.isArray(parsed)) {
-    if (parsed.useDefault === true) return { useDefault: true }
+    if (typeof parsed.useDefault !== 'boolean') {
+      throw new Error('Reminders object needs a boolean useDefault, like {"useDefault":true}')
+    }
+    if (parsed.useDefault) return { useDefault: true }
     const overrides = parsed.overrides === undefined ? [] : parsed.overrides
     return { useDefault: false, overrides: validateReminderOverrides(overrides) }
   }
