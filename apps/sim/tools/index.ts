@@ -2957,7 +2957,11 @@ async function executeDeclaredInternalOperation({
         authorizedServiceAccountCredential &&
         typeof params.accessToken === 'string'
       ) {
-        await forgetRefusedServiceAccountToken(params.accessToken, requestId)
+        await forgetRefusedServiceAccountToken(
+          params.accessToken,
+          requestId,
+          result.status === 403 ? REJECTED_TOKEN_MINIMUM_AGE_MS : undefined
+        )
       }
       if (result instanceof Response && result.status === 401 && refreshCredential) {
         await result.body?.cancel()
@@ -3042,8 +3046,8 @@ async function executeDeclaredInternalOperation({
  */
 const SCOPE_REFUSAL_PATTERN = /scope does not match|insufficient_scope/i
 /**
- * A tool call's 401 can come from the endpoint rather than the token, so a token minted within the
- * last minute is kept: a call that keeps failing re-mints its application's token at most once a
+ * A tool call's 401 (and an internal operation's 403) can come from the endpoint rather than the
+ * token, so a token minted within the last minute is kept: a call that keeps failing re-mints its application's token at most once a
  * minute, instead of once per call.
  */
 const REJECTED_TOKEN_MINIMUM_AGE_MS = 60_000
@@ -3094,15 +3098,19 @@ async function expireRejectedServiceAccountToken(
  * Drops a refused service-account token from this instance's client-credential cache: an internal
  * operation answers 401 or 403, and an external request 401, when the provider refused it. The
  * next call mints a replacement: providers such as CrowdStrike Falcon and SailPoint fix a token's
- * scopes when it is minted, so a scope granted since then only reaches a new token.
+ * scopes when it is minted, so a scope granted since then only reaches a new token. A 403 can also
+ * come from Sim's own file-access refusal or a per-record permission, so the internal-operation
+ * path passes `minimumAgeMs` for it and a token minted within that window is kept.
  */
 async function forgetRefusedServiceAccountToken(
   accessToken: string,
-  requestId: string
+  requestId: string,
+  minimumAgeMs?: number
 ): Promise<void> {
   try {
     const { forgetRejectedClientCredentialToken } = await import('@/lib/oauth/credential-service')
-    forgetRejectedClientCredentialToken(accessToken)
+    if (minimumAgeMs === undefined) forgetRejectedClientCredentialToken(accessToken)
+    else forgetRejectedClientCredentialToken(accessToken, { minimumAgeMs })
   } catch (error) {
     logger.warn('Could not drop a service-account token the provider refused', {
       requestId,

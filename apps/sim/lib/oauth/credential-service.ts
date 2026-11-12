@@ -624,6 +624,7 @@ export interface ServiceAccountTokenResult {
 interface CachedClientCredentialToken {
   /** The minted token and the destination fields it is bound to, exactly as tools receive them. */
   token: ServiceAccountTokenResult
+  mintedAtMs: number
   expiresAtMs: number
   /**
    * Fingerprint of the encrypted secret the token was minted from (see
@@ -694,11 +695,19 @@ function pruneExpiredClientCredentialCaches(nowMs: number): void {
  * refused it (a revoked API client, or a token minted before the client was
  * granted a scope), so the next resolution mints a replacement instead of
  * serving the refused token until it nears expiry. Matching on the token value
- * leaves alone a replacement another call has already minted.
+ * leaves alone a replacement another call has already minted. With
+ * `minimumAgeMs`, a token minted more recently is kept: a refusal that may come
+ * from the endpoint rather than the token then re-mints at most once per that
+ * interval instead of once per call.
  */
-export function forgetRejectedClientCredentialToken(accessToken: string): void {
+export function forgetRejectedClientCredentialToken(
+  accessToken: string,
+  options: { minimumAgeMs?: number } = {}
+): void {
+  const mintedBeforeMs = Date.now() - (options.minimumAgeMs ?? 0)
   for (const [identity, entry] of clientCredentialTokenCache) {
-    if (entry.token.accessToken === accessToken) clientCredentialTokenCache.delete(identity)
+    if (entry.token.accessToken === accessToken && entry.mintedAtMs <= mintedBeforeMs)
+      clientCredentialTokenCache.delete(identity)
   }
 }
 
@@ -778,6 +787,7 @@ async function resolveMintedServiceAccountToken(
       if (!sharedToken)
         clientCredentialTokenCache.set(cacheIdentity, {
           token: minted.token,
+          mintedAtMs: Date.now(),
           expiresAtMs: Date.now() + minted.expiresInSeconds * 1000,
           secretFingerprint,
         })

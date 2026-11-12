@@ -44,17 +44,26 @@ interface StoredApplicationToken {
   secretFingerprint: string
 }
 
+type StoredFailureCode = 'invalid_credentials' | 'grant_not_permitted' | 'site_not_found'
+
 interface StoredFailure {
-  code: 'invalid_credentials' | 'grant_not_permitted' | 'site_not_found' | 'provider_unavailable'
+  code: StoredFailureCode
   status: number
 }
 
-const STORED_FAILURE_CODES: ReadonlySet<string> = new Set([
+/**
+ * Refusals that say the credentials themselves are wrong, so replaying them is safe. A transient
+ * failure (`provider_unavailable`: a timeout, 5xx, 429, or malformed reply) is never remembered.
+ */
+const STORED_FAILURE_CODES: ReadonlySet<string> = new Set<StoredFailureCode>([
   'invalid_credentials',
   'grant_not_permitted',
   'site_not_found',
-  'provider_unavailable',
 ])
+
+function isStoredFailureCode(code: string): code is StoredFailureCode {
+  return STORED_FAILURE_CODES.has(code)
+}
 
 function digest(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex')
@@ -132,11 +141,11 @@ function decodeFailure(value: string, step: string): StoredFailure {
   if (
     !isRecordLike(parsed) ||
     typeof parsed.code !== 'string' ||
-    !STORED_FAILURE_CODES.has(parsed.code) ||
+    !isStoredFailureCode(parsed.code) ||
     typeof parsed.status !== 'number'
   )
     throw unavailable(step, 'stored token failure is malformed')
-  return { code: parsed.code as StoredFailure['code'], status: parsed.status }
+  return { code: parsed.code, status: parsed.status }
 }
 
 function remainingSeconds(expiresAt: Date): number {
@@ -154,9 +163,10 @@ function isServable(expiresAt: Date): boolean {
  * to reuse one token rather than accumulate them. Minting happens only under a
  * transaction-scoped advisory lock keyed by the application, so two workers never race two
  * tokens into existence; a token minted with a different secret is never served, and a token the
- * provider rejects is expired through {@link invalidateCoordinatedClientToken}. A rejected
- * exchange is remembered for 30 seconds so a hot workflow on a revoked secret does not hammer the
- * token endpoint. Tokens are encrypted at rest.
+ * provider rejects is expired through {@link invalidateCoordinatedClientToken}. An exchange the
+ * provider refuses for the credentials themselves is remembered for 30 seconds so a hot workflow on
+ * a revoked secret does not hammer the token endpoint; a transient failure is not remembered.
+ * Tokens are encrypted at rest.
  */
 export async function resolveCoordinatedClientToken(
   input: CoordinatedClientTokenInput
@@ -225,13 +235,12 @@ export async function resolveCoordinatedClientToken(
             expiresInSeconds: remainingSeconds(exchanged.expiresAt),
           }
         } catch (error) {
-          if (!(error instanceof TokenServiceAccountValidationError)) throw error
-          const failure: StoredFailure = {
-            code: STORED_FAILURE_CODES.has(error.code)
-              ? (error.code as StoredFailure['code'])
-              : 'provider_unavailable',
-            status: error.status,
-          }
+          if (
+            !(error instanceof TokenServiceAccountValidationError) ||
+            !isStoredFailureCode(error.code)
+          )
+            throw error
+          const failure: StoredFailure = { code: error.code, status: error.status }
           const { encrypted } = await encryptSecret(JSON.stringify(failure))
           const expiresAt = new Date(Date.now() + FAILURE_TTL_MS)
           await tx
