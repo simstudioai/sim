@@ -423,6 +423,12 @@ async function processOutlookEmails(
                   fetchImpl: (url, init) => fetchWithRetry(url, init),
                   keepPartialOnLimit: true,
                   preferMetadataSize: true,
+                  onSkip: (attachmentName, declaredSize) =>
+                    logger.warn('Skipping Outlook attachment over the per-email byte budget', {
+                      emailId: email.id,
+                      attachmentName,
+                      declaredSize,
+                    }),
                   onFailure: (stage, status) =>
                     logger.warn('Outlook attachment request failed', {
                       emailId: email.id,

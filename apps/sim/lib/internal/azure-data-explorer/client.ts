@@ -233,29 +233,40 @@ interface ProjectionBudget {
   bytes: number
 }
 
+function projectColumns(table: KustoTable): AzureDataExplorerResultTable['columns'] {
+  return (table.Columns ?? []).map((column) => ({
+    name: column.ColumnName ?? '',
+    type: column.ColumnType ?? null,
+    dataType: column.DataType ?? null,
+  }))
+}
+
+/** Serialized size of a table's projection without its rows, reserved before any rows are kept. */
+function envelopeBytes(table: KustoTable | null): number {
+  if (!table) return Buffer.byteLength(JSON.stringify(EMPTY_PROJECTION))
+  const rowTotal = (table.Rows ?? []).length
+  return Buffer.byteLength(
+    JSON.stringify({
+      tableName: table.TableName ?? null,
+      columns: projectColumns(table),
+      rows: [],
+      records: [],
+      rowCount: rowTotal,
+      totalRowCount: rowTotal,
+      truncated: false,
+    })
+  )
+}
+
 function projectTable(
   table: KustoTable | null,
   budget: ProjectionBudget
 ): AzureDataExplorerResultTable {
   if (!table) return EMPTY_PROJECTION
-  const columns = (table.Columns ?? []).map((column) => ({
-    name: column.ColumnName ?? '',
-    type: column.ColumnType ?? null,
-    dataType: column.DataType ?? null,
-  }))
+  const columns = projectColumns(table)
   const allRows = table.Rows ?? []
   const rows: unknown[][] = []
   const records: Array<Record<string, unknown>> = []
-  const envelope: AzureDataExplorerResultTable = {
-    tableName: table.TableName ?? null,
-    columns,
-    rows: [],
-    records: [],
-    rowCount: allRows.length,
-    totalRowCount: allRows.length,
-    truncated: false,
-  }
-  budget.bytes -= Buffer.byteLength(JSON.stringify(envelope))
   for (const row of allRows) {
     if (budget.rows <= 0) break
     const record: Record<string, unknown> = {}
@@ -288,9 +299,16 @@ function projectResults(
   tables: KustoTable[],
   contents: TableOfContents | null
 ): AzureDataExplorerTable {
-  const budget: ProjectionBudget = { rows: MAX_PROJECTED_ROWS, bytes: MAX_PROJECTED_BYTES }
-  const primary = projectTable(selectPrimaryTable(tables, contents), budget)
+  const primaryTable = selectPrimaryTable(tables, contents)
   const additionalOrdinals = contents?.resultOrdinals.slice(1) ?? []
+  const reserved = [primaryTable, ...additionalOrdinals.map((ordinal) => tables[ordinal] ?? null)]
+    .map(envelopeBytes)
+    .reduce((total, bytes) => total + bytes, 0)
+  const budget: ProjectionBudget = {
+    rows: MAX_PROJECTED_ROWS,
+    bytes: MAX_PROJECTED_BYTES - reserved,
+  }
+  const primary = projectTable(primaryTable, budget)
   if (additionalOrdinals.length === 0) return primary
   return {
     ...primary,

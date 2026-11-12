@@ -31,8 +31,8 @@ function pathSegment(value: string, paramName: string): string {
 export const WORK_ITEMS_BATCH_SIZE = 200
 
 /**
- * Fetches one Work Items - List chunk with `$expand=all`, bounded to the inline
- * tool response size and cancelled with the tool call.
+ * Fetches one Work Items - List chunk with `$expand=all`, bounded to the buffered
+ * transfer cap (100 MB) and cancelled with the tool call.
  */
 export async function fetchWorkItemsChunk(
   params: { organization: string; project: string; accessToken: string },

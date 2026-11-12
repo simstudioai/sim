@@ -34,6 +34,8 @@ export interface OutlookAttachmentDownloadOptions {
   preferMetadataSize?: boolean
   /** Called when Graph answers a metadata or content request with a non-OK status. */
   onFailure?: (stage: 'metadata' | 'content', status: number) => void
+  /** Called for each attachment skipped because it exceeds the byte budget (with keepPartialOnLimit). */
+  onSkip?: (attachmentName: string, declaredSize: number | undefined) => void
 }
 
 /** Fetch metadata separately from raw file bytes, sharing the budget across messages. */
@@ -46,9 +48,10 @@ export async function downloadAttachments(
   const fetchImpl = options.fetchImpl ?? ((url: string, init: RequestInit) => fetch(url, init))
   const attachments: OutlookAttachment[] = []
   const path = `https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(messageId)}/attachments`
-  const handleError = (error: unknown) => {
+  const handleError = (error: unknown, attachment?: OutlookDownloadAttachmentMetadata) => {
     if (options.keepPartialOnLimit && isPayloadSizeLimitError(error)) {
       budget.signal?.throwIfAborted()
+      options.onSkip?.(attachment?.name || 'attachment', attachment?.size)
       return
     }
     rethrowAttachmentDownloadError(error, budget.signal)
@@ -98,7 +101,7 @@ export async function downloadAttachments(
             : buffer.byteLength,
         })
       } catch (error) {
-        handleError(error)
+        handleError(error, attachment)
       }
     }
   } catch (error) {

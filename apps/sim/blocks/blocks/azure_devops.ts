@@ -241,6 +241,7 @@ export const AzureDevOpsBlock: BlockConfig = {
         { label: 'Cancelling', id: 'cancelling' },
         { label: 'Postponed', id: 'postponed' },
         { label: 'Not Started', id: 'notStarted' },
+        { label: 'No Status', id: 'none' },
       ],
       condition: { field: 'operation', value: 'azure_devops_list_builds' },
       mode: 'advanced',

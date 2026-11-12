@@ -96,27 +96,37 @@ export const ONEDRIVE_FILE_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
     type: 'number',
     description: 'Number of direct children (folders only)',
     optional: true,
+    nullable: true,
   },
   description: {
     type: 'string',
     description: 'User-visible description (OneDrive Personal only)',
     optional: true,
+    nullable: true,
   },
-  eTag: { type: 'string', description: 'eTag for the item (metadata and content)', optional: true },
+  eTag: {
+    type: 'string',
+    description: 'eTag for the item (metadata and content)',
+    optional: true,
+    nullable: true,
+  },
   parentReference: {
     type: 'object',
     description: 'Parent location (id, driveId, driveType, name, path, siteId)',
     optional: true,
+    nullable: true,
   },
   createdBy: {
     type: 'object',
     description: 'Identity that created the item (id, displayName)',
     optional: true,
+    nullable: true,
   },
   lastModifiedBy: {
     type: 'object',
     description: 'Identity that last modified the item (id, displayName)',
     optional: true,
+    nullable: true,
   },
 }
 

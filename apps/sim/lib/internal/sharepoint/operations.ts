@@ -93,6 +93,9 @@ function buildUploadUrl(
   const normalizedPath = folderPath.startsWith('/') ? folderPath : `/${folderPath}`
   const cleanPath = normalizedPath.endsWith('/') ? normalizedPath.slice(0, -1) : normalizedPath
   const uploadPath = folderPath ? `${cleanPath}/${fileName}` : `/${fileName}`
+  if (uploadPath.split('/').some((segment) => segment.trim() === '.' || segment.trim() === '..')) {
+    throw new Error('Upload path cannot contain "." or ".." segments')
+  }
   const encodedPath = uploadPath
     .split('/')
     .map((segment) => (segment ? encodeURIComponent(segment) : ''))
