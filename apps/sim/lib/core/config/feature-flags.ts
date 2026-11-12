@@ -120,6 +120,8 @@ const FEATURE_FLAGS = {
       'with a saved AWS credential) be set up with that credential. Global on/off only; gates new ' +
       'setup and credential changes, never syncing of connectors already using a credential. Turn ' +
       'on only after the release that adds it is live on both the app and Trigger.dev workers. ' +
+      'Once any connector uses a saved credential, rolling back to an earlier release is unsafe ' +
+      'even with the flag off: older workers unschedule those connectors as credential-removed. ' +
       'Off-AppConfig falls back to KNOWLEDGE_CONNECTOR_SAVED_CREDENTIALS.',
     fallback: 'KNOWLEDGE_CONNECTOR_SAVED_CREDENTIALS',
   },

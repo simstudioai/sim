@@ -8,6 +8,9 @@ import type { ConnectorAuthConfig } from '@/connectors/types'
  * A global switch that gates setup only. Workers from an older release read a key
  * connector without a key as one whose credential was removed and unschedule it, so
  * the switch stays off until every app and worker runs a release that reads these rows.
+ * Turning it off later does not protect rows already set up: once any exist, a release
+ * rollback unschedules them as credential-removed, and they stay idle until edited or
+ * synced manually.
  */
 export function isConnectorSavedCredentialSetupEnabled(): Promise<boolean> {
   return isFeatureEnabled('knowledge-connector-saved-credentials')

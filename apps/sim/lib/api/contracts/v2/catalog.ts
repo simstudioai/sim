@@ -755,7 +755,7 @@ export const v2ConnectorTypeSchema = z
             })
             .optional()
             .describe(
-              'When present, a saved credential of this service may be passed as `credentialId` instead of `apiKey`. Fields marked `apiKeyOnly` are then omitted.'
+              'When present, a saved credential of this service may be passed as `credentialId` instead of `apiKey`, once saved-credential setup is enabled on this deployment (until then it is refused with a validation error). Fields marked `apiKeyOnly` are then omitted.'
             ),
         }),
       ])

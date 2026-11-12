@@ -17352,7 +17352,7 @@ export const V2_OPERATIONS = {
       credentialId: {
         kind: 'string',
         describe:
-          'OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types), or a saved credential for an `apiKey` connector type that declares `auth.savedCredential` (such as Amazon S3 with a saved AWS credential); otherwise omit it for `apiKey` connectors.',
+          'OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types), or, when this deployment enables it, a saved credential for an `apiKey` connector type that declares `auth.savedCredential` (such as Amazon S3 with a saved AWS credential); otherwise omit it for `apiKey` connectors.',
       },
       apiKey: {
         kind: 'string',
