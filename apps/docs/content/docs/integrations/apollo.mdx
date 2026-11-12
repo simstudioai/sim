@@ -11,7 +11,49 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Apollo.io](https://apollo.io/) in Sim to search and enrich people and companies, manage CRM contacts and accounts, add contacts to sequences, and create follow-up tasks. Single-record and bulk enrichment operations are documented below.
+
+Connect an Apollo account with OAuth, or save an API key as an Apollo credential. Existing API-key connections and workflows continue to work. OAuth requires an Apollo administrator or a user with permission to authorize third-party apps. Your Apollo plan, permissions, and credits still apply.
+
+For self-hosting, register a public partner OAuth app in the [Apollo developer portal](https://developer.apollo.io/), configure `APOLLO_CLIENT_ID` and `APOLLO_CLIENT_SECRET`, and register `https://<your-domain>/api/auth/oauth2/callback/apollo` as a redirect URL. Enable the scopes listed below. API-key credentials remain available without an OAuth client.
 {/* MANUAL-CONTENT-END */}
+
+## OAuth scopes [#oauth-scopes]
+
+Sim requests these scopes when someone connects an Apollo account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/apollo` |
+| Environment variables | `APOLLO_CLIENT_ID`, `APOLLO_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `read_user_profile` | View your Apollo profile |
+| `mixed_people_api_search` | Search Apollo people |
+| `people_match` | Enrich a person in Apollo |
+| `people_bulk_match` | Enrich people in bulk in Apollo |
+| `mixed_companies_search` | Search Apollo companies |
+| `organizations_enrich` | Enrich an Apollo organization |
+| `organizations_bulk_enrich` | Enrich organizations in bulk in Apollo |
+| `contact_write` | Create Apollo contacts |
+| `contact_update` | Update Apollo contacts |
+| `contacts_search` | Search Apollo contacts |
+| `contacts_bulk_create` | Create Apollo contacts in bulk |
+| `contacts_bulk_update` | Update Apollo contacts in bulk |
+| `account_write` | Create Apollo accounts |
+| `account_update` | Update Apollo accounts |
+| `accounts_search` | Search Apollo accounts |
+| `account_bulk_create` | Create Apollo accounts in bulk |
+| `account_stages_update` | Update Apollo account stages |
+| `opportunity_write` | Create Apollo deals |
+| `opportunities_list` | List Apollo deals |
+| `opportunity_read` | View Apollo deals |
+| `opportunity_update` | Update Apollo deals |
+| `emailer_campaigns_search` | Search Apollo sequences |
+| `emailer_campaigns_add_contact_ids` | Add contacts to Apollo sequences |
+| `tasks_create` | Create Apollo tasks |
+| `tasks_list` | Search Apollo tasks |
+| `email_accounts_list` | View Apollo email accounts |
 
 ## Use the block [#usage-instructions]
 

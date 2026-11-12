@@ -239,6 +239,29 @@ describe('savedCredentialContractErrors', () => {
     expect(errors).toEqual([expect.stringContaining('accepts "any" credentials')])
   })
 
+  it.each([undefined, 'oauth', 'service-account'] as const)(
+    'a mixed picker requires its tool to accept both credential kinds: %s',
+    (credentialKind) => {
+      const block = nativeBlock('probe_fixture')
+      block.subBlocks[0].credentialKind = 'any'
+      const errors = savedCredentialContractErrors(
+        block,
+        [],
+        nativeHostTool({
+          required: true,
+          provider: PROVIDER,
+          credentialKind,
+          credentialParams: { accessToken: 'accessToken' },
+          credentialSuppliedParams: ['accessToken'],
+          authoritativeParams: ['instanceUrl'],
+        })
+      )
+      expect(errors).toEqual(
+        credentialKind ? [expect.stringContaining('picker accepts both credential kinds')] : []
+      )
+    }
+  )
+
   it('fails a native block whose tool has no credential policy, so its token is never filled', () => {
     const errors = savedCredentialContractErrors(
       nativeBlock('probe_fixture'),

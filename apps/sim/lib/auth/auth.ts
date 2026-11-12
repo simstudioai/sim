@@ -5,6 +5,7 @@ import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger, setRequestAuth } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { type BetterAuthOptions, betterAuth, type User } from 'better-auth'
 import {
   APIError,
@@ -159,6 +160,7 @@ import { validateSignupEmailMx } from '@/lib/messaging/email/validation.server'
 import { isEmailVerificationEffectivelyEnabled } from '@/lib/messaging/email/verification'
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import { formatApolloAuthorizationUrl } from '@/lib/oauth/apollo'
 import { clearRecordedRevocation } from '@/lib/oauth/credential-service'
 import {
   getMicrosoftRefreshTokenExpiry,
@@ -1242,6 +1244,13 @@ export const auth = betterAuth({
       }
     }),
     after: createAuthMiddleware(async (ctx) => {
+      if (ctx.path === '/oauth2/link' && ctx.body?.providerId === 'apollo') {
+        const returned = ctx.context.returned
+        if (isRecordLike(returned) && typeof returned.url === 'string') {
+          ctx.context.returned = { ...returned, url: formatApolloAuthorizationUrl(returned.url) }
+        }
+      }
+
       if (isBillingEnabled) await recordCustomerRestoreAfterHook(ctx)
 
       const recordFinalAuthenticationResult = async (

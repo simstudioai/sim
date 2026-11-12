@@ -245,12 +245,16 @@ export function savedCredentialContractErrors(
   tools: SavedCredentialToolLookup
 ): string[] {
   const errors: string[] = []
-  const picker = block.subBlocks.find(isSavedCredentialPicker)
-  // A legacy block shares its successor's tools but takes the secret inline.
-  if (!picker && legacies.length === 0) return errors
   const takesSavedCredential = (block.tools?.access ?? []).some(
     (toolId) => (tools.metadata(toolId)?.oauth?.credentialSuppliedParams?.length ?? 0) > 0
   )
+  const picker = block.subBlocks.find(
+    (subBlock) =>
+      isSavedCredentialPicker(subBlock) &&
+      (subBlock.credentialKind === 'service-account' || takesSavedCredential)
+  )
+  // A legacy block shares its successor's tools but takes the secret inline.
+  if (!picker && legacies.length === 0) return errors
   if (!takesSavedCredential && !picker) return errors
   if (!picker?.serviceId) {
     errors.push(
@@ -300,7 +304,14 @@ export function savedCredentialContractErrors(
       }
       continue
     }
-    if (oauth.credentialKind !== 'service-account') {
+    if (picker.credentialKind === 'any' && oauth.credentialKind) {
+      errors.push(
+        `Block "${block.type}" → tool "${toolId}": picker accepts both credential kinds but the tool only accepts "${oauth.credentialKind}".`
+      )
+    } else if (
+      picker.credentialKind === 'service-account' &&
+      oauth.credentialKind !== 'service-account'
+    ) {
       errors.push(
         `Block "${block.type}" → tool "${toolId}": accepts "${oauth.credentialKind ?? 'any'}" credentials, not the picker's service-account credential.`
       )
