@@ -166,7 +166,8 @@ export const jiraUpdateTool: InternalToolConfig<JiraUpdateParams, JiraUpdateResp
         customFieldValue: params.customFieldValue,
         notifyUsers: params.notifyUsers,
         cloudId: params.cloudId,
-        parent: params.parent,
+        parent:
+          typeof params.parent === 'string' && !params.parent.trim() ? undefined : params.parent,
         customFields: parseJiraFieldMap(params.customFields),
       }
     },

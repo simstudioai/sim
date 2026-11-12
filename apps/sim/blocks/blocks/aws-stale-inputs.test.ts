@@ -93,4 +93,15 @@ describe('AWS blocks keep stale subBlock values out of tool input', () => {
     expect(body.policyUsageFilter).toBeUndefined()
     expect(awsIamListPoliciesContract.body?.safeParse(body).success).toBe(true)
   })
+
+  it('create user rejects a JSON-array tags string with no valid entries', () => {
+    expect(() =>
+      executorParams(IAMBlock, {
+        ...AWS,
+        operation: 'create_user',
+        userName: 'alice',
+        tags: '[{"name":"team","val":"core"}]',
+      })
+    ).toThrow('Tags must be a list of {"key", "value"} entries or a JSON object')
+  })
 })

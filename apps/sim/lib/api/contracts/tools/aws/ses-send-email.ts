@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { sesEmailTagsSchema } from '@/lib/api/contracts/tools/aws/ses-shared'
 import type {
   ContractBody,
   ContractBodyInput,
@@ -6,11 +7,6 @@ import type {
 } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { validateAwsRegion } from '@/lib/core/security/input-validation'
-
-/** SES `MessageTag` name or value: 1-256 letters, digits, underscores, or hyphens. */
-const sesMessageTagPartSchema = z
-  .string()
-  .regex(/^[A-Za-z0-9_-]{1,256}$/, 'Tag names and values may contain only letters, digits, _ and -')
 
 const SendEmailSchema = z
   .object({
@@ -32,9 +28,7 @@ const SendEmailSchema = z
     replyToAddresses: z.string().nullish(),
     configurationSetName: z.string().nullish(),
     fromName: z.string().nullish(),
-    emailTags: z
-      .array(z.object({ name: sesMessageTagPartSchema, value: sesMessageTagPartSchema }))
-      .nullish(),
+    emailTags: sesEmailTagsSchema,
   })
   .refine((data) => data.bodyText || data.bodyHtml, {
     message: 'At least one of bodyText or bodyHtml is required',

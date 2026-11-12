@@ -5,11 +5,26 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import { withSavedCredential } from '@/blocks/utils'
 
 /**
- * Converts the Tags table, a `[{ key, value }]` list, a plain object, or a JSON object
- * string into the JSON object string the tools accept.
+ * Converts the Tags table, a `[{ key, value }]` list (or its JSON string), a plain
+ * object, or a JSON object string into the JSON object string the tools accept.
  */
 function serializeTags(tags: unknown): string | undefined {
-  if (typeof tags === 'string') return tags.trim() ? tags : undefined
+  if (typeof tags === 'string') {
+    const trimmed = tags.trim()
+    if (!trimmed) return undefined
+    if (!trimmed.startsWith('[')) return trimmed
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(trimmed)
+    } catch {
+      return trimmed
+    }
+    const serialized = serializeTags(parsed)
+    if (serialized === undefined && Array.isArray(parsed) && parsed.length > 0) {
+      throw new Error('Tags must be a list of {"key", "value"} entries or a JSON object')
+    }
+    return serialized
+  }
   if (isRecordLike(tags)) return Object.keys(tags).length > 0 ? JSON.stringify(tags) : undefined
   if (!Array.isArray(tags)) return undefined
   const obj: Record<string, string> = {}
@@ -17,7 +32,7 @@ function serializeTags(tags: unknown): string | undefined {
     const entry = isRecordLike(row) && isRecordLike(row.cells) ? row.cells : row
     const key = isRecordLike(entry) ? entry.key : undefined
     const value = isRecordLike(entry) ? entry.value : undefined
-    if (typeof key === 'string' && key && value !== undefined) obj[key] = String(value)
+    if (typeof key === 'string' && key && value !== undefined) obj[key] = String(value ?? '')
   }
   return Object.keys(obj).length > 0 ? JSON.stringify(obj) : undefined
 }

@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { TextractIcon } from '@/components/icons'
 import {
   AuthMode,
@@ -246,11 +247,23 @@ interface TextractQueryParam {
   Pages?: string[]
 }
 
+/** Whether text is a JSON object, which is never a valid query list or question. */
+function parsesAsJsonObject(text: string): boolean {
+  if (!text.startsWith('{')) return false
+  try {
+    const parsed: unknown = JSON.parse(text)
+    return isRecordLike(parsed)
+  } catch {
+    return false
+  }
+}
+
 /**
  * Accepts a JSON array of query strings or `{Text, Alias, Pages}` objects, or
  * one plain-text question per line.
  */
 function parseTextractQueries(value: unknown): TextractQueryParam[] {
+  if (value === undefined || value === null) return []
   let raw: unknown = value
   if (typeof value === 'string') {
     const trimmed = value.trim()
@@ -262,10 +275,15 @@ function parseTextractQueries(value: unknown): TextractQueryParam[] {
         throw new Error('Queries must be a JSON array or one question per line')
       }
     } else {
+      if (parsesAsJsonObject(trimmed)) {
+        throw new Error('Queries must be a JSON array or one question per line')
+      }
       raw = trimmed.split('\n')
     }
   }
-  if (!Array.isArray(raw)) return []
+  if (!Array.isArray(raw)) {
+    throw new Error('Queries must be a JSON array or one question per line')
+  }
   return raw.flatMap((entry): TextractQueryParam[] => {
     if (typeof entry === 'string') {
       const text = entry.trim()

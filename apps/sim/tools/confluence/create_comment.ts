@@ -86,7 +86,7 @@ export const confluenceCreateCommentTool: InternalToolConfig<
         cloudId: params.cloudId,
         pageId: params.pageId,
         comment: params.comment,
-        parentCommentId: params.parentCommentId?.trim() || undefined,
+        parentCommentId: String(params.parentCommentId ?? '').trim() || undefined,
       }
     },
   },

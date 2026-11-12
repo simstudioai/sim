@@ -32,7 +32,7 @@ const TEXTRACT_SYNC_MAX_DOCUMENT_BYTES = 10 * 1024 * 1024
 
 function documentTooLargeError(): TextractOperationError {
   return new TextractOperationError(
-    'Document exceeds the 10 MB limit for single-page Textract processing. For a larger PDF or TIFF, upload it to S3 and use Multi-Page mode.',
+    'Document exceeds the 10 MB limit for synchronous Textract processing. For a larger PDF or TIFF, upload it to S3 and use Multi-Page mode where the operation supports it.',
     413
   )
 }

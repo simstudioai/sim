@@ -200,6 +200,36 @@ describe('Confluence operations', () => {
     )
   })
 
+  it.each([
+    [
+      'search',
+      () =>
+        executeConfluenceSearch(
+          { ...CONNECTION, query: 'release', limit: 25, cursor: 'cursor-2' },
+          { headers: new Headers(), requestId: 'request-1' }
+        ),
+    ],
+    [
+      'search in space',
+      () =>
+        executeConfluenceSearchInSpace(
+          { ...CONNECTION, spaceKey: 'ENG', limit: 25, cursor: 'cursor-2' },
+          { headers: new Headers(), requestId: 'request-1' }
+        ),
+    ],
+  ])('sends next=true with the cursor on %s, as Confluence next links do', async (_, run) => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json({ results: [], totalSize: 0, _links: {} })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await run()
+
+    const params = new URL(String(fetchMock.mock.calls.at(-1)?.[0])).searchParams
+    expect(params.get('cursor')).toBe('cursor-2')
+    expect(params.get('next')).toBe('true')
+  })
+
   it('fails closed when stored-file authorization denies access', async () => {
     mockAssertToolFileAccess.mockResolvedValueOnce(Response.json({ error: 'Forbidden' }))
 

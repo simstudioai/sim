@@ -1,7 +1,18 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { SecretsManagerIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { withSavedCredential } from '@/blocks/utils'
+
+/** Parses a JSON field typed into the block, naming the field when it is invalid. */
+function parseJsonField(value: unknown, fieldName: string): unknown {
+  if (typeof value !== 'string') return value
+  try {
+    return JSON.parse(value)
+  } catch (error) {
+    throw new Error(`Invalid JSON in ${fieldName}: ${getErrorMessage(error)}`)
+  }
+}
 
 export const SecretsManagerBlock: BlockConfig = {
   type: 'secrets_manager',
@@ -433,10 +444,7 @@ Return ONLY the JSON array - no explanations, no markdown code blocks.`,
             }
             if (rest.nextToken) result.nextToken = rest.nextToken
             if (rest.listFilters) {
-              result.filters =
-                typeof rest.listFilters === 'string'
-                  ? JSON.parse(rest.listFilters)
-                  : rest.listFilters
+              result.filters = parseJsonField(rest.listFilters, 'Filters')
             }
             if (rest.sortBy) result.sortBy = rest.sortBy
             if (rest.sortOrder) result.sortOrder = rest.sortOrder
@@ -449,11 +457,7 @@ Return ONLY the JSON array - no explanations, no markdown code blocks.`,
             result.secretValue = rest.secretValue
             if (rest.description) result.description = rest.description
             result.kmsKeyId = rest.kmsKeyId || undefined
-            result.tags = rest.createTags
-              ? typeof rest.createTags === 'string'
-                ? JSON.parse(rest.createTags)
-                : rest.createTags
-              : undefined
+            result.tags = rest.createTags ? parseJsonField(rest.createTags, 'Tags') : undefined
             break
           case 'update_secret':
             result.secretId = rest.secretId
@@ -474,12 +478,11 @@ Return ONLY the JSON array - no explanations, no markdown code blocks.`,
             break
           case 'tag_resource':
             result.secretId = rest.secretId
-            result.tags = typeof rest.tags === 'string' ? JSON.parse(rest.tags) : rest.tags
+            result.tags = parseJsonField(rest.tags, 'Tags')
             break
           case 'untag_resource':
             result.secretId = rest.secretId
-            result.tagKeys =
-              typeof rest.tagKeys === 'string' ? JSON.parse(rest.tagKeys) : rest.tagKeys
+            result.tagKeys = parseJsonField(rest.tagKeys, 'Tag Keys')
             break
           case 'restore_secret':
             result.secretId = rest.secretId

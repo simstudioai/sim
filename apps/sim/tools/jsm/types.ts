@@ -401,6 +401,7 @@ interface JsmRequest {
     fieldId: string
     label: string
     value: unknown
+    renderedValue?: unknown
   }>
   currentStatus: {
     status: string
@@ -646,7 +647,12 @@ export interface JsmCreateRequestResponse extends ToolResponse {
       statusDate?: { iso8601: string; friendly: string }
     } | null
     reporter: { accountId: string; displayName: string; emailAddress?: string } | null
-    requestFieldValues?: Array<{ fieldId: string; label: string; value: unknown }>
+    requestFieldValues?: Array<{
+      fieldId: string
+      label: string
+      value: unknown
+      renderedValue?: unknown
+    }>
     success: boolean
     url: string
     webUrl?: string | null
@@ -672,7 +678,12 @@ export interface JsmGetRequestResponse extends ToolResponse {
       emailAddress?: string
       active: boolean
     } | null
-    requestFieldValues: Array<{ fieldId: string; label: string; value: unknown }>
+    requestFieldValues: Array<{
+      fieldId: string
+      label: string
+      value: unknown
+      renderedValue?: unknown
+    }>
     url: string
     webUrl?: string | null
     participants?: JsmParticipant[] | null
