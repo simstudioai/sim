@@ -17950,6 +17950,12 @@
                         "additionalProperties": false
                       }
                     },
+                    "defaultValue": {
+                      "description": "Value an optional field takes when it is omitted.",
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255
+                    },
                     "hint": {
                       "description": "Provider-specific setup guidance.",
                       "type": "string",
@@ -18105,6 +18111,12 @@
                         "required": ["value", "label"],
                         "additionalProperties": false
                       }
+                    },
+                    "defaultValue": {
+                      "description": "Value an optional field takes when it is omitted.",
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255
                     },
                     "hint": {
                       "description": "Provider-specific setup guidance.",

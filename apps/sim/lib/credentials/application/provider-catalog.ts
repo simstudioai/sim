@@ -54,6 +54,8 @@ export interface CredentialProviderField {
   multiline: boolean
   requiredForAuthMethods?: string[]
   options?: CredentialProviderFieldOption[]
+  /** The value an optional field takes when it is omitted (a region's default). */
+  defaultValue?: string
   hint?: string
 }
 
@@ -128,6 +130,9 @@ function providerField(
       ? { requiredForAuthMethods: [...field.requiredForAuthMethods] }
       : {}),
     ...('options' in field && field.options ? { options: [...field.options] } : {}),
+    ...('defaultValue' in field && field.defaultValue !== undefined
+      ? { defaultValue: field.defaultValue }
+      : {}),
     ...('hint' in field && field.hint
       ? { hint: field.hint }
       : 'hintMessage' in field && field.hintMessage

@@ -107,6 +107,12 @@ export const v2CredentialProviderFieldSchema = z
       .max(20)
       .optional()
       .describe('Fixed values accepted by a selector field.'),
+    defaultValue: z
+      .string()
+      .min(1)
+      .max(255)
+      .optional()
+      .describe('Value an optional field takes when it is omitted.'),
     hint: z.string().min(1).max(2000).optional().describe('Provider-specific setup guidance.'),
   })
   .strict()
