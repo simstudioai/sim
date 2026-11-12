@@ -65,6 +65,8 @@ declare global {
     __simAgentRefOfElement?: WeakMap<Element, number>
     /** Elements an earlier snapshot of this document listed; a later snapshot marks the rest `new`. */
     __simAgentShownElements?: WeakSet<Element>
+    /** Elements the latest capture listed, committed to the shown set by the next capture that keeps them. */
+    __simAgentShownPending?: Element[]
     /** Installed by {@link installPageHelpers} before every page function; cached per call. */
     __simAgentIsExemptModal: (element: Element) => boolean
     /** Installed by {@link installPageHelpers}: the element's id in the current snapshot. */
@@ -332,14 +334,22 @@ export function collectSnapshot(
   const refLineIndexes: Record<number, number> = {}
   const locators: SnapshotRefLocator[] = []
   window.__simAgentElements = registry
-  const previouslyShown = window.__simAgentShownElements
-  const shown = previouslyShown ?? new WeakSet<Element>()
-  if (markNew) window.__simAgentShownElements = shown
+  // A capture the driver discards and recaptures must not use up `new`
+  // markers, so its listed elements commit only when the next capture keeps them.
+  const pendingShown = window.__simAgentShownPending
+  if (markNew && pendingShown && !forgetIssuedRefs) {
+    const committed = window.__simAgentShownElements ?? new WeakSet<Element>()
+    for (const el of pendingShown) committed.add(el)
+    window.__simAgentShownElements = committed
+  }
+  const shown = window.__simAgentShownElements
+  const listed: Element[] = []
+  if (markNew) window.__simAgentShownPending = listed
   /** Whether no earlier snapshot of this document listed the element; the first snapshot marks nothing. */
-  const isNew = (el: Element): boolean => markNew && previouslyShown !== undefined && !shown.has(el)
+  const isNew = (el: Element): boolean => markNew && shown !== undefined && !shown.has(el)
   /** Records an element whose line made it into the outline, so the next snapshot knows it. */
   const recordShown = (el: Element): void => {
-    if (markNew) shown.add(el)
+    if (markNew) listed.push(el)
   }
   const lines: string[] = []
   let truncated = false

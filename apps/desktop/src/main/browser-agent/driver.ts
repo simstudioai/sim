@@ -2598,6 +2598,10 @@ async function captureSnapshot(
         if (!stillCurrent()) {
           throw new ToolError('The tab changed while its frames were being captured. Try again.')
         }
+        if (frame.isDestroyed() || frame.detached || frame.url !== frameUrl) {
+          unreadableCrossOriginFrames++
+          continue
+        }
         if (isRecordLike(frameSnapshot) && Array.isArray(frameSnapshot.refIds)) {
           frameRefs = validateFrame(frameSnapshot)
         }

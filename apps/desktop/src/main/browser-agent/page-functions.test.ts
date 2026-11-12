@@ -117,6 +117,7 @@ beforeEach(() => {
   window.__simAgentMutationStates = undefined
   window.__simAgentNextElementId = 0
   window.__simAgentShownElements = undefined
+  window.__simAgentShownPending = undefined
   installPageHelpers()
   window.__simAgentResolveElement = undefined
   installDomShims()
@@ -540,6 +541,19 @@ describe('collectSnapshot', () => {
     expect(lines.find((line) => line.includes('"Recipients"'))).toMatch(/ new$/)
     expect(lines.find((line) => line.includes('"Send"'))).toMatch(/ new$/)
     expect(outlineOf(collectSnapshot())).not.toContain(' new')
+  })
+
+  it('keeps new markers for a recapture that replaces a discarded capture', () => {
+    document.body.innerHTML = '<button>Compose</button>'
+    visible(document.querySelector('button') as HTMLButtonElement)
+    collectSnapshot()
+    const added = document.createElement('button')
+    added.textContent = 'Send'
+    document.body.append(visible(added))
+    collectSnapshot()
+
+    const lines = outlineOf(collectSnapshot(0, null, true, 0, true)).split('\n')
+    expect(lines.find((line) => line.includes('"Send"'))).toMatch(/ new$/)
   })
 
   it('leaves new markers out of an unmarked read without consuming them', () => {
