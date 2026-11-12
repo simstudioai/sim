@@ -51,7 +51,7 @@ import type { ExecutionContext } from '@/executor/types'
 import { readTrustedExecutionCost } from '@/executor/utils/errors'
 import { executeProviderRequest } from '@/providers'
 import {
-  isConversationContextError,
+  isPermanentGenerationError,
   prepareConversationGeneration,
 } from '@/providers/conversation-generation'
 import {
@@ -147,7 +147,7 @@ describe('run usage limit', () => {
         await modelStep(request, 1, 1)
         return { content: '', model: request.model }
       } catch (error) {
-        if (isConversationContextError(error)) throw error
+        if (isPermanentGenerationError(error)) throw error
         throw new ProviderError(getErrorMessage(error), {
           startTime: '',
           endTime: '',

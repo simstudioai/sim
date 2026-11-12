@@ -1423,6 +1423,9 @@ export class BlockExecutor {
             providerTiming: executionOutput.providerTiming,
             cost: executionOutput.cost,
             model: executionOutput.model,
+            ...(executionOutput.stopReason !== undefined && {
+              stopReason: executionOutput.stopReason,
+            }),
           }
           parsedForFormat = true
         } catch (error) {

@@ -57,7 +57,7 @@ import {
 import { getAllBlocks, getBlock } from '@/blocks'
 import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockOutput } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, parseOptionalNumberInput } from '@/blocks/utils'
 import {
   assertPermissionsAllowed,
   validateBlockType,
@@ -127,6 +127,7 @@ import {
   getInlineHydrationMaxBytes,
 } from '@/providers/file-attachments.server'
 import { isAutoModel, isEvaluationModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
+import { AgentRunLimits } from '@/providers/run-limits'
 import { isRunAbortError } from '@/providers/streaming-tool-loop-shared'
 import {
   type ProviderToolInputProvenance,
@@ -233,6 +234,7 @@ interface ExecuteAcrossModelsConfig {
   resultRegistry: ResolvedSecretTraceRegistry | undefined
   providerErrorRegistry: ResolvedSecretTraceRegistry | undefined
   agentConversation?: AgentTurnSession
+  runLimits?: AgentRunLimits
 }
 
 interface FormattedAgentTools {
@@ -521,6 +523,7 @@ export class AgentBlockHandler implements BlockHandler {
       }
 
       const streamingConfig = this.getStreamingConfig(ctx, block)
+      const runLimits = this.createRunLimits(filteredInputs)
       const agentConversation =
         filteredInputs.memoryType &&
         filteredInputs.memoryType !== 'none' &&
@@ -651,6 +654,7 @@ export class AgentBlockHandler implements BlockHandler {
         resultRegistry,
         providerErrorRegistry,
         agentConversation,
+        runLimits,
       })
       if (servedRegistry) ctx.resolvedSecretTraceRegistry = servedRegistry
 
@@ -669,6 +673,7 @@ export class AgentBlockHandler implements BlockHandler {
       if (this.isStreamingExecution(result)) {
         const streamingResult = result as StreamingExecution
         streamingResult.diagnosticResolvedSecretTraceRegistry = providerErrorRegistry
+        runLimits?.reportOn(streamingResult.execution.output)
         if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
           return this.wrapStreamForMemoryPersistence(
             ctx,
@@ -691,10 +696,28 @@ export class AgentBlockHandler implements BlockHandler {
         )
       }
 
+      if (runLimits && isRecordLike(result)) runLimits.reportOn(result)
       return result
     } finally {
       settlePrivateAgentSelectors()
     }
+  }
+
+  /** The limits a block set while Limit run is on; parsed once and shared by every model it tries. */
+  private createRunLimits(inputs: AgentInputs): AgentRunLimits | undefined {
+    if (inputs.runLimits !== true) return undefined
+    const maxRunDuration = parseOptionalNumberInput(inputs.maxRunDuration, 'Max duration', {
+      min: 1,
+    })
+    return new AgentRunLimits({
+      maxCost: parseOptionalNumberInput(inputs.maxRunCost, 'Max spend', { min: 0.01 }),
+      maxSteps: parseOptionalNumberInput(inputs.maxSteps, 'Max steps', {
+        integer: true,
+        min: 1,
+      }),
+      maxDurationMs: maxRunDuration === undefined ? undefined : maxRunDuration * 1000,
+      onLimit: inputs.onRunLimit === 'fail' ? 'fail' : 'finalize',
+    })
   }
 
   private resolveToolUsageControls(
@@ -2762,7 +2785,8 @@ export class AgentBlockHandler implements BlockHandler {
           config.responseFormat,
           resultRegistry,
           config.providerErrorRegistry,
-          config.agentConversation
+          config.agentConversation,
+          config.runLimits
         )
         if ((hasNext || config.retryPrimaryOnStreamStart) && this.isStreamingExecution(result)) {
           result = await this.primeStreamingExecution(result as StreamingExecution)
@@ -2983,7 +3007,8 @@ export class AgentBlockHandler implements BlockHandler {
     responseFormat: any,
     modelRuntimeRegistry: ResolvedSecretTraceRegistry | undefined,
     providerErrorRegistry: ResolvedSecretTraceRegistry | undefined,
-    agentConversation?: AgentTurnSession
+    agentConversation?: AgentTurnSession,
+    runLimits?: AgentRunLimits
   ): Promise<BlockOutput | StreamingExecution> {
     const providerId = providerRequest.provider
     const model = providerRequest.model
@@ -3068,6 +3093,7 @@ export class AgentBlockHandler implements BlockHandler {
           agentMemoryContext: agentConversation
             ? { historyTokens: providerRequest.memoryHistoryTokens }
             : undefined,
+          runLimits,
         }
       )
 
