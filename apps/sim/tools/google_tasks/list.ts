@@ -1,5 +1,11 @@
 import type { GoogleTasksListParams, GoogleTasksListResponse } from '@/tools/google_tasks/types'
-import { TASKS_API_BASE } from '@/tools/google_tasks/types'
+import {
+  mapTaskLinks,
+  TASK_ASSIGNMENT_INFO_OUTPUT,
+  TASK_LINKS_OUTPUT,
+  TASKS_API_BASE,
+  taskListPath,
+} from '@/tools/google_tasks/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const listTool: ToolConfig<GoogleTasksListParams, GoogleTasksListResponse> = {
@@ -42,7 +48,8 @@ export const listTool: ToolConfig<GoogleTasksListParams, GoogleTasksListResponse
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Whether to show completed tasks (default true)',
+      description:
+        'Whether to show completed tasks (default true). Tasks completed in the Google Tasks apps are also hidden, so set showHidden to true to include them',
     },
     showDeleted: {
       type: 'boolean',
@@ -86,11 +93,17 @@ export const listTool: ToolConfig<GoogleTasksListParams, GoogleTasksListResponse
       visibility: 'user-or-llm',
       description: 'Lower bound for last modification time (RFC 3339 timestamp)',
     },
+    showAssigned: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Whether to include tasks assigned to the current user from Google Docs or Chat (default false)',
+    },
   },
 
   request: {
     url: (params) => {
-      const taskListId = params.taskListId || '@default'
       const queryParams = new URLSearchParams()
       if (params.maxResults) queryParams.set('maxResults', String(params.maxResults))
       if (params.pageToken) queryParams.set('pageToken', params.pageToken)
@@ -104,8 +117,10 @@ export const listTool: ToolConfig<GoogleTasksListParams, GoogleTasksListResponse
       if (params.completedMin) queryParams.set('completedMin', params.completedMin)
       if (params.completedMax) queryParams.set('completedMax', params.completedMax)
       if (params.updatedMin) queryParams.set('updatedMin', params.updatedMin)
+      if (params.showAssigned !== undefined)
+        queryParams.set('showAssigned', String(params.showAssigned))
       const qs = queryParams.toString()
-      return `${TASKS_API_BASE}/lists/${encodeURIComponent(taskListId)}/tasks${qs ? `?${qs}` : ''}`
+      return `${TASKS_API_BASE}/${taskListPath(params.taskListId)}/tasks${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -139,13 +154,8 @@ export const listTool: ToolConfig<GoogleTasksListParams, GoogleTasksListResponse
           position: (item.position as string) ?? null,
           hidden: (item.hidden as boolean) ?? null,
           deleted: (item.deleted as boolean) ?? null,
-          links: Array.isArray(item.links)
-            ? (item.links as Array<Record<string, string>>).map((link) => ({
-                type: link.type ?? '',
-                description: link.description ?? '',
-                link: link.link ?? '',
-              }))
-            : [],
+          links: mapTaskLinks(item.links),
+          assignmentInfo: (item.assignmentInfo as Record<string, unknown>) ?? null,
         })),
         nextPageToken: data.nextPageToken ?? null,
       },
@@ -186,22 +196,8 @@ export const listTool: ToolConfig<GoogleTasksListParams, GoogleTasksListResponse
           },
           hidden: { type: 'boolean', description: 'Whether the task is hidden', optional: true },
           deleted: { type: 'boolean', description: 'Whether the task is deleted', optional: true },
-          links: {
-            type: 'array',
-            description: 'Collection of links associated with the task',
-            optional: true,
-            items: {
-              type: 'object',
-              properties: {
-                type: {
-                  type: 'string',
-                  description: 'Link type (e.g., "email", "generic", "chat_message")',
-                },
-                description: { type: 'string', description: 'Link description' },
-                link: { type: 'string', description: 'The URL' },
-              },
-            },
-          },
+          links: TASK_LINKS_OUTPUT,
+          assignmentInfo: TASK_ASSIGNMENT_INFO_OUTPUT,
         },
       },
     },

@@ -1,8 +1,11 @@
 import {
   CALENDAR_API_BASE,
   type GoogleCalendarApiEventResponse,
+  type GoogleCalendarEventDetails,
 } from '@/tools/google_calendar/types'
+import { buildEventDetails, EVENT_DETAIL_OUTPUTS } from '@/tools/google_calendar/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GoogleCalendarMoveParams {
   accessToken: string
@@ -16,7 +19,7 @@ interface GoogleCalendarMoveResponse {
   success: boolean
   output: {
     content: string
-    metadata: {
+    metadata: Partial<GoogleCalendarEventDetails> & {
       id: string
       htmlLink: string
       status: string
@@ -106,7 +109,7 @@ export const moveTool: ToolConfig<GoogleCalendarMoveParams, GoogleCalendarMoveRe
         queryParams.append('sendUpdates', params.sendUpdates)
       }
 
-      return `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params.eventId)}/move?${queryParams.toString()}`
+      return `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/events/${safeUrlPathSegment(params.eventId, 'eventId')}/move?${queryParams.toString()}`
     },
     method: 'POST',
     headers: (params: GoogleCalendarMoveParams) => ({
@@ -123,6 +126,7 @@ export const moveTool: ToolConfig<GoogleCalendarMoveParams, GoogleCalendarMoveRe
       output: {
         content: `Event "${data.summary || 'Untitled'}" moved successfully`,
         metadata: {
+          ...buildEventDetails(data),
           id: data.id,
           htmlLink: data.htmlLink,
           status: data.status,
@@ -150,7 +154,7 @@ export const moveTool: ToolConfig<GoogleCalendarMoveParams, GoogleCalendarMoveRe
 
 interface GoogleCalendarMoveV2Response {
   success: boolean
-  output: {
+  output: GoogleCalendarEventDetails & {
     id: string
     htmlLink: string
     status: string
@@ -179,6 +183,7 @@ export const moveV2Tool: ToolConfig<GoogleCalendarMoveParams, GoogleCalendarMove
     return {
       success: true,
       output: {
+        ...buildEventDetails(data),
         id: data.id,
         htmlLink: data.htmlLink,
         status: data.status,
@@ -194,6 +199,7 @@ export const moveV2Tool: ToolConfig<GoogleCalendarMoveParams, GoogleCalendarMove
     }
   },
   outputs: {
+    ...EVENT_DETAIL_OUTPUTS,
     id: { type: 'string', description: 'Event ID' },
     htmlLink: { type: 'string', description: 'Event link' },
     status: { type: 'string', description: 'Event status' },

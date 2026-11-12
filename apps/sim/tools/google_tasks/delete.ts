@@ -1,5 +1,5 @@
 import type { GoogleTasksDeleteParams, GoogleTasksDeleteResponse } from '@/tools/google_tasks/types'
-import { TASKS_API_BASE } from '@/tools/google_tasks/types'
+import { TASKS_API_BASE, taskPath } from '@/tools/google_tasks/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteTool: ToolConfig<GoogleTasksDeleteParams, GoogleTasksDeleteResponse> = {
@@ -35,10 +35,7 @@ export const deleteTool: ToolConfig<GoogleTasksDeleteParams, GoogleTasksDeleteRe
   },
 
   request: {
-    url: (params) => {
-      const taskListId = params.taskListId || '@default'
-      return `${TASKS_API_BASE}/lists/${encodeURIComponent(taskListId)}/tasks/${encodeURIComponent(params.taskId)}`
-    },
+    url: (params) => `${TASKS_API_BASE}/${taskPath(params.taskListId, params.taskId)}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

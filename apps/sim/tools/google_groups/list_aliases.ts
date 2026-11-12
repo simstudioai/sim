@@ -3,6 +3,7 @@ import type {
   GoogleGroupsListAliasesResponse,
 } from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listAliasesTool: ToolConfig<
   GoogleGroupsListAliasesParams,
@@ -36,7 +37,9 @@ export const listAliasesTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedGroupKey = encodeURIComponent(params.groupKey.trim())
+      const encodedGroupKey = safeUrlPathSegment(params.groupKey, 'groupKey', {
+        allowSeparators: true,
+      })
       return `https://admin.googleapis.com/admin/directory/v1/groups/${encodedGroupKey}/aliases`
     },
     method: 'GET',

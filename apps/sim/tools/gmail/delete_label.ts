@@ -1,5 +1,6 @@
 import { GMAIL_API_BASE } from '@/tools/gmail/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GmailDeleteLabelParams {
   accessToken: string
@@ -42,7 +43,8 @@ export const gmailDeleteLabelV2Tool: ToolConfig<GmailDeleteLabelParams, GmailDel
     },
 
     request: {
-      url: (params: GmailDeleteLabelParams) => `${GMAIL_API_BASE}/labels/${params.labelId}`,
+      url: (params: GmailDeleteLabelParams) =>
+        `${GMAIL_API_BASE}/labels/${safeUrlPathSegment(params.labelId, 'labelId')}`,
       method: 'DELETE',
       headers: (params: GmailDeleteLabelParams) => ({
         Authorization: `Bearer ${params.accessToken}`,

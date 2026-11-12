@@ -1,6 +1,7 @@
 import type { GoogleVaultDeleteSavedQueryParams } from '@/tools/google_vault/types'
 import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const deleteSavedQueryTool: ToolConfig<GoogleVaultDeleteSavedQueryParams> = {
   id: 'google_vault_delete_saved_query',
@@ -36,7 +37,7 @@ export const deleteSavedQueryTool: ToolConfig<GoogleVaultDeleteSavedQueryParams>
 
   request: {
     url: (params) =>
-      `https://vault.googleapis.com/v1/matters/${params.matterId.trim()}/savedQueries/${params.savedQueryId.trim()}`,
+      `https://vault.googleapis.com/v1/matters/${safeUrlPathSegment(params.matterId, 'matterId')}/savedQueries/${safeUrlPathSegment(params.savedQueryId, 'savedQueryId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

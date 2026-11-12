@@ -4,6 +4,7 @@ import {
   type GoogleContactsCreateParams,
   type GoogleContactsCreateResponse,
   PEOPLE_API_BASE,
+  parsePeopleDate,
   transformPerson,
 } from '@/tools/google_contacts/types'
 import type { ToolConfig } from '@/tools/types'
@@ -82,6 +83,12 @@ export const createTool: ToolConfig<GoogleContactsCreateParams, GoogleContactsCr
       visibility: 'user-or-llm',
       description: 'Notes or biography for the contact',
     },
+    birthday: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Birthday as YYYY-MM-DD, or MM-DD when the year is unknown',
+    },
   },
 
   request: {
@@ -122,6 +129,10 @@ export const createTool: ToolConfig<GoogleContactsCreateParams, GoogleContactsCr
         person.biographies = [{ value: params.notes, contentType: 'TEXT_PLAIN' }]
       }
 
+      if (params.birthday) {
+        person.birthdays = [{ date: parsePeopleDate(params.birthday, 'birthday') }]
+      }
+
       return person
     },
   },
@@ -150,7 +161,8 @@ export const createTool: ToolConfig<GoogleContactsCreateParams, GoogleContactsCr
     content: { type: 'string', description: 'Contact creation confirmation message' },
     metadata: {
       type: 'json',
-      description: 'Created contact metadata including resource name and details',
+      description:
+        'Created contact (resourceName, etag, displayName, givenName, familyName, middleName, emails, phones, organizations, addresses, biographies, urls, photos, birthdays, events, nicknames, relations, userDefined, contactGroupResourceNames)',
     },
   },
 }

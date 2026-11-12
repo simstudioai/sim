@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import {
+  contactResourcePath,
   DEFAULT_PERSON_FIELDS,
   type GoogleContactsGetParams,
   type GoogleContactsGetResponse,
@@ -38,7 +39,7 @@ export const getTool: ToolConfig<GoogleContactsGetParams, GoogleContactsGetRespo
 
   request: {
     url: (params: GoogleContactsGetParams) =>
-      `${PEOPLE_API_BASE}/${params.resourceName.trim()}?personFields=${DEFAULT_PERSON_FIELDS}`,
+      `${PEOPLE_API_BASE}/${contactResourcePath(params.resourceName)}?personFields=${DEFAULT_PERSON_FIELDS}`,
     method: 'GET',
     headers: (params: GoogleContactsGetParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -70,7 +71,8 @@ export const getTool: ToolConfig<GoogleContactsGetParams, GoogleContactsGetRespo
     content: { type: 'string', description: 'Contact retrieval confirmation message' },
     metadata: {
       type: 'json',
-      description: 'Contact details including name, email, phone, and organization',
+      description:
+        'Contact details (resourceName, etag, displayName, givenName, familyName, middleName, emails, phones, organizations, addresses, biographies, urls, photos, birthdays, events, nicknames, relations, userDefined, contactGroupResourceNames)',
     },
   },
 }

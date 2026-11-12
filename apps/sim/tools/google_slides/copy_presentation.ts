@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { presentationUrl } from '@/tools/google_slides/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('GoogleSlidesCopyPresentationTool')
 
@@ -68,7 +69,7 @@ export const copyPresentationTool: ToolConfig<CopyPresentationParams, CopyPresen
     url: (params) => {
       const sourceId = params.sourcePresentationId?.trim()
       if (!sourceId) throw new Error('Source presentation ID is required')
-      return `https://www.googleapis.com/drive/v3/files/${sourceId}/copy?supportsAllDrives=true`
+      return `https://www.googleapis.com/drive/v3/files/${safeUrlPathSegment(sourceId, 'sourcePresentationId')}/copy?supportsAllDrives=true`
     },
     method: 'POST',
     headers: (params) => {

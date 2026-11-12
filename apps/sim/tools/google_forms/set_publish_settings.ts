@@ -11,6 +11,14 @@ interface SetPublishSettingsApiResponse {
   publishSettings?: GoogleFormsPublishSettings
 }
 
+/** Accepts real booleans and the `"true"`/`"false"` strings agent tool-calls send. */
+function parseBooleanParam(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value
+  if (value === 'true') return true
+  if (value === 'false') return false
+  return undefined
+}
+
 export const setPublishSettingsTool: ToolConfig<
   GoogleFormsSetPublishSettingsParams,
   GoogleFormsSetPublishSettingsResponse
@@ -59,17 +67,19 @@ export const setPublishSettingsTool: ToolConfig<
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
-    body: (params: GoogleFormsSetPublishSettingsParams) => ({
-      publishSettings: {
-        publishState: {
-          isPublished: params.isPublished,
-          ...(params.isAcceptingResponses !== undefined
-            ? { isAcceptingResponses: params.isAcceptingResponses }
-            : {}),
+    body: (params: GoogleFormsSetPublishSettingsParams) => {
+      const isAcceptingResponses =
+        parseBooleanParam(params.isAcceptingResponses) ?? params.isAcceptingResponses
+      return {
+        publishSettings: {
+          publishState: {
+            isPublished: parseBooleanParam(params.isPublished) ?? params.isPublished,
+            ...(isAcceptingResponses !== undefined ? { isAcceptingResponses } : {}),
+          },
         },
-      },
-      updateMask: 'publishState',
-    }),
+        updateMask: 'publishState',
+      }
+    },
   },
 
   transformResponse: async (response: Response) => {

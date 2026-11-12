@@ -1,6 +1,7 @@
 import type { GoogleVaultUpdateMattersHoldsParams } from '@/tools/google_vault/types'
 import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateMattersHoldsTool: ToolConfig<GoogleVaultUpdateMattersHoldsParams> = {
   id: 'google_vault_update_matters_holds',
@@ -91,14 +92,14 @@ export const updateMattersHoldsTool: ToolConfig<GoogleVaultUpdateMattersHoldsPar
 
   request: {
     url: (params) =>
-      `https://vault.googleapis.com/v1/matters/${params.matterId.trim()}/holds/${params.holdId.trim()}`,
+      `https://vault.googleapis.com/v1/matters/${safeUrlPathSegment(params.matterId, 'matterId')}/holds/${safeUrlPathSegment(params.holdId, 'holdId')}`,
     method: 'PUT',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const body: any = {
+      const body: Record<string, unknown> = {
         name: params.holdName,
         corpus: params.corpus,
       }
@@ -130,7 +131,7 @@ export const updateMattersHoldsTool: ToolConfig<GoogleVaultUpdateMattersHoldsPar
       if (params.corpus === 'MAIL' || params.corpus === 'GROUPS') {
         const hasQueryParams = params.terms || params.startTime || params.endTime
         if (hasQueryParams) {
-          const queryObj: any = {}
+          const queryObj: Record<string, string> = {}
           if (params.terms) queryObj.terms = params.terms
           if (params.startTime) queryObj.startTime = params.startTime
           if (params.endTime) queryObj.endTime = params.endTime

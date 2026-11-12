@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface GoogleSheetsV2DeleteRowsParams {
   accessToken: string
@@ -75,7 +76,7 @@ export const deleteRowsV2Tool: ToolConfig<
         throw new Error('Spreadsheet ID is required')
       }
 
-      return `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`
+      return `https://sheets.googleapis.com/v4/spreadsheets/${safeUrlPathSegment(spreadsheetId, 'spreadsheetId')}:batchUpdate`
     },
     method: 'POST',
     headers: (params) => {

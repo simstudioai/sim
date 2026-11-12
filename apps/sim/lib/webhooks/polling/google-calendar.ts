@@ -69,6 +69,12 @@ interface CalendarEvent {
   creator?: CalendarEventPerson
   organizer?: CalendarEventPerson
   recurringEventId?: string
+  originalStartTime?: CalendarEventTime
+  hangoutLink?: string
+  conferenceData?: Record<string, unknown>
+  visibility?: string
+  transparency?: string
+  iCalUID?: string
 }
 
 interface SimplifiedCalendarEvent {
@@ -86,6 +92,13 @@ interface SimplifiedCalendarEvent {
   attendees: CalendarEventAttendee[] | null
   creator: CalendarEventPerson | null
   organizer: CalendarEventPerson | null
+  hangoutLink: string | null
+  conferenceData: Record<string, unknown> | null
+  recurringEventId: string | null
+  originalStartTime: CalendarEventTime | null
+  visibility: string | null
+  transparency: string | null
+  iCalUID: string | null
 }
 
 interface GoogleCalendarWebhookPayload {
@@ -280,6 +293,13 @@ function simplifyEvent(
     attendees: event.attendees ?? null,
     creator: event.creator ?? null,
     organizer: event.organizer ?? null,
+    hangoutLink: event.hangoutLink ?? null,
+    conferenceData: event.conferenceData ?? null,
+    recurringEventId: event.recurringEventId ?? null,
+    originalStartTime: event.originalStartTime ?? null,
+    visibility: event.visibility ?? null,
+    transparency: event.transparency ?? null,
+    iCalUID: event.iCalUID ?? null,
   }
 }
 

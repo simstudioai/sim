@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const FORMS_API_BASE = 'https://forms.googleapis.com/v1'
 
@@ -22,7 +23,7 @@ export function buildListResponsesUrl(params: {
   filter?: string
 }): string {
   const { formId, pageSize, pageToken, filter } = params
-  const url = new URL(`${FORMS_API_BASE}/forms/${encodeURIComponent(formId)}/responses`)
+  const url = new URL(`${FORMS_API_BASE}/forms/${safeUrlPathSegment(formId, 'formId')}/responses`)
   if (pageSize && pageSize > 0) {
     const limited = Math.min(pageSize, 5000)
     url.searchParams.set('pageSize', String(limited))
@@ -40,13 +41,13 @@ export function buildListResponsesUrl(params: {
 
 export function buildGetResponseUrl(params: { formId: string; responseId: string }): string {
   const { formId, responseId } = params
-  const finalUrl = `${FORMS_API_BASE}/forms/${encodeURIComponent(formId)}/responses/${encodeURIComponent(responseId)}`
+  const finalUrl = `${FORMS_API_BASE}/forms/${safeUrlPathSegment(formId, 'formId')}/responses/${safeUrlPathSegment(responseId, 'responseId')}`
   logger.debug('Built Google Forms get response URL', { finalUrl })
   return finalUrl
 }
 
 export function buildGetFormUrl(formId: string): string {
-  const finalUrl = `${FORMS_API_BASE}/forms/${encodeURIComponent(formId)}`
+  const finalUrl = `${FORMS_API_BASE}/forms/${safeUrlPathSegment(formId, 'formId')}`
   logger.debug('Built Google Forms get form URL', { finalUrl })
   return finalUrl
 }
@@ -62,37 +63,37 @@ export function buildCreateFormUrl(unpublished?: boolean): string {
 }
 
 export function buildBatchUpdateUrl(formId: string): string {
-  const finalUrl = `${FORMS_API_BASE}/forms/${encodeURIComponent(formId)}:batchUpdate`
+  const finalUrl = `${FORMS_API_BASE}/forms/${safeUrlPathSegment(formId, 'formId')}:batchUpdate`
   logger.debug('Built Google Forms batch update URL', { finalUrl })
   return finalUrl
 }
 
 export function buildSetPublishSettingsUrl(formId: string): string {
-  const finalUrl = `${FORMS_API_BASE}/forms/${encodeURIComponent(formId)}:setPublishSettings`
+  const finalUrl = `${FORMS_API_BASE}/forms/${safeUrlPathSegment(formId, 'formId')}:setPublishSettings`
   logger.debug('Built Google Forms set publish settings URL', { finalUrl })
   return finalUrl
 }
 
 export function buildListWatchesUrl(formId: string): string {
-  const finalUrl = `${FORMS_API_BASE}/forms/${encodeURIComponent(formId)}/watches`
+  const finalUrl = `${FORMS_API_BASE}/forms/${safeUrlPathSegment(formId, 'formId')}/watches`
   logger.debug('Built Google Forms list watches URL', { finalUrl })
   return finalUrl
 }
 
 export function buildCreateWatchUrl(formId: string): string {
-  const finalUrl = `${FORMS_API_BASE}/forms/${encodeURIComponent(formId)}/watches`
+  const finalUrl = `${FORMS_API_BASE}/forms/${safeUrlPathSegment(formId, 'formId')}/watches`
   logger.debug('Built Google Forms create watch URL', { finalUrl })
   return finalUrl
 }
 
 export function buildDeleteWatchUrl(formId: string, watchId: string): string {
-  const finalUrl = `${FORMS_API_BASE}/forms/${encodeURIComponent(formId)}/watches/${encodeURIComponent(watchId)}`
+  const finalUrl = `${FORMS_API_BASE}/forms/${safeUrlPathSegment(formId, 'formId')}/watches/${safeUrlPathSegment(watchId, 'watchId')}`
   logger.debug('Built Google Forms delete watch URL', { finalUrl })
   return finalUrl
 }
 
 export function buildRenewWatchUrl(formId: string, watchId: string): string {
-  const finalUrl = `${FORMS_API_BASE}/forms/${encodeURIComponent(formId)}/watches/${encodeURIComponent(watchId)}:renew`
+  const finalUrl = `${FORMS_API_BASE}/forms/${safeUrlPathSegment(formId, 'formId')}/watches/${safeUrlPathSegment(watchId, 'watchId')}:renew`
   logger.debug('Built Google Forms renew watch URL', { finalUrl })
   return finalUrl
 }

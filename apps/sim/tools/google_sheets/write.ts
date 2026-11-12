@@ -4,7 +4,14 @@ import type {
   GoogleSheetsV2WriteResponse,
   GoogleSheetsWriteResponse,
 } from '@/tools/google_sheets/types'
+import {
+  appendResponseRenderParams,
+  mapValueRange,
+  RESPONSE_RENDER_PARAMS,
+  UPDATED_DATA_OUTPUT,
+} from '@/tools/google_sheets/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const DEFAULT_CELL_RANGE = 'A1'
 
@@ -252,6 +259,7 @@ export const writeV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Wri
       visibility: 'hidden',
       description: 'Whether to include the written values in the response',
     },
+    ...RESPONSE_RENDER_PARAMS,
   },
 
   request: {
@@ -266,7 +274,7 @@ export const writeV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Wri
       const fullRange = `${sheetName}!${cellRange}`
 
       const url = new URL(
-        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId?.trim()}/values/${encodeURIComponent(fullRange)}`
+        `https://sheets.googleapis.com/v4/spreadsheets/${safeUrlPathSegment(params.spreadsheetId, 'spreadsheetId')}/values/${encodeURIComponent(fullRange)}`
       )
 
       const valueInputOption = params.valueInputOption || 'USER_ENTERED'
@@ -275,6 +283,7 @@ export const writeV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Wri
       if (params.includeValuesInResponse) {
         url.searchParams.append('includeValuesInResponse', 'true')
       }
+      appendResponseRenderParams(url.searchParams, params)
 
       return url.toString()
     },
@@ -344,6 +353,7 @@ export const writeV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Wri
         updatedRows: data.updatedRows ?? 0,
         updatedColumns: data.updatedColumns ?? 0,
         updatedCells: data.updatedCells ?? 0,
+        updatedData: mapValueRange(data.updatedData),
         metadata: {
           spreadsheetId: metadata.spreadsheetId,
           spreadsheetUrl: metadata.spreadsheetUrl,
@@ -357,6 +367,7 @@ export const writeV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Wri
     updatedRows: { type: 'number', description: 'Number of rows updated' },
     updatedColumns: { type: 'number', description: 'Number of columns updated' },
     updatedCells: { type: 'number', description: 'Number of cells updated' },
+    updatedData: UPDATED_DATA_OUTPUT,
     metadata: {
       type: 'json',
       description: 'Spreadsheet metadata including ID and URL',

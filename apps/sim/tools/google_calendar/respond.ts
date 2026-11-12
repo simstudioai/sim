@@ -2,10 +2,13 @@ import {
   CALENDAR_API_BASE,
   type CalendarAttendee,
   type GoogleCalendarApiEventResponse,
+  type GoogleCalendarEventDetails,
   type GoogleCalendarRespondParams,
   type GoogleCalendarRespondResponse,
 } from '@/tools/google_calendar/types'
+import { buildEventDetails, EVENT_DETAIL_OUTPUTS } from '@/tools/google_calendar/utils'
 import type { ToolConfig, ToolResponseContext } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const RESPONSE_STATUSES = ['accepted', 'declined', 'tentative'] as const
 
@@ -61,7 +64,7 @@ async function respondToEvent(
     queryParams.append('sendUpdates', params.sendUpdates)
   }
   const queryString = queryParams.toString()
-  const patchUrl = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params?.eventId?.trim() ?? '')}${queryString ? `?${queryString}` : ''}`
+  const patchUrl = `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/events/${safeUrlPathSegment(params?.eventId ?? '', 'eventId')}${queryString ? `?${queryString}` : ''}`
 
   signal?.throwIfAborted()
   const patchResponse = await fetch(patchUrl, {
@@ -152,7 +155,7 @@ export const respondTool: ToolConfig<GoogleCalendarRespondParams, GoogleCalendar
   request: {
     url: (params: GoogleCalendarRespondParams) => {
       const calendarId = params.calendarId?.trim() || 'primary'
-      return `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params.eventId.trim())}`
+      return `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/events/${safeUrlPathSegment(params.eventId, 'eventId')}`
     },
     method: 'GET',
     headers: (params: GoogleCalendarRespondParams) => ({
@@ -169,6 +172,7 @@ export const respondTool: ToolConfig<GoogleCalendarRespondParams, GoogleCalendar
       output: {
         content: `Response to "${data.summary}" set to ${responseStatus}`,
         metadata: {
+          ...buildEventDetails(data),
           id: data.id,
           htmlLink: data.htmlLink,
           status: data.status,
@@ -196,17 +200,20 @@ export const respondTool: ToolConfig<GoogleCalendarRespondParams, GoogleCalendar
 
 interface GoogleCalendarRespondV2Response {
   success: boolean
-  output: {
+  output: GoogleCalendarEventDetails & {
     id: string
     htmlLink: string
     status: string
     summary: string | null
+    description: string | null
+    location: string | null
     start: GoogleCalendarApiEventResponse['start']
     end: GoogleCalendarApiEventResponse['end']
     responseStatus: string
     comment: string | null
     attendees: CalendarAttendee[] | null
     organizer: GoogleCalendarApiEventResponse['organizer'] | null
+    creator: GoogleCalendarApiEventResponse['creator'] | null
   }
 }
 
@@ -232,24 +239,31 @@ export const respondV2Tool: ToolConfig<
     return {
       success: true,
       output: {
+        ...buildEventDetails(data),
         id: data.id,
         htmlLink: data.htmlLink,
         status: data.status,
         summary: data.summary ?? null,
+        description: data.description ?? null,
+        location: data.location ?? null,
         start: data.start,
         end: data.end,
         responseStatus,
         comment,
         attendees: data.attendees ?? null,
         organizer: data.organizer ?? null,
+        creator: data.creator ?? null,
       },
     }
   },
   outputs: {
+    ...EVENT_DETAIL_OUTPUTS,
     id: { type: 'string', description: 'Event ID' },
     htmlLink: { type: 'string', description: 'Event link' },
     status: { type: 'string', description: 'Event status' },
     summary: { type: 'string', description: 'Event title', nullable: true },
+    description: { type: 'string', description: 'Event description', optional: true },
+    location: { type: 'string', description: 'Event location', optional: true },
     start: { type: 'json', description: 'Event start' },
     end: { type: 'json', description: 'Event end' },
     responseStatus: {
@@ -259,5 +273,6 @@ export const respondV2Tool: ToolConfig<
     comment: { type: 'string', description: 'Your response comment', nullable: true },
     attendees: { type: 'json', description: 'Event attendees', nullable: true },
     organizer: { type: 'json', description: 'Event organizer', nullable: true },
+    creator: { type: 'json', description: 'Event creator', optional: true },
   },
 }

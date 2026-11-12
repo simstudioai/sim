@@ -1,4 +1,5 @@
 import type { GoogleDocsToolParams, GoogleDocsWriteResponse } from '@/tools/google_docs/types'
+import { resolveDocumentId, resolveTabId } from '@/tools/google_docs/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse> = {
@@ -29,22 +30,26 @@ export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse
     documentId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The ID of the document to write to',
     },
     content: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The content to write to the document',
+    },
+    tabId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'ID of the tab to append the content to (from Read with includeTabsContent). When omitted, the first tab is used.',
     },
   },
   request: {
     url: (params) => {
-      // Ensure documentId is valid
-      const documentId = params.documentId?.trim() || params.manualDocumentId?.trim()
-      if (!documentId) {
-        throw new Error('Document ID is required')
-      }
-
+      const documentId = resolveDocumentId(params)
       return `https://docs.googleapis.com/v1/documents/${documentId}:batchUpdate`
     },
     method: 'POST',
@@ -65,14 +70,12 @@ export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse
         throw new Error('Content is required')
       }
 
-      // Following the exact format from the Google Docs API examples
-      // Always insert at the end of the document to avoid duplication
-      // See: https://developers.google.com/docs/api/reference/rest/v1/documents/request#InsertTextRequest
+      const tabId = resolveTabId(params.tabId)
       const requestBody = {
         requests: [
           {
             insertText: {
-              endOfSegmentLocation: {},
+              endOfSegmentLocation: tabId ? { tabId } : {},
               text: params.content,
             },
           },

@@ -52,12 +52,15 @@ List all groups in a Google Workspace domain
 | `maxResults` | number | No | Maximum number of results to return \(1-200\). Example: 50 |
 | `pageToken` | string | No | Token for fetching the next page of results |
 | `query` | string | No | Search query to filter groups \(e.g., "email:admin*"\) |
+| `userKey` | string | No | Only list groups this user or group is a direct member of \(email or immutable ID\). Cannot be combined with customer |
+| `orderBy` | string | No | Column to sort results by. Only "email" is supported |
+| `sortOrder` | string | No | Sort direction when orderBy is set: ASCENDING or DESCENDING |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `groups` | json | Array of group objects |
+| `groups` | json | Array of group objects \(id, email, name, description, directMembersCount, adminCreated, aliases, nonEditableAliases, etag, kind\) |
 | `nextPageToken` | string | Token for fetching next page of results |
 
 </ReferenceDetails>
@@ -161,12 +164,13 @@ List all members of a Google Group
 | `maxResults` | number | No | Maximum number of results to return \(1-200\). Example: 50 |
 | `pageToken` | string | No | Token for fetching the next page of results |
 | `roles` | string | No | Filter by roles \(comma-separated: OWNER, MANAGER, MEMBER\) |
+| `includeDerivedMembership` | boolean | No | Whether to also list indirect members inherited through nested groups \(default false\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `members` | json | Array of member objects |
+| `members` | json | Array of member objects \(id, email, role, type, status, etag, kind\) |
 | `nextPageToken` | string | Token for fetching next page of results |
 
 </ReferenceDetails>
@@ -365,6 +369,7 @@ Get the settings for a Google Group including access permissions, moderation, an
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `settings` | json | All returned group settings as one object, with the same fields as the top-level outputs \(email, name, description, whoCanJoin, whoCanViewMembership, whoCanViewGroup, whoCanPostMessage, allowExternalMembers, ..., defaultSender\) |
 | `email` | string | The group's email address |
 | `name` | string | The group name \(max 75 characters\) |
 | `description` | string | The group description \(max 4096 characters\) |
@@ -449,6 +454,7 @@ Update the settings for a Google Group including access permissions, moderation,
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `settings` | json | All returned group settings as one object, with the same fields as the top-level outputs \(email, name, description, whoCanJoin, whoCanViewMembership, whoCanViewGroup, whoCanPostMessage, allowExternalMembers, ..., defaultSender\) |
 | `email` | string | The group's email address |
 | `name` | string | The group name |
 | `description` | string | The group description |

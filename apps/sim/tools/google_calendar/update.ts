@@ -2,18 +2,24 @@ import {
   CALENDAR_API_BASE,
   type CalendarAttendee,
   type GoogleCalendarApiEventResponse,
+  type GoogleCalendarEventDetails,
   type GoogleCalendarEventRequestBody,
   type GoogleCalendarUpdateParams,
   type GoogleCalendarUpdateResponse,
 } from '@/tools/google_calendar/types'
 import {
+  applyEventOptions,
   assertRecurringTimeZone,
   buildEventDateTime,
+  buildEventDetails,
   buildGoogleMeetConferenceData,
+  EVENT_DETAIL_OUTPUTS,
+  EVENT_OPTION_PARAMS,
   normalizeAttendees,
   normalizeRecurrence,
 } from '@/tools/google_calendar/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 type EventPatchBody = Partial<GoogleCalendarEventRequestBody>
 
@@ -112,6 +118,7 @@ export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarUp
       visibility: 'user-only',
       description: 'How to send updates to attendees: all, externalOnly, or none',
     },
+    ...EVENT_OPTION_PARAMS,
   },
 
   request: {
@@ -127,7 +134,7 @@ export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarUp
       }
 
       const queryString = queryParams.toString()
-      return `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params.eventId)}${queryString ? `?${queryString}` : ''}`
+      return `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/events/${safeUrlPathSegment(params.eventId, 'eventId')}${queryString ? `?${queryString}` : ''}`
     },
     method: 'PATCH',
     headers: (params: GoogleCalendarUpdateParams) => ({
@@ -176,6 +183,8 @@ export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarUp
         updateData.conferenceData = buildGoogleMeetConferenceData()
       }
 
+      applyEventOptions(updateData, params)
+
       return updateData
     },
   },
@@ -188,6 +197,7 @@ export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarUp
       output: {
         content: `Event "${data.summary}" updated successfully`,
         metadata: {
+          ...buildEventDetails(data),
           id: data.id,
           htmlLink: data.htmlLink,
           hangoutLink: data.hangoutLink,
@@ -217,7 +227,7 @@ export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarUp
 
 interface GoogleCalendarUpdateV2Response {
   success: boolean
-  output: {
+  output: GoogleCalendarEventDetails & {
     id: string
     htmlLink: string
     hangoutLink: string | null
@@ -249,6 +259,7 @@ export const updateV2Tool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendar
       return {
         success: true,
         output: {
+          ...buildEventDetails(data),
           id: data.id,
           htmlLink: data.htmlLink,
           hangoutLink: data.hangoutLink ?? null,
@@ -266,6 +277,7 @@ export const updateV2Tool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendar
       }
     },
     outputs: {
+      ...EVENT_DETAIL_OUTPUTS,
       id: { type: 'string', description: 'Event ID' },
       htmlLink: { type: 'string', description: 'Event link' },
       hangoutLink: { type: 'string', description: 'Google Meet link', optional: true },

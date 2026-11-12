@@ -49,6 +49,12 @@ interface SimplifiedEmail {
   from: string
   to: string
   cc: string
+  bcc: string | null
+  replyTo: string | null
+  rfcMessageId: string | null
+  inReplyTo: string | null
+  references: string | null
+  snippet: string | null
   date: string | null
   bodyText: string
   bodyHtml: string
@@ -509,6 +515,12 @@ async function processEmails(
             from: headers.from || '',
             to: headers.to || '',
             cc: headers.cc || '',
+            bcc: headers.bcc ?? null,
+            replyTo: headers['reply-to'] ?? null,
+            rfcMessageId: headers['message-id'] ?? null,
+            inReplyTo: headers['in-reply-to'] ?? null,
+            references: headers.references ?? null,
+            snippet: email.snippet ?? null,
             date,
             bodyText: textContent,
             bodyHtml: htmlContent,

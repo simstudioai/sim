@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface GoogleSheetsV2DeleteSpreadsheetParams {
   accessToken: string
@@ -48,7 +49,7 @@ export const deleteSpreadsheetV2Tool: ToolConfig<
         throw new Error('Spreadsheet ID is required')
       }
 
-      return `https://www.googleapis.com/drive/v3/files/${spreadsheetId}`
+      return `https://www.googleapis.com/drive/v3/files/${safeUrlPathSegment(spreadsheetId, 'spreadsheetId')}?supportsAllDrives=true`
     },
     method: 'DELETE',
     headers: (params) => {

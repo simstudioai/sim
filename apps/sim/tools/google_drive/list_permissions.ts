@@ -1,8 +1,10 @@
 import type { GoogleDrivePermission, GoogleDriveToolParams } from '@/tools/google_drive/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GoogleDriveListPermissionsParams extends GoogleDriveToolParams {
   fileId: string
+  pageSize?: number
   pageToken?: string
 }
 
@@ -46,18 +48,28 @@ export const listPermissionsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'The page token to use for pagination',
     },
+    pageSize: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Maximum number of permissions to return (1-100). Omit to return the full list for My Drive files and up to 100 for shared drive files',
+    },
   },
 
   request: {
     url: (params) => {
       const url = new URL(
-        `https://www.googleapis.com/drive/v3/files/${params.fileId?.trim()}/permissions`
+        `https://www.googleapis.com/drive/v3/files/${safeUrlPathSegment(params.fileId, 'fileId')}/permissions`
       )
       url.searchParams.append('supportsAllDrives', 'true')
       url.searchParams.append(
         'fields',
         'nextPageToken,permissions(id,type,role,emailAddress,displayName,photoLink,domain,expirationTime,deleted,allowFileDiscovery,pendingOwner,permissionDetails)'
       )
+      if (params.pageSize) {
+        url.searchParams.append('pageSize', String(params.pageSize))
+      }
       if (params.pageToken) {
         url.searchParams.append('pageToken', params.pageToken)
       }

@@ -1,6 +1,7 @@
 import type { GoogleVaultListMattersParams } from '@/tools/google_vault/types'
 import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listMattersTool: ToolConfig<GoogleVaultListMattersParams> = {
   id: 'google_vault_list_matters',
@@ -23,14 +24,14 @@ export const listMattersTool: ToolConfig<GoogleVaultListMattersParams> = {
     pageSize: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Number of matters to return per page',
     },
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
-      description: 'Token for pagination',
+      visibility: 'user-or-llm',
+      description: 'Token for pagination (nextPageToken from a previous response)',
     },
     matterId: {
       type: 'string',
@@ -38,14 +39,34 @@ export const listMattersTool: ToolConfig<GoogleVaultListMattersParams> = {
       visibility: 'user-or-llm',
       description: 'Optional matter ID to fetch a specific matter (e.g., "12345678901234567890")',
     },
+    view: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Amount of detail to return: BASIC (ID, name, description, state; the default) or FULL (also includes matterPermissions, the owners and collaborators)',
+    },
+    state: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Only list matters in this state: OPEN, CLOSED, or DELETED (default lists all states; ignored when matterId is provided)',
+    },
   },
 
   request: {
     url: (params) => {
       if (params.matterId) {
-        return `https://vault.googleapis.com/v1/matters/${params.matterId}`
+        const url = new URL(
+          `https://vault.googleapis.com/v1/matters/${safeUrlPathSegment(params.matterId, 'matterId')}`
+        )
+        if (params.view) url.searchParams.set('view', params.view)
+        return url.toString()
       }
       const url = new URL('https://vault.googleapis.com/v1/matters')
+      if (params.view) url.searchParams.set('view', params.view)
+      if (params.state) url.searchParams.set('state', params.state)
       if (params.pageSize !== undefined && params.pageSize !== null) {
         const pageSize = Number(params.pageSize)
         if (Number.isFinite(pageSize) && pageSize > 0) {
@@ -72,8 +93,16 @@ export const listMattersTool: ToolConfig<GoogleVaultListMattersParams> = {
   },
 
   outputs: {
-    matters: { type: 'json', description: 'Array of matter objects' },
-    matter: { type: 'json', description: 'Single matter object (when matterId is provided)' },
+    matters: {
+      type: 'json',
+      description:
+        'Array of matter objects (matterId, name, description, state; matterPermissions when view is FULL)',
+    },
+    matter: {
+      type: 'json',
+      description:
+        'Single matter object (when matterId is provided): matterId, name, description, state; matterPermissions when view is FULL',
+    },
     nextPageToken: { type: 'string', description: 'Token for fetching next page of results' },
   },
 }

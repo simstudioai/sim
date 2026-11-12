@@ -4,10 +4,11 @@ import {
   type GoogleCalendarUnshareCalendarResponse,
 } from '@/tools/google_calendar/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const buildUnshareUrl = (params: GoogleCalendarUnshareCalendarParams) => {
   const calendarId = params.calendarId?.trim() || 'primary'
-  return `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/acl/${encodeURIComponent(params.ruleId.trim())}`
+  return `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/acl/${safeUrlPathSegment(params.ruleId, 'ruleId')}`
 }
 
 export const unshareCalendarTool: ToolConfig<

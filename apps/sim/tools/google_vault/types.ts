@@ -14,6 +14,8 @@ export interface GoogleVaultListMattersParams {
   pageSize?: number
   pageToken?: string
   matterId?: string
+  view?: 'BASIC' | 'FULL'
+  state?: 'OPEN' | 'CLOSED' | 'DELETED'
 }
 
 export interface GoogleVaultDownloadExportFileParams {
@@ -33,6 +35,8 @@ export interface GoogleVaultCreateMattersExportParams extends GoogleVaultCommonP
   startTime?: string
   endTime?: string
   includeSharedDrives?: boolean
+  exportFormat?: 'MBOX' | 'PST'
+  dataScope?: GoogleVaultDataScope
 }
 
 export interface GoogleVaultListMattersExportParams extends GoogleVaultCommonParams {
@@ -42,6 +46,8 @@ export interface GoogleVaultListMattersExportParams extends GoogleVaultCommonPar
 }
 
 type GoogleVaultCorpus = 'MAIL' | 'DRIVE' | 'GROUPS' | 'HANGOUTS_CHAT' | 'VOICE'
+
+type GoogleVaultDataScope = 'ALL_DATA' | 'HELD_DATA' | 'UNPROCESSED_DATA'
 
 export interface GoogleVaultCreateMattersHoldsParams extends GoogleVaultCommonParams {
   holdName: string
@@ -127,6 +133,8 @@ export interface GoogleVaultCreateSavedQueryParams extends GoogleVaultCommonPara
   terms?: string
   startTime?: string
   endTime?: string
+  includeSharedDrives?: boolean
+  dataScope?: GoogleVaultDataScope
 }
 
 export interface GoogleVaultListSavedQueriesParams extends GoogleVaultCommonParams {

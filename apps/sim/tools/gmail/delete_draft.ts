@@ -1,5 +1,6 @@
 import { GMAIL_API_BASE } from '@/tools/gmail/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GmailDeleteDraftParams {
   accessToken: string
@@ -42,7 +43,8 @@ export const gmailDeleteDraftV2Tool: ToolConfig<GmailDeleteDraftParams, GmailDel
     },
 
     request: {
-      url: (params: GmailDeleteDraftParams) => `${GMAIL_API_BASE}/drafts/${params.draftId}`,
+      url: (params: GmailDeleteDraftParams) =>
+        `${GMAIL_API_BASE}/drafts/${safeUrlPathSegment(params.draftId, 'draftId')}`,
       method: 'DELETE',
       headers: (params: GmailDeleteDraftParams) => ({
         Authorization: `Bearer ${params.accessToken}`,

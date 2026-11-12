@@ -1,6 +1,7 @@
 import type { GoogleVaultListMattersHoldsParams } from '@/tools/google_vault/types'
 import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listMattersHoldsTool: ToolConfig<GoogleVaultListMattersHoldsParams> = {
   id: 'google_vault_list_matters_holds',
@@ -29,14 +30,14 @@ export const listMattersHoldsTool: ToolConfig<GoogleVaultListMattersHoldsParams>
     pageSize: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Number of holds to return per page',
     },
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
-      description: 'Token for pagination',
+      visibility: 'user-or-llm',
+      description: 'Token for pagination (nextPageToken from a previous response)',
     },
     holdId: {
       type: 'string',
@@ -49,9 +50,11 @@ export const listMattersHoldsTool: ToolConfig<GoogleVaultListMattersHoldsParams>
   request: {
     url: (params) => {
       if (params.holdId) {
-        return `https://vault.googleapis.com/v1/matters/${params.matterId}/holds/${params.holdId}`
+        return `https://vault.googleapis.com/v1/matters/${safeUrlPathSegment(params.matterId, 'matterId')}/holds/${safeUrlPathSegment(params.holdId, 'holdId')}`
       }
-      const url = new URL(`https://vault.googleapis.com/v1/matters/${params.matterId}/holds`)
+      const url = new URL(
+        `https://vault.googleapis.com/v1/matters/${safeUrlPathSegment(params.matterId, 'matterId')}/holds`
+      )
       if (params.pageSize !== undefined && params.pageSize !== null) {
         const pageSize = Number(params.pageSize)
         if (Number.isFinite(pageSize) && pageSize > 0) {
@@ -78,7 +81,11 @@ export const listMattersHoldsTool: ToolConfig<GoogleVaultListMattersHoldsParams>
   },
 
   outputs: {
-    holds: { type: 'json', description: 'Array of hold objects' },
+    holds: {
+      type: 'json',
+      description:
+        'Array of hold objects (holdId, name, corpus, updateTime, query, accounts with accountId/email/firstName/lastName/holdTime, or orgUnit)',
+    },
     hold: { type: 'json', description: 'Single hold object (when holdId is provided)' },
     nextPageToken: { type: 'string', description: 'Token for fetching next page of results' },
   },

@@ -5,7 +5,9 @@ import type {
   GoogleSheetsV2ReadResponse,
   GoogleSheetsV2ToolParams,
 } from '@/tools/google_sheets/types'
+import { appendReadRenderParams, READ_RENDER_PARAMS } from '@/tools/google_sheets/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadResponse> = {
   id: 'google_sheets_read',
@@ -156,6 +158,7 @@ export const readV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Read
       description:
         'The cell range to read (e.g. "A1:D10"). Defaults to "A1:Z1000" if not specified.',
     },
+    ...READ_RENDER_PARAMS,
     filterColumn: {
       type: 'string',
       required: false,
@@ -193,7 +196,11 @@ export const readV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Read
       const cellRange = params.cellRange?.trim() || 'A1:Z1000'
       const fullRange = `${sheetName}!${cellRange}`
 
-      return `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(fullRange)}`
+      const url = new URL(
+        `https://sheets.googleapis.com/v4/spreadsheets/${safeUrlPathSegment(spreadsheetId, 'spreadsheetId')}/values/${encodeURIComponent(fullRange)}`
+      )
+      appendReadRenderParams(url.searchParams, params)
+      return url.toString()
     },
     method: 'GET',
     headers: (params) => {
@@ -237,6 +244,7 @@ export const readV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Read
         sheetName: params?.sheetName ?? '',
         range: data.range ?? '',
         values: filterResult.values,
+        majorDimension: data.majorDimension ?? null,
         metadata: {
           spreadsheetId: metadata.spreadsheetId,
           spreadsheetUrl: metadata.spreadsheetUrl,
@@ -261,6 +269,12 @@ export const readV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Read
     sheetName: { type: 'string', description: 'Name of the sheet that was read' },
     range: { type: 'string', description: 'The range of cells that was read' },
     values: { type: 'array', description: 'The cell values as a 2D array' },
+    majorDimension: {
+      type: 'string',
+      description: 'Major dimension of the returned values (ROWS or COLUMNS)',
+      optional: true,
+      nullable: true,
+    },
     metadata: {
       type: 'json',
       description: 'Spreadsheet metadata including ID and URL',
