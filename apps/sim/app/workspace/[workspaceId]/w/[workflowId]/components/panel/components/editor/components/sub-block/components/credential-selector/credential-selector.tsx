@@ -31,7 +31,9 @@ import { useWorkspaceCredential, useWorkspaceCredentials } from '@/hooks/queries
 import { useIntegrationAvailability } from '@/hooks/queries/integration-availability'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
+import { useIntegrationAccess } from '@/hooks/use-integration-access'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface CredentialSelectorProps {
   blockId: string
@@ -58,6 +60,7 @@ export function CredentialSelector({
   const [editingValue, setEditingValue] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const blockType = useWorkflowStore((state) => state.blocks[blockId]?.type)
   const [storeValue, setStoreValue] = useSubBlockValue<string | null>(blockId, subBlock.id)
 
   const label = subBlock.placeholder || 'Select credential'
@@ -101,11 +104,15 @@ export function CredentialSelector({
 
   const credentialKind = subBlock.credentialKind
   const isMergedKinds = credentialKind === 'any'
+  const { getAccess } = useIntegrationAccess(workspaceId, {
+    enabled: !isAllCredentials && credentialKind !== 'service-account',
+  })
   const { data: integrationAvailability, isSuccess: isAvailabilityReady } =
     useIntegrationAvailability({
       enabled: !isAllCredentials && credentialKind !== 'service-account',
     })
   const oauthConnectAvailable =
+    Boolean(blockType && getAccess(blockType) === 'available') &&
     isAvailabilityReady &&
     (integrationAvailability?.oauthServiceAvailability.some(
       ({ providerId, available }) => providerId === effectiveProviderId && available
