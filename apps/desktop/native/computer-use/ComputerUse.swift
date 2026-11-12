@@ -888,9 +888,40 @@ final class Driver {
             }
         default: throw ComputerError("unknown_method", "Unknown method.")
         }
-        // Give the app a moment to render the result so the follow-up observation shows it.
-        try await Task.sleep(for: .milliseconds(200))
+        try await waitForSettle(pid: pid)
         return ["kind": "action", "action": request.method, "bundleId": bundle, "dispatched": true, "verified": false]
+    }
+}
+/// A cheap fingerprint of what an action can change: windows, the focused window's direct content,
+/// the focused element, and on-screen surfaces such as menus and popovers.
+func uiSignature(pid: pid_t) -> [Int] {
+    let root = AXUIElementCreateApplication(pid)
+    AXUIElementSetMessagingTimeout(root, 0.1)
+    var signature = [(attribute(root, kAXWindowsAttribute) as? [AXUIElement])?.count ?? -1]
+    if let raw = attribute(root, kAXFocusedWindowAttribute), CFGetTypeID(raw) == AXUIElementGetTypeID() {
+        let window = unsafeBitCast(raw, to: AXUIElement.self)
+        var count = 0
+        signature.append(AXUIElementGetAttributeValueCount(window, kAXChildrenAttribute as CFString, &count) == .success ? count : -1)
+        signature.append((attribute(window, kAXTitleAttribute) as? String)?.hashValue ?? 0)
+    }
+    if let raw = attribute(root, kAXFocusedUIElementAttribute) { signature.append(Int(bitPattern: UInt(CFHash(raw)))) }
+    let surfaces = (CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? [])
+        .filter { ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid }.count
+    signature.append(surfaces)
+    return signature
+}
+/// Waits until the app's UI stops changing so the follow-up observation shows the action's result:
+/// at least 100 ms, then until two samples 50 ms apart agree, for at most 1.5 s.
+func waitForSettle(pid: pid_t) async throws {
+    let start = Date()
+    try await Task.sleep(for: .milliseconds(50))
+    var previous = uiSignature(pid: pid)
+    while Date().timeIntervalSince(start) < 1.5 {
+        try await Task.sleep(for: .milliseconds(50))
+        try checkCancellation()
+        let current = uiSignature(pid: pid)
+        if current == previous && Date().timeIntervalSince(start) >= 0.1 { return }
+        previous = current
     }
 }
 func nextLine() throws -> String? {
