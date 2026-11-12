@@ -497,25 +497,21 @@ async function verifyDataverseApplicationUser(environmentUrl: string, token: str
   )
 }
 
-/** The auth mode a decrypted Microsoft app credential secret holds, or undefined when it is not one. */
-export function storedMicrosoftAppAuthType(
-  decrypted: string
-): 'federated' | 'client_secret' | 'certificate' | undefined {
+/**
+ * The auth mode and national cloud a decrypted Microsoft app credential secret holds, for a
+ * reconnect to reopen on: empty when it is not one, and no cloud for a global credential.
+ */
+export function storedMicrosoftAppReconnectFields(decrypted: string): {
+  authType?: MicrosoftAppConfig['authType']
+  cloud?: MicrosoftCloudId
+} {
   try {
     const parsed = storedSecretSchema.safeParse(JSON.parse(decrypted))
-    return parsed.success ? parsed.data.config.authType : undefined
+    if (!parsed.success) return {}
+    const { authType, cloud } = parsed.data.config
+    return cloud ? { authType, cloud } : { authType }
   } catch {
-    return undefined
-  }
-}
-
-/** The stored national cloud, for a reconnect to reopen on; absent for a global credential. */
-export function storedMicrosoftAppCloud(decrypted: string): MicrosoftCloudId | undefined {
-  try {
-    const parsed = storedSecretSchema.safeParse(JSON.parse(decrypted))
-    return parsed.success ? parsed.data.config.cloud : undefined
-  } catch {
-    return undefined
+    return {}
   }
 }
 

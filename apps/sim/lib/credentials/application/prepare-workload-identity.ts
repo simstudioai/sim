@@ -11,10 +11,7 @@ import {
   type GoogleStoredDelegation,
   storedGoogleDelegation,
 } from '@/lib/credentials/google-workload-identity.server'
-import {
-  storedMicrosoftAppAuthType,
-  storedMicrosoftAppCloud,
-} from '@/lib/credentials/microsoft-app-service-account.server'
+import { storedMicrosoftAppReconnectFields } from '@/lib/credentials/microsoft-app-service-account.server'
 import type { MicrosoftCloudId } from '@/lib/credentials/microsoft-clouds'
 import { storedSnowflakeAuthType } from '@/lib/credentials/snowflake-service-account.server'
 import {
@@ -73,11 +70,10 @@ function authTypeOnly<P extends WorkloadIdentityProvider>(
 }
 
 function storedMicrosoftAppReconnect(decrypted: string): ReconnectFields<'microsoft'> {
-  const reconnectAuthType = storedMicrosoftAppAuthType(decrypted)
-  const reconnectCloud = storedMicrosoftAppCloud(decrypted)
+  const { authType, cloud } = storedMicrosoftAppReconnectFields(decrypted)
   return {
-    ...(reconnectAuthType ? { reconnectAuthType } : {}),
-    ...(reconnectCloud ? { reconnectCloud } : {}),
+    ...(authType ? { reconnectAuthType: authType } : {}),
+    ...(cloud ? { reconnectCloud: cloud } : {}),
   }
 }
 
