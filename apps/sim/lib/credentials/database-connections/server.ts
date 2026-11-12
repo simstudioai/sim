@@ -4,7 +4,9 @@ import { encryptSecret } from '@/lib/core/security/encryption'
 import {
   DATABASE_CONNECTION_DESCRIPTORS,
   type DatabaseConnectionDescriptor,
+  type DatabaseConnectionFieldId,
   type DatabaseConnectionProviderId,
+  databaseConnectionFieldIds,
 } from '@/lib/credentials/database-connections/descriptors'
 import {
   type CredentialOwnerScope,
@@ -43,13 +45,28 @@ const storedLoginBounds = {
   password: z.string().min(1).max(4096),
 }
 
+/**
+ * Picks exactly the provider's stored connection fields out of its operation
+ * schema. A field the operation adds later (as SQL Server's per-block
+ * connection timeout already is) stays out of the stored blob and is never
+ * pinned by a saved connection.
+ */
+function storedFieldMask<P extends DatabaseConnectionProviderId>(providerId: P) {
+  const mask: Partial<Record<DatabaseConnectionFieldId<P>, true>> = {}
+  for (const id of databaseConnectionFieldIds(providerId)) mask[id] = true
+  return mask as Record<DatabaseConnectionFieldId<P>, true>
+}
+
 const postgresqlStoredConnectionSchema = postgresqlConnectionInputSchema
+  .pick(storedFieldMask(POSTGRESQL_SERVICE_ACCOUNT_PROVIDER_ID))
   .extend(storedLoginBounds)
   .strict()
-const mysqlStoredConnectionSchema = mysqlConnectionInputSchema.extend(storedLoginBounds).strict()
-/** The connection timeout stays a per-block setting; a saved connection does not pin it. */
+const mysqlStoredConnectionSchema = mysqlConnectionInputSchema
+  .pick(storedFieldMask(MYSQL_SERVICE_ACCOUNT_PROVIDER_ID))
+  .extend(storedLoginBounds)
+  .strict()
 const mssqlStoredConnectionSchema = mssqlConnectionInputSchema
-  .omit({ connectionTimeout: true })
+  .pick(storedFieldMask(MSSQL_SERVICE_ACCOUNT_PROVIDER_ID))
   .extend(storedLoginBounds)
   .strict()
 

@@ -55,10 +55,7 @@ function optionsFrom<Value extends string>(labels: Record<Value, string>) {
   return Object.entries<string>(labels).map(([value, label]) => ({ value, label }))
 }
 
-export const DATABASE_CONNECTION_DESCRIPTORS: Record<
-  DatabaseConnectionProviderId,
-  DatabaseConnectionDescriptor
-> = {
+export const DATABASE_CONNECTION_DESCRIPTORS = {
   [POSTGRESQL_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: POSTGRESQL_SERVICE_ACCOUNT_PROVIDER_ID,
     service: 'postgresql',
@@ -125,6 +122,35 @@ export const DATABASE_CONNECTION_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/mssql',
   },
+} as const satisfies Record<DatabaseConnectionProviderId, DatabaseConnectionDescriptor>
+
+const DATABASE_LOGIN_FIELD_IDS = ['host', 'port', 'database', 'username', 'password'] as const
+
+export type DatabaseConnectionFieldId<P extends DatabaseConnectionProviderId> =
+  | (typeof DATABASE_LOGIN_FIELD_IDS)[number]
+  | (typeof DATABASE_CONNECTION_DESCRIPTORS)[P]['tls'][number]['id']
+
+/**
+ * Every field a saved connection of this provider stores: the login, then its
+ * transport-security settings. The stored schema keeps exactly these fields
+ * and the tools declare exactly these as credential-supplied, so what a blob
+ * persists, what a run replaces, and what the block hides share one list.
+ * Changing a provider's list changes its stored blob, so it needs a new
+ * secret type.
+ */
+export function databaseConnectionFieldIds<P extends DatabaseConnectionProviderId>(
+  providerId: P
+): DatabaseConnectionFieldId<P>[] {
+  return [
+    ...DATABASE_LOGIN_FIELD_IDS,
+    ...tlsFieldIds(DATABASE_CONNECTION_DESCRIPTORS[providerId].tls),
+  ]
+}
+
+function tlsFieldIds<Fields extends readonly DatabaseTlsField[]>(
+  fields: Fields
+): Fields[number]['id'][] {
+  return fields.map((field) => field.id)
 }
 
 export function isDatabaseConnectionProviderId(

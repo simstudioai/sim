@@ -1,6 +1,7 @@
 import {
   DATABASE_CONNECTION_DESCRIPTORS,
   type DatabaseConnectionProviderId,
+  databaseConnectionFieldIds,
 } from '@/lib/credentials/database-connections/descriptors'
 import type { OAuthService } from '@/lib/oauth'
 import {
@@ -55,22 +56,15 @@ export const AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH = {
  * inline connection fields working unchanged; with a saved connection
  * selected, the tool operation reads it server-side
  * (`withSavedDatabaseConnection`) and every connection field it stores
- * replaces the call's, so the credential supplies exactly those params.
+ * replaces the call's. The stored fields and the params declared here are the
+ * same list (`databaseConnectionFieldIds`).
  */
 function databaseConnectionOAuth(providerId: DatabaseConnectionProviderId) {
-  const { service, tls } = DATABASE_CONNECTION_DESCRIPTORS[providerId]
   return {
     required: false,
-    provider: service,
+    provider: DATABASE_CONNECTION_DESCRIPTORS[providerId].service,
     credentialKind: 'service-account',
-    credentialSuppliedParams: [
-      'host',
-      'port',
-      'database',
-      'username',
-      'password',
-      ...tls.map((field) => field.id),
-    ],
+    credentialSuppliedParams: databaseConnectionFieldIds(providerId),
   } as const satisfies OAuthConfig
 }
 

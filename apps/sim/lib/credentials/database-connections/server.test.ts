@@ -24,6 +24,11 @@ import {
   verifyAndEncryptDatabaseConnection,
   withSavedDatabaseConnection,
 } from '@/lib/credentials/database-connections/server'
+import {
+  MSSQL_CREDENTIAL_OAUTH,
+  MYSQL_CREDENTIAL_OAUTH,
+  POSTGRESQL_CREDENTIAL_OAUTH,
+} from '@/tools/shared/saved-credentials'
 
 const connection = {
   host: 'db.example.com',
@@ -59,6 +64,7 @@ const inlineInput = {
   ssl: 'disabled',
   query: 'SELECT 2',
 }
+const { ssl: _inlineSsl, ...inlineInputWithoutTls } = inlineInput
 
 function call(overrides: Partial<InternalToolOperationCall> = {}): InternalToolOperationCall {
   return {
@@ -233,6 +239,69 @@ describe('saved database connections', () => {
 
       expect(await response.json()).toEqual({ ...connection, query: 'SELECT 2' })
     })
+
+    it.each([
+      {
+        providerId: 'postgresql-service-account',
+        oauth: POSTGRESQL_CREDENTIAL_OAUTH,
+        saved: connection,
+        input: inlineInput,
+      },
+      {
+        providerId: 'mysql-service-account',
+        oauth: MYSQL_CREDENTIAL_OAUTH,
+        saved: connection,
+        input: inlineInput,
+      },
+      {
+        providerId: 'mssql-service-account',
+        oauth: MSSQL_CREDENTIAL_OAUTH,
+        saved: connectionWithoutTls,
+        input: {
+          ...inlineInputWithoutTls,
+          encrypt: 'disabled',
+          trustServerCertificate: 'enabled',
+          connectionTimeout: 30_000,
+        },
+      },
+    ] as const)(
+      'a saved $oauth.provider connection replaces exactly the params its tools declare it supplies',
+      async ({ providerId, oauth, saved, input }) => {
+        encryptionMockFns.mockEncryptSecret.mockImplementation(async (plain: string) => ({
+          encrypted: plain,
+          iv: 'iv',
+        }))
+        encryptionMockFns.mockDecryptSecret.mockImplementation(async (encrypted: string) => ({
+          decrypted: encrypted,
+        }))
+        const { encryptedServiceAccountKey } = await verifyAndEncryptDatabaseConnection(
+          providerId,
+          JSON.stringify(saved)
+        )
+        queueTableRows(credential, [{ ...row, providerId, encryptedServiceAccountKey }])
+
+        const response = await withSavedDatabaseConnection(
+          providerId,
+          echo
+        )(
+          call({
+            input,
+            context: {
+              ...savedConnectionContext,
+              authorizedServiceAccountCredential: {
+                credentialId: 'credential-1',
+                service: oauth.provider,
+              },
+            },
+          })
+        )
+
+        const ran: Record<string, unknown> = await response.json()
+        const inline: Record<string, unknown> = input
+        const replaced = Object.keys(ran).filter((key) => ran[key] !== inline[key])
+        expect(replaced.sort()).toEqual([...oauth.credentialSuppliedParams].sort())
+      }
+    )
 
     it.each([
       ['a credential for another engine', { providerId: 'mysql-service-account' }, stored],
