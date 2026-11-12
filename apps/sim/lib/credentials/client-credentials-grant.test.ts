@@ -20,6 +20,24 @@ describe('exchangeClientCredentialsGrant', () => {
     vi.stubGlobal('fetch', mockFetch)
   })
 
+  it('reports a caller abort during a refusal as the abort, not a provider failure', async () => {
+    const controller = new AbortController()
+    mockFetch.mockImplementation(async () => {
+      const body = new ReadableStream<Uint8Array>({
+        pull() {
+          controller.abort()
+          throw new Error('body read aborted')
+        },
+      })
+      return new Response(body, { status: 401 })
+    })
+
+    const exchange = exchangeClientCredentialsGrant({ ...REQUEST, signal: controller.signal })
+
+    await expect(exchange).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(exchange).rejects.not.toBeInstanceOf(TokenServiceAccountValidationError)
+  })
+
   it('posts the client credentials and extra fields as a form, refusing redirects', async () => {
     mockFetch.mockImplementation(async (input, init) => {
       const request = new Request(input, init)

@@ -16,7 +16,9 @@ export interface CrowdStrikeInlineCredentials {
  * Inline API client credentials, or the token and Falcon cloud the executor
  * resolves from a saved CrowdStrike credential in their place.
  */
-interface CrowdStrikeBaseParams extends Partial<CrowdStrikeInlineCredentials> {
+interface CrowdStrikeBaseParams
+  extends Partial<Pick<CrowdStrikeInlineCredentials, 'clientId' | 'clientSecret'>> {
+  cloud: CrowdStrikeCloud
   accessToken?: string
 }
 

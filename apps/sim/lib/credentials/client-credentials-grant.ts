@@ -78,6 +78,7 @@ export async function exchangeClientCredentialsGrant(
   )
   if (!response.ok) {
     const body = await readProviderErrorSnippet(response)
+    signal?.throwIfAborted()
     throw request.classifyRefusal
       ? request.classifyRefusal(response.status, body)
       : new TokenServiceAccountValidationError(
