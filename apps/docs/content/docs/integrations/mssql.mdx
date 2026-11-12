@@ -16,7 +16,7 @@ Use [Microsoft SQL Server](https://www.microsoft.com/sql-server) to query or mod
 
 In **Integrations**, add a connection with the host, port, database, username, password, and transport-security settings. Sim proves the connection with `SELECT 1` before saving it encrypted, then reads it on the server for each run; the block, the workflow, and agents never see the password. Reconnect the connection from Integrations when its credentials change. The runtime must be able to reach the database host.
 
-- **Encrypt connection** encrypts the connection with TLS; leave it enabled.
+- **Encrypt connection** requests TLS; leave it enabled. A server that does not support encryption gets an unencrypted session rather than an error, so confirm the server has encryption on.
 - **Trust server certificate** skips certificate validation. Enable it only for a server with a self-signed certificate you trust.
 - Named instances are not supported; give the instance a static TCP port and connect to that port.
 

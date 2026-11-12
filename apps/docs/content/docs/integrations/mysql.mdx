@@ -19,7 +19,8 @@ Query returns rows and a row count. Insert, update, and delete operations accept
 In **Integrations**, add a connection with the host, port, database, username, password, and transport-security settings. Sim proves the connection with `SELECT 1` before saving it encrypted, then reads it on the server for each run; the block, the workflow, and agents never see the password. Reconnect the connection from Integrations when its credentials change. The runtime must be able to reach the database host.
 
 - **Preferred** encrypts without verifying the server certificate.
-- **Required** encrypts and verifies the server certificate against the runtime's trust store.
+- **Required** encrypts and verifies the certificate chain against the runtime's trust store, but does not check the host name, like MySQL's `VERIFY_CA`.
+- Both refuse a server that offers no TLS rather than connect unencrypted, so Sim's **Preferred** behaves like MySQL's `REQUIRED`, not its `PREFERRED`.
 - **Disabled** never encrypts. Use it only on a network whose confidentiality you control.
 
 Workflows built before saved connections keep their inline connection fields and run unchanged.

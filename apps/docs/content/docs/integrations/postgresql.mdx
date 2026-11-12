@@ -16,7 +16,7 @@ Use [PostgreSQL](https://www.postgresql.org/) to query and modify rows, execute 
 
 In **Integrations**, add a connection with the host, port, database, username, password, and transport-security settings. Sim proves the connection with `SELECT 1` before saving it encrypted, then reads it on the server for each run; the block, the workflow, and agents never see the password. Reconnect the connection from Integrations when its credentials change. The runtime must be able to reach the database host.
 
-- **Preferred** encrypts when the server offers TLS and otherwise connects without it.
+- **Preferred** encrypts when the server offers TLS and otherwise connects without it. An attacker on the network can force that fallback, so choose **Required** when the server supports TLS.
 - **Required** always encrypts but does not verify the server certificate, like libpq's `sslmode=require`.
 - **Disabled** never encrypts. Use it only on a network whose confidentiality you control.
 

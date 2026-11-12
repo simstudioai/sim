@@ -10,6 +10,9 @@
  * Server-side verification and resolution live in
  * `@/lib/credentials/database-connections/server`.
  */
+import type { MssqlToggle } from '@/lib/internal/mssql/schema'
+import type { MysqlSslMode } from '@/lib/internal/mysql/schema'
+import type { PostgresqlSslMode } from '@/lib/internal/postgresql/schema'
 import {
   MSSQL_SERVICE_ACCOUNT_PROVIDER_ID,
   MYSQL_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -43,16 +46,14 @@ export interface DatabaseConnectionDescriptor {
   docsUrl: string
 }
 
-const SSL_MODE_OPTIONS = [
-  { value: 'preferred', label: 'Preferred' },
-  { value: 'required', label: 'Required' },
-  { value: 'disabled', label: 'Disabled' },
-] as const
-
-const TOGGLE_OPTIONS = [
-  { value: 'enabled', label: 'Enabled' },
-  { value: 'disabled', label: 'Disabled' },
-] as const
+/**
+ * Picker options in display order. Keyed by the operation schema's own value
+ * type, so a value the operations add or drop fails to compile here instead of
+ * drifting between the picker and what a save accepts.
+ */
+function optionsFrom<Value extends string>(labels: Record<Value, string>) {
+  return Object.entries<string>(labels).map(([value, label]) => ({ value, label }))
+}
 
 export const DATABASE_CONNECTION_DESCRIPTORS: Record<
   DatabaseConnectionProviderId,
@@ -68,9 +69,13 @@ export const DATABASE_CONNECTION_DESCRIPTORS: Record<
       {
         id: 'ssl',
         label: 'SSL mode',
-        options: SSL_MODE_OPTIONS,
-        defaultValue: 'preferred',
-        hint: 'Required encrypts the connection without verifying the server certificate; Preferred falls back to an unencrypted connection when the server offers no TLS.',
+        options: optionsFrom<PostgresqlSslMode>({
+          preferred: 'Preferred',
+          required: 'Required',
+          disabled: 'Disabled',
+        }),
+        defaultValue: 'preferred' satisfies PostgresqlSslMode,
+        hint: 'Required encrypts the connection without verifying the server certificate. Preferred falls back to an unencrypted connection when the server offers no TLS, which an attacker on the network can force; choose Required when the server supports TLS.',
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/postgresql',
@@ -85,9 +90,13 @@ export const DATABASE_CONNECTION_DESCRIPTORS: Record<
       {
         id: 'ssl',
         label: 'SSL mode',
-        options: SSL_MODE_OPTIONS,
-        defaultValue: 'preferred',
-        hint: 'Required encrypts the connection and verifies the server certificate; Preferred encrypts without verifying it.',
+        options: optionsFrom<MysqlSslMode>({
+          preferred: 'Preferred',
+          required: 'Required',
+          disabled: 'Disabled',
+        }),
+        defaultValue: 'preferred' satisfies MysqlSslMode,
+        hint: "Required encrypts the connection and verifies the certificate chain against the runtime's trust store, but not the host name (like MySQL's VERIFY_CA). Preferred encrypts without verifying the certificate. Both refuse a server that offers no TLS rather than connect unencrypted.",
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/mysql',
@@ -102,15 +111,15 @@ export const DATABASE_CONNECTION_DESCRIPTORS: Record<
       {
         id: 'encrypt',
         label: 'Encrypt connection',
-        options: TOGGLE_OPTIONS,
-        defaultValue: 'enabled',
-        hint: 'Encrypts the connection with TLS.',
+        options: optionsFrom<MssqlToggle>({ enabled: 'Enabled', disabled: 'Disabled' }),
+        defaultValue: 'enabled' satisfies MssqlToggle,
+        hint: 'Requests TLS. A server that does not support encryption gets an unencrypted session rather than an error.',
       },
       {
         id: 'trustServerCertificate',
         label: 'Trust server certificate',
-        options: [...TOGGLE_OPTIONS].reverse(),
-        defaultValue: 'disabled',
+        options: optionsFrom<MssqlToggle>({ disabled: 'Disabled', enabled: 'Enabled' }),
+        defaultValue: 'disabled' satisfies MssqlToggle,
         hint: 'Enable only for a server with a self-signed certificate; it skips certificate validation.',
       },
     ],
