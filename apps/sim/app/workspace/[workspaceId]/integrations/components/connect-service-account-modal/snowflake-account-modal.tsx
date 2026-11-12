@@ -9,6 +9,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipTextarea,
+  cn,
   SecretInput,
 } from '@sim/emcn'
 import { isApiClientError } from '@/lib/api/client/errors'
@@ -342,7 +343,10 @@ function SnowflakeAccountForm({
                   value={privateKey}
                   onChange={(event) => edit(setPrivateKey)(event.target.value)}
                   placeholder='-----BEGIN PRIVATE KEY-----'
-                  className='min-h-[120px] font-mono'
+                  className={cn(
+                    'min-h-[120px] font-mono',
+                    privateKey && '[&:not(:focus)]:[-webkit-text-security:disc]'
+                  )}
                   spellCheck={false}
                   autoComplete='off'
                   autoCorrect='off'

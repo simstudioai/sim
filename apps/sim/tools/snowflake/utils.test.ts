@@ -132,6 +132,7 @@ describe('Snowflake SQL API transport', () => {
     })
     expect(
       getSnowflakeHeaders({
+        oauthCredential: 'cred-1',
         domain: 'acme.snowflakecomputing.com',
         accessToken: 'signed.jwt.value',
         authStyle: 'snowflake-key-pair',
