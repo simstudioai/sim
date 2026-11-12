@@ -167,7 +167,7 @@ describe('executeLlmProviderOperation', () => {
         },
         { actorUserId: 'user-1', headers: new Headers(), requestId: 'request-1' }
       )
-    ).rejects.toMatchObject<LlmOperationError>({
+    ).rejects.toMatchObject({
       status: 400,
       body: { error: 'Not authorized to use this AWS credential' },
     })
