@@ -109,6 +109,8 @@ describe('GitHub saved personal access token verification', () => {
       ['a zone name other than UTC', '2026-12-01 10:30:00 PST'],
       ['a lowercase utc marker', '2026-12-01 10:30:00 utc'],
       ['an impossible date', '2026-13-45 10:00:00 +0000'],
+      ['an offset hour past 23', '2026-12-01 10:30:00 +2400'],
+      ['an offset minute past 59', '2026-12-01 10:30:00 -0060'],
       ['an expiry in the past, contradicting the accepted request', '2026-11-10 12:00:00 +0000'],
     ])('records no expiry for %s and still accepts the token', async (_, header) => {
       fetch.mockResolvedValue(userReply(header))

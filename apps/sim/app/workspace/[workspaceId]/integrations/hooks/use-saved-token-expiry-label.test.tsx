@@ -55,6 +55,28 @@ describe('useSavedTokenExpiryLabel', () => {
     expect(label).toBe('expires in 1 day')
   })
 
+  it('times a reconnected token from the moment it arrives, not from when the page opened', () => {
+    mount(new Date(NOW + 3 * DAY_MS).toISOString())
+    act(() => {
+      vi.advanceTimersByTime(6 * 60 * 60 * 1000)
+    })
+    mount(new Date(Date.now() + 60 * 60 * 1000).toISOString())
+    expect(label).toBe('expires in 1 day')
+    act(() => {
+      vi.advanceTimersByTime(60 * 60 * 1000)
+    })
+    expect(label).toBe('expired')
+  })
+
+  it('counts a token that gains an expiry after the page has been open for days from now', () => {
+    mount(undefined)
+    act(() => {
+      vi.advanceTimersByTime(3 * DAY_MS)
+    })
+    mount(new Date(Date.now() + 60 * 60 * 1000).toISOString())
+    expect(label).toBe('expires in 1 day')
+  })
+
   it('has no caption for a token that states no expiry', () => {
     mount(undefined)
     expect(label).toBeUndefined()
