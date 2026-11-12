@@ -13,7 +13,7 @@ export type TokenRequestFailureKind = 'permanent' | 'throttled' | 'transient'
 
 export interface TokenRequestFailure {
   kind: TokenRequestFailureKind
-  /** Non-permanent failures in a row, this one included; 1 for a permanent failure. */
+  /** Failures of this kind in a row, this one included; 1 for a permanent failure. */
   consecutiveFailures: number
   /** How long the failure is replayed before the provider is asked again. */
   replayMs: number
@@ -87,15 +87,17 @@ function boundedBackoff(attempt: number, bounds: { baseMs: number; maxMs: number
  * replaying (`replayForMs`) is replayed exactly as long as that layer still does. Otherwise a
  * provider's `Retry-After` is honored within 1 s to 5 min; without one, a throttled answer backs
  * off from 1 min to 5 min, an outage from 5 s to 30 s, and a refusal is replayed 30 s.
- * `previousConsecutiveFailures` counts the non-permanent failures immediately before this one (0
- * after a success or a permanent failure).
+ * `previous` is the remembered failure immediately before this one, if any: the backoff grows only
+ * while failures of the same kind continue, so a throttled answer after an outage starts its own
+ * streak at a minute instead of inheriting the outage's count.
  */
 export function assessTokenRequestFailure(
   error: unknown,
-  previousConsecutiveFailures = 0
+  previous?: Pick<TokenRequestFailure, 'kind' | 'consecutiveFailures'>
 ): TokenRequestFailure {
   const kind = classifyTokenRequestFailure(error)
-  const consecutiveFailures = kind === 'permanent' ? 1 : previousConsecutiveFailures + 1
+  const consecutiveFailures =
+    kind !== 'permanent' && previous?.kind === kind ? previous.consecutiveFailures + 1 : 1
   const replay = (replayMs: number): TokenRequestFailure => ({
     kind,
     consecutiveFailures,

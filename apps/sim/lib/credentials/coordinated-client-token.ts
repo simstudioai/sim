@@ -11,6 +11,7 @@ import {
   requestTokenWithRetry,
   TOKEN_EXPIRY_MARGIN_MS,
   TOKEN_FAILURE_STREAK_RETENTION_MS,
+  type TokenRequestFailure,
 } from '@/lib/credentials/token-request-resilience'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
@@ -92,13 +93,15 @@ interface StoredApplicationToken {
 /**
  * A remembered exchange failure, replayed until its row's `expiresAt`. Builds before failure
  * kinds stored `{ code, status }` only and ignore other keys, so `consecutiveFailures` is
- * written only for outages and throttling, to grow their backoff while they continue, and
- * `refusal` only for a refusal whose code those builds read as `provider_unavailable`.
+ * written only for outages and throttling, to grow their backoff while they continue, `throttled`
+ * only for throttling, so its streak is kept apart from an outage's, and `refusal` only for a
+ * refusal whose code those builds read as `provider_unavailable`.
  */
 interface StoredFailure {
   code: 'invalid_credentials' | 'grant_not_permitted' | 'site_not_found' | 'provider_unavailable'
   status: number
   consecutiveFailures?: number
+  throttled?: true
   refusal?: true
 }
 
@@ -206,6 +209,7 @@ function decodeFailure(value: string, step: string): StoredFailure {
     ...(Number.isSafeInteger(parsed.consecutiveFailures) && Number(parsed.consecutiveFailures) > 0
       ? { consecutiveFailures: Number(parsed.consecutiveFailures) }
       : {}),
+    ...(parsed.throttled === true ? { throttled: true } : {}),
     ...(parsed.refusal === true ? { refusal: true } : {}),
   }
 }
@@ -230,20 +234,24 @@ function replayedFailure(
 }
 
 /**
- * Outages and throttled answers in a row before this exchange, read from the application's last
- * failure memo for this secret once its replay has ended. Anything unreadable starts a new streak.
+ * The outage or throttling streak before this exchange, read from the application's last failure
+ * memo for this secret once its replay has ended. A refusal, or anything unreadable, starts a new
+ * streak.
  */
-async function consecutiveFailuresBefore(
+async function failureStreakBefore(
   row: StoredRow | undefined,
   step: string
-): Promise<number> {
-  if (!row || Date.now() - row.expiresAt.getTime() > TOKEN_FAILURE_STREAK_RETENTION_MS) return 0
+): Promise<Pick<TokenRequestFailure, 'kind' | 'consecutiveFailures'> | undefined> {
+  if (!row || Date.now() - row.expiresAt.getTime() > TOKEN_FAILURE_STREAK_RETENTION_MS) return
   try {
     const failure = decodeFailure((await decryptSecret(row.encryptedValue)).decrypted, step)
-    if (isRememberedRefusal(failure)) return 0
-    return failure.consecutiveFailures ?? 1
+    if (isRememberedRefusal(failure)) return
+    return {
+      kind: failure.throttled ? 'throttled' : 'transient',
+      consecutiveFailures: failure.consecutiveFailures ?? 1,
+    }
   } catch {
-    return 0
+    return
   }
 }
 
@@ -418,7 +426,7 @@ export async function resolveCoordinatedClientToken(
         if (!(error instanceof TokenServiceAccountValidationError)) throw error
         const assessed = assessTokenRequestFailure(
           error,
-          await consecutiveFailuresBefore(failureRow, step)
+          await failureStreakBefore(failureRow, step)
         )
         const replayMs = Math.max(assessed.replayMs, input.minExchangeIntervalMs ?? 0)
         const code = STORED_FAILURE_CODES.has(error.code)
@@ -428,7 +436,10 @@ export async function resolveCoordinatedClientToken(
           code,
           status: error.status,
           ...(assessed.kind !== 'permanent'
-            ? { consecutiveFailures: assessed.consecutiveFailures }
+            ? {
+                consecutiveFailures: assessed.consecutiveFailures,
+                ...(assessed.kind === 'throttled' ? { throttled: true } : {}),
+              }
             : isPermanentTokenFailureCode(code)
               ? {}
               : { refusal: true }),

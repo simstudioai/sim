@@ -639,7 +639,7 @@ interface FailedClientCredentialMint {
   /** The error the failed mint threw, re-thrown to callers while memoized. */
   error: unknown
   kind: TokenRequestFailureKind
-  /** Non-permanent failures in a row; the next one backs off longer. */
+  /** Failures of this kind in a row; the next one of the same kind backs off longer. */
   consecutiveFailures: number
   secretFingerprint: string
   /** Until when the failure is replayed instead of minting again. */
@@ -806,10 +806,7 @@ async function resolveMintedServiceAccountToken(
       return { ...minted.token }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') throw error
-      const failure = assessTokenRequestFailure(
-        error,
-        failed && failed.kind !== 'permanent' ? failed.consecutiveFailures : 0
-      )
+      const failure = assessTokenRequestFailure(error, failed)
       const retryAtMs = Date.now() + failure.replayMs
       clientCredentialMintFailureCache.set(cacheIdentity, {
         error: options?.privacyMode === 'selector' ? new Error('Credential mint failed') : error,
@@ -822,7 +819,7 @@ async function resolveMintedServiceAccountToken(
       const fallback = failure.kind === 'permanent' ? undefined : stillValid()
       if (fallback) {
         logger.warn('Serving a still-valid client-credential token after its refresh failed', {
-          credentialId,
+          ...(options?.privacyMode === 'selector' ? {} : { credentialId }),
           failure: failure.kind,
           retryInMs: failure.replayMs,
         })

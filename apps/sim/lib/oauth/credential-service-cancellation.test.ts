@@ -169,7 +169,10 @@ describe('client credential token refresh after a failed mint', () => {
     )
 
   /** Resolves with fake timers running, so an in-mint retry pause elapses without real waiting. */
-  async function resolveFor(credentialId: string, providerId = RAMP_SERVICE_ACCOUNT_PROVIDER_ID) {
+  async function resolveFor(
+    credentialId: string,
+    providerId: string = RAMP_SERVICE_ACCOUNT_PROVIDER_ID
+  ) {
     queueTableRows(credential, [storedCredential])
     const outcome = resolveServiceAccountToken(credentialId, providerId).then(
       (value) => ({ value }),
@@ -352,6 +355,30 @@ describe('client credential token refresh after a failed mint', () => {
 
     vi.advanceTimersByTime(14_000)
     await expect(resolveFor('ramp-throttled-bare')).resolves.toEqual({
+      value: { accessToken: token.accessToken },
+    })
+  })
+
+  it('waits about a minute, not an outage streak longer, for a throttled answer after an outage', async () => {
+    const mint = minter()
+    const answers = [unavailable(), unavailable(), unavailable(429)]
+    mint.mockImplementation(async () => {
+      throw answers[0]
+    })
+
+    await resolveFor('ramp-outage-then-throttled')
+    answers.shift()
+    vi.advanceTimersByTime(30_001)
+    await resolveFor('ramp-outage-then-throttled')
+    answers.shift()
+    vi.advanceTimersByTime(30_001)
+    await expect(resolveFor('ramp-outage-then-throttled')).resolves.toEqual({
+      error: expect.objectContaining({ status: 429 }),
+    })
+    mint.mockResolvedValueOnce(token)
+
+    vi.advanceTimersByTime(73_000)
+    await expect(resolveFor('ramp-outage-then-throttled')).resolves.toEqual({
       value: { accessToken: token.accessToken },
     })
   })

@@ -414,6 +414,44 @@ describe('coordinated token resolution while the provider fails', () => {
     ).toBeGreaterThanOrEqual(60_000)
   })
 
+  it('backs off a throttled answer after an outage from a minute, not by the outage streak', async () => {
+    const exchange = vi.fn<CoordinatedClientTokenInput['exchange']>()
+    for (const status of [502, 502]) {
+      exchange.mockImplementation(failing(status))
+      await expect(
+        resolveCoordinatedClientToken(input('outage-then-throttled', exchange))
+      ).rejects.toThrow()
+      await expireFailureRowsOf('outage-then-throttled')
+    }
+    exchange.mockImplementation(failing(429))
+    const before = Date.now()
+
+    await expect(
+      resolveCoordinatedClientToken(input('outage-then-throttled', exchange))
+    ).rejects.toMatchObject({ status: 429 })
+
+    const replayMs = (await failureRowOf('outage-then-throttled')).expiresAt.getTime() - before
+    expect(replayMs).toBeGreaterThanOrEqual(60_000)
+    expect(replayMs).toBeLessThanOrEqual(72_000 + 2_500)
+  })
+
+  it('backs off throttling that continues for every worker longer than its first minute', async () => {
+    const exchange = failing(429)
+    await expect(
+      resolveCoordinatedClientToken(input('throttled-twice', exchange))
+    ).rejects.toThrow()
+    await expireFailureRowsOf('throttled-twice')
+    const before = Date.now()
+
+    await expect(
+      resolveCoordinatedClientToken(input('throttled-twice', exchange))
+    ).rejects.toThrow()
+
+    expect(
+      (await failureRowOf('throttled-twice')).expiresAt.getTime() - before
+    ).toBeGreaterThanOrEqual(96_000)
+  })
+
   it.each([
     [
       'the still-valid token while its refresh is remembered failing',
