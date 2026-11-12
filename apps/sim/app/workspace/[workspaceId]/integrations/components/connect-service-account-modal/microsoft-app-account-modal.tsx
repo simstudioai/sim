@@ -11,6 +11,11 @@ import {
   SecretInput,
 } from '@sim/emcn'
 import { resourceScopeFromOwner, resourceScopeKey } from '@/lib/core/resource-scope'
+import {
+  MICROSOFT_CLOUD_IDS,
+  MICROSOFT_CLOUDS,
+  type MicrosoftCloudId,
+} from '@/lib/credentials/microsoft-clouds'
 import { MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import {
   KeylessTrustFields,
@@ -42,6 +47,11 @@ const AUTH_TYPE_HINTS: Record<MicrosoftAuthType, string> = {
 }
 
 const DOCS_URL = 'https://docs.sim.ai/integrations/microsoft-app-credentials'
+
+const CLOUD_OPTIONS = MICROSOFT_CLOUD_IDS.map((id) => ({
+  value: id,
+  label: MICROSOFT_CLOUDS[id].label,
+}))
 
 /** Saved Microsoft app credentials share the standard credential create/reconnect lifecycle. */
 export function MicrosoftAppAccountModal(props: MicrosoftAppAccountModalProps) {
@@ -80,6 +90,7 @@ function MicrosoftAppAccountForm({
     onClose: () => onOpenChange(false),
   })
   const [selectedAuthType, setSelectedAuthType] = useState<MicrosoftAuthType | null>(null)
+  const [cloud, setCloud] = useState<MicrosoftCloudId>('global')
   const [tenantId, setTenantId] = useState('')
   const [clientId, setClientId] = useState('')
   const [environmentUrl, setEnvironmentUrl] = useState('')
@@ -111,11 +122,13 @@ function MicrosoftAppAccountForm({
   }
 
   const buildConfig = (): Record<string, unknown> => {
+    const isGlobal = cloud === 'global'
     const base = {
       authType,
       tenantId: tenantId.trim(),
       clientId: clientId.trim(),
-      ...(environmentUrl.trim() ? { environmentUrl: environmentUrl.trim() } : {}),
+      ...(isGlobal ? {} : { cloud }),
+      ...(isGlobal && environmentUrl.trim() ? { environmentUrl: environmentUrl.trim() } : {}),
     }
     if (authType === 'federated') return { ...base, ...keylessSubjectFields(keyless) }
     if (authType === 'certificate') return { ...base, privateKey, certificate }
@@ -155,6 +168,18 @@ function MicrosoftAppAccountForm({
           hint={AUTH_TYPE_HINTS[authType]}
         />
         <ChipModalField
+          type='dropdown'
+          title='Cloud'
+          value={cloud}
+          onChange={(value) => {
+            setCloud(value as MicrosoftCloudId)
+            clearError()
+          }}
+          options={CLOUD_OPTIONS}
+          required
+          hint='The Microsoft cloud the app is registered in. Only Azure Data Explorer runs outside the global cloud.'
+        />
+        <ChipModalField
           type='input'
           title='Directory (tenant) ID'
           value={tenantId}
@@ -172,15 +197,17 @@ function MicrosoftAppAccountForm({
           required
           autoComplete='off'
         />
-        <ChipModalField
-          type='input'
-          title='Dataverse environment URL'
-          value={environmentUrl}
-          onChange={edit(setEnvironmentUrl)}
-          placeholder='https://contoso.crm.dynamics.com'
-          autoComplete='off'
-          hint='Needed for Dataverse and Dynamics 365. The app must be an application user there.'
-        />
+        {cloud === 'global' && (
+          <ChipModalField
+            type='input'
+            title='Dataverse environment URL'
+            value={environmentUrl}
+            onChange={edit(setEnvironmentUrl)}
+            placeholder='https://contoso.crm.dynamics.com'
+            autoComplete='off'
+            hint='Needed for Dataverse and Dynamics 365. The app must be an application user there.'
+          />
+        )}
 
         {authType === 'client_secret' && (
           <ChipModalField type='custom' title='Client secret' required>

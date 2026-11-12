@@ -324,6 +324,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   athena_v2: AthenaIcon,
   attio: AttioIcon,
   azure_data_explorer: AzureDataExplorerIcon,
+  azure_data_explorer_v2: AzureDataExplorerIcon,
   azure_devops: AzureIcon,
   azure_devops_v2: AzureIcon,
   bitbucket: BitbucketIcon,

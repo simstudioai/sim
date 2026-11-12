@@ -6,6 +6,7 @@ import {
   azureDataExplorerAuthInput,
   transformAzureDataExplorerResponse,
 } from '@/tools/azure_data_explorer/utils'
+import { AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const azureDataExplorerManagementTool: InternalToolConfig<
@@ -17,6 +18,7 @@ export const azureDataExplorerManagementTool: InternalToolConfig<
   description:
     'Run an Azure Data Explorer management command (a control command starting with ".") such as .show, .create, .alter, or .drop. Write commands can change data or configuration; use the Query operation for reads.',
   version: '1.0.0',
+  oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {
       type: 'string',

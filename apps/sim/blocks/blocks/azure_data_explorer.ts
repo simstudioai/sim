@@ -1,6 +1,7 @@
 import { AzureDataExplorerIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 /** Every operation except the cluster-level database listing runs in a database. */
 const DATABASE_SCOPED_OPERATIONS = [
@@ -109,6 +110,8 @@ function toBoolean(value: unknown): true | undefined {
 
 export const AzureDataExplorerBlock: BlockConfig = {
   type: 'azure_data_explorer',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'azure_data_explorer_v2' },
   name: 'Azure Data Explorer',
   description: 'Query and manage Azure Data Explorer (Kusto) clusters with KQL',
   longDescription:
@@ -654,3 +657,24 @@ export const AzureDataExplorerBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+/**
+ * Runs as a saved Microsoft app credential (client secret, certificate, or keyless federated
+ * credential) instead of an inline client secret. The cluster stays a block field; the token is
+ * minted for it in the credential's own cloud.
+ */
+export const AzureDataExplorerV2Block: BlockConfig = {
+  ...AzureDataExplorerBlock,
+  type: 'azure_data_explorer_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Run Kusto Query Language queries against Azure Data Explorer and Fabric Eventhouse clusters, discover databases, tables, and schemas, push small batches of rows inline, and run management commands. Runs as a Microsoft app credential: an app registration signing in with a client secret, a certificate, or a keyless federated credential, in the global cloud or a national cloud, so no interactive sign-in is needed.',
+  ...withSavedCredential(AzureDataExplorerBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'azure-data-explorer',
+    title: 'Microsoft App Credential',
+  }),
+}

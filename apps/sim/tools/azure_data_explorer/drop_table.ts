@@ -7,6 +7,7 @@ import {
   renderEntityName,
   transformColumnListResponse,
 } from '@/tools/azure_data_explorer/utils'
+import { AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const azureDataExplorerDropTableTool: InternalToolConfig<
@@ -18,6 +19,7 @@ export const azureDataExplorerDropTableTool: InternalToolConfig<
   description:
     'Drop a table from an Azure Data Explorer database. The table becomes unavailable to queries; data recovery depends on the retention policy. Returns the tables that remain.',
   version: '1.0.0',
+  oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {
       type: 'string',

@@ -18,6 +18,7 @@ import {
   AshbyIcon,
   AtlassianIcon,
   AttioIcon,
+  AzureDataExplorerIcon,
   AzureIcon,
   BitbucketIcon,
   BoxCompanyIcon,
@@ -644,6 +645,17 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'Policy.Read.All',
           'offline_access',
         ],
+      },
+      'azure-data-explorer': {
+        name: 'Azure Data Explorer',
+        description:
+          'Query and manage Azure Data Explorer clusters as a Microsoft Entra app registration.',
+        providerId: 'azure-data-explorer',
+        icon: AzureDataExplorerIcon,
+        baseProviderIcon: MicrosoftIcon,
+        serviceAccountProviderId: 'microsoft-app-service-account',
+        authType: 'service_account',
+        scopes: [],
       },
       'microsoft-dataverse': {
         name: 'Microsoft Dataverse',

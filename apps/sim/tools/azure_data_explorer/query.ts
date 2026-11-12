@@ -7,6 +7,7 @@ import {
   azureDataExplorerAuthInput,
   transformAzureDataExplorerResponse,
 } from '@/tools/azure_data_explorer/utils'
+import { AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 function parseProperties(
@@ -34,6 +35,7 @@ export const azureDataExplorerQueryTool: InternalToolConfig<
   description:
     'Run a Kusto Query Language (KQL) query against an Azure Data Explorer database and return the primary result table.',
   version: '1.0.0',
+  oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {
       type: 'string',

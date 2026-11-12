@@ -21,6 +21,7 @@ import { AttioBlock, AttioBlockMeta } from '@/blocks/blocks/attio'
 import {
   AzureDataExplorerBlock,
   AzureDataExplorerBlockMeta,
+  AzureDataExplorerV2Block,
 } from '@/blocks/blocks/azure_data_explorer'
 import {
   AzureDevOpsBlock,
@@ -519,6 +520,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   athena_v2: AthenaV2Block,
   attio: AttioBlock,
   azure_data_explorer: AzureDataExplorerBlock,
+  azure_data_explorer_v2: AzureDataExplorerV2Block,
   azure_devops: AzureDevOpsBlock,
   azure_devops_v2: AzureDevOpsV2Block,
   bitbucket: BitbucketBlock,

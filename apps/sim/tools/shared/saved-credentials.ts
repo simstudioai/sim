@@ -29,12 +29,26 @@ export const AWS_CREDENTIAL_OAUTH = {
 export const AWS_SESSION_SIGNED_TOOL_IDS: ReadonlySet<string> = new Set(['s3_get_object'])
 
 /**
+ * Credential policy for every Azure Data Explorer tool. `required: false` keeps the inline
+ * tenant, client ID, and client secret working unchanged; with a saved Microsoft app credential
+ * selected instead, the executor authorizes it and the operation mints a token for the cluster it
+ * validated, in the credential's own cloud.
+ */
+export const AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH = {
+  required: false,
+  provider: 'azure-data-explorer',
+  credentialKind: 'service-account',
+  credentialSuppliedParams: ['tenantId', 'clientId', 'clientSecret'],
+} as const satisfies OAuthConfig
+
+/**
  * Saved-credential providers whose tools resolve the credential inside their
- * own operation (AWS mints session keys per call) rather than through
- * `credentialParams`.
+ * own operation (AWS mints session keys per call, Azure Data Explorer a token
+ * for the cluster each call names) rather than through `credentialParams`.
  */
 export const OPERATION_RESOLVED_CREDENTIAL_PROVIDERS: ReadonlySet<string> = new Set([
   AWS_CREDENTIAL_OAUTH.provider,
+  AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH.provider,
 ])
 
 /**
@@ -465,6 +479,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   apollo: APOLLO_CREDENTIAL_OAUTH,
   ashby: ASHBY_CREDENTIAL_OAUTH,
   aws: AWS_CREDENTIAL_OAUTH,
+  'azure-data-explorer': AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   azure_devops: AZURE_DEVOPS_CREDENTIAL_OAUTH,
   brex: BREX_CREDENTIAL_OAUTH,
   brightdata: BRIGHTDATA_CREDENTIAL_OAUTH,

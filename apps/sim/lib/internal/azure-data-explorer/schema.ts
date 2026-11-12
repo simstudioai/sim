@@ -1,12 +1,37 @@
 import { isPrivateIpHost } from '@sim/security/ssrf'
 import { z } from 'zod'
+import type { MicrosoftCloudId } from '@/lib/credentials/microsoft-clouds'
 
-const KUSTO_CLOUDS = [
-  { hostSuffix: 'kusto.windows.net', authority: 'https://login.microsoftonline.com' },
-  { hostSuffix: 'kusto.fabric.microsoft.com', authority: 'https://login.microsoftonline.com' },
-  { hostSuffix: 'kusto.usgovcloudapi.net', authority: 'https://login.microsoftonline.us' },
-  { hostSuffix: 'kusto.chinacloudapi.cn', authority: 'https://login.partner.microsoftonline.cn' },
-] as const
+/**
+ * Cluster host suffixes per Azure cloud. `authority` signs in an inline client secret;
+ * `credentialClouds` are the Microsoft app credential clouds whose tokens the cluster accepts.
+ */
+const KUSTO_CLOUDS: readonly {
+  hostSuffix: string
+  authority: string
+  credentialClouds: readonly MicrosoftCloudId[]
+}[] = [
+  {
+    hostSuffix: 'kusto.windows.net',
+    authority: 'https://login.microsoftonline.com',
+    credentialClouds: ['global'],
+  },
+  {
+    hostSuffix: 'kusto.fabric.microsoft.com',
+    authority: 'https://login.microsoftonline.com',
+    credentialClouds: ['global'],
+  },
+  {
+    hostSuffix: 'kusto.usgovcloudapi.net',
+    authority: 'https://login.microsoftonline.us',
+    credentialClouds: ['usgov', 'usgov_dod'],
+  },
+  {
+    hostSuffix: 'kusto.chinacloudapi.cn',
+    authority: 'https://login.partner.microsoftonline.cn',
+    credentialClouds: ['china'],
+  },
+]
 
 const ALLOWED_CLUSTER_HOSTS = KUSTO_CLOUDS.map((cloud) => cloud.hostSuffix).join(', ')
 
@@ -16,6 +41,11 @@ function matchKustoCloud(host: string): (typeof KUSTO_CLOUDS)[number] | null {
       (cloud) => host === cloud.hostSuffix || host.endsWith(`.${cloud.hostSuffix}`)
     ) ?? null
   )
+}
+
+/** The Microsoft app credential clouds an allowlisted cluster host accepts tokens from. */
+export function kustoCredentialClouds(clusterHost: string): readonly MicrosoftCloudId[] {
+  return matchKustoCloud(clusterHost.toLowerCase())?.credentialClouds ?? []
 }
 
 export function resolveEntraAuthority(clusterHost: string): string {
@@ -81,37 +111,56 @@ const tenantIdSchema = z
     'tenantId must be a GUID or a domain name (e.g., contoso.onmicrosoft.com)'
   )
 
+/** What every request carries, however it authenticates. */
+const requestShape = {
+  clusterUri: z.string().min(1, 'clusterUri is required'),
+  resource: z.string().optional(),
+  endpoint: z.enum(['query', 'mgmt']),
+  database: entityNameSchema.optional(),
+  csl: z.string().min(1, 'csl is required').max(1_000_000, 'csl is too long'),
+  properties: z.record(z.string(), z.unknown()).optional(),
+  readOnly: z.boolean().optional(),
+}
+
+function refineHosts(
+  input: { clusterUri: string; resource?: string },
+  context: z.RefinementCtx
+): void {
+  const clusterCheck = checkAzureDataExplorerClusterUri(input.clusterUri)
+  if (!clusterCheck.ok) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['clusterUri'],
+      message: clusterCheck.message,
+    })
+  }
+  if (input.resource === undefined) return
+  const resourceCheck = checkAzureDataExplorerClusterUri(input.resource, 'resource')
+  if (!resourceCheck.ok) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['resource'],
+      message: resourceCheck.message,
+    })
+  }
+}
+
+/** A request that signs in with the inline client secret it carries. */
 export const azureDataExplorerInputSchema = z
   .object({
-    clusterUri: z.string().min(1, 'clusterUri is required'),
+    ...requestShape,
     tenantId: tenantIdSchema,
     clientId: z.string().min(1, 'clientId is required'),
     clientSecret: z.string().min(1, 'clientSecret is required'),
-    resource: z.string().optional(),
-    endpoint: z.enum(['query', 'mgmt']),
-    database: entityNameSchema.optional(),
-    csl: z.string().min(1, 'csl is required').max(1_000_000, 'csl is too long'),
-    properties: z.record(z.string(), z.unknown()).optional(),
-    readOnly: z.boolean().optional(),
   })
-  .superRefine((input, context) => {
-    const clusterCheck = checkAzureDataExplorerClusterUri(input.clusterUri)
-    if (!clusterCheck.ok) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['clusterUri'],
-        message: clusterCheck.message,
-      })
-    }
-    if (input.resource === undefined) return
-    const resourceCheck = checkAzureDataExplorerClusterUri(input.resource, 'resource')
-    if (!resourceCheck.ok) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['resource'],
-        message: resourceCheck.message,
-      })
-    }
-  })
+  .superRefine(refineHosts)
 
 export type AzureDataExplorerInput = z.output<typeof azureDataExplorerInputSchema>
+
+/**
+ * A request that runs as the executor-authorized Microsoft app credential. Any inline sign-in
+ * fields are dropped unread: the credential, not the caller, decides who the request runs as.
+ */
+export const azureDataExplorerRequestSchema = z.object(requestShape).superRefine(refineHosts)
+
+export type AzureDataExplorerRequest = z.output<typeof azureDataExplorerRequestSchema>

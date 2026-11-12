@@ -3190,11 +3190,11 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "azure_data_explorer",
+      "type": "azure_data_explorer_v2",
       "slug": "azure-data-explorer",
       "name": "Azure Data Explorer",
       "description": "Query and manage Azure Data Explorer (Kusto) clusters with KQL",
-      "longDescription": "Run Kusto Query Language queries against Azure Data Explorer and Fabric Eventhouse clusters, discover databases, tables, and schemas, push small batches of rows inline, and run management commands. Authenticates with a Microsoft Entra service principal using client credentials, so no interactive sign-in is needed.",
+      "longDescription": "Run Kusto Query Language queries against Azure Data Explorer and Fabric Eventhouse clusters, discover databases, tables, and schemas, push small batches of rows inline, and run management commands. Runs as a Microsoft app credential: an app registration signing in with a client secret, a certificate, or a keyless federated credential, in the global cloud or a national cloud, so no interactive sign-in is needed.",
       "bgColor": "#FFFFFF",
       "iconName": "AzureDataExplorerIcon",
       "docsUrl": "https://docs.sim.ai/integrations/azure_data_explorer",
@@ -3259,11 +3259,12 @@
       "operationCount": 14,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "azure-data-explorer",
       "category": "tools",
       "integrationType": "databases",
       "tags": ["data-analytics", "data-warehouse", "cloud", "monitoring"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-12"
     },
     {
       "type": "azure_devops_v2",

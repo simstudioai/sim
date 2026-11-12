@@ -27,6 +27,7 @@ import { credential } from '@sim/db/schema'
 import {
   MicrosoftAppCredentialError,
   resolveMicrosoftAppCredentialToken,
+  resolveMicrosoftAppResourceToken,
   verifyAndEncryptMicrosoftAppCredential,
 } from '@/lib/credentials/microsoft-app-service-account.server'
 import { issueWorkloadIdentitySubject } from '@/lib/credentials/workload-identity/subject'
@@ -572,6 +573,90 @@ describe('getting a Microsoft app token for a run', () => {
       resolveMicrosoftAppCredentialToken('cred-powerbi-china', 'microsoft-powerbi')
     ).rejects.toMatchObject({ code: 'invalid_credentials', status: 400 })
     expect(fetch).not.toHaveBeenCalled()
+  })
+
+  describe('for a resource the tool operation chooses per call', () => {
+    const CLUSTER = 'https://help.westus.kusto.windows.net'
+    const adx = (resource: string, clouds: ('global' | 'usgov' | 'usgov_dod' | 'china')[]) => ({
+      resource,
+      clouds,
+      serviceLabel: 'Azure Data Explorer',
+    })
+
+    it('hands the executor the credential ID, not a token, when it authorizes the service', async () => {
+      fakeMicrosoft(fetch)
+      storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-adx-auth')
+
+      await expect(
+        resolveMicrosoftAppCredentialToken('cred-adx', 'azure-data-explorer')
+      ).resolves.toEqual({ accessToken: 'cred-adx' })
+      expect(fetch).not.toHaveBeenCalled()
+    })
+
+    it('refuses to authorize an unavailable credential for it', async () => {
+      resetDbChainMock()
+      queueTableRows(credential, [])
+
+      await expect(
+        resolveMicrosoftAppCredentialToken('cred-missing', 'azure-data-explorer')
+      ).rejects.toThrow(/unavailable/)
+    })
+
+    it('mints a token for each cluster audience, cached per cluster', async () => {
+      const tokens = fakeMicrosoft(fetch)
+      const other = 'https://other.eastus.kusto.windows.net'
+      for (const resource of [CLUSTER, other, CLUSTER]) {
+        storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-adx')
+        await expect(
+          resolveMicrosoftAppResourceToken('cred-adx-mint', adx(resource, ['global']))
+        ).resolves.toBe(`at:${resource}/.default`)
+      }
+      expect(tokens.map(({ url, form }) => [url, form.scope])).toEqual([
+        [TOKEN_URL, `${CLUSTER}/.default`],
+        [TOKEN_URL, `${other}/.default`],
+      ])
+    })
+
+    it('signs in at the national cloud the credential names', async () => {
+      const tokens = fakeMicrosoft(fetch)
+      storeCredential(
+        { authType: 'client_secret', clientSecret: SECRET, cloud: 'china' },
+        'ciphertext-adx-china'
+      )
+      const cluster = 'https://mycluster.chinaeast2.kusto.chinacloudapi.cn'
+
+      await resolveMicrosoftAppResourceToken('cred-adx-china', adx(cluster, ['china']))
+      expect(tokens.map(({ url, form }) => [url, form.scope])).toEqual([
+        [`https://login.chinacloudapi.cn/${TENANT}/oauth2/v2.0/token`, `${cluster}/.default`],
+      ])
+    })
+
+    it('refuses a resource outside the credential’s cloud without minting', async () => {
+      fakeMicrosoft(fetch)
+      storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-adx-gov')
+
+      await expect(
+        resolveMicrosoftAppResourceToken(
+          'cred-adx-gov',
+          adx('https://mycluster.usgovvirginia.kusto.usgovcloudapi.net', ['usgov', 'usgov_dod'])
+        )
+      ).rejects.toMatchObject({ code: 'invalid_credentials', status: 400 })
+      expect(fetch).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      `${CLUSTER}/v1/rest/query`,
+      `${CLUSTER}:8443`,
+      'http://help.westus.kusto.windows.net',
+      `${CLUSTER}/`,
+      'help.westus.kusto.windows.net',
+    ])('refuses the audience %s before reading the credential', async (resource) => {
+      await expect(
+        resolveMicrosoftAppResourceToken('cred-adx-bad', adx(resource, ['global']))
+      ).rejects.toMatchObject({ code: 'invalid_credentials' })
+      expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
+      expect(fetch).not.toHaveBeenCalled()
+    })
   })
 
   it('refuses Dataverse for a credential saved without an environment', async () => {

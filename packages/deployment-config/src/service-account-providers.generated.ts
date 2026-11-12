@@ -15,6 +15,7 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   ashby: 'ashby-service-account',
   attio: 'attio-service-account',
   aws: 'aws-service-account',
+  'azure-data-explorer': 'microsoft-app-service-account',
   azure_devops: 'azure-devops-service-account',
   bitbucket: 'bitbucket-service-account',
   box: 'box-service-account',
