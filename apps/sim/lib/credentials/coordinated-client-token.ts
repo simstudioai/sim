@@ -10,6 +10,7 @@ import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 /** A stored token is only handed out while at least this much of its lifetime remains. */
 const MIN_REMAINING_MS = 5 * 60 * 1000
 const FAILURE_TTL_MS = 30_000
+const DEFAULT_ACCESS_TOKEN_DIGEST_TAG = 'coordinated_client_token'
 
 /** The provider token a coordinated exchange produced. */
 interface CoordinatedClientTokenExchange {
@@ -32,6 +33,27 @@ export interface CoordinatedClientTokenInput {
   /** Performs the provider exchange. Throws `TokenServiceAccountValidationError` on refusal. */
   exchange: (signal?: AbortSignal) => Promise<CoordinatedClientTokenExchange>
   signal?: AbortSignal
+  /** Shortest remaining lifetime a stored token is still served with. Defaults to five minutes. */
+  minRemainingMs?: number
+  /**
+   * A request setting beyond the secret that a remembered exchange failure is specific to, so a
+   * refusal for one setting does not block another.
+   */
+  failureKeyQualifier?: string
+  /**
+   * Tag mixed into the access-token digest that invalidation matches on. Pass the same tag to
+   * {@link invalidateCoordinatedClientToken}. Defaults to a tag shared by every caller.
+   */
+  accessTokenDigestTag?: string
+  /**
+   * Settings the application's first mint fixes for every later resolution, stored with its token.
+   * `verify` sees every stored token record (expired ones too, once the lock is held) and throws to
+   * refuse it: a validation error for a mismatch, `provider_unavailable` for a malformed record.
+   */
+  pinnedState?: {
+    values: Readonly<Record<string, string>>
+    verify: (stored: Readonly<Record<string, unknown>>) => void
+  }
 }
 
 export interface CoordinatedClientToken {
@@ -42,6 +64,7 @@ export interface CoordinatedClientToken {
 interface StoredApplicationToken {
   accessToken: string
   secretFingerprint: string
+  record: Readonly<Record<string, unknown>>
 }
 
 interface StoredFailure {
@@ -61,8 +84,8 @@ function digest(value: unknown): string {
 }
 
 /** Identifies a stored token by its value alone, so a provider rejection can expire it. */
-function accessTokenDigestOf(accessToken: string): string {
-  return digest(['coordinated_client_token', accessToken])
+function accessTokenDigestOf(accessToken: string, tag = DEFAULT_ACCESS_TOKEN_DIGEST_TAG): string {
+  return digest([tag, accessToken])
 }
 
 /**
@@ -86,6 +109,8 @@ interface InvalidateCoordinatedClientTokenOptions {
    * the endpoint rather than the token, so a call that keeps failing cannot re-mint on every try.
    */
   minimumAgeMs?: number
+  /** The `accessTokenDigestTag` the token was resolved with. */
+  accessTokenDigestTag?: string
 }
 
 /**
@@ -97,7 +122,10 @@ export async function invalidateCoordinatedClientToken(
   accessToken: string,
   options: InvalidateCoordinatedClientTokenOptions = {}
 ): Promise<void> {
-  const matchesToken = eq(clientCredentialToken.accessTokenDigest, accessTokenDigestOf(accessToken))
+  const matchesToken = eq(
+    clientCredentialToken.accessTokenDigest,
+    accessTokenDigestOf(accessToken, options.accessTokenDigestTag)
+  )
   await db
     .update(clientCredentialToken)
     .set({ expiresAt: new Date(0), updatedAt: new Date() })
@@ -124,7 +152,11 @@ function decodeApplicationToken(value: string, step: string): StoredApplicationT
     typeof parsed.secretFingerprint !== 'string'
   )
     throw unavailable(step, 'stored application token is malformed')
-  return { accessToken: parsed.accessToken, secretFingerprint: parsed.secretFingerprint }
+  return {
+    accessToken: parsed.accessToken,
+    secretFingerprint: parsed.secretFingerprint,
+    record: parsed,
+  }
 }
 
 function decodeFailure(value: string, step: string): StoredFailure {
@@ -143,8 +175,8 @@ function remainingSeconds(expiresAt: Date): number {
   return Math.floor((expiresAt.getTime() - Date.now()) / 1000)
 }
 
-function isServable(expiresAt: Date): boolean {
-  return expiresAt.getTime() - Date.now() > MIN_REMAINING_MS
+function isServable(expiresAt: Date, minRemainingMs: number): boolean {
+  return expiresAt.getTime() - Date.now() > minRemainingMs
 }
 
 /**
@@ -163,16 +195,27 @@ function isServable(expiresAt: Date): boolean {
 export async function resolveCoordinatedClientToken(
   input: CoordinatedClientTokenInput
 ): Promise<CoordinatedClientToken> {
-  const { namespace, step, signal } = input
+  const { namespace, step, signal, pinnedState } = input
+  const minRemainingMs = input.minRemainingMs ?? MIN_REMAINING_MS
   signal?.throwIfAborted()
   const applicationKey = `${namespace}:${digest(input.application)}`
   const secretFingerprint = digest([...input.application, input.clientSecret])
-  const failureKey = `${applicationKey}:${digest(secretFingerprint)}`
+  const failureKey = `${applicationKey}:${digest(
+    input.failureKeyQualifier === undefined
+      ? secretFingerprint
+      : [secretFingerprint, input.failureKeyQualifier]
+  )}`
 
-  const serveIfFresh = async (row: typeof clientCredentialToken.$inferSelect | undefined) => {
-    if (!row || !isServable(row.expiresAt)) return undefined
+  const serveIfFresh = async (
+    row: typeof clientCredentialToken.$inferSelect | undefined,
+    verifyExpired = false
+  ) => {
+    if (!row) return undefined
+    const servable = isServable(row.expiresAt, minRemainingMs)
+    if (!servable && !(verifyExpired && pinnedState)) return undefined
     const stored = decodeApplicationToken((await decryptSecret(row.encryptedValue)).decrypted, step)
-    if (stored.secretFingerprint !== secretFingerprint) return undefined
+    pinnedState?.verify(stored.record)
+    if (!servable || stored.secretFingerprint !== secretFingerprint) return undefined
     return { accessToken: stored.accessToken, expiresInSeconds: remainingSeconds(row.expiresAt) }
   }
 
@@ -195,7 +238,10 @@ export async function resolveCoordinatedClientToken(
           .select()
           .from(clientCredentialToken)
           .where(inArray(clientCredentialToken.id, [applicationKey, failureKey]))
-        const minted = await serveIfFresh(entries.find((entry) => entry.id === applicationKey))
+        const minted = await serveIfFresh(
+          entries.find((entry) => entry.id === applicationKey),
+          true
+        )
         if (minted) return minted
         const failure = entries.find(
           (entry) => entry.id === failureKey && entry.expiresAt.getTime() > Date.now()
@@ -209,11 +255,18 @@ export async function resolveCoordinatedClientToken(
         try {
           const exchanged = await input.exchange(signal)
           const { encrypted } = await encryptSecret(
-            JSON.stringify({ accessToken: exchanged.accessToken, secretFingerprint })
+            JSON.stringify({
+              accessToken: exchanged.accessToken,
+              secretFingerprint,
+              ...pinnedState?.values,
+            })
           )
           const values = {
             encryptedValue: encrypted,
-            accessTokenDigest: accessTokenDigestOf(exchanged.accessToken),
+            accessTokenDigest: accessTokenDigestOf(
+              exchanged.accessToken,
+              input.accessTokenDigestTag
+            ),
             expiresAt: exchanged.expiresAt,
             updatedAt: new Date(),
           }
