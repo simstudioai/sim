@@ -20,8 +20,8 @@
 #      provider (for IRSA).
 #   2. RDS for PostgreSQL 17 and ElastiCache reachable from the cluster. The listing's
 #      CloudFormation template creates both in your VPC.
-#   3. An IAM role for the ServiceAccount below that allows license-manager:CheckoutLicense,
-#      CheckInLicense, ExtendLicenseConsumption, GetLicense and ListReceivedLicenses.
+#   3. An IAM role for the ServiceAccount below that allows license-manager:ListReceivedLicenses
+#      (the CloudFormation template creates it).
 #   4. An ACM certificate for the two hostnames below.
 #   5. Two Secrets in the install namespace (no secret ever goes in this file):
 #        kubectl create secret generic sim-app-secrets --namespace sim \

@@ -1,22 +1,25 @@
 import {
-  CheckInLicenseCommand,
-  CheckoutLicenseCommand,
+  type GrantedLicense,
   LicenseManagerClient,
-  NoEntitlementsAllowedException,
+  ListReceivedLicensesCommand,
 } from '@aws-sdk/client-license-manager'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 
 /**
  * Enterprise entitlement for Sim installed from the AWS Marketplace container listing.
  *
  * The listing sells an annual contract whose one dimension is `enterprise_license`. AWS Marketplace
- * grants the buyer a license in AWS License Manager, and the running product checks it out. While
- * the license is active, the Enterprise suite is on (`ENTERPRISE_ENABLED`). Without one, Sim runs
- * as the open-source core, so a lapsed renewal or an unreachable License Manager never locks a
- * buyer out of their deployment.
+ * grants the buyer a license in AWS License Manager, and the running product reads it. While the
+ * license is active, the Enterprise suite is on (`ENTERPRISE_ENABLED`). Without one, Sim runs as the
+ * open-source core, so a lapsed renewal or an unreachable License Manager never locks a buyer out
+ * of their deployment.
+ *
+ * The check reads the license rather than checking a unit out of it. A contract usually covers the
+ * whole deployment with one unit, so checking it out from every replica would make them compete
+ * for it, and a unit left checked out (a failed check-in holds it for an hour) would read exactly
+ * like an expired license.
  *
  * Opt-in: nothing here runs unless {@link PRODUCT_SKU_ENV} is set, which only the Marketplace
  * Helm profile does. Enterprise flags are read once at startup by both the server and the
@@ -59,42 +62,39 @@ function createClient(): LicenseManagerClient {
 }
 
 /**
- * Checks out one unit of the Enterprise entitlement and returns it straight away. The check-out is
- * the proof AWS asks for; returning the unit keeps several replicas from competing for a
- * single-unit contract.
+ * An AWS Marketplace license this product's buyer holds is current when License Manager reports it
+ * `AVAILABLE`, its issuer is AWS Marketplace, and it carries the Enterprise entitlement. License
+ * Manager moves an ended, cancelled, or suspended license out of `AVAILABLE` itself.
  */
+function isActiveEnterpriseLicense(license: GrantedLicense): boolean {
+  return (
+    license.Status === 'AVAILABLE' &&
+    license.Issuer?.KeyFingerprint === MARKETPLACE_KEY_FINGERPRINT &&
+    (license.Entitlements ?? []).some((entitlement) => entitlement.Name === ENTERPRISE_ENTITLEMENT)
+  )
+}
+
 async function checkLicense(
   client: LicenseManagerClient,
   productSku: string
 ): Promise<LicenseState> {
   try {
-    const result = await client.send(
-      new CheckoutLicenseCommand({
-        ProductSKU: productSku,
-        CheckoutType: 'PROVISIONAL',
-        KeyFingerprint: MARKETPLACE_KEY_FINGERPRINT,
-        Entitlements: [{ Name: ENTERPRISE_ENTITLEMENT, Value: '1', Unit: 'Count' }],
-        ClientToken: generateId(),
-      })
-    )
-    const entitled = (result.EntitlementsAllowed ?? []).some(
-      (entitlement) => entitlement.Name === ENTERPRISE_ENTITLEMENT
-    )
-    if (result.LicenseConsumptionToken) {
-      await client
-        .send(
-          new CheckInLicenseCommand({ LicenseConsumptionToken: result.LicenseConsumptionToken })
-        )
-        .catch((error: unknown) => {
-          // An unreturned unit goes back to the pool on its own after an hour.
-          logger.warn('Could not check the Enterprise license back in', {
-            message: getErrorMessage(error, 'Unknown error'),
-          })
+    let nextToken: string | undefined
+    do {
+      const page = await client.send(
+        new ListReceivedLicensesCommand({
+          Filters: [
+            { Name: 'ProductSKU', Values: [productSku] },
+            { Name: 'Fingerprint', Values: [MARKETPLACE_KEY_FINGERPRINT] },
+          ],
+          NextToken: nextToken,
         })
-    }
-    return entitled ? 'entitled' : 'not-entitled'
+      )
+      if ((page.Licenses ?? []).some(isActiveEnterpriseLicense)) return 'entitled'
+      nextToken = page.NextToken
+    } while (nextToken)
+    return 'not-entitled'
   } catch (error) {
-    if (error instanceof NoEntitlementsAllowedException) return 'not-entitled'
     logger.warn('Could not check the AWS Marketplace Enterprise license', {
       message: getErrorMessage(error, 'Unknown error'),
     })

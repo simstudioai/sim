@@ -150,12 +150,9 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action:
-                  - license-manager:CheckoutLicense
-                  - license-manager:CheckInLicense
-                  - license-manager:ExtendLicenseConsumption
-                  - license-manager:GetLicense
-                  - license-manager:ListReceivedLicenses
+                # Sim only reads the license. ListReceivedLicenses has no resource-level
+                # permissions, so it cannot be scoped below '*'.
+                Action: license-manager:ListReceivedLicenses
                 Resource: '*'
 
 Outputs:
