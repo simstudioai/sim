@@ -2,6 +2,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
 
 const sslModeSchema = z.enum(['disabled', 'required', 'preferred']).default('preferred')
+/**
+ * TLS mode for a PostgreSQL connection: `required` encrypts without verifying the server
+ * certificate, `preferred` uses TLS when the server offers it, and `disabled` connects without TLS.
+ */
 export type PostgresqlSslMode = z.output<typeof sslModeSchema>
 
 const nonEmptyRecordSchema = (message: string) =>

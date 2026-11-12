@@ -2,6 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
 
 export const mssqlToggleSchema = z.enum(['enabled', 'disabled'])
+/** An on/off SQL Server connection setting, used for `encrypt` and `trustServerCertificate`. */
 export type MssqlToggle = z.output<typeof mssqlToggleSchema>
 
 export const MSSQL_DEFAULT_CONNECTION_TIMEOUT_MS = 15_000
