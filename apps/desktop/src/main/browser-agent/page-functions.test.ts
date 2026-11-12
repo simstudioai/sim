@@ -117,6 +117,7 @@ beforeEach(() => {
   window.__simAgentMutationStates = undefined
   window.__simAgentNextElementId = 0
   window.__simAgentShownElements = undefined
+  window.__simAgentShownPending = undefined
   installPageHelpers()
   window.__simAgentResolveElement = undefined
   installDomShims()
@@ -542,6 +543,19 @@ describe('collectSnapshot', () => {
     expect(outlineOf(collectSnapshot())).not.toContain(' new')
   })
 
+  it('keeps new markers for a recapture that replaces a discarded capture', () => {
+    document.body.innerHTML = '<button>Compose</button>'
+    visible(document.querySelector('button') as HTMLButtonElement)
+    collectSnapshot()
+    const added = document.createElement('button')
+    added.textContent = 'Send'
+    document.body.append(visible(added))
+    collectSnapshot()
+
+    const lines = outlineOf(collectSnapshot(0, null, true, 0, true)).split('\n')
+    expect(lines.find((line) => line.includes('"Send"'))).toMatch(/ new$/)
+  })
+
   it('leaves new markers out of an unmarked read without consuming them', () => {
     document.body.innerHTML = '<button>Compose</button>'
     visible(document.querySelector('button') as HTMLButtonElement)
@@ -812,6 +826,28 @@ describe('collectSnapshot', () => {
     ;(document.querySelector('span') as HTMLSpanElement).textContent = 'Order 2'
 
     expect(refFor(outlineOf(collectSnapshot()), 'Delete')).not.toBe(first)
+  })
+
+  it('refuses an earlier ref once a later snapshot reissued its recycled element', () => {
+    document.body.innerHTML = '<div role="row"><span>Order 1</span><button>Archive</button></div>'
+    for (const el of Array.from(document.querySelectorAll('span, button'))) visible(el)
+    const first = refFor(outlineOf(collectSnapshot()), 'Archive')
+    ;(document.querySelector('span') as HTMLSpanElement).textContent = 'Order 2'
+    const second = refFor(outlineOf(collectSnapshot()), 'Archive')
+    collectSnapshot(500, second)
+
+    expect(second).not.toBe(first)
+    expect(clickElement(first)).toMatchObject({ error: 'stale' })
+  })
+
+  it('does not take an icon-only control as revealing content when its label grows', () => {
+    document.body.innerHTML = '<button aria-label="Remove"></button>'
+    const button = visible(document.querySelector('button') as HTMLButtonElement)
+    const ref = refFor(outlineOf(collectSnapshot()), 'Remove')
+
+    button.setAttribute('aria-label', 'Remove member')
+
+    expect(clickElement(ref)).toMatchObject({ error: 'stale' })
   })
 
   it('invalidates a connected ref whose name changed to a longer, different word', () => {

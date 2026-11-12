@@ -65,6 +65,8 @@ declare global {
     __simAgentRefOfElement?: WeakMap<Element, number>
     /** Elements an earlier snapshot of this document listed; a later snapshot marks the rest `new`. */
     __simAgentShownElements?: WeakSet<Element>
+    /** Elements the latest capture listed, committed to the shown set by the next capture that keeps them. */
+    __simAgentShownPending?: Element[]
     /** Installed by {@link installPageHelpers} before every page function; cached per call. */
     __simAgentIsExemptModal: (element: Element) => boolean
     /** Installed by {@link installPageHelpers}: the element's id in the current snapshot. */
@@ -231,7 +233,8 @@ export function collectSnapshot(
   startingElementId = 0,
   elementId: number | null = null,
   markNew = true,
-  refNamespace = 0
+  refNamespace = 0,
+  forgetIssuedRefs = false
 ): unknown {
   const resolver = window.__simAgentResolveElement
   const scopedRoot =
@@ -331,14 +334,22 @@ export function collectSnapshot(
   const refLineIndexes: Record<number, number> = {}
   const locators: SnapshotRefLocator[] = []
   window.__simAgentElements = registry
-  const previouslyShown = window.__simAgentShownElements
-  const shown = previouslyShown ?? new WeakSet<Element>()
-  if (markNew) window.__simAgentShownElements = shown
+  // A capture the driver discards and recaptures must not use up `new`
+  // markers, so its listed elements commit only when the next capture keeps them.
+  const pendingShown = window.__simAgentShownPending
+  if (markNew && pendingShown && !forgetIssuedRefs) {
+    const committed = window.__simAgentShownElements ?? new WeakSet<Element>()
+    for (const el of pendingShown) committed.add(el)
+    window.__simAgentShownElements = committed
+  }
+  const shown = window.__simAgentShownElements
+  const listed: Element[] = []
+  if (markNew) window.__simAgentShownPending = listed
   /** Whether no earlier snapshot of this document listed the element; the first snapshot marks nothing. */
-  const isNew = (el: Element): boolean => markNew && previouslyShown !== undefined && !shown.has(el)
+  const isNew = (el: Element): boolean => markNew && shown !== undefined && !shown.has(el)
   /** Records an element whose line made it into the outline, so the next snapshot knows it. */
   const recordShown = (el: Element): void => {
-    if (markNew) shown.add(el)
+    if (markNew) listed.push(el)
   }
   const lines: string[] = []
   let truncated = false
@@ -603,9 +614,11 @@ export function collectSnapshot(
 
   // An unchanged element keeps its ref, and a ref stays resolvable after a
   // later snapshot leaves it out; a changed element gets a new ref.
-  const issuedRefs = window.__simAgentIssuedRefs ?? new Map()
+  // The driver asks the page to forget when it cannot vouch for a reused id
+  // (a capture it never committed handed it out), so every element gets a new one.
+  const issuedRefs = (!forgetIssuedRefs && window.__simAgentIssuedRefs) || new Map()
   window.__simAgentIssuedRefs = issuedRefs
-  const refOfElement = window.__simAgentRefOfElement ?? new WeakMap()
+  const refOfElement = (!forgetIssuedRefs && window.__simAgentRefOfElement) || new WeakMap()
   window.__simAgentRefOfElement = refOfElement
   const issuedRefCap = 5000
   const textHashOf = (el: Element): number => {
@@ -958,8 +971,10 @@ export function collectSnapshot(
       // was revealed (its DOM text is unchanged) or it declares a popup. A
       // recycled row changes its DOM text with neither.
       const name = nameFor(candidate)
-      const opensPopup =
-        textHashOf(candidate) === locator.textHash ||
+      const revealedContent = (): boolean =>
+        Boolean(candidate.textContent?.trim()) && textHashOf(candidate) === locator.textHash
+      const opensPopup = (): boolean =>
+        revealedContent() ||
         ['aria-haspopup', 'aria-expanded', 'aria-controls'].some(
           (attribute) => (candidate.getAttribute(attribute) || 'false') !== 'false'
         ) ||
@@ -968,10 +983,11 @@ export function collectSnapshot(
         ) !== null
       const nameGrewInPlace =
         connected &&
-        opensPopup &&
+        name !== locator.name &&
         locator.name.length > 0 &&
         name.startsWith(locator.name) &&
-        (locator.name.length >= 120 || /\s/.test(name.charAt(locator.name.length)))
+        (locator.name.length >= 120 || /\s/.test(name.charAt(locator.name.length))) &&
+        opensPopup()
       if (name !== locator.name && !nameGrewInPlace) return false
       const candidateAttributes = locatorAttributes(candidate)
       const attributes = connected ? connectedIdentityAttributes : stableAttributes
@@ -1052,6 +1068,12 @@ export function collectSnapshot(
     }
 
     const current = registry[id] ?? issued?.element.deref()
+    // An earlier ref whose element has since been issued a new ref (it changed
+    // identity in between, e.g. a recycled row) no longer names it.
+    if (!inLatestSnapshot && current && refOfElement.get(current) !== id) {
+      window.__simAgentStaleReason = 'the element was given a new ref by a later snapshot'
+      return null
+    }
     if (current?.isConnected) {
       if (!identityMatches(current, true)) {
         window.__simAgentStaleReason = `the node is still mounted but its identity drifted (now <${String(current.tagName || '').toLowerCase()}> role=${roleFor(current) || 'none'} name="${nameFor(current).slice(0, 60)}")`
