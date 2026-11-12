@@ -15539,7 +15539,7 @@
             "description": "Stable machine-readable execution failure code. `BLOCK_EXECUTION_FAILED` and `CHILD_WORKFLOW_FAILED` are reported only where block attribution is available; elsewhere a block-level failure is reported as `EXECUTION_FAILED`."
           },
           "blockId": {
-            "description": "Identifier of the failing block, when attributable. Get workflow run reads it from the run trace, so it is absent there when the trace is unavailable or hidden by organization permission groups, and for a timeout, cancellation, usage-limit, or invalid-input failure.",
+            "description": "Identifier of the failing block, when attributable. Get workflow run reads it from the run trace, so it is absent there when the trace is unavailable or hidden by organization permission groups, when no failed block in the trace recorded the run error, and for a timeout, cancellation, usage-limit, or invalid-input failure.",
             "type": "string"
           },
           "blockName": {

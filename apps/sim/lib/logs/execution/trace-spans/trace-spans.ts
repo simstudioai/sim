@@ -231,6 +231,8 @@ export interface FailedTraceBlock {
 interface FailedSpanCandidate {
   block: FailedTraceBlock
   endedAt: number
+  /** The block log's error, which the span builder merges into its output. */
+  recordedError: string | undefined
 }
 
 /** The innermost unhandled-error block spans: a container whose failure came from a block inside it yields that block. */
@@ -252,6 +254,10 @@ function collectFailedBlockSpans(nodes: unknown, into: FailedSpanCandidate[]): v
           blockType,
         },
         endedAt: typeof span.endTime === 'string' ? Date.parse(span.endTime) : Number.NaN,
+        recordedError:
+          isRecordLike(span.output) && typeof span.output.error === 'string'
+            ? span.output.error
+            : undefined,
       })
     }
   }
@@ -260,11 +266,14 @@ function collectFailedBlockSpans(nodes: unknown, into: FailedSpanCandidate[]): v
 /**
  * The block a recorded run failed in, read back from its persisted trace spans.
  *
- * A run stores the error of the failure that settled first, while branches already
- * in flight may fail after it. So the span whose block name heads the stored error
- * (`Block name: message`, as a block failure is recorded) is the one named; failing
- * that, the failure that ended first; and when neither singles one out, none, so a
- * message is never paired with another block's identity.
+ * Given the run's stored error, only a block that owns it is named: one whose name
+ * heads it (`Block name: message`, as a block failure is recorded) or whose own
+ * recorded error is exactly it, as a loop or parallel failure is recorded without a
+ * prefix. A run stores the error of the failure that settled first, while branches
+ * already in flight may fail after it, and a run can fail outside any block while
+ * one is failing; so a failed block that does not own the error is never named, and
+ * among several owners the one that ended first is, or none when they cannot be told
+ * apart. Without a run error, the failure that ended first is named.
  *
  * Spans are walked as {@link hasUnhandledError} walks them, including under a block
  * that succeeded, and the same boundaries hold: a successful boundary block's
@@ -273,17 +282,18 @@ function collectFailedBlockSpans(nodes: unknown, into: FailedSpanCandidate[]): v
  * block that ran it, as it is at execution time, and a custom block's source workflow
  * is never named to its consumer.
  *
- * Reads stored, untyped spans structurally and never their input or output. Null when
- * the trace has no such span, including when it was not recorded, was compacted, or is
- * unavailable.
+ * Reads stored, untyped spans structurally, and of their output only the recorded
+ * error. Null when the trace has no such span, including when it was not recorded,
+ * was compacted, or is unavailable.
  */
 export function findFailedTraceBlock(spans: unknown, runError?: string): FailedTraceBlock | null {
   const candidates: FailedSpanCandidate[] = []
   collectFailedBlockSpans(spans, candidates)
-  const named = runError
-    ? candidates.filter((span) => errorNamesBlock(runError, span.block.blockName))
-    : []
-  const pool = named.length > 0 ? named : candidates
+  const pool = runError
+    ? candidates.filter(
+        (span) => errorNamesBlock(runError, span.block.blockName) || span.recordedError === runError
+      )
+    : candidates
   if (pool.length <= 1) return pool[0]?.block ?? null
   if (!pool.every((span) => Number.isFinite(span.endedAt))) return null
   const [first, second] = pool.sort((a, b) => a.endedAt - b.endedAt)
