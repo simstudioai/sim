@@ -2451,3 +2451,33 @@ describe('first-party browser sessions', () => {
     expect(routeAgentNavigation(contents, `${origin}/submit`, 'POST')).toBe(false)
   })
 })
+
+describe('browserShortcutForInput', () => {
+  const keyDown = {
+    type: 'keyDown',
+    key: 'Tab',
+    code: 'Tab',
+    isAutoRepeat: false,
+    isComposing: false,
+    shift: false,
+    control: false,
+    alt: false,
+    meta: false,
+  } as const
+
+  it.each(['darwin', 'win32'] as const)(
+    'cycles tabs with Ctrl+Tab on %s, as Chrome does',
+    (platform) => {
+      expect(sessionModule.browserShortcutForInput({ ...keyDown, control: true }, platform)).toBe(
+        'next-tab'
+      )
+      expect(
+        sessionModule.browserShortcutForInput({ ...keyDown, control: true, shift: true }, platform)
+      ).toBe('previous-tab')
+      expect(sessionModule.browserShortcutForInput(keyDown, platform)).toBeNull()
+      expect(
+        sessionModule.browserShortcutForInput({ ...keyDown, control: true, meta: true }, platform)
+      ).toBeNull()
+    }
+  )
+})
