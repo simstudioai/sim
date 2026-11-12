@@ -6,7 +6,9 @@ import {
   TRELLO_API_BASE_URL,
 } from '@/tools/trello/shared'
 import type { TrelloListCardsParams, TrelloListCardsResponse } from '@/tools/trello/types'
+import { TRELLO_CARD_OUTPUT_PROPERTIES } from '@/tools/trello/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const trelloListCardsTool: ToolConfig<TrelloListCardsParams, TrelloListCardsResponse> = {
   id: 'trello_list_cards',
@@ -43,6 +45,18 @@ export const trelloListCardsTool: ToolConfig<TrelloListCardsParams, TrelloListCa
       visibility: 'user-or-llm',
       description: 'Which cards to return: open, closed, or all (defaults to open)',
     },
+    since: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only return cards created since this date (ISO 8601) or card ID',
+    },
+    before: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only return cards created before this date (ISO 8601) or card ID',
+    },
   },
 
   request: {
@@ -62,8 +76,8 @@ export const trelloListCardsTool: ToolConfig<TrelloListCardsParams, TrelloListCa
       }
 
       const path = params.listId
-        ? `/lists/${params.listId.trim()}/cards`
-        : `/boards/${params.boardId?.trim()}/cards`
+        ? `/lists/${safeUrlPathSegment(params.listId, 'listId')}/cards`
+        : `/boards/${safeUrlPathSegment(params.boardId ?? '', 'boardId')}/cards`
       const url = new URL(`${TRELLO_API_BASE_URL}${path}`)
       url.searchParams.set('key', apiKey)
       url.searchParams.set('token', params.accessToken)
@@ -71,6 +85,9 @@ export const trelloListCardsTool: ToolConfig<TrelloListCardsParams, TrelloListCa
       if (params.filter) {
         url.searchParams.set('filter', params.filter)
       }
+
+      if (params.since) url.searchParams.set('since', params.since)
+      if (params.before) url.searchParams.set('before', params.before)
 
       return url.toString()
     },
@@ -142,49 +159,7 @@ export const trelloListCardsTool: ToolConfig<TrelloListCardsParams, TrelloListCa
       description: 'Cards returned from the selected Trello board or list',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Card ID' },
-          name: { type: 'string', description: 'Card name' },
-          desc: { type: 'string', description: 'Card description' },
-          url: { type: 'string', description: 'Full card URL' },
-          idBoard: { type: 'string', description: 'Board ID containing the card' },
-          idList: { type: 'string', description: 'List ID containing the card' },
-          closed: { type: 'boolean', description: 'Whether the card is archived' },
-          labelIds: {
-            type: 'array',
-            description: 'Label IDs applied to the card',
-            items: {
-              type: 'string',
-              description: 'A Trello label ID',
-            },
-          },
-          labels: {
-            type: 'array',
-            description: 'Labels applied to the card',
-            items: {
-              type: 'object',
-              properties: {
-                id: { type: 'string', description: 'Label ID' },
-                name: { type: 'string', description: 'Label name' },
-                color: {
-                  type: 'string',
-                  description: 'Label color',
-                  optional: true,
-                },
-              },
-            },
-          },
-          due: {
-            type: 'string',
-            description: 'Card due date in ISO 8601 format',
-            optional: true,
-          },
-          dueComplete: {
-            type: 'boolean',
-            description: 'Whether the due date is complete',
-            optional: true,
-          },
-        },
+        properties: TRELLO_CARD_OUTPUT_PROPERTIES,
       },
     },
     count: { type: 'number', description: 'Number of cards returned' },

@@ -8,6 +8,7 @@ export interface ConfluenceSearchInSpaceParams {
   query?: string
   contentType?: string
   limit?: number
+  cursor?: string
   cloudId?: string
 }
 
@@ -26,6 +27,7 @@ export interface ConfluenceSearchInSpaceResponse {
       excerpt: string
       lastModified: string | null
     }>
+    nextCursor: string | null
   }
 }
 
@@ -81,6 +83,12 @@ export const confluenceSearchInSpaceTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Maximum number of results to return (default: 25, max: 250)',
     },
+    cursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination cursor from a previous response (nextCursor)',
+    },
     cloudId: {
       type: 'string',
       required: false,
@@ -98,6 +106,7 @@ export const confluenceSearchInSpaceTool: InternalToolConfig<
       query: params.query,
       contentType: params.contentType,
       limit: params.limit ? Number(params.limit) : 25,
+      cursor: params.cursor?.trim() || undefined,
       cloudId: params.cloudId,
     }),
   },
@@ -111,6 +120,7 @@ export const confluenceSearchInSpaceTool: InternalToolConfig<
         spaceKey: data.spaceKey ?? '',
         totalSize: data.totalSize ?? 0,
         results: data.results ?? [],
+        nextCursor: data.nextCursor ?? null,
       },
     }
   },
@@ -132,6 +142,11 @@ export const confluenceSearchInSpaceTool: InternalToolConfig<
         type: 'object',
         properties: SEARCH_RESULT_ITEM_PROPERTIES,
       },
+    },
+    nextCursor: {
+      type: 'string',
+      description: 'Cursor for fetching the next page of results',
+      optional: true,
     },
   },
 }

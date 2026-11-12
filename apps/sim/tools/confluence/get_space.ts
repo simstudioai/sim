@@ -25,6 +25,7 @@ export interface ConfluenceGetSpaceResponse {
       value: string
       representation: string
     } | null
+    spaceOwnerId: string | null
   }
 }
 
@@ -99,7 +100,8 @@ export const confluenceGetSpaceTool: InternalToolConfig<
         authorId: data.authorId ?? null,
         createdAt: data.createdAt ?? null,
         homepageId: data.homepageId ?? null,
-        description: data.description ?? null,
+        description: data.description?.plain ?? null,
+        spaceOwnerId: data.spaceOwnerId ?? null,
       },
     }
   },
@@ -123,6 +125,11 @@ export const confluenceGetSpaceTool: InternalToolConfig<
       type: 'object',
       description: 'Space description content',
       properties: SPACE_DESCRIPTION_OUTPUT_PROPERTIES,
+      optional: true,
+    },
+    spaceOwnerId: {
+      type: 'string',
+      description: 'Account ID of the space owner',
       optional: true,
     },
   },

@@ -1,4 +1,4 @@
-import { toArray } from '@sim/utils/object'
+import { toArray, toRecord } from '@sim/utils/object'
 import type { ContractBody } from '@/lib/api/contracts'
 import type {
   jsmCreateObjectContract,
@@ -12,6 +12,7 @@ import type {
   jsmUpdateObjectContract,
 } from '@/lib/api/contracts/tools/jsm'
 import { createJsmAssetsClient } from '@/lib/internal/jsm/client'
+import { JsmOperationError } from '@/lib/internal/jsm/errors'
 import { mapAssetObject } from '@/tools/jsm/utils'
 
 type ListObjectSchemasInput = ContractBody<typeof jsmListObjectSchemasContract>
@@ -74,22 +75,40 @@ export async function executeJsmGetObjectSchema(input: GetObjectSchemaInput, sig
   return { success: true, output: { ts: new Date().toISOString(), schema: schema ?? null } }
 }
 
+/** Accepts an object-types listing as a bare array or a `values` wrapper. */
+function toObjectTypeList(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : toArray(toRecord(value).values)
+}
+
+/**
+ * Lists a schema's object types. An empty schema listing is retried against the
+ * documented `/flat` listing, which returns every type in the schema, with
+ * `excludeAbstract` applied client-side because `/flat` does not accept it.
+ */
 export async function executeJsmListObjectTypes(input: ListObjectTypesInput, signal?: AbortSignal) {
   const client = await createJsmAssetsClient(input, signal)
   const query = new URLSearchParams()
   if (input.excludeAbstract !== undefined) {
     query.append('excludeAbstract', String(input.excludeAbstract))
   }
-  const value = await client.value(
-    client.assets(
-      `/objectschema/${encodeURIComponent(input.schemaId)}/objecttypes${query.size ? `?${query}` : ''}`
-    ),
-    {},
-    signal,
-    true
+  const schemaPath = `/objectschema/${encodeURIComponent(input.schemaId)}/objecttypes`
+  let objectTypes = toObjectTypeList(
+    await client.value(
+      client.assets(`${schemaPath}${query.size ? `?${query}` : ''}`),
+      {},
+      signal,
+      true
+    )
   )
-  const data = Array.isArray(value) ? {} : (value as Record<string, unknown>)
-  const objectTypes = Array.isArray(value) ? value : toArray(data.values)
+  if (objectTypes.length === 0) {
+    const flat = toObjectTypeList(
+      await client.value(client.assets(`${schemaPath}/flat`), {}, signal, true)
+    )
+    objectTypes =
+      String(input.excludeAbstract) === 'true'
+        ? flat.filter((objectType) => toRecord(objectType).abstractObjectType !== true)
+        : flat
+  }
   return {
     success: true,
     output: { ts: new Date().toISOString(), objectTypes, total: objectTypes.length },
@@ -122,23 +141,76 @@ export async function executeJsmGetObjectTypeAttributes(
   }
 }
 
+const ASSETS_NUMERIC_ID = /^\d+$/
+
+const AQL_ORDER_BY = /\s+order\s+by\s/iy
+
+/**
+ * Splits a trailing `order by` clause off an AQL query, ignoring matches inside
+ * double-quoted values (including escaped `\\"`), since AQL requires the ordering to
+ * stay at the end.
+ */
+function splitAqlOrderBy(qlQuery: string): { condition: string; orderBy: string } {
+  let inQuotes = false
+  let orderByStart = -1
+  for (let index = 0; index < qlQuery.length; index++) {
+    if (qlQuery[index] === '"') {
+      let backslashes = 0
+      for (let cursor = index - 1; cursor >= 0 && qlQuery[cursor] === '\\'; cursor--) backslashes++
+      if (backslashes % 2 === 0) inQuotes = !inQuotes
+      continue
+    }
+    if (inQuotes) continue
+    AQL_ORDER_BY.lastIndex = index
+    if (AQL_ORDER_BY.test(qlQuery)) orderByStart = index
+  }
+  if (orderByStart === -1) return { condition: qlQuery, orderBy: '' }
+  return { condition: qlQuery.slice(0, orderByStart), orderBy: qlQuery.slice(orderByStart) }
+}
+
+function scopeId(keyword: string, id: string | undefined): string | null {
+  const trimmed = id?.trim()
+  if (!trimmed) return null
+  if (!ASSETS_NUMERIC_ID.test(trimmed)) {
+    throw new JsmOperationError(`${keyword} must be a numeric ID`, 400)
+  }
+  return `${keyword} = ${trimmed}`
+}
+
+/** ANDs the optional object type and schema scopes into the query's condition. */
+function scopeAqlQuery(input: SearchObjectsAqlInput): string {
+  const scopes = [
+    scopeId('objectTypeId', input.objectTypeId),
+    scopeId('objectSchemaId', input.objectSchemaId),
+  ].filter((scope): scope is string => scope !== null)
+  if (scopes.length === 0) return input.qlQuery
+  const { condition, orderBy } = splitAqlOrderBy(input.qlQuery)
+  return `(${condition.trim()}) AND ${scopes.join(' AND ')}${orderBy}`
+}
+
 export async function executeJsmSearchObjectsAql(
   input: SearchObjectsAqlInput,
   signal?: AbortSignal
 ) {
-  const client = await createJsmAssetsClient(input, signal)
+  const page = Math.max(1, Math.trunc(toNumber(input.page, 1)))
+  const resultsPerPage = Math.max(1, Math.trunc(toNumber(input.resultsPerPage, 25)))
   const includeAttributes =
     input.includeAttributes === undefined ? true : String(input.includeAttributes) === 'true'
-  const body: Record<string, unknown> = {
-    qlQuery: input.qlQuery,
-    page: toNumber(input.page, 1),
-    resultsPerPage: toNumber(input.resultsPerPage, 25),
-    includeAttributes,
-  }
-  if (input.objectTypeId) body.objectTypeId = input.objectTypeId
-  if (input.objectSchemaId) body.objectSchemaId = input.objectSchemaId
-  const data = await client.json(client.assets('/object/aql'), jsonBody('POST', body), signal, true)
-  const entries = toArray(data.objectEntries)
+  const qlQuery = scopeAqlQuery(input)
+  const client = await createJsmAssetsClient(input, signal)
+  const query = new URLSearchParams({
+    startAt: String((page - 1) * resultsPerPage),
+    maxResults: String(resultsPerPage),
+    includeAttributes: String(includeAttributes),
+  })
+  const data = await client.json(
+    client.assets(`/object/aql?${query}`),
+    jsonBody('POST', { qlQuery }),
+    signal,
+    true
+  )
+  const entries = toArray(data.values)
+  const isLast = data.isLast === undefined ? undefined : String(data.isLast) === 'true'
   return {
     success: true,
     output: {
@@ -146,9 +218,12 @@ export async function executeJsmSearchObjectsAql(
       objects: entries.map((entry) =>
         mapAssetObject(entry as Parameters<typeof mapAssetObject>[0])
       ),
-      total: data.totalFilterCount ?? entries.length,
-      pageNumber: data.pageNumber ?? 1,
-      pageSize: data.pageSize ?? entries.length,
+      total: data.total ?? entries.length,
+      pageNumber: page,
+      pageSize: entries.length,
+      startAt: data.startAt ?? (page - 1) * resultsPerPage,
+      maxResults: data.maxResults ?? resultsPerPage,
+      isLast: isLast ?? entries.length < resultsPerPage,
     },
   }
 }

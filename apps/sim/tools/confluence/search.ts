@@ -6,6 +6,8 @@ export interface ConfluenceSearchParams {
   domain: string
   query: string
   limit?: number
+  cql?: string
+  cursor?: string
   cloudId?: string
 }
 
@@ -20,6 +22,8 @@ export interface ConfluenceSearchResponse {
       url: string
       excerpt: string
     }>
+    totalSize: number | null
+    nextCursor: string | null
   }
 }
 
@@ -62,6 +66,19 @@ export const confluenceSearchTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Maximum number of results to return (default: 25)',
     },
+    cql: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Extra CQL clauses ANDed with the text search, e.g. type = page AND space = "ENG" AND lastModified > now("-7d")',
+    },
+    cursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination cursor from a previous response (nextCursor)',
+    },
     cloudId: {
       type: 'string',
       required: false,
@@ -79,6 +96,8 @@ export const confluenceSearchTool: InternalToolConfig<
         cloudId: params.cloudId,
         query: params.query,
         limit: params.limit ? Number(params.limit) : 25,
+        cql: params.cql?.trim() || undefined,
+        cursor: params.cursor?.trim() || undefined,
       }
     },
   },
@@ -90,6 +109,8 @@ export const confluenceSearchTool: InternalToolConfig<
       output: {
         ts: new Date().toISOString(),
         results: data.results || [],
+        totalSize: data.totalSize ?? null,
+        nextCursor: data.nextCursor ?? null,
       },
     }
   },
@@ -103,6 +124,16 @@ export const confluenceSearchTool: InternalToolConfig<
         type: 'object',
         properties: SEARCH_RESULT_ITEM_PROPERTIES,
       },
+    },
+    totalSize: {
+      type: 'number',
+      description: 'Total number of matching results',
+      optional: true,
+    },
+    nextCursor: {
+      type: 'string',
+      description: 'Cursor for fetching the next page of results',
+      optional: true,
     },
   },
 }

@@ -6,7 +6,9 @@ import {
   TRELLO_API_BASE_URL,
 } from '@/tools/trello/shared'
 import type { TrelloGetCardParams, TrelloGetCardResponse } from '@/tools/trello/types'
+import { TRELLO_CARD_OUTPUT_PROPERTIES } from '@/tools/trello/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const trelloGetCardTool: ToolConfig<TrelloGetCardParams, TrelloGetCardResponse> = {
   id: 'trello_get_card',
@@ -32,6 +34,24 @@ export const trelloGetCardTool: ToolConfig<TrelloGetCardParams, TrelloGetCardRes
       visibility: 'user-or-llm',
       description: 'Trello card ID (24-character hex string)',
     },
+    includeChecklists: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Include each card checklist with its items (default false)',
+    },
+    includeAttachments: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Include card attachments (default false)',
+    },
+    includeMembers: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Include member objects for the members on the card (default false)',
+    },
   },
 
   request: {
@@ -45,9 +65,15 @@ export const trelloGetCardTool: ToolConfig<TrelloGetCardParams, TrelloGetCardRes
         throw new Error('TRELLO_API_KEY environment variable is not set')
       }
 
-      const url = new URL(`${TRELLO_API_BASE_URL}/cards/${params.cardId.trim()}`)
+      const url = new URL(
+        `${TRELLO_API_BASE_URL}/cards/${safeUrlPathSegment(params.cardId, 'cardId')}`
+      )
       url.searchParams.set('key', apiKey)
       url.searchParams.set('token', params.accessToken)
+      url.searchParams.set('fields', 'all')
+      if (params.includeChecklists) url.searchParams.set('checklists', 'all')
+      if (params.includeAttachments) url.searchParams.set('attachments', 'true')
+      if (params.includeMembers) url.searchParams.set('members', 'true')
 
       return url.toString()
     },
@@ -98,51 +124,9 @@ export const trelloGetCardTool: ToolConfig<TrelloGetCardParams, TrelloGetCardRes
     card: {
       type: 'json',
       description:
-        'Card (id, name, desc, url, idBoard, idList, closed, labelIds, labels, due, dueComplete)',
+        'Card (id, name, desc, url, shortUrl, shortLink, idShort, idBoard, idList, closed, pos, labelIds, labels, idMembers, idChecklists, due, start, dueComplete, dateLastActivity, badges, checklists, attachments, members)',
       optional: true,
-      properties: {
-        id: { type: 'string', description: 'Card ID' },
-        name: { type: 'string', description: 'Card name' },
-        desc: { type: 'string', description: 'Card description' },
-        url: { type: 'string', description: 'Full card URL' },
-        idBoard: { type: 'string', description: 'Board ID containing the card' },
-        idList: { type: 'string', description: 'List ID containing the card' },
-        closed: { type: 'boolean', description: 'Whether the card is archived' },
-        labelIds: {
-          type: 'array',
-          description: 'Label IDs applied to the card',
-          items: {
-            type: 'string',
-            description: 'A Trello label ID',
-          },
-        },
-        labels: {
-          type: 'array',
-          description: 'Labels applied to the card',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', description: 'Label ID' },
-              name: { type: 'string', description: 'Label name' },
-              color: {
-                type: 'string',
-                description: 'Label color',
-                optional: true,
-              },
-            },
-          },
-        },
-        due: {
-          type: 'string',
-          description: 'Card due date in ISO 8601 format',
-          optional: true,
-        },
-        dueComplete: {
-          type: 'boolean',
-          description: 'Whether the due date is complete',
-          optional: true,
-        },
-      },
+      properties: TRELLO_CARD_OUTPUT_PROPERTIES,
     },
   },
 }

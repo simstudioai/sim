@@ -1042,6 +1042,20 @@ export const ConfluenceV2Block: BlockConfig = {
       condition: { field: 'operation', value: ['search', 'search_in_space'] },
     },
     {
+      id: 'cql',
+      title: 'CQL Filter',
+      type: 'long-input',
+      placeholder: 'type = page AND space = "ENG" AND lastModified > now("-7d")',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'search' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Write Confluence CQL clauses that are ANDed with a text search. Use fields such as type (page, blogpost, attachment, comment), space, label, creator, contributor, created, lastModified, ancestor, and title, with now("-7d")-style relative dates. Do not include a text ~ clause. Return ONLY the CQL expression.',
+        placeholder: 'Describe how to narrow the search',
+      },
+    },
+    {
       id: 'comment',
       title: 'Comment Text',
       type: 'long-input',
@@ -1056,6 +1070,14 @@ export const ConfluenceV2Block: BlockConfig = {
       placeholder: 'Enter comment ID',
       required: true,
       condition: { field: 'operation', value: ['update_comment', 'delete_comment'] },
+    },
+    {
+      id: 'parentCommentId',
+      title: 'Reply To Comment ID',
+      type: 'short-input',
+      placeholder: 'Enter a footer or inline comment ID to reply to (optional)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_comment' },
     },
     {
       id: 'attachmentId',
@@ -1159,6 +1181,33 @@ export const ConfluenceV2Block: BlockConfig = {
       condition: { field: 'operation', value: 'list_comments' },
     },
     {
+      id: 'commentType',
+      title: 'Comment Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Footer (default)', id: 'footer' },
+        { label: 'Inline', id: 'inline' },
+      ],
+      value: () => 'footer',
+      condition: { field: 'operation', value: 'list_comments' },
+    },
+    {
+      id: 'contentBodyFormat',
+      title: 'Body Format',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Storage', id: 'storage' },
+        { label: 'Atlas Doc Format', id: 'atlas_doc_format' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['get_blogpost', 'list_pages_in_space', 'list_blogposts_in_space'],
+      },
+    },
+    {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
@@ -1213,6 +1262,14 @@ export const ConfluenceV2Block: BlockConfig = {
           'list_tasks',
         ],
       },
+    },
+    {
+      id: 'searchCursor',
+      title: 'Pagination Cursor',
+      type: 'short-input',
+      placeholder: 'Enter nextCursor from a previous search (optional)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['search', 'search_in_space'] },
     },
 
     ...getTrigger('confluence_page_created').subBlocks,
@@ -1445,10 +1502,20 @@ export const ConfluenceV2Block: BlockConfig = {
           spacePropertyKey,
           spacePropertyValue,
           spacePropertyId,
+          commentType,
+          contentBodyFormat,
+          parentCommentId,
+          cql,
+          searchCursor,
           ...rest
         } = params
 
         const effectivePageId = pageId ? String(pageId).trim() : ''
+        const scopedBodyFormat =
+          ['get_blogpost', 'list_pages_in_space', 'list_blogposts_in_space'].includes(operation) &&
+          contentBodyFormat
+            ? { bodyFormat: contentBodyFormat }
+            : {}
 
         if (operation === 'add_label') {
           return {
@@ -1486,6 +1553,27 @@ export const ConfluenceV2Block: BlockConfig = {
             operation,
             bodyFormat: bodyFormat || 'storage',
             cursor: cursor || undefined,
+            commentType: commentType || undefined,
+            ...rest,
+          }
+        }
+
+        if (operation === 'create_comment') {
+          return {
+            credential: oauthCredential,
+            pageId: effectivePageId,
+            operation,
+            parentCommentId: parentCommentId ? String(parentCommentId).trim() : undefined,
+            ...rest,
+          }
+        }
+
+        if (operation === 'search') {
+          return {
+            credential: oauthCredential,
+            operation,
+            cql: cql || undefined,
+            cursor: searchCursor || undefined,
             ...rest,
           }
         }
@@ -1514,6 +1602,7 @@ export const ConfluenceV2Block: BlockConfig = {
             pageId: effectivePageId || undefined,
             operation,
             cursor,
+            ...scopedBodyFormat,
             ...rest,
           }
         }
@@ -1611,6 +1700,7 @@ export const ConfluenceV2Block: BlockConfig = {
             credential: oauthCredential,
             operation,
             spaceKey: selectedSpaceKey,
+            cursor: searchCursor || undefined,
             ...rest,
           }
         }
@@ -1708,6 +1798,7 @@ export const ConfluenceV2Block: BlockConfig = {
           blogPostId: blogPostId || undefined,
           versionNumber: versionNumber ? Number.parseInt(String(versionNumber), 10) : undefined,
           operation,
+          ...scopedBodyFormat,
           ...rest,
         }
       },
@@ -1742,6 +1833,14 @@ export const ConfluenceV2Block: BlockConfig = {
     blogPostStatus: { type: 'string', description: 'Blog post status (current or draft)' },
     purge: { type: 'boolean', description: 'Permanently delete instead of moving to trash' },
     bodyFormat: { type: 'string', description: 'Body format for comments' },
+    commentType: { type: 'string', description: 'Comment type to list (footer or inline)' },
+    contentBodyFormat: {
+      type: 'string',
+      description: 'Body format for blog post and page list/get operations',
+    },
+    parentCommentId: { type: 'string', description: 'Comment ID to reply to' },
+    cql: { type: 'string', description: 'Extra CQL clauses ANDed with the search query' },
+    searchCursor: { type: 'string', description: 'Pagination cursor for search operations' },
     limit: { type: 'number', description: 'Maximum number of results' },
     cursor: { type: 'string', description: 'Pagination cursor from previous response' },
     taskId: { type: 'string', description: 'Task identifier' },
@@ -1808,6 +1907,23 @@ export const ConfluenceV2Block: BlockConfig = {
     homepageId: { type: 'string', description: 'Space homepage ID' },
     description: { type: 'json', description: 'Space description' },
     nextCursor: { type: 'string', description: 'Cursor for fetching next page of results' },
+    totalSize: { type: 'number', description: 'Total number of matching search results' },
+    ownerId: { type: 'string', description: 'Account ID of the current page owner (Read Page)' },
+    lastOwnerId: {
+      type: 'string',
+      description: 'Account ID of the previous page owner (Read Page)',
+    },
+    parentType: { type: 'string', description: 'Parent content type (Read Page)' },
+    parentId: { type: 'string', description: 'Parent page identifier' },
+    parentCommentId: {
+      type: 'string',
+      description: 'Parent comment ID when the comment is a reply',
+    },
+    spaceOwnerId: { type: 'string', description: 'Account ID of the space owner (Get Space)' },
+    webUrl: { type: 'string', description: 'URL to view the blog post or comment in Confluence' },
+    authorId: { type: 'string', description: 'Account ID of the content author' },
+    createdAt: { type: 'string', description: 'ISO 8601 creation timestamp' },
+    spaceKey: { type: 'string', description: 'Space key that was searched (Search in Space)' },
   },
 }
 

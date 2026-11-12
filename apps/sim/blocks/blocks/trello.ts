@@ -496,6 +496,159 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
       },
     },
     {
+      id: 'start',
+      title: 'Start Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD or ISO 8601 timestamp',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['trello_create_card', 'trello_update_card'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date or timestamp based on the user's description.
+The timestamp should be in ISO 8601 format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ.
+Examples:
+- "today" -> Calculate today's date in YYYY-MM-DD format
+- "next Monday" -> Calculate the next Monday in YYYY-MM-DD format
+
+Return ONLY the date/timestamp string - no explanations, no extra text.`,
+        placeholder: 'Describe the start date (e.g. "next Monday")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'updatePos',
+      title: 'Position',
+      type: 'short-input',
+      placeholder: 'top, bottom, or a positive float',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'trello_update_card',
+      },
+    },
+    {
+      id: 'updateLabelIds',
+      title: 'Replace Label IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated label IDs (replaces existing labels)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'trello_update_card',
+      },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a comma-separated list of Trello label IDs. Return ONLY the comma-separated values - no explanations, no extra text.',
+        placeholder: 'Describe the label IDs to set...',
+      },
+    },
+    {
+      id: 'updateMemberIds',
+      title: 'Replace Member IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated member IDs (replaces existing members)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'trello_update_card',
+      },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a comma-separated list of Trello member IDs. Return ONLY the comma-separated values - no explanations, no extra text.',
+        placeholder: 'Describe the member IDs to set...',
+      },
+    },
+    {
+      id: 'moveCardToBoardId',
+      title: 'Move to Board ID',
+      type: 'short-input',
+      placeholder: 'Board ID to move the card to (set Move to List ID too)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'trello_update_card',
+      },
+    },
+    {
+      id: 'cardSince',
+      title: 'Cards Since',
+      type: 'short-input',
+      placeholder: 'ISO 8601 timestamp or card ID',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'trello_list_cards',
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date or timestamp based on the user's description.
+The timestamp should be in ISO 8601 format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ.
+Examples:
+- "1 week ago" -> Calculate the date 1 week ago in YYYY-MM-DD format
+
+Return ONLY the date/timestamp string - no explanations, no extra text.`,
+        placeholder: 'Describe the start of the range (e.g. "1 week ago")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'cardBefore',
+      title: 'Cards Before',
+      type: 'short-input',
+      placeholder: 'ISO 8601 timestamp or card ID',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'trello_list_cards',
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date or timestamp based on the user's description.
+The timestamp should be in ISO 8601 format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ.
+Examples:
+- "today" -> Calculate today's date in YYYY-MM-DD format
+
+Return ONLY the date/timestamp string - no explanations, no extra text.`,
+        placeholder: 'Describe the end of the range (e.g. "today")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'includeChecklists',
+      title: 'Include Checklists',
+      type: 'switch',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'trello_get_card',
+      },
+    },
+    {
+      id: 'includeAttachments',
+      title: 'Include Attachments',
+      type: 'switch',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'trello_get_card',
+      },
+    },
+    {
+      id: 'includeMembers',
+      title: 'Include Members',
+      type: 'switch',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'trello_get_card',
+      },
+    },
+    {
       id: 'filter',
       title: 'Action Filter',
       type: 'short-input',
@@ -862,6 +1015,38 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
         value: 'trello_search',
       },
     },
+    {
+      id: 'searchCardsPage',
+      title: 'Card Results Page',
+      type: 'short-input',
+      placeholder: 'Page of card results (0-100, default 0)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'trello_search',
+      },
+    },
+    {
+      id: 'searchBoardsLimit',
+      title: 'Board Result Limit',
+      type: 'short-input',
+      placeholder: 'Maximum number of boards to return (1-1000, default 10)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'trello_search',
+      },
+    },
+    {
+      id: 'searchPartial',
+      title: 'Partial Word Match',
+      type: 'switch',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['trello_search'],
+      },
+    },
   ],
   tools: {
     access: [
@@ -927,6 +1112,8 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
               boardId,
               listId,
               filter: getTrimmedString(params.cardFilter),
+              since: getTrimmedString(params.cardSince),
+              before: getTrimmedString(params.cardBefore),
             }
           }
 
@@ -943,6 +1130,9 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
               idBoards: parseStringArray(params.searchBoardIds),
               modelTypes: getTrimmedString(params.searchModelTypes),
               cardsLimit: parseOptionalNumberInput(params.searchCardsLimit, 'cardsLimit'),
+              cardsPage: parseOptionalNumberInput(params.searchCardsPage, 'cardsPage'),
+              boardsLimit: parseOptionalNumberInput(params.searchBoardsLimit, 'boardsLimit'),
+              partial: parseOptionalBooleanInput(params.searchPartial),
             }
           }
 
@@ -966,6 +1156,7 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
               pos: getTrimmedString(params.pos),
               due: getTrimmedString(params.due),
               dueComplete: parseOptionalBooleanInput(params.dueComplete),
+              start: getTrimmedString(params.start),
               labelIds: parseStringArray(params.labelIds),
               memberIds: parseStringArray(params.memberIds),
             }
@@ -987,6 +1178,11 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
               idList: getTrimmedString(params.idList),
               due: getTrimmedString(params.due),
               dueComplete: parseOptionalBooleanInput(params.dueComplete),
+              start: getTrimmedString(params.start),
+              pos: getTrimmedString(params.updatePos),
+              idBoard: getTrimmedString(params.moveCardToBoardId),
+              labelIds: parseStringArray(params.updateLabelIds),
+              memberIds: parseStringArray(params.updateMemberIds),
             }
           }
 
@@ -1122,6 +1318,9 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
             return {
               ...baseParams,
               cardId,
+              includeChecklists: parseOptionalBooleanInput(params.includeChecklists),
+              includeAttachments: parseOptionalBooleanInput(params.includeAttachments),
+              includeMembers: parseOptionalBooleanInput(params.includeMembers),
             }
           }
 
@@ -1358,6 +1557,38 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
       description: 'Board IDs to restrict the search to, as an array or comma-separated string',
     },
     searchCardsLimit: { type: 'number', description: 'Maximum number of cards to return' },
+    searchCardsPage: { type: 'number', description: 'Page of card search results (0-100)' },
+    searchBoardsLimit: { type: 'number', description: 'Maximum number of boards to return' },
+    searchPartial: { type: 'boolean', description: 'Match the start of words in the query' },
+    start: { type: 'string', description: 'Card start date in ISO 8601 format' },
+    updatePos: {
+      type: 'string',
+      description: 'New card position (top, bottom, or positive float)',
+    },
+    updateLabelIds: {
+      type: 'json',
+      description: 'Label IDs that replace the card labels, as an array or comma-separated string',
+    },
+    updateMemberIds: {
+      type: 'json',
+      description:
+        'Member IDs that replace the card members, as an array or comma-separated string',
+    },
+    moveCardToBoardId: { type: 'string', description: 'Board ID to move the card to' },
+    cardSince: {
+      type: 'string',
+      description: 'Only list cards created since this date or card ID',
+    },
+    cardBefore: {
+      type: 'string',
+      description: 'Only list cards created before this date or card ID',
+    },
+    includeChecklists: {
+      type: 'boolean',
+      description: 'Include checklists and items on a fetched card',
+    },
+    includeAttachments: { type: 'boolean', description: 'Include attachments on a fetched card' },
+    includeMembers: { type: 'boolean', description: 'Include member objects on a fetched card' },
   },
   outputs: {
     lists: {
@@ -1367,12 +1598,12 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
     cards: {
       type: 'json',
       description:
-        'Cards (id, name, desc, url, idBoard, idList, closed, labelIds, labels, due, dueComplete)',
+        'Cards (id, name, desc, url, shortUrl, shortLink, idShort, idBoard, idList, closed, pos, labelIds, labels, idMembers, idChecklists, due, start, dueComplete, dateLastActivity, badges)',
     },
     card: {
       type: 'json',
       description:
-        'Created, updated, or fetched card (id, name, desc, url, idBoard, idList, closed, labelIds, labels, due, dueComplete)',
+        'Created, updated, or fetched card (id, name, desc, url, shortUrl, shortLink, idShort, idBoard, idList, closed, pos, labelIds, labels, idMembers, idChecklists, due, start, dueComplete, dateLastActivity, badges, checklists, attachments, members)',
     },
     board: {
       type: 'json',

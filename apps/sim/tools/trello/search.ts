@@ -8,6 +8,7 @@ import {
   TRELLO_API_BASE_URL,
 } from '@/tools/trello/shared'
 import type { TrelloSearchParams, TrelloSearchResponse } from '@/tools/trello/types'
+import { TRELLO_CARD_OUTPUT_PROPERTIES } from '@/tools/trello/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const trelloSearchTool: ToolConfig<TrelloSearchParams, TrelloSearchResponse> = {
@@ -56,6 +57,24 @@ export const trelloSearchTool: ToolConfig<TrelloSearchParams, TrelloSearchRespon
       visibility: 'user-or-llm',
       description: 'Maximum number of cards to return (1-1000, default 10)',
     },
+    cardsPage: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Page of card results to return (0-100, default 0)',
+    },
+    boardsLimit: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum number of boards to return (1-1000, default 10)',
+    },
+    partial: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Match the start of words as well as whole words (default false)',
+    },
   },
 
   request: {
@@ -74,6 +93,7 @@ export const trelloSearchTool: ToolConfig<TrelloSearchParams, TrelloSearchRespon
       url.searchParams.set('token', params.accessToken)
       url.searchParams.set('query', params.query)
       url.searchParams.set('modelTypes', params.modelTypes || 'all')
+      url.searchParams.set('board_fields', 'name,desc,url,closed,idOrganization')
 
       if (params.idBoards?.length) {
         url.searchParams.set('idBoards', params.idBoards.join(','))
@@ -81,6 +101,18 @@ export const trelloSearchTool: ToolConfig<TrelloSearchParams, TrelloSearchRespon
 
       if (params.cardsLimit !== undefined) {
         url.searchParams.set('cards_limit', String(params.cardsLimit))
+      }
+
+      if (params.cardsPage !== undefined) {
+        url.searchParams.set('cards_page', String(params.cardsPage))
+      }
+
+      if (params.boardsLimit !== undefined) {
+        url.searchParams.set('boards_limit', String(params.boardsLimit))
+      }
+
+      if (params.partial !== undefined) {
+        url.searchParams.set('partial', String(params.partial))
       }
 
       return url.toString()
@@ -160,15 +192,7 @@ export const trelloSearchTool: ToolConfig<TrelloSearchParams, TrelloSearchRespon
       description: 'Cards matching the search query',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Card ID' },
-          name: { type: 'string', description: 'Card name' },
-          desc: { type: 'string', description: 'Card description' },
-          url: { type: 'string', description: 'Full card URL' },
-          idBoard: { type: 'string', description: 'Board ID containing the card' },
-          idList: { type: 'string', description: 'List ID containing the card' },
-          closed: { type: 'boolean', description: 'Whether the card is archived' },
-        },
+        properties: TRELLO_CARD_OUTPUT_PROPERTIES,
       },
     },
     boards: {

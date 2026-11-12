@@ -2,6 +2,7 @@ import { env } from '@/lib/core/config/env'
 import { extractTrelloErrorMessage, TRELLO_API_BASE_URL } from '@/tools/trello/shared'
 import type { TrelloRemoveLabelParams, TrelloRemoveLabelResponse } from '@/tools/trello/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const trelloRemoveLabelTool: ToolConfig<TrelloRemoveLabelParams, TrelloRemoveLabelResponse> =
   {
@@ -51,7 +52,7 @@ export const trelloRemoveLabelTool: ToolConfig<TrelloRemoveLabelParams, TrelloRe
         }
 
         const url = new URL(
-          `${TRELLO_API_BASE_URL}/cards/${params.cardId.trim()}/idLabels/${params.labelId.trim()}`
+          `${TRELLO_API_BASE_URL}/cards/${safeUrlPathSegment(params.cardId, 'cardId')}/idLabels/${safeUrlPathSegment(params.labelId, 'labelId')}`
         )
         url.searchParams.set('key', apiKey)
         url.searchParams.set('token', params.accessToken)

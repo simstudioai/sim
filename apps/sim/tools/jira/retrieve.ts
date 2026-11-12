@@ -9,17 +9,19 @@ import { ISSUE_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import {
   downloadJiraAttachments,
   extractAdfText,
+  extractCustomFields,
   getJiraCloudId,
   transformUser,
 } from '@/tools/jira/utils'
 import type { ToolConfig, ToolResponseContext } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('JiraRetrieveTool')
 
 /**
  * Transforms a raw Jira API issue response into a fully typed output.
  */
-function transformIssueData(data: any) {
+export function transformIssueData(data: any) {
   const fields = data?.fields ?? {}
   return {
     id: data?.id ?? '',
@@ -28,6 +30,9 @@ function transformIssueData(data: any) {
     self: data?.self ?? '',
     summary: fields.summary ?? '',
     description: extractAdfText(fields.description),
+    descriptionAdf: fields.description ?? null,
+    renderedDescription: data?.renderedFields?.description ?? null,
+    environment: extractAdfText(fields.environment),
     status: {
       id: fields.status?.id ?? '',
       name: fields.status?.name ?? '',
@@ -175,6 +180,11 @@ function transformIssueData(data: any) {
       created: w.created ?? '',
       updated: w.updated ?? '',
     })),
+    watchers: Array.isArray(fields.watches?.watchers)
+      ? fields.watches.watchers.map(transformUser).filter(Boolean)
+      : [],
+    customFields: extractCustomFields(fields),
+    names: data?.names ?? null,
     attachments: (fields.attachment ?? []).map((att: any) => ({
       id: att.id ?? '',
       filename: att.filename ?? '',
@@ -237,7 +247,7 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
   request: {
     url: (params: JiraRetrieveParams) => {
       if (params.cloudId) {
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog,versionedRepresentations`
+        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey, 'issueKey')}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog,versionedRepresentations`
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
@@ -262,7 +272,7 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
     }
 
     const fetchIssue = async (cloudId: string) => {
-      const issueUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog,versionedRepresentations`
+      const issueUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey, 'issueKey')}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog,versionedRepresentations`
       const issueResponse = await fetch(issueUrl, {
         method: 'GET',
         signal: context?.signal,
@@ -295,7 +305,7 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
     }
 
     const fetchSupplementary = async (cloudId: string, data: any) => {
-      const base = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}`
+      const base = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey, 'issueKey')}`
       const [commentsResp, worklogResp, watchersResp] = await Promise.all([
         fetch(`${base}/comment?maxResults=100&orderBy=-created`, {
           headers: { Accept: 'application/json', Authorization: `Bearer ${params.accessToken}` },
@@ -368,14 +378,22 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
       if (!response.ok) {
         let message = `Failed to fetch Jira issue (${response.status})`
         try {
-          const err = await response.json()
+          const err = await readAttachmentJson<{ message?: string; errorMessages?: string[] }>(
+            response,
+            'Jira error response',
+            context?.signal
+          )
           message = err?.message || err?.errorMessages?.[0] || message
         } catch (_e) {
           rethrowAttachmentDownloadError(_e, context?.signal)
         }
         throw new Error(message)
       }
-      data = await response.json()
+      data = await readAttachmentJson<Record<string, unknown>>(
+        response,
+        'Jira issue',
+        context?.signal
+      )
       await fetchSupplementary(params.cloudId, data)
     }
 

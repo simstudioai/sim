@@ -182,6 +182,49 @@ export function transformUser(user: any): {
 }
 
 /**
+ * Collects every `customfield_*` entry from a Jira issue `fields` object, keeping
+ * Jira's raw value so sprint, story points, team, and app fields stay readable.
+ */
+export function extractCustomFields(fields: unknown): Record<string, unknown> {
+  if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return {}
+  const custom: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(fields)) {
+    if (key.startsWith('customfield_') && value !== null && value !== undefined) {
+      custom[key] = value
+    }
+  }
+  return custom
+}
+
+/**
+ * Normalizes a caller-supplied map of Jira field IDs to values. Numeric keys become
+ * `customfield_<n>`; a JSON string is parsed. Returns undefined when nothing usable is given.
+ */
+export function parseJiraFieldMap(value: unknown): Record<string, unknown> | undefined {
+  let parsed = value
+  if (typeof parsed === 'string') {
+    const trimmed = parsed.trim()
+    if (!trimmed) return undefined
+    try {
+      parsed = JSON.parse(trimmed)
+    } catch {
+      throw new Error('Fields must be a JSON object mapping field IDs to values')
+    }
+  }
+  if (parsed === null || parsed === undefined) return undefined
+  if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Fields must be a JSON object mapping field IDs to values')
+  }
+  const result: Record<string, unknown> = {}
+  for (const [key, fieldValue] of Object.entries(parsed)) {
+    const fieldId = key.trim()
+    if (!fieldId) continue
+    result[/^\d+$/.test(fieldId) ? `customfield_${fieldId}` : fieldId] = fieldValue
+  }
+  return Object.keys(result).length > 0 ? result : undefined
+}
+
+/**
  * Downloads Jira attachment file content given attachment metadata and an access token.
  * Returns buffered files within the per-file and shared download limits.
  */
