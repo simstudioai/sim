@@ -55,7 +55,7 @@ export interface TokenServiceAccountField {
   defaultValue?: string
 }
 
-export interface TokenServiceAccountFieldOption {
+interface TokenServiceAccountFieldOption {
   value: string
   label: string
 }

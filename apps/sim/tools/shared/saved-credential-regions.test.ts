@@ -9,7 +9,7 @@ import * as newRelicTools from '@/tools/new_relic'
 import { prepareToolRequestUrl } from '@/tools/request-transport'
 import * as sendGridTools from '@/tools/sendgrid'
 import * as squareTools from '@/tools/square'
-import { isInternalToolConfig, type ToolConfig } from '@/tools/types'
+import { type ExecutableToolConfig, isInternalToolConfig, type ToolConfig } from '@/tools/types'
 
 /**
  * Tool families whose saved credential carries the region, instance, or host its token belongs
@@ -18,7 +18,7 @@ import { isInternalToolConfig, type ToolConfig } from '@/tools/types'
  */
 const FAMILIES: {
   service: string
-  tools: Record<string, ToolConfig>
+  tools: Record<string, ExecutableToolConfig>
   defaultHost: string
   regions: [domain: string, host: string][]
   /**
@@ -100,7 +100,7 @@ const FAMILIES: {
  * A value of each required param's type, so every URL builder can run. Optional params are left
  * unset, and so are hidden ones: only a saved credential fills them.
  */
-function placeholderParams(tool: ToolConfig): Record<string, unknown> {
+function placeholderParams(tool: ExecutableToolConfig): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(tool.params)
       .filter(([, param]) => param.required === true && param.visibility !== 'hidden')
@@ -135,27 +135,34 @@ function requestHost(tool: ToolConfig, credential?: Record<string, string>): str
 
 /** Tools that send their own request; an internal operation's host is checked by its own test. */
 const cases = FAMILIES.flatMap((family) =>
-  Object.values(family.tools)
-    .filter((tool) => !isInternalToolConfig(tool))
-    .map((tool) => ({ ...family, tool }))
+  Object.values(family.tools).flatMap((tool) =>
+    isInternalToolConfig(tool) ? [] : [{ ...family, tool }]
+  )
 )
 
 describe('internal operations of a regional tool family', () => {
   it.each([undefined, 'sandbox'])(
     'hands the Square catalog image upload the credential environment (%s)',
     (environment) => {
-      const tool = squareTools.squareCreateCatalogImageTool
-      const params = { ...placeholderParams(tool), environment }
-      expect(tool.operation.input(params)).toMatchObject({ environment })
+      const input = squareTools.squareCreateCatalogImageTool.operation.input({
+        apiKey: 'saved-token',
+        file: {},
+        environment,
+      })
+      expect(input).toMatchObject({ environment })
     }
   )
 
   it.each([undefined, 'eu'])(
     'hands the SendGrid mail send the credential region (%s)',
     (region) => {
-      const tool = sendGridTools.sendGridSendMailTool
-      const params = { ...placeholderParams(tool), region }
-      expect(tool.operation.input(params)).toMatchObject({ region })
+      const input = sendGridTools.sendGridSendMailTool.operation.input({
+        apiKey: 'saved-token',
+        from: 'from@example.com',
+        to: 'to@example.com',
+        region,
+      })
+      expect(input).toMatchObject({ region })
     }
   )
 })
@@ -169,15 +176,9 @@ describe.each(cases)('$tool.id', ({ tool, defaultHost, regions, refusesUnknownRe
     expect(requestHost(tool)).toBe(defaultHost)
   })
 
-  it.runIf(refusesUnknownRegion)('refuses a region it does not know instead of guessing', () => {
-    expect(() =>
-      requestHost(tool, { accessToken: 'saved-token', domain: 'evil.example.com' })
-    ).toThrow()
-  })
-
-  it.skipIf(refusesUnknownRegion)('never sends an unknown region off the vendor', () => {
-    expect(requestHost(tool, { accessToken: 'saved-token', domain: 'evil.example.com' })).toBe(
-      defaultHost
-    )
+  it('never sends a region it does not know to a host off the vendor', () => {
+    const run = () => requestHost(tool, { accessToken: 'saved-token', domain: 'evil.example.com' })
+    if (refusesUnknownRegion) expect(run).toThrow()
+    else expect(run()).toBe(defaultHost)
   })
 })

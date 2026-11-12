@@ -11,7 +11,7 @@ const LAUNCHDARKLY_INSTANCE_ORIGINS = {
   federal: 'https://app.launchdarkly.us',
 } as const
 
-export type LaunchDarklyInstance = keyof typeof LAUNCHDARKLY_INSTANCE_ORIGINS
+type LaunchDarklyInstance = keyof typeof LAUNCHDARKLY_INSTANCE_ORIGINS
 
 export const LAUNCHDARKLY_INSTANCES: ReadonlySet<string> = new Set(
   Object.keys(LAUNCHDARKLY_INSTANCE_ORIGINS)
