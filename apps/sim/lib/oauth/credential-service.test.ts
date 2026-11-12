@@ -1478,7 +1478,6 @@ describe('token credentials saved before their provider had a region or host to 
 
   beforeEach(() => {
     resetDbChainMock()
-    vi.clearAllMocks()
   })
 
   it.each([
