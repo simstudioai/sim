@@ -142,6 +142,7 @@ import {
   QuartrIcon,
   QuickBooksIcon,
   QuiverIcon,
+  RailwayIcon,
   RampIcon,
   RB2BIcon,
   RedditIcon,
@@ -1946,6 +1947,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'splunk',
+  },
+  railway: {
+    name: 'Railway',
+    icon: RailwayIcon,
+    services: {
+      railway: {
+        name: 'Railway',
+        description: 'Manage Railway projects, services, environments, deployments, and variables.',
+        providerId: 'railway',
+        serviceAccountProviderId: 'railway-service-account',
+        icon: RailwayIcon,
+        baseProviderIcon: RailwayIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'railway',
   },
   cbinsights: {
     name: 'CB Insights',

@@ -410,6 +410,15 @@ export const PROFOUND_CREDENTIAL_OAUTH = tokenCredentialOAuth('profound', { apiK
 export const PULSE_CREDENTIAL_OAUTH = tokenCredentialOAuth('pulse', { apiKey: 'accessToken' })
 export const QUARTR_CREDENTIAL_OAUTH = tokenCredentialOAuth('quartr', { apiKey: 'accessToken' })
 export const QUIVER_CREDENTIAL_OAUTH = tokenCredentialOAuth('quiver', { apiKey: 'accessToken' })
+/**
+ * Credential policy for every Railway tool. A saved Railway token fills the token and its type
+ * (account, workspace, or project), so a project token is sent in the Project-Access-Token header
+ * and the others as a Bearer token, as the tools do inline.
+ */
+export const RAILWAY_CREDENTIAL_OAUTH = tokenCredentialOAuth('railway', {
+  apiKey: 'accessToken',
+  tokenType: 'domain',
+})
 export const RB2B_CREDENTIAL_OAUTH = tokenCredentialOAuth('rb2b', { apiKey: 'accessToken' })
 export const REDUCTO_CREDENTIAL_OAUTH = tokenCredentialOAuth('reducto', { apiKey: 'accessToken' })
 export const RESEND_CREDENTIAL_OAUTH = tokenCredentialOAuth('resend', {
@@ -598,6 +607,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   pulse: PULSE_CREDENTIAL_OAUTH,
   quartr: QUARTR_CREDENTIAL_OAUTH,
   quiver: QUIVER_CREDENTIAL_OAUTH,
+  railway: RAILWAY_CREDENTIAL_OAUTH,
   rb2b: RB2B_CREDENTIAL_OAUTH,
   reducto: REDUCTO_CREDENTIAL_OAUTH,
   resend: RESEND_CREDENTIAL_OAUTH,

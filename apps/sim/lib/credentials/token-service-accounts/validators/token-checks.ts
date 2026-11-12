@@ -52,6 +52,7 @@ import {
   PLANETSCALE_API_ORIGIN,
   planetScaleHeaders,
 } from '@/tools/planetscale/utils'
+import { RAILWAY_GRAPHQL_URL, railwayHeaders } from '@/tools/railway/utils'
 import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
 import { SENTRY_REGIONS } from '@/tools/sentry/utils'
 import { createBasicAuthHeader } from '@/tools/servicenow/utils'
@@ -1015,6 +1016,54 @@ export const validateJupyterServiceAccount = tokenCheckValidator({
       })
     }
     return true
+  },
+})
+
+/** The token types a Railway credential names, each read by the query its scope allows. */
+const RAILWAY_TOKEN_TYPES = new Set(['account', 'workspace', 'project'])
+/** A Railway workspace ID, sent only as a GraphQL variable. */
+const RAILWAY_WORKSPACE_ID = /^[A-Za-z0-9-]{1,64}$/
+
+/**
+ * Each Railway token type has its own documented read, because `me` answers only an account
+ * token: an account token reads `me`, a workspace token reads its workspace by ID (the only
+ * workspace it can see), and a project token reads `projectToken` with the Project-Access-Token
+ * header the tools send for it. Railway reports a refused token as a GraphQL error, so only a
+ * body carrying the queried object proves it.
+ * https://docs.railway.com/integrations/api
+ */
+export const validateRailwayServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Railway',
+  domain: allowedDomain(RAILWAY_TOKEN_TYPES),
+  request: ({ apiToken, domain, providerWorkspaceId = '' }) => {
+    if (domain === 'workspace' && !RAILWAY_WORKSPACE_ID.test(providerWorkspaceId)) {
+      throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+        step: 'verify',
+        reason: 'a workspace token needs its workspace ID',
+      })
+    }
+    const query =
+      domain === 'project'
+        ? { query: 'query { projectToken { projectId environmentId } }' }
+        : domain === 'workspace'
+          ? {
+              query:
+                'query Workspace($workspaceId: String!) { workspace(workspaceId: $workspaceId) { id } }',
+              variables: { workspaceId: providerWorkspaceId },
+            }
+          : { query: 'query { me { id } }' }
+    return {
+      url: RAILWAY_GRAPHQL_URL,
+      method: 'POST',
+      headers: railwayHeaders(apiToken, domain === 'project' ? 'project' : 'account'),
+      body: JSON.stringify(query),
+    }
+  },
+  acceptsBody: (body) => {
+    const record = toRecord(body)
+    if (toArray(record.errors).length > 0) return false
+    const [queried] = Object.values(toRecord(record.data))
+    return Object.keys(toRecord(queried)).length > 0
   },
 })
 

@@ -615,6 +615,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   quiver_v3: QuiverIcon,
   rabbitmq: RabbitmqIcon,
   railway: RailwayIcon,
+  railway_v2: RailwayIcon,
   ramp: RampIcon,
   rb2b: RB2BIcon,
   rb2b_v2: RB2BIcon,

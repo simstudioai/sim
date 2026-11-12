@@ -7,6 +7,7 @@ import {
   RAILWAY_GRAPHQL_URL,
   railwayHeaders,
 } from '@/tools/railway/utils'
+import { RAILWAY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface RailwayDeleteServiceData {
@@ -21,6 +22,7 @@ export const railwayDeleteServiceTool: ToolConfig<
   name: 'Railway Delete Service',
   description: 'Delete a Railway service and all of its deployments',
   version: '1.0.0',
+  oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -46,6 +46,12 @@ export interface TokenServiceAccountField {
    * check normalizes it. Other domains are reduced to a bare host first.
    */
   url?: boolean
+  /**
+   * The connection can be saved without this field (a workspace ID only one token type needs),
+   * so the connect form and the create body do not require it; the provider's check decides when
+   * it must be set.
+   */
+  optional?: boolean
   /** Soft-format hint shown while the current value doesn't match `hintPattern`. */
   hintPattern?: RegExp
   hintMessage?: string
@@ -260,6 +266,7 @@ export const AMPLITUDE_SERVICE_ACCOUNT_PROVIDER_ID = 'amplitude-service-account'
 export const KALSHI_SERVICE_ACCOUNT_PROVIDER_ID = 'kalshi-service-account' as const
 export const SPLUNK_SERVICE_ACCOUNT_PROVIDER_ID = 'splunk-service-account' as const
 export const CBINSIGHTS_SERVICE_ACCOUNT_PROVIDER_ID = 'cbinsights-service-account' as const
+export const RAILWAY_SERVICE_ACCOUNT_PROVIDER_ID = 'railway-service-account' as const
 
 const SHOPIFY_DOMAIN_HINT_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i
 
@@ -396,6 +403,7 @@ export type TokenServiceAccountProviderId =
   | typeof KALSHI_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SPLUNK_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof CBINSIGHTS_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof RAILWAY_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof FLOW_SERVICE_ACCOUNT_PROVIDER_ID
 
 export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
@@ -2713,11 +2721,48 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     invalidCredentialsHelp:
       'CB Insights did not authorize this client ID and secret. Check that both were issued together and are still active.',
   },
+  [RAILWAY_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: RAILWAY_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Railway',
+    tokenNoun: 'token',
+    connectNoun: 'token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Token',
+        placeholder: 'Paste a Railway account, workspace, or project token',
+        secret: true,
+      },
+      {
+        id: 'domain',
+        label: 'Token type',
+        placeholder: 'account, workspace, or project',
+        secret: false,
+        hintPattern: /^(account|workspace|project)$/i,
+        hintMessage: 'Enter account, workspace, or project: the scope you chose for this token.',
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Workspace ID',
+        placeholder: 'Required for a workspace token',
+        secret: false,
+        optional: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/railway',
+    helpText:
+      "Create an account or workspace token in your Railway account settings, or a project token in a project's settings. A workspace token is scoped to one workspace, so enter that workspace's ID as well.",
+    invalidCredentialsHelp:
+      'Railway rejected this token. Check that the token type matches the scope you created it with, and for a workspace token that the workspace ID is the one it was created in.',
+  },
 }
 
-/** Whether a create must give the field: every field is required unless it has a default. */
+/**
+ * Whether a create must give the field: every field is required unless it is optional or has a
+ * default.
+ */
 export function isTokenServiceAccountFieldRequired(field: TokenServiceAccountField): boolean {
-  return field.defaultValue === undefined
+  return !field.optional && field.defaultValue === undefined
 }
 
 /**
@@ -2746,8 +2791,8 @@ export const TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS: Record<
 /**
  * Required contract fields per token service-account provider, consumed by the
  * `createCredentialBodySchema` superRefine so validation errors name the exact
- * missing field. Derived from each descriptor's field list; a field with a
- * `defaultValue` is optional.
+ * missing field. Derived from each descriptor's field list; a field marked `optional` or
+ * carrying a `defaultValue` is not required.
  */
 export const TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS: Record<string, TokenServiceAccountFieldId[]> =
   Object.fromEntries(

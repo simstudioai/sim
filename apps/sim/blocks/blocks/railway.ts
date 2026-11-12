@@ -1,9 +1,12 @@
 import { RailwayIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const RailwayBlock: BlockConfig = {
   type: 'railway',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'railway_v2' },
   name: 'Railway',
   description: 'Manage Railway projects, services, deployments, and variables',
   longDescription:
@@ -954,6 +957,20 @@ export const RailwayBlock: BlockConfig = {
     count: { type: 'number', description: 'Number of items returned' },
     pageInfo: { type: 'json', description: 'Pagination information (hasNextPage, endCursor)' },
   },
+}
+
+/** Every operation runs with a saved Railway token and its type. */
+export const RailwayV2Block: BlockConfig = {
+  ...RailwayBlock,
+  type: 'railway_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    RailwayBlock,
+    { id: 'credential', type: 'oauth-input', serviceId: 'railway', title: 'Railway Credential' },
+    { required: true }
+  ),
 }
 
 export const RailwayBlockMeta = {

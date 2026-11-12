@@ -597,7 +597,10 @@ async function buildTokenServiceAccountSecret(
   const domain = fields.domain?.trim() || domainField?.defaultValue
   const requiresDomain = Boolean(domainField)
   const providerWorkspaceId = fields.providerWorkspaceId?.trim()
-  const requiresWorkspace = descriptor.fields.some((field) => field.id === 'providerWorkspaceId')
+  const workspaceField = descriptor.fields.find((field) => field.id === 'providerWorkspaceId')
+  const requiresWorkspace = Boolean(
+    workspaceField && isTokenServiceAccountFieldRequired(workspaceField)
+  )
   if (
     !apiToken ||
     !apiToken.trim() ||
@@ -610,14 +613,15 @@ async function buildTokenServiceAccountSecret(
     )
   }
   const validation = await validator({ apiToken, domain, providerWorkspaceId })
+  const storedWorkspaceId = validation.normalizedWorkspaceId ?? providerWorkspaceId
   const principalMetadata = serviceAccountPrincipalMetadata(validation.principal)
   const blob: TokenServiceAccountSecretBlob = {
     type: TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
     providerId,
     apiToken,
     ...(requiresDomain ? { domain: validation.normalizedDomain ?? domain } : {}),
-    ...(requiresWorkspace
-      ? { providerWorkspaceId: validation.normalizedWorkspaceId ?? providerWorkspaceId }
+    ...(workspaceField && (requiresWorkspace || storedWorkspaceId)
+      ? { providerWorkspaceId: storedWorkspaceId }
       : {}),
     metadata: { ...validation.storedMetadata, ...principalMetadata },
   }

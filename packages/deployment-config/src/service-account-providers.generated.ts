@@ -116,6 +116,7 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   pulse: 'pulse-service-account',
   quartr: 'quartr-service-account',
   quiver: 'quiver-service-account',
+  railway: 'railway-service-account',
   ramp: 'ramp-service-account',
   rb2b: 'rb2b-service-account',
   reducto: 'reducto-service-account',

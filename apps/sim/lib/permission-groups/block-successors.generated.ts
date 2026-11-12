@@ -132,6 +132,7 @@ export const BLOCK_ACCESS_SUCCESSORS: Record<string, string> = {
   quartr: 'quartr_v2',
   quiver: 'quiver_v3',
   quiver_v2: 'quiver_v3',
+  railway: 'railway_v2',
   rb2b: 'rb2b_v2',
   rds: 'rds_v2',
   reducto: 'reducto_v3',

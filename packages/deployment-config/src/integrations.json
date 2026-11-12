@@ -22505,7 +22505,7 @@
       "updatedAt": "2026-08-18"
     },
     {
-      "type": "railway",
+      "type": "railway_v2",
       "slug": "railway",
       "name": "Railway",
       "description": "Manage Railway projects, services, deployments, and variables",
@@ -22598,11 +22598,12 @@
       "operationCount": 20,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "railway",
       "category": "tools",
       "integrationType": "devops",
       "tags": ["cloud", "ci-cd"],
-      "updatedAt": "2026-08-18"
+      "updatedAt": "2026-11-12"
     },
     {
       "type": "ramp",

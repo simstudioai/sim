@@ -93,6 +93,7 @@ import { ProfoundBlock, ProfoundV2Block } from '@/blocks/blocks/profound'
 import { PulseV2Block, PulseV3Block } from '@/blocks/blocks/pulse'
 import { QuartrBlock, QuartrV2Block } from '@/blocks/blocks/quartr'
 import { QuiverV2Block, QuiverV3Block } from '@/blocks/blocks/quiver'
+import { RailwayBlock, RailwayV2Block } from '@/blocks/blocks/railway'
 import { RB2BBlock, RB2BV2Block } from '@/blocks/blocks/rb2b'
 import { RDSBlock, RDSV2Block } from '@/blocks/blocks/rds'
 import { ReductoV2Block, ReductoV3Block } from '@/blocks/blocks/reducto'
@@ -418,6 +419,12 @@ const VERSIONS: Array<{
     secretIds: ['serviceTokenId', 'serviceToken'],
   },
   { legacy: GongBlock, successor: GongV2Block, secretIds: ['accessKey', 'accessKeySecret'] },
+  {
+    legacy: RailwayBlock,
+    successor: RailwayV2Block,
+    secretIds: ['apiKey', 'tokenType'],
+    optionalIds: ['tokenType'],
+  },
   {
     legacy: CbInsightsBlock,
     successor: CbInsightsV2Block,

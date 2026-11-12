@@ -148,7 +148,9 @@ function TokenServiceAccountModalForm({
     !authMethod ||
     (usesClientCredentials ? !clientId.trim() || !clientSecret.trim() : !trimmedToken) ||
     Boolean(domainField && isTokenServiceAccountFieldRequired(domainField) && !normalizedDomain) ||
-    (Boolean(workspaceField) && !trimmedWorkspaceId) ||
+    Boolean(
+      workspaceField && isTokenServiceAccountFieldRequired(workspaceField) && !trimmedWorkspaceId
+    ) ||
     isPending
 
   const hintFor = (field: TokenServiceAccountField, value: string): string | undefined => {
@@ -167,7 +169,7 @@ function TokenServiceAccountModalForm({
       if (error) setError(null)
     }
     const placeholder =
-      credentialId && !isTokenServiceAccountFieldRequired(field)
+      credentialId && field.defaultValue !== undefined
         ? `Keep the current ${field.label.toLowerCase()}`
         : field.placeholder
     if (field.options) {
@@ -210,7 +212,9 @@ function TokenServiceAccountModalForm({
               clientSecret: clientSecret.trim(),
             }
           : { apiToken: tokenField?.preserveWhitespace ? apiToken : trimmedToken }),
-        ...(workspaceField ? { providerWorkspaceId: trimmedWorkspaceId } : {}),
+        ...(workspaceField && trimmedWorkspaceId
+          ? { providerWorkspaceId: trimmedWorkspaceId }
+          : {}),
         ...(domainField && normalizedDomain ? { domain: normalizedDomain } : {}),
       }
       if (onSubmitCredentials) {

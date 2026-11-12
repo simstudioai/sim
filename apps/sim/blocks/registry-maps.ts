@@ -350,7 +350,7 @@ import { QuartrBlock, QuartrBlockMeta, QuartrV2Block } from '@/blocks/blocks/qua
 import { QuickBooksBlock, QuickBooksBlockMeta } from '@/blocks/blocks/quickbooks'
 import { QuiverBlock, QuiverBlockMeta, QuiverV2Block, QuiverV3Block } from '@/blocks/blocks/quiver'
 import { RabbitmqBlock, RabbitmqBlockMeta } from '@/blocks/blocks/rabbitmq'
-import { RailwayBlock, RailwayBlockMeta } from '@/blocks/blocks/railway'
+import { RailwayBlock, RailwayBlockMeta, RailwayV2Block } from '@/blocks/blocks/railway'
 import { RampBlock, RampBlockMeta } from '@/blocks/blocks/ramp'
 import { RB2BBlock, RB2BBlockMeta, RB2BV2Block } from '@/blocks/blocks/rb2b'
 import { RDSBlock, RDSBlockMeta, RDSV2Block } from '@/blocks/blocks/rds'
@@ -840,6 +840,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   quiver_v3: QuiverV3Block,
   rabbitmq: RabbitmqBlock,
   railway: RailwayBlock,
+  railway_v2: RailwayV2Block,
   ramp: RampBlock,
   rb2b: RB2BBlock,
   rb2b_v2: RB2BV2Block,

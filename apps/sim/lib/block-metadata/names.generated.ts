@@ -229,7 +229,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   quickbooks: 'QuickBooks',
   quiver_v3: 'Quiver',
   rabbitmq: 'RabbitMQ',
-  railway: 'Railway',
+  railway_v2: 'Railway',
   ramp: 'Ramp',
   rb2b_v2: 'RB2B',
   rds_v2: 'Amazon RDS',

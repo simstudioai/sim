@@ -89,3 +89,21 @@ describe('required fields for a service-account create', () => {
     expect(getMissingServiceAccountFields('linear-service-account', {})).toEqual(['apiToken'])
   })
 })
+
+describe('an optional token-provider field', () => {
+  it('does not ask a Railway create for the workspace ID only workspace tokens need', () => {
+    expect(
+      getMissingServiceAccountFields('railway-service-account', {
+        apiToken: 'token',
+        domain: 'project',
+      })
+    ).toEqual([])
+  })
+
+  it('still asks a Railway create for its token and token type', () => {
+    expect(getMissingServiceAccountFields('railway-service-account', {})).toEqual([
+      'apiToken',
+      'domain',
+    ])
+  })
+})

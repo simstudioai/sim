@@ -35,6 +35,7 @@ import {
   validateOktaServiceAccount,
   validatePlaneServiceAccount,
   validatePlanetScaleServiceAccount,
+  validateRailwayServiceAccount,
   validateResendServiceAccount,
   validateServiceNowServiceAccount,
   validateSplunkServiceAccount,
@@ -1074,4 +1075,93 @@ describe('Twilio saved credential verification', () => {
       expect(fetch).not.toHaveBeenCalled()
     }
   )
+})
+
+describe('Railway saved token verification', () => {
+  const RAILWAY_GRAPHQL = 'https://backboard.railway.com/graphql/v2'
+
+  function sentQuery(fetch: ReturnType<typeof vi.fn>) {
+    const [, init] = fetch.mock.calls[0]
+    return JSON.parse(init.body) as { query: string; variables?: Record<string, string> }
+  }
+
+  it('reads the account behind an account token with the Bearer header', async () => {
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({ data: { me: { id: 'u1' } } }))
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateRailwayServiceAccount({ apiToken: 'acct', domain: ' Account ' })
+    ).resolves.toMatchObject({ normalizedDomain: 'account' })
+    expect(fetch).toHaveBeenCalledWith(
+      RAILWAY_GRAPHQL,
+      expect.objectContaining({
+        method: 'POST',
+        redirect: 'error',
+        headers: expect.objectContaining({ Authorization: 'Bearer acct' }),
+      })
+    )
+    expect(sentQuery(fetch).query).toContain('me')
+  })
+
+  it('reads the project behind a project token with the Project-Access-Token header', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ data: { projectToken: { projectId: 'p1', environmentId: 'e1' } } })
+      )
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateRailwayServiceAccount({ apiToken: 'proj', domain: 'project' })
+    ).resolves.toMatchObject({ normalizedDomain: 'project' })
+    const [, init] = fetch.mock.calls[0]
+    expect(init.headers).toMatchObject({ 'Project-Access-Token': 'proj' })
+    expect(init.headers).not.toHaveProperty('Authorization')
+    expect(sentQuery(fetch).query).toContain('projectToken')
+  })
+
+  it('reads the named workspace for a workspace token, passing its ID as a variable', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ data: { workspace: { id: 'ws-1', name: 'Acme' } } }))
+    vi.stubGlobal('fetch', fetch)
+
+    await validateRailwayServiceAccount({
+      apiToken: 'team',
+      domain: 'workspace',
+      providerWorkspaceId: 'ws-1',
+    })
+    const sent = sentQuery(fetch)
+    expect(sent.query).toContain('workspace(workspaceId: $workspaceId)')
+    expect(sent.variables).toEqual({ workspaceId: 'ws-1' })
+  })
+
+  it.each([
+    ['a workspace token without its workspace ID', { domain: 'workspace' }],
+    ['a workspace ID that is not an ID', { domain: 'workspace', providerWorkspaceId: 'a b"c' }],
+    ['an unknown token type', { domain: 'personal' }],
+  ])('refuses %s before calling Railway', async (_case, fields) => {
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateRailwayServiceAccount({ apiToken: 'token', ...fields })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('rejects a token Railway answers with a GraphQL authorization error', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ data: { me: null }, errors: [{ message: 'Not Authorized' }] })
+        )
+    )
+
+    await expect(
+      validateRailwayServiceAccount({ apiToken: 'bad', domain: 'account' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
 })
