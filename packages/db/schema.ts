@@ -2050,6 +2050,11 @@ export const awsMarketplaceUsageReport = pgTable(
     hourStart: timestamp('hour_start').notNull(),
     quantity: integer('quantity').notNull(),
     status: awsMarketplaceUsageReportStatusEnum('status').notNull().default('pending'),
+    /**
+     * When the record first went to AWS. AWS keeps the first record it accepts for a license,
+     * dimension and hour, so the quantity is fixed from then on.
+     */
+    sentAt: timestamp('sent_at'),
     meteringRecordId: text('metering_record_id'),
     /** Why AWS refused the record, or why it can no longer be sent. */
     error: text('error'),

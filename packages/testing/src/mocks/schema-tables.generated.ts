@@ -493,6 +493,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'hourStart',
     'quantity',
     'status',
+    'sentAt',
     'meteringRecordId',
     'error',
     'reportedAt',

@@ -1,5 +1,5 @@
 {
-  "id": "91bcbaa2-b091-466b-a710-603af4f7e1bc",
+  "id": "7e636cc9-1659-46ab-927e-da45dec1efc2",
   "prevId": "47f71127-867a-4c55-8869-0e00cd2c4429",
   "version": "7",
   "dialect": "postgresql",
@@ -1490,6 +1490,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'pending'"
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         },
         "metering_record_id": {
           "name": "metering_record_id",

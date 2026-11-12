@@ -4,7 +4,8 @@
  * it re-sums every billing period of an organization's billed usage that can still change,
  * charges the whole units above what that period's tally already counted, and adds them to the
  * current hour's record for the license being billed. A record is sent once its hour closes, or at
- * once for a license that has ended, and AWS keeps one record per license, dimension and hour.
+ * once for a license that has ended, and AWS keeps the first record it accepts for a license,
+ * dimension and hour, so a record's quantity is fixed once it is first sent.
  */
 
 import { BatchMeterUsageCommand } from '@aws-sdk/client-marketplace-metering'
@@ -19,7 +20,22 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm'
+import { compareStrings } from '@sim/utils/string'
+import {
+  and,
+  asc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  or,
+  type SQL,
+  sql,
+} from 'drizzle-orm'
 import { getMeteringClient } from '@/lib/billing/aws-marketplace/client'
 import { getAwsMarketplaceProducts } from '@/lib/billing/aws-marketplace/config'
 import type { AwsMarketplaceUsagePricing } from '@/lib/billing/aws-marketplace/products'
@@ -30,8 +46,10 @@ import type { DbTransaction } from '@/lib/db/types'
 const logger = createLogger('AwsMarketplaceMetering')
 
 const HOUR_MS = 60 * 60 * 1000
-/** AWS accepts a record up to 24 hours after its timestamp. */
+/** AWS refuses a record 24 hours or more after its timestamp. */
 const AWS_ACCEPTS_MS = 24 * HOUR_MS
+/** AWS takes the previous month's records until 06:00 UTC on the first day of the next month. */
+const MONTH_GRACE_MS = 6 * HOUR_MS
 /** AWS takes a license's last usage for about an hour after it ends. */
 const AFTER_END_MS = HOUR_MS
 /**
@@ -53,8 +71,9 @@ const LICENSE_LEVEL_ERRORS = new Set([
   'InvalidCustomerIdentifierException',
   'InvalidProductCodeException',
   'InvalidUsageDimensionException',
-  'TimestampOutOfBoundsException',
 ])
+/** AWS refuses a whole call when any one record's timestamp is out of range. */
+const TIMESTAMP_OUT_OF_BOUNDS = 'TimestampOutOfBoundsException'
 
 export interface AwsMarketplaceMeteringSummary {
   /** Units newly charged to a license this run. */
@@ -88,6 +107,15 @@ interface PendingReport {
 
 function floorHour(time: number): number {
   return Math.floor(time / HOUR_MS) * HOUR_MS
+}
+
+/** Serializes charging and sending for one organization and dimension. */
+function lockUsage(tx: DbTransaction, organizationId: string, dimension: string): Promise<void> {
+  return acquireAdvisoryXactLock(
+    tx,
+    'aws_marketplace_usage',
+    `aws-marketplace-usage:${organizationId}:${dimension}`
+  )
 }
 
 /**
@@ -243,7 +271,8 @@ async function countNewUnits(
 /**
  * Charges one organization's newly counted usage to its license, under a lock on the organization
  * and dimension so concurrent runs extend one tally. Returns the units charged. With no license
- * to charge, the usage stays uncounted for the next license that can take it.
+ * to charge, or only a record already sent, the usage stays uncounted for the next license that
+ * can take it.
  */
 async function chargeOrganization(licenses: MeteredLicense[], now: number): Promise<number> {
   const target = chargeTarget(licenses, now)
@@ -251,13 +280,12 @@ async function chargeOrganization(licenses: MeteredLicense[], now: number): Prom
   const { license, hourStart } = target
   const { usage } = license
   return db.transaction(async (tx) => {
-    await acquireAdvisoryXactLock(
-      tx,
-      'aws_marketplace_usage',
-      `aws-marketplace-usage:${license.organizationId}:${usage.dimension}`
-    )
+    await lockUsage(tx, license.organizationId, usage.dimension)
     const [record] = await tx
-      .select({ status: awsMarketplaceUsageReport.status })
+      .select({
+        status: awsMarketplaceUsageReport.status,
+        sentAt: awsMarketplaceUsageReport.sentAt,
+      })
       .from(awsMarketplaceUsageReport)
       .where(
         and(
@@ -266,7 +294,7 @@ async function chargeOrganization(licenses: MeteredLicense[], now: number): Prom
           eq(awsMarketplaceUsageReport.hourStart, new Date(hourStart))
         )
       )
-    if (record && record.status !== 'pending') return 0
+    if (record && (record.status !== 'pending' || record.sentAt)) return 0
 
     const countFrom = licenses.reduce(
       (earliest, entry) =>
@@ -300,21 +328,25 @@ async function chargeOrganization(licenses: MeteredLicense[], now: number): Prom
   })
 }
 
-/** Rows AWS can no longer accept are rejected, so they stop being retried and the team hears. */
+/**
+ * Rows AWS can no longer accept are rejected, so they stop being retried and the team hears: those
+ * 24 hours old, and the previous month's once its grace period has passed.
+ */
 async function rejectExpiredReports(now: number): Promise<number> {
+  const today = new Date(now)
+  const monthStart = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1)
+  const tooOld: SQL[] = [lte(awsMarketplaceUsageReport.hourStart, new Date(now - AWS_ACCEPTS_MS))]
+  if (now >= monthStart + MONTH_GRACE_MS) {
+    tooOld.push(lt(awsMarketplaceUsageReport.hourStart, new Date(monthStart)))
+  }
   const expired = await db
     .update(awsMarketplaceUsageReport)
     .set({
       status: 'rejected',
-      error: 'Older than the 24 hours AWS accepts usage for',
+      error: 'Outside the window AWS accepts usage for',
       updatedAt: new Date(),
     })
-    .where(
-      and(
-        eq(awsMarketplaceUsageReport.status, 'pending'),
-        lt(awsMarketplaceUsageReport.hourStart, new Date(now - AWS_ACCEPTS_MS))
-      )
-    )
+    .where(and(eq(awsMarketplaceUsageReport.status, 'pending'), or(...tooOld)))
     .returning({
       id: awsMarketplaceUsageReport.id,
       organizationId: awsMarketplaceUsageReport.organizationId,
@@ -353,65 +385,100 @@ function recordKey(dimension: string | undefined, timestamp: Date | undefined): 
 }
 
 /**
- * Sends one license's rows, at most 25 to a call. A license-level refusal rejects its rows and is
- * logged; a record AWS leaves unprocessed, or any other failure, stays pending for the next run.
+ * Fixes the quantity of rows about to go to AWS and returns them as they now stand, dropping any
+ * no longer pending. The usage lock keeps a charge from joining a row between this read and the
+ * send.
  */
-async function sendLicenseReports(
-  rows: PendingReport[],
+async function freezeForSending(rows: PendingReport[]): Promise<PendingReport[]> {
+  return db.transaction(async (tx) => {
+    const scopes = new Map(rows.map((row) => [`${row.organizationId}:${row.dimension}`, row]))
+    const ordered = [...scopes].sort(([left], [right]) => compareStrings(left, right))
+    for (const [, row] of ordered) await lockUsage(tx, row.organizationId, row.dimension)
+    const frozen = await tx
+      .update(awsMarketplaceUsageReport)
+      .set({ sentAt: sql`coalesce(${awsMarketplaceUsageReport.sentAt}, now())` })
+      .where(
+        and(
+          inArray(
+            awsMarketplaceUsageReport.id,
+            rows.map((row) => row.id)
+          ),
+          eq(awsMarketplaceUsageReport.status, 'pending')
+        )
+      )
+      .returning({ id: awsMarketplaceUsageReport.id, quantity: awsMarketplaceUsageReport.quantity })
+    const quantityById = new Map(frozen.map((row) => [row.id, row.quantity]))
+    return rows.flatMap((row) => {
+      const quantity = quantityById.get(row.id)
+      return quantity === undefined ? [] : [{ ...row, quantity }]
+    })
+  })
+}
+
+/**
+ * Sends one call's worth of a license's rows. A license-level refusal rejects them and is logged;
+ * an out-of-range timestamp, which fails the whole call, is narrowed to its own row by sending
+ * each alone; a record AWS leaves unprocessed, or any other failure, stays pending for the next
+ * run.
+ */
+async function sendBatch(
+  batch: PendingReport[],
   summary: AwsMarketplaceMeteringSummary
 ): Promise<void> {
-  for (const batch of chunkArray(rows, RECORDS_PER_CALL)) {
-    const unsettled = new Map(batch.map((row) => [recordKey(row.dimension, row.hourStart), row]))
-    try {
-      const response = await getMeteringClient().send(
-        new BatchMeterUsageCommand({
-          UsageRecords: batch.map((row) => ({
-            LicenseArn: row.licenseArn,
-            CustomerAWSAccountId: row.customerAwsAccountId,
-            Dimension: row.dimension,
-            Quantity: row.quantity,
-            Timestamp: row.hourStart,
-          })),
-        })
-      )
-      for (const result of response.Results ?? []) {
-        const key = recordKey(result.UsageRecord?.Dimension, result.UsageRecord?.Timestamp)
-        const row = unsettled.get(key)
-        if (!row) continue
-        unsettled.delete(key)
-        if (result.Status === 'CustomerNotSubscribed') {
-          logger.error('AWS Marketplace refused usage for a customer not subscribed', {
-            reportId: row.id,
-            organizationId: row.organizationId,
-          })
-          await settleReport(row, { status: 'rejected', error: 'CustomerNotSubscribed' })
-          summary.rejected += 1
-        } else {
-          await settleReport(row, {
-            status: 'reported',
-            meteringRecordId: result.MeteringRecordId ?? null,
-          })
-          summary.reported += 1
-        }
-      }
-      summary.retained += unsettled.size
-    } catch (error) {
-      const { name } = toError(error)
-      if (LICENSE_LEVEL_ERRORS.has(name)) {
-        logger.error('AWS Marketplace refused usage for a license', {
-          reason: name,
-          reportIds: batch.map((row) => row.id),
-        })
-        for (const row of batch) await settleReport(row, { status: 'rejected', error: name })
-        summary.rejected += batch.length
-        continue
-      }
-      logger.warn('AWS Marketplace usage could not be sent; retrying next run', {
-        reason: name,
-        error: getErrorMessage(error),
+  const unsettled = new Map(batch.map((row) => [recordKey(row.dimension, row.hourStart), row]))
+  try {
+    const response = await getMeteringClient().send(
+      new BatchMeterUsageCommand({
+        UsageRecords: batch.map((row) => ({
+          LicenseArn: row.licenseArn,
+          CustomerAWSAccountId: row.customerAwsAccountId,
+          Dimension: row.dimension,
+          Quantity: row.quantity,
+          Timestamp: row.hourStart,
+        })),
       })
-      summary.retained += batch.length
+    )
+    for (const result of response.Results ?? []) {
+      const key = recordKey(result.UsageRecord?.Dimension, result.UsageRecord?.Timestamp)
+      const row = unsettled.get(key)
+      if (!row) continue
+      unsettled.delete(key)
+      if (result.Status === 'CustomerNotSubscribed') {
+        logger.error('AWS Marketplace refused usage for a customer not subscribed', {
+          reportId: row.id,
+          organizationId: row.organizationId,
+        })
+        await settleReport(row, { status: 'rejected', error: 'CustomerNotSubscribed' })
+        summary.rejected += 1
+      } else {
+        await settleReport(row, {
+          status: 'reported',
+          meteringRecordId: result.MeteringRecordId ?? null,
+        })
+        summary.reported += 1
+      }
     }
+    summary.retained += unsettled.size
+  } catch (error) {
+    const { name } = toError(error)
+    if (name === TIMESTAMP_OUT_OF_BOUNDS && batch.length > 1) {
+      for (const row of batch) await sendBatch([row], summary)
+      return
+    }
+    if (name === TIMESTAMP_OUT_OF_BOUNDS || LICENSE_LEVEL_ERRORS.has(name)) {
+      logger.error('AWS Marketplace refused usage', {
+        reason: name,
+        reportIds: batch.map((row) => row.id),
+      })
+      for (const row of batch) await settleReport(row, { status: 'rejected', error: name })
+      summary.rejected += batch.length
+      return
+    }
+    logger.warn('AWS Marketplace usage could not be sent; retrying next run', {
+      reason: name,
+      error: getErrorMessage(error),
+    })
+    summary.retained += batch.length
   }
 }
 
@@ -453,7 +520,10 @@ async function sendPendingReports(now: number, summary: AwsMarketplaceMeteringSu
     byLicense.set(row.licenseArn, [...(byLicense.get(row.licenseArn) ?? []), row])
   }
   for (const rows of byLicense.values()) {
-    await sendLicenseReports(rows, summary)
+    for (const chunk of chunkArray(rows, RECORDS_PER_CALL)) {
+      const batch = await freezeForSending(chunk)
+      if (batch.length > 0) await sendBatch(batch, summary)
+    }
   }
 }
 

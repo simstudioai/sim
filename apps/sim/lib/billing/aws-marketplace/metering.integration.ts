@@ -424,8 +424,100 @@ describe('AWS Marketplace usage metering', () => {
     await meterAwsMarketplaceUsage(NOW + 25 * HOUR_MS)
 
     expect(await reportsFor(owner.organizationId)).toEqual([
-      expect.objectContaining({ status: 'rejected', error: expect.stringMatching(/24 hours/) }),
+      expect.objectContaining({ status: 'rejected', error: expect.stringMatching(/window/) }),
     ])
     expect(sentRecords(licenseArn)).toEqual([])
+  })
+
+  it('resends a record at the quantity first sent, keeping later usage off it', async () => {
+    const owner = await createOrganization()
+    const { licenseArn } = await insertLicense(owner.organizationId, {
+      status: 'inactive',
+      expiresAt: null,
+      endedAt: minutesAgo(10),
+    })
+    await logUsage(owner, { at: minutesAgo(15), cost: 0.02 })
+    meteringSend.mockRejectedValueOnce(
+      Object.assign(new Error('timed out'), { name: 'TimeoutError' })
+    )
+
+    await meterAwsMarketplaceUsage(NOW)
+    await logUsage(owner, { at: minutesAgo(1), cost: 3 })
+    await meterAwsMarketplaceUsage(NOW + 5 * 60_000)
+
+    expect(sentRecords(licenseArn).map((record) => record.Quantity)).toEqual([2, 2])
+    expect(await reportsFor(owner.organizationId)).toEqual([
+      expect.objectContaining({ quantity: 2, status: 'reported' }),
+    ])
+  })
+
+  it('rejects only the record whose timestamp AWS finds out of range', async () => {
+    const owner = await createOrganization()
+    const { licenseArn } = await insertLicense(owner.organizationId)
+    const earlierHour = floorHour(NOW - 2 * HOUR_MS)
+    await logUsage(owner, { at: minutesAgo(130), cost: 0.01 })
+    await meterAwsMarketplaceUsage(NOW - 2 * HOUR_MS)
+    await logUsage(owner, { at: minutesAgo(10), cost: 0.02 })
+    meteringSend.mockResolvedValue({ Results: [], UnprocessedRecords: [] })
+    await meterAwsMarketplaceUsage(NOW)
+    acceptEverything()
+    const accept = meteringSend.getMockImplementation()
+    meteringSend.mockImplementation(async (command: { input: { UsageRecords: SentRecord[] } }) => {
+      if (
+        command.input.UsageRecords.some(
+          (record) => record.Timestamp?.getTime() === earlierHour.getTime()
+        )
+      ) {
+        throw Object.assign(new Error('out of range'), { name: 'TimestampOutOfBoundsException' })
+      }
+      return accept?.(command)
+    })
+
+    await meterAwsMarketplaceUsage(NEXT_HOUR)
+
+    expect(await reportsFor(owner.organizationId)).toEqual([
+      expect.objectContaining({
+        hourStart: earlierHour,
+        status: 'rejected',
+        error: 'TimestampOutOfBoundsException',
+      }),
+      expect.objectContaining({ hourStart: HOUR, quantity: 2, status: 'reported' }),
+    ])
+    expect(sentRecords(licenseArn).at(-1)).toEqual(expect.objectContaining({ Timestamp: HOUR }))
+  })
+
+  it("sends last month's records until the month-end grace passes, then rejects them", async () => {
+    const owner = await createOrganization()
+    const today = new Date(NOW)
+    const monthStart = Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 1)
+    const period = {
+      start: new Date(monthStart - 10 * DAY_MS),
+      end: new Date(monthStart + 20 * DAY_MS),
+    }
+    const { licenseArn } = await insertLicense(owner.organizationId, {
+      organizationLinkedAt: new Date(monthStart - 5 * HOUR_MS),
+    })
+    const lastHourOfMonth = new Date(monthStart - HOUR_MS)
+    await logUsage(owner, { at: new Date(monthStart - 50 * 60_000), cost: 0.01, period })
+    await meterAwsMarketplaceUsage(monthStart - 30 * 60_000)
+    meteringSend.mockResolvedValue({ Results: [], UnprocessedRecords: [] })
+
+    await meterAwsMarketplaceUsage(monthStart + 5 * HOUR_MS)
+
+    expect(sentRecords(licenseArn)).toEqual([
+      expect.objectContaining({ Timestamp: lastHourOfMonth }),
+    ])
+
+    meteringSend.mockClear()
+    await meterAwsMarketplaceUsage(monthStart + 7 * HOUR_MS)
+
+    expect(sentRecords(licenseArn)).toEqual([])
+    expect(await reportsFor(owner.organizationId)).toEqual([
+      expect.objectContaining({
+        hourStart: lastHourOfMonth,
+        status: 'rejected',
+        error: expect.stringMatching(/window/),
+      }),
+    ])
   })
 })

@@ -7,6 +7,7 @@ CREATE TABLE "aws_marketplace_usage_report" (
 	"hour_start" timestamp NOT NULL,
 	"quantity" integer NOT NULL,
 	"status" "aws_marketplace_usage_report_status" DEFAULT 'pending' NOT NULL,
+	"sent_at" timestamp,
 	"metering_record_id" text,
 	"error" text,
 	"reported_at" timestamp,
