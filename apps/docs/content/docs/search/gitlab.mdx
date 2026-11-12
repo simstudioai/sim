@@ -77,7 +77,7 @@ Saving the CSVs grants the access listed in them. Changing a membership in GitLa
 
 Download [export-permissions.py](/static/examples/gitlab/export-permissions.py) and save it as `ci/export-gitlab-permissions.py` in your repository. It uses Python 3.10 or later with no extra packages and exports one project per run.
 
-Use GitLab 17.4 or later and an internal export token with `read_api` and permission to see all members of the target project and their primary emails. Keep this token in a masked, protected CI variable named `GITLAB_EXPORT_TOKEN`. It stays in your CI job; Sim receives the CSVs. The source's separate read-only PAT continues to retrieve content.
+Use GitLab 17.4 or later and an internal export token with `read_api` and permission to see all members of the target project, their primary emails, and confirmation status. Keep this token in a masked, protected CI variable named `GITLAB_EXPORT_TOKEN`. It stays in your CI job; Sim receives the CSVs. The source's separate read-only PAT continues to retrieve content.
 
 The exporter makes only these GitLab API requests:
 
@@ -85,9 +85,9 @@ The exporter makes only these GitLab API requests:
 | --- | --- |
 | `GET /api/v4/projects/:id` | Resolve the numeric ID and full project path. |
 | `GET /api/v4/projects/:id/members/all` | Page through visible direct, inherited, and invited-group members, 100 at a time. |
-| `GET /api/v4/users/:id` | Read each eligible member's account state and primary email. |
+| `GET /api/v4/users/:id` | Read each eligible member's account state, email confirmation, and primary email. |
 
-GitLab documents [membership visibility](https://docs.gitlab.com/api/project_members/#list-all-members-of-a-project) and [user profile fields](https://docs.gitlab.com/api/users/#retrieve-a-single-user). The `read_api` scope alone does not grant access to private emails. The export token needs that directory permission too. If a primary email is unavailable, the script stops; it never substitutes a public email. Confirm the exported emails match your teammates' verified Sim emails.
+GitLab documents [membership visibility](https://docs.gitlab.com/api/project_members/#list-all-members-of-a-project) and [user profile fields](https://docs.gitlab.com/api/users/#retrieve-a-single-user). The `read_api` scope alone does not grant access to private emails. The export token needs that directory permission too. Profiles without a valid `confirmed_at` timestamp are excluded. If an eligible reader's primary email is unavailable, the script stops; it never substitutes a public email. Confirm the exported emails match your teammates' verified Sim emails.
 
 With `GITLAB_EXPORT_TOKEN` set in the environment, run:
 
