@@ -22,7 +22,7 @@ export function ComputerUseSettings() {
 function ComputerUseSettingsControls() {
   const requestVersion = useRef(0)
   const bridge = getDesktopBridge()?.computerUse
-  const { config: permissionConfig } = usePermissionConfig()
+  const { config: permissionConfig, isPermissionReady } = usePermissionConfig()
   const { status, setStatus, refresh, error } = useComputerUseStatus()
   const [apps, setApps] = useState<ComputerUseAppPermission[]>([])
   const [pending, setPending] = useState(false)
@@ -44,6 +44,7 @@ function ComputerUseSettingsControls() {
   }, [refreshApps, status?.activeAction])
   if (
     !bridge ||
+    !isPermissionReady ||
     CAPABILITY_RULES['computer_use.use'].deniedBy(permissionConfig) ||
     status?.supported === false
   )

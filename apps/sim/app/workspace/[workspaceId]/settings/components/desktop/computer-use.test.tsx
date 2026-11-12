@@ -20,9 +20,9 @@ const native = vi.hoisted(() => ({
   cancel: vi.fn<() => Promise<void>>(),
   onActivity: vi.fn<(listener: (activity: ComputerUseActivity | null) => void) => () => void>(),
 }))
-const permission = vi.hoisted(() => ({ config: {} as Record<string, unknown> }))
+const permission = vi.hoisted(() => ({ config: {} as Record<string, unknown>, ready: true }))
 vi.mock('@/hooks/use-permission-config', () => ({
-  usePermissionConfig: () => ({ config: permission.config }),
+  usePermissionConfig: () => ({ config: permission.config, isPermissionReady: permission.ready }),
 }))
 vi.mock('@/lib/desktop', () => libDesktopMock)
 
@@ -38,6 +38,7 @@ let container: HTMLDivElement
 
 beforeEach(() => {
   permission.config = { ...DEFAULT_PERMISSION_GROUP_CONFIG }
+  permission.ready = true
   permissions = [...initialPermissions]
   activity = null
   listeners = new Set()
@@ -84,6 +85,13 @@ it.each(['disableComputerUse', 'hideCopilot'])(
     expect(container.querySelector('[role="switch"]')).toBeNull()
   }
 )
+
+it('withholds the device controls until the permission read succeeds', async () => {
+  permission.ready = false
+  await act(async () => renderSettings())
+  expect(appRow('com.example.First')).toBeUndefined()
+  expect(container.querySelector('[role="switch"]')).toBeNull()
+})
 
 function appRow(bundleId: string) {
   return container.querySelector<HTMLElement>(`[title="${bundleId}"]`)?.parentElement
