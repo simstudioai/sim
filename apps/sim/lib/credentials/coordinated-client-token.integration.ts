@@ -5,6 +5,7 @@ import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { eq, like, or } from 'drizzle-orm'
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
+import { decryptSecret } from '@/lib/core/security/encryption'
 import {
   type CoordinatedClientTokenInput,
   invalidateCoordinatedClientToken,
@@ -16,8 +17,22 @@ import { TokenServiceAccountValidationError } from '@/lib/credentials/token-serv
 const NAMESPACE = `fixture${generateId().replaceAll('-', '')}`
 const ownedKeyPrefixes = new Set<string>([`${NAMESPACE}:`])
 
+function sha256Json(value: unknown): string {
+  return createHash('sha256').update(JSON.stringify(value)).digest('hex')
+}
+
 function applicationKey(namespace: string, application: readonly string[]): string {
-  return `${namespace}:${createHash('sha256').update(JSON.stringify(application)).digest('hex')}`
+  return `${namespace}:${sha256Json(application)}`
+}
+
+async function readStoredRow(id: string) {
+  const [row] = await db
+    .select()
+    .from(clientCredentialToken)
+    .where(eq(clientCredentialToken.id, id))
+    .limit(1)
+  if (!row) throw new Error('Expected a stored row')
+  return { ...row, decrypted: (await decryptSecret(row.encryptedValue)).decrypted }
 }
 
 /** A provider that issues numbered tokens per application and counts every exchange. */
@@ -206,6 +221,39 @@ describe('coordinated client-credentials token against shared storage', () => {
       .from(clientCredentialToken)
       .where(like(clientCredentialToken.id, `${failurePrefix}%`))
     expect(rows).toEqual([])
+  })
+})
+
+describe('default token rows shared with the previous build during a rolling deploy', () => {
+  it('stores tokens and refusals under the ids, digest, and payloads the previous build used', async () => {
+    const application = ['legacy.myshopify.com', 'legacy-client']
+    const appKey = applicationKey(NAMESPACE, application)
+    const fingerprint = (secret: string) => sha256Json([...application, secret])
+    const shopify = (clientSecret: string, exchange: CoordinatedClientTokenInput['exchange']) => ({
+      namespace: NAMESPACE,
+      application,
+      clientSecret,
+      step: 'mint',
+      exchange,
+    })
+
+    const { accessToken } = await resolveCoordinatedClientToken(
+      shopify('secret-1', provider('legacy-default').exchange)
+    )
+    const minted = await readStoredRow(appKey)
+    expect(minted.decrypted).toBe(
+      JSON.stringify({ accessToken, secretFingerprint: fingerprint('secret-1') })
+    )
+    expect(minted.accessTokenDigest).toBe(sha256Json(['coordinated_client_token', accessToken]))
+
+    await invalidateCoordinatedClientToken(accessToken)
+    expect((await readStoredRow(appKey)).expiresAt.getTime()).toBe(0)
+
+    await expect(
+      resolveCoordinatedClientToken(shopify('revoked', rejecting()))
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    const refusal = await readStoredRow(`${appKey}:${sha256Json(fingerprint('revoked'))}`)
+    expect(refusal.decrypted).toBe(JSON.stringify({ code: 'invalid_credentials', status: 401 }))
   })
 })
 
