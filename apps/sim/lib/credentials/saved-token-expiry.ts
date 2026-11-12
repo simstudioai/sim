@@ -17,7 +17,7 @@ interface ProviderRefusal {
  * grant. It keeps the provider's `status`, `statusText`, and `data`, so callers that branch on the
  * HTTP failure still see it.
  */
-export class SavedTokenExpiredError extends CredentialRevokedError {
+class SavedTokenExpiredError extends CredentialRevokedError {
   readonly status: number
   readonly statusText?: string
   readonly data?: unknown
