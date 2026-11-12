@@ -1,4 +1,5 @@
 import type { SESSendTemplatedEmailParams, SESSendTemplatedEmailResponse } from '@/tools/ses/types'
+import { parseEmailTagsParam } from '@/tools/ses/utils'
 import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -108,7 +109,7 @@ export const sendTemplatedEmailTool: InternalToolConfig<
       replyToAddresses: params.replyToAddresses,
       configurationSetName: params.configurationSetName,
       fromName: params.fromName,
-      emailTags: Array.isArray(params.emailTags) ? params.emailTags : undefined,
+      emailTags: parseEmailTagsParam(params.emailTags),
     }),
   },
 

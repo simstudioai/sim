@@ -1,4 +1,5 @@
 import type { SESSendBulkEmailParams, SESSendBulkEmailResponse } from '@/tools/ses/types'
+import { parseEmailTagsParam } from '@/tools/ses/utils'
 import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -95,7 +96,7 @@ export const sendBulkEmailTool: InternalToolConfig<
       configurationSetName: params.configurationSetName,
       replyToAddresses: params.replyToAddresses,
       fromName: params.fromName,
-      emailTags: Array.isArray(params.emailTags) ? params.emailTags : undefined,
+      emailTags: parseEmailTagsParam(params.emailTags),
     }),
   },
 

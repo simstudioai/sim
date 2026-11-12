@@ -251,11 +251,12 @@ interface TextractQueryParam {
  * one plain-text question per line.
  */
 function parseTextractQueries(value: unknown): TextractQueryParam[] {
+  if (value === undefined || value === null) return []
   let raw: unknown = value
   if (typeof value === 'string') {
     const trimmed = value.trim()
     if (!trimmed) return []
-    if (trimmed.startsWith('[')) {
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
       try {
         raw = JSON.parse(trimmed)
       } catch {
@@ -265,7 +266,9 @@ function parseTextractQueries(value: unknown): TextractQueryParam[] {
       raw = trimmed.split('\n')
     }
   }
-  if (!Array.isArray(raw)) return []
+  if (!Array.isArray(raw)) {
+    throw new Error('Queries must be a JSON array or one question per line')
+  }
   return raw.flatMap((entry): TextractQueryParam[] => {
     if (typeof entry === 'string') {
       const text = entry.trim()

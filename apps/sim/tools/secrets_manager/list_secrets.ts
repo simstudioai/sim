@@ -1,16 +1,10 @@
+import { toBooleanFromInput } from '@sim/utils/coerce'
 import type {
   SecretsManagerListSecretsParams,
   SecretsManagerListSecretsResponse,
 } from '@/tools/secrets_manager/types'
 import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
-
-/** Accepts a boolean or its string form; anything else (empty, null) is left unset. */
-function parseOptionalBoolean(value: unknown): boolean | undefined {
-  if (value === true || value === 'true') return true
-  if (value === false || value === 'false') return false
-  return undefined
-}
 
 export const listSecretsTool: InternalToolConfig<
   SecretsManagerListSecretsParams,
@@ -91,7 +85,7 @@ export const listSecretsTool: InternalToolConfig<
       filters: params.filters,
       sortOrder: params.sortOrder || undefined,
       sortBy: params.sortBy || undefined,
-      includePlannedDeletion: parseOptionalBoolean(params.includePlannedDeletion),
+      includePlannedDeletion: toBooleanFromInput(params.includePlannedDeletion),
     }),
   },
 

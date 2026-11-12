@@ -1,9 +1,9 @@
-import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import {
   iamConnectionShape,
   iamCreatePathSchema,
   iamPolicyArnSchema,
+  iamTagsJsonSchema,
   iamUserName64Schema,
 } from '@/lib/api/contracts/tools/aws/iam-shared'
 import type {
@@ -18,27 +18,7 @@ const Schema = z.object({
   userName: iamUserName64Schema,
   path: iamCreatePathSchema.optional().nullable(),
   permissionsBoundary: iamPolicyArnSchema.optional().nullable(),
-  tags: z
-    .string()
-    .refine(
-      (value) => {
-        try {
-          const parsed: unknown = JSON.parse(value)
-          return (
-            isRecordLike(parsed) &&
-            Object.keys(parsed).length <= 50 &&
-            Object.values(parsed).every((tagValue) =>
-              ['string', 'number', 'boolean'].includes(typeof tagValue)
-            )
-          )
-        } catch {
-          return false
-        }
-      },
-      { message: 'Tags must be a JSON object of at most 50 key/value pairs with scalar values' }
-    )
-    .optional()
-    .nullable(),
+  tags: iamTagsJsonSchema.optional().nullable(),
 })
 
 const CreateUserResponseSchema = z.object({
