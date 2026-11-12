@@ -196,6 +196,7 @@ function renderEmbeddedError(ctx: EmbedContext, error: unknown): number {
     if (error.details !== undefined) {
       for (const line of formatApiErrorDetails(error.details)) ctx.stderr.diagnostic(sanitize(line))
     }
+    if (error.requestId) ctx.stderr.diagnostic(`  request id: ${sanitize(error.requestId)}`)
     return error.exitCode
   }
   ctx.stderr.diagnostic(`Error: ${sanitize(getErrorMessage(error))}`)

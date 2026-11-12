@@ -186,7 +186,8 @@ function withKeylessRetryHint(error: unknown, providerId: string): unknown {
     error.status,
     error.code,
     error.details,
-    error.exitCode
+    error.exitCode,
+    error.requestId
   )
 }
 

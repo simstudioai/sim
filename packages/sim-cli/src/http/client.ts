@@ -17,7 +17,9 @@ export class SimApiError extends Error {
     readonly status: number,
     readonly code: string | null = null,
     readonly details?: unknown,
-    readonly exitCode = 1
+    readonly exitCode = 1,
+    /** The server's id for the failed request (`x-request-id`), to quote to support. */
+    readonly requestId: string | null = null
   ) {
     super(message)
     this.name = 'SimApiError'
@@ -125,7 +127,8 @@ function toNonJsonError(
   url: string,
   status: number,
   contentType: string | null,
-  raw: string
+  raw: string,
+  requestId: string | null = null
 ): SimApiError {
   const type = contentType?.split(';')[0]?.trim().toLowerCase()
   const isMarkup =
@@ -142,7 +145,11 @@ function toNonJsonError(
     `${url} returned ${kind}, not JSON (HTTP ${status}) — check your endpoint.${
       keepSnippet ? ` Response: ${truncate(text, 200, '…')}` : ''
     }`,
-    status
+    status,
+    null,
+    undefined,
+    1,
+    requestId
   )
 }
 
@@ -154,36 +161,43 @@ function toNonJsonError(
  * (`{ error }`), or by a proxy that returns HTML. Each of those still has to
  * produce a sentence rather than `[object Object]`.
  */
-function toApiError(
-  url: string,
-  status: number,
-  contentType: string | null,
-  raw: string
-): SimApiError {
+function toApiError(url: string, response: Response, raw: string): SimApiError {
+  const { status } = response
+  const headerRequestId = response.headers.get('x-request-id')?.trim() || null
+  const failure = (message: string) =>
+    new SimApiError(message, status, null, undefined, 1, headerRequestId)
+
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
   } catch {
-    if (!raw.trim()) return new SimApiError(`Request failed with status ${status}`, status)
-    return toNonJsonError(url, status, contentType, raw)
+    if (!raw.trim()) return failure(`Request failed with status ${status}`)
+    return toNonJsonError(url, status, response.headers.get('content-type'), raw, headerRequestId)
   }
 
   const body = parsed as { error?: unknown; message?: unknown }
 
   if (body.error && typeof body.error === 'object') {
-    const error = body.error as { code?: unknown; message?: unknown; details?: unknown }
+    const error = body.error as {
+      code?: unknown
+      message?: unknown
+      details?: unknown
+      requestId?: unknown
+    }
     return new SimApiError(
       typeof error.message === 'string' ? error.message : `Request failed with status ${status}`,
       status,
       typeof error.code === 'string' ? error.code : null,
-      error.details
+      error.details,
+      1,
+      typeof error.requestId === 'string' && error.requestId ? error.requestId : headerRequestId
     )
   }
 
-  if (typeof body.error === 'string') return new SimApiError(body.error, status)
-  if (typeof body.message === 'string') return new SimApiError(body.message, status)
+  if (typeof body.error === 'string') return failure(body.error)
+  if (typeof body.message === 'string') return failure(body.message)
 
-  return new SimApiError(`Request failed with status ${status}`, status)
+  return failure(`Request failed with status ${status}`)
 }
 
 /**
@@ -673,7 +687,7 @@ export class SimClient {
 
     if (!response.ok) {
       const raw = await readResponseText(response)
-      const error = toApiError(url, response.status, response.headers.get('content-type'), raw)
+      const error = toApiError(url, response, raw)
       if (response.status === 401) {
         error.message = `${error.message} — run: sim login --profile ${this.profile.authProfile}`
       }

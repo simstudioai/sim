@@ -179,6 +179,8 @@ export function retypeApiError(
     retypeLocatedMessage(error.message, spellings),
     error.status,
     error.code,
-    error.details === undefined ? undefined : retypeDetails(error.details, spellings)
+    error.details === undefined ? undefined : retypeDetails(error.details, spellings),
+    error.exitCode,
+    error.requestId
   )
 }
