@@ -1,0 +1,34 @@
+---
+slug: search-actions-and-browser
+title: 'Find answers and take action without leaving Search'
+description: 'Sim Search can turn findings into reviewed actions. Connect more accounts, ask about pages in Chrome, and open shared team shortcuts.'
+date: '2026-11-11T20:00:00Z'
+authors: [waleed]
+tags: [Search, Workspace]
+ogImage: /changelog/search-action-review-v1.jpg
+ogAlt: 'Search Assistant showing two Jira issue proposals with Edit, Allow, and Cancel controls'
+technical: false
+draft: false
+release:
+  versions: [v0.9.37, v0.9.39, v0.9.43, v0.9.44, v0.9.45]
+---
+
+<ChangelogImage
+  src="/changelog/search-action-review-v1.jpg"
+  alt="Search Assistant showing two Jira issue proposals with Edit, Allow, and Cancel controls"
+  width="1440"
+  height="1000"
+/>
+
+Search can now take you from finding information to acting on it in the same conversation. Ask Assistant to draft an email or create a Jira issue using your connected account. Writes ask for review by default: check the account, destination, and content, edit supported fields, then allow or cancel each proposal.
+
+This arrived in v0.9.37. Set **Allow**, **Ask**, or **Block** for supported tools under Integrations. Your organization must enable Search and the relevant apps; account permissions and source restrictions still apply. [Review actions](https://docs.sim.ai/search/ask-questions#review-actions).
+
+### More ways to work
+
+- **v0.9.45 — Multiple accounts:** Search across up to five accounts per supported app, such as two Google Drive accounts, without disconnecting one to use the other; some providers still allow one. [Connect accounts](https://docs.sim.ai/search/connect-your-account).
+- **v0.9.44 — Sim in Chrome:** Attach pages or selected passages, add another page, and dictate a question into an editable draft. Open shared team destinations with `go/` or `sim/` shortcuts when Links is enabled. [Browser extension guide](https://docs.sim.ai/browser-extension). Chat requires a paid Sim plan or available prepaid credits.
+- **v0.9.43 — Web citations:** When enabled, Assistant can fill gaps with public web results and cite them alongside your connected sources.
+- **v0.9.39 — Desktop sign-in:** On macOS, finish a passkey sign-in in an installed Chrome-family browser and bring that site's session back to Sim. [Desktop guide](https://docs.sim.ai/desktop).
+
+Technical releases: [v0.9.37](https://github.com/simstudioai/sim/releases/tag/v0.9.37), [v0.9.39](https://github.com/simstudioai/sim/releases/tag/v0.9.39), [v0.9.43](https://github.com/simstudioai/sim/releases/tag/v0.9.43), [v0.9.44](https://github.com/simstudioai/sim/releases/tag/v0.9.44), [v0.9.45](https://github.com/simstudioai/sim/releases/tag/v0.9.45).

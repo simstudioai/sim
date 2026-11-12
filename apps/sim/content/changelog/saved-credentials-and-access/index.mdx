@@ -1,0 +1,37 @@
+---
+slug: saved-credentials-and-access
+title: 'Connect once and control how credentials are used'
+description: 'Sim workflows can reuse saved credentials instead of repeated keys. Keyless cloud connections and read-only API keys give teams more control.'
+date: '2026-11-11T19:59:00Z'
+authors: [waleed]
+tags: [Workflows, Security]
+ogImage: /changelog/credentials-gateway-v1.jpg
+ogAlt: 'Monochrome illustration of two stone gateways overlooking mountain ridges'
+technical: false
+draft: false
+release:
+  versions: [v0.9.53, v0.9.54]
+---
+
+<ChangelogImage
+  src="/changelog/credentials-gateway-v1.jpg"
+  alt="Monochrome illustration of two stone gateways overlooking mountain ridges"
+  width="1672"
+  height="941"
+/>
+
+Save a connection once, choose who can use it, and select it in your workflow blocks. Keys and connection details stay in one place instead of being copied into every block.
+
+Introduced in v0.9.53 and expanded in v0.9.54, saved credentials now cover more services that previously asked for keys directly. Existing blocks keep working with their original settings. To use a saved connection, replace a legacy block with its current version and select the credential.
+
+### Keyless connections in v0.9.53
+
+Supported cloud services can trust Sim to obtain temporary access instead of storing a long-lived key. Start with the [AWS guide](https://docs.sim.ai/integrations/aws-credentials) or [Databricks guide](https://docs.sim.ai/integrations/databricks-credentials). Your cloud administrator must configure that trust and the permissions it grants. Self-hosted deployments also need workload identity configured.
+
+### Read-only keys and expiration
+
+Create an API key with **Read only** access and an expiration date under **Sim API keys** in account or workspace settings. Added in v0.9.53 and generally available in v0.9.54, read-only keys let a script inspect information without changing workspace resources or starting, resuming, or cancelling workflows.
+
+Search and other allowed reads can still consume credits or call connected services. Existing keys retain full access; choose the narrower option when creating a new key. [API key access and expiration](https://docs.sim.ai/api-reference/authentication#key-access).
+
+Technical releases: [v0.9.53](https://github.com/simstudioai/sim/releases/tag/v0.9.53), [v0.9.54](https://github.com/simstudioai/sim/releases/tag/v0.9.54).

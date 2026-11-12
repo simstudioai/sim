@@ -1,0 +1,34 @@
+---
+slug: video-from-your-image
+title: 'Start a video from your own image'
+description: 'Sim can use your image as the starting frame for supported fal.ai videos, with more image and video model choices in workflow generators.'
+date: '2026-11-11T19:57:00Z'
+authors: [waleed]
+tags: [Workflows, Media]
+ogImage: /changelog/video-still-water-v1.jpg
+ogAlt: 'Monochrome illustration of a sailboat crossing still water beneath drifting mountain fog'
+technical: false
+draft: false
+release:
+  versions: [v0.9.43, v0.9.47, v0.9.48]
+---
+
+<ChangelogImage
+  src="/changelog/video-still-water-v1.jpg"
+  alt="Monochrome illustration of a sailboat crossing still water beneath drifting mountain fog"
+  width="1672"
+  height="941"
+/>
+
+Give a video a starting point you already like. In v0.9.48, the Video Generator can use an uploaded image or a file from an earlier step as the start frame for supported fal.ai models. Add your prompt to describe how the scene should develop.
+
+Choose a compatible model to reveal **Start Frame**. Available duration, resolution, aspect ratio, and audio settings follow that model's image-to-video capabilities. Models without start-frame support remain text-to-video only.
+
+Use your own fal.ai key, or Sim's hosted access on an eligible paid plan. Generation is billed by usage. Pass the resulting file to another step or [save it to workspace Files](https://docs.sim.ai/files/generating#save-an-existing-file).
+
+### More creative options
+
+- **v0.9.43:** Updated Image Generator and Video Generator model pickers expose each supported model's settings, so you can choose the format and controls your task needs.
+- **v0.9.47:** [Higgsfield](/integrations/higgsfield) joins both generators. You can also type a model not yet listed; custom models accept a prompt only, and custom fal.ai endpoints require your own key. [Higgsfield setup](https://docs.sim.ai/integrations/higgsfield).
+
+Technical releases: [v0.9.43](https://github.com/simstudioai/sim/releases/tag/v0.9.43), [v0.9.47](https://github.com/simstudioai/sim/releases/tag/v0.9.47), [v0.9.48](https://github.com/simstudioai/sim/releases/tag/v0.9.48).
