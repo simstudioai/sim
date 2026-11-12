@@ -127,6 +127,8 @@ interface UseConnectorSettingsFormOptions {
   connector: ConnectorData
   onSaved: (connector: ConnectorData) => void
   syncing?: boolean
+  /** Whether a key connector's saved credential may be replaced; the server refuses it while setup is off. */
+  savedCredentialSetupEnabled?: boolean
 }
 
 /** Editable connector settings shared by the source page and knowledge-base modal. */
@@ -137,6 +139,7 @@ export function useConnectorSettingsForm({
   connector,
   onSaved,
   syncing = isConnectorSyncingOrPending(connector),
+  savedCredentialSetupEnabled = false,
 }: UseConnectorSettingsFormOptions) {
   const liveSearch = isSearchIndex
   const connectorConfig = liveSearchSourceMeta(
@@ -236,7 +239,8 @@ export function useConnectorSettingsForm({
 
   /**
    * A key connector that syncs with its saved credential, or did until the credential was
-   * removed: its credential stays replaceable here, and its key-only settings do not apply.
+   * removed: its credential stays replaceable here while saved-credential setup is enabled,
+   * and its key-only settings do not apply.
    */
   const usesSavedCredential =
     connectorConfig?.auth.mode === 'apiKey' &&
@@ -293,7 +297,7 @@ export function useConnectorSettingsForm({
     accessDirty && !accessModeChanged && isContentEngineAccessMode(access.accessMode)
   /** Exposes credential selection for mode changes and administrator credential recovery. */
   const needsWorkspaceCredential =
-    usesSavedCredential ||
+    (usesSavedCredential && savedCredentialSetupEnabled) ||
     (connectorConfig?.auth.mode === 'oauth' &&
       isContentEngineAccessMode(access.accessMode) &&
       (persistedAccess.accessMode === 'members' ||

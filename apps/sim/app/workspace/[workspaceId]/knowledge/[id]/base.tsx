@@ -1516,6 +1516,7 @@ export function KnowledgeBase({
             isLoading={isLoadingConnectors}
             canEdit={userPermissions.canEdit}
             className='mt-0'
+            savedCredentialSetupEnabled={savedCredentialSetupEnabled}
           />
         </ChipModalBody>
       </ChipModal>

@@ -536,6 +536,23 @@ describe('createConnectorRunToken', () => {
     expect(runToken.current().accessToken).toBe('fresh-oauth-token')
   })
 
+  it('keeps long-lived saved AWS keys for the whole run instead of reloading them on every page', async () => {
+    const resolve = vi.fn()
+    const runToken = createConnectorRunToken({
+      token: {
+        accessToken: '',
+        awsSession: { accessKeyId: 'AKIA1', secretAccessKey: 'AKIA1-secret' },
+      },
+      syncContext: {},
+      resolve,
+    })
+
+    await runToken.refresh()
+
+    expect(resolve).not.toHaveBeenCalled()
+    expect(runToken.current().awsSession?.accessKeyId).toBe('AKIA1')
+  })
+
   it('never re-resolves a stored key', async () => {
     const resolve = vi.fn()
     const runToken = createConnectorRunToken({

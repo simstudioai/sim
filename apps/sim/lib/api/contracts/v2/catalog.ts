@@ -737,7 +737,7 @@ export const v2ConnectorTypeSchema = z
           mode: z
             .literal('apiKey')
             .describe(
-              'Authenticates with a stored API key; pass `apiKey`, and no `credentialId`, when creating the connector.'
+              'Authenticates with a stored API key; pass `apiKey` when creating the connector, or a saved `credentialId` instead when `savedCredential` is present.'
             ),
           label: z.string().optional().describe('Label shown above the key field.'),
           placeholder: z.string().optional().describe('Placeholder shown in the key field.'),

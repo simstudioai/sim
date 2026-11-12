@@ -345,7 +345,7 @@ const TOKEN_REUSE_MARGIN_MS = 5 * 60 * 1000
 /** A run's connector token, kept usable for the length of the run. */
 export interface ConnectorRunToken {
   current(): ConnectorAccessToken
-  /** Re-resolves the token before a later call, unless it states an expiry still well ahead. */
+  /** Re-resolves the token before a later call, unless it is long-lived or states an expiry still well ahead. */
   refresh(): Promise<void>
 }
 
@@ -354,8 +354,9 @@ export interface ConnectorRunToken {
  * outlives a short-lived token, and re-seeds what the token binds into the run's
  * `syncContext`, so a connector reading its credential's site or AWS session from there signs
  * with the current one. A token that states its expiry (an AWS STS session) is kept until
- * shortly before it rather than exchanged again on every page. `resolve` is absent for a
- * stored key, which never changes during a run.
+ * shortly before it rather than exchanged again on every page. Long-lived saved AWS keys (an
+ * AWS session with no session token) are kept for the whole run, like a stored key, for which
+ * `resolve` is absent.
  */
 export function createConnectorRunToken(input: {
   token: ConnectorAccessToken
@@ -367,6 +368,7 @@ export function createConnectorRunToken(input: {
     current: () => token,
     async refresh() {
       if (!input.resolve) return
+      if (token.awsSession && !token.awsSession.sessionToken) return
       if (token.expiresAt && token.expiresAt.getTime() - Date.now() > TOKEN_REUSE_MARGIN_MS) return
       token = await input.resolve()
       Object.assign(input.syncContext, syncContextForToken(token))

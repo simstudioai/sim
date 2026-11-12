@@ -11,7 +11,9 @@ import type { ConnectorMeta } from '@/connectors/types'
  * The OAuth service a connector's credential must belong to. Setting up a key
  * connector on its saved credential and every access update resolve it here, so
  * a connector whose declared service has no config is refused instead of
- * skipping the provider check.
+ * skipping the provider check. Callers reach it only for a connector that takes
+ * a credential, so a missing service is a connector-definition fault, not one
+ * the caller can fix.
  */
 export function requireConnectorCredentialService(
   connectorMeta: Pick<ConnectorMeta, 'name' | 'auth'>
@@ -23,7 +25,7 @@ export function requireConnectorCredentialService(
     : null
   if (!service) {
     throw new OrchestrationError(
-      'validation',
+      'internal',
       `${connectorMeta.name} has no OAuth service to validate the credential against`
     )
   }

@@ -21713,7 +21713,7 @@
                   "mode": {
                     "type": "string",
                     "const": "apiKey",
-                    "description": "Authenticates with a stored API key; pass `apiKey`, and no `credentialId`, when creating the connector."
+                    "description": "Authenticates with a stored API key; pass `apiKey` when creating the connector, or a saved `credentialId` instead when `savedCredential` is present."
                   },
                   "label": {
                     "description": "Label shown above the key field.",
