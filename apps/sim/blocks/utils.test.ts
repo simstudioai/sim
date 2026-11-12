@@ -115,8 +115,11 @@ describe('Bedrock credential fields', () => {
     'bedrockRegion',
   ]
 
-  const visibleBedrockFields = (values: Record<string, unknown>) =>
-    getProviderCredentialSubBlocks()
+  const visibleBedrockFields = (
+    values: Record<string, unknown>,
+    subBlocks = getProviderCredentialSubBlocks({ bedrockSavedCredential: true })
+  ) =>
+    subBlocks
       .filter((subBlock) => BEDROCK_FIELDS.includes(subBlock.id))
       .filter((subBlock) => evaluateSubBlockCondition(subBlock.condition, values))
       .map((subBlock) => subBlock.id)
@@ -138,6 +141,15 @@ describe('Bedrock credential fields', () => {
 
   it('shows no Bedrock field for a model of another provider', () => {
     expect(visibleBedrockFields({ model: 'gpt-4o', bedrockAuthMode: 'credential' })).toEqual([])
+  })
+
+  it('offers no saved credential, and keeps the access keys, for a block that cannot forward one', () => {
+    expect(
+      visibleBedrockFields(
+        { model: 'bedrock/my-inference-profile', bedrockAuthMode: 'credential' },
+        getProviderCredentialSubBlocks()
+      )
+    ).toEqual(['bedrockAccessKeyId', 'bedrockSecretKey', 'bedrockRegion'])
   })
 })
 
@@ -165,7 +177,7 @@ describe('getSelectedBedrockCredential', () => {
   })
 
   it('signs with a credential exactly when the block shows and serializes the credential picker', () => {
-    const picker = getProviderCredentialSubBlocks().find(
+    const picker = getProviderCredentialSubBlocks({ bedrockSavedCredential: true }).find(
       (subBlock) => subBlock.id === 'bedrockCredential'
     )
     const cases: Record<string, unknown>[] = [

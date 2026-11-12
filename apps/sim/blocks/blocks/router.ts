@@ -2,6 +2,7 @@ import { ConnectIcon } from '@/components/icons'
 import { getModelFallbackSubBlock, MODEL_FALLBACK_INPUTS } from '@/blocks/model-fallbacks'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import {
+  BEDROCK_SAVED_CREDENTIAL_INPUTS,
   getModelOptions,
   getProviderCredentialSubBlocks,
   getSerializedModelProviderId,
@@ -163,7 +164,7 @@ export const RouterBlock: BlockConfig = {
       defaultValue: 'claude-sonnet-5-5',
       options: getModelOptions,
     },
-    ...getProviderCredentialSubBlocks(),
+    ...getProviderCredentialSubBlocks({ bedrockSavedCredential: true }),
     getModelFallbackSubBlock(),
     {
       id: 'temperature',
@@ -200,6 +201,7 @@ export const RouterBlock: BlockConfig = {
     prompt: { type: 'string', description: 'Routing prompt content' },
     model: { type: 'string', description: 'AI model to use' },
     ...PROVIDER_CREDENTIAL_INPUTS,
+    ...BEDROCK_SAVED_CREDENTIAL_INPUTS,
     ...MODEL_FALLBACK_INPUTS,
     temperature: {
       type: 'number',
@@ -254,7 +256,7 @@ export const RouterV2Block: BlockConfig = {
       defaultValue: 'claude-sonnet-5-5',
       options: getModelOptions,
     },
-    ...getProviderCredentialSubBlocks(),
+    ...getProviderCredentialSubBlocks({ bedrockSavedCredential: true }),
     getModelFallbackSubBlock(),
   ],
   tools: {
@@ -275,6 +277,7 @@ export const RouterV2Block: BlockConfig = {
     routes: { type: 'json', description: 'Route definitions with descriptions' },
     model: { type: 'string', description: 'AI model to use' },
     ...PROVIDER_CREDENTIAL_INPUTS,
+    ...BEDROCK_SAVED_CREDENTIAL_INPUTS,
     ...MODEL_FALLBACK_INPUTS,
   },
   outputs: {

@@ -1,6 +1,7 @@
 import { TranslateIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import {
+  BEDROCK_SAVED_CREDENTIAL_INPUTS,
   getModelOptions,
   getProviderCredentialSubBlocks,
   getSelectedBedrockCredential,
@@ -53,7 +54,7 @@ export const TranslateBlock: BlockConfig = {
       required: true,
       options: getModelOptions,
     },
-    ...getProviderCredentialSubBlocks(),
+    ...getProviderCredentialSubBlocks({ bedrockSavedCredential: true }),
     {
       id: 'systemPrompt',
       title: 'System Prompt',
@@ -89,6 +90,7 @@ export const TranslateBlock: BlockConfig = {
     context: { type: 'string', description: 'Text to translate' },
     targetLanguage: { type: 'string', description: 'Target language' },
     ...PROVIDER_CREDENTIAL_INPUTS,
+    ...BEDROCK_SAVED_CREDENTIAL_INPUTS,
     systemPrompt: { type: 'string', description: 'Translation instructions' },
   },
   outputs: {
