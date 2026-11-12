@@ -30,7 +30,10 @@ import {
   DATABASE_CONNECTION_DESCRIPTORS,
   type DatabaseConnectionProviderId,
 } from '@/lib/credentials/database-connections/descriptors'
-import { verifyAndEncryptDatabaseConnection } from '@/lib/credentials/database-connections/server'
+import {
+  DatabaseConnectionVerificationError,
+  verifyAndEncryptDatabaseConnection,
+} from '@/lib/credentials/database-connections/server'
 import {
   DatabricksCredentialError,
   verifyAndEncryptDatabricksCredential,
@@ -558,7 +561,8 @@ function databaseConnectionSecretBuilder(
     let result
     try {
       result = await verifyAndEncryptDatabaseConnection(providerId, fields.serviceAccountJson)
-    } catch {
+    } catch (error) {
+      if (!(error instanceof DatabaseConnectionVerificationError)) throw error
       throw new ServiceAccountSecretError(
         `Could not verify the ${label} connection. Check the connection details, network access, and database permissions.`
       )

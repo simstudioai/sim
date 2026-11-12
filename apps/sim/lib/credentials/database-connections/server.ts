@@ -151,10 +151,23 @@ function secretSchemaFor(spec: DatabaseConnectionSpec) {
 }
 
 /**
+ * A submitted connection that could not be parsed or did not answer `SELECT 1`:
+ * the user's input is at fault, unlike a failure to encrypt a verified one.
+ */
+export class DatabaseConnectionVerificationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'DatabaseConnectionVerificationError'
+  }
+}
+
+/**
  * Parses a submitted connection, proves it with `SELECT 1` through the block's
  * own guarded connection path (host validation and IP pinning included), and
  * encrypts it only after the database answered. Driver errors are never
  * surfaced: a server can echo anything, including the login it rejected.
+ * Input and verification failures throw `DatabaseConnectionVerificationError`;
+ * an encryption failure propagates unchanged.
  */
 export async function verifyAndEncryptDatabaseConnection(
   providerId: DatabaseConnectionProviderId,
@@ -163,13 +176,13 @@ export async function verifyAndEncryptDatabaseConnection(
   const spec = SPECS[providerId]
   const { label } = spec.descriptor
   if (Buffer.byteLength(serialized, 'utf8') > MAX_SERIALIZED_CONNECTION_BYTES) {
-    throw new Error(`${label} connection must be at most 64 KiB`)
+    throw new DatabaseConnectionVerificationError(`${label} connection must be at most 64 KiB`)
   }
   let parsed: ReturnType<DatabaseConnectionSpec['parse']>
   try {
     parsed = spec.parse(JSON.parse(serialized))
   } catch {
-    throw new Error(`Invalid ${label} connection configuration`)
+    throw new DatabaseConnectionVerificationError(`Invalid ${label} connection configuration`)
   }
   const { connection } = parsed
   try {
@@ -179,7 +192,7 @@ export async function verifyAndEncryptDatabaseConnection(
       throw new Error('Invalid verification response')
     }
   } catch {
-    throw new Error(`Could not verify the ${label} connection`)
+    throw new DatabaseConnectionVerificationError(`Could not verify the ${label} connection`)
   }
   const { encrypted } = await encryptSecret(JSON.stringify({ type: spec.secretType, connection }))
   return {

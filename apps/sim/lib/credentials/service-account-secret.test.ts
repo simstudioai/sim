@@ -11,12 +11,14 @@ const {
   mockNormalizeDomain,
   mockClientCredentialMinter,
   mockVerifyAndEncryptOci,
+  mockPostgresqlQuery,
 } = vi.hoisted(() => ({
   mockFetchSlackTeamId: vi.fn(),
   mockValidateAtlassian: vi.fn(),
   mockNormalizeDomain: vi.fn((raw: string) => raw.trim().toLowerCase()),
   mockClientCredentialMinter: vi.fn(),
   mockVerifyAndEncryptOci: vi.fn(),
+  mockPostgresqlQuery: vi.fn(),
 }))
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
@@ -59,6 +61,9 @@ vi.mock('@/lib/credentials/oci-api-key-service-account.server', () => ({
   },
   verifyAndEncryptOciApiKeyCredential: mockVerifyAndEncryptOci,
 }))
+vi.mock('@/lib/internal/postgresql/operations', () => ({
+  executePostgresqlQuery: mockPostgresqlQuery,
+}))
 vi.mock('@/lib/api/contracts/credentials', () => ({
   serviceAccountJsonSchema: {
     safeParse: (value: string) => {
@@ -93,6 +98,7 @@ import {
 } from '@/lib/credentials/service-account-secret'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+  POSTGRESQL_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 
@@ -1210,5 +1216,37 @@ describe('a ServiceNow OAuth client', () => {
       })
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
     expect(tableRead).not.toHaveBeenCalled()
+  })
+})
+
+describe('a saved database connection', () => {
+  const serviceAccountJson = JSON.stringify({
+    host: 'db.example.com',
+    port: 5432,
+    database: 'app',
+    username: 'app_user',
+    password: 'secret',
+  })
+
+  it('asks the user to fix the connection when the database does not answer', async () => {
+    mockPostgresqlQuery.mockRejectedValue(new Error('ECONNREFUSED'))
+
+    await expect(
+      verifyAndBuildServiceAccountSecret(POSTGRESQL_SERVICE_ACCOUNT_PROVIDER_ID, {
+        serviceAccountJson,
+      })
+    ).rejects.toBeInstanceOf(ServiceAccountSecretError)
+  })
+
+  it('keeps an encryption failure on a verified connection a server error', async () => {
+    mockPostgresqlQuery.mockResolvedValue({ rows: [{ sim_connection_ok: 1 }] })
+    mockEncryptSecret.mockRejectedValue(new Error('KMS unavailable'))
+
+    const saving = verifyAndBuildServiceAccountSecret(POSTGRESQL_SERVICE_ACCOUNT_PROVIDER_ID, {
+      serviceAccountJson,
+    })
+
+    await expect(saving).rejects.toThrow('KMS unavailable')
+    await expect(saving).rejects.not.toBeInstanceOf(ServiceAccountSecretError)
   })
 })
