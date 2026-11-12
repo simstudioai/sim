@@ -31,6 +31,7 @@ final class FixtureDelegate: NSObject, NSApplicationDelegate {
         let field = NSTextField(string: "Fixture text"); field.setAccessibilityIdentifier("fixture-text"); field.setAccessibilityLabel("Fixture editable text")
         let secure = NSSecureTextField(string: "fixture-only-secret"); secure.setAccessibilityIdentifier("fixture-password"); secure.setAccessibilityLabel("Fixture password")
         let button = NSButton(title: "Increment", target: self, action: #selector(increment)); button.setAccessibilityIdentifier("fixture-increment")
+        let sheetButton = NSButton(title: "Show sheet", target: self, action: #selector(showSheet)); sheetButton.setAccessibilityIdentifier("fixture-show-sheet")
         let slider = NSSlider(value: 25, minValue: 0, maxValue: 100, target: nil, action: nil); slider.setAccessibilityLabel("Fixture slider")
         let time = NSDatePicker(); time.datePickerStyle = .textField; time.datePickerElements = .hourMinute; time.setAccessibilityLabel("Fixture time")
         time.dateValue = Calendar.current.date(bySettingHour: 10, minute: 15, second: 0, of: Date()) ?? Date(); time.target = self; time.action = #selector(timeChanged(_:))
@@ -43,7 +44,7 @@ final class FixtureDelegate: NSObject, NSApplicationDelegate {
         scroll.documentView = document
         scroll.contentView.postsBoundsChangedNotifications = true
         NotificationCenter.default.addObserver(self, selector: #selector(scrolled(_:)), name: NSView.boundsDidChangeNotification, object: scroll.contentView)
-        for view in [field, secure, button, counter, slider, time, timeLabel, marker, scrollCounter, scroll] { stack.addArrangedSubview(view) }
+        for view in [field, secure, button, counter, sheetButton, slider, time, timeLabel, marker, scrollCounter, scroll] { stack.addArrangedSubview(view) }
         window.contentView!.addSubview(stack)
         NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: window.contentView!.leadingAnchor, constant: 30), stack.trailingAnchor.constraint(equalTo: window.contentView!.trailingAnchor, constant: -30), stack.topAnchor.constraint(equalTo: window.contentView!.topAnchor, constant: 30), field.widthAnchor.constraint(equalTo: stack.widthAnchor), secure.widthAnchor.constraint(equalTo: stack.widthAnchor), slider.widthAnchor.constraint(equalTo: stack.widthAnchor), scroll.widthAnchor.constraint(equalTo: stack.widthAnchor), scroll.heightAnchor.constraint(equalToConstant: 230), marker.widthAnchor.constraint(equalToConstant: 100), marker.heightAnchor.constraint(equalToConstant: 70)])
         window.makeKeyAndOrderFront(nil)
@@ -52,6 +53,7 @@ final class FixtureDelegate: NSObject, NSApplicationDelegate {
         print("fixture-ready"); fflush(stdout)
     }
     @objc func increment() { count += 1; counter.stringValue = "Count: \(count)" }
+    @objc func showSheet() { let alert = NSAlert(); alert.messageText = "Fixture sheet"; alert.addButton(withTitle: "Dismiss"); alert.beginSheetModal(for: window) }
     @objc func timeChanged(_ picker: NSDatePicker) {
         let time = Calendar.current.dateComponents([.hour, .minute], from: picker.dateValue)
         timeLabel.stringValue = "Time: \(time.hour ?? 0):\(String(format: "%02d", time.minute ?? 0))"

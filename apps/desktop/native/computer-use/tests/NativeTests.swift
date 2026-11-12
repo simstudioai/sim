@@ -41,13 +41,19 @@ import AppKit
         precondition(bounded.next()?.element == 1)
         precondition(bounded.next()?.element == 2)
         precondition(bounded.next() == nil)
-        try validateInputSteps([InputStep(action: "press_key", text: nil, key: "Cmd+A"), InputStep(action: "type_text", text: "hello 🌍", key: nil)])
-        try validateInputSteps((1...5).flatMap { [InputStep(action: "type_text", text: String($0), key: nil), InputStep(action: "press_key", text: nil, key: "Enter")] })
+        try validateInputSteps([Parameters(action: "press_key", key: "Cmd+A"), Parameters(action: "type_text", text: "hello 🌍")])
+        try validateInputSteps((1...5).flatMap { [Parameters(action: "type_text", text: String($0)), Parameters(action: "press_key", key: "Enter")] })
         expectError("invalid_arguments") { try validateInputSteps([]) }
-        expectError("invalid_arguments") { try validateInputSteps(Array(repeating: InputStep(action: "type_text", text: "x", key: nil), count: 33)) }
-        expectError("invalid_arguments") { try validateInputSteps([InputStep(action: "type_text", text: String(repeating: "🌍", count: 16001), key: nil)]) }
-        expectError("invalid_arguments") { try validateInputSteps([InputStep(action: "click", text: nil, key: nil)]) }
-        expectError("unsupported_key") { try validateInputSteps([InputStep(action: "press_key", text: nil, key: "F99")]) }
+        expectError("invalid_arguments") { try validateInputSteps(Array(repeating: Parameters(action: "type_text", text: "x"), count: 33)) }
+        expectError("invalid_arguments") { try validateInputSteps([Parameters(action: "type_text", text: String(repeating: "🌍", count: 16001))]) }
+        expectError("invalid_arguments") { try validateInputSteps([Parameters(action: "click")]) }
+        expectError("unsupported_key") { try validateInputSteps([Parameters(action: "press_key", key: "F99")]) }
+        try validateBatchSteps([Parameters(action: "set_value", elementId: "e1", value: "Name"), Parameters(action: "click", elementId: "e2")])
+        expectError("invalid_arguments") { try validateBatchSteps([Parameters(action: "click", elementId: "e1")]) }
+        expectError("invalid_arguments") { try validateBatchSteps(Array(repeating: Parameters(action: "press_key", key: "Tab"), count: 9)) }
+        expectError("invalid_arguments") { try validateBatchSteps([Parameters(action: "drag"), Parameters(action: "press_key", key: "Enter")]) }
+        expectError("invalid_arguments") { try validateBatchSteps([Parameters(action: "click", bundleId: "com.example", elementId: "e1"), Parameters(action: "press_key", key: "Enter")]) }
+        expectError("invalid_arguments") { try validateBatchSteps([Parameters(action: "set_value", elementId: "e1", value: String(repeating: "🌍", count: 8001)), Parameters(action: "type_text", elementId: "e2", text: String(repeating: "🌍", count: 8000))]) }
         let tabFocus = try keyMayChangeFocus("Tab"); precondition(tabFocus)
         let submitFocus = try keyMayChangeFocus("Enter"); precondition(!submitFocus)
         let searchFocus = try keyMayChangeFocus("Cmd+K"); precondition(searchFocus)

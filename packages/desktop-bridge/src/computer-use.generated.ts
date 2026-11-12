@@ -74,6 +74,56 @@ const ScrollOffsets = {
 
 const hasScrollDistance = (input: { deltaX?: number | undefined; deltaY?: number | undefined }) =>
   input.deltaX !== undefined || input.deltaY !== undefined;
+const TypedText = z.string().max(32_000).describe("Literal text to type into the observed editable element.");
+const ReplacementValue = z
+  .string()
+  .max(32_000)
+  .describe("Replacement value for an accessibility-writable element.");
+const KeyChord = z
+  .string()
+  .min(1)
+  .max(128)
+  .describe(
+    "One key or chord, such as Enter, Tab, Escape, or Cmd+A. With elementId, focuses that element first.",
+  );
+const AccessibilityAction = z.string().min(1).max(128).describe("Exact action advertised by this element.");
+
+/** A batch step is the matching single action without its app, snapshot and observation fields, which the batch carries. */
+const BatchStep = z.union([
+  z.strictObject({ action: z.literal("click"), elementId: ElementId, ...ClickOptions }),
+  z.strictObject({
+    action: z.literal("click"),
+    windowId: TargetWindowId,
+    x: Coordinate,
+    y: Coordinate,
+    ...ClickOptions,
+  }),
+  z.strictObject({ action: z.literal("type_text"), elementId: ElementId, text: TypedText }),
+  z.strictObject({ action: z.literal("set_value"), elementId: ElementId, value: ReplacementValue }),
+  z.strictObject({
+    action: z.literal("press_key"),
+    windowId: TargetWindowId,
+    elementId: ElementId.optional(),
+    key: KeyChord,
+  }),
+  z
+    .strictObject({ action: z.literal("scroll"), elementId: ElementId, ...ScrollOffsets })
+    .refine(hasScrollDistance, "Scroll needs deltaX or deltaY."),
+  z
+    .strictObject({
+      action: z.literal("scroll"),
+      windowId: TargetWindowId,
+      x: Coordinate,
+      y: Coordinate,
+      ...ScrollOffsets,
+    })
+    .refine(hasScrollDistance, "Scroll needs deltaX or deltaY."),
+  z.strictObject({
+    action: z.literal("perform_action"),
+    elementId: ElementId,
+    accessibilityAction: AccessibilityAction,
+  }),
+]);
 
 /** Strict branches require an observed, unambiguous target before native input. */
 export const ComputerUseSchema = z.union([
@@ -92,7 +142,7 @@ export const ComputerUseSchema = z.union([
     action: z.literal("type_text"),
     ...ObserveAfter,
     ...ElementTarget,
-    text: z.string().max(32_000).describe("Literal text to type into the observed editable element."),
+    text: TypedText,
   }),
   z.strictObject({
     action: z.literal("press_key"),
@@ -101,13 +151,7 @@ export const ComputerUseSchema = z.union([
     snapshotId: SnapshotId,
     windowId: TargetWindowId,
     elementId: ElementId.optional(),
-    key: z
-      .string()
-      .min(1)
-      .max(128)
-      .describe(
-        "One key or chord, such as Enter, Tab, Escape, or Cmd+A. With elementId, focuses that element first.",
-      ),
+    key: KeyChord,
   }),
   z
     .strictObject({ action: z.literal("scroll"), ...ElementTarget, ...ObserveAfter, ...ScrollOffsets })
@@ -126,7 +170,7 @@ export const ComputerUseSchema = z.union([
     action: z.literal("set_value"),
     ...ObserveAfter,
     ...ElementTarget,
-    value: z.string().max(32_000).describe("Replacement value for an accessibility-writable element."),
+    value: ReplacementValue,
   }),
   z.strictObject({
     action: z.literal("input_sequence"),
@@ -156,7 +200,34 @@ export const ComputerUseSchema = z.union([
     action: z.literal("perform_action"),
     ...ObserveAfter,
     ...ElementTarget,
-    accessibilityAction: z.string().min(1).max(128).describe("Exact action advertised by this element."),
+    accessibilityAction: AccessibilityAction,
+  }),
+  z.strictObject({
+    action: z.literal("batch"),
+    bundleId: BundleId,
+    snapshotId: SnapshotId,
+    ...ObserveAfter,
+    steps: z
+      .array(BatchStep)
+      .min(2)
+      .max(8)
+      .refine(
+        (steps) =>
+          steps.reduce(
+            (total, step) =>
+              total +
+              (step.action === "type_text"
+                ? step.text.length
+                : step.action === "set_value"
+                  ? step.value.length
+                  : 0),
+            0,
+          ) <= 32_000,
+        "Combined batch text exceeds 32000 UTF-16 code units",
+      )
+      .describe(
+        "2–8 actions on this app planned from the same snapshot, run in order with that snapshot's references. The batch stops at the first step that fails and after any step that opens or closes a window, sheet, menu or popover; later steps do not run. Read sequence.completedSteps before continuing, and never automatically retry a partial batch.",
+      ),
   }),
 ]);
 export type ComputerUseInput = z.infer<typeof ComputerUseSchema>;
@@ -250,6 +321,7 @@ export const ComputerUseResultSchema = z.discriminatedUnion("kind", [
         "set_value",
         "perform_action",
         "input_sequence",
+        "batch",
       ]),
       bundleId: BundleId,
       dispatched: z.literal(true),
@@ -265,11 +337,11 @@ export const ComputerUseResultSchema = z.discriminatedUnion("kind", [
       observationError: z.string().min(1).max(2000).optional(),
     })
     .superRefine((result, ctx) => {
-      if (result.action === "input_sequence" && !result.sequence)
+      if ((result.action === "input_sequence" || result.action === "batch") && !result.sequence)
         ctx.addIssue({
           code: "custom",
           path: ["sequence"],
-          message: "Input sequences require dispatch progress",
+          message: "Input sequences and batches require dispatch progress",
         });
       if (result.sequence && result.sequence.completedSteps > result.sequence.totalSteps)
         ctx.addIssue({
