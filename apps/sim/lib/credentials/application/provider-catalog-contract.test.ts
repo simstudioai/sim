@@ -199,6 +199,23 @@ describe('v2 credential provider catalog contract', () => {
     expect(configuration?.hint).not.toContain('Keyless')
   })
 
+  it('tells headless clients the ServiceNow username belongs to the password sign-in only', async () => {
+    const providers = await listProviders('servicenow')
+    const servicenow = providers.find(
+      (provider) =>
+        provider.type === 'service_account' && provider.providerId === 'servicenow-service-account'
+    )
+
+    expect(responseSchema.safeParse({ data: providers, nextCursor: null }).success).toBe(true)
+    expect(servicenow?.fields.find((field) => field.id === 'providerWorkspaceId')).toMatchObject({
+      required: true,
+      requiredForAuthMethods: ['token'],
+    })
+    expect(
+      servicenow?.fields.find((field) => field.id === 'domain')?.requiredForAuthMethods
+    ).toBeUndefined()
+  })
+
   it('lists the native Claude Platform provider when filtered', async () => {
     const providers = await listProviders('claude')
 

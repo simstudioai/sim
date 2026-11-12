@@ -60,10 +60,12 @@ export interface TokenServiceAccountField {
    */
   requiredForDomain?: string
   /**
-   * Belongs to the pasted-token sign-in only (ServiceNow's username, which a minted token replaces):
-   * the client-credentials mode neither shows, requires, nor stores it.
+   * Auth methods this field belongs to, for a provider that also offers client credentials:
+   * `token` is the pasted-token sign-in and `client_credentials` the grant. A mode not listed
+   * neither shows, requires, nor stores it (ServiceNow's username, which a minted token replaces).
+   * Absent means the field belongs to every mode.
    */
-  pastedTokenOnly?: boolean
+  requiredForAuthMethods?: readonly TokenServiceAccountAuthMethod[]
   /** Soft-format hint shown while the current value doesn't match `hintPattern`. */
   hintPattern?: RegExp
   hintMessage?: string
@@ -148,6 +150,17 @@ interface TokenServiceAccountClientCredentials {
 
 /** `authMethod` value selecting the client-credentials mode of a provider whose default is a pasted token (a token provider, or the Atlassian service account). */
 export const CLIENT_CREDENTIALS_AUTH_METHOD = 'client_credentials' as const
+
+/** A token provider's sign-in modes: the pasted token (the default) or its client-credentials grant. */
+export type TokenServiceAccountAuthMethod = 'token' | typeof CLIENT_CREDENTIALS_AUTH_METHOD
+
+/** Whether a descriptor field belongs to the given sign-in mode. */
+export function tokenFieldBelongsToAuthMethod(
+  field: Pick<TokenServiceAccountField, 'requiredForAuthMethods'>,
+  authMethod: TokenServiceAccountAuthMethod
+): boolean {
+  return !field.requiredForAuthMethods || field.requiredForAuthMethods.includes(authMethod)
+}
 
 export const HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID = 'hubspot-service-account' as const
 export const AIRTABLE_SERVICE_ACCOUNT_PROVIDER_ID = 'airtable-service-account' as const
@@ -2627,7 +2640,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'Username',
         placeholder: 'Enter the ServiceNow username',
         secret: false,
-        pastedTokenOnly: true,
+        requiredForAuthMethods: ['token'],
       },
       {
         id: 'domain',
@@ -2836,7 +2849,7 @@ export function isTokenServiceAccountFieldRequired(field: TokenServiceAccountFie
 /**
  * Required contract fields per token provider in client-credentials mode: the client ID and
  * secret replace the token, and every other descriptor field without a default (a store
- * domain) stays required unless it belongs to the pasted-token sign-in only.
+ * domain) stays required unless it belongs only to the pasted-token sign-in.
  */
 export const TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS: Record<
   string,
@@ -2851,7 +2864,7 @@ export const TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS: Record<
         'clientSecret',
         ...descriptor.fields.flatMap((field) =>
           field.id === 'apiToken' ||
-          field.pastedTokenOnly ||
+          !tokenFieldBelongsToAuthMethod(field, CLIENT_CREDENTIALS_AUTH_METHOD) ||
           !isTokenServiceAccountFieldRequired(field)
             ? []
             : [field.id]
