@@ -1,9 +1,10 @@
 import { isRecordLike } from '@sim/utils/object'
-import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
+import { PayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   type FetchProviderOptions,
   fetchProvider,
   providerFailureCode,
+  providerFailureReason,
   readProviderErrorSnippet,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
@@ -94,8 +95,14 @@ export async function exchangeClientCredentialsGrant(
       label: request.label,
       signal,
     })
-  } catch {
+  } catch (error) {
     signal?.throwIfAborted()
+    if (!(error instanceof SyntaxError || error instanceof PayloadSizeLimitError)) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step,
+        reason: `reading the token response failed: ${providerFailureReason(error)}`,
+      })
+    }
     payload = undefined
   }
   if (

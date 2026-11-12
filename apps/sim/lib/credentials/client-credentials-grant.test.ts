@@ -38,6 +38,35 @@ describe('exchangeClientCredentialsGrant', () => {
     await expect(exchange).rejects.not.toBeInstanceOf(TokenServiceAccountValidationError)
   })
 
+  it.each([
+    [
+      'a dropped connection while reading the token',
+      () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            pull() {
+              throw new Error('other side closed')
+            },
+          }),
+          { status: 200 }
+        ),
+      'reading the token response failed: other side closed',
+    ],
+    [
+      'an unparsable token response',
+      () => new Response('{not json', { status: 200 }),
+      'provider returned an invalid token response',
+    ],
+  ])('reports %s as a provider fault with its own reason', async (_case, reply, reason) => {
+    mockFetch.mockImplementation(async () => reply())
+
+    await expect(exchangeClientCredentialsGrant(REQUEST)).rejects.toMatchObject({
+      code: 'provider_unavailable',
+      status: 502,
+      logDetail: { reason },
+    })
+  })
+
   it('posts the client credentials and extra fields as a form, refusing redirects', async () => {
     mockFetch.mockImplementation(async (input, init) => {
       const request = new Request(input, init)
