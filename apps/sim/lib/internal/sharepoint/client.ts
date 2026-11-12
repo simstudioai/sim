@@ -12,7 +12,7 @@ import {
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
-import { safeUrlPathSegment } from '@/tools/url-path'
+import { graphPathSegment } from '@/tools/sharepoint/utils'
 
 interface GraphErrorBody {
   error?: { message?: string }
@@ -81,8 +81,8 @@ function readJson<T>(
 
 function driveItemUrl(driveId: string, itemId: string): string {
   try {
-    const drive = safeUrlPathSegment(driveId, 'driveId', { allowSeparators: true })
-    const item = safeUrlPathSegment(itemId, 'itemId', { allowSeparators: true })
+    const drive = graphPathSegment(driveId, 'driveId')
+    const item = graphPathSegment(itemId, 'itemId')
     return `https://graph.microsoft.com/v1.0/drives/${drive}/items/${item}`
   } catch (error) {
     throw new SharePointGraphError(getErrorMessage(error, 'Invalid drive item path'), 400)

@@ -230,7 +230,7 @@ export interface AzureDevOpsBuildTimelineRecord {
   finishTime: string
   parentId?: string | null
   state?: string | null
-  issues?: Array<{ type: string; category: string | null; message: string }>
+  issues: Array<{ type: string; category: string | null; message: string }>
 }
 
 export interface GetBuildTimelineResponse extends ToolResponse {

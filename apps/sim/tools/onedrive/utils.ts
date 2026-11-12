@@ -15,7 +15,10 @@ import type { OutputProperty } from '@/tools/types'
 export const DRIVE_ITEM_SELECT =
   'id,name,file,folder,webUrl,size,createdDateTime,lastModifiedDateTime,parentReference,createdBy,lastModifiedBy,description,eTag,@microsoft.graph.downloadUrl'
 
-function toIdentity(identitySet: MicrosoftGraphIdentitySet | undefined): OneDriveIdentity | null {
+/** Projects a Graph `identitySet` onto its acting identity (user, then application, then device). */
+export function toIdentity(
+  identitySet: MicrosoftGraphIdentitySet | undefined
+): OneDriveIdentity | null {
   const identity = identitySet?.user ?? identitySet?.application ?? identitySet?.device
   if (!identity) return null
   return { id: identity.id ?? null, displayName: identity.displayName ?? null }

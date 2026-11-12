@@ -2,7 +2,7 @@ import { GoogleTasksIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
+import { parseOptionalBooleanInput, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 
 /**
  * Canonical basic/advanced pair for the task list, shared by the card
@@ -421,12 +421,7 @@ Return ONLY the timestamp - no explanations, no extra text.`,
         }
 
         for (const key of ['showHidden', 'showDeleted', 'showAssigned'] as const) {
-          const value = processedParams[key]
-          if (value === '' || value === undefined || value === null) {
-            delete processedParams[key]
-          } else if (typeof value === 'string') {
-            processedParams[key] = value === 'true'
-          }
+          processedParams[key] = parseOptionalBooleanInput(processedParams[key])
         }
 
         return {

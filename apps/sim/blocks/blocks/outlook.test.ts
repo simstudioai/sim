@@ -54,3 +54,43 @@ describe('OutlookBlock calendar operations', () => {
     expect(declined?.sendResponse).toBe(false)
   })
 })
+
+/**
+ * The executor builds tool params as `{ ...inputs, ...transformedParams }`, so a value stored for
+ * another operation reaches the tool unless the mapper assigns that key explicitly.
+ */
+describe('OutlookBlock values stored for another operation', () => {
+  const mapParams = block.tools.config?.params as (
+    params: Record<string, unknown>
+  ) => Record<string, unknown>
+
+  it.each(['reply_outlook', 'reply_all_outlook', 'forward_outlook'])(
+    'clears a Send cc/bcc on %s',
+    (operation) => {
+      const mapped = mapParams({
+        operation,
+        oauthCredential: 'cred-1',
+        messageId: 'msg-1',
+        cc: 'boss@example.com',
+        bcc: 'audit@example.com',
+      })
+      expect(mapped).toHaveProperty('cc', null)
+      expect(mapped).toHaveProperty('bcc', null)
+    }
+  )
+
+  it.each(['reply_outlook', 'reply_all_outlook', 'forward_outlook'])(
+    'clears an Update Message importance on %s',
+    (operation) => {
+      const mapped = mapParams({ operation, oauthCredential: 'cred-1', importance: 'high' })
+      expect(mapped).toHaveProperty('importance', undefined)
+    }
+  )
+
+  it('clears an Update Message importance on send and draft', () => {
+    for (const operation of ['send_outlook', 'draft_outlook']) {
+      const mapped = mapParams({ operation, oauthCredential: 'cred-1', importance: 'high' })
+      expect(mapped).toHaveProperty('importance', null)
+    }
+  })
+})

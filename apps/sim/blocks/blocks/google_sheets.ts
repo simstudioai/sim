@@ -1081,6 +1081,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           ...(operation === 'append'
             ? { valueInputOption: appendValueInputOption || undefined }
             : {}),
+          majorDimension: undefined,
         }
       },
     },

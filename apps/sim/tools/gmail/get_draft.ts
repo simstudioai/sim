@@ -1,4 +1,9 @@
-import { extractExtendedHeaders, extractMessageBody, GMAIL_API_BASE } from '@/tools/gmail/utils'
+import {
+  extractExtendedHeaders,
+  extractMessageBody,
+  GMAIL_API_BASE,
+  getHeaderValue,
+} from '@/tools/gmail/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -78,9 +83,6 @@ export const gmailGetDraftV2Tool: ToolConfig<GmailGetDraftParams, GmailGetDraftR
 
     const message = data.message || {}
     const headers = message.payload?.headers || []
-    const getHeader = (name: string): string | undefined =>
-      headers.find((h: Record<string, string>) => h.name.toLowerCase() === name.toLowerCase())
-        ?.value
 
     const body = message.payload ? extractMessageBody(message.payload) : ''
 
@@ -90,11 +92,11 @@ export const gmailGetDraftV2Tool: ToolConfig<GmailGetDraftParams, GmailGetDraftR
         id: data.id,
         messageId: message.id ?? undefined,
         threadId: message.threadId ?? undefined,
-        to: getHeader('To'),
-        from: getHeader('From'),
-        subject: getHeader('Subject'),
+        to: getHeaderValue(headers, 'To'),
+        from: getHeaderValue(headers, 'From'),
+        subject: getHeaderValue(headers, 'Subject'),
         ...extractExtendedHeaders(headers),
-        date: getHeader('Date') ?? null,
+        date: getHeaderValue(headers, 'Date') ?? null,
         snippet: message.snippet ?? null,
         body: body || undefined,
         labelIds: message.labelIds ?? undefined,

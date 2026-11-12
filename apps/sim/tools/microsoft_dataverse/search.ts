@@ -6,15 +6,11 @@ import type {
 import {
   DATAVERSE_OAUTH_CONFIG,
   getDataverseRequestBaseUrl,
+  isSet,
 } from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseSearch')
-
-/** A numeric option counts as provided unless it is absent or blank, so an explicit 0 is still sent. */
-function isSet(value: unknown): boolean {
-  return value !== undefined && value !== null && value !== ''
-}
 
 export const dataverseSearchTool: ToolConfig<DataverseSearchParams, DataverseSearchResponse> = {
   id: 'microsoft_dataverse_search',

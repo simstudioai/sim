@@ -516,6 +516,20 @@ async function formatTeamsGraphNotification(
       created_at: '',
       attachments: [],
       change_type: changeType,
+      from_id: null,
+      from_type: null,
+      from_identity: null,
+      message_type: null,
+      content_type: null,
+      subject: null,
+      importance: null,
+      web_url: null,
+      last_modified_at: null,
+      last_edited_at: null,
+      deleted_at: null,
+      mentions: [],
+      reactions: [],
+      attachment_metadata: [],
     }
   }
 

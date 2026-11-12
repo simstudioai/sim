@@ -10,12 +10,13 @@ import { safeUrlPathSegment } from '@/tools/url-path'
  * name or the bare ID, rejecting values that would escape the collection path.
  */
 export function buildMeetResourceName(
-  value: string,
+  value: string | number,
   collection: 'spaces' | 'conferenceRecords',
   paramName: string
 ): string {
-  const trimmed = String(value ?? '').trim()
   const prefix = `${collection}/`
+  if (typeof value !== 'string') return `${prefix}${safeUrlPathSegment(value, paramName)}`
+  const trimmed = value.trim()
   const id = trimmed.startsWith(prefix) ? trimmed.slice(prefix.length) : trimmed
   return `${prefix}${safeUrlPathSegment(id, paramName)}`
 }

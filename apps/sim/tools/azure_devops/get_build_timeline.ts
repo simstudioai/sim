@@ -103,7 +103,7 @@ export const getBuildTimelineTool: ToolConfig<GetBuildTimelineParams, GetBuildTi
             .map(
               (r) =>
                 `[${r.type}] ${r.name} — result: ${r.result}, logId: ${r.logId ?? 'none'}, errors: ${r.errorCount}` +
-                (r.issues ?? [])
+                r.issues
                   .filter((issue) => issue.type === 'error')
                   .map((issue) => `\n    error: ${issue.message}`)
                   .join('')

@@ -8,7 +8,7 @@ import {
   azureDevOpsProjectUrl,
   fetchWorkItemsChunk,
   formatWorkItem,
-  WORK_ITEM_DETAIL_OUTPUT_PROPERTIES,
+  WORK_ITEM_LIST_DETAIL_OUTPUT_PROPERTIES,
   WORK_ITEMS_BATCH_SIZE,
 } from '@/tools/azure_devops/utils'
 import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
@@ -188,7 +188,7 @@ export const queryWorkItemsTool: ToolConfig<QueryWorkItemsParams, QueryWorkItems
               },
               areaPath: { type: 'string', description: 'Area path of the work item' },
               url: { type: 'string', description: 'API URL for the work item' },
-              ...WORK_ITEM_DETAIL_OUTPUT_PROPERTIES,
+              ...WORK_ITEM_LIST_DETAIL_OUTPUT_PROPERTIES,
             },
           },
         },

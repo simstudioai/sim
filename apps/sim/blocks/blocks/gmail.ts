@@ -971,12 +971,20 @@ export const GmailV2Block: BlockConfig = {
       }),
       params: (params) => {
         const mapped = GmailBlock.tools?.config?.params?.(params) ?? params
-        const { labelName, targetThreadId, threadFormat, listQuery, threadLabelIds, ...rest } =
-          mapped
+        const {
+          labelName,
+          targetThreadId,
+          threadFormat,
+          listQuery,
+          threadLabelIds,
+          messageListVisibility,
+          labelListVisibility,
+          ...rest
+        } = mapped
         if (LABEL_WRITE_OPERATIONS.includes(rest.operation)) {
           rest.name = labelName || undefined
-          rest.messageListVisibility = rest.messageListVisibility || undefined
-          rest.labelListVisibility = rest.labelListVisibility || undefined
+          rest.messageListVisibility = messageListVisibility || undefined
+          rest.labelListVisibility = labelListVisibility || undefined
         }
         if (THREAD_TARGET_OPERATIONS.includes(rest.operation)) {
           rest.threadId = targetThreadId

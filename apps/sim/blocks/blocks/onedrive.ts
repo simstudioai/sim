@@ -250,11 +250,12 @@ export const OneDriveBlock: BlockConfig = {
       title: 'If File Exists',
       type: 'dropdown',
       options: [
+        { label: 'Default', id: '' },
         { label: 'Replace existing file', id: 'replace' },
         { label: 'Keep both (rename new file)', id: 'rename' },
         { label: 'Fail', id: 'fail' },
       ],
-      placeholder: 'Replace existing file (default)',
+      value: () => '',
       mode: 'advanced',
       condition: { field: 'operation', value: ['create_file', 'upload'] },
     },

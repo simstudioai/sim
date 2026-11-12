@@ -1,3 +1,4 @@
+import type { MicrosoftGraphIdentitySet, OneDriveIdentity } from '@/tools/onedrive/types'
 import type { ToolResponse } from '@/tools/types'
 
 /**
@@ -17,19 +18,8 @@ export interface MicrosoftWordDocumentMetadata {
   /** Drive holding the document; pass it as `driveId` to address a SharePoint document. */
   driveId?: string | null
   parentFolderId?: string | null
-  createdBy?: MicrosoftWordIdentity | null
-  lastModifiedBy?: MicrosoftWordIdentity | null
-}
-
-export interface MicrosoftWordIdentity {
-  id: string | null
-  displayName: string | null
-}
-
-interface GraphIdentitySet {
-  user?: { id?: string; displayName?: string }
-  application?: { id?: string; displayName?: string }
-  device?: { id?: string; displayName?: string }
+  createdBy?: OneDriveIdentity | null
+  lastModifiedBy?: OneDriveIdentity | null
 }
 
 /**
@@ -51,8 +41,8 @@ export interface MicrosoftWordGraphDriveItem {
   file?: { mimeType?: string }
   folder?: Record<string, unknown>
   parentReference?: { id?: string; driveId?: string }
-  createdBy?: GraphIdentitySet
-  lastModifiedBy?: GraphIdentitySet
+  createdBy?: MicrosoftGraphIdentitySet
+  lastModifiedBy?: MicrosoftGraphIdentitySet
 }
 
 export interface MicrosoftWordToolParams {

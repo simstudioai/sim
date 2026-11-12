@@ -305,10 +305,12 @@ export const OutlookBlock: BlockConfig = {
       title: 'Importance',
       type: 'dropdown',
       options: [
+        { label: 'Default', id: '' },
         { label: 'Low', id: 'low' },
         { label: 'Normal', id: 'normal' },
         { label: 'High', id: 'high' },
       ],
+      value: () => '',
       condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
       mode: 'advanced',
       required: false,
@@ -1007,19 +1009,15 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
           rest.folder = effectiveFolder || 'INBOX'
         }
 
-        if (['send_outlook', 'draft_outlook'].includes(rest.operation) && mailImportance) {
-          rest.importance = mailImportance
+        if (['send_outlook', 'draft_outlook'].includes(rest.operation)) {
+          rest.importance = mailImportance || null
         }
 
-        if (['reply_outlook', 'forward_outlook'].includes(rest.operation) && replyCc) {
-          rest.cc = replyCc
-        }
-
-        if (
-          ['reply_outlook', 'reply_all_outlook', 'forward_outlook'].includes(rest.operation) &&
-          replyBcc
-        ) {
-          rest.bcc = replyBcc
+        // Assign explicitly so a cc/bcc/importance stored for another operation never reaches these tools
+        if (['reply_outlook', 'reply_all_outlook', 'forward_outlook'].includes(rest.operation)) {
+          rest.cc = rest.operation === 'reply_all_outlook' ? null : replyCc || null
+          rest.bcc = replyBcc || null
+          rest.importance = undefined
         }
 
         if (rest.operation === 'search_outlook' && searchQuery) {

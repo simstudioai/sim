@@ -4,7 +4,7 @@ import type {
   MicrosoftAdGetUserResponse,
 } from '@/tools/microsoft_ad/types'
 import { MANAGER_OUTPUT_PROPERTIES, USER_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
-import { mapUser, USER_SELECT } from '@/tools/microsoft_ad/utils'
+import { isTrueFlag, mapUser, USER_SELECT } from '@/tools/microsoft_ad/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -19,10 +19,6 @@ function mapManager(manager: unknown): Record<string, unknown> | null {
     userPrincipalName: manager.userPrincipalName ?? null,
     jobTitle: manager.jobTitle ?? null,
   }
-}
-
-function wantsManager(value: unknown): boolean {
-  return value === true || value === 'true'
 }
 
 export const getUserTool: ToolConfig<MicrosoftAdGetUserParams, MicrosoftAdGetUserResponse> = {
@@ -59,7 +55,7 @@ export const getUserTool: ToolConfig<MicrosoftAdGetUserParams, MicrosoftAdGetUse
     url: (params) => {
       const userId = params.userId?.trim()
       if (!userId) throw new Error('User ID is required')
-      const expand = wantsManager(params.includeManager)
+      const expand = isTrueFlag(params.includeManager)
         ? `&$expand=manager($select=${MANAGER_SELECT})`
         : ''
       return `https://graph.microsoft.com/v1.0/users/${safeUrlPathSegment(userId, 'userId')}?$select=${USER_SELECT}${expand}`
@@ -75,7 +71,7 @@ export const getUserTool: ToolConfig<MicrosoftAdGetUserParams, MicrosoftAdGetUse
       success: true,
       output: {
         user: mapUser(user),
-        ...(wantsManager(params?.includeManager) ? { manager: mapManager(user.manager) } : {}),
+        ...(isTrueFlag(params?.includeManager) ? { manager: mapManager(user.manager) } : {}),
       },
     }
   },

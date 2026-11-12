@@ -17,7 +17,8 @@ import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file.server
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { SharepointSkippedFile, SharepointUploadError } from '@/tools/sharepoint/types'
-import { assertNoDotPathSegments, safeUrlPathSegment } from '@/tools/url-path'
+import { graphPathSegment } from '@/tools/sharepoint/utils'
+import { assertNoDotPathSegments } from '@/tools/url-path'
 
 const logger = createLogger('SharePointOperations')
 export const MAX_SHAREPOINT_UPLOAD_BYTES = 250 * 1024 * 1024
@@ -85,14 +86,14 @@ function buildUploadUrl(
   input: SharePointUploadFileInput,
   fileName: string
 ): { url: string; replaceUrl: string } {
-  const trimmedName = fileName.trim()
-  if (trimmedName === '.' || trimmedName === '..') {
-    throw new Error('File name cannot be "." or ".."')
-  }
   const folderPath = input.folderPath?.trim() || ''
   const normalizedPath = folderPath.startsWith('/') ? folderPath : `/${folderPath}`
   const cleanPath = normalizedPath.endsWith('/') ? normalizedPath.slice(0, -1) : normalizedPath
-  const uploadPath = folderPath ? `${cleanPath}/${fileName}` : `/${fileName}`
+  // A "." folder segment was collapsed by the URL parser before; keep that, but never allow ".."
+  const uploadPath = (folderPath ? `${cleanPath}/${fileName}` : `/${fileName}`)
+    .split('/')
+    .filter((segment, index, segments) => segment !== '.' || index === segments.length - 1)
+    .join('/')
   if (uploadPath.split('/').some((segment) => segment.trim() === '.' || segment.trim() === '..')) {
     throw new Error('Upload path cannot contain "." or ".." segments')
   }
@@ -103,8 +104,8 @@ function buildUploadUrl(
   const driveId = input.driveId?.trim()
   const siteId = input.siteId.trim() || 'root'
   const url = driveId
-    ? `https://graph.microsoft.com/v1.0/drives/${safeUrlPathSegment(driveId, 'driveId', { allowSeparators: true })}/root:${encodedPath}:/content`
-    : `https://graph.microsoft.com/v1.0/sites/${safeUrlPathSegment(siteId, 'siteId', { allowSeparators: true })}/drive/root:${encodedPath}:/content`
+    ? `https://graph.microsoft.com/v1.0/drives/${graphPathSegment(driveId, 'driveId')}/root:${encodedPath}:/content`
+    : `https://graph.microsoft.com/v1.0/sites/${graphPathSegment(siteId, 'siteId')}/drive/root:${encodedPath}:/content`
   assertNoDotPathSegments(url)
   return { url, replaceUrl: `${url}?@microsoft.graph.conflictBehavior=replace` }
 }
