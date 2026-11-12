@@ -491,7 +491,7 @@ export async function resolveCredentialToken(
               status: 400,
               code: error.code,
               error:
-                'This credential cannot be used here. A keyless Google credential works only with Google Cloud tools such as BigQuery and with the Google Workspace services it was delegated, as its own Workspace user; reconnect it with this service or use a JSON key credential instead',
+                'This credential cannot be used here. A keyless Google credential works only with Google Cloud tools such as BigQuery and, through domain-wide delegation, with Gmail, Google Drive, Google Docs, Google Sheets, and Google Calendar, as its own Workspace user and for the scopes it was delegated. Reconnect it to add one of those services, or use a JSON key credential instead',
             }
           }
           if (error.code === 'grant_not_permitted') {

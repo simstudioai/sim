@@ -599,6 +599,35 @@ describe('saving a keyless credential with domain-wide delegation', () => {
     expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
   })
 
+  it('names the Admin console step when Workspace denies a scope', async () => {
+    fakeGoogle(fetch, {
+      canImpersonate: (subject) => subject === SUBJECT,
+      tokenError: jsonResponse({ error: 'access_denied' }, 403),
+    })
+
+    const error: Error = await save({ delegation }).catch((caught) => caught)
+    expect(error.message).toContain('Manage Domain Wide Delegation')
+    expect(error.message).toContain('(access_denied)')
+  })
+
+  it.each([
+    { code: 'disabled_client', copy: /service account .* is disabled/ },
+    { code: 'deleted_client', copy: /service account .* was deleted/ },
+    { code: 'admin_policy_enforced', copy: /admin policies/ },
+    { code: 'invalid_client', copy: /Google refused the delegated token/ },
+    { code: 'org_internal', copy: /Google refused the delegated token/ },
+  ])('does not send the admin to authorize scopes for $code', async ({ code, copy }) => {
+    fakeGoogle(fetch, {
+      canImpersonate: (subject) => subject === SUBJECT,
+      tokenError: jsonResponse({ error: code }, 401),
+    })
+
+    const error: Error = await save({ delegation }).catch((caught) => caught)
+    expect(error.message).toMatch(copy)
+    expect(error.message).toContain(`(${code})`)
+    expect(error.message).not.toContain('Manage Domain Wide Delegation')
+  })
+
   it('names the API to enable when a delegated read is refused', async () => {
     fakeGoogle(fetch, {
       canImpersonate: (subject) => subject === SUBJECT,
@@ -672,6 +701,29 @@ describe('getting a delegated Google Workspace token for a run', () => {
     ).resolves.toContain(WORKSPACE_USER)
   })
 
+  it('accepts an Impersonated Account that names the delegated user with surrounding spaces', async () => {
+    fakeGoogle(fetch)
+
+    await expect(
+      resolve({ credentialId: 'dwd-spaced-user', impersonateEmail: '  alice@example.com ' })
+    ).resolves.toContain(WORKSPACE_USER)
+  })
+
+  it('serves the Gmail label picker with the Impersonated Account set, minting gmail.modify', async () => {
+    const google = fakeGoogle(fetch)
+    const gmailModify = 'https://www.googleapis.com/auth/gmail.modify'
+
+    await expect(
+      resolve({
+        credentialId: 'dwd-gmail-labels',
+        service: 'gmail',
+        impersonateEmail: WORKSPACE_USER,
+        scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+      })
+    ).resolves.toBe(`ya29.dwd-${WORKSPACE_USER}-${gmailModify}`)
+    expect(claimsOf(google.signJwt[0])).toMatchObject({ sub: WORKSPACE_USER, scope: gmailModify })
+  })
+
   it('refuses another Workspace user before contacting Google', async () => {
     fakeGoogle(fetch)
 
@@ -681,8 +733,20 @@ describe('getting a delegated Google Workspace token for a run', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
-  it.each(['google-calendar', 'google-drive', 'google-forms', undefined])(
-    'refuses the service %s it was not delegated, before contacting Google',
+  it.each(['google-forms', undefined])(
+    'refuses %s, which keyless delegation does not reach, before contacting Google',
+    async (service) => {
+      fakeGoogle(fetch)
+
+      await expect(
+        resolve({ credentialId: `dwd-${service}`, service, scopes: GMAIL_SCOPES })
+      ).rejects.toMatchObject({ code: 'unsupported_use' })
+      expect(fetch).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['google-calendar', 'google-drive'])(
+    'refuses %s scopes a Gmail-only delegation does not authorize, before contacting Google',
     async (service) => {
       fakeGoogle(fetch)
 
@@ -692,6 +756,27 @@ describe('getting a delegated Google Workspace token for a run', () => {
       expect(fetch).not.toHaveBeenCalled()
     }
   )
+
+  it('authorizes by scope, as Google does: a Sheets delegation serves a Docs block', async () => {
+    const google = fakeGoogle(fetch)
+    const sheetsOnly = JSON.stringify({
+      type: 'google_workload_identity_v1',
+      config: {
+        ...storedConfig,
+        delegation: { user: WORKSPACE_USER, services: ['google-sheets'] },
+      },
+    })
+
+    await expect(
+      resolve({
+        credentialId: 'dwd-sheets-for-docs',
+        decrypted: sheetsOnly,
+        service: 'google-docs',
+        scopes: DRIVE_SCOPES,
+      })
+    ).resolves.toContain(WORKSPACE_USER)
+    expect(google.signJwt).toHaveLength(1)
+  })
 
   it('still mints a service account token for a Google Cloud service', async () => {
     const google = fakeGoogle(fetch)
@@ -730,7 +815,7 @@ describe('getting a delegated Google Workspace token for a run', () => {
   })
 
   it.each([
-    { label: 'a Gmail read-only connector', service: 'google-email', scope: 'gmail.readonly' },
+    { label: 'a Gmail metadata-only scope', service: 'google-email', scope: 'gmail.metadata' },
     {
       label: 'an admin-mode connector',
       service: 'google-email',

@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import { LRUCache } from 'lru-cache'
 import { z } from 'zod'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
@@ -271,10 +272,28 @@ async function postJson(
   return { status: response.status, payload: payload ?? {} }
 }
 
+/**
+ * The HTTP status of a bearer-authorized GET, with the same redirect and
+ * timeout guards as {@link postJson}. The body is discarded unread.
+ * Undefined when Google could not be reached.
+ */
+async function getStatus(url: string, bearer: string): Promise<number | undefined> {
+  try {
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${bearer}`, Accept: 'application/json' },
+      redirect: 'error',
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    })
+    void response.body?.cancel().catch(() => undefined)
+    return response.status
+  } catch {
+    return undefined
+  }
+}
+
 function parsePayload(body: string): Record<string, unknown> {
   try {
-    const parsed: unknown = JSON.parse(body)
-    return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : {}
+    return toRecord(JSON.parse(body))
   } catch {
     return {}
   }
@@ -435,19 +454,36 @@ async function signDelegationAssertion(
   return payload.signedJwt
 }
 
+/**
+ * Copy for a refused delegated token, by Google's documented error code. Only
+ * `unauthorized_client` and `access_denied` mean the Admin console has not
+ * authorized the client ID for the scopes; the rest point elsewhere.
+ * @see https://developers.google.com/identity/protocols/oauth2/service-account#error-codes
+ */
 function delegationFailureMessage(
   status: number,
   payload: Record<string, unknown>,
-  user: string,
-  scopes: string[]
+  input: { serviceAccountEmail: string; user: string; scopes: string[] }
 ): string {
   if (isProviderOutage(status)) return 'Google’s OAuth token endpoint is unavailable. Try again.'
+  const { serviceAccountEmail, user, scopes } = input
   const code = typeof payload.error === 'string' ? payload.error : ''
   const suffix = GOOGLE_TOKEN_DIAGNOSTIC_ERROR_CODES.has(code) ? ` (${code})` : ''
-  if (code === 'invalid_grant') {
-    return `Google refused to sign in as ${user}${suffix}. Check that the address belongs to an active user in your Google Workspace domain.`
+  switch (code) {
+    case 'invalid_grant':
+      return `Google refused to sign in as ${user}${suffix}. Check that the address belongs to an active user in your Google Workspace domain.`
+    case 'unauthorized_client':
+    case 'access_denied':
+      return `Google Workspace has not authorized this service account’s domain-wide delegation for ${user}${suffix}. In the Admin console, under Security, Access and data control, API controls, Manage Domain Wide Delegation, authorize the service account’s client ID (its numeric Unique ID) for these scopes: ${scopes.join(',')}. A new authorization can take a while to apply.`
+    case 'admin_policy_enforced':
+      return `Your Google Workspace admin policies block one or more of these scopes for this service account${suffix}. A Workspace administrator must allow its client ID under Security, Access and data control, API controls, third-party app access.`
+    case 'disabled_client':
+      return `Google reports the service account ${serviceAccountEmail} is disabled${suffix}. Enable it in Google Cloud under IAM & Admin, Service Accounts.`
+    case 'deleted_client':
+      return `Google reports the service account ${serviceAccountEmail} was deleted${suffix}. Restore it within 30 days of deletion, or connect another service account.`
+    default:
+      return `Google refused the delegated token for ${user}${suffix}. Check the service account’s configuration in Google Cloud and its domain-wide delegation in the Admin console.`
   }
-  return `Google Workspace has not authorized this service account’s domain-wide delegation for ${user}${suffix}. In the Admin console, under Security, Access and data control, API controls, Manage Domain Wide Delegation, authorize the service account’s client ID for these scopes: ${scopes.join(',')}. A new authorization can take a while to apply.`
 }
 
 /**
@@ -457,8 +493,7 @@ function delegationFailureMessage(
  */
 async function exchangeDelegationAssertion(
   assertion: string,
-  user: string,
-  scopes: string[]
+  context: { serviceAccountEmail: string; user: string; scopes: string[] }
 ): Promise<ServiceAccountAccessToken> {
   let response: Awaited<ReturnType<typeof exchangeGoogleServiceAccountJwt>>
   try {
@@ -469,7 +504,7 @@ async function exchangeDelegationAssertion(
   const payload = parsePayload(response.body)
   if (!response.ok) {
     throw new GoogleWorkloadIdentityError(
-      delegationFailureMessage(response.status, payload, user, scopes),
+      delegationFailureMessage(response.status, payload, context),
       response.status
     )
   }
@@ -487,7 +522,11 @@ async function mintDelegatedToken(
   scopes: string[]
 ): Promise<ServiceAccountAccessToken> {
   const assertion = await signDelegationAssertion(config, federatedToken, user, scopes)
-  return exchangeDelegationAssertion(assertion, user, scopes)
+  return exchangeDelegationAssertion(assertion, {
+    serviceAccountEmail: config.serviceAccountEmail,
+    user,
+    scopes,
+  })
 }
 
 /**
@@ -514,16 +553,8 @@ async function verifyDelegation(
       delegation.user,
       scopes
     )
-    let status: number
-    try {
-      const response = await fetch(read.url, {
-        headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-        redirect: 'error',
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      })
-      status = response.status
-      void response.body?.cancel().catch(() => undefined)
-    } catch {
+    const status = await getStatus(read.url, accessToken)
+    if (status === undefined) {
       throw new GoogleWorkloadIdentityError(`Could not reach the ${read.api}. Try again.`)
     }
     if (status === 200) continue
@@ -605,9 +636,23 @@ async function assertSubjectPinned(
   }
 }
 
-function readStoredSubject(storedSecret: Record<string, unknown> | null | undefined) {
+/** The configuration a stored keyless secret holds, or undefined for anything else. */
+function parseStoredConfig(storedSecret: unknown): GoogleWorkloadIdentityConfig | undefined {
   const parsed = storedSecretSchema.safeParse(storedSecret)
-  return parsed.success ? parsed.data.config.subject : undefined
+  return parsed.success ? parsed.data.config : undefined
+}
+
+/** {@link parseStoredConfig} for the decrypted secret's JSON text. */
+function parseDecryptedConfig(decrypted: string): GoogleWorkloadIdentityConfig | undefined {
+  try {
+    return parseStoredConfig(JSON.parse(decrypted))
+  } catch {
+    return undefined
+  }
+}
+
+function readStoredSubject(storedSecret: Record<string, unknown> | null | undefined) {
+  return parseStoredConfig(storedSecret)?.subject
 }
 
 /** A keyless credential's domain-wide delegation, as a reconnect reopens on it. */
@@ -623,14 +668,7 @@ export interface GoogleStoredDelegation {
  * services this release does not know.
  */
 export function storedGoogleDelegation(decrypted: string): GoogleStoredDelegation | undefined {
-  let parsedJson: unknown
-  try {
-    parsedJson = JSON.parse(decrypted)
-  } catch {
-    return undefined
-  }
-  const parsed = storedSecretSchema.safeParse(parsedJson)
-  const delegation = parsed.success ? parsed.data.config.delegation : undefined
+  const delegation = parseDecryptedConfig(decrypted)?.delegation
   if (!delegation) return undefined
   const services = knownDelegatedServices(delegation)
   return services.length > 0 ? { user: delegation.user, services } : undefined
@@ -762,30 +800,41 @@ function unsupportedUse(step: string, reason: string): TokenServiceAccountValida
 
 /** Reads the stored secret, or fails in the shared service-account codes. */
 function readStoredConfig(decrypted: string): GoogleWorkloadIdentityConfig {
-  let parsedJson: unknown
-  try {
-    parsedJson = JSON.parse(decrypted)
-  } catch {
-    parsedJson = undefined
-  }
-  const parsed = storedSecretSchema.safeParse(parsedJson)
-  if (!parsed.success) {
+  const config = parseDecryptedConfig(decrypted)
+  if (!config) {
     throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
       step: 'google_keyless_config',
       reason: 'the stored keyless Google configuration could not be read; reconnect the credential',
     })
   }
-  return parsed.data.config
+  return config
 }
+
+/**
+ * Read-only scopes whose read-write sibling is not a scope Google defines, by
+ * the authorized scope Google documents as covering them. `gmail.readonly`
+ * ("View your email messages and settings") is covered by `gmail.modify`
+ * ("Read, compose, and send emails"); the Gmail label picker asks for it.
+ * @see https://developers.google.com/workspace/gmail/api/auth/scopes
+ */
+const DELEGATED_READ_COVERS: ReadonlyMap<string, string> = new Map([
+  [
+    'https://www.googleapis.com/auth/gmail.readonly',
+    'https://www.googleapis.com/auth/gmail.modify',
+  ],
+])
 
 /**
  * The scopes to sign a delegated assertion for, or undefined when the
  * delegation does not authorize them. A delegation authorizes the scopes the
  * connect dialog asked the Admin console to authorize for its services, and
- * Google refuses an assertion naming any other scope. A requested read-only
- * scope is minted as the authorized read-write scope that subsumes it (the
- * Drive file picker asks for `drive.readonly`; `drive` is authorized), the
- * same rule a connected account's granted scopes are checked by.
+ * Google refuses an assertion naming any other scope. Authorization is by
+ * scope, as Google's is, not by the service asking: Drive, Docs, and Sheets
+ * share their scopes, so a delegation for one serves the others. A requested
+ * read-only scope is minted as the authorized scope that covers it: its
+ * read-write sibling (the Drive file picker asks for `drive.readonly`; `drive`
+ * is authorized), the same rule a connected account's granted scopes are
+ * checked by, or the scope {@link DELEGATED_READ_COVERS} names.
  */
 function delegatedMintScopes(
   delegation: StoredDelegation,
@@ -794,12 +843,9 @@ function delegatedMintScopes(
   const authorized = new Set(googleDelegationScopesFor(knownDelegatedServices(delegation)))
   const minted = new Set<string>()
   for (const scope of requested) {
-    const readWrite = readWriteScopeOf(scope)
-    const mint = authorized.has(scope)
-      ? scope
-      : readWrite && authorized.has(readWrite)
-        ? readWrite
-        : undefined
+    const mint = [scope, readWriteScopeOf(scope), DELEGATED_READ_COVERS.get(scope)].find(
+      (candidate) => candidate !== undefined && authorized.has(candidate)
+    )
     if (!mint) return undefined
     minted.add(mint)
   }
@@ -820,7 +866,7 @@ export async function resolveGoogleWorkloadIdentityToken(
   const delegation = googleDelegationServiceFor(input.service) ? config.delegation : undefined
 
   if (delegation) {
-    if (input.impersonateEmail && input.impersonateEmail.toLowerCase() !== delegation.user) {
+    if (input.impersonateEmail && input.impersonateEmail.trim().toLowerCase() !== delegation.user) {
       throw unsupportedUse(
         'google_keyless_delegation_user',
         'this keyless Google credential acts only as its delegated Workspace user'
