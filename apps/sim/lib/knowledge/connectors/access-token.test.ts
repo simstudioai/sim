@@ -159,7 +159,7 @@ describe('saved AWS credential on a key connector', () => {
     internalAwsCredentialsMockFns.mockResolveAuthorizedAwsCredential.mockReset()
   })
 
-  it('resolves the credential only within the knowledge base scope and seeds its session', async () => {
+  it('asks for the credential in the knowledge base scope and seeds its session, not a bearer token', async () => {
     internalAwsCredentialsMockFns.mockResolveAuthorizedAwsCredential.mockResolvedValueOnce(session)
     const organizationScope = { kind: 'organization', organizationId: 'org-1' } as const
 
@@ -179,6 +179,7 @@ describe('saved AWS credential on a key connector', () => {
     expect(context).toMatchObject({ organizationId: 'org-1' })
     expect(context.workspaceId).toBeUndefined()
     expect(token.expiresAt).toEqual(session.expiration)
+    expect(token.accessToken).toBe('')
     expect(readAwsSession(syncContextForToken(token))).toEqual({
       accessKeyId: session.accessKeyId,
       secretAccessKey: session.secretAccessKey,
@@ -217,7 +218,28 @@ describe('saved AWS credential on a key connector', () => {
         scope: WORKSPACE_SCOPE,
         sourceConfig: {},
       })
-    ).rejects.toBeInstanceOf(ConnectorAwsCredentialError)
+    ).rejects.toMatchObject({ name: 'ConnectorAwsCredentialError', transient: false })
+  })
+
+  it('marks an AWS outage as transient rather than a refused credential', async () => {
+    internalAwsCredentialsMockFns.mockResolveAuthorizedAwsCredential.mockRejectedValueOnce(
+      Object.assign(new Error('Rate exceeded'), {
+        name: 'ThrottlingException',
+        $metadata: { httpStatusCode: 400 },
+      })
+    )
+
+    const failure = await resolveConnectorAccessToken({
+      auth: s3ConnectorMeta.auth,
+      connector: credentialConnector('aws-credential'),
+      userId: 'user-1',
+      requestId: 'sync-run',
+      scope: WORKSPACE_SCOPE,
+      sourceConfig: {},
+    }).catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(ConnectorAwsCredentialError)
+    expect(failure).toMatchObject({ transient: true })
   })
 })
 

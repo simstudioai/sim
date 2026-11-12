@@ -66,9 +66,10 @@ export type ConnectorAuthConfig =
        * connector row with a stored key keeps using it, and one that names a
        * credential resolves it for the knowledge base's own scope. Fields
        * marked {@link ConnectorConfigField.apiKeyOnly} describe the key and
-       * do not apply to a credential.
+       * do not apply to a credential. Only AWS resolves to signing keys today;
+       * another provider needs its own resolution in the connector access token.
        */
-      savedCredential?: { provider: OAuthService; label: string }
+      savedCredential?: { provider: 'aws'; label: string }
     }
 
 /** A group in an external directory, named as the connector's ACLs name it. */

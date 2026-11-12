@@ -36,7 +36,8 @@ export function getConnectorCredentialService(auth: ConnectorAuthConfig): OAuthS
  *
  * An OAuth connector uses its credential unless it also takes a token and the row stores
  * only that. A key connector uses a credential only when it declares a `savedCredential`
- * alternative and the row names one, so a row that stores a key keeps using it.
+ * alternative and the row names one; creation and access updates never bind a credential to
+ * a row that stores a key, so such a row keeps using its key.
  */
 export function connectorUsesCredential(
   auth: ConnectorAuthConfig,
@@ -44,6 +45,15 @@ export function connectorUsesCredential(
 ): boolean {
   if (auth.mode === 'apiKey') return Boolean(auth.savedCredential && connector.credentialId)
   return !(auth.apiKey && !connector.credentialId && connector.encryptedApiKey)
+}
+
+/** How a connector row authenticates, as recorded in audit metadata. */
+export function connectorAuthModeLabel(
+  authMode: ConnectorAuthConfig['mode'],
+  usesCredential: boolean
+): 'apiKey' | 'oauth' | 'savedCredential' {
+  if (!usesCredential) return 'apiKey'
+  return authMode === 'apiKey' ? 'savedCredential' : 'oauth'
 }
 
 /**

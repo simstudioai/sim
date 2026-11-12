@@ -28,9 +28,7 @@ vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentConte
 vi.mock('@/lib/internal/llm/credentials', () => ({
   resolveVertexAccessToken: mocks.resolveVertexAccessToken,
 }))
-vi.mock('@/lib/internal/aws/credentials', async (importOriginal) => ({
-  isTransientAwsFailure: (await importOriginal<typeof import('@/lib/internal/aws/credentials')>())
-    .isTransientAwsFailure,
+vi.mock('@/lib/internal/aws/credentials', () => ({
   resolveAuthorizedAwsCredential: mocks.resolveAuthorizedAwsCredential,
 }))
 vi.mock('@/lib/oauth/token-resolution', () => ({ recordCredentialAccess: vi.fn() }))

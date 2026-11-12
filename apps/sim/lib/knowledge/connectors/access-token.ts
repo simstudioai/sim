@@ -1,4 +1,3 @@
-import { getErrorMessage } from '@sim/utils/errors'
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import {
@@ -7,6 +6,7 @@ import {
   resourceScopeFromOwner,
 } from '@/lib/core/resource-scope'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
+import { awsCredentialFailureMessage, isTransientAwsFailure } from '@/lib/internal/aws/failure'
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import {
   getServiceAccountToken,
@@ -48,8 +48,8 @@ export interface ConnectorAccessToken {
   getDelegatedAccessToken?: (subject: string, signal?: AbortSignal) => Promise<string>
   /**
    * AWS only — the keys a saved AWS credential resolved to for the knowledge
-   * base's scope. A saved AWS credential has no bearer token; the connector
-   * signs with these instead.
+   * base's scope. A saved AWS credential has no bearer token, so `accessToken`
+   * is empty and the connector signs with these instead.
    */
   awsSession?: ConnectorAwsSession
   /** When the credential stops working, if it says; a holder may reuse it until shortly before. */
@@ -61,12 +61,16 @@ const AWS_CREDENTIAL_SERVICE = 'aws'
 
 /**
  * A saved AWS credential that could not be used: unavailable in this scope,
- * or refused by AWS STS. The message is the AWS reason, never a secret.
+ * refused by AWS STS, or not resolvable while AWS was briefly unavailable
+ * (`transient`). The message is the AWS reason, never a secret.
  */
 export class ConnectorAwsCredentialError extends Error {
-  constructor(message: string, options?: { cause?: unknown }) {
-    super(message, options)
+  readonly transient: boolean
+
+  constructor(message: string, options: { cause: unknown; transient: boolean }) {
+    super(message, { cause: options.cause })
     this.name = 'ConnectorAwsCredentialError'
+    this.transient = options.transient
   }
 }
 
@@ -91,13 +95,13 @@ async function resolveConnectorAwsToken(
     )
   } catch (error) {
     signal?.throwIfAborted()
-    throw new ConnectorAwsCredentialError(
-      `Could not use the AWS credential: ${getErrorMessage(error, 'Unknown error')}`,
-      { cause: error }
-    )
+    throw new ConnectorAwsCredentialError(awsCredentialFailureMessage(error), {
+      cause: error,
+      transient: isTransientAwsFailure(error),
+    })
   }
   return {
-    accessToken: credentialId,
+    accessToken: '',
     awsSession: {
       accessKeyId: session.accessKeyId,
       secretAccessKey: session.secretAccessKey,

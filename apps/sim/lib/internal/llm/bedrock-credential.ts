@@ -1,10 +1,7 @@
-import { getErrorMessage } from '@sim/utils/errors'
 import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
 import { AuthType } from '@/lib/auth/hybrid'
-import {
-  isTransientAwsFailure,
-  resolveAuthorizedAwsCredential,
-} from '@/lib/internal/aws/credentials'
+import { resolveAuthorizedAwsCredential } from '@/lib/internal/aws/credentials'
+import { awsCredentialFailureMessage, isTransientAwsFailure } from '@/lib/internal/aws/failure'
 import { recordCredentialAccess } from '@/lib/oauth/token-resolution'
 import { AWS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import type { BedrockCredentialSession } from '@/providers/types'
@@ -95,10 +92,10 @@ export async function resolveBedrockCredentialSession({
     )
   } catch (error) {
     signal?.throwIfAborted()
-    throw new BedrockCredentialError(
-      `Could not use the AWS credential: ${getErrorMessage(error, 'Unknown error')}`,
-      { reason: isTransientAwsFailure(error) ? 'unavailable' : 'unusable', cause: error }
-    )
+    throw new BedrockCredentialError(awsCredentialFailureMessage(error), {
+      reason: isTransientAwsFailure(error) ? 'unavailable' : 'unusable',
+      cause: error,
+    })
   }
 
   recordCredentialAccess({

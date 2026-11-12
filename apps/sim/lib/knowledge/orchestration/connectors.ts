@@ -72,7 +72,11 @@ import { lockOrganizationSearchApproval } from '@/lib/knowledge/search/integrati
 import { createTagDefinition } from '@/lib/knowledge/tags/service'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { searchSourceIdentity } from '@/lib/sim-search/source-identity'
-import { getConnectorApiKeyConfig } from '@/connectors/auth'
+import {
+  connectorAuthModeLabel,
+  connectorUsesCredential,
+  getConnectorApiKeyConfig,
+} from '@/connectors/auth'
 import { getConnectorMeta } from '@/connectors/registry'
 import { findSourceSelectionError } from '@/connectors/selection'
 import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
@@ -304,10 +308,10 @@ export async function performCreateKnowledgeConnector(
   if (apiKey && credentialId) {
     return fail('Choose either an OAuth account or an API key', 'validation')
   }
-  const usesApiKey =
-    connectorConfig.auth.mode === 'apiKey'
-      ? !(connectorConfig.auth.savedCredential && credentialId)
-      : Boolean(apiKeyConfig && apiKey)
+  const usesApiKey = !connectorUsesCredential(connectorConfig.auth, {
+    credentialId: credentialId ?? null,
+    encryptedApiKey: apiKey ?? null,
+  })
 
   if (membersBinding) {
     /**
@@ -645,7 +649,7 @@ export async function performCreateKnowledgeConnector(
         knowledgeBaseName: kb.name,
         connectorType,
         syncIntervalMinutes,
-        authMode: usesApiKey ? 'apiKey' : 'oauth',
+        authMode: connectorAuthModeLabel(connectorConfig.auth.mode, !usesApiKey),
       },
       ...(request ? { request } : {}),
     })

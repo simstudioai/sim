@@ -1157,7 +1157,7 @@ export async function executeSync(
               )
           : undefined,
       })
-      const refreshOAuthToken = () => runToken.refresh()
+      const refreshRunToken = () => runToken.refresh()
 
       // Shared cutoff for both the tombstone-retry bound below and the stuck-document
       // retry near the end of this sync — same RETRY_WINDOW_DAYS window, one computation.
@@ -1311,12 +1311,12 @@ export async function executeSync(
         result,
         forceRehydrate,
         getAccessToken: async (pageNum) => {
-          if (pageNum > 0) await refreshOAuthToken()
+          if (pageNum > 0) await refreshRunToken()
           return runToken.current().accessToken
         },
         hydration: {
           concurrency: connectorConfig.contentConcurrency,
-          beforeHydration: refreshOAuthToken,
+          beforeHydration: refreshRunToken,
           getDocument: (externalId) =>
             connectorConfig.getDocument(
               runToken.current().accessToken,

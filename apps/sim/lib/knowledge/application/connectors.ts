@@ -115,12 +115,17 @@ import type {
   KnowledgeOperationSource,
   KnowledgeOrchestrationResult,
 } from '@/lib/knowledge/orchestration/shared'
-import { credentialProviderMatchesService, type ServiceProviderIdentity } from '@/lib/oauth'
+import {
+  credentialProviderMatchesService,
+  getServiceConfigByServiceId,
+  type ServiceProviderIdentity,
+} from '@/lib/oauth'
 import { ServiceAccountTokenError } from '@/lib/oauth/credential-service'
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
 import {
+  connectorAuthModeLabel,
   connectorUsesCredential,
   getConnectorApiKeyConfig,
   isConnectorCredentialTypeAllowed,
@@ -335,7 +340,7 @@ export async function resolveConnectorCredentialAccessToken(input: {
 
 /** Exposes actionable credential refusals without returning raw provider payloads. */
 function rethrowConnectorCredentialError(error: unknown): never {
-  if (error instanceof ConnectorAwsCredentialError) {
+  if (error instanceof ConnectorAwsCredentialError && !error.transient) {
     throw new OrchestrationError('validation', error.message)
   }
   if (error instanceof ServiceAccountTokenError && [400, 401, 403].includes(error.statusCode)) {
@@ -750,6 +755,11 @@ async function executeCreateKnowledgeConnector({
     throw new OrchestrationError('validation', 'Choose either an OAuth account or an API key')
   }
   await requireConnectorSavedCredentialSetup(connectorMeta.auth, input.credentialId)
+  /** A key connector's saved credential must be of its declared service, as on an access update. */
+  const savedCredentialService =
+    connectorMeta.auth.mode === 'apiKey' && connectorMeta.auth.savedCredential
+      ? (getServiceConfigByServiceId(connectorMeta.auth.savedCredential.provider) ?? undefined)
+      : undefined
   if (
     context.knowledgeBase.isSearchIndex &&
     (!connectorMeta.search || !input.accessMode || input.accessMode === 'workspace')
@@ -849,6 +859,7 @@ async function executeCreateKnowledgeConnector({
         ...owner,
         actingUserId,
         requestId,
+        ...(savedCredentialService ? { service: savedCredentialService } : {}),
         auth: connectorMeta.auth,
         accessMode: input.accessMode ?? 'workspace',
         sourceConfig,
@@ -899,7 +910,10 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
             knowledgeBaseName: context.knowledgeBase.name,
             connectorType: result.connector.connectorType,
             syncIntervalMinutes: result.connector.syncIntervalMinutes,
-            authMode: result.connector.credentialId ? 'oauth' : 'apiKey',
+            authMode: connectorAuthModeLabel(
+              getConnectorMeta(result.connector.connectorType)?.auth.mode ?? 'oauth',
+              Boolean(result.connector.credentialId)
+            ),
             accessMode: result.connector.accessMode,
           },
         },
