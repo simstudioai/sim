@@ -1,8 +1,9 @@
-import { db } from '@sim/db'
-import { credential } from '@sim/db/schema'
-import { and, eq, isNull, or } from 'drizzle-orm'
 import { z } from 'zod'
-import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
+import { encryptSecret } from '@/lib/core/security/encryption'
+import {
+  type CredentialOwnerScope,
+  readOwnerScopedServiceAccountSecret,
+} from '@/lib/credentials/owner-scoped-secret.server'
 import { executeOracleStatements } from '@/lib/internal/oracledb/client'
 import { oracleConnectionInputSchema } from '@/lib/internal/oracledb/schema'
 import { ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
@@ -46,55 +47,21 @@ export async function verifyAndEncryptOracleDatabaseCredential(serialized: strin
 /** Loads only an executor-authorized reference bound to its trusted owner scope and provider. */
 export async function getOracleDatabaseCredential(
   credentialId: string,
-  scope: { workspaceId?: string; organizationId?: string }
+  scope: CredentialOwnerScope
 ) {
   const unavailable = () => new Error('Oracle Database credential is unavailable')
-  if (!credentialId || (!scope.workspaceId && !scope.organizationId)) throw unavailable()
-  const [row] = await db
-    .select({
-      workspaceId: credential.workspaceId,
-      organizationId: credential.organizationId,
-      type: credential.type,
-      providerId: credential.providerId,
-      revokedAt: credential.revokedAt,
-      encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
-    })
-    .from(credential)
-    .where(
-      and(
-        eq(credential.id, credentialId),
-        or(
-          scope.workspaceId
-            ? and(eq(credential.workspaceId, scope.workspaceId), isNull(credential.organizationId))
-            : undefined,
-          scope.organizationId
-            ? and(
-                eq(credential.organizationId, scope.organizationId),
-                isNull(credential.workspaceId)
-              )
-            : undefined
-        )
-      )
-    )
-    .limit(1)
-  const ownerMatches =
-    row &&
-    ((row.workspaceId === scope.workspaceId &&
-      !!scope.workspaceId &&
-      row.organizationId === null) ||
-      (row.organizationId === scope.organizationId &&
-        !!scope.organizationId &&
-        row.workspaceId === null))
-  if (
-    !ownerMatches ||
-    row.type !== 'service_account' ||
-    row.providerId !== ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID ||
-    row.revokedAt !== null ||
-    !row.encryptedServiceAccountKey
-  )
-    throw unavailable()
+  let decrypted: string | null
   try {
-    const { decrypted } = await decryptSecret(row.encryptedServiceAccountKey)
+    decrypted = await readOwnerScopedServiceAccountSecret(
+      credentialId,
+      ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
+      scope
+    )
+  } catch {
+    throw unavailable()
+  }
+  if (decrypted === null) throw unavailable()
+  try {
     return secretSchema.parse(JSON.parse(decrypted)).connection
   } catch {
     throw unavailable()
