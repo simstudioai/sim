@@ -25,7 +25,7 @@ const QuerySchema = z.object({
   limit: z.number().positive().optional(),
   exclusiveStartKey: z.record(z.string(), z.unknown()).optional(),
   scanIndexForward: z
-    .union([z.boolean(), z.string()])
+    .union([z.boolean(), z.enum(['true', 'false'])])
     .optional()
     .transform((val) => {
       if (val === false || val === 'false') return false

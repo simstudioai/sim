@@ -699,11 +699,16 @@ export const SESBlock: BlockConfig = {
           if (value === undefined || value === null || value === '') return undefined
           if (typeof value !== 'string') return value
           if (!value.trim()) return undefined
+          let parsed: unknown
           try {
-            return JSON.parse(value)
+            parsed = JSON.parse(value)
           } catch {
             throw new Error('Email tags must be a valid JSON array of {"name", "value"} objects')
           }
+          if (!Array.isArray(parsed)) {
+            throw new Error('Email tags must be a valid JSON array of {"name", "value"} objects')
+          }
+          return parsed
         }
 
         const sendAttachments = normalizeFileInput(attachments)

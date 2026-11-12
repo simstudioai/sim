@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { awsCloudformationCreateChangeSetContract } from '@/lib/api/contracts/tools/aws/cloudformation-create-change-set'
 import { awsDynamodbScanContract } from '@/lib/api/contracts/tools/aws/dynamodb-scan'
 import { awsIamCreateUserContract } from '@/lib/api/contracts/tools/aws/iam-create-user'
+import { awsIamListPoliciesContract } from '@/lib/api/contracts/tools/aws/iam-list-policies'
 import { awsSesSendTemplatedEmailContract } from '@/lib/api/contracts/tools/aws/ses-send-templated-email'
 import { CloudFormationBlock } from '@/blocks/blocks/cloudformation'
 import { DynamoDBBlock } from '@/blocks/blocks/dynamodb'
@@ -16,6 +17,7 @@ import type { BlockConfig } from '@/blocks/types'
 import { createChangeSetTool } from '@/tools/cloudformation/create_change_set'
 import { scanTool } from '@/tools/dynamodb/scan'
 import { createUserTool } from '@/tools/iam/create_user'
+import { listPoliciesTool } from '@/tools/iam/list_policies'
 import { sendTemplatedEmailTool } from '@/tools/ses/send_templated_email'
 
 const AWS = { region: 'us-east-1', accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'secret' }
@@ -79,5 +81,16 @@ describe('AWS blocks keep stale subBlock values out of tool input', () => {
     })
     const body = createUserTool.operation.input(params as never)
     expect(awsIamCreateUserContract.body?.safeParse(body).success).toBe(true)
+  })
+
+  it('list policies with the All usage filter sends no filter', () => {
+    const params = executorParams(IAMBlock, {
+      ...AWS,
+      operation: 'list_policies',
+      policyUsageFilter: 'all',
+    })
+    const body = listPoliciesTool.operation.input(params as never) as Record<string, unknown>
+    expect(body.policyUsageFilter).toBeUndefined()
+    expect(awsIamListPoliciesContract.body?.safeParse(body).success).toBe(true)
   })
 })

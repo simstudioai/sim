@@ -448,17 +448,18 @@ Return ONLY the JSON array - no explanations, no markdown code blocks.`,
             result.name = rest.name
             result.secretValue = rest.secretValue
             if (rest.description) result.description = rest.description
-            if (rest.kmsKeyId) result.kmsKeyId = rest.kmsKeyId
-            if (rest.createTags) {
-              result.tags =
-                typeof rest.createTags === 'string' ? JSON.parse(rest.createTags) : rest.createTags
-            }
+            result.kmsKeyId = rest.kmsKeyId || undefined
+            result.tags = rest.createTags
+              ? typeof rest.createTags === 'string'
+                ? JSON.parse(rest.createTags)
+                : rest.createTags
+              : undefined
             break
           case 'update_secret':
             result.secretId = rest.secretId
             result.secretValue = rest.secretValue
             if (rest.description) result.description = rest.description
-            if (rest.kmsKeyId) result.kmsKeyId = rest.kmsKeyId
+            result.kmsKeyId = rest.kmsKeyId || undefined
             break
           case 'delete_secret':
             result.secretId = rest.secretId

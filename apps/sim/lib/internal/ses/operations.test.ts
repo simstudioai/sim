@@ -111,8 +111,8 @@ describe('SES send operations', () => {
       bodyText: 'Hello',
     })
 
-    const [display, address] = sentInput().FromEmailAddress.split(' <')
-    const words = display.split(' ')
+    const [display, address] = String(sentInput().FromEmailAddress).split(' <')
+    const words: string[] = display.split(' ')
     expect(words.length).toBeGreaterThan(1)
     for (const word of words) expect(word.length).toBeLessThanOrEqual(75)
     const decoded = words

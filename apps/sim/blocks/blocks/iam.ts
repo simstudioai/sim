@@ -1,17 +1,23 @@
+import { isRecordLike } from '@sim/utils/object'
 import { IAMIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { withSavedCredential } from '@/blocks/utils'
 
-/** Converts the Tags table (or a JSON object string) into the JSON object string the tools accept. */
+/**
+ * Converts the Tags table, a `[{ key, value }]` list, a plain object, or a JSON object
+ * string into the JSON object string the tools accept.
+ */
 function serializeTags(tags: unknown): string | undefined {
   if (typeof tags === 'string') return tags.trim() ? tags : undefined
+  if (isRecordLike(tags)) return Object.keys(tags).length > 0 ? JSON.stringify(tags) : undefined
   if (!Array.isArray(tags)) return undefined
   const obj: Record<string, string> = {}
   for (const row of tags) {
-    const key = row?.cells?.key
-    const value = row?.cells?.value
-    if (key && value !== undefined) obj[key] = String(value)
+    const entry = isRecordLike(row) && isRecordLike(row.cells) ? row.cells : row
+    const key = isRecordLike(entry) ? entry.key : undefined
+    const value = isRecordLike(entry) ? entry.value : undefined
+    if (typeof key === 'string' && key && value !== undefined) obj[key] = String(value)
   }
   return Object.keys(obj).length > 0 ? JSON.stringify(obj) : undefined
 }
@@ -684,12 +690,11 @@ export const IAMBlock: BlockConfig = {
           case 'list_policies':
             if (rest.scope) result.scope = rest.scope
             if (onlyAttached === 'true' || onlyAttached === true) result.onlyAttached = true
-            if (
+            result.policyUsageFilter =
               rest.policyUsageFilter === 'PermissionsPolicy' ||
               rest.policyUsageFilter === 'PermissionsBoundary'
-            ) {
-              result.policyUsageFilter = rest.policyUsageFilter
-            }
+                ? rest.policyUsageFilter
+                : undefined
             if (rest.pathPrefix) result.pathPrefix = rest.pathPrefix
             if (maxItems) {
               const parsed = Number.parseInt(String(maxItems), 10)
