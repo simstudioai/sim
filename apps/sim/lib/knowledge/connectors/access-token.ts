@@ -56,6 +56,20 @@ export interface ConnectorAccessToken {
   expiresAt?: Date
 }
 
+/**
+ * Every secret a resolved token carries, for redacting provider text that may
+ * echo one back. A saved AWS credential's secrets sit in `awsSession`, not in
+ * the empty bearer, so callers redact this list rather than `accessToken` alone.
+ */
+export function connectorTokenSecrets(token: ConnectorAccessToken): string[] {
+  return [
+    token.accessToken,
+    ...(token.awsSession
+      ? [token.awsSession.secretAccessKey, token.awsSession.sessionToken ?? '']
+      : []),
+  ]
+}
+
 /** The connector-facing service that a saved AWS credential authenticates. */
 const AWS_CREDENTIAL_SERVICE = 'aws'
 

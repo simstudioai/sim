@@ -35,6 +35,7 @@ import {
   mirrorsSourceAcls,
   supportsConnectorAccessMode,
 } from '@/lib/knowledge/connectors/access-modes'
+import { requireConnectorCredentialService } from '@/lib/knowledge/connectors/credential-service'
 import { validateKnowledgeConnectorMembersBinding } from '@/lib/knowledge/connectors/member-access'
 import {
   provisionKnowledgeConnectorMembersBinding,
@@ -50,7 +51,6 @@ import {
 import { getKnowledgeConnector } from '@/lib/knowledge/orchestration/connectors'
 import type { KnowledgeOperationSource } from '@/lib/knowledge/orchestration/shared'
 import { requireOrganizationSearchApproval } from '@/lib/knowledge/search/integration-policy'
-import { getServiceConfigByProviderId, getServiceConfigByServiceId } from '@/lib/oauth'
 import { getConnectorCredentialService } from '@/connectors/auth'
 import { getConnectorMeta } from '@/connectors/registry'
 import type { ConnectorMeta } from '@/connectors/types'
@@ -435,15 +435,7 @@ async function requireUsableCredential(input: {
     )
   }
   await requireConnectorSavedCredentialSetup(auth, input.credentialId)
-  const service =
-    getServiceConfigByServiceId(credentialService) ??
-    getServiceConfigByProviderId(credentialService)
-  if (!service) {
-    throw new OrchestrationError(
-      'validation',
-      `${input.connectorMeta.name} has no OAuth service to validate the credential against`
-    )
-  }
+  const service = requireConnectorCredentialService(input.connectorMeta)
   const token = await resolveConnectorCredentialAccessToken({
     principal: input.principal,
     credentialId: input.credentialId,

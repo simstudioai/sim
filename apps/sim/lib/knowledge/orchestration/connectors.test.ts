@@ -34,12 +34,14 @@ const {
 
   mockEncryptApiKey,
   mockValidateGitHub,
+  mockValidateS3,
   mockEnqueueConnectorDeletion,
   mockEnqueueConnectorDetachment,
 } = vi.hoisted(() => ({
   mockDispatchSync: vi.fn(),
   mockEncryptApiKey: vi.fn(),
   mockValidateGitHub: vi.fn(),
+  mockValidateS3: vi.fn(),
   mockEnqueueConnectorDeletion: vi.fn(),
   mockEnqueueConnectorDetachment: vi.fn(),
 }))
@@ -75,6 +77,16 @@ vi.mock('@/connectors/registry.server', () => ({
       permissionScopedListing: { capFieldIds: [] },
       configFields: [],
       validateConfig: mockValidateGitHub,
+    },
+    s3: {
+      name: 'Amazon S3',
+      auth: {
+        mode: 'apiKey',
+        label: 'Secret Access Key',
+        savedCredential: { provider: 'aws', label: 'Saved AWS credential' },
+      },
+      configFields: [],
+      validateConfig: mockValidateS3,
     },
     notion: {
       auth: { mode: 'apiKey', optional: true },
@@ -178,6 +190,35 @@ describe('performCreateKnowledgeConnector', () => {
         errorCode: 'validation',
         error: 'Invalid credential [REDACTED] ([REDACTED])',
       }
+      if (failure === 'result') await expect(request).resolves.toMatchObject(expected)
+      else
+        await expect(request).rejects.toMatchObject({
+          code: expected.errorCode,
+          message: expected.error,
+        })
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['result', 'exception'])(
+    'redacts a saved AWS session from provider validation %s errors',
+    async (failure) => {
+      const awsSession = {
+        accessKeyId: 'ASIAEXAMPLE',
+        secretAccessKey: 'session/secret',
+        sessionToken: 'session-token',
+      }
+      const message = `Denied ${awsSession.secretAccessKey} ${awsSession.sessionToken}`
+      if (failure === 'result')
+        mockValidateS3.mockResolvedValueOnce({ valid: false, error: message })
+      else mockValidateS3.mockRejectedValueOnce(new OrchestrationError('validation', message))
+      const request = performCreateKnowledgeConnector({
+        ...createParams,
+        connectorType: 's3',
+        credentialId: 'aws-credential',
+        resolveAccessToken: vi.fn().mockResolvedValue({ accessToken: '', awsSession }),
+      })
+      const expected = { errorCode: 'validation', error: 'Denied [REDACTED] [REDACTED]' }
       if (failure === 'result') await expect(request).resolves.toMatchObject(expected)
       else
         await expect(request).rejects.toMatchObject({

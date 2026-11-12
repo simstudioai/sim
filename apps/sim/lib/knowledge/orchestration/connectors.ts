@@ -43,6 +43,7 @@ import {
 } from '@/lib/knowledge/connectors/access-modes'
 import {
   type ConnectorAccessToken,
+  connectorTokenSecrets,
   syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
 import { enqueueConnectorDeletion } from '@/lib/knowledge/connectors/deletion'
@@ -300,6 +301,7 @@ export async function performCreateKnowledgeConnector(
   let resolvedCredentialId: string | null = null
   let resolvedEncryptedApiKey: string | null = null
   let accessToken: string | null = null
+  let tokenSecrets: string[] = []
   let tokenContext: Record<string, unknown> = {}
   const apiKeyConfig = getConnectorApiKeyConfig(connectorConfig.auth)
   if (apiKey && (!apiKeyConfig || accessMode === 'members')) {
@@ -338,6 +340,7 @@ export async function performCreateKnowledgeConnector(
       return fail('API key is required', 'validation')
     }
     accessToken = apiKey ?? ''
+    tokenSecrets = [accessToken]
   } else if (!membersBinding || credentialId) {
     if (!credentialId) {
       return fail('Credential is required', 'validation')
@@ -352,6 +355,7 @@ export async function performCreateKnowledgeConnector(
       return fail('Credential has no access token. Please reconnect your account.', 'validation')
     }
     accessToken = token.accessToken
+    tokenSecrets = connectorTokenSecrets(token)
     tokenContext = syncContextForToken(token)
     resolvedCredentialId = credentialId
   }
@@ -367,13 +371,13 @@ export async function performCreateKnowledgeConnector(
       .validateConfig(accessToken, sourceConfig, validationContext)
       .catch((error: unknown) => {
         const sanitized = toError(error)
-        sanitized.message = redactKnownSensitiveValues(sanitized.message, [accessToken])
+        sanitized.message = redactKnownSensitiveValues(sanitized.message, tokenSecrets)
         throw sanitized
       })
     if (!configValidation.valid) {
       return fail(
         (configValidation.error &&
-          redactKnownSensitiveValues(configValidation.error, [accessToken])) ||
+          redactKnownSensitiveValues(configValidation.error, tokenSecrets)) ||
           `The ${connectorType} connector rejected sourceConfig without a reason — re-check its required fields with \`sim connector-types list --detail full\` (GET /api/v2/connector-types?detail=full) before retrying; the same config will fail again.`,
         'validation'
       )

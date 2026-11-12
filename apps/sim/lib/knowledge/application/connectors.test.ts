@@ -96,6 +96,15 @@ vi.mock('@/connectors/registry.server', () => ({
       auth: { mode: 'oauth', requiredScopes: ['read:confluence-content.all'] },
       validateConfig: hoisted.validateConnectorConfig,
     },
+    s3: {
+      name: 'Amazon S3',
+      auth: {
+        mode: 'apiKey',
+        label: 'Secret Access Key',
+        savedCredential: { provider: 'aws', label: 'Saved AWS credential' },
+      },
+      validateConfig: hoisted.validateConnectorConfig,
+    },
     google_drive: {
       name: 'Google Drive',
       auth: {
@@ -1087,6 +1096,52 @@ describe('organization connector credential authorization', () => {
         sourceConfig: { region: 'us-east-1', bucket: 'docs' },
       }).catch((error: unknown) => error)
       expect(internalOrchestrationErrorPolicy.project(error)?.status ?? 500).toBe(status)
+    }
+  )
+
+  it.each(['result', 'exception'] as const)(
+    'redacts a saved AWS session from settings validation %s',
+    async (failure) => {
+      const awsSession = {
+        accessKeyId: 'ASIAEXAMPLE',
+        secretAccessKey: 'session/secret',
+        sessionToken: 'session-token',
+      }
+      mocks.authorizeOrganizationCredentialUse.mockResolvedValueOnce({
+        credential: { ...credential, providerId: 'aws' },
+        userId: principal.userId,
+      })
+      internalAwsCredentialsMockFns.mockResolveAuthorizedAwsCredential.mockResolvedValueOnce(
+        awsSession
+      )
+      const message = `Denied ${awsSession.secretAccessKey} ${awsSession.sessionToken}`
+      if (failure === 'exception') {
+        mocks.validateConnectorConfig.mockRejectedValueOnce(
+          new OrchestrationError('validation', message)
+        )
+      } else {
+        mocks.validateConnectorConfig.mockResolvedValueOnce({ valid: false, error: message })
+      }
+      const result = validateConnectorSourceConfig({
+        principal,
+        requestId: 'request',
+        organizationId: 'org',
+        actingUserId: principal.userId,
+        sourceConfig: { region: 'us-east-1', bucket: 'docs' },
+        connector: {
+          id: 'connector-s3',
+          connectorType: 's3',
+          credentialId: credential.id,
+          encryptedApiKey: null,
+          accessMode: 'workspace',
+        } as Parameters<typeof validateConnectorSourceConfig>[0]['connector'],
+      })
+      const redacted = 'Denied [REDACTED] [REDACTED]'
+      if (failure === 'exception') {
+        await expect(result).rejects.toMatchObject({ code: 'validation', message: redacted })
+      } else {
+        await expect(result).resolves.toEqual({ errorCode: 'validation', message: redacted })
+      }
     }
   )
 

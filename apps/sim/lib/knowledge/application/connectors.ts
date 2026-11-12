@@ -59,9 +59,11 @@ import {
 import {
   type ConnectorAccessToken,
   ConnectorAwsCredentialError,
+  connectorTokenSecrets,
   resolveConnectorAccessToken,
   syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
+import { requireConnectorCredentialService } from '@/lib/knowledge/connectors/credential-service'
 import { requiresConnectorIndexing } from '@/lib/knowledge/connectors/indexing-policy'
 import {
   provisionKnowledgeConnectorMembersBinding,
@@ -115,11 +117,7 @@ import type {
   KnowledgeOperationSource,
   KnowledgeOrchestrationResult,
 } from '@/lib/knowledge/orchestration/shared'
-import {
-  credentialProviderMatchesService,
-  getServiceConfigByServiceId,
-  type ServiceProviderIdentity,
-} from '@/lib/oauth'
+import { credentialProviderMatchesService, type ServiceProviderIdentity } from '@/lib/oauth'
 import { ServiceAccountTokenError } from '@/lib/oauth/credential-service'
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
@@ -501,19 +499,21 @@ export async function validateConnectorSourceConfig(input: {
       )
     }
   }
+  const secrets = connectorTokenSecrets(resolved)
   const validation = await connectorConfig
     .validateConfig(resolved.accessToken, input.sourceConfig, validationContext)
     .catch((error: unknown) => {
       const sanitized = toError(error)
-      sanitized.message = redactKnownSensitiveValues(sanitized.message, [resolved.accessToken])
+      sanitized.message = redactKnownSensitiveValues(sanitized.message, secrets)
       throw sanitized
     })
   return validation.valid
     ? null
     : {
-        message: redactKnownSensitiveValues(validation.error || 'Invalid source configuration', [
-          resolved.accessToken,
-        ]),
+        message: redactKnownSensitiveValues(
+          validation.error || 'Invalid source configuration',
+          secrets
+        ),
         errorCode: 'validation',
       }
 }
@@ -757,8 +757,8 @@ async function executeCreateKnowledgeConnector({
   await requireConnectorSavedCredentialSetup(connectorMeta.auth, input.credentialId)
   /** A key connector's saved credential must be of its declared service, as on an access update. */
   const savedCredentialService =
-    connectorMeta.auth.mode === 'apiKey' && connectorMeta.auth.savedCredential
-      ? (getServiceConfigByServiceId(connectorMeta.auth.savedCredential.provider) ?? undefined)
+    connectorMeta.auth.mode === 'apiKey' && connectorMeta.auth.savedCredential && input.credentialId
+      ? requireConnectorCredentialService(connectorMeta)
       : undefined
   if (
     context.knowledgeBase.isSearchIndex &&
