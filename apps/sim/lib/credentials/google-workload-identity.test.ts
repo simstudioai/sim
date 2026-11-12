@@ -9,7 +9,7 @@ import {
 } from '@/lib/credentials/google-workload-identity'
 
 describe('keyless setup in the Google service account dialog', () => {
-  it.each(['google-drive', 'gmail', 'google-sheets'])(
+  it.each(['google-forms', 'google-contacts', 'google-tasks'])(
     'never offers the keyless form when reconnecting a keyless credential from %s',
     (oauthServiceId) => {
       expect(googleKeylessOffer({ oauthServiceId, available: true, reconnectsKeyless: true })).toBe(
@@ -18,11 +18,26 @@ describe('keyless setup in the Google service account dialog', () => {
     }
   )
 
-  it('offers JSON keys only for a new connection from a Workspace service', () => {
+  it('offers JSON keys only for a new connection from a Workspace service it cannot delegate', () => {
     expect(
-      googleKeylessOffer({ oauthServiceId: 'gmail', available: true, reconnectsKeyless: false })
+      googleKeylessOffer({
+        oauthServiceId: 'google-forms',
+        available: true,
+        reconnectsKeyless: false,
+      })
     ).toBe('none')
   })
+
+  it.each(['gmail', 'google-drive', 'google-docs', 'google-sheets', 'google-calendar'])(
+    'offers keyless with domain-wide delegation for %s, new or reconnected',
+    (oauthServiceId) => {
+      for (const reconnectsKeyless of [true, false]) {
+        expect(googleKeylessOffer({ oauthServiceId, available: true, reconnectsKeyless })).toBe(
+          'offer'
+        )
+      }
+    }
+  )
 
   it.each([true, false])(
     'offers keyless for BigQuery whether or not the reconnected credential is keyless (%s)',
@@ -43,13 +58,11 @@ describe('keyless setup in the Google service account dialog', () => {
   })
 
   it('offers nothing keyless where this deployment cannot sign tokens', () => {
-    expect(
-      googleKeylessOffer({
-        oauthServiceId: 'google-bigquery',
-        available: false,
-        reconnectsKeyless: true,
-      })
-    ).toBe('none')
+    for (const oauthServiceId of ['google-bigquery', 'gmail']) {
+      expect(
+        googleKeylessOffer({ oauthServiceId, available: false, reconnectsKeyless: true })
+      ).toBe('none')
+    }
   })
 })
 

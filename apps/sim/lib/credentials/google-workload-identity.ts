@@ -95,10 +95,11 @@ export function isGoogleDelegationUser(value: string): boolean {
 /**
  * What a Google service account connect dialog offers for keyless setup.
  *
- * - `offer`: a Google Cloud service (new or reconnect), or a keyless credential
- *   reconnected from a context that names no service (its own detail page).
- * - `cloud_only`: a keyless credential reconnected from a Google Workspace
- *   service, which can never use it; the dialog explains instead of saving.
+ * - `offer`: a Google Cloud service or a delegable Google Workspace service
+ *   (new or reconnect), or a keyless credential reconnected from a context that
+ *   names no service (its own detail page).
+ * - `cloud_only`: a keyless credential reconnected from another Google
+ *   Workspace service, which can never use it; the dialog explains instead of saving.
  * - `none`: JSON key only.
  */
 export function googleKeylessOffer(input: {
@@ -110,9 +111,12 @@ export function googleKeylessOffer(input: {
   reconnectsKeyless: boolean
 }): 'offer' | 'cloud_only' | 'none' {
   if (!input.available) return 'none'
-  if (input.oauthServiceId && GOOGLE_KEYLESS_SERVICES.has(input.oauthServiceId)) return 'offer'
+  const service = input.oauthServiceId
+  if (service && (GOOGLE_KEYLESS_SERVICES.has(service) || isGoogleDelegationService(service))) {
+    return 'offer'
+  }
   if (!input.reconnectsKeyless) return 'none'
-  return input.oauthServiceId ? 'cloud_only' : 'offer'
+  return service ? 'cloud_only' : 'offer'
 }
 
 /** The `type` of a keyless credential's stored secret; a JSON key's is `service_account`. */

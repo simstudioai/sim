@@ -29,6 +29,7 @@ import {
 import {
   GOOGLE_KEYLESS_SERVICES,
   googleKeylessOffer,
+  isGoogleDelegationService,
 } from '@/lib/credentials/google-workload-identity'
 import type { ServiceAccountSecretFields } from '@/lib/credentials/service-account-secret'
 import {
@@ -54,7 +55,7 @@ import { ClientCredentialsFields } from '@/app/workspace/[workspaceId]/integrati
 import { DatabricksAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/databricks-account-modal'
 import {
   buildGoogleKeylessConfig,
-  EMPTY_GOOGLE_KEYLESS_INPUT,
+  emptyGoogleKeylessInput,
   GoogleKeylessFields,
   type GoogleKeylessInput,
   isGoogleKeylessInputComplete,
@@ -181,7 +182,7 @@ interface ConnectServiceAccountModalProps {
   credentialDescription?: string
   /**
    * The OAuth service the dialog was opened for (`google-bigquery`). A Google service account
-   * offers keyless setup only for a Google Cloud service.
+   * offers keyless setup only for a Google Cloud service or a Workspace service it can delegate.
    */
   oauthServiceId?: string
   /** Called with the new credential id after a successful create (token-paste providers). */
@@ -643,9 +644,10 @@ type GoogleAuthType = 'json_key' | 'workload_identity'
 /**
  * Google service-account flow. Accepts the raw JSON key (paste or drag/drop)
  * and validates against the shared `serviceAccountJsonSchema` so the same
- * shape errors render here as in the server route. For a Google Cloud service
- * (or a keyless credential being reconnected) on a deployment that can sign
- * workload-identity tokens, it also offers keyless Workload Identity Federation.
+ * shape errors render here as in the server route. For a Google Cloud service,
+ * a Workspace service it can delegate (or a keyless credential being
+ * reconnected) on a deployment that can sign workload-identity tokens, it also
+ * offers keyless Workload Identity Federation.
  */
 function GoogleServiceAccountModal(props: GoogleServiceAccountModalProps) {
   if (!props.open) return null
@@ -670,13 +672,15 @@ function GoogleServiceAccountModalForm({
   oauthServiceId,
   onCreated,
 }: GoogleServiceAccountModalProps) {
-  const cloudService = Boolean(oauthServiceId && GOOGLE_KEYLESS_SERVICES.has(oauthServiceId))
+  const delegableService = Boolean(oauthServiceId && isGoogleDelegationService(oauthServiceId))
+  const keylessService =
+    delegableService || Boolean(oauthServiceId && GOOGLE_KEYLESS_SERVICES.has(oauthServiceId))
   const keyless = useKeylessSetup({
     provider: 'google',
     workspaceId,
     organizationId,
     credentialId,
-    enabled: cloudService || Boolean(credentialId),
+    enabled: keylessService || Boolean(credentialId),
   })
   const keylessSubmit = useSavedConnectionSubmit({
     providerId: GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -696,7 +700,9 @@ function GoogleServiceAccountModalForm({
   const authType: GoogleAuthType = offerKeyless
     ? (selectedAuthType ?? keyless.reconnectAuthType ?? 'json_key')
     : 'json_key'
-  const [keylessInput, setKeylessInput] = useState<GoogleKeylessInput>(EMPTY_GOOGLE_KEYLESS_INPUT)
+  const [keylessInput, setKeylessInput] = useState<GoogleKeylessInput>(() =>
+    emptyGoogleKeylessInput(oauthServiceId)
+  )
   const [jsonInput, setJsonInput] = useState('')
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
@@ -791,7 +797,7 @@ function GoogleServiceAccountModalForm({
   const isDisabled =
     cloudOnly ||
     (authType === 'workload_identity'
-      ? isPending || !keyless.ready || !isGoogleKeylessInputComplete(keylessInput)
+      ? isPending || !keyless.ready || !isGoogleKeylessInputComplete(keylessInput, delegableService)
       : !jsonInput.trim() || isPending)
   const submitError = authType === 'workload_identity' ? keylessSubmit.error : error
 
@@ -825,7 +831,7 @@ function GoogleServiceAccountModalForm({
             required
             hint={
               authType === 'workload_identity'
-                ? 'No key is stored. Sim signs a short-lived token your workload identity provider trusts, then impersonates the service account. Google Cloud APIs only, without domain-wide delegation.'
+                ? 'No key is stored. Sim signs a short-lived token your workload identity provider trusts, then impersonates the service account: Google Cloud APIs, and Google Workspace services through domain-wide delegation.'
                 : undefined
             }
           />
@@ -844,8 +850,10 @@ function GoogleServiceAccountModalForm({
 
         {cloudOnly && (
           <ChipModalDescription>
-            This keyless credential works only with Google Cloud services (BigQuery, Vertex AI).
-            Reconnect it from one of those integrations or from the credential’s own page.
+            This keyless credential works only with Google Cloud services (BigQuery, Vertex AI) and,
+            through domain-wide delegation, Gmail, Google Drive, Google Docs, Google Sheets, and
+            Google Calendar. Reconnect it from one of those integrations or from the credential’s
+            own page.
           </ChipModalDescription>
         )}
 
