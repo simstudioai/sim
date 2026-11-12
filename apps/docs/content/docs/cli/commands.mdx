@@ -58,6 +58,7 @@ See [output formats](/cli/output) for the JSON default and display formats.
 | [`sim organizations`](/cli/organizations) | Manage organization membership, invitations, usage, access requests, and SSO. |
 | [`sim permission-groups`](/cli/permission-groups) | Manage organization permission groups, their configuration, and member assignments. |
 | [`sim sandboxes`](/cli/sandboxes) | Manage reusable dependency sets for Function blocks. |
+| [`sim schedules`](/cli/schedules) | List the schedules deployed workflows run across a workspace. |
 | [`sim secrets`](/cli/secrets) | Set and manage workspace or personal secrets. |
 | [`sim selectors`](/cli/selectors) | Discover destination options for registered fields, such as calendars, channels, and tables. |
 | [`sim skills`](/cli/skills) | Create reusable agent instructions and manage their editors. |
@@ -79,9 +80,10 @@ sim login [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--method <method>` | No | Credential to obtain: oauth requires OAuth support; api-key creates a permanent key through pairing (auto-selects when omitted). Accepted values: `oauth`, `api-key`. |
+| `--method <method>` | No | Credential to obtain: oauth requires OAuth support; api-key creates an API key through pairing (auto-selects when omitted). Accepted values: `oauth`, `api-key`. |
 | `--no-browser` | No | Print the approval URL without opening it (either login method). |
 | `--read-only` | No | Ask only for permission to read, never to change anything. |
+| `--expires-in <days>` | No | Log in with an API key that expires after this many days (1-365); without it an API key never expires. |
 | `--callback-port <port>` | No | Pin the local port the browser returns to. |
 | `-y, --yes` | No | Overwrite an existing API-key profile without prompting. |
 

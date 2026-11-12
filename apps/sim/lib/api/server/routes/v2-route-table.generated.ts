@@ -596,6 +596,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/sandboxes/[sandboxId]/route'),
   },
   {
+    pattern: '/api/v2/schedules',
+    load: () => import('@/app/api/v2/schedules/route'),
+  },
+  {
     pattern: '/api/v2/secrets',
     load: () => import('@/app/api/v2/secrets/route'),
   },
@@ -812,6 +816,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/workflows/[workflowId]/operations/route'),
   },
   {
+    pattern: '/api/v2/workflows/{workflowId}/outline',
+    load: () => import('@/app/api/v2/workflows/[workflowId]/outline/route'),
+  },
+  {
     pattern: '/api/v2/workflows/{workflowId}/restore',
     load: () => import('@/app/api/v2/workflows/[workflowId]/restore/route'),
   },
@@ -890,6 +898,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
   {
     pattern: '/api/v2/workflows/move',
     load: () => import('@/app/api/v2/workflows/move/route'),
+  },
+  {
+    pattern: '/api/v2/workflows/runs/paused',
+    load: () => import('@/app/api/v2/workflows/runs/paused/route'),
   },
   {
     pattern: '/api/v2/workspaces',

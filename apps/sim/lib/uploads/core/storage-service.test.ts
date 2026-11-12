@@ -20,7 +20,6 @@ const {
   mockGetSignedUrl,
   mockHeadS3Object,
   mockPutObjectCommand,
-  mockS3Client,
   partBodies,
 } = vi.hoisted(() => ({
   mockInitiate: vi.fn(),
@@ -33,7 +32,6 @@ const {
   mockGetSignedUrl: vi.fn(),
   mockHeadS3Object: vi.fn(),
   mockPutObjectCommand: vi.fn().mockImplementation(class {}),
-  mockS3Client: {},
   partBodies: [] as Buffer[],
 }))
 
@@ -54,7 +52,6 @@ vi.mock('@/lib/uploads/providers/s3/client', () => ({
   abortS3MultipartUpload: mockAbort,
   uploadToS3: mockUploadToS3,
   deleteFromS3: mockDeleteFromS3,
-  getS3Client: () => mockS3Client,
   headS3Object: mockHeadS3Object,
 }))
 

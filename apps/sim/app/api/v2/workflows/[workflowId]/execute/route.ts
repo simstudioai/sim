@@ -25,6 +25,7 @@ import { getWorkspaceBilledAccountUserId } from '@/lib/billing/core/attribution'
 import { tryAdmit } from '@/lib/core/admission/gate'
 import { ADMISSION_ERROR_DESCRIPTOR } from '@/lib/core/admission/transient-failure'
 import type { ForbiddenDetailCode } from '@/lib/core/application'
+import { executionTimeoutSeconds } from '@/lib/core/execution-limits/types'
 import { acceptsMediaType } from '@/lib/core/utils/media-types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -133,12 +134,17 @@ function presentRun(result: ExecuteWorkflowServiceRun) {
     startedAt: result.startedAt,
     endedAt: result.endedAt,
     durationMs: result.durationMs,
+    executionTimeoutSeconds: executionTimeoutSeconds(result.executionTimeoutMs),
   }
 }
 
 /** Where a run that continues past its response is followed: the v2 runs resource. */
-function runReceipt(workflowId: string, runId: string) {
-  return { runId, statusUrl: `${getBaseUrl()}/api/v2/workflows/${workflowId}/runs/${runId}` }
+function runReceipt(workflowId: string, runId: string, executionTimeoutMs: number) {
+  return {
+    runId,
+    statusUrl: `${getBaseUrl()}/api/v2/workflows/${workflowId}/runs/${runId}`,
+    executionTimeoutSeconds: executionTimeoutSeconds(executionTimeoutMs),
+  }
 }
 
 /** A run that may outlive its response: past `afterMs` (never, when null) only its receipt is sent. */
@@ -633,7 +639,10 @@ export const POST = withRouteHandler(
 
       if ('pending' in result) {
         const detachment: RunDetachment | undefined = detachable
-          ? { afterMs: detachAfterMs, receipt: runReceipt(workflowId, result.executionId) }
+          ? {
+              afterMs: detachAfterMs,
+              receipt: runReceipt(workflowId, result.executionId, result.executionTimeoutMs),
+            }
           : undefined
         if (resultStream) {
           const response = streamPendingRun(result, requestId, ticket.release, detachment)
@@ -665,7 +674,7 @@ export const POST = withRouteHandler(
       }
 
       if ('queued' in result) {
-        return v2Data(runReceipt(workflowId, result.executionId), {
+        return v2Data(runReceipt(workflowId, result.executionId, result.executionTimeoutMs), {
           status: 202,
           headers: { [V2_WORKFLOW_RUN_ID_HEADER]: result.executionId },
         })

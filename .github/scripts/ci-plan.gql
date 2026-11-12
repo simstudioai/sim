@@ -22,4 +22,10 @@ query($base: String!, $head: String!) {
       }
     }
   }
+  # `items` also lists the prerequisites of affected tasks, and docs#build is one for
+  # ci:e2e-docs-platform. The task filter applies before prerequisites are added, so this
+  # selection holds docs#build only when the docs site itself changed.
+  docsSite: affectedTasks(base: $base, head: $head, tasks: ["docs#build"]) {
+    items { fullName }
+  }
 }

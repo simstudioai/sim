@@ -1,3 +1,7 @@
+import {
+  savedCredentialTokenParam,
+  ZOOMINFO_CREDENTIAL_OAUTH,
+} from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 import type {
   ZoomInfoEnrichCompaniesParams,
@@ -14,6 +18,7 @@ export const zoominfoEnrichCompaniesTool: InternalToolConfig<
   description:
     'Enrich up to 25 companies in one request with detailed firmographics, industry, financials, and more.',
   version: '1.0.0',
+  oauth: ZOOMINFO_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -28,6 +33,7 @@ export const zoominfoEnrichCompaniesTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'ZoomInfo OAuth client secret',
     },
+    accessToken: savedCredentialTokenParam('ZoomInfo'),
     matchCompanyInput: {
       type: 'string',
       required: true,

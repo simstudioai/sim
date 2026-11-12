@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { convertSquareBracketsToTwiML } from '@/lib/webhooks/utils'
 import { TWILIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
+import { twilioAuthorization } from '@/tools/twilio/utils'
 import type { TwilioCallOutput, TwilioMakeCallParams } from '@/tools/twilio_voice/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -62,7 +63,7 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Twilio Auth Token',
+      description: 'Twilio Auth Token, or an API key as SKxxx:secret',
     },
     record: {
       type: 'boolean',
@@ -107,9 +108,8 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
       if (!params.accountSid || !params.authToken) {
         throw new Error('Twilio credentials are required')
       }
-      const authToken = Buffer.from(`${params.accountSid}:${params.authToken}`).toString('base64')
       return {
-        Authorization: `Basic ${authToken}`,
+        Authorization: twilioAuthorization(params.accountSid, params.authToken),
         'Content-Type': 'application/x-www-form-urlencoded',
       }
     },

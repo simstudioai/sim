@@ -21,12 +21,14 @@ import {
   isInRequestedState,
   type LiveWorkflowTriggerRecord,
   listLiveWorkflowTriggers,
+  listWorkspaceLiveSchedulesPage,
   setLiveTriggersEnabled,
   type TriggerLiveness,
   toWorkflowTriggerHealth,
   type WorkflowTriggerHealth,
   type WorkflowTriggerStatus,
 } from '@/lib/workflows/triggers/health'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const TRIGGER_NOT_FOUND = 'Trigger not found'
 
@@ -42,6 +44,27 @@ export const listWorkflowTriggers = defineAuthorizedWorkflowUseCase({
   async execute({ context }) {
     const records = await listLiveWorkflowTriggers(context.workflowId)
     return { triggers: records.map(toWorkflowTriggerHealth) }
+  },
+})
+
+type ListWorkspaceSchedulesInput = Parameters<typeof listWorkspaceLiveSchedulesPage>[0]
+
+/**
+ * Every schedule the workspace's deployed workflows run, disabled ones
+ * included, one keyset page at a time. The same rows and the same read
+ * authorization as {@link listWorkflowTriggers}, across the workspace instead
+ * of one workflow.
+ */
+export const listWorkspaceSchedules = defineAuthorizedWorkflowUseCase({
+  operation: workflowOperations.readTriggers,
+  resolveContext: ({ input }: { input: ListWorkspaceSchedulesInput }) =>
+    resolveActiveWorkspaceApplicationContext(input.workspaceId),
+  async execute({ input, context }) {
+    const page = await listWorkspaceLiveSchedulesPage({
+      ...input,
+      workspaceId: context.workspaceId,
+    })
+    return { schedules: page.data, nextCursorKeys: page.nextCursorKeys }
   },
 })
 

@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { isRetryableNetworkError } from '@/lib/core/errors/retryable-infrastructure'
 import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 import {
   type AwsSessionCredentials,
@@ -39,16 +40,33 @@ import type {
 
 const sessionStorage = new AsyncLocalStorage<AwsSessionCredentials>()
 
+/** The resolved STS session that signs for `accessKeyId`, if this call has one. */
+function sessionFor(accessKeyId: string): AwsSessionCredentials | undefined {
+  const session = sessionStorage.getStore()
+  return session?.sessionToken && session.accessKeyId === accessKeyId ? session : undefined
+}
+
 /** SDK credentials for a client built from an operation's key fields. */
 export function awsClientCredentials(
   accessKeyId: string,
   secretAccessKey: string
 ): { accessKeyId: string; secretAccessKey: string; sessionToken?: string } {
-  const session = sessionStorage.getStore()
-  if (session?.sessionToken && session.accessKeyId === accessKeyId) {
-    return { accessKeyId, secretAccessKey, sessionToken: session.sessionToken }
-  }
-  return { accessKeyId, secretAccessKey }
+  const sessionToken = sessionFor(accessKeyId)?.sessionToken
+  return sessionToken
+    ? { accessKeyId, secretAccessKey, sessionToken }
+    : { accessKeyId, secretAccessKey }
+}
+
+/**
+ * How long the STS session behind `accessKeyId` lasts and when it ends, or
+ * undefined for long-lived keys. Anything signed with a session, like an S3
+ * presigned URL, stops working when it ends whatever expiry it asked for.
+ */
+export function awsSessionLifetime(
+  accessKeyId: string
+): Pick<AwsSessionCredentials, 'durationSeconds' | 'expiration'> | undefined {
+  const session = sessionFor(accessKeyId)
+  return session && { durationSeconds: session.durationSeconds, expiration: session.expiration }
 }
 
 /**
@@ -94,6 +112,27 @@ export async function resolveAuthorizedAwsCredential(
   })
 }
 
+const THROTTLING_ERROR_NAMES = new Set(['Throttling', 'ThrottlingException'])
+
+/**
+ * Whether resolving a credential failed because AWS was briefly unavailable rather
+ * than because it denied the credential: an error STS models as retryable
+ * (IDPCommunicationError, when STS could not reach Sim's OIDC issuer), throttling,
+ * an STS 5xx, or a network failure. The SDK has already retried these.
+ */
+function isTransientAwsFailure(error: unknown): boolean {
+  if (!isRecordLike(error)) return false
+  const status = isRecordLike(error.$metadata) ? error.$metadata.httpStatusCode : undefined
+  return (
+    error.$retryable !== undefined ||
+    THROTTLING_ERROR_NAMES.has(String(error.name)) ||
+    status === 429 ||
+    (typeof status === 'number' && status >= 500) ||
+    error.name === 'TimeoutError' ||
+    isRetryableNetworkError(error)
+  )
+}
+
 /** Wraps a family's operation handler so it also accepts a saved AWS credential. */
 export function withAwsCredential<Result>(
   handler: InternalToolOperationHandler<Result>
@@ -114,7 +153,7 @@ export function withAwsCredential<Result>(
       request.signal?.throwIfAborted()
       return Response.json(
         { error: `Could not use the AWS credential: ${getErrorMessage(error, 'Unknown error')}` },
-        { status: 403 }
+        { status: isTransientAwsFailure(error) ? 503 : 403 }
       )
     }
     request.signal?.throwIfAborted()

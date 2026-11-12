@@ -10,6 +10,10 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { WorkflowExecutionStatusResponse } from '@/lib/api/contracts/workflows'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import type { Job } from '@/lib/core/async-jobs/types'
+import {
+  type FailedTraceBlock,
+  findFailedTraceBlock,
+} from '@/lib/logs/execution/trace-spans/trace-spans'
 import { materializeExecutionDataForDisplayWithBlockOutputs } from '@/lib/logs/execution/trace-store'
 import {
   type LogFieldProjection,
@@ -41,6 +45,7 @@ interface ExecutionDataShape {
   finalOutput?: { error?: string } & Record<string, unknown>
   error?: { message?: string } | string
   completionFailure?: string
+  traceSpans?: unknown
 }
 
 function resolvePath(value: unknown, path: string[]): unknown {
@@ -261,6 +266,13 @@ export interface ProjectedWorkflowExecutionStatus {
    * {@link readPausedRunPoints} need not read them again; null when the run is not paused.
    */
   pausePoints: unknown
+  /**
+   * The block a failed run's recorded trace names as its failure, or null when the run did not
+   * fail, its trace names none, or the viewer's group withholds execution data.
+   *
+   * permission-group-enforced: logs.trace_spans
+   */
+  failedBlock: FailedTraceBlock | null
 }
 
 /**
@@ -292,6 +304,7 @@ export async function getProjectedWorkflowExecutionStatus(
     projection,
     stateExecutionId: resolved.stateExecutionId,
     pausePoints: resolved.pausePoints,
+    failedBlock: projection.hideTraceSpans ? null : resolved.failedBlock,
   }
 }
 
@@ -354,6 +367,8 @@ interface ResolvedExecutionStatus {
   stateExecutionId: string
   /** The state execution's raw `pause_points`, loaded while it is paused; null otherwise. */
   pausePoints: unknown
+  /** The failing block the recorded trace names, when the answered `error` is the run's own. */
+  failedBlock: FailedTraceBlock | null
 }
 
 async function readWorkflowExecutionStatus(
@@ -442,6 +457,7 @@ async function readWorkflowExecutionStatus(
         status: projectQueueJob(job, { executionId, includeOutput, workflowId }, deploymentVersion),
         stateExecutionId: executionId,
         pausePoints: null,
+        failedBlock: null,
       }
     }
   }
@@ -464,7 +480,7 @@ async function readWorkflowExecutionStatus(
       finalOutput: null,
       blockOutputs: null,
     }
-    return { status, stateExecutionId: executionId, pausePoints: null }
+    return { status, stateExecutionId: executionId, pausePoints: null, failedBlock: null }
   }
 
   if (!logRow) {
@@ -473,13 +489,15 @@ async function readWorkflowExecutionStatus(
       ...input,
       executionId: resumeAttempt.parentExecutionId,
     })
-    return run
-      ? {
-          status: projectSettledResumeAttempt(executionId, resumeAttempt, run.status),
-          stateExecutionId: run.stateExecutionId,
-          pausePoints: run.pausePoints,
-        }
-      : null
+    if (!run) return null
+    const status = projectSettledResumeAttempt(executionId, resumeAttempt, run.status)
+    return {
+      status,
+      stateExecutionId: run.stateExecutionId,
+      pausePoints: run.pausePoints,
+      failedBlock:
+        status.status === 'failed' && run.status.status === 'failed' ? run.failedBlock : null,
+    }
   }
 
   const [pausedRow] = await db
@@ -555,6 +573,7 @@ async function readWorkflowExecutionStatus(
       status: { ...resource, error: null, finalOutput: null, blockOutputs: null },
       stateExecutionId: executionId,
       pausePoints: paused ? pausedRow?.pausePoints : null,
+      failedBlock: null,
     }
   }
 
@@ -588,11 +607,26 @@ async function readWorkflowExecutionStatus(
     status: { ...resource, error, finalOutput, blockOutputs },
     stateExecutionId: executionId,
     pausePoints: paused ? pausedRow?.pausePoints : null,
+    failedBlock: error ? findFailedTraceBlock(executionData?.traceSpans, error) : null,
   }
 }
 
-/** Most pause points a run detail lists; a run over it lists its earliest registered points. */
+/**
+ * Most pause points a run detail lists. A run that pauses again after resuming keeps its
+ * resumed points, so a run over the cap keeps every point not yet resumed before any resumed
+ * one: the points a caller can still act on are never crowded out by history.
+ */
 const MAX_PAUSED_RUN_POINTS = 100
+
+/** At most {@link MAX_PAUSED_RUN_POINTS}, keeping unresolved points in preference to resumed ones, earliest registered first. */
+function capPausePoints<P extends PausePoint>(points: P[]): P[] {
+  const byRegistration = (a: P, b: P) => compareStrings(a.registeredAt ?? '', b.registeredAt ?? '')
+  const sorted = [...points].sort(byRegistration)
+  if (sorted.length <= MAX_PAUSED_RUN_POINTS) return sorted
+  const unresolved = sorted.filter((point) => point.resumeStatus !== 'resumed')
+  const resumed = sorted.filter((point) => point.resumeStatus === 'resumed')
+  return [...unresolved, ...resumed].slice(0, MAX_PAUSED_RUN_POINTS).sort(byRegistration)
+}
 
 /** One pause point of a paused run, as a caller reading the run may see it. */
 export interface PausedRunPoint {
@@ -654,7 +688,8 @@ async function readRunBlockNames(
 
 /**
  * The pause points of a paused run, earliest registered first and capped at
- * {@link MAX_PAUSED_RUN_POINTS}, or null when the run has no paused record.
+ * {@link MAX_PAUSED_RUN_POINTS} (unresolved points kept first), or null when the run has no
+ * paused record.
  *
  * Reads only `pause_points`, never the execution snapshot. `display` and
  * `inputFields` come only from points scrubbed of the run's resolved secrets when
@@ -663,12 +698,15 @@ async function readRunBlockNames(
  * part of a point.
  *
  * A caller that already loaded the paused record's `pause_points` passes them as
- * `pausePoints` and the record is not read again.
+ * `pausePoints` and the record is not read again. A caller that lists only some
+ * points passes `only`, applied before the cap so the points it keeps are never
+ * crowded out by ones it would discard.
  */
 export async function readPausedRunPoints(input: {
   workflowId: string
   executionId: string
   pausePoints?: unknown
+  only?: (point: PausePoint) => boolean
 }): Promise<PausedRunPoint[] | null> {
   const { workflowId, executionId } = input
   const row =
@@ -707,9 +745,8 @@ export async function readPausedRunPoints(input: {
     }))
   )
 
-  const points = PauseResumeManager.mapPausePoints(row.pausePoints, queuePositions)
-    .sort((a, b) => compareStrings(a.registeredAt ?? '', b.registeredAt ?? ''))
-    .slice(0, MAX_PAUSED_RUN_POINTS)
+  const mapped = PauseResumeManager.mapPausePoints(row.pausePoints, queuePositions)
+  const points = capPausePoints(input.only ? mapped.filter(input.only) : mapped)
   const baseBlockId = (point: PausePoint) => extractBaseBlockId(point.blockId ?? point.contextId)
   const names = await readRunBlockNames(workflowId, executionId, [
     ...new Set(points.map(baseBlockId)),
@@ -740,4 +777,30 @@ export async function readPausedRunPoints(input: {
       queuePosition: point.queuePosition ?? null,
     }
   })
+}
+
+/**
+ * Pause points as a viewer may see them. A point's `display` is what the block
+ * rendered from upstream outputs, so it follows `finalOutput`'s gating: withheld
+ * unless output was asked for and the viewer's group shows execution data.
+ * `inputFields` are resolved before the pause is captured, so a label or
+ * description can carry upstream values too: they are withheld from a viewer
+ * whose group hides execution data.
+ *
+ * The one copy of this rule, so every surface that lists pause points reveals
+ * no more than the run detail does.
+ *
+ * permission-group-enforced: logs.trace_spans
+ */
+export function projectPausedRunPoints(
+  points: readonly PausedRunPoint[],
+  options: { projection: LogFieldProjection; includeOutput: boolean }
+): PausedRunPoint[] {
+  const hidesExecutionData = options.projection.hideTraceSpans
+  const showsDisplay = options.includeOutput && !hidesExecutionData
+  return points.map((point) => ({
+    ...point,
+    display: showsDisplay ? point.display : null,
+    inputFields: hidesExecutionData ? null : point.inputFields,
+  }))
 }

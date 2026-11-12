@@ -1,0 +1,113 @@
+# values-aws-marketplace.yaml
+#
+# When to use: Sim installed from the AWS Marketplace container listing on Amazon EKS. The
+# Marketplace chart ships these values as its defaults, with `global.imageRegistry` set to the
+# AWS Marketplace registry for every image, so a buyer edits only the placeholders marked EDIT
+# below. Rendered straight from this repository, the same images resolve to ghcr.io.
+#
+# What this profile does:
+#   - Runs only Sim's own images: app, realtime, migrations, and the cron image for the
+#     scheduled jobs. AWS Marketplace hosts and scans every image a listing can deploy, so
+#     the bundled PostgreSQL and Redis stay off and you bring managed services instead.
+#   - Connects to your Amazon RDS for PostgreSQL 17 (with the pgvector extension) and your
+#     Amazon ElastiCache (Redis OSS or Valkey) cluster.
+#   - Checks your AWS Marketplace Enterprise license with AWS License Manager at startup and
+#     every 15 minutes, through the IAM role on the chart's ServiceAccount (IRSA). An active
+#     license turns on the Enterprise suite (SSO, SCIM, audit logs, access control, ...).
+#     Without one, Sim runs as the open-source core; it never stops serving.
+#
+# Prerequisites (the listing's usage instructions walk through each):
+#   1. An EKS cluster (Kubernetes 1.29+) with the AWS Load Balancer Controller and an IAM OIDC
+#      provider (for IRSA).
+#   2. RDS for PostgreSQL 17 and ElastiCache reachable from the cluster. The listing's
+#      CloudFormation template creates both in your VPC.
+#   3. An IAM role for the ServiceAccount below that allows license-manager:ListReceivedLicenses
+#      (the CloudFormation template creates it).
+#   4. An ACM certificate for the two hostnames below.
+#   5. Two Secrets in the install namespace (no secret ever goes in this file):
+#        kubectl create secret generic sim-app-secrets --namespace sim \
+#          --from-literal=BETTER_AUTH_SECRET=$(openssl rand -hex 32) \
+#          --from-literal=ENCRYPTION_KEY=$(openssl rand -hex 32) \
+#          --from-literal=API_ENCRYPTION_KEY=$(openssl rand -hex 32) \
+#          --from-literal=INTERNAL_API_SECRET=$(openssl rand -hex 32) \
+#          --from-literal=CRON_SECRET=$(openssl rand -hex 32) \
+#          --from-literal=REDIS_URL='rediss://:<auth-token>@<elasticache-primary-endpoint>:6379'
+#        kubectl create secret generic sim-database --namespace sim \
+#          --from-literal=EXTERNAL_DB_PASSWORD='<rds-master-password>'
+#
+# Install:
+#   helm install sim <chart> --namespace sim --values values.yaml
+
+app:
+  replicaCount: 2
+  secrets:
+    existingSecret:
+      enabled: true
+      name: sim-app-secrets
+  env:
+    NEXT_PUBLIC_APP_URL: "https://sim.example.com" # EDIT: your public URL
+    BETTER_AUTH_URL: "https://sim.example.com" # EDIT: same as NEXT_PUBLIC_APP_URL
+    NEXT_PUBLIC_SOCKET_URL: "wss://sim-ws.example.com" # EDIT: the realtime hostname below
+    # The listing's product ID. Its presence turns on the AWS License Manager check.
+    AWS_MARKETPLACE_LICENSE_PRODUCT_SKU: "prod-ptrlmodsen2jg"
+
+realtime:
+  replicaCount: 2
+  env:
+    NEXT_PUBLIC_APP_URL: "https://sim.example.com" # EDIT
+    BETTER_AUTH_URL: "https://sim.example.com" # EDIT
+    ALLOWED_ORIGINS: "https://sim.example.com" # EDIT
+
+postgresql:
+  enabled: false
+
+externalDatabase:
+  enabled: true
+  host: "sim.xxxxxxxx.us-east-1.rds.amazonaws.com" # EDIT: the RDS endpoint
+  port: 5432
+  username: sim # The CloudFormation template's master user; change only for your own RDS instance
+  database: sim
+  sslMode: require
+  existingSecret:
+    enabled: true
+    name: sim-database
+
+# ElastiCache replaces the bundled Redis; its URL comes from sim-app-secrets (REDIS_URL).
+redis:
+  enabled: false
+
+cronjobs:
+  enabled: true
+  # Sim's own scheduler image carries the shell and curl the jobs run with.
+  image:
+    repository: simstudioai/cron
+    tag: ""
+
+# The connection test runs a third-party busybox image, which a Marketplace listing cannot ship.
+tests:
+  enabled: false
+
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/sim-license" # EDIT: the IRSA role
+
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=3600
+  app:
+    host: sim.example.com # EDIT
+    paths:
+      - path: /
+        pathType: Prefix
+  realtime:
+    host: sim-ws.example.com # EDIT
+    paths:
+      - path: /
+        pathType: Prefix

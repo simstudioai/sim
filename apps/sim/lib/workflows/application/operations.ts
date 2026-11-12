@@ -535,6 +535,16 @@ export const workflowOperations = {
     contentDelivery: 'sourced',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  // permission-group-exempt: listing a workspace's paused runs is governed by workspace role, as reading one run is; logs.trace_spans withholds the pause points' resolved fields inside the list, not the right to read it
+  listPausedRuns: defineWorkspaceOperation({
+    id: 'workflows.runs.list_paused',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    contentDelivery: 'none',
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+  }),
   // permission-group-exempt: a paused execution's detail is pause points and resume state, not the run's execution data — the fields logs.cost and logs.trace_spans withhold never appear here
   readPausedExecution: defineWorkspaceOperation({
     id: 'workflows.paused_executions.read',

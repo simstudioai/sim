@@ -2,7 +2,9 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { serviceAccountJsonSchema } from '@/lib/api/contracts/credentials'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { mintAtlassianServiceAccountToken } from '@/lib/credentials/atlassian-client-credentials'
 import {
+  AtlassianValidationError,
   normalizeAtlassianDomain,
   validateAtlassianServiceAccount,
 } from '@/lib/credentials/atlassian-service-account'
@@ -23,6 +25,7 @@ import {
   type ClientCredentialAccountSecretBlob,
   getClientCredentialAccountMinter,
 } from '@/lib/credentials/client-credential-accounts/server'
+import { invalidateCoordinatedClientToken } from '@/lib/credentials/coordinated-client-token'
 import {
   DatabricksCredentialError,
   verifyAndEncryptDatabricksCredential,
@@ -48,15 +51,21 @@ import {
   SnowflakeCredentialError,
   verifyAndEncryptSnowflakeKeylessCredential,
 } from '@/lib/credentials/snowflake-service-account.server'
+import { getTokenClientCredentialMinter } from '@/lib/credentials/token-service-accounts/client-credentials'
 import {
+  CLIENT_CREDENTIALS_AUTH_METHOD,
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
   SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
   TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
+  type TokenServiceAccountDescriptor,
 } from '@/lib/credentials/token-service-accounts/descriptors'
+import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import {
   getTokenServiceAccountValidator,
+  type TokenServiceAccountClientCredentialBlob,
   type TokenServiceAccountSecretBlob,
+  type TokenServiceAccountValidator,
 } from '@/lib/credentials/token-service-accounts/server'
 import {
   KeylessCredentialRefusedError,
@@ -143,7 +152,11 @@ export class ServiceAccountSecretError extends Error {
 async function buildAtlassianServiceAccountSecret(
   fields: ServiceAccountSecretFields
 ): Promise<ServiceAccountSecretResult> {
-  const { apiToken, domain } = fields
+  if (fields.authMethod?.trim() === CLIENT_CREDENTIALS_AUTH_METHOD) {
+    return buildAtlassianClientCredentialSecret(fields)
+  }
+  const apiToken = fields.apiToken?.trim()
+  const { domain } = fields
   if (!apiToken || !domain) {
     throw new ServiceAccountSecretError(
       'apiToken and domain are required for Atlassian service account credentials'
@@ -183,6 +196,83 @@ async function buildAtlassianServiceAccountSecret(
 }
 
 /**
+ * Proves a client-credentials token with the provider's own identity check. Minted tokens are
+ * shared across every credential for one application, so the token served can have been revoked
+ * before its stated expiry (an app reinstall, a scope change). When the provider rejects it, that
+ * token is expired and one freshly minted token is proven instead, so saving or reconnecting the
+ * credential always recovers from a revoked token.
+ */
+async function proveMintedToken<T>(
+  mint: () => Promise<{ accessToken: string }>,
+  prove: (accessToken: string) => Promise<T>
+): Promise<T> {
+  const { accessToken } = await mint()
+  try {
+    return await prove(accessToken)
+  } catch (error) {
+    const rejected =
+      (error instanceof TokenServiceAccountValidationError ||
+        error instanceof AtlassianValidationError) &&
+      error.code === 'invalid_credentials'
+    if (!rejected) throw error
+    await invalidateCoordinatedClientToken(accessToken)
+    return prove((await mint()).accessToken)
+  }
+}
+
+/**
+ * Builds an Atlassian service-account secret for an OAuth 2.0 credential: mints a token with the
+ * client ID and secret, proves it against the product's identity endpoint exactly as a scoped
+ * API token is proven, and stores the client credentials so execution re-mints.
+ */
+async function buildAtlassianClientCredentialSecret(
+  fields: ServiceAccountSecretFields
+): Promise<ServiceAccountSecretResult> {
+  const clientId = fields.clientId?.trim()
+  const clientSecret = fields.clientSecret?.trim()
+  const domain = fields.domain?.trim()
+  if (!clientId || !clientSecret || !domain) {
+    throw new ServiceAccountSecretError(
+      'clientId, clientSecret, and domain are required for Atlassian OAuth 2.0 credentials'
+    )
+  }
+  const product = fields.atlassianProduct ?? 'jira'
+  const normalizedDomain = normalizeAtlassianDomain(domain)
+  const validation = await proveMintedToken(
+    () => mintAtlassianServiceAccountToken(clientId, clientSecret),
+    (accessToken) => validateAtlassianServiceAccount(accessToken, normalizedDomain, product)
+  )
+  const principal: ServiceAccountPrincipal = {
+    kind: 'user',
+    id: validation.accountId,
+    ...(validation.emailAddress ? { label: validation.emailAddress } : {}),
+  }
+  const blob = JSON.stringify({
+    type: ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
+    authMethod: CLIENT_CREDENTIALS_AUTH_METHOD,
+    clientId,
+    clientSecret,
+    domain: normalizedDomain,
+    cloudId: validation.cloudId,
+    atlassianProduct: product,
+    atlassianAccountId: validation.accountId,
+    metadata: serviceAccountPrincipalMetadata(principal),
+  })
+  const { encrypted } = await encryptSecret(blob)
+  return {
+    providerId: ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+    encryptedServiceAccountKey: encrypted,
+    displayName: validation.displayName,
+    auditMetadata: {
+      atlassianDomain: normalizedDomain,
+      atlassianCloudId: validation.cloudId,
+      ...serviceAccountPrincipalMetadata(principal),
+    },
+    principal,
+  }
+}
+
+/**
  * Builds a custom Slack bot secret. The workspace/team identity is derived via
  * `auth.test` and never trusted from the client.
  */
@@ -193,6 +283,14 @@ async function buildSlackCustomBotSecret(
   if (!signingSecret || !botToken) {
     throw new ServiceAccountSecretError(
       'signingSecret and botToken are required for a custom Slack bot credential'
+    )
+  }
+  // Rotation-enabled apps issue `xoxe.`-prefixed access tokens that expire in 12 hours and
+  // `xoxe-` refresh tokens; refreshing needs the app's client ID and secret, which Sim
+  // never holds, so such a token would pass auth.test today and fail every run tomorrow.
+  if (/^\s*xoxe[.-]/.test(botToken)) {
+    throw new ServiceAccountSecretError(
+      'This Slack app has token rotation turned on, so its tokens expire within 12 hours and Sim cannot refresh them. Use the Bot User OAuth Token (xoxb-) of a Slack app with token rotation off.'
     )
   }
   let teamId: string
@@ -471,12 +569,25 @@ async function buildTokenServiceAccountSecret(
       `No validator registered for service-account provider ${providerId}`
     )
   }
-  const apiToken = fields.apiToken?.trim()
+  if (
+    descriptor.clientCredentials &&
+    fields.authMethod?.trim() === CLIENT_CREDENTIALS_AUTH_METHOD
+  ) {
+    return buildTokenClientCredentialSecret(descriptor, validator, fields)
+  }
+  const apiToken = descriptor.fields.find((field) => field.id === 'apiToken')?.preserveWhitespace
+    ? fields.apiToken
+    : fields.apiToken?.trim()
   const domain = fields.domain?.trim()
   const requiresDomain = descriptor.fields.some((field) => field.id === 'domain')
   const providerWorkspaceId = fields.providerWorkspaceId?.trim()
   const requiresWorkspace = descriptor.fields.some((field) => field.id === 'providerWorkspaceId')
-  if (!apiToken || (requiresDomain && !domain) || (requiresWorkspace && !providerWorkspaceId)) {
+  if (
+    !apiToken ||
+    !apiToken.trim() ||
+    (requiresDomain && !domain) ||
+    (requiresWorkspace && !providerWorkspaceId)
+  ) {
     const required = descriptor.fields.map((field) => field.id).join(' and ')
     throw new ServiceAccountSecretError(
       `${required} ${descriptor.fields.length > 1 ? 'are' : 'is'} required for ${descriptor.serviceLabel} service account credentials`
@@ -492,6 +603,61 @@ async function buildTokenServiceAccountSecret(
     ...(requiresWorkspace
       ? { providerWorkspaceId: validation.normalizedWorkspaceId ?? providerWorkspaceId }
       : {}),
+    metadata: { ...validation.storedMetadata, ...principalMetadata },
+  }
+  const { encrypted } = await encryptSecret(JSON.stringify(blob))
+  return {
+    providerId,
+    encryptedServiceAccountKey: encrypted,
+    displayName: validation.displayName,
+    auditMetadata: { ...validation.auditMetadata, ...principalMetadata },
+    principal: validation.principal,
+  }
+}
+
+/**
+ * Builds a token provider's client-credentials secret: mints a token with the submitted client
+ * ID and secret, proves it with the provider's own token check (the same request the pasted-token
+ * mode verifies with), and stores the client credentials instead of a token so execution re-mints.
+ */
+async function buildTokenClientCredentialSecret(
+  descriptor: TokenServiceAccountDescriptor,
+  validator: TokenServiceAccountValidator,
+  fields: ServiceAccountSecretFields
+): Promise<ServiceAccountSecretResult> {
+  const { providerId } = descriptor
+  const mint = getTokenClientCredentialMinter(providerId)
+  if (!mint) {
+    throw new ServiceAccountSecretError(
+      `No client-credentials grant registered for service-account provider ${providerId}`
+    )
+  }
+  const clientId = fields.clientId?.trim()
+  const clientSecret = fields.clientSecret?.trim()
+  const domain = fields.domain?.trim()
+  const requiresDomain = descriptor.fields.some((field) => field.id === 'domain')
+  if (!clientId || !clientSecret || (requiresDomain && !domain)) {
+    throw new ServiceAccountSecretError(
+      `clientId, clientSecret${requiresDomain ? ', and domain are' : ' are'} required for ${descriptor.serviceLabel} client credentials`
+    )
+  }
+  const validation = await proveMintedToken(
+    () => mint({ clientId, clientSecret, ...(requiresDomain ? { domain } : {}) }),
+    (accessToken) =>
+      validator({
+        apiToken: accessToken,
+        ...(requiresDomain ? { domain } : {}),
+        authMethod: CLIENT_CREDENTIALS_AUTH_METHOD,
+      })
+  )
+  const principalMetadata = serviceAccountPrincipalMetadata(validation.principal)
+  const blob: TokenServiceAccountClientCredentialBlob = {
+    type: TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
+    providerId,
+    authMethod: CLIENT_CREDENTIALS_AUTH_METHOD,
+    clientId,
+    clientSecret,
+    ...(requiresDomain ? { domain: validation.normalizedDomain ?? domain } : {}),
     metadata: { ...validation.storedMetadata, ...principalMetadata },
   }
   const { encrypted } = await encryptSecret(JSON.stringify(blob))
@@ -583,6 +749,7 @@ async function buildClientCredentialAccountSecret(
       : undefined,
     privateKey: usesField('privateKey') ? fields.privateKey?.trim() || undefined : undefined,
     username: usesField('username') ? fields.username?.trim() || undefined : undefined,
+    apiToken: usesField('apiToken') ? fields.apiToken?.trim() || undefined : undefined,
   }
 
   // Requirements are per-auth-method, not per-provider: Salesforce's JWT

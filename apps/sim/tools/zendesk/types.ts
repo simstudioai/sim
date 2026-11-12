@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
-import type { OutputProperty } from '@/tools/types'
+import { savedCredentialTokenParam } from '@/tools/shared/saved-credentials'
+import type { OutputProperty, ToolConfig } from '@/tools/types'
 
 const logger = createLogger('Zendesk')
 
@@ -21,6 +22,50 @@ export interface ZendeskPagingInfo {
 export function buildZendeskUrl(subdomain: string, path: string): string {
   return `https://${subdomain}.zendesk.com/api/v2${path}`
 }
+
+/** Every input that decides how a Zendesk request authenticates. */
+export interface ZendeskAuthParams {
+  email?: string
+  apiToken?: string
+  /** Set by the executor from a saved Zendesk credential, never by the caller. */
+  accessToken?: string
+  /** `basic` when the saved credential is an API token sign-in; absent means a bearer token. */
+  authStyle?: string
+}
+
+/**
+ * The Basic credential a Zendesk API token signs in with: `{email}/token:{apiToken}`, base64
+ * encoded. A saved credential stores exactly this, so saved and inline sign-ins never differ.
+ * @see https://developer.zendesk.com/api-reference/introduction/security-and-auth/
+ */
+export function zendeskApiTokenCredential(email: string, apiToken: string): string {
+  return Buffer.from(`${email}/token:${apiToken}`).toString('base64')
+}
+
+/**
+ * The Authorization header a Zendesk request sends. A saved credential resolves to either an
+ * OAuth bearer token or the already-encoded API-token Basic credential; without one, the
+ * block's own email and API token sign in exactly as before.
+ */
+export function zendeskAuthorization(params: ZendeskAuthParams): string {
+  if (params.accessToken) {
+    return params.authStyle === 'basic'
+      ? `Basic ${params.accessToken}`
+      : `Bearer ${params.accessToken}`
+  }
+  return `Basic ${zendeskApiTokenCredential(params.email ?? '', params.apiToken ?? '')}`
+}
+
+/** Hidden params a saved Zendesk credential fills; every Zendesk tool declares them. */
+export const ZENDESK_CREDENTIAL_PARAMS = {
+  accessToken: savedCredentialTokenParam('Zendesk'),
+  authStyle: {
+    type: 'string',
+    required: false,
+    visibility: 'hidden',
+    description: 'Token type injected by the executor from the selected Zendesk credential',
+  },
+} satisfies ToolConfig['params']
 
 // Helper function for consistent error handling
 export function handleZendeskError(data: any, status: number, operation: string): never {

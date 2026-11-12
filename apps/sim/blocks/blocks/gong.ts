@@ -1,9 +1,12 @@
 import { GongIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const GongBlock: BlockConfig = {
   type: 'gong',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'gong_v2' },
   name: 'Gong',
   description:
     'Read Gong data, upload calls, assign or unassign flow prospects, and request data erasure',
@@ -1539,3 +1542,17 @@ export const GongBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const GongV2Block: BlockConfig = {
+  ...GongBlock,
+  type: 'gong_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(GongBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'gong',
+    title: 'Gong Credential',
+  }),
+}

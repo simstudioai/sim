@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import {
   atlassianProductSchema,
+  nonBlankSecretSchema,
   quickBooksOAuthClientConfigSchema,
   workloadIdentitySubjectGrantShape,
   workspaceCredentialRoleSchema,
@@ -390,6 +391,11 @@ export const v2CredentialConnectionAuthorizationSchema = z
       .string()
       .url('authorizationUrl must be an absolute URL')
       .describe('Short-lived Sim browser URL that starts the OAuth authorization flow.'),
+    draftId: z
+      .string()
+      .describe(
+        'ID of the pending connection behind authorizationUrl. Only the user who created it can complete it.'
+      ),
     expiresAt: v2TimestampSchema.describe('ISO 8601 timestamp when the connection link expires.'),
   })
   .meta({
@@ -485,10 +491,7 @@ const v2ServiceAccountCredentialFieldsSchema = z
         'Write-only provider service-account JSON configuration, including Oracle Database connection fields.'
       )
       .meta({ writeOnly: true }),
-    apiToken: z
-      .string()
-      .trim()
-      .min(1)
+    apiToken: nonBlankSecretSchema
       .max(8192)
       .optional()
       .describe('Write-only provider API token.')
@@ -760,10 +763,7 @@ const v2ServiceAccountSecretFieldsShape = {
       'Write-only provider service-account JSON configuration, including Oracle Database connection fields.'
     )
     .meta({ writeOnly: true }),
-  apiToken: z
-    .string()
-    .trim()
-    .min(1)
+  apiToken: nonBlankSecretSchema
     .max(8192)
     .optional()
     .describe('Write-only provider API token.')

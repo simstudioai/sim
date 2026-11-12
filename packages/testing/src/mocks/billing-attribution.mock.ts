@@ -164,6 +164,11 @@ export const billingAttributionMockFns = {
   mockCheckAttributedBillingBlocks: vi.fn(),
   mockCheckAttributedUsageLimits: vi.fn(),
   mockRefreshAttributionPeriod: vi.fn(),
+  /** No Enterprise overrides unless a test sets them, matching a non-Enterprise payer. */
+  mockReadEnterpriseLimitOverrides: vi.fn(() => ({
+    enterpriseConcurrencyLimit: null,
+    enterpriseWorkflowExecutionTimeoutSeconds: null,
+  })),
 }
 
 /**
@@ -216,4 +221,5 @@ export const billingAttributionMock = {
   checkAttributedBillingBlocks: billingAttributionMockFns.mockCheckAttributedBillingBlocks,
   checkAttributedUsageLimits: billingAttributionMockFns.mockCheckAttributedUsageLimits,
   refreshAttributionPeriod: billingAttributionMockFns.mockRefreshAttributionPeriod,
+  readEnterpriseLimitOverrides: billingAttributionMockFns.mockReadEnterpriseLimitOverrides,
 }

@@ -1408,3 +1408,53 @@ export function validateDatabaseIdentifier(
   }
   return { isValid: true, sanitized: value }
 }
+
+/**
+ * Drops the tabs and newlines the URL parser ignores, then refuses every typed form the parser
+ * would read as a host other than the one typed: a malformed `https:/host` (which would get a
+ * second scheme and parse as a host named `https`), an extra slash or backslash after `https://`
+ * (which the parser skips, so `https:///user:pass@host` hides its credentials from the authority
+ * check), any other scheme such as `ftp:/host`, and a leading slash or backslash, which the parser
+ * takes as a protocol-relative authority. A bare `host` or `host:port` and an `http(s)://` URL pass.
+ */
+function refuseUnsafeUrlForm(typed: string): string {
+  const stripped = typed.replace(/[\t\n\r]/g, '')
+  if (/^https?:(?!\/\/(?![/\\]))/i.test(stripped)) throw new Error('malformed scheme')
+  if (/^[/\\]/.test(stripped)) throw new Error('protocol-relative URL')
+  const hasScheme = /^[a-z][a-z\d+.-]*:/i.test(stripped)
+  const isHostWithPort = /^[a-z\d.-]+:\d+(?:[/?#]|$)/i.test(stripped)
+  if (hasScheme && !isHostWithPort && !/^https?:\/\//i.test(stripped)) {
+    throw new Error('http(s) only')
+  }
+  return stripped
+}
+
+/**
+ * A typed http(s) base URL in the form tools build request paths on: a bare host
+ * is taken as https, trailing slashes are dropped, and any other scheme,
+ * credentials, a query, or a fragment is refused, since each would retarget the
+ * request.
+ */
+export function normalizeHttpBaseUrl(raw: string | undefined): string {
+  const trimmed = (raw ?? '').trim()
+  if (!trimmed) throw new Error('missing URL')
+  const typed = refuseUnsafeUrlForm(trimmed)
+  const url = new URL(/^https?:\/\//i.test(typed) ? typed : `https://${typed}`)
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error('credentials, query, or fragment in URL')
+  }
+  return `${url.origin}${url.pathname.replace(/\/+$/, '')}`
+}
+
+/**
+ * Refuses a typed URL that carries credentials, a non-http(s) scheme, or a
+ * protocol-relative authority, before a tool's own normalizer can drop the
+ * credentials silently or read the scheme as a host, and so verify a different
+ * identity or host than the user meant.
+ */
+export function refuseUnsafeTypedUrl(raw: string | undefined): string {
+  const typed = refuseUnsafeUrlForm((raw ?? '').trim())
+  const authority = typed.replace(/^https?:\/\//i, '').split(/[/?#]/)[0]
+  if (authority.includes('@')) throw new Error('credentials in URL')
+  return typed
+}

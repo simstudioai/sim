@@ -22,9 +22,10 @@ interface WebflowSite {
  * site and doubles as the whoami-equivalent (site tokens cannot call the
  * authorization endpoints). Requires the `sites:read` scope — a token missing
  * it surfaces as 401/403, which maps to `invalid_credentials`; any other
- * non-2xx means Webflow is unavailable. A 200 with an empty `sites` array is
- * treated as `provider_unavailable` since a site token should always list its
- * one site.
+ * non-2xx means Webflow is unavailable. The route lists every site the token
+ * can access, so an empty list is a token that reaches no site, which the
+ * user must replace. Only a token that reaches exactly one site is named
+ * after it; one that reaches several has no single site to stand for it.
  */
 export async function validateWebflowServiceAccount(
   fields: TokenServiceAccountFields
@@ -42,11 +43,26 @@ export async function validateWebflowServiceAccount(
   await throwForProviderResponse(sitesRes, 'list_sites')
 
   const payload = await parseProviderJson<{ sites?: WebflowSite[] }>(sitesRes, 'list_sites')
-  const site = payload.sites?.[0]
+  if (!Array.isArray(payload.sites)) {
+    throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+      step: 'list_sites',
+      reason: 'missing sites array in response',
+    })
+  }
+  if (payload.sites.length === 0) {
+    throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+      step: 'list_sites',
+      reason: 'token reaches no site',
+    })
+  }
+  if (payload.sites.length > 1) {
+    return { displayName: 'Webflow', principal: null, auditMetadata: {} }
+  }
+  const [site] = payload.sites
   if (!site?.id) {
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step: 'list_sites',
-      reason: 'missing or empty sites array in response',
+      reason: 'site without an id in response',
     })
   }
 

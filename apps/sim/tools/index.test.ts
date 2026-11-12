@@ -3,6 +3,7 @@ import { createSessionPrincipal } from '@sim/testing/factories/principal.factory
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
 import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
 import {
   billingAttributionMock,
   billingAttributionMockFns,
@@ -85,6 +86,7 @@ import { fileGetContentTool } from '@/tools/file/get'
 import { fileFetchTool } from '@/tools/file/parser'
 import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
 import { searchUsersV2Tool } from '@/tools/github/search_users'
+import { httpRequestTool, webhookRequestTool } from '@/tools/http'
 import { jamaDeleteItemTool } from '@/tools/jama/delete_item'
 import { jamaDeleteRelationshipTool } from '@/tools/jama/delete_relationship'
 import { memoryAddTool } from '@/tools/memory/add'
@@ -217,6 +219,19 @@ vi.mock('@/lib/internal/aws/credentials', () => ({
 vi.mock('@/executor/utils/credential-token', () => ({
   resolveExecutorCredentialToken: (...args: unknown[]) =>
     mockResolveExecutorCredentialToken(...args),
+}))
+
+const { mockInvalidateCoordinatedClientToken } = vi.hoisted(() => ({
+  mockInvalidateCoordinatedClientToken: vi.fn(),
+}))
+
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
+const mockForgetRejectedClientCredentialToken =
+  authOAuthUtilsMockFns.mockForgetRejectedClientCredentialToken
+
+vi.mock('@/lib/credentials/coordinated-client-token', () => ({
+  invalidateCoordinatedClientToken: (...args: unknown[]) =>
+    mockInvalidateCoordinatedClientToken(...args),
 }))
 
 vi.mock('@/executor/handlers/workflow/tool-runner', () => ({
@@ -3669,6 +3684,175 @@ describe('Internal Route Trust', () => {
     }
   })
 
+  describe('a service-account token the provider rejects', () => {
+    const toolId = 'test_minted_token_rejection'
+    beforeEach(() => {
+      mockInvalidateCoordinatedClientToken.mockReset()
+      mockInvalidateCoordinatedClientToken.mockResolvedValue(undefined)
+      mockForgetRejectedClientCredentialToken.mockReset()
+      ;(tools as Record<string, unknown>)[toolId] = {
+        id: toolId,
+        name: 'Minted Token Rejection Test',
+        description: 'Calls a provider with a resolved token',
+        version: '1.0.0',
+        oauth: { required: true, provider: 'shopify' },
+        params: { accessToken: { type: 'string', required: true, visibility: 'hidden' } },
+        request: {
+          url: 'https://acme.myshopify.com/admin/api/graphql.json',
+          method: 'POST' as const,
+          headers: (params: Record<string, unknown>) => ({
+            'X-Shopify-Access-Token': String(params.accessToken),
+          }),
+        },
+      }
+    })
+    afterEach(() => {
+      Reflect.deleteProperty(tools, toolId)
+    })
+
+    async function callWith(
+      credentialType: string,
+      status: number,
+      body: unknown = { error: 'rejected' }
+    ) {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'shared-token',
+        credentialType,
+      })
+      mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+        toSecureFetchResponse(
+          new Response(typeof body === 'string' ? body : JSON.stringify(body), {
+            status,
+            headers: { 'content-type': 'application/json' },
+          })
+        )
+      )
+      return executeTool(toolId, { credential: 'saved-credential' })
+    }
+
+    it('expires the shared token on a 401 so the next call mints a replacement', async () => {
+      const result = await callWith('service_account', 401)
+
+      expect(result.success).toBe(false)
+      expect(mockInvalidateCoordinatedClientToken).toHaveBeenCalledWith('shared-token', {
+        minimumAgeMs: 60_000,
+      })
+    })
+
+    it('drops a token this instance cached on a 401 so the next call mints a replacement', async () => {
+      await callWith('service_account', 401)
+
+      expect(mockForgetRejectedClientCredentialToken).toHaveBeenCalledWith('shared-token')
+    })
+
+    it('keeps the token for a refusal that does not reject it', async () => {
+      await callWith('service_account', 403)
+
+      expect(mockInvalidateCoordinatedClientToken).not.toHaveBeenCalled()
+      expect(mockForgetRejectedClientCredentialToken).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['an Atlassian scope mismatch', { code: 401, message: 'Unauthorized; scope does not match' }],
+      ['a scope mismatch in a text body', 'Unauthorized; scope does not match'],
+      ['an RFC 6750 insufficient_scope error', { error: 'insufficient_scope' }],
+    ])('keeps the token for a 401 that reports %s', async (_label, body) => {
+      const result = await callWith('service_account', 401, body)
+
+      expect(result.success).toBe(false)
+      expect(mockInvalidateCoordinatedClientToken).not.toHaveBeenCalled()
+      expect(mockForgetRejectedClientCredentialToken).not.toHaveBeenCalled()
+    })
+
+    it('never touches shared tokens for a signed-in account', async () => {
+      await callWith('oauth', 401)
+
+      expect(mockInvalidateCoordinatedClientToken).not.toHaveBeenCalled()
+      expect(mockForgetRejectedClientCredentialToken).not.toHaveBeenCalled()
+    })
+
+    it('still reports the provider failure when the token cannot be expired', async () => {
+      mockInvalidateCoordinatedClientToken.mockRejectedValue(new Error('database unavailable'))
+
+      const result = await callWith('service_account', 401)
+
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('rejected')
+    })
+  })
+
+  describe('a service-account token an internal operation refuses', () => {
+    const toolId = 'test_internal_minted_token_refusal'
+    beforeEach(() => {
+      mockForgetRejectedClientCredentialToken.mockReset()
+      ;(tools as Record<string, unknown>)[toolId] = {
+        id: toolId,
+        name: 'Internal Minted Token Refusal Test',
+        description: 'Runs an internal operation with a resolved token',
+        version: '1.0.0',
+        oauth: { required: true, provider: 'crowdstrike' },
+        params: { accessToken: { type: 'string', required: false, visibility: 'hidden' } },
+        operation: {
+          input: (params: Record<string, unknown>) => ({ accessToken: params.accessToken }),
+        },
+      }
+    })
+    afterEach(() => {
+      Reflect.deleteProperty(tools, toolId)
+    })
+
+    async function runWith(credentialType: string, status: number) {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'minted-token',
+        credentialType,
+      })
+      mockExecuteInternalToolOperation.mockResolvedValueOnce(
+        Response.json(status < 400 ? { output: {} } : { error: 'refused' }, { status })
+      )
+      return executeTool(
+        toolId,
+        { credential: 'saved-credential' },
+        {
+          executionContext: createToolExecutionContext({
+            userId: 'user-1',
+            workspaceId: 'workspace-456',
+            workflowId: 'workflow-1',
+            executionId: 'execution-1',
+          }),
+        }
+      )
+    }
+
+    it('drops the cached token after a 401 so the next call mints one', async () => {
+      const result = await runWith('service_account', 401)
+
+      expect(result.success).toBe(false)
+      expect(mockForgetRejectedClientCredentialToken).toHaveBeenCalledWith('minted-token')
+    })
+
+    it('drops the cached token after a 403 only once it is old enough to blame', async () => {
+      const result = await runWith('service_account', 403)
+
+      expect(result.success).toBe(false)
+      expect(mockForgetRejectedClientCredentialToken).toHaveBeenCalledWith('minted-token', {
+        minimumAgeMs: 60_000,
+      })
+    })
+
+    it('keeps the token after a call the provider accepts', async () => {
+      const result = await runWith('service_account', 200)
+
+      expect(result.success).toBe(true)
+      expect(mockForgetRejectedClientCredentialToken).not.toHaveBeenCalled()
+    })
+
+    it("never drops a signed-in account's token", async () => {
+      await runWith('oauth', 401)
+
+      expect(mockForgetRejectedClientCredentialToken).not.toHaveBeenCalled()
+    })
+  })
+
   describe('Dataverse environment authority', () => {
     beforeEach(() => {
       ;(tools as Record<string, unknown>)[dataverseWhoAmITool.id] = dataverseWhoAmITool
@@ -3983,6 +4167,147 @@ describe('Internal Route Trust', () => {
       expect(result).toMatchObject({
         success: false,
         error: expect.stringContaining('needs a saved credential with a host'),
+      })
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    })
+
+    it('makes copilot pass credentialId or the inline values, and honors credentialId alone', async () => {
+      const _context = {
+        workspaceId: 'workspace-456',
+        userId: 'user-1',
+        copilotToolExecution: true,
+      }
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-token',
+        credentialType: 'service_account',
+        domain: 'api.example.com',
+      })
+
+      const missing = await executeTool(toolId, { baseUrl: 'api.example.com', _context })
+      expect(missing).toMatchObject({
+        success: false,
+        error: expect.stringMatching(/credentialId.*apiKey/),
+      })
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+
+      const saved = await executeTool(toolId, { credentialId: 'saved-credential', _context })
+      expect(saved.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        'https://api.example.com/v1/me',
+        expect.anything(),
+        expect.objectContaining({
+          headers: expect.objectContaining({ authorization: 'Bearer saved-token' }),
+        })
+      )
+    })
+
+    it('makes copilot pass the key when the hosted key does not apply to these params', async () => {
+      const hostedTool = {
+        ...tokenTool,
+        id: 'test_saved_token_conditionally_hosted',
+        hosting: {
+          enabled: () => false,
+          envKeyPrefix: 'TEST_HOSTED_KEY',
+          apiKeyParam: 'apiKey',
+          pricing: { type: 'per_request' as const, cost: 0.01 },
+          rateLimit: { mode: 'per_request' as const, requestsPerMinute: 60 },
+        },
+      }
+      ;(tools as Record<string, unknown>)[hostedTool.id] = hostedTool
+      setEnvFlags({ isHosted: true })
+
+      const result = await executeTool(hostedTool.id, {
+        baseUrl: 'api.example.com',
+        _context: { workspaceId: 'workspace-456', userId: 'user-1', copilotToolExecution: true },
+      })
+      setEnvFlags({ isHosted: false })
+      Reflect.deleteProperty(tools, hostedTool.id)
+
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringMatching(/credentialId.*apiKey/),
+      })
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('saved key-pair credentials (application key)', () => {
+    const toolId = 'test_saved_key_pair_credential'
+    const keyPairTool = {
+      id: toolId,
+      name: 'Saved Key Pair Fixture',
+      description: 'Takes inline keys or a saved key-pair credential',
+      version: '1.0.0',
+      oauth: tokenCredentialOAuth('coda', {
+        apiKey: 'accessToken',
+        applicationKey: 'applicationKey',
+        site: 'domain',
+      }),
+      params: {
+        apiKey: { type: 'string', required: true, visibility: 'user-only' },
+        applicationKey: { type: 'string', required: true, visibility: 'user-only' },
+        site: { type: 'string', required: false, visibility: 'user-only' },
+      },
+      request: {
+        url: (params: Record<string, unknown>) => `https://api.${params.site}/api/v1/monitor`,
+        method: 'GET' as const,
+        headers: (params: Record<string, unknown>) => ({
+          'DD-API-KEY': String(params.apiKey),
+          'DD-APPLICATION-KEY': String(params.applicationKey),
+        }),
+      },
+      transformResponse: async () => ({ success: true, output: {} }),
+    }
+
+    beforeEach(() => {
+      ;(tools as Record<string, unknown>)[toolId] = keyPairTool
+    })
+    afterEach(() => {
+      Reflect.deleteProperty(tools, toolId)
+    })
+
+    it('sends the saved application key beside the saved API key, overriding caller values', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-api-key',
+        applicationKey: 'saved-application-key',
+        credentialType: 'service_account',
+        domain: 'datadoghq.eu',
+      })
+
+      const result = await executeTool(toolId, {
+        credential: 'saved-credential',
+        applicationKey: 'caller-application-key',
+        site: 'attacker.example.net',
+      })
+
+      expect(result.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        'https://api.datadoghq.eu/api/v1/monitor',
+        expect.anything(),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'dd-api-key': 'saved-api-key',
+            'dd-application-key': 'saved-application-key',
+          }),
+        })
+      )
+    })
+
+    it('fails closed when the credential carries no application key', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-api-key',
+        credentialType: 'service_account',
+        domain: 'datadoghq.eu',
+      })
+
+      const result = await executeTool(toolId, {
+        credential: 'saved-credential',
+        applicationKey: 'caller-application-key',
+      })
+
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringContaining('needs a saved credential with an application key'),
       })
       expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
     })
@@ -5526,6 +5851,82 @@ describe('Internal Route Trust', () => {
 
     Object.assign(tools, originalTools)
   })
+})
+
+describe('HTTP tools report the real HTTP outcome', () => {
+  const stubbedHttpRequestTool = tools.http_request
+
+  beforeEach(() => {
+    Object.assign(tools, { http_request: httpRequestTool, webhook_request: webhookRequestTool })
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
+  })
+
+  afterEach(() => {
+    vi.resetAllMocks()
+    tools.http_request = stubbedHttpRequestTool
+    Reflect.deleteProperty(tools, 'webhook_request')
+  })
+
+  const httpTools = [
+    ['http_request', { url: 'https://api.example.com/orders', method: 'POST', body: {} }],
+    ['webhook_request', { url: 'https://api.example.com/hooks', body: {} }],
+  ] as const
+
+  function respondWith(body: unknown) {
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      toSecureFetchResponse(Response.json(body, { headers: { 'x-request-id': 'req-123' } }))
+    )
+  }
+
+  it.each(httpTools)(
+    '%s treats a 200 whose body has top-level status and data as a success',
+    async (toolId, params) => {
+      respondWith({ status: 'success', data: { orderId: 'A-1001' } })
+
+      const result = await executeTool(toolId, params, { skipPostProcess: true })
+
+      expect(result, result.error).toMatchObject({
+        success: true,
+        output: {
+          status: 200,
+          data: { status: 'success', data: { orderId: 'A-1001' } },
+          headers: expect.objectContaining({ 'x-request-id': 'req-123' }),
+        },
+      })
+    }
+  )
+
+  it.each(httpTools)(
+    '%s keeps unwrapping a 200 body with success, status, and data',
+    async (toolId, params) => {
+      respondWith({ success: true, status: 'ok', data: { orderId: 'A-1001' } })
+
+      const result = await executeTool(toolId, params, { skipPostProcess: true })
+
+      expect(result, result.error).toMatchObject({
+        success: true,
+        output: { status: 'ok', data: { orderId: 'A-1001' }, headers: {} },
+      })
+    }
+  )
+
+  it.each([
+    ...httpTools.map(
+      ([toolId, params]) => [toolId, params, 'Out of stock', 'Out of stock'] as const
+    ),
+    ...httpTools.map(
+      ([toolId, params]) => [toolId, params, { code: 'OOS' }, '{"code":"OOS"}'] as const
+    ),
+  ])(
+    '%s keeps failing a 200 body that reports success: false',
+    async (toolId, params, error, expectedError) => {
+      respondWith({ success: false, status: 'error', data: null, error })
+
+      const result = await executeTool(toolId, params, { skipPostProcess: true })
+
+      expect(result).toMatchObject({ success: false, error: expectedError })
+    }
+  )
 })
 
 describe('File Parameter Normalization', () => {

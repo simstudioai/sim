@@ -4,6 +4,7 @@ import type {
   SecurityRuleData,
 } from '@/tools/datadog/types'
 import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listSecurityRulesTool: ToolConfig<ListSecurityRulesParams, ListSecurityRulesResponse> =
@@ -13,6 +14,7 @@ export const listSecurityRulesTool: ToolConfig<ListSecurityRulesParams, ListSecu
     description:
       'List Cloud SIEM detection rules. Requires the `security_monitoring_rules_read` permission.',
     version: '1.0.0',
+    oauth: DATADOG_CREDENTIAL_OAUTH,
 
     params: {
       query: {

@@ -263,6 +263,31 @@ const v2WorkflowInputFieldSchema = z
     description: 'An input field from an input-definition trigger in the saved draft.',
   })
 
+/**
+ * JSON Schema built from the active deployment's API start block. Open below the
+ * `object` wrapper: a field's schema follows its declared input type, and an
+ * event-shaped start block describes its payload rather than declared fields.
+ */
+export const v2WorkflowApiInputSchema = z
+  .object({
+    type: z.string().describe('JSON Schema type of the `input` object; always `object`.'),
+    properties: z
+      .record(z.string(), z.unknown().describe('JSON Schema for one input field.'))
+      .optional()
+      .describe('Input field schemas keyed by field name.'),
+    required: z
+      .array(z.string().describe('Name of a required input field.'))
+      .optional()
+      .describe('Names of the input fields an API run requires.'),
+  })
+  .catchall(z.unknown().describe('Additional JSON Schema keyword.'))
+  .meta({
+    id: 'WorkflowApiInputSchema',
+    title: 'Workflow API input schema',
+    description: 'JSON Schema for the `input` an API run of the active deployment accepts.',
+  })
+export type V2WorkflowApiInputSchema = z.output<typeof v2WorkflowApiInputSchema>
+
 export const v2WorkflowDetailSchema = v2WorkflowListItemSchema
   .extend({
     /**
@@ -278,13 +303,19 @@ export const v2WorkflowDetailSchema = v2WorkflowListItemSchema
     inputs: z
       .array(v2WorkflowInputFieldSchema)
       .describe(
-        "Input fields from the saved draft's input-definition trigger; they may differ from the live deployment."
+        "Input fields from the saved draft's input-definition trigger; they may differ from the live deployment. Use `inputSchema` for what an API run accepts."
+      ),
+    inputSchema: v2WorkflowApiInputSchema
+      .nullable()
+      .describe(
+        'JSON Schema for the `input` an API run of the active deployment accepts, including `required` fields. Null when the workflow is not deployed or its active deployment has no API entry point.'
       ),
   })
   .meta({
     id: 'WorkflowDetail',
     title: 'Workflow detail',
-    description: 'Workflow metadata, variables, and saved draft trigger input fields.',
+    description:
+      'Workflow metadata, variables, saved draft trigger input fields, and the input schema of the active deployment.',
   })
 
 export type V2WorkflowDetail = z.output<typeof v2WorkflowDetailSchema>
@@ -1344,11 +1375,15 @@ const v2WorkflowTriggerSchema = z
     cronExpression: z
       .string()
       .nullable()
-      .describe('Cron expression of a schedule; null for non-schedules.'),
+      .describe(
+        'Cron expression the deployed schedule runs on; null for non-schedules. Read-only: it is computed at deploy from the schedule block, so change it by editing the block in the draft and deploying.'
+      ),
     timezone: z
       .string()
       .nullable()
-      .describe('IANA timezone the cron expression runs in; null for non-schedules.'),
+      .describe(
+        'IANA timezone the cron expression runs in; null for non-schedules. Read-only, like `cronExpression`.'
+      ),
     url: z
       .string()
       .url()
@@ -1403,7 +1438,8 @@ const v2UpdateWorkflowTriggerBodySchema = z
   .meta({
     id: 'UpdateWorkflowTriggerRequest',
     title: 'Update workflow trigger request',
-    description: 'Enable or disable one trigger of the live deployment.',
+    description:
+      "Enable or disable one trigger of the live deployment. A schedule's timing is not set here: it comes from the deployed schedule block, so edit that block in the draft and deploy.",
     examples: [{ enabled: true }],
   })
 
@@ -1416,6 +1452,64 @@ export const v2UpdateWorkflowTriggerContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2WorkflowTriggerSchema),
+  },
+})
+
+const v2WorkspaceScheduleSort = v2SortFields(['createdAt'] as const, {
+  sortBy: 'createdAt',
+  sortOrder: 'desc',
+})
+
+/** One schedule the live deployments of a workspace run. */
+const v2WorkspaceScheduleSchema = v2WorkflowTriggerSchema
+  .pick({
+    blockId: true,
+    enabled: true,
+    status: true,
+    failedCount: true,
+    lastFailedAt: true,
+    nextRunAt: true,
+    lastRanAt: true,
+    cronExpression: true,
+  })
+  .extend({
+    workflowId: z.string().describe('Workflow whose live deployment runs the schedule.'),
+    workflowName: z.string().describe('Name of that workflow.'),
+    timezone: z
+      .string()
+      .describe('IANA timezone the cron expression runs in. Read-only, like `cronExpression`.'),
+  })
+  .strict()
+  .meta({
+    id: 'WorkspaceSchedule',
+    title: 'Workspace schedule',
+    description: 'Health and timing of one schedule a deployed workflow in the workspace runs.',
+  })
+export type V2WorkspaceSchedule = z.output<typeof v2WorkspaceScheduleSchema>
+
+const v2ListWorkspaceSchedulesQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace whose schedules should be listed.'),
+    ...v2PaginationFields({ description: 'Maximum schedules to return per page.' }),
+    ...v2WorkspaceScheduleSort,
+    sortBy: v2WorkspaceScheduleSort.sortBy.describe(
+      "Field used to sort the result. `createdAt` is when the schedule was created for the deployment version that runs it: each deploy creates new schedule rows, so a redeployed workflow's schedules move to the newest end."
+    ),
+  })
+  .strict()
+  .meta({
+    id: 'ListWorkspaceSchedulesQuery',
+    title: 'List workspace schedules query',
+    description: 'Workspace, page size, cursor, and ordering for listing schedules.',
+  })
+
+export const v2ListWorkspaceSchedulesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/schedules',
+  query: v2ListWorkspaceSchedulesQuerySchema,
+  response: {
+    mode: 'json',
+    schema: v2CursorListResponse(v2WorkspaceScheduleSchema),
   },
 })
 
@@ -1453,32 +1547,35 @@ export const v2ExecutionErrorSchema = z
     /**
      * Failing block, when attributable. Deliberately crosses the workspace boundary for shared/child workflows — the runId + block context is the reproducible handle a caller hands the workflow provider.
      *
-     * Attribution is produced at execution time from the failing block's throw
-     * site, so it reaches the caller only on the synchronous execute response.
-     * The polled run resource and the resume response reclassify a persisted
-     * error *string* — the log row keeps no structured error — so these three
-     * fields are absent there and the code collapses to `EXECUTION_FAILED`.
-     * That is a known asymmetry, documented rather than silently promised:
-     * a caller that needs the failing block reads the run's trace spans, which
-     * do carry `blockId`, `name`, and `type`.
+     * The synchronous execute and resume responses attribute the block at
+     * execution time. The polled run resource keeps only the error *string*, so
+     * it reads the block back from the run's recorded trace: the unhandled
+     * failure that recorded the stored error (named by it, or with the same
+     * text), the one that ended first among several, and none when they cannot
+     * be told apart or no failed block recorded it. When that trace is unavailable (not
+     * recorded, compacted, or withheld by the viewer's permission group) the
+     * three fields are absent and a block-level failure reports
+     * `EXECUTION_FAILED`. A failure its message classifies as run-level
+     * (timeout, cancellation, usage limit, invalid input) is not attributed
+     * there.
      */
     blockId: z
       .string()
       .optional()
       .describe(
-        'Identifier of the failing block. Present on the synchronous execute response only; the polled run resource and the resume response cannot attribute a block.'
+        'Identifier of the failing block, when attributable. Get workflow run reads it from the run trace, so it is absent there when the trace is unavailable or hidden by organization permission groups, when no failed block in the trace recorded the run error, and for a timeout, cancellation, usage-limit, or invalid-input failure.'
       ),
     blockName: z
       .string()
       .optional()
       .describe(
-        'Display name of the failing block. Present on the synchronous execute response only.'
+        'Display name of the failing block, when attributable. Present whenever `blockId` is.'
       ),
     blockType: z
       .string()
       .optional()
       .describe(
-        'Integration or block type that failed. Present on the synchronous execute response only.'
+        'Integration or block type that failed, when attributable. Present whenever `blockId` is.'
       ),
   })
   .meta({
@@ -1709,6 +1806,18 @@ export const v2ExecuteWorkflowBodySchema = z
 export type V2ExecuteWorkflowBody = z.input<typeof v2ExecuteWorkflowBodySchema>
 
 /**
+ * The execution timeout a run was admitted under, in seconds. Execute workflow
+ * only: the resume responses are built from these schemas with it omitted.
+ */
+const v2AppliedExecutionTimeoutSchema = z
+  .number()
+  .positive()
+  .nullable()
+  .describe(
+    "Execution timeout applied to this run, in seconds: the plan's timeout, lowered by `executionTimeoutSeconds` when one was requested. Null when the run has no execution timeout."
+  )
+
+/**
  * The run result resource. In-band run failures are `status: 'failed'`
  * with a structured `error` — never an HTTP error: **a `runId` means 200/202 +
  * `data`; no `runId` means the `v2Error` envelope.** The sync
@@ -1742,6 +1851,7 @@ export const v2ExecuteWorkflowDataSchema = z
       .describe('ISO 8601 timestamp when execution ended.')
       .meta({ format: 'date-time' }),
     durationMs: z.number().nonnegative().optional().describe('Execution duration in milliseconds.'),
+    executionTimeoutSeconds: v2AppliedExecutionTimeoutSchema,
   })
   .meta({
     id: 'WorkflowRunResult',
@@ -1759,6 +1869,7 @@ export const v2ExecuteWorkflowQueuedSchema = z
   .object({
     runId: v2WorkflowRunIdSchema,
     statusUrl: z.string().url().describe('Absolute URL of the workflow run resource.'),
+    executionTimeoutSeconds: v2AppliedExecutionTimeoutSchema,
   })
   .meta({
     id: 'QueuedWorkflowRun',
@@ -1817,6 +1928,7 @@ export const v2ResumeWorkflowBodySchema = z
 export type V2ResumeWorkflowBody = z.input<typeof v2ResumeWorkflowBodySchema>
 
 export const v2ResumeWorkflowQueuedSchema = v2ExecuteWorkflowQueuedSchema
+  .omit({ executionTimeoutSeconds: true })
   .extend({
     queuePosition: z
       .number()
@@ -1832,7 +1944,16 @@ export const v2ResumeWorkflowQueuedSchema = v2ExecuteWorkflowQueuedSchema
   })
 export type V2ResumeWorkflowQueued = z.output<typeof v2ResumeWorkflowQueuedSchema>
 
-export const v2ResumeWorkflowSyncResponseSchema = v2DataResponse(v2ExecuteWorkflowDataSchema)
+export const v2ResumeWorkflowDataSchema = v2ExecuteWorkflowDataSchema
+  .omit({ executionTimeoutSeconds: true })
+  .meta({
+    id: 'WorkflowResumeResult',
+    title: 'Workflow resume result',
+    description:
+      'Synchronous resumed run output and in-band execution status. Run failures are reported in band, not as HTTP errors, so branch on `status`.',
+  })
+
+export const v2ResumeWorkflowSyncResponseSchema = v2DataResponse(v2ResumeWorkflowDataSchema)
 export const v2ResumeWorkflowQueuedResponseSchema = v2DataResponse(v2ResumeWorkflowQueuedSchema)
 
 export const v2ResumeWorkflowResponseSchema = z
@@ -2121,8 +2242,8 @@ const v2WorkflowRunPausePointSchema = z
  * The polled run resource. `queued` is backfilled from the async job
  * queue before the worker writes the durable log row — v1's jobs endpoint 404
  * window doesn't exist here. `error` is the same *shape* the execute response
- * carries, but not the same content: this resource reclassifies the persisted
- * error string, so it never attributes a block. See `v2ExecutionErrorSchema`.
+ * carries; its block is read back from the run's recorded trace rather than the
+ * throw site, so it is absent when that trace is. See `v2ExecutionErrorSchema`.
  */
 export const v2WorkflowRunStatusSchema = z
   .object({
@@ -2173,7 +2294,7 @@ export const v2WorkflowRunStatusSchema = z
         points: z
           .array(v2WorkflowRunPausePointSchema)
           .describe(
-            'Every point the run is paused at, earliest first, at most 100. Resume one with Resume workflow run, naming its `contextId` and supplying `input`.'
+            'Every point the run is paused at, earliest first, at most 100; past 100, points not yet resumed are kept in preference to resumed ones. Resume one with Resume workflow run, naming its `contextId` and supplying `input`.'
           ),
       })
       .nullable()
@@ -2187,7 +2308,7 @@ export const v2WorkflowRunStatusSchema = z
     error: v2ExecutionErrorSchema
       .nullable()
       .describe(
-        'Structured execution failure, or null when none occurred. Reclassified from the persisted error message, so `blockId`/`blockName`/`blockType` are absent and a block-level failure reports `EXECUTION_FAILED` here even when the same run reported `BLOCK_EXECUTION_FAILED` on its synchronous execute response.'
+        'Structured execution failure, or null when none occurred. The failing block is read from the run trace, so `blockId`/`blockName`/`blockType` are absent, and a block-level failure reports `EXECUTION_FAILED`, when the trace is unavailable or hidden by organization permission groups.'
       ),
     /** Populated only with `includeOutput=true` on completed runs. */
     output: z
@@ -2335,6 +2456,65 @@ export const v2GetWorkflowRunContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2WorkflowRunStatusSchema),
+  },
+})
+
+/** Most pause points one page of the paused-run list carries across all of its runs. */
+export const V2_MAX_PAUSED_RUN_POINTS_PER_PAGE = 100
+
+const v2PausedRunSortFields = ['pausedAt'] as const
+
+const v2ListPausedRunsQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace whose paused runs should be listed.'),
+    includeOutput: booleanQueryFlagSchema
+      .optional()
+      .default(false)
+      .describe("Include each pause point's reviewer `display` content when true."),
+    ...v2PaginationFields({
+      max: 25,
+      fallback: 10,
+      description: `Maximum runs to return per page. A page also ends early once it holds ${V2_MAX_PAUSED_RUN_POINTS_PER_PAGE} pause points, so it can return fewer runs while \`nextCursor\` is set.`,
+    }),
+    ...v2SortFields(v2PausedRunSortFields, { sortBy: 'pausedAt', sortOrder: 'desc' }),
+  })
+  .strict()
+  .meta({
+    id: 'ListPausedRunsQuery',
+    title: 'List paused runs query',
+    description: 'Workspace, output, sorting, and pagination controls.',
+  })
+
+const v2PausedRunSchema = z
+  .object({
+    runId: v2WorkflowRunIdSchema,
+    workflowId: z.string().describe('Workflow that produced the run.'),
+    workflowName: z.string().describe('Name of the workflow that produced the run.'),
+    pausedAt: z
+      .string()
+      .describe('ISO 8601 timestamp when the run entered the paused state.')
+      .meta({ format: 'date-time' }),
+    points: z
+      .array(v2WorkflowRunPausePointSchema)
+      .describe(
+        'Human pause points still waiting for a resume, earliest first, at most 100. Resume one with Resume workflow run, naming its `contextId` and supplying `input`. Get workflow run lists every point of the run, including time pauses and points already resuming.'
+      ),
+  })
+  .meta({
+    id: 'PausedRun',
+    title: 'Paused run',
+    description: 'A run waiting on human input, with the points it waits at.',
+  })
+
+export type V2PausedRun = z.output<typeof v2PausedRunSchema>
+
+export const v2ListPausedRunsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflows/runs/paused',
+  query: v2ListPausedRunsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: v2CursorListResponse(v2PausedRunSchema),
   },
 })
 
@@ -3274,6 +3454,81 @@ export const v2GetWorkflowStateContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2WorkflowGraphSchema),
+  },
+})
+
+/**
+ * One block of the outline. Nested blocks are published open, as the catalog
+ * does for nested tool outputs: a self-referential schema publishes as an
+ * anonymous recursive `$ref` no generated client can name.
+ */
+const v2WorkflowOutlineBlockSchema = z
+  .object({
+    type: z.string().describe('Block type, e.g. `agent` or `slack`.'),
+    name: z.string().describe("Display name; references to this block's outputs use it."),
+    enabled: z.boolean().describe('Whether the block runs.'),
+    inputs: z
+      .record(z.string(), z.unknown().describe('Configured value; shape depends on the field.'))
+      .optional()
+      .describe(
+        'Configured values keyed by field id, with null values omitted. Fields hidden from agents are omitted as well, and some of them are real configuration, so read Get workflow state for the full set. Loop and parallel containers report their iteration settings here. A webhook trigger also carries a derived `triggerWebhookUrl`, and a credential-routed trigger a derived `triggerRouting`; both are read-only.'
+      ),
+    connections: z
+      .record(
+        z.string(),
+        z
+          .union([z.string(), z.array(z.string())])
+          .describe('Target block id, or ids when the handle fans out.')
+      )
+      .optional()
+      .describe(
+        'Outgoing connections keyed by source handle: `source`, `error`, `if` / `else-if-0` / `else` for a Condition, or `route-0`, `route-1`, ... for a Router.'
+      ),
+    nestedNodes: z
+      .record(z.string(), z.unknown().describe('Child block in this same outline shape.'))
+      .optional()
+      .describe('Blocks inside this loop or parallel container, keyed by block id.'),
+    advancedMode: z.boolean().optional().describe('Whether the block shows its advanced fields.'),
+    errorEnabled: z.boolean().optional().describe('Whether the block has an error output path.'),
+    retry: z
+      .object({
+        enabled: z.boolean().describe('Whether the block retries on failure.'),
+        maxTries: z.number().describe('Total attempts, including the first.'),
+        waitBetweenTriesMs: z.number().describe('Delay between attempts, in milliseconds.'),
+      })
+      .optional()
+      .describe('Per-block retry configuration.'),
+    triggerMode: z.boolean().optional().describe('Whether the block acts as the workflow trigger.'),
+  })
+  .meta({
+    id: 'WorkflowOutlineBlock',
+    title: 'Workflow outline block',
+    description: 'One block of a workflow outline, with its connections embedded.',
+  })
+
+const v2WorkflowOutlineSchema = z
+  .object({
+    blocks: z
+      .record(z.string(), v2WorkflowOutlineBlockSchema)
+      .describe(
+        "Top-level blocks keyed by block id. Blocks inside a loop or parallel appear under their container's `nestedNodes`."
+      ),
+  })
+  .meta({
+    id: 'WorkflowOutline',
+    title: 'Workflow outline',
+    description:
+      'Compact read-only view of a workflow draft. Not a valid Replace workflow state body.',
+  })
+
+export const v2GetWorkflowOutlineContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflows/[workflowId]/outline',
+  query: noInputSchema,
+  params: v2WorkflowIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2WorkflowOutlineSchema),
   },
 })
 

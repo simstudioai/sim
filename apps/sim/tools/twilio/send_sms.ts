@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { TWILIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TwilioSendSMSParams, TwilioSMSBlockOutput } from '@/tools/twilio/types'
+import { twilioAuthorization } from '@/tools/twilio/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('Twilio Send SMS Tool')
@@ -36,7 +37,7 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Twilio Auth Token',
+      description: 'Twilio Auth Token, or an API key as SKxxx:secret',
     },
     fromNumber: {
       type: 'string',
@@ -60,10 +61,8 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
       if (!params.accountSid || !params.authToken) {
         throw new Error('Twilio credentials are required')
       }
-      // Use Buffer instead of btoa for Node.js compatibility
-      const authToken = Buffer.from(`${params.accountSid}:${params.authToken}`).toString('base64')
       const headers = {
-        Authorization: `Basic ${authToken}`,
+        Authorization: twilioAuthorization(params.accountSid, params.authToken),
         'Content-Type': 'application/x-www-form-urlencoded',
       }
       return headers

@@ -307,7 +307,7 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
 
       expect(response.status).toBe(400)
       expect((await response.json()).error.message).toBe(
-        'password is required when authType is "password"'
+        'body.password: password is required when authType is "password"'
       )
       expect(mockPerformChatDeploy).not.toHaveBeenCalled()
     })

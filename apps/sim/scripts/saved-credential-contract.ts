@@ -45,12 +45,17 @@ const DESTINATION_PARAM =
 const OPERATION_PAYLOAD_PARAMS: Readonly<Record<string, readonly string[]>> = {
   // The page the remote browser opens; the token goes to api.browser-use.com.
   browser_use_run_task: ['startUrl'],
+  // A label CrowdStrike records on the RTR session; the token goes to the credential's Falcon cloud.
+  crowdstrike_init_rtr_session: ['origin'],
   // A guild id the operation never sends; it posts only to the channel's discord.com endpoint.
   discord_send_message: ['serverId'],
   // The audio Fireflies downloads; the token goes to api.fireflies.ai.
   fireflies_upload_audio: ['audioUrl'],
   // A filter on the asset's cloud account; the token goes to the credential's Vanta API domain.
   vanta_list_vulnerable_assets: ['assetExternalAccountId'],
+  // Search filters sent in the request body; the token goes only to api.zoominfo.com.
+  zoominfo_search_companies: ['companyWebsite', 'metroRegion'],
+  zoominfo_search_news: ['url'],
   // The status page's own domain, sent as a form field to the UptimeRobot API.
   uptimerobot_create_psp: ['customDomain'],
   uptimerobot_update_psp: ['customDomain'],
@@ -307,8 +312,17 @@ export function savedCredentialContractErrors(
     }
     const mapped = new Set(Object.keys(oauth.credentialParams ?? {}))
     if (!OPERATION_RESOLVED_CREDENTIAL_PROVIDERS.has(oauth.provider)) {
+      if (
+        oauth.tokenReplacesParams?.length &&
+        oauth.credentialParams?.accessToken !== 'accessToken'
+      ) {
+        errors.push(
+          `Block "${block.type}" → tool "${toolId}": tokenReplacesParams needs credentialParams to fill "accessToken" with the minted token.`
+        )
+      }
+      const replacedByToken = new Set(oauth.tokenReplacesParams ?? [])
       for (const param of oauth.credentialSuppliedParams ?? []) {
-        if (!mapped.has(param)) {
+        if (!mapped.has(param) && !replacedByToken.has(param)) {
           errors.push(
             `Block "${block.type}" → tool "${toolId}": "${param}" is credential-supplied but nothing fills it (add it to credentialParams).`
           )

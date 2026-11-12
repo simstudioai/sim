@@ -2,6 +2,10 @@ import type {
   CrowdStrikeCreateIndicatorsParams,
   CrowdStrikeCreateIndicatorsResponse,
 } from '@/tools/crowdstrike/types'
+import {
+  CROWDSTRIKE_CREDENTIAL_OAUTH,
+  savedCredentialTokenParam,
+} from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const crowdstrikeCreateIndicatorsTool: InternalToolConfig<
@@ -13,6 +17,7 @@ export const crowdstrikeCreateIndicatorsTool: InternalToolConfig<
   description:
     'Create custom CrowdStrike Falcon indicators of compromise (POST /iocs/entities/indicators/v1). Each indicator can allow, detect, or block activity across the fleet, so a wrong value can suppress detections or break legitimate software. Requires the "IOC Management: Write" API scope.',
   version: '1.0.0',
+  oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -33,6 +38,7 @@ export const crowdstrikeCreateIndicatorsTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'CrowdStrike Falcon cloud region',
     },
+    accessToken: savedCredentialTokenParam('CrowdStrike'),
     indicators: {
       type: 'json',
       required: true,
@@ -65,6 +71,7 @@ export const crowdstrikeCreateIndicatorsTool: InternalToolConfig<
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,
+      accessToken: params.accessToken,
       comment: params.comment,
       ignoreWarnings: params.ignoreWarnings,
       indicators: params.indicators,

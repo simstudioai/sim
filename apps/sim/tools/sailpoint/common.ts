@@ -1,6 +1,8 @@
 import { toError } from '@sim/utils/errors'
 import { filterUndefined } from '@sim/utils/object'
 import { STANDARD_LIMIT_MAX } from '@/lib/internal/sailpoint/schema'
+import type { SailPointCredentials } from '@/tools/sailpoint/types'
+import { savedCredentialTokenParam } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolOutputProperty } from '@/tools/types'
 
 /** Credentials shared by every SailPoint Identity Security Cloud operation. */
@@ -24,6 +26,7 @@ export const sailpointCredentialParams = {
     description:
       'SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host',
   },
+  accessToken: savedCredentialTokenParam('SailPoint'),
 } as const satisfies ToolConfig['params']
 
 /** Standard collection pagination used by SailPoint service-semver list APIs. */
@@ -72,21 +75,21 @@ export const sailpointRolePaginationParams = {
   count: sailpointPaginationParams.count,
 } as const satisfies ToolConfig['params']
 
-interface SailPointCredentialsLike {
-  clientId: string
-  clientSecret: string
-  tenant: string
-}
-
-/** Builds the private input consumed by the SailPoint internal operation handler. */
+/**
+ * Builds the private input consumed by the SailPoint internal operation
+ * handler: the token a saved credential minted for `tenant`, or the inline
+ * client id and secret the handler exchanges for one.
+ */
 export function createSailPointOperationInput(
   operation: string,
-  params: SailPointCredentialsLike,
+  params: SailPointCredentials,
   input: Record<string, unknown> = {}
 ): Record<string, unknown> {
-  const clientId = requireNonEmptyString(params.clientId, 'Client ID')
-  const clientSecret = requireNonEmptyString(params.clientSecret, 'Client secret')
   const tenant = requireNonEmptyString(params.tenant, 'Tenant')
+  const accessToken = optionalNonEmptyString(params.accessToken)
+  if (accessToken) return filterUndefined({ operation, accessToken, tenant, ...input })
+  const clientId = requireNonEmptyString(params.clientId ?? '', 'Client ID')
+  const clientSecret = requireNonEmptyString(params.clientSecret ?? '', 'Client secret')
   return filterUndefined({ operation, clientId, clientSecret, tenant, ...input })
 }
 

@@ -42,9 +42,9 @@ Delete a key from the same settings page to revoke it. Update applications that 
 
 A read-only key cannot change workspace resources or run, resume, or cancel workflows. Reads can still cost credits: searches use embedding credits, and search chat uses model credits and keeps a private conversation history. Selector lookups call third-party services with your connected accounts.
 
-A refused request fails with `403` and the message `This API key is read-only and cannot perform this operation`. Where the surface carries a code, it is `READ_ONLY_API_KEY`: in `error.details.code` on the v2 API and the Sim MCP server, in `details.code` on the v1 API and workflow execution, and in `error.data.code` on a workflow MCP server.
+A refused request fails with `403` and the message `This API key is read-only and cannot perform this operation. Use a full-access API key.` Where the surface carries a code, it is `READ_ONLY_API_KEY`: in `error.details.code` on the v2 API and the Sim MCP server, in `details.code` on the v1 API and workflow execution, and in `error.data.code` on a workflow MCP server.
 
-Access narrows a key; it never grants more than the key's identity already has. Access is fixed at creation, so create a new key to change it. Keys created before access levels existed have full access. Keys created from the deploy modal or for a workflow MCP server always have full access, because they exist to run workflows. If **Access** isn't shown when you create a key, read-only keys aren't available on your deployment yet.
+Access narrows a key; it never grants more than the key's identity already has. Access is fixed at creation, so create a new key to change it. Keys created before access levels existed have full access. Keys created from the deploy modal or for a workflow MCP server always have full access, because they exist to run workflows.
 
 ### Expiration [#key-expiration]
 

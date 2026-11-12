@@ -1,5 +1,9 @@
 import { CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS } from '@/lib/credentials/client-credential-accounts/descriptors'
-import { TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS } from '@/lib/credentials/token-service-accounts/descriptors'
+import {
+  CLIENT_CREDENTIALS_AUTH_METHOD,
+  TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS,
+  TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS,
+} from '@/lib/credentials/token-service-accounts/descriptors'
 import { isWorkloadIdentityServiceAccountProviderId } from '@/lib/credentials/workload-identity/audiences'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -104,9 +108,38 @@ function getServiceAccountRequiredFields(
 }
 
 /**
+ * Required create-body fields for providers whose primary mode is a pasted token but which also
+ * offer a client-credentials grant, selected by `authMethod: 'client_credentials'`.
+ */
+const CLIENT_CREDENTIALS_MODE_REQUIRED_FIELDS: Record<string, readonly ServiceAccountFieldId[]> = {
+  [ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID]: ['clientId', 'clientSecret', 'domain'],
+  ...TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS,
+}
+
+/**
+ * Whether a provider's primary mode is a pasted token but it also offers a client-credentials
+ * mode, which the secret records as `authMethod: 'client_credentials'`.
+ */
+export function offersClientCredentialsMode(providerId: string | null | undefined): boolean {
+  return Boolean(providerId && Object.hasOwn(CLIENT_CREDENTIALS_MODE_REQUIRED_FIELDS, providerId))
+}
+
+function getClientCredentialsModeFields(
+  providerId: string | null | undefined,
+  authMethod: unknown
+): readonly ServiceAccountFieldId[] | undefined {
+  return authMethod === CLIENT_CREDENTIALS_AUTH_METHOD &&
+    providerId &&
+    offersClientCredentialsMode(providerId)
+    ? CLIENT_CREDENTIALS_MODE_REQUIRED_FIELDS[providerId]
+    : undefined
+}
+
+/**
  * The required create-body fields a submission is missing: none when it
- * completes the provider's keyless alternative, otherwise the provider's own
- * required fields that are empty.
+ * completes the provider's keyless alternative, the client-credentials fields
+ * when it selects that mode, otherwise the provider's own required fields that
+ * are empty.
  */
 export function getMissingServiceAccountFields(
   providerId: string | null | undefined,
@@ -114,5 +147,8 @@ export function getMissingServiceAccountFields(
 ): ServiceAccountFieldId[] {
   const keyless = getKeylessServiceAccountFields(providerId)
   if (keyless?.every((field) => provided[field])) return []
-  return getServiceAccountRequiredFields(providerId).filter((field) => !provided[field])
+  const required =
+    getClientCredentialsModeFields(providerId, provided.authMethod) ??
+    getServiceAccountRequiredFields(providerId)
+  return required.filter((field) => !provided[field])
 }

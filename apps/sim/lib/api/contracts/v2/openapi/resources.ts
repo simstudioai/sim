@@ -93,6 +93,7 @@ import {
   v2ListWorkspaceMembersContract,
   v2ListWorkspacesContract,
   v2RemoveWorkspaceMemberContract,
+  v2UpdateWorkspaceContract,
   v2UpdateWorkspaceMemberContract,
 } from '@/lib/api/contracts/v2/workspaces'
 import {
@@ -112,6 +113,7 @@ import {
   workspaceMemberOperations,
   workspaceOperations,
   workspacePermissionOperations,
+  workspaceUpdateOperations,
 } from '@/lib/workspaces/application/operations'
 
 const BLOCK_SUMMARY_EXAMPLE = {
@@ -604,6 +606,7 @@ const SERVICE_ACCOUNT_PROVIDER_EXAMPLE = {
 
 const CREDENTIAL_CONNECTION_EXAMPLE = {
   authorizationUrl: 'https://www.sim.ai/api/auth/oauth2/authorize?draftId=draft-123',
+  draftId: 'draft-123',
   expiresAt: '2026-06-20T14:17:11.000Z',
 } as const
 
@@ -741,6 +744,40 @@ const declaredRoutes = [
         'Get workspace response',
         'Metadata for one workspace.',
         [{ data: WORKSPACE_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2UpdateWorkspaceContract,
+    resourceOperation('Workspaces', {
+      applicationOperation: workspaceUpdateOperations.updateIdentity,
+      operationId: 'updateWorkspace',
+      summary: 'Update workspace',
+      description: `Rename a workspace or change its logo. Omitted fields remain unchanged; send \`logoUrl: null\` to remove the logo. Requires workspace Admin access. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The updated workspace.' },
+    }),
+    {
+      params: documentedSchema(
+        v2UpdateWorkspaceContract.params,
+        'UpdateWorkspaceParams',
+        'Update workspace parameters',
+        'Workspace selected for update.'
+      ),
+      query: v2UpdateWorkspaceContract.query,
+      body: documentedSchema(
+        v2UpdateWorkspaceContract.body,
+        'UpdateWorkspaceBody',
+        'Update workspace body',
+        'The workspace fields to change.',
+        [{ name: 'Platform Engineering' }]
+      ),
+      response: documentedSchema(
+        v2UpdateWorkspaceContract.response.schema,
+        'UpdateWorkspaceResponse',
+        'Update workspace response',
+        'The workspace after the update.',
+        [{ data: { ...WORKSPACE_EXAMPLE, name: 'Platform Engineering' } }]
       ),
     }
   ),
@@ -1983,9 +2020,11 @@ const declaredRoutes = [
       operationId: 'getApiMeta',
       summary: 'Get API status',
       description:
-        'Get the calling credential’s type, expiry, and API scopes. Requires a valid API key or OAuth access token. `v2Enabled` is true whenever this endpoint is served; the response does not enumerate resource permissions.',
+        'Get the calling credential’s type, identity, expiry, and API scopes, plus links to the OpenAPI document, API docs, and Sim MCP server. Requires a valid API key or OAuth access token. `v2Enabled` is true whenever this endpoint is served; the response does not enumerate resource permissions.',
       errors: META_ERRORS,
-      success: { description: 'Availability and lifecycle facts about the calling credential.' },
+      success: {
+        description: 'Identity, availability, and lifecycle facts about the calling credential.',
+      },
     }),
     {
       query: v2GetMetaContract.query,
@@ -1993,7 +2032,7 @@ const declaredRoutes = [
         v2GetMetaContract.response.schema,
         'GetApiMetaResponse',
         'API status response',
-        'API availability, credential type, expiry, and scopes for the caller.',
+        'API availability, credential type and identity, expiry, scopes, and discovery links for the caller.',
         [
           {
             data: {
@@ -2001,6 +2040,14 @@ const declaredRoutes = [
               keyType: 'personal',
               expiresAt: null,
               scopes: ['api:read', 'api:write', 'search:read'],
+              keyId: 'key_7f3a9c2e',
+              userId: 'user-123',
+              workspaceId: null,
+              links: {
+                openapi: 'https://docs.sim.ai/openapi.json',
+                docs: 'https://docs.sim.ai/api-reference/getting-started',
+                mcp: 'https://mcp.sim.ai/mcp',
+              },
             },
           },
         ]

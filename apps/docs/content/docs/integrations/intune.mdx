@@ -12,7 +12,9 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 {/* MANUAL-CONTENT-START:intro */}
 Use [Microsoft Intune](https://www.microsoft.com/en-us/security/business/microsoft-intune) to inspect managed devices, detected applications, compliance policy statuses, and device configuration metadata. Request device sync, restart, remote lock, or retirement; restart, lock, and retirement require explicit confirmation.
 
-Connect a Microsoft work or school account with an appropriate Intune role. The tenant needs an active Intune license and administrator consent for the delegated permissions below. Self-hosted deployments require `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, and the matching `/api/auth/oauth2/callback/microsoft-intune` callback.
+Connect a Microsoft work or school account with an appropriate Intune role. The tenant needs an active Intune license and administrator consent for the delegated permissions below. To connect through OAuth, self-hosted deployments require `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, and the matching `/api/auth/oauth2/callback/microsoft-intune` callback.
+
+To run as an app registration instead of a signed-in administrator, use a [Microsoft app credential](/integrations/microsoft-app-credentials) with the matching application permissions; every operation supports them.
 
 List operations return one page. Pass `nextLink` to the same operation and resource to continue. Policy and configuration outputs contain common metadata and exclude platform-specific settings. An accepted device action confirms that Intune received the request; it does not confirm completion on the device.
 {/* MANUAL-CONTENT-END */}
@@ -38,7 +40,7 @@ Sim requests these scopes when someone connects a Microsoft Intune account. For 
 
 ## Use the block [#usage-instructions]
 
-Read managed device and detected application inventories, inspect compliance policy status and device configuration metadata, and request device sync, restart, remote lock, or retirement. Uses Microsoft Graph v1.0 with a work or school account and an active Intune tenant license. Remote actions depend on device platform and the connected administrator’s Intune permissions.
+Read managed device and detected application inventories, inspect compliance policy status and device configuration metadata, and request device sync, restart, remote lock, or retirement. Uses Microsoft Graph v1.0 with a work or school account, or a Microsoft app credential with application permissions, and an active Intune tenant license. Remote actions depend on device platform and on the connected administrator’s Intune permissions or the app’s application permissions.
 
 ## Actions
 

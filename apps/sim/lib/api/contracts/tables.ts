@@ -783,6 +783,23 @@ const jsonQueryValue = <S extends z.ZodType>(schema: S) =>
     }
   }, schema)
 
+/** Columns to keep in each returned row's data, by stable id or name; omitted or empty means all. */
+const rowColumnSelectionSchema = z
+  .array(
+    requiredFieldSchema('Column reference must not be empty').max(
+      MAX_ID_LENGTH,
+      'Column reference is too long'
+    )
+  )
+  .max(
+    TABLE_LIMITS.MAX_COLUMNS_PER_TABLE,
+    `Cannot select more than ${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE} columns`
+  )
+  .optional()
+  .describe(
+    "Stable column identifiers or column names to include. Omit or pass an empty array for all columns; a reference that matches no column is ignored, and if none match, each row's data is empty."
+  )
+
 /** Unrefined base so v1 contracts can `.extend()` — consumers use {@link tableRowsQuerySchema}. */
 export const tableRowsQueryBaseSchema = z.object({
   workspaceId: workspaceIdSchema,
@@ -849,7 +866,10 @@ const unboundedTableRowsLimitSchema = z.preprocess(
 )
 
 export const tableRowsQuerySchema = tableRowsQueryBaseSchema
-  .extend({ limit: unboundedTableRowsLimitSchema })
+  .extend({
+    limit: unboundedTableRowsLimitSchema,
+    columns: jsonQueryValue(rowColumnSelectionSchema).optional(),
+  })
   .refine((data) => !(data.after && data.sort), {
     message: 'after cursor cannot be combined with sort — cursors paginate the default order',
   })
@@ -1074,21 +1094,7 @@ export const rowQueryBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   predicate: predicateInputSchema.optional(),
   sort: sortSpecSchema.optional(),
-  columns: z
-    .array(
-      requiredFieldSchema('Column reference must not be empty').max(
-        MAX_ID_LENGTH,
-        'Column reference is too long'
-      )
-    )
-    .max(
-      TABLE_LIMITS.MAX_COLUMNS_PER_TABLE,
-      `Cannot select more than ${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE} columns`
-    )
-    .optional()
-    .describe(
-      'Stable column identifiers or column names to include. Omit or pass an empty array for all columns; a reference that matches no column is ignored.'
-    ),
+  columns: rowColumnSelectionSchema,
   // Omitted limit returns the ENTIRE matching result, failing fast (400) when
   // it exceeds the response byte budget. An explicit limit caps the page row
   // count; the byte budget may still end a page early with nextCursor set.

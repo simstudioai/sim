@@ -26,10 +26,12 @@ const APP_CONFIGURATION_ERRORS = new Set<string>([
  * Credential revocation codes only for the providers listed. Atlassian rejects a revoked or
  * rotated-out refresh token with `unauthorized_client`; elsewhere that code usually describes the
  * app registration, and treating it as terminal would send every credential of the provider to
- * reauthorization over one configuration fault.
+ * reauthorization over one configuration fault. Instagram's Graph API rejects a refresh of a token
+ * its user logged out of, revoked, or let expire with `OAuthException` code `190`.
  */
 const PROVIDER_CREDENTIAL_REVOCATION_ERRORS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
   ['confluence', new Set(['unauthorized_client'])],
+  ['instagram', new Set(['190'])],
   ['jira', new Set(['unauthorized_client'])],
 ])
 

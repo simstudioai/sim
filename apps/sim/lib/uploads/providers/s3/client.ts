@@ -48,7 +48,7 @@ export function resetS3ClientForTesting(): void {
   _s3Client = null
 }
 
-export function getS3Client(): S3Client {
+function getS3Client(): S3Client {
   if (_s3Client) return _s3Client
 
   const { region } = S3_CONFIG

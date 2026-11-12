@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { ServiceAccountPrincipal } from '@/lib/credentials/principal'
 import {
   AFFINITY_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -24,6 +25,7 @@ import {
   CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID,
   CLERK_SERVICE_ACCOUNT_PROVIDER_ID,
   CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID,
+  CLIENT_CREDENTIALS_AUTH_METHOD,
   CLOUDFLARE_SERVICE_ACCOUNT_PROVIDER_ID,
   CODA_SERVICE_ACCOUNT_PROVIDER_ID,
   CONVEX_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -46,6 +48,7 @@ import {
   GAUGE_SERVICE_ACCOUNT_PROVIDER_ID,
   GITHUB_SERVICE_ACCOUNT_PROVIDER_ID,
   GITLAB_SERVICE_ACCOUNT_PROVIDER_ID,
+  GONG_SERVICE_ACCOUNT_PROVIDER_ID,
   GRAFANA_SERVICE_ACCOUNT_PROVIDER_ID,
   GRAIN_SERVICE_ACCOUNT_PROVIDER_ID,
   GRANOLA_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -81,6 +84,7 @@ import {
   PERSONA_SERVICE_ACCOUNT_PROVIDER_ID,
   PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID,
   PLANE_SERVICE_ACCOUNT_PROVIDER_ID,
+  PLANETSCALE_SERVICE_ACCOUNT_PROVIDER_ID,
   PROFOUND_SERVICE_ACCOUNT_PROVIDER_ID,
   PULSE_SERVICE_ACCOUNT_PROVIDER_ID,
   QUARTR_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -93,6 +97,7 @@ import {
   ROOTLY_SERVICE_ACCOUNT_PROVIDER_ID,
   SENDGRID_SERVICE_ACCOUNT_PROVIDER_ID,
   SENTRY_SERVICE_ACCOUNT_PROVIDER_ID,
+  SERVICENOW_SERVICE_ACCOUNT_PROVIDER_ID,
   SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID,
   SIMILARWEB_SERVICE_ACCOUNT_PROVIDER_ID,
   SIXTYFOUR_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -179,6 +184,7 @@ import {
   validateGammaServiceAccount,
   validateGitHubServiceAccount,
   validateGitLabServiceAccount,
+  validateGongServiceAccount,
   validateGrafanaServiceAccount,
   validateGrainServiceAccount,
   validateGranolaServiceAccount,
@@ -206,6 +212,7 @@ import {
   validatePagerDutyServiceAccount,
   validatePersonaServiceAccount,
   validatePlaneServiceAccount,
+  validatePlanetScaleServiceAccount,
   validateProfoundServiceAccount,
   validatePulseServiceAccount,
   validateQuartrServiceAccount,
@@ -218,6 +225,7 @@ import {
   validateRootlyServiceAccount,
   validateSendGridServiceAccount,
   validateSentryServiceAccount,
+  validateServiceNowServiceAccount,
   validateSimilarwebServiceAccount,
   validateSixtyfourServiceAccount,
   validateSmartleadServiceAccount,
@@ -250,6 +258,12 @@ export interface TokenServiceAccountFields {
   apiToken: string
   domain?: string
   providerWorkspaceId?: string
+  /**
+   * `client_credentials` when `apiToken` was just minted from the provider's client-credentials
+   * grant rather than pasted, for checks whose identity differs between the two (a Linear app
+   * actor). Absent for a pasted token.
+   */
+  authMethod?: typeof CLIENT_CREDENTIALS_AUTH_METHOD
 }
 
 /** Result of a successful provider verification. */
@@ -385,6 +399,7 @@ const TOKEN_SERVICE_ACCOUNT_VALIDATORS: Record<
   [FATHOM_SERVICE_ACCOUNT_PROVIDER_ID]: validateFathomServiceAccount,
   [GITHUB_SERVICE_ACCOUNT_PROVIDER_ID]: validateGitHubServiceAccount,
   [GITLAB_SERVICE_ACCOUNT_PROVIDER_ID]: validateGitLabServiceAccount,
+  [GONG_SERVICE_ACCOUNT_PROVIDER_ID]: validateGongServiceAccount,
   [GRAFANA_SERVICE_ACCOUNT_PROVIDER_ID]: validateGrafanaServiceAccount,
   [GRAIN_SERVICE_ACCOUNT_PROVIDER_ID]: validateGrainServiceAccount,
   [GRANOLA_SERVICE_ACCOUNT_PROVIDER_ID]: validateGranolaServiceAccount,
@@ -398,9 +413,11 @@ const TOKEN_SERVICE_ACCOUNT_VALIDATORS: Record<
   [OKTA_SERVICE_ACCOUNT_PROVIDER_ID]: validateOktaServiceAccount,
   [PAGERDUTY_SERVICE_ACCOUNT_PROVIDER_ID]: validatePagerDutyServiceAccount,
   [PLANE_SERVICE_ACCOUNT_PROVIDER_ID]: validatePlaneServiceAccount,
+  [PLANETSCALE_SERVICE_ACCOUNT_PROVIDER_ID]: validatePlanetScaleServiceAccount,
   [RESEND_SERVICE_ACCOUNT_PROVIDER_ID]: validateResendServiceAccount,
   [ROOTLY_SERVICE_ACCOUNT_PROVIDER_ID]: validateRootlyServiceAccount,
   [SENTRY_SERVICE_ACCOUNT_PROVIDER_ID]: validateSentryServiceAccount,
+  [SERVICENOW_SERVICE_ACCOUNT_PROVIDER_ID]: validateServiceNowServiceAccount,
   [STRIPE_SERVICE_ACCOUNT_PROVIDER_ID]: validateStripeServiceAccount,
   [SUPABASE_SERVICE_ACCOUNT_PROVIDER_ID]: validateSupabaseServiceAccount,
   [TELEGRAM_SERVICE_ACCOUNT_PROVIDER_ID]: validateTelegramServiceAccount,
@@ -435,17 +452,102 @@ export interface TokenServiceAccountSecretBlob {
   metadata?: Record<string, string>
 }
 
+/**
+ * Secret blob for a token provider's client-credentials mode: the client ID and secret it mints
+ * with replace the pasted token. Only providers declaring `clientCredentials` write it.
+ */
+export interface TokenServiceAccountClientCredentialBlob {
+  type: typeof TOKEN_SERVICE_ACCOUNT_SECRET_TYPE
+  providerId: string
+  authMethod: typeof CLIENT_CREDENTIALS_AUTH_METHOD
+  clientId: string
+  clientSecret: string
+  domain?: string
+  metadata?: Record<string, string>
+}
+
+/**
+ * Parses a pasted-token blob. A client-credentials blob has no token and is refused, so callers
+ * that only understand pasted tokens (Snowflake) fail closed on one.
+ */
 export function parseTokenServiceAccountSecretBlob(
   decrypted: string,
   expectedProviderId: string
 ): TokenServiceAccountSecretBlob {
-  const parsed = JSON.parse(decrypted) as TokenServiceAccountSecretBlob
-  if (
-    parsed.type !== TOKEN_SERVICE_ACCOUNT_SECRET_TYPE ||
-    parsed.providerId !== expectedProviderId ||
-    !parsed.apiToken
-  ) {
+  const parsed = parseTokenServiceAccountSecret(decrypted, expectedProviderId)
+  if ('authMethod' in parsed) {
     throw new Error('Stored token service-account secret is malformed')
   }
   return parsed
+}
+
+/** The credential a stored secret blob holds: a pasted token, or a client-credentials pair. */
+export type StoredSecretMode =
+  | { apiToken: string }
+  | { authMethod: typeof CLIENT_CREDENTIALS_AUTH_METHOD; clientId: string; clientSecret: string }
+
+/**
+ * Reads which credential a parsed secret blob was saved with: no `authMethod` means a pasted
+ * token, and the client-credentials method means a client ID and secret to mint with. Returns
+ * `undefined` for a blob missing the fields its mode needs, or naming another method.
+ */
+export function parseStoredSecretMode(
+  parsed: Record<string, unknown>
+): StoredSecretMode | undefined {
+  if (parsed.authMethod === undefined) {
+    return typeof parsed.apiToken === 'string' && parsed.apiToken
+      ? { apiToken: parsed.apiToken }
+      : undefined
+  }
+  if (
+    parsed.authMethod !== CLIENT_CREDENTIALS_AUTH_METHOD ||
+    typeof parsed.clientId !== 'string' ||
+    !parsed.clientId ||
+    typeof parsed.clientSecret !== 'string' ||
+    !parsed.clientSecret
+  ) {
+    return undefined
+  }
+  return {
+    authMethod: CLIENT_CREDENTIALS_AUTH_METHOD,
+    clientId: parsed.clientId,
+    clientSecret: parsed.clientSecret,
+  }
+}
+
+/** Parses either mode of a token provider's secret blob, checking it belongs to the provider. */
+export function parseTokenServiceAccountSecret(
+  decrypted: string,
+  expectedProviderId: string
+): TokenServiceAccountSecretBlob | TokenServiceAccountClientCredentialBlob {
+  const malformed = new Error('Stored token service-account secret is malformed')
+  const parsed: unknown = JSON.parse(decrypted)
+  if (
+    !isRecordLike(parsed) ||
+    parsed.type !== TOKEN_SERVICE_ACCOUNT_SECRET_TYPE ||
+    parsed.providerId !== expectedProviderId
+  ) {
+    throw malformed
+  }
+  const mode = parseStoredSecretMode(parsed)
+  if (!mode) throw malformed
+  const optional = {
+    ...(typeof parsed.domain === 'string' ? { domain: parsed.domain } : {}),
+    ...(isRecordLike(parsed.metadata)
+      ? { metadata: parsed.metadata as Record<string, string> }
+      : {}),
+  }
+  const base: Pick<TokenServiceAccountSecretBlob, 'type' | 'providerId'> = {
+    type: TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
+    providerId: expectedProviderId,
+  }
+  if ('authMethod' in mode) return { ...base, ...mode, ...optional }
+  return {
+    ...base,
+    ...mode,
+    ...(typeof parsed.providerWorkspaceId === 'string'
+      ? { providerWorkspaceId: parsed.providerWorkspaceId }
+      : {}),
+    ...optional,
+  }
 }

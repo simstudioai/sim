@@ -1,4 +1,5 @@
-import { userPrincipal } from '@/lib/credentials/principal'
+import { tenantPrincipal, userPrincipal } from '@/lib/credentials/principal'
+import { CLIENT_CREDENTIALS_AUTH_METHOD } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
   fetchProvider,
   parseProviderJson,
@@ -112,6 +113,19 @@ export async function validateLinearServiceAccount(
   }
 
   const payload = await parseProviderJson<LinearViewerResponse>(res, 'viewer')
+  const organization = payload.data?.organization
+  // A client-credentials token acts as the app, not a person. Linear does not document whether an
+  // app-actor token has a viewer, so the workspace it was minted for is the identity when none
+  // comes back.
+  const appActor = fields.authMethod === CLIENT_CREDENTIALS_AUTH_METHOD
+  if (appActor && !payload.data?.viewer?.id && organization?.id) {
+    return {
+      displayName: organization.name || 'Linear workspace',
+      principal: tenantPrincipal(organization.id, organization.name),
+      auditMetadata: { linearOrganizationId: organization.id },
+      storedMetadata: { organizationId: organization.id },
+    }
+  }
   if (hasCredentialError(payload.errors)) {
     throw new TokenServiceAccountValidationError('invalid_credentials', res.status, {
       step: 'viewer',
@@ -127,7 +141,6 @@ export async function validateLinearServiceAccount(
     })
   }
 
-  const organization = payload.data?.organization
   const storedMetadata: Record<string, string> = {}
   const auditMetadata: Record<string, string> = {}
   if (organization?.id) {

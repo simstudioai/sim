@@ -17,6 +17,7 @@ import {
   transformRecordResponse,
   withQueryString,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createChangeRequestTool: ToolConfig<
@@ -28,6 +29,7 @@ export const createChangeRequestTool: ToolConfig<
   description:
     'Create a change request in ServiceNow. Reference fields (assignment group, assigned to, requested by, configuration item) take sys_ids unless input display value is enabled.',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     ...authParams,

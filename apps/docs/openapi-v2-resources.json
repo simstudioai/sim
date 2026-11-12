@@ -300,6 +300,121 @@
             "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
+      },
+      "patch": {
+        "operationId": "updateWorkspace",
+        "summary": "Update workspace",
+        "description": "Rename a workspace or change its logo. Omitted fields remain unchanged; send `logoUrl: null` to remove the logo. Requires workspace Admin access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "workspaces.identity.update",
+        "x-oauth-scope": "api:write",
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "description": "Workspace to update.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace to update."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The workspace fields to change.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkspaceBody"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "name": "Platform Engineering"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated workspace.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateWorkspaceResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "id": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                        "name": "Platform Engineering",
+                        "color": "#33C482",
+                        "logoUrl": null,
+                        "memberCount": 14,
+                        "createdAt": "2026-01-15T10:30:00.000Z",
+                        "updatedAt": "2026-06-20T14:02:11.000Z"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
       }
     },
     "/api/v2/workspaces/{workspaceId}/members": {
@@ -4221,6 +4336,7 @@
                     "value": {
                       "data": {
                         "authorizationUrl": "https://www.sim.ai/api/auth/oauth2/authorize?draftId=draft-123",
+                        "draftId": "draft-123",
                         "expiresAt": "2026-06-20T14:17:11.000Z"
                       }
                     }
@@ -5066,7 +5182,7 @@
       "get": {
         "operationId": "getApiMeta",
         "summary": "Get API status",
-        "description": "Get the calling credential’s type, expiry, and API scopes. Requires a valid API key or OAuth access token. `v2Enabled` is true whenever this endpoint is served; the response does not enumerate resource permissions.\n\nOAuth scope: `api:read`.",
+        "description": "Get the calling credential’s type, identity, expiry, and API scopes, plus links to the OpenAPI document, API docs, and Sim MCP server. Requires a valid API key or OAuth access token. `v2Enabled` is true whenever this endpoint is served; the response does not enumerate resource permissions.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "meta.capabilities.read",
         "x-oauth-scope": "api:read",
         "tags": ["Meta"],
@@ -5080,7 +5196,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Availability and lifecycle facts about the calling credential.",
+            "description": "Identity, availability, and lifecycle facts about the calling credential.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -5105,7 +5221,15 @@
                         "v2Enabled": true,
                         "keyType": "personal",
                         "expiresAt": null,
-                        "scopes": ["api:read", "api:write", "search:read"]
+                        "scopes": ["api:read", "api:write", "search:read"],
+                        "keyId": "key_7f3a9c2e",
+                        "userId": "user-123",
+                        "workspaceId": null,
+                        "links": {
+                          "openapi": "https://docs.sim.ai/openapi.json",
+                          "docs": "https://docs.sim.ai/api-reference/getting-started",
+                          "mcp": "https://mcp.sim.ai/mcp"
+                        }
                       }
                     }
                   }
@@ -14957,6 +15081,10 @@
                     "description": "Other structured context defined by the specific error."
                   }
                 ]
+              },
+              "requestId": {
+                "description": "Identifier of this request, the same id as the `x-request-id` response header. Quote it when contacting support.",
+                "type": "string"
               }
             },
             "required": ["code", "message"],
@@ -15095,6 +15223,64 @@
               "createdAt": "2026-01-15T10:30:00.000Z",
               "updatedAt": "2026-06-20T14:02:11.000Z"
             }
+          }
+        ]
+      },
+      "UpdateWorkspaceResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2Workspace"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update workspace response",
+        "description": "The workspace after the update.",
+        "examples": [
+          {
+            "data": {
+              "id": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+              "name": "Platform Engineering",
+              "color": "#33C482",
+              "logoUrl": null,
+              "memberCount": 14,
+              "createdAt": "2026-01-15T10:30:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z"
+            }
+          }
+        ]
+      },
+      "UpdateWorkspaceBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "description": "New workspace display name.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "logoUrl": {
+            "description": "New workspace logo URL: a root-relative path (starting with /) or an https:// URL. Send null to remove the logo.",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(\\/$|\\/[^/]|https:\\/\\/)"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "minProperties": 1,
+        "title": "Update workspace body",
+        "description": "The workspace fields to change.",
+        "examples": [
+          {
+            "name": "Platform Engineering"
           }
         ]
       },
@@ -18155,6 +18341,10 @@
             "format": "uri",
             "description": "Short-lived Sim browser URL that starts the OAuth authorization flow."
           },
+          "draftId": {
+            "type": "string",
+            "description": "ID of the pending connection behind authorizationUrl. Only the user who created it can complete it."
+          },
           "expiresAt": {
             "type": "string",
             "format": "date-time",
@@ -18162,7 +18352,7 @@
             "description": "ISO 8601 timestamp when the connection link expires."
           }
         },
-        "required": ["authorizationUrl", "expiresAt"],
+        "required": ["authorizationUrl", "draftId", "expiresAt"],
         "additionalProperties": false,
         "title": "Credential connection authorization",
         "description": "A short-lived browser entrypoint for an OAuth connection flow."
@@ -18183,6 +18373,7 @@
           {
             "data": {
               "authorizationUrl": "https://www.sim.ai/api/auth/oauth2/authorize?draftId=draft-123",
+              "draftId": "draft-123",
               "expiresAt": "2026-06-20T14:17:11.000Z"
             }
           }
@@ -18933,12 +19124,74 @@
               "enum": ["api:read", "api:write", "search:read"]
             },
             "description": "API scopes the calling credential can use. api:write implies api:read, and either implies search:read. A read-only API key holds api:read and search:read: it is refused every operation that changes state and every operation that declares no API scope, so api:read alone does not authorize those. A full-access key holds all three; an OAuth access token holds what it was granted and what that implies."
+          },
+          "keyId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ID of the calling API key, or null for an OAuth access token."
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ID of the user the credential acts for, or null for a workspace API key, which acts as its workspace rather than as a user."
+          },
+          "workspaceId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The only workspace a workspace API key can reach, or null for personal API keys and OAuth access tokens, which reach every workspace their user can."
+          },
+          "links": {
+            "type": "object",
+            "properties": {
+              "openapi": {
+                "type": "string",
+                "description": "URL of the OpenAPI document for this API."
+              },
+              "docs": {
+                "type": "string",
+                "description": "URL of the API reference documentation."
+              },
+              "mcp": {
+                "type": "string",
+                "description": "URL of the Sim MCP server."
+              }
+            },
+            "required": ["openapi", "docs", "mcp"],
+            "additionalProperties": false,
+            "description": "Where to find the API description, its documentation, and the Sim MCP server."
           }
         },
-        "required": ["v2Enabled", "keyType", "expiresAt", "scopes"],
+        "required": [
+          "v2Enabled",
+          "keyType",
+          "expiresAt",
+          "scopes",
+          "keyId",
+          "userId",
+          "workspaceId",
+          "links"
+        ],
         "additionalProperties": false,
         "title": "API status",
-        "description": "API availability and lifecycle facts about the calling credential."
+        "description": "Identity, API availability, and lifecycle facts about the calling credential."
       },
       "GetApiMetaResponse": {
         "type": "object",
@@ -18951,14 +19204,22 @@
         "required": ["data"],
         "additionalProperties": false,
         "title": "API status response",
-        "description": "API availability, credential type, expiry, and scopes for the caller.",
+        "description": "API availability, credential type and identity, expiry, scopes, and discovery links for the caller.",
         "examples": [
           {
             "data": {
               "v2Enabled": true,
               "keyType": "personal",
               "expiresAt": null,
-              "scopes": ["api:read", "api:write", "search:read"]
+              "scopes": ["api:read", "api:write", "search:read"],
+              "keyId": "key_7f3a9c2e",
+              "userId": "user-123",
+              "workspaceId": null,
+              "links": {
+                "openapi": "https://docs.sim.ai/openapi.json",
+                "docs": "https://docs.sim.ai/api-reference/getting-started",
+                "mcp": "https://mcp.sim.ai/mcp"
+              }
             }
           }
         ]
@@ -20031,7 +20292,12 @@
           },
           "type": {
             "type": "string",
-            "description": "Editor control the field renders as, e.g. `short-input`."
+            "description": "Editor control the field renders as, e.g. `short-input`. Not a value type; see `valueType`."
+          },
+          "valueType": {
+            "description": "Type of value the field holds, from the block’s declared input for the field (the same type `inputDefinitions` and operation `inputs` report). Absent when the block declares no input for the field.",
+            "type": "string",
+            "enum": ["string", "number", "boolean", "json", "array", "file"]
           },
           "title": {
             "description": "Human-readable label.",

@@ -213,6 +213,12 @@ export const v2ErrorResponseSchema = z.object({
         .describe(
           'Structured error context whose keys depend on the error. Actionable `403` responses use the `V2ActionableForbiddenDetails` shape; validation failures may return issue arrays instead.'
         ),
+      requestId: z
+        .string()
+        .optional()
+        .describe(
+          'Identifier of this request, the same id as the `x-request-id` response header. Quote it when contacting support.'
+        ),
     })
     .describe('Canonical error details.'),
 })

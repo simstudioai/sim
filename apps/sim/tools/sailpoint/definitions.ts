@@ -74,6 +74,7 @@ import type {
   SailPointSegmentedListParams,
   SailPointSourceItemRef,
 } from '@/tools/sailpoint/types'
+import { SAILPOINT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig, ToolConfig, ToolParameterItemSchema } from '@/tools/types'
 
 type ToolParams = ToolConfig['params']
@@ -217,6 +218,7 @@ function defineSailPointTool<P extends SailPointCredentials>({
     name,
     description,
     version: '1.0.0',
+    oauth: SAILPOINT_CREDENTIAL_OAUTH,
     params,
     operation: { input: (params) => createSailPointOperationInput(id, params, input(params)) },
     transformResponse: (response) => unwrapSailPointOutput(response),

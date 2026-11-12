@@ -4,7 +4,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 /** One day in milliseconds: a key's expiry options and its creation bounds are counted in days. */
 export const DAY_MS = 24 * 60 * 60 * 1000
 
-const apiKeyAccessSchema = z.enum(['read', 'write'])
+export const apiKeyAccessSchema = z.enum(['read', 'write'])
 export type ApiKeyAccessLevel = z.output<typeof apiKeyAccessSchema>
 
 const apiKeyMetadataSchema = z.object({

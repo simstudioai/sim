@@ -1,5 +1,6 @@
 import { v2MetaOperations } from '@/lib/api/application/operations'
 import type { V2ApiKeyType } from '@/lib/api/contracts/v2/meta'
+import { getV2ApiLinks, type V2ApiLinks } from '@/lib/api/links'
 import type { OAuthApiScope } from '@/lib/auth/oauth-provider'
 import {
   assertOperationPrincipal,
@@ -24,6 +25,13 @@ export interface ReadV2ApiCapabilitiesResult {
   keyType: V2ApiKeyType
   expiresAt: Date | null
   scopes: OAuthApiScope[]
+  /** The API key's id; null for an OAuth access token. */
+  keyId: string | null
+  /** The user the credential acts for; null for a workspace key, which acts as its workspace. */
+  userId: string | null
+  /** The one workspace a workspace key can reach; null for every other credential. */
+  workspaceId: string | null
+  links: V2ApiLinks
 }
 
 /**
@@ -46,6 +54,10 @@ export const readV2ApiCapabilities: OperationUseCase<
       keyType: input.keyType,
       expiresAt: input.expiresAt,
       scopes: credentialApiScopes(principal),
+      keyId: principal.kind === 'oauth_access_token' ? null : principal.keyId,
+      userId: principal.kind === 'workspace_api_key' ? null : principal.userId,
+      workspaceId: principal.kind === 'workspace_api_key' ? principal.workspaceId : null,
+      links: getV2ApiLinks(),
     }
   },
 }

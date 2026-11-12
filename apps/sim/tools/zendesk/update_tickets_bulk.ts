@@ -1,5 +1,12 @@
+import { ZENDESK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError, JOB_STATUS_OUTPUT } from '@/tools/zendesk/types'
+import {
+  buildZendeskUrl,
+  handleZendeskError,
+  JOB_STATUS_OUTPUT,
+  ZENDESK_CREDENTIAL_PARAMS,
+  zendeskAuthorization,
+} from '@/tools/zendesk/types'
 
 export interface ZendeskUpdateTicketsBulkParams {
   email: string
@@ -31,7 +38,10 @@ export const zendeskUpdateTicketsBulkTool: ToolConfig<
   description: 'Update multiple tickets in Zendesk at once (max 100)',
   version: '1.0.0',
 
+  oauth: ZENDESK_CREDENTIAL_OAUTH,
+
   params: {
+    ...ZENDESK_CREDENTIAL_PARAMS,
     email: {
       type: 'string',
       required: true,
@@ -95,14 +105,10 @@ export const zendeskUpdateTicketsBulkTool: ToolConfig<
       return buildZendeskUrl(params.subdomain, `/tickets/update_many?ids=${ids.join(',')}`)
     },
     method: 'PUT',
-    headers: (params) => {
-      const credentials = `${params.email}/token:${params.apiToken}`
-      const base64Credentials = Buffer.from(credentials).toString('base64')
-      return {
-        Authorization: `Basic ${base64Credentials}`,
-        'Content-Type': 'application/json',
-      }
-    },
+    headers: (params) => ({
+      Authorization: zendeskAuthorization(params),
+      'Content-Type': 'application/json',
+    }),
     body: (params) => {
       const ticket: any = {}
       if (params.status) ticket.status = params.status

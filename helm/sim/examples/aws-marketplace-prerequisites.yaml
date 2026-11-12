@@ -1,0 +1,173 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Prerequisites for Sim from the AWS Marketplace container listing: Amazon RDS for PostgreSQL 17
+  (pgvector), Amazon ElastiCache (Valkey) with TLS and an auth token, and the IAM role the Sim
+  ServiceAccount assumes (IRSA) to check the Marketplace license in AWS License Manager. Deploy it
+  in the region and VPC of your EKS cluster, then use its outputs in values.yaml and the two
+  Kubernetes Secrets described in the listing's usage instructions.
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC of the EKS cluster.
+  PrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: At least two private subnets in different Availability Zones, reachable from the cluster's nodes.
+  ClusterSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: The EKS cluster security group (attached to the nodes and pods that run Sim).
+  OidcProviderUrl:
+    Type: String
+    Description: The cluster's OIDC issuer without https:// (aws eks describe-cluster --query cluster.identity.oidc.issuer).
+    AllowedPattern: '^oidc\.eks\.[a-z0-9-]+\.amazonaws\.com/id/[A-Za-z0-9]+$'
+  Namespace:
+    Type: String
+    Default: sim
+    Description: Kubernetes namespace Sim is installed in.
+  ServiceAccountName:
+    Type: String
+    Default: sim
+    Description: ServiceAccount the chart creates (the Helm release's full name; "sim" for a release named sim).
+  DatabaseInstanceClass:
+    Type: String
+    Default: db.m7g.large
+    Description: RDS instance class.
+  CacheNodeType:
+    Type: String
+    Default: cache.m7g.large
+    Description: ElastiCache node type.
+
+Resources:
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Sim PostgreSQL, reachable from the EKS cluster only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref ClusterSecurityGroupId
+
+  CacheSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Sim Valkey, reachable from the EKS cluster only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref ClusterSecurityGroupId
+
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Sim PostgreSQL subnets
+      SubnetIds: !Ref PrivateSubnetIds
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      Engine: postgres
+      EngineVersion: '17'
+      DBInstanceClass: !Ref DatabaseInstanceClass
+      DBName: sim
+      MasterUsername: sim
+      # RDS generates the password and keeps it in Secrets Manager (output DatabaseSecretArn).
+      ManageMasterUserPassword: true
+      AllocatedStorage: '100'
+      StorageType: gp3
+      StorageEncrypted: true
+      MultiAZ: true
+      PubliclyAccessible: false
+      BackupRetentionPeriod: 7
+      DeletionProtection: true
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      VPCSecurityGroups:
+        - !Ref DatabaseSecurityGroup
+
+  CacheAuthToken:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Auth token for the Sim Valkey cluster
+      GenerateSecretString:
+        PasswordLength: 64
+        ExcludePunctuation: true
+
+  CacheSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: Sim Valkey subnets
+      SubnetIds: !Ref PrivateSubnetIds
+
+  Cache:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      ReplicationGroupDescription: Sim pub/sub, Socket.IO adapter, and short-lived stores
+      Engine: valkey
+      EngineVersion: '9.1'
+      CacheNodeType: !Ref CacheNodeType
+      NumCacheClusters: 2
+      AutomaticFailoverEnabled: true
+      MultiAZEnabled: true
+      TransitEncryptionEnabled: true
+      AtRestEncryptionEnabled: true
+      AuthToken: !Sub '{{resolve:secretsmanager:${CacheAuthToken}}}'
+      CacheSubnetGroupName: !Ref CacheSubnetGroup
+      SecurityGroupIds:
+        - !Ref CacheSecurityGroup
+
+  LicenseRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Lets the Sim ServiceAccount check the AWS Marketplace license (IRSA)
+      # Substituted as a whole document: the condition keys embed the cluster's issuer.
+      AssumeRolePolicyDocument: !Sub |
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Federated": "arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/${OidcProviderUrl}"
+              },
+              "Action": "sts:AssumeRoleWithWebIdentity",
+              "Condition": {
+                "StringEquals": {
+                  "${OidcProviderUrl}:sub": "system:serviceaccount:${Namespace}:${ServiceAccountName}",
+                  "${OidcProviderUrl}:aud": "sts.amazonaws.com"
+                }
+              }
+            }
+          ]
+        }
+      Policies:
+        - PolicyName: aws-marketplace-license
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                # Sim only reads the license. ListReceivedLicenses has no resource-level
+                # permissions, so it cannot be scoped below '*'.
+                Action: license-manager:ListReceivedLicenses
+                Resource: '*'
+
+Outputs:
+  DatabaseEndpoint:
+    Description: externalDatabase.host in values.yaml
+    Value: !GetAtt Database.Endpoint.Address
+  DatabaseSecretArn:
+    Description: Secrets Manager secret holding the RDS master password (EXTERNAL_DB_PASSWORD)
+    Value: !GetAtt Database.MasterUserSecret.SecretArn
+  CachePrimaryEndpoint:
+    Description: Host for REDIS_URL (rediss://:<auth token>@<this host>:6379)
+    Value: !GetAtt Cache.PrimaryEndPoint.Address
+  CacheAuthTokenArn:
+    Description: Secrets Manager secret holding the Valkey auth token
+    Value: !Ref CacheAuthToken
+  LicenseRoleArn:
+    Description: serviceAccount.annotations eks.amazonaws.com/role-arn in values.yaml
+    Value: !GetAtt LicenseRole.Arn

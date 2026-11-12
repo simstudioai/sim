@@ -109,6 +109,24 @@ function retypeMessage(message: string, spellings: Map<string, string>): string 
   return retyped
 }
 
+/** The v2 envelope's `query.sortBy: ` lead naming where a request failed. */
+const LOCATION_PREFIX = /^(?:path|query|header|body)\.([^:\s]+): /
+
+/**
+ * Rewrites a top-level message, restating its location prefix as the field the
+ * caller typed. The prefix names its field by position, like a details path, so
+ * its head translates even when it is a single word; only the prose after it
+ * goes through {@link retypeMessage}.
+ */
+function retypeLocatedMessage(message: string, spellings: Map<string, string>): string {
+  const match = LOCATION_PREFIX.exec(message)
+  if (!match) return retypeMessage(message, spellings)
+
+  const [head, ...rest] = match[1].split('.')
+  const location = [spellings.get(head) ?? head, ...rest].join('.')
+  return `${location}: ${retypeMessage(message.slice(match[0].length), spellings)}`
+}
+
 /** Rewrites the head of one issue path, leaving keys inside a caller's JSON alone. */
 function retypeDetails(details: unknown, spellings: Map<string, string>): unknown {
   if (Array.isArray(details)) return details.map((issue) => retypeDetails(issue, spellings))
@@ -158,7 +176,7 @@ export function retypeApiError(
   if (spellings.size === 0) return error
 
   return new SimApiError(
-    retypeMessage(error.message, spellings),
+    retypeLocatedMessage(error.message, spellings),
     error.status,
     error.code,
     error.details === undefined ? undefined : retypeDetails(error.details, spellings)

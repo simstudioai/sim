@@ -1,8 +1,13 @@
 import type { ToolResponse } from '@/tools/types'
 
+/**
+ * Inline client credentials, or the token a saved ZoomInfo credential minted
+ * in their place.
+ */
 interface ZoomInfoBaseParams {
-  clientId: string
-  clientSecret: string
+  clientId?: string
+  clientSecret?: string
+  accessToken?: string
 }
 
 export interface ZoomInfoSearchCompaniesParams extends ZoomInfoBaseParams {

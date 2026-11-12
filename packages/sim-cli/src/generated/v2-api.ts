@@ -2060,6 +2060,7 @@ export type CreateCredentialConnectionBody =
 
 type CreateCredentialConnectionResponseRef0 = {
   authorizationUrl: string
+  draftId: string
   expiresAt: string
 }
 
@@ -5635,11 +5636,13 @@ type ExecuteWorkflowResponseRef1 = {
   startedAt?: string
   endedAt?: string
   durationMs?: number
+  executionTimeoutSeconds: number | null
 }
 
 type ExecuteWorkflowResponseRef2 = {
   runId: string
   statusUrl: string
+  executionTimeoutSeconds: number | null
 }
 
 export type ExecuteWorkflowResponse =
@@ -5851,6 +5854,11 @@ type GetBillingStatusResponseRef0 = {
     limitBytes: number
     percentUsed: number
   } | null
+  limits: {
+    maxSyncExecutionTimeoutSeconds: number | null
+    maxAsyncExecutionTimeoutSeconds: number | null
+    maxConcurrentExecutions: number | null
+  }
 }
 
 export type GetBillingStatusResponse = {
@@ -5869,6 +5877,7 @@ export type GetBlockQuery = {
 type GetBlockResponseRef0 = {
   id: string
   type: string
+  valueType?: 'string' | 'number' | 'boolean' | 'json' | 'array' | 'file'
   title?: string
   required?: boolean
   requiredWhen?: GetBlockResponseRef1
@@ -6663,6 +6672,14 @@ type GetMetaResponseRef0 = {
   keyType: 'personal' | 'workspace' | 'oauth_access_token'
   expiresAt: string | null
   scopes: Array<'api:read' | 'api:write' | 'search:read'>
+  keyId: string | null
+  userId: string | null
+  workspaceId: string | null
+  links: {
+    openapi: string
+    docs: string
+    mcp: string
+  }
 }
 
 export type GetMetaResponse = {
@@ -7323,6 +7340,10 @@ export type GetSelectorBody = {
     | 'planetscale.branches'
     | 'planetscale.backups'
     | 'planetscale.deployRequests'
+    | 'planetscale.savedDatabases'
+    | 'planetscale.savedBranches'
+    | 'planetscale.savedBackups'
+    | 'planetscale.savedDeployRequests'
     | 'cloudwatch.logGroups'
     | 'cloudwatch.logStreams'
     | 'cloudwatch.savedLogGroups'
@@ -7742,6 +7763,12 @@ type GetWorkflowResponseRef0 = {
 }
 
 type GetWorkflowResponseRef1 = {
+  type: string
+  properties?: Record<string, unknown>
+  required?: Array<string>
+}
+
+type GetWorkflowResponseRef2 = {
   id: string
   webUrl: string
   name: string
@@ -7756,10 +7783,11 @@ type GetWorkflowResponseRef1 = {
   updatedAt: string
   variables: Record<string, unknown>
   inputs: Array<GetWorkflowResponseRef0>
+  inputSchema: GetWorkflowResponseRef1 | null
 }
 
 export type GetWorkflowResponse = {
-  data: GetWorkflowResponseRef1
+  data: GetWorkflowResponseRef2
 }
 
 /** `GET /api/v2/workflows/[workflowId]/deployments/chat` */
@@ -7884,6 +7912,38 @@ type GetWorkflowMcpServerResponseRef0 = {
 
 export type GetWorkflowMcpServerResponse = {
   data: GetWorkflowMcpServerResponseRef0
+}
+
+/** `GET /api/v2/workflows/[workflowId]/outline` */
+export type GetWorkflowOutlineParams = {
+  workflowId: string
+}
+
+export type GetWorkflowOutlineQuery = Record<string, unknown>
+
+type GetWorkflowOutlineResponseRef0 = {
+  type: string
+  name: string
+  enabled: boolean
+  inputs?: Record<string, unknown>
+  connections?: Record<string, string | Array<string>>
+  nestedNodes?: Record<string, unknown>
+  advancedMode?: boolean
+  errorEnabled?: boolean
+  retry?: {
+    enabled: boolean
+    maxTries: number
+    waitBetweenTriesMs: number
+  }
+  triggerMode?: boolean
+}
+
+type GetWorkflowOutlineResponseRef1 = {
+  blocks: Record<string, GetWorkflowOutlineResponseRef0>
+}
+
+export type GetWorkflowOutlineResponse = {
+  data: GetWorkflowOutlineResponseRef1
 }
 
 /** `GET /api/v2/workflows/[workflowId]/runs/[runId]` */
@@ -9984,6 +10044,61 @@ export type ListOrganizationWorkspacesResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/workflows/runs/paused` */
+export type ListPausedRunsQuery = {
+  workspaceId: string
+  includeOutput?: boolean
+  limit?: number
+  cursor?: string
+  sortBy?: 'pausedAt'
+  sortOrder?: 'asc' | 'desc'
+}
+
+type ListPausedRunsResponseRef0 = {
+  runId: string
+  workflowId: string
+  workflowName: string
+  pausedAt: string
+  points: Array<ListPausedRunsResponseRef1>
+}
+
+type ListPausedRunsResponseRef1 = {
+  contextId: string
+  blockId: string
+  blockName: string | null
+  kind: 'human' | 'time'
+  status: 'paused' | 'queued' | 'resuming' | 'resumed' | 'failed'
+  registeredAt: string | null
+  resumeAt: string | null
+  parallel: {
+    parallelId: string
+    branchIndex: number
+    branchTotal: number | null
+  } | null
+  loop: {
+    loopId: string
+    iteration: number
+  } | null
+  inputFields: Array<ListPausedRunsResponseRef2> | null
+  display: unknown | null
+  queuePosition: number | null
+}
+
+type ListPausedRunsResponseRef2 = {
+  name: string
+  label: string
+  type: string
+  description?: string
+  placeholder?: string
+  required: boolean
+  options?: Array<unknown>
+}
+
+export type ListPausedRunsResponse = {
+  data: Array<ListPausedRunsResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/organizations/[organizationId]/permission-groups/[groupId]/members` */
 export type ListPermissionGroupMembersParams = {
   organizationId: string
@@ -10403,6 +10518,10 @@ export type ListSelectorBody = {
     | 'planetscale.branches'
     | 'planetscale.backups'
     | 'planetscale.deployRequests'
+    | 'planetscale.savedDatabases'
+    | 'planetscale.savedBranches'
+    | 'planetscale.savedBackups'
+    | 'planetscale.savedDeployRequests'
     | 'cloudwatch.logGroups'
     | 'cloudwatch.logStreams'
     | 'cloudwatch.savedLogGroups'
@@ -11140,6 +11259,34 @@ type ListWorkspacesResponseRef0 = {
 
 export type ListWorkspacesResponse = {
   data: Array<ListWorkspacesResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/schedules` */
+export type ListWorkspaceSchedulesQuery = {
+  workspaceId: string
+  limit?: number
+  cursor?: string
+  sortBy?: 'createdAt'
+  sortOrder?: 'asc' | 'desc'
+}
+
+type ListWorkspaceSchedulesResponseRef0 = {
+  blockId: string
+  enabled: boolean
+  status: 'active' | 'disabled' | 'completed'
+  failedCount: number
+  lastFailedAt: string | null
+  nextRunAt: string | null
+  lastRanAt: string | null
+  cronExpression: string | null
+  workflowId: string
+  workflowName: string
+  timezone: string
+}
+
+export type ListWorkspaceSchedulesResponse = {
+  data: Array<ListWorkspaceSchedulesResponseRef0>
   nextCursor: string | null
 }
 
@@ -15946,6 +16093,32 @@ export type UpdateWorkflowVersionResponse = {
   data: UpdateWorkflowVersionResponseRef0
 }
 
+/** `PATCH /api/v2/workspaces/[workspaceId]` */
+export type UpdateWorkspaceParams = {
+  workspaceId: string
+}
+
+export type UpdateWorkspaceQuery = Record<string, unknown>
+
+export type UpdateWorkspaceBody = {
+  name?: string
+  logoUrl?: string | null
+}
+
+type UpdateWorkspaceResponseRef0 = {
+  id: string
+  name: string
+  color: string
+  logoUrl: string | null
+  memberCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdateWorkspaceResponse = {
+  data: UpdateWorkspaceResponseRef0
+}
+
 /** `PUT /api/v2/workspaces/[workspaceId]/fork/exclusions` */
 export type UpdateWorkspaceForkExclusionsParams = {
   workspaceId: string
@@ -16783,10 +16956,16 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Compare workflow versions',
     query: {
-      base: { kind: 'integer', required: true, describe: 'Deployment version to compare from.' },
+      base: {
+        kind: 'integer',
+        required: true,
+        maximum: 2147483647,
+        describe: 'Deployment version to compare from.',
+      },
       target: {
         kind: 'integer',
         required: true,
+        maximum: 2147483647,
         describe: 'Deployment version to compare to, in the same workflow.',
       },
     },
@@ -17052,7 +17231,12 @@ export const V2_OPERATIONS = {
       },
       name: { kind: 'string', required: true, describe: 'File name, including its extension.' },
       contentType: { kind: 'string', required: true, describe: 'MIME type of the uploaded file.' },
-      size: { kind: 'integer', required: true, describe: 'Exact file size in bytes.' },
+      size: {
+        kind: 'integer',
+        required: true,
+        maximum: 5368709120,
+        describe: 'Exact file size in bytes.',
+      },
       folderPath: {
         kind: 'string',
         describe: 'Canonical destination folder path. Omit for the workspace root.',
@@ -17175,6 +17359,7 @@ export const V2_OPERATIONS = {
       syncIntervalMinutes: {
         kind: 'integer',
         default: 1440,
+        maximum: 525600,
         describe: 'Scheduled synchronization interval in minutes; zero disables scheduling.',
       },
     },
@@ -17202,7 +17387,12 @@ export const V2_OPERATIONS = {
         required: true,
         describe: 'Supported MIME type for the document.',
       },
-      size: { kind: 'integer', required: true, describe: 'Exact file size in bytes.' },
+      size: {
+        kind: 'integer',
+        required: true,
+        maximum: 104857600,
+        describe: 'Exact file size in bytes.',
+      },
       tag1: { kind: 'string', describe: 'Value for tag slot 1.' },
       tag2: { kind: 'string', describe: 'Value for tag slot 2.' },
       tag3: { kind: 'string', describe: 'Value for tag slot 3.' },
@@ -17400,11 +17590,13 @@ export const V2_OPERATIONS = {
       timeout: {
         kind: 'integer',
         default: 30000,
+        maximum: 300000,
         describe: 'Per-request timeout in milliseconds. Defaults to 30000 on creation.',
       },
       retries: {
         kind: 'integer',
         default: 3,
+        maximum: 10,
         describe: 'Number of retries per request. Defaults to 3 on creation.',
       },
       enabled: {
@@ -17556,7 +17748,12 @@ export const V2_OPERATIONS = {
     body: {
       name: { kind: 'string', required: true, describe: 'File name, including its extension.' },
       contentType: { kind: 'string', required: true, describe: 'MIME type of the uploaded file.' },
-      size: { kind: 'integer', required: true, describe: 'Exact file size in bytes.' },
+      size: {
+        kind: 'integer',
+        required: true,
+        maximum: 5368709120,
+        describe: 'Exact file size in bytes.',
+      },
       folderPath: {
         kind: 'string',
         describe:
@@ -18365,7 +18562,7 @@ export const V2_OPERATIONS = {
         describe:
           'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
-      limit: { kind: 'integer', describe: 'Maximum matching rows to delete.' },
+      limit: { kind: 'integer', maximum: 1000, describe: 'Maximum matching rows to delete.' },
       rowIds: { kind: 'array', describe: 'Explicit row identifiers to delete.' },
     },
   },
@@ -18544,6 +18741,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum access items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -18603,6 +18801,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum access items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -18741,6 +18940,7 @@ export const V2_OPERATIONS = {
       },
       timeoutSeconds: {
         kind: 'integer',
+        maximum: 300,
         describe:
           'Maximum wait time in seconds; defaults to 120 and cannot exceed 300. Timeout does not guarantee that a third-party side effect was cancelled.',
       },
@@ -18771,11 +18971,13 @@ export const V2_OPERATIONS = {
       },
       executionTimeoutSeconds: {
         kind: 'integer',
+        maximum: 604800,
         describe:
           "Maximum duration of an asynchronous run, in seconds, capped by the plan's execution timeout. Requires `async: true` or `waitTimeoutSeconds`; otherwise returns `400`.",
       },
       waitTimeoutSeconds: {
         kind: 'integer',
+        maximum: 604800,
         describe:
           'Wait at most this many seconds for a synchronous run; `0` waits until it settles. A run still going then continues in the background and the response carries its run receipt instead of its result: `202` on a JSON response, or a closing `detached` frame on an `application/x-ndjson` result stream, which keeps its `200`. The receipt is sent only once the run can be read on the runs resource, where it can also be cancelled. The run is admitted under asynchronous limits, and a dropped connection no longer cancels it. Requires a full-access API key or an OAuth access token with `api:write`. Cannot be combined with `async` or `stream`.',
       },
@@ -18808,6 +19010,7 @@ export const V2_OPERATIONS = {
       },
       base64MaxBytes: {
         kind: 'integer',
+        maximum: 16777216,
         describe:
           'Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true.',
       },
@@ -19198,6 +19401,7 @@ export const V2_OPERATIONS = {
       segmentCount: {
         kind: 'integer',
         default: 72,
+        maximum: 500,
         describe:
           'Number of equal time buckets to divide the window into, from 1 to 500. It is the ceiling on how many buckets a series carries: with `includeEmpty=true` exactly this many are returned, otherwise only the buckets holding at least one run. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.',
       },
@@ -19353,6 +19557,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum ranked groups to return. Remaining usage is summarized in other. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -19649,6 +19854,10 @@ export const V2_OPERATIONS = {
           'planetscale.branches',
           'planetscale.backups',
           'planetscale.deployRequests',
+          'planetscale.savedDatabases',
+          'planetscale.savedBranches',
+          'planetscale.savedBackups',
+          'planetscale.savedDeployRequests',
           'cloudwatch.logGroups',
           'cloudwatch.logStreams',
           'cloudwatch.savedLogGroups',
@@ -19870,6 +20079,14 @@ export const V2_OPERATIONS = {
     summary: 'Get workflow MCP server',
     workspaceKeyUnsupported: true,
   },
+  getWorkflowOutline: {
+    method: 'GET',
+    path: '/api/v2/workflows/[workflowId]/outline',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Get workflow outline',
+  },
   getWorkflowRun: {
     method: 'GET',
     path: '/api/v2/workflows/[workflowId]/runs/[runId]',
@@ -19898,6 +20115,7 @@ export const V2_OPERATIONS = {
       },
       base64MaxBytes: {
         kind: 'integer',
+        maximum: 16777216,
         describe: 'Per-file inline ceiling, lowering but never raising the server limit of 16 MiB.',
       },
     },
@@ -19971,6 +20189,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20115,6 +20334,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum audit entries to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20179,6 +20399,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum usage events per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20243,6 +20464,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum blocks to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20282,6 +20504,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum chat deployments to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20319,6 +20542,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 25,
+        maximum: 100,
         describe:
           'Maximum connector types to return per page. Must be a whole number from 1 to 100. Defaults to 25.',
       },
@@ -20346,6 +20570,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum credential members to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20428,6 +20653,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum credentials to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20469,6 +20695,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum custom tools to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20540,6 +20767,7 @@ export const V2_OPERATIONS = {
       },
       depth: {
         kind: 'integer',
+        maximum: 64,
         describe: 'Deepest level below parentPath to include when recursive is true.',
       },
     },
@@ -20641,6 +20869,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum versions to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20695,6 +20924,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum knowledge bases to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20747,6 +20977,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum chunks to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20781,6 +21012,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum connector documents to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20820,6 +21052,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum connectors to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20846,6 +21079,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum documents to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20998,21 +21232,25 @@ export const V2_OPERATIONS = {
       },
       minDurationMs: {
         kind: 'integer',
+        maximum: 2147483647,
         describe:
           'Minimum total execution duration in milliseconds. Whole milliseconds from 0 to 2147483647; the stored duration is a 32-bit integer, so a fractional or out-of-range bound is rejected.',
       },
       maxDurationMs: {
         kind: 'integer',
+        maximum: 2147483647,
         describe:
           'Maximum total execution duration in milliseconds. Whole milliseconds from 0 to 2147483647; the stored duration is a 32-bit integer, so a fractional or out-of-range bound is rejected.',
       },
       minCost: {
         kind: 'number',
+        maximum: 1000000,
         describe:
           'Minimum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run.',
       },
       maxCost: {
         kind: 'number',
+        maximum: 1000000,
         describe:
           'Maximum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run.',
       },
@@ -21118,6 +21356,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum MCP servers to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21178,6 +21417,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum access requests to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21217,6 +21457,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum access requests to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21256,6 +21497,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum access requests to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21286,6 +21528,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum domain claims to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21341,6 +21584,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum invitations to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21383,6 +21627,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21422,6 +21667,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum members to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21460,6 +21706,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum organizations to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21518,6 +21765,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum usage events per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21569,6 +21817,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21576,6 +21825,48 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listPausedRuns: {
+    method: 'GET',
+    path: '/api/v2/workflows/runs/paused',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List paused workflow runs',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose paused runs should be listed.',
+      },
+      includeOutput: {
+        kind: 'boolean',
+        describe: "Include each pause point's reviewer `display` content when true.",
+      },
+      limit: {
+        kind: 'integer',
+        default: 10,
+        maximum: 25,
+        describe:
+          'Maximum runs to return per page. A page also ends early once it holds 100 pause points, so it can return fewer runs while `nextCursor` is set. Must be a whole number from 1 to 25. Defaults to 10.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['pausedAt'] as const,
+        default: 'pausedAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
       },
     },
   },
@@ -21606,6 +21897,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum group members to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21645,6 +21937,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum permission groups to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21732,6 +22025,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 100,
+        maximum: 1000,
         describe: 'Maximum files per page. Must be a whole number from 1 to 1000. Defaults to 100.',
       },
       cursor: {
@@ -21768,6 +22062,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum versions to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21806,6 +22101,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum sandboxes to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21854,6 +22150,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum secrets to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21988,6 +22285,10 @@ export const V2_OPERATIONS = {
           'planetscale.branches',
           'planetscale.backups',
           'planetscale.deployRequests',
+          'planetscale.savedDatabases',
+          'planetscale.savedBranches',
+          'planetscale.savedBackups',
+          'planetscale.savedDeployRequests',
           'cloudwatch.logGroups',
           'cloudwatch.logStreams',
           'cloudwatch.savedLogGroups',
@@ -22024,6 +22325,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe: 'Maximum options per page, from 1 to 100. Defaults to 50.',
       },
     },
@@ -22056,6 +22358,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum skill editors to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -22094,6 +22397,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum skills to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -22119,6 +22423,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum identity providers to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -22200,6 +22505,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 100,
+        maximum: 1000,
         describe:
           'Maximum rows to return per page. Must be a whole number from 1 to 1000. Defaults to 100.',
       },
@@ -22322,6 +22628,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum tools to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -22408,6 +22715,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum workflow-MCP servers to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -22454,6 +22762,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum workflow runs to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -22502,6 +22811,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum workflows to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -22548,6 +22858,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum deployment versions to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -22570,6 +22881,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -22604,6 +22916,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -22651,6 +22964,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum members to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -22672,6 +22986,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -22710,6 +23025,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 25,
+        maximum: 100,
         describe:
           'Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 25.',
       },
@@ -22717,6 +23033,45 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listWorkspaceSchedules: {
+    method: 'GET',
+    path: '/api/v2/schedules',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List workspace schedules',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose schedules should be listed.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        maximum: 100,
+        describe:
+          'Maximum schedules to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['createdAt'] as const,
+        default: 'createdAt',
+        describe:
+          "Field used to sort the result. `createdAt` is when the schedule was created for the deployment version that runs it: each deploy creates new schedule rows, so a redeployed workflow's schedules move to the newest end.",
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
       },
     },
   },
@@ -23082,6 +23437,7 @@ export const V2_OPERATIONS = {
       sort: { kind: 'array', describe: 'Ordered table-row sort specification.' },
       limit: {
         kind: 'integer',
+        maximum: 1000,
         describe:
           'Maximum rows per page. `0` requests all matches, subject to a 5 MiB row-data ceiling; larger results return `400` with `TABLE_QUERY_RESULT_TOO_LARGE`. Use paged queries or an export for larger results.',
       },
@@ -23124,16 +23480,19 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
       maxBytes: {
         kind: 'integer',
+        maximum: 26214400,
         describe:
           'Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.',
       },
       offset: {
         kind: 'integer',
+        maximum: 9007199254740991,
         describe:
           'First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.',
       },
       limit: {
         kind: 'integer',
+        maximum: 9007199254740991,
         describe: 'How many lines to return from `offset`. Absent reads to the end.',
       },
     },
@@ -23149,16 +23508,19 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
       maxBytes: {
         kind: 'integer',
+        maximum: 26214400,
         describe:
           'Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.',
       },
       offset: {
         kind: 'integer',
+        maximum: 9007199254740991,
         describe:
           'First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.',
       },
       limit: {
         kind: 'integer',
+        maximum: 9007199254740991,
         describe: 'How many lines to return from `offset`. Absent reads to the end.',
       },
     },
@@ -23370,6 +23732,7 @@ export const V2_OPERATIONS = {
       expectedRevision: {
         kind: 'integer',
         required: true,
+        maximum: 9007199254740991,
         describe: 'Permission revision read before exporting the grants.',
       },
       permissions: {
@@ -23506,6 +23869,7 @@ export const V2_OPERATIONS = {
       },
       newLimitCredits: {
         kind: 'integer',
+        maximum: 9007199254740991,
         describe:
           'Required only for a usage-limit request: a whole-number credit cap greater than the current cap. Omit for permission requests. Available when action is apply.',
       },
@@ -23532,6 +23896,7 @@ export const V2_OPERATIONS = {
           },
           newLimitCredits: {
             kind: 'integer',
+            maximum: 9007199254740991,
             describe:
               'Required only for a usage-limit request: a whole-number credit cap greater than the current cap. Omit for permission requests.',
           },
@@ -23695,6 +24060,7 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
       expectedCurrentVersion: {
         kind: 'integer',
+        maximum: 2147483647,
         describe:
           'Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number, so prefer `expectedRevision` to guard content.',
       },
@@ -23720,6 +24086,7 @@ export const V2_OPERATIONS = {
     body: {
       expectedCurrentVersion: {
         kind: 'integer',
+        maximum: 2147483647,
         describe:
           'Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number, so prefer `expectedRevision` to guard content.',
       },
@@ -23785,6 +24152,7 @@ export const V2_OPERATIONS = {
     body: {
       version: {
         kind: 'integer',
+        maximum: 2147483647,
         describe: 'Deployment version to reactivate. Omit to select the previous active version.',
       },
     },
@@ -24118,7 +24486,12 @@ export const V2_OPERATIONS = {
         default: 'regex',
         describe: 'How `query` is read.',
       },
-      maxResults: { kind: 'integer', default: 50, describe: 'Maximum matching lines to return.' },
+      maxResults: {
+        kind: 'integer',
+        default: 50,
+        maximum: 200,
+        describe: 'Maximum matching lines to return.',
+      },
       folderPaths: {
         kind: 'string',
         describe:
@@ -24171,6 +24544,7 @@ export const V2_OPERATIONS = {
       topK: {
         kind: 'number',
         default: 10,
+        maximum: 100,
         describe:
           'Maximum number of search results to return. Must be a whole number between 1 and 100.',
       },
@@ -24198,6 +24572,7 @@ export const V2_OPERATIONS = {
       },
       rerankerInputCount: {
         kind: 'integer',
+        maximum: 100,
         describe:
           'How many candidate chunks to retrieve before reranking. Defaults to four times `topK`, capped at 100. A larger pool costs more retrieval work but gives the reranker more to choose from.',
       },
@@ -24223,7 +24598,12 @@ export const V2_OPERATIONS = {
         default: 'regex',
         describe: 'How `query` is read.',
       },
-      maxResults: { kind: 'integer', default: 50, describe: 'Maximum matching lines to return.' },
+      maxResults: {
+        kind: 'integer',
+        default: 50,
+        maximum: 200,
+        describe: 'Maximum matching lines to return.',
+      },
       folderPaths: {
         kind: 'string',
         describe:
@@ -24599,6 +24979,7 @@ export const V2_OPERATIONS = {
       },
       syncIntervalMinutes: {
         kind: 'integer',
+        maximum: 525600,
         describe: 'New scheduled synchronization interval in minutes.',
       },
       status: {
@@ -24749,11 +25130,13 @@ export const V2_OPERATIONS = {
       timeout: {
         kind: 'integer',
         default: 30000,
+        maximum: 300000,
         describe: 'Per-request timeout in milliseconds. Defaults to 30000 on creation.',
       },
       retries: {
         kind: 'integer',
         default: 3,
+        maximum: 10,
         describe: 'Number of retries per request. Defaults to 3 on creation.',
       },
       enabled: {
@@ -24916,7 +25299,11 @@ export const V2_OPERATIONS = {
         describe:
           'New parent folder identifier; null moves to the root, omission leaves the parent unchanged.',
       },
-      sortOrder: { kind: 'integer', describe: 'New manual position; omit to leave unchanged.' },
+      sortOrder: {
+        kind: 'integer',
+        maximum: 9007199254740991,
+        describe: 'New manual position; omit to leave unchanged.',
+      },
     },
   },
   updateProjectFileShare: {
@@ -24975,7 +25362,7 @@ export const V2_OPERATIONS = {
         required: true,
         describe: 'Row-data patch applied to every matching row.',
       },
-      limit: { kind: 'integer', describe: 'Maximum matching rows to update.' },
+      limit: { kind: 'integer', maximum: 1000, describe: 'Maximum matching rows to update.' },
     },
   },
   updateSandbox: {
@@ -25242,6 +25629,23 @@ export const V2_OPERATIONS = {
       description: {
         kind: 'string',
         describe: 'New release note for the deployment version, or null to clear it.',
+      },
+    },
+  },
+  updateWorkspace: {
+    method: 'PATCH',
+    path: '/api/v2/workspaces/[workspaceId]',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace to update.' },
+    responseMode: 'json',
+    summary: 'Update workspace',
+    workspaceKeyUnsupported: true,
+    body: {
+      name: { kind: 'string', describe: 'New workspace display name.' },
+      logoUrl: {
+        kind: 'string',
+        describe:
+          'New workspace logo URL: a root-relative path (starting with /) or an https:// URL. Send null to remove the logo.',
       },
     },
   },

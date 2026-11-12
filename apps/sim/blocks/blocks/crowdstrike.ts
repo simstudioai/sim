@@ -5,6 +5,7 @@ import {
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
   parseOptionalNumberInput,
+  withSavedCredential,
 } from '@/blocks/utils'
 
 /**
@@ -93,6 +94,8 @@ const CLEARED_OPTIONAL_PARAMS: Record<string, undefined> = Object.freeze({
 
 export const CrowdStrikeBlock: BlockConfig = {
   type: 'crowdstrike',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'crowdstrike_v2' },
   name: 'CrowdStrike',
   description:
     'Investigate and respond to CrowdStrike Falcon alerts, hosts, IOCs, and vulnerabilities',
@@ -1296,3 +1299,17 @@ export const CrowdStrikeBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const CrowdStrikeV2Block: BlockConfig = {
+  ...CrowdStrikeBlock,
+  type: 'crowdstrike_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(CrowdStrikeBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'crowdstrike',
+    title: 'CrowdStrike Credential',
+  }),
+}

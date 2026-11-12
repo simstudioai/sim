@@ -303,6 +303,18 @@ describe('CI task attribution through real Turborepo', () => {
       e2e_build: true,
     })
   })
+  it('keeps landing route-group edits on the rendering and SEO path', () => {
+    const plan = classifyFiles(['apps/sim/app/(landing)/pricing/page.tsx'])
+    expect(plan.fallback).toBeUndefined()
+    expect(groups(plan)).toEqual(['seo'])
+    expect(plan.flags).toMatchObject({
+      integration: false,
+      desktop_live: false,
+      test_app: true,
+      build: true,
+      e2e_build: true,
+    })
+  })
   it.each(['delete', 'move'])('keeps SEO coverage when library media is removed: %s', (change) => {
     const { repo } = fixture()
     const media = 'apps/sim/public/library/example/cover.jpg'

@@ -5,16 +5,16 @@ import type { NoteContentEditorProps } from '@sim/workflow-renderer'
 import { RichMarkdownField } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field'
 import { useNoteImageUpload } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/use-note-image-upload'
 
-export const NOTE_EDITOR_PROSE_CLASS_NAME = [
+const NOTE_EDITOR_PROSE_CLASS_NAME = [
   'min-h-full w-full text-current',
   /* The height the shared node chrome centres a checklist's checkbox against —
      the note's own line box, not the file editor's taller default. */
   '[--rich-markdown-line-height:1.25rem]',
   /* Mirrors NOTE_MARKDOWN_FLOW, the rhythm Streamdown paints in the read view.
      Tailwind's JIT only sees literal class strings, so this cannot be composed
-     from that constant — the note view exports it, and the parity test pins the
-     two together. Without it the editor falls back to the per-element margins
-     and every block after the first sits ~12px higher than when viewing. */
+     from that constant; keep the two in step by hand. Without it the editor
+     falls back to the per-element margins and every block after the first sits
+     ~12px higher than when viewing. */
   '[&_.ProseMirror]:space-y-4 [&_.ProseMirror>*:first-child]:mt-0 [&_.ProseMirror>*:last-child]:mb-0',
   '[&_.ProseMirror]:min-h-full [&_.ProseMirror]:break-words [&_.ProseMirror]:pt-0.5 [&_.ProseMirror]:pb-2 [&_.ProseMirror]:outline-hidden',
   '[&_.ProseMirror_p]:mb-1 [&_.ProseMirror_p]:text-sm [&_.ProseMirror_p]:leading-[1.25rem] [&_.ProseMirror_p:last-child]:mb-0',

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import { InsufficientScopeError } from '@/lib/core/application'
 import { HttpError } from '@/lib/core/utils/http-error'
 import {
@@ -6,6 +7,7 @@ import {
   v2Error,
   v2HttpError,
   v2RateLimitError,
+  v2ValidationError,
 } from '@/app/api/v2/lib/response'
 
 describe('v2 403 insufficient_scope challenge', () => {
@@ -144,5 +146,23 @@ describe('v2 401 authentication challenge', () => {
 
     expect(response.status).toBe(401)
     expect(response.headers.get('WWW-Authenticate')).toBe('Bearer realm="mcp"')
+  })
+})
+
+describe('v2 validation error message', () => {
+  async function messageFor(schema: z.ZodType, value: unknown): Promise<string> {
+    const parsed = schema.safeParse(value)
+    if (parsed.success) throw new Error('expected a validation failure')
+    return (await v2ValidationError(parsed.error, 'query').json()).error.message
+  }
+
+  it('names the field once when the issue message already leads with its label', async () => {
+    const schema = z.object({
+      enabled: z.string().refine((value) => value === 'true', 'enabled: expected one of "true"'),
+    })
+
+    await expect(messageFor(schema, { enabled: 'maybe' })).resolves.toBe(
+      'query.enabled: expected one of "true"'
+    )
   })
 })

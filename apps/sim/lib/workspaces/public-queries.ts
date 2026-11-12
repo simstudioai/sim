@@ -126,6 +126,16 @@ export async function getPublicWorkspaceDetails(
   return details
 }
 
+/** Effective member count of one workspace, counted the way the public detail reports it. */
+export async function countPublicWorkspaceMembers(row: {
+  id: string
+  organizationId: string | null
+}): Promise<number> {
+  const count = (await countWorkspaceMembers([row])).get(row.id)
+  if (count === undefined) throw new Error(`Invalid member count for workspace ${row.id}`)
+  return count
+}
+
 export async function getPublicWorkspaceDetail(
   workspaceId: string
 ): Promise<PublicWorkspaceDetail | null> {

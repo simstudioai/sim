@@ -209,7 +209,9 @@ export interface ReplaceWorkflowNormalizedStateInput {
    * lock is taken, inside the same transaction, so a concurrent write that
    * commits between a caller's own read and this one cannot be silently
    * overwritten by a stale graph. Passing an already-read value is correct only
-   * when the caller composed it without reading the stored graph.
+   * when the caller composed it without reading the stored graph. A caller that
+   * cannot compose its graph under the lock re-reads the stored graph in the
+   * reader and refuses the write when it changed.
    */
   state: ReplaceWorkflowState | ((tx: DbOrTx) => Promise<ReplaceWorkflowState>)
   requestId?: string
@@ -252,9 +254,8 @@ export async function replaceWorkflowNormalizedState(
    * lock or reaches drizzle's transaction wrapper — so the thrown
    * `OrchestrationError` arrives at callers unwrapped.
    *
-   * A caller that produces its graph from a reader is unaffected: the reader
-   * composes a graph from what is already stored, and this pass covers the
-   * blocks it hands back through the inner check.
+   * A reader's graph does not exist until the lock is held, so it is checked
+   * only by the inner pass.
    */
   if (typeof state !== 'function') {
     await assertNoWithheldBlockType({ workspaceId, subjectUserId }, Object.values(state.blocks))

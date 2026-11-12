@@ -2,7 +2,7 @@
 title: Gong
 description: Read Gong data, upload calls, assign or unassign flow prospects, and request data erasure
 integration:
-  type: "gong"
+  type: "gong_v2"
   color: "#8039DF"
 ---
 
@@ -12,7 +12,9 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 {/* MANUAL-CONTENT-START:intro */}
 Use [Gong](https://www.gong.io/) to list calls, read call details and transcripts, and retrieve topics, trackers, interaction statistics, and other extensive call data. The actions also read users, activity and coaching metrics, answered scorecards, scorecard definitions, tracker configuration, call-library folders and content, and Engage flows.
 
-Look up an email address or phone number to find related calls, emails, meetings, CRM records, and engagement events. Connect your Gong API credentials and inspect the returned data when preparing coaching reports or syncing conversations to another system.
+Look up an email address or phone number to find related calls, emails, meetings, CRM records, and engagement events, and inspect the returned data when preparing coaching reports or syncing conversations to another system.
+
+Connect Gong once as a Gong credential: a Gong technical administrator creates an access key and secret on the **API** page of the Gong company settings, then adds both. Sim calls `https://api.gong.io`; an account whose API page shows a different base URL is not supported by the credential yet. Workflows built with the earlier Gong block keep the access key and secret they entered in the block.
 
 **Create Call** uploads metadata and asks Gong to fetch the recording from a media URL. **Assign Flow Prospects** and **Unassign Flow Prospects** change a prospect’s Engage flow assignments. **Purge Email Address** and **Purge Phone Number** request deletion of associated Gong data. [Gong processes these deletions in the background](https://help.gong.io/docs/delete-personal-data); a returned request ID does not confirm completion.
 {/* MANUAL-CONTENT-END */}
@@ -33,8 +35,6 @@ Retrieve call data by date range from Gong.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `fromDateTime` | string | Yes | Start date/time in ISO-8601 format \(e.g., 2024-01-01T00:00:00Z\) |
 | `toDateTime` | string | No | End date/time in ISO-8601 format \(e.g., 2024-01-31T23:59:59Z\). Defaults to the current execution time when omitted. |
 | `cursor` | string | No | Pagination cursor from a previous response |
@@ -83,8 +83,6 @@ Upload call metadata to Gong and let Gong pull the media from a URL.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `clientUniqueId` | string | Yes | Unique call ID from the source telephony or recording system |
 | `actualStart` | string | Yes | Actual call start time in ISO-8601 format |
 | `primaryUser` | string | Yes | Gong user ID for the call's host or owner |
@@ -117,8 +115,6 @@ Retrieve detailed data for a specific call from Gong.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `callId` | string | Yes | The Gong call ID to retrieve |
 
 #### Output
@@ -159,8 +155,6 @@ Retrieve transcripts of calls from Gong by call IDs or date range.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `callIds` | string | No | Comma-separated list of call IDs to retrieve transcripts for |
 | `fromDateTime` | string | No | Start date/time filter in ISO-8601 format |
 | `toDateTime` | string | No | End date/time filter in ISO-8601 format |
@@ -195,8 +189,6 @@ Retrieve detailed call data including trackers, topics, highlights, and AI spotl
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `callIds` | string | No | Comma-separated list of call IDs to retrieve detailed data for |
 | `fromDateTime` | string | No | Start date/time filter in ISO-8601 format |
 | `toDateTime` | string | No | End date/time filter in ISO-8601 format |
@@ -322,8 +314,6 @@ List all users in your Gong account.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `cursor` | string | No | Pagination cursor from a previous response |
 | `includeAvatars` | string | No | Whether to include avatar URLs \(true/false\) |
 
@@ -375,8 +365,6 @@ Retrieve details for a specific user from Gong.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `userId` | string | Yes | The Gong user ID to retrieve |
 
 #### Output
@@ -422,8 +410,6 @@ Retrieve aggregated activity statistics for users by date range from Gong.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `userIds` | string | No | Comma-separated list of Gong user IDs \(up to 20 digits each\) |
 | `fromDate` | string | Yes | Start date in YYYY-MM-DD format \(inclusive, in company timezone\) |
 | `toDate` | string | Yes | End date in YYYY-MM-DD format \(exclusive, in company timezone, cannot exceed current day\) |
@@ -469,8 +455,6 @@ Retrieve detailed day-by-day activity (call IDs per activity type) for users by 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `userIds` | string | No | Comma-separated list of Gong user IDs \(up to 20 digits each\) |
 | `fromDate` | string | Yes | Start date in YYYY-MM-DD format \(inclusive, in company timezone\) |
 | `toDate` | string | Yes | End date in YYYY-MM-DD format \(exclusive, in company timezone, cannot exceed current day\) |
@@ -516,8 +500,6 @@ Retrieve aggregated user activity grouped into time periods (day, week, month, q
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `aggregationPeriod` | string | Yes | Calendar period to group activity by: DAY, WEEK, MONTH, QUARTER, or YEAR \(week starts Monday\) |
 | `userIds` | string | No | Comma-separated list of Gong user IDs \(up to 20 digits each\) |
 | `fromDate` | string | Yes | Start date in YYYY-MM-DD format \(inclusive, in company timezone\) |
@@ -564,8 +546,6 @@ Retrieve interaction statistics for users by date range from Gong. Only includes
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `userIds` | string | No | Comma-separated list of Gong user IDs \(up to 20 digits each\) |
 | `fromDate` | string | Yes | Start date in YYYY-MM-DD format \(inclusive, in company timezone\) |
 | `toDate` | string | Yes | End date in YYYY-MM-DD format \(exclusive, in company timezone, cannot exceed current day\) |
@@ -599,8 +579,6 @@ Retrieve answered scorecards for reviewed users or by date range from Gong.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `callFromDate` | string | No | Start date for calls in YYYY-MM-DD format \(inclusive, in company timezone\). Defaults to earliest recorded call. |
 | `callToDate` | string | No | End date for calls in YYYY-MM-DD format \(exclusive, in company timezone\). Defaults to latest recorded call. |
 | `reviewFromDate` | string | No | Start date for reviews in YYYY-MM-DD format \(inclusive, in company timezone\). Defaults to earliest reviewed call. |
@@ -646,8 +624,6 @@ Retrieve library folders from Gong.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `workspaceId` | string | No | Gong workspace ID to filter folders |
 
 #### Output
@@ -674,8 +650,6 @@ Retrieve the list of calls in a specific library folder from Gong.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `folderId` | string | No | The library folder ID to retrieve content for \(up to 20 digits\) |
 
 #### Output
@@ -710,8 +684,6 @@ Retrieve scorecard definitions from Gong settings.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 
 #### Output
 
@@ -752,8 +724,6 @@ Retrieve smart tracker and keyword tracker definitions from Gong settings.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `workspaceId` | string | No | The ID of the workspace the keyword trackers are in. When empty, all trackers in all workspaces are returned. |
 
 #### Output
@@ -793,8 +763,6 @@ List all company workspaces in Gong.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 
 #### Output
 
@@ -818,8 +786,6 @@ List Gong Engage flows (sales engagement sequences).
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `flowOwnerEmail` | string | Yes | Email of a Gong user. The API will return 'PERSONAL' flows belonging to this user in addition to 'COMPANY' flows. |
 | `workspaceId` | string | No | Optional workspace ID to filter flows to a specific workspace |
 | `cursor` | string | No | Pagination cursor from a previous API call to retrieve the next page of records |
@@ -854,8 +820,6 @@ Assign up to 200 CRM prospects (contacts or leads) to a Gong Engage flow.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `flowId` | string | Yes | The Gong Engage flow ID to assign the prospects to |
 | `crmProspectsIds` | string | Yes | Comma-separated list of CRM prospect IDs \(contacts or leads\) to assign |
 | `flowInstanceOwnerEmail` | string | Yes | Email of the Gong user who owns the flow instance and its to-dos |
@@ -894,8 +858,6 @@ Remove a prospect from Gong Engage flows. Omit the flow ID to remove the prospec
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `crmProspectId` | string | Yes | The CRM ID of the prospect to unassign |
 | `flowId` | string | No | The ID of the flow to unassign the prospect from. If omitted, the prospect is removed from all flows they are assigned to. |
 | `unassignedByUserEmail` | string | No | Email address of the Gong user requesting to remove the prospect from the flow |
@@ -919,8 +881,6 @@ Get the Gong Engage flows currently assigned to the given CRM prospects.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `crmProspectsIds` | string | Yes | Comma-separated list of CRM prospect IDs \(contacts or leads\) to look up |
 
 #### Output
@@ -952,8 +912,6 @@ Retrieve coaching metrics for a manager from Gong.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `managerId` | string | Yes | Gong user ID of the manager |
 | `workspaceId` | string | Yes | Gong workspace ID |
 | `fromDate` | string | Yes | Start date in ISO-8601 format |
@@ -992,8 +950,6 @@ Ask a natural-language question about a CRM account, deal, contact, or lead. Gon
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `workspaceId` | string | Yes | Gong workspace ID the entity belongs to |
 | `crmEntityType` | string | Yes | Type of the CRM entity: ACCOUNT, CONTACT, DEAL, or LEAD |
 | `crmEntityId` | string | Yes | The CRM ID of the entity the question is asked about |
@@ -1026,8 +982,6 @@ Generate an AI brief (configured in Gong Agent Studio) for a CRM account, deal, 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `workspaceId` | string | Yes | Gong workspace ID the entity belongs to |
 | `briefName` | string | Yes | Name of the brief to generate, as configured in Gong Agent Studio &gt; AI Briefer |
 | `crmEntityType` | string | Yes | Type of the CRM entity: ACCOUNT, CONTACT, DEAL, or LEAD |
@@ -1063,8 +1017,6 @@ Retrieve Gong log entries of a specific type within a time range.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `logType` | string | Yes | Type of logs requested: AccessLog, UserActivityLog, UserCallPlay, ExternallySharedCallAccess, or ExternallySharedCallPlay |
 | `fromDateTime` | string | Yes | Time from which to retrieve log records, in ISO-8601 format \(e.g., '2024-01-01T00:00:00Z'\) |
 | `toDateTime` | string | No | Time until which to retrieve log records, in ISO-8601 format. Defaults to the latest available logs when omitted. |
@@ -1102,8 +1054,6 @@ Find all references to an email address in Gong (calls, email messages, meetings
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `emailAddress` | string | Yes | Email address to look up |
 
 #### Output
@@ -1158,8 +1108,6 @@ Find all references to a phone number in Gong (calls, email messages, meetings, 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `phoneNumber` | string | Yes | Phone number to look up \(must start with + followed by country code\) |
 
 #### Output
@@ -1209,8 +1157,6 @@ Erase all Gong data (calls, email messages, leads, contacts) referencing an emai
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `emailAddress` | string | Yes | Email address whose associated data should be permanently erased from Gong |
 
 #### Output
@@ -1231,8 +1177,6 @@ Erase all Gong data (calls, leads, contacts) referencing a phone number. Asynchr
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKey` | string | Yes | Gong API Access Key |
-| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
 | `phoneNumber` | string | Yes | Phone number whose associated data should be permanently erased from Gong. Must include a leading "+" and country code \(e.g., +14255552671\) |
 
 #### Output

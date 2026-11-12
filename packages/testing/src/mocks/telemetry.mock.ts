@@ -25,8 +25,6 @@ export function getMockPlatformEvent(name: string): Mock {
  * `PlatformEvents.<name>` is a separate stable spy reached through {@link getMockPlatformEvent}.
  */
 export const telemetryMockFns = {
-  mockTrackPlatformEvent: vi.fn(),
-  mockCreateOTelSpanFromTraceSpan: vi.fn(),
   mockCreateOTelSpansForWorkflowExecution: vi.fn(),
 }
 
@@ -52,7 +50,5 @@ export const telemetryMock = {
       },
     }
   ),
-  trackPlatformEvent: telemetryMockFns.mockTrackPlatformEvent,
-  createOTelSpanFromTraceSpan: telemetryMockFns.mockCreateOTelSpanFromTraceSpan,
   createOTelSpansForWorkflowExecution: telemetryMockFns.mockCreateOTelSpansForWorkflowExecution,
 }

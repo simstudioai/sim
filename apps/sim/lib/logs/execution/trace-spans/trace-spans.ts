@@ -1,8 +1,11 @@
+import { isRecordLike, toArray } from '@sim/utils/object'
 import { isUserFile } from '@/lib/core/utils/user-file'
 import { createSpanFromLog } from '@/lib/logs/execution/trace-spans/factory'
 import { groupIterationBlocks } from '@/lib/logs/execution/trace-spans/iteration-grouping'
 import type { TraceSpan } from '@/lib/logs/types'
+import { isSubExecutionBlockType } from '@/executor/constants'
 import type { BlockLog, ExecutionResult } from '@/executor/types'
+import { errorNamesBlock } from '@/executor/utils/errors'
 
 /**
  * Keys that should be recursively filtered from output display.
@@ -173,6 +176,15 @@ function addRelativeTimestamps(spans: TraceSpan[], workflowStartMs: number): voi
   }
 }
 
+/** A block that succeeded and owns its children's errors, so none of them is the run's failure. */
+function isSuccessfulErrorBoundary(status: unknown, type: unknown): boolean {
+  return (
+    status === 'success' &&
+    typeof type === 'string' &&
+    SUCCESSFUL_CHILD_ERROR_BOUNDARY_BLOCK_TYPES.has(type)
+  )
+}
+
 /** Options for {@link hasUnhandledError}. */
 export interface UnhandledErrorOptions {
   /**
@@ -191,9 +203,7 @@ export interface UnhandledErrorOptions {
  */
 export function hasUnhandledError(span: TraceSpan, options?: UnhandledErrorOptions): boolean {
   if (span.status === 'error' && !span.errorHandled) return true
-  if (span.status === 'success' && SUCCESSFUL_CHILD_ERROR_BOUNDARY_BLOCK_TYPES.has(span.type)) {
-    return false
-  }
+  if (isSuccessfulErrorBoundary(span.status, span.type)) return false
   if (span.children?.length) {
     return span.children.some((child) => hasUnhandledError(child, options))
   }
@@ -209,6 +219,85 @@ export function traceSpansIndicateFailure(
   options?: UnhandledErrorOptions
 ): boolean {
   return spans?.some((span) => hasUnhandledError(span, options)) ?? false
+}
+
+/** The block a recorded run failed in, as its trace names it. */
+export interface FailedTraceBlock {
+  blockId: string
+  blockName: string
+  blockType: string
+}
+
+interface FailedSpanCandidate {
+  block: FailedTraceBlock
+  endedAt: number
+  /** The block log's error, which the span builder merges into its output. */
+  recordedError: string | undefined
+}
+
+/** The innermost unhandled-error block spans: a container whose failure came from a block inside it yields that block. */
+function collectFailedBlockSpans(nodes: unknown, into: FailedSpanCandidate[]): void {
+  for (const span of toArray<unknown>(nodes)) {
+    if (!isRecordLike(span)) continue
+    const isError = span.status === 'error'
+    const blockId = typeof span.blockId === 'string' ? span.blockId : null
+    const blockType = typeof span.type === 'string' ? span.type : undefined
+    const before = into.length
+    const isBoundary =
+      isSubExecutionBlockType(blockType) || isSuccessfulErrorBoundary(span.status, blockType)
+    if (!blockId || !isBoundary) collectFailedBlockSpans(span.children, into)
+    if (isError && span.errorHandled !== true && blockId && blockType && into.length === before) {
+      into.push({
+        block: {
+          blockId,
+          blockName: typeof span.name === 'string' ? span.name : blockId,
+          blockType,
+        },
+        endedAt: typeof span.endTime === 'string' ? Date.parse(span.endTime) : Number.NaN,
+        recordedError:
+          isRecordLike(span.output) && typeof span.output.error === 'string'
+            ? span.output.error
+            : undefined,
+      })
+    }
+  }
+}
+
+/**
+ * The block a recorded run failed in, read back from its persisted trace spans.
+ *
+ * Given the run's stored error, only a block that owns it is named: one whose name
+ * heads it (`Block name: message`, as a block failure is recorded) or whose own
+ * recorded error is exactly it, as a loop or parallel failure is recorded without a
+ * prefix. A run stores the error of the failure that settled first, while branches
+ * already in flight may fail after it, and a run can fail outside any block while
+ * one is failing; so a failed block that does not own the error is never named, and
+ * among several owners the one that ended first is, or none when they cannot be told
+ * apart. Without a run error, the failure that ended first is named.
+ *
+ * Spans are walked as {@link hasUnhandledError} walks them, including under a block
+ * that succeeded, and the same boundaries hold: a successful boundary block's
+ * children are not its failure. The spans under a workflow or custom block are
+ * another workflow's and are not descended into, so its failure is attributed to the
+ * block that ran it, as it is at execution time, and a custom block's source workflow
+ * is never named to its consumer.
+ *
+ * Reads stored, untyped spans structurally, and of their output only the recorded
+ * error. Null when the trace has no such span, including when it was not recorded,
+ * was compacted, or is unavailable.
+ */
+export function findFailedTraceBlock(spans: unknown, runError?: string): FailedTraceBlock | null {
+  const candidates: FailedSpanCandidate[] = []
+  collectFailedBlockSpans(spans, candidates)
+  const pool = runError
+    ? candidates.filter(
+        (span) => errorNamesBlock(runError, span.block.blockName) || span.recordedError === runError
+      )
+    : candidates
+  if (pool.length <= 1) return pool[0]?.block ?? null
+  if (!pool.every((span) => Number.isFinite(span.endedAt))) return null
+  const [first, second] = pool.sort((a, b) => a.endedAt - b.endedAt)
+  return first.endedAt < second.endedAt ? first.block : null
 }
 
 interface DurationBearingSpan {

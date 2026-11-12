@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { v2ExecutionErrorSchema } from '@/lib/api/contracts/v2/workflows'
 import { HttpError } from '@/lib/core/utils/http-error'
+import { findFailedTraceBlock } from '@/lib/logs/execution/trace-spans/trace-spans'
+import type { TraceSpan } from '@/lib/logs/types'
 import type { ExecutionResult } from '@/executor/types'
 import {
   buildBlockExecutionError,
   classifyExecutionError,
+  classifyRecordedExecutionError,
   getExecutionErrorStatus,
   type WorkflowExecutionErrorCode,
 } from '@/executor/utils/errors'
@@ -237,5 +240,105 @@ describe('classifyExecutionError', () => {
     expect(new Set(v2ExecutionErrorSchema.shape.code.options)).toEqual(
       new Set(Object.keys(producedBy))
     )
+  })
+})
+
+describe('classifyRecordedExecutionError', () => {
+  const lookup = { blockId: 'block-1', blockName: 'Lookup', blockType: 'api' }
+
+  it('attributes a block failure to the block its trace names', () => {
+    expect(classifyRecordedExecutionError('Lookup: upstream returned 500', lookup)).toEqual({
+      message: 'upstream returned 500',
+      code: 'BLOCK_EXECUTION_FAILED',
+      ...lookup,
+    })
+  })
+
+  it('reports a child workflow block failure as CHILD_WORKFLOW_FAILED', () => {
+    const runner = { blockId: 'block-2', blockName: 'Run child', blockType: 'workflow' }
+    expect(classifyRecordedExecutionError('Run child: child failed', runner).code).toBe(
+      'CHILD_WORKFLOW_FAILED'
+    )
+  })
+
+  it('leaves a run-level timeout unattributed even when a block span errored', () => {
+    const error = classifyRecordedExecutionError('Execution timed out after 300 seconds', lookup)
+    expect(error.code).toBe('TIMEOUT')
+    expect(error.blockId).toBeUndefined()
+  })
+
+  it("attributes a block's own failure even when its name reads as a run-level failure", () => {
+    const timeoutBlock = { blockId: 'block-3', blockName: 'Timeout', blockType: 'api' }
+    expect(classifyRecordedExecutionError('Timeout: upstream returned 500', timeoutBlock)).toEqual({
+      message: 'upstream returned 500',
+      code: 'BLOCK_EXECUTION_FAILED',
+      ...timeoutBlock,
+    })
+  })
+
+  /** A recorded trace holding one failed block span, as a polled run reads it back. */
+  const traceWithFailure = (failed: Partial<TraceSpan>): TraceSpan[] => [
+    {
+      id: 'workflow-execution',
+      name: 'Workflow Execution',
+      type: 'workflow',
+      duration: 1,
+      startTime: '2024-01-01T10:00:00.000Z',
+      endTime: '2024-01-01T10:00:01.000Z',
+      status: 'error',
+      children: [
+        {
+          id: 'failed-span',
+          name: 'Failed',
+          type: 'function',
+          duration: 1,
+          startTime: '2024-01-01T10:00:00.000Z',
+          endTime: '2024-01-01T10:00:01.000Z',
+          status: 'error',
+          ...failed,
+        },
+      ],
+    },
+  ]
+  const classifyFromTrace = (runError: string, failed: Partial<TraceSpan>) =>
+    classifyRecordedExecutionError(
+      runError,
+      findFailedTraceBlock(traceWithFailure(failed), runError)
+    )
+
+  it('attributes a loop failure, recorded without a name prefix, to the loop', () => {
+    const runError = 'ForEach loop resolution failed: items is not an array'
+    expect(
+      classifyFromTrace(runError, {
+        blockId: 'loop-1',
+        name: 'Each lead',
+        type: 'loop',
+        output: { error: runError },
+      })
+    ).toEqual({
+      message: runError,
+      code: 'BLOCK_EXECUTION_FAILED',
+      blockId: 'loop-1',
+      blockName: 'Each lead',
+      blockType: 'loop',
+    })
+  })
+
+  it('does not attribute a run error to a failed block that did not record it', () => {
+    expect(
+      classifyFromTrace('Service unavailable', {
+        blockId: 'block-1',
+        name: 'Lookup',
+        type: 'api',
+        output: { error: 'upstream returned 500' },
+      })
+    ).toEqual({ message: 'Service unavailable', code: 'EXECUTION_FAILED' })
+  })
+
+  it('reports EXECUTION_FAILED when the trace names no block', () => {
+    expect(classifyRecordedExecutionError('Lookup: upstream returned 500', null)).toEqual({
+      message: 'Lookup: upstream returned 500',
+      code: 'EXECUTION_FAILED',
+    })
   })
 })

@@ -2,7 +2,8 @@
  * A deployed run that pauses at a human-in-the-loop block, executed in-process against real
  * PostgreSQL: the pause's reviewer content is stored and read back with the run's resolved
  * secret redacted, and the run detail withholds that content on the same terms as the run's
- * output, while the pause's input fields stay readable.
+ * output, while the pause's input fields stay readable. The workspace's paused-run list shows
+ * each point on exactly the same terms.
  */
 import { db } from '@sim/db'
 import {
@@ -29,6 +30,7 @@ import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { executeWorkflowOperation } from '@/lib/workflows/application/execute-workflow'
+import { listPausedRuns } from '@/lib/workflows/application/list-paused-runs'
 import { readWorkflowRun } from '@/lib/workflows/application/read-workflow-run'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import type { PausePoint } from '@/executor/types'
@@ -312,5 +314,164 @@ describe('a deployed run paused at a human-in-the-loop block', () => {
         inputFields: INPUT_FIELDS,
       }),
     ])
+  })
+})
+
+describe("the workspace's paused-run list", () => {
+  function listRuns(
+    principal: typeof owner,
+    options: { includeOutput: boolean; limit?: number; cursorKeys?: (string | number)[] }
+  ) {
+    return listPausedRuns.execute({
+      principal,
+      input: {
+        workspaceId,
+        includeOutput: options.includeOutput,
+        sortOrder: 'desc',
+        limit: options.limit ?? 25,
+        cursorKeys: options.cursorKeys,
+      },
+    })
+  }
+
+  it('lists a run waiting on a human with the points its run detail shows', async () => {
+    const runId = await pausedRun()
+
+    const [page, run] = await Promise.all([
+      listRuns(owner, { includeOutput: true }),
+      readRun(owner, runId, { includeOutput: true }),
+    ])
+    const listed = page.runs.find((entry) => entry.runId === runId)
+    expect(listed).toMatchObject({ workflowId, workflowName: 'Paused run fixture' })
+    expect(listed?.points).toEqual(run.pausePoints)
+    expect(JSON.stringify(page)).not.toContain(SECRET)
+  })
+
+  it('withholds reviewer content and resolved input fields from a viewer whose group hides execution data', async () => {
+    const runId = await pausedRun()
+
+    const page = await listRuns(restricted, { includeOutput: true })
+    const listed = page.runs.find((entry) => entry.runId === runId)
+    expect(listed?.points).toEqual([
+      expect.objectContaining({ contextId: 'approval', display: null, inputFields: null }),
+    ])
+  })
+
+  it('lists a legacy run whose pause points are stored as an array', async () => {
+    const runId = generateId()
+    await db.insert(pausedExecutions).values({
+      id: generateId(),
+      workflowId,
+      executionId: runId,
+      executionSnapshot: {},
+      pausePoints: [
+        {
+          contextId: 'legacy-approval',
+          blockId: 'approval',
+          registeredAt: new Date().toISOString(),
+          resumeStatus: 'paused',
+          snapshotReady: true,
+          response: {},
+        },
+      ],
+      totalPauseCount: 1,
+      status: 'paused',
+    })
+
+    const page = await listRuns(owner, { includeOutput: false })
+    const listed = page.runs.find((entry) => entry.runId === runId)
+    expect(listed?.points).toEqual([
+      expect.objectContaining({ contextId: 'legacy-approval', kind: 'human', status: 'paused' }),
+    ])
+  })
+
+  it('leaves out time-only pauses, archived workflows, and other workspaces', async () => {
+    const humanPoint = {
+      contextId: 'approval',
+      blockId: 'approval',
+      registeredAt: new Date().toISOString(),
+      resumeStatus: 'paused',
+      snapshotReady: true,
+      response: {},
+    }
+    const pausedRow = (rowWorkflowId: string, pausePoints: unknown) => ({
+      id: generateId(),
+      workflowId: rowWorkflowId,
+      executionId: generateId(),
+      executionSnapshot: {},
+      pausePoints,
+      totalPauseCount: 1,
+      status: 'paused',
+    })
+    const now = new Date()
+    const archivedWorkflowId = generateId()
+    const otherWorkspaceId = generateId()
+    const otherWorkflowId = generateId()
+    await insertWorkspaceFixture(db, {
+      id: otherWorkspaceId,
+      name: 'Other paused run fixture',
+      ownerId,
+      billedAccountUserId: ownerId,
+      organizationId,
+      workspaceMode: 'organization',
+    })
+    await db.insert(workflow).values([
+      {
+        id: archivedWorkflowId,
+        userId: ownerId,
+        workspaceId,
+        name: 'Archived paused run fixture',
+        archivedAt: now,
+        lastSynced: now,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: otherWorkflowId,
+        userId: ownerId,
+        workspaceId: otherWorkspaceId,
+        name: 'Other workspace paused run fixture',
+        lastSynced: now,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ])
+    const timeOnly = pausedRow(workflowId, {
+      wait: { ...humanPoint, contextId: 'wait', pauseKind: 'time', resumeAt: now.toISOString() },
+    })
+    const archived = pausedRow(archivedWorkflowId, { approval: humanPoint })
+    const otherWorkspace = pausedRow(otherWorkflowId, { approval: humanPoint })
+    try {
+      await db.insert(pausedExecutions).values([timeOnly, archived, otherWorkspace])
+
+      const page = await listRuns(owner, { includeOutput: false })
+      const listedIds = page.runs.map((entry) => entry.runId)
+      expect(listedIds).not.toContain(timeOnly.executionId)
+      expect(listedIds).not.toContain(archived.executionId)
+      expect(listedIds).not.toContain(otherWorkspace.executionId)
+    } finally {
+      await db
+        .delete(pausedExecutions)
+        .where(inArray(pausedExecutions.workflowId, [archivedWorkflowId, otherWorkflowId]))
+      await db.delete(workflow).where(inArray(workflow.id, [archivedWorkflowId, otherWorkflowId]))
+      await deleteWorkspaceFixture(db, eq(workspace.id, otherWorkspaceId))
+    }
+  })
+
+  it('pages through the waiting runs without repeating one', async () => {
+    await pausedRun()
+    await pausedRun()
+
+    const first = await listRuns(owner, { includeOutput: false, limit: 1 })
+    expect(first.runs).toHaveLength(1)
+    expect(first.nextCursorKeys).not.toBeNull()
+    const second = await listRuns(owner, {
+      includeOutput: false,
+      limit: 1,
+      cursorKeys: first.nextCursorKeys ?? undefined,
+    })
+    expect(second.runs).toHaveLength(1)
+    expect(second.runs[0].runId).not.toBe(first.runs[0].runId)
+    expect(second.runs[0].pausedAt.getTime()).toBeLessThanOrEqual(first.runs[0].pausedAt.getTime())
   })
 })

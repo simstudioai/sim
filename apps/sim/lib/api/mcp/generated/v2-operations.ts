@@ -310,15 +310,18 @@ import {
   v2ExportWorkflowContract,
   v2GetWorkflowContract,
   v2GetWorkflowDeploymentContract,
+  v2GetWorkflowOutlineContract,
   v2GetWorkflowRunContract,
   v2GetWorkflowStateContract,
   v2GetWorkflowVersionContract,
   v2ImportWorkflowContract,
+  v2ListPausedRunsContract,
   v2ListWorkflowFoldersContract,
   v2ListWorkflowRunsContract,
   v2ListWorkflowsContract,
   v2ListWorkflowTriggersContract,
   v2ListWorkflowVersionsContract,
+  v2ListWorkspaceSchedulesContract,
   v2MoveWorkflowsContract,
   v2PreviewWorkflowImportContract,
   v2RelocateWorkflowFolderContract,
@@ -361,6 +364,7 @@ import {
   v2ListWorkspaceMembersContract,
   v2ListWorkspacesContract,
   v2RemoveWorkspaceMemberContract,
+  v2UpdateWorkspaceContract,
   v2UpdateWorkspaceMemberContract,
 } from '@/lib/api/contracts/v2/workspaces'
 import type { V2McpOperation } from '@/lib/api/mcp/types'
@@ -447,7 +451,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ApplyWorkflowOperationsContract,
     summary: 'Apply workflow operations',
     description:
-      'Apply draft edits and block enablement changes in one write. Requires workspace write access. The live deployment is unchanged; lint is advisory.\n\nInspect `skipped` and `inputValidationErrors` for edits that did not apply. Deferred edges apply when their targets exist; do not resubmit them. With `atomic=true`, declined operations or dropped inputs return `409` (`OPERATIONS_NOT_APPLIED`) without saving. Use returned `mintedBlockIds` in later requests. `dryRun=true` evaluates without saving, auditing, or notifying. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+      'Apply draft edits and block enablement changes in one write. Requires workspace write access. The live deployment is unchanged; lint is advisory.\n\nInspect `skipped` and `inputValidationErrors` for edits that did not apply. Deferred edges apply when their targets exist; do not resubmit them. With `atomic=true`, declined operations or dropped inputs return `409` (`OPERATIONS_NOT_APPLIED`) without saving. A `409` with code `CONFLICT` means the workflow changed after the batch read it and nothing was saved; re-read the workflow and retry. Use returned `mintedBlockIds` in later requests. `dryRun=true` evaluates without saving, auditing, or notifying. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/operations/route').then((route) => route.POST),
@@ -1297,7 +1301,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2GetBillingStatusContract,
     summary: 'Get billing status',
     description:
-      "Get the current plan, billing standing, credit allowance, and storage quota. Pooled `credits` and `storage` are visible only to callers who can manage the payer's billing; workspace API keys receive null for both. Use List billing logs for credit history.\n\nOAuth scope: `api:read`.",
+      "Get the current plan, billing standing, credit allowance, storage quota, and plan limits on runs. Pooled `credits` and `storage` are visible only to callers who can manage the payer's billing; workspace API keys receive null for both, but every caller reads `limits`. Use List billing logs for credit history.\n\nOAuth scope: `api:read`.",
     handler: () => import('@/app/api/v2/billing/status/route').then((route) => route.GET),
   },
   getBlock: {
@@ -1418,7 +1422,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2GetMetaContract,
     summary: 'Get API status',
     description:
-      'Get the calling credential’s type, expiry, and API scopes. Requires a valid API key or OAuth access token. `v2Enabled` is true whenever this endpoint is served; the response does not enumerate resource permissions.\n\nOAuth scope: `api:read`.',
+      'Get the calling credential’s type, identity, expiry, and API scopes, plus links to the OpenAPI document, API docs, and Sim MCP server. Requires a valid API key or OAuth access token. `v2Enabled` is true whenever this endpoint is served; the response does not enumerate resource permissions.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/meta/route').then((route) => route.GET),
   },
   getNextKnowledgeTagSlot: {
@@ -1630,7 +1634,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2GetWorkflowContract,
     summary: 'Get workflow',
     description:
-      'Get workflow metadata, variables, and trigger input fields from the saved draft. Requires workspace read access. Input fields may differ from the live deployment. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.',
+      'Get workflow metadata, variables, and trigger input fields from the saved draft. Requires workspace read access. Input fields may differ from the live deployment; `inputSchema` describes the `input` an API run of the active deployment accepts. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/workflows/[workflowId]/route').then((route) => route.GET),
   },
   getWorkflowChatDeployment: {
@@ -1660,6 +1664,14 @@ export const V2_MCP_OPERATIONS = {
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/workflow-mcp-servers/[serverId]/route').then((route) => route.GET),
+  },
+  getWorkflowOutline: {
+    contract: v2GetWorkflowOutlineContract,
+    summary: 'Get workflow outline',
+    description:
+      'Read the saved draft as a compact outline: connections embedded in their source blocks, loop and parallel children nested under their container, and null values omitted. Fields hidden from agents are omitted too, some of them real configuration, as are blocks whose parent container no longer exists; compare with Get workflow state for the full configuration. Requires workspace read access, and reveals nothing Get workflow state does not: its derived fields, such as `triggerWebhookUrl`, are computed from values that state already returns. The outline is read-only: it adds those derived fields and omits positions and edge handles, so never send it to Replace workflow state; edit with Apply workflow operations or a full state from Get workflow state. This read records no audit event; `HEAD` mirrors `GET`.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/workflows/[workflowId]/outline/route').then((route) => route.GET),
   },
   getWorkflowRun: {
     contract: v2GetWorkflowRunContract,
@@ -2053,6 +2065,13 @@ export const V2_MCP_OPERATIONS = {
         (route) => route.GET
       ),
   },
+  listPausedRuns: {
+    contract: v2ListPausedRunsContract,
+    summary: 'List paused workflow runs',
+    description:
+      "List a workspace's runs waiting on human input, with workspace read access. Each run lists the human pause points it still waits at, exactly as Get workflow run shows them; resume one with Resume workflow run. Request each point's reviewer content with `includeOutput`. Organization permission groups can hide pause fields. A page ends early, with a cursor, once it holds 100 pause points.\n\nOAuth scope: `api:read`.",
+    handler: () => import('@/app/api/v2/workflows/runs/paused/route').then((route) => route.GET),
+  },
   listPermissionGroupMembers: {
     contract: v2ListPermissionGroupMembersContract,
     summary: 'List permission group members',
@@ -2272,6 +2291,13 @@ export const V2_MCP_OPERATIONS = {
     description:
       'List active workspaces available to the calling credential. Personal API keys and OAuth tokens see accessible workspaces that permit user-held API credentials; a workspace API key sees only its bound workspace. Results use cursor pagination.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/workspaces/route').then((route) => route.GET),
+  },
+  listWorkspaceSchedules: {
+    contract: v2ListWorkspaceSchedulesContract,
+    summary: 'List workspace schedules',
+    description:
+      "List the schedules every deployed workflow in a workspace runs, including disabled ones, with their timing and failure counts. Requires workspace read access. These are the same schedules List workflow triggers reports for each workflow; a workflow that is not deployed has none. To change a schedule's timing, edit its schedule block in the draft and deploy; to pause or resume one, use Update workflow trigger.\n\nOAuth scope: `api:read`.",
+    handler: () => import('@/app/api/v2/schedules/route').then((route) => route.GET),
   },
   moveFileItems: {
     contract: v2MoveFileItemsContract,
@@ -3015,7 +3041,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2UpdateWorkflowTriggerContract,
     summary: 'Update workflow trigger',
     description:
-      'Enable or disable one trigger of the live deployment without redeploying. Requires workspace write access. Enabling resets `failedCount`, schedules the next run, and clears any polling backoff; a schedule whose cron expression is invalid or has no future runs returns `400`. A permission group that blocks webhook triggers returns `403` when a member it governs enables a polling, internal-event, or webhook trigger; a workspace API key is not governed by permission groups, as with every other capability. Disabling a completed schedule marks it disabled. A block with several live rows switches them together. Requesting the current state changes nothing.\n\nDisabling only stops Sim from accepting the trigger; nothing is removed at the provider. A disable lasts until the next deploy or version activation, which re-enables every trigger, the same way it clears a trigger that disabled itself after repeated failures. Deliveries to a disabled webhook receive `404`, and some providers disable their subscription after repeated failures, which requires a redeploy to restore.\n\nOAuth scope: `api:write`.',
+      "Enable or disable one trigger of the live deployment without redeploying. Requires workspace write access. Enabling resets `failedCount`, schedules the next run, and clears any polling backoff; a schedule whose cron expression is invalid or has no future runs returns `400`. A permission group that blocks webhook triggers returns `403` when a member it governs enables a polling, internal-event, or webhook trigger; a workspace API key is not governed by permission groups, as with every other capability. Disabling a completed schedule marks it disabled. A block with several live rows switches them together. Requesting the current state changes nothing.\n\nDisabling only stops Sim from accepting the trigger; nothing is removed at the provider. A disable lasts until the next deploy or version activation, which re-enables every trigger, the same way it clears a trigger that disabled itself after repeated failures. Deliveries to a disabled webhook receive `404`, and some providers disable their subscription after repeated failures, which requires a redeploy to restore.\n\nA schedule's cron expression and timezone cannot be changed here: deploy computes them from the schedule block, and a deployed version is never edited. Change the block's schedule fields in the draft with Apply workflow operations, then deploy.\n\nOAuth scope: `api:write`.",
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/triggers/[blockId]/route').then(
         (route) => route.PATCH
@@ -3030,6 +3056,15 @@ export const V2_MCP_OPERATIONS = {
       import('@/app/api/v2/workflows/[workflowId]/versions/[version]/route').then(
         (route) => route.PATCH
       ),
+  },
+  updateWorkspace: {
+    contract: v2UpdateWorkspaceContract,
+    summary: 'Update workspace',
+    description:
+      'Rename a workspace or change its logo. Omitted fields remain unchanged; send `logoUrl: null` to remove the logo. Requires workspace Admin access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/route').then((route) => route.PATCH),
   },
   updateWorkspaceForkExclusions: {
     contract: v2UpdateWorkspaceForkExclusionsContract,

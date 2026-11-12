@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import {
   MAX_JSON_API_RESPONSE_BYTES,
   secureFetchWithValidation,
@@ -18,6 +19,8 @@ const OUTBOUND_FETCH_TIMEOUT_MS = 30_000
 const MAX_TOKEN_RESPONSE_BYTES = 256 * 1024
 const TOKEN_CACHE_MAX_ENTRIES = 500
 const TOKEN_SAFETY_WINDOW_MS = 60_000
+/** Lifetime assumed when a token response carries no usable `expires_in`. */
+const DEFAULT_TOKEN_LIFETIME_SECONDS = 3300
 
 interface CachedToken {
   accessToken: string
@@ -42,7 +45,37 @@ export class ZoomInfoOperationError extends Error {
   }
 }
 
-function tokenCacheKey(auth: ZoomInfoAuth): string {
+/**
+ * Raised when ZoomInfo's token endpoint refuses an exchange. Answers the
+ * operation exactly as every token failure always has (HTTP 500 naming the
+ * provider status), and carries that status for the saved-credential minter.
+ */
+export class ZoomInfoTokenError extends ZoomInfoOperationError {
+  constructor(readonly tokenStatus: number) {
+    super(`ZoomInfo token request failed: HTTP ${tokenStatus}`, 500)
+    this.name = 'ZoomInfoTokenError'
+  }
+}
+
+interface ZoomInfoClientCredentials {
+  clientId: string
+  clientSecret: string
+}
+
+/**
+ * The token a saved credential minted, or the inline client credentials to
+ * mint one with. Refuses input carrying neither.
+ */
+function resolveZoomInfoAuth(
+  auth: ZoomInfoAuth
+): { accessToken: string } | { credentials: ZoomInfoClientCredentials } {
+  if (auth.accessToken) return { accessToken: auth.accessToken }
+  if (!auth.clientId) throw new ZoomInfoOperationError('clientId is required', 400)
+  if (!auth.clientSecret) throw new ZoomInfoOperationError('clientSecret is required', 400)
+  return { credentials: { clientId: auth.clientId, clientSecret: auth.clientSecret } }
+}
+
+function tokenCacheKey(auth: ZoomInfoClientCredentials): string {
   const secretHash = createHash('sha256').update(auth.clientSecret).digest('hex').slice(0, 16)
   return `${auth.clientId}::${secretHash}`
 }
@@ -57,18 +90,20 @@ function rememberToken(key: string, token: CachedToken): void {
   }
 }
 
-async function fetchAccessToken(
-  auth: ZoomInfoAuth,
-  requestId: string,
-  signal?: AbortSignal
-): Promise<string> {
+/**
+ * Exchanges client credentials for an access token with the client
+ * credentials grant at ZoomInfo's token endpoint, credentials in HTTP Basic
+ * auth as ZoomInfo recommends, redirects refused. A refusal throws
+ * {@link ZoomInfoTokenError}.
+ *
+ * @see https://docs.zoominfo.com/docs/client-credentials-flow
+ */
+export async function requestZoomInfoToken(
+  auth: ZoomInfoClientCredentials,
+  options: { requestId?: string; signal?: AbortSignal } = {}
+): Promise<{ accessToken: string; expiresInSeconds: number; scope?: string }> {
+  const { requestId, signal } = options
   signal?.throwIfAborted()
-  const cacheKey = tokenCacheKey(auth)
-  const cached = TOKEN_CACHE.get(cacheKey)
-  if (cached && cached.expiresAt - TOKEN_SAFETY_WINDOW_MS > Date.now()) {
-    return cached.accessToken
-  }
-
   const tokenUrl = assertSafeZoomInfoUrl(ZOOMINFO_TOKEN_URL, 'tokenUrl').toString()
   const basic = Buffer.from(`${auth.clientId}:${auth.clientSecret}`).toString('base64')
   const response = await secureFetchWithValidation(
@@ -84,6 +119,7 @@ async function fetchAccessToken(
       body: new URLSearchParams({ grant_type: 'client_credentials' }).toString(),
       timeout: OUTBOUND_FETCH_TIMEOUT_MS,
       maxResponseBytes: MAX_TOKEN_RESPONSE_BYTES,
+      maxRedirects: 0,
       signal,
     },
     'tokenUrl'
@@ -93,17 +129,40 @@ async function fetchAccessToken(
   if (!response.ok) {
     const text = await response.text().catch(() => '')
     logger.warn('ZoomInfo token fetch failed', { requestId, status: response.status, error: text })
-    throw new ZoomInfoOperationError(`ZoomInfo token request failed: HTTP ${response.status}`, 500)
+    throw new ZoomInfoTokenError(response.status)
   }
-  const data = (await response.json()) as { access_token?: string; expires_in?: number }
-  if (!data.access_token) {
+  const data: unknown = await response.json()
+  if (!isRecordLike(data) || typeof data.access_token !== 'string' || !data.access_token.trim()) {
     throw new ZoomInfoOperationError('ZoomInfo token response missing access_token', 500)
   }
-  rememberToken(cacheKey, {
+  return {
     accessToken: data.access_token,
-    expiresAt: Date.now() + (data.expires_in ?? 3300) * 1000,
+    expiresInSeconds:
+      typeof data.expires_in === 'number' && Number.isFinite(data.expires_in) && data.expires_in > 0
+        ? data.expires_in
+        : DEFAULT_TOKEN_LIFETIME_SECONDS,
+    ...(typeof data.scope === 'string' ? { scope: data.scope } : {}),
+  }
+}
+
+async function fetchAccessToken(
+  auth: ZoomInfoClientCredentials,
+  requestId: string,
+  signal?: AbortSignal
+): Promise<string> {
+  signal?.throwIfAborted()
+  const cacheKey = tokenCacheKey(auth)
+  const cached = TOKEN_CACHE.get(cacheKey)
+  if (cached && cached.expiresAt - TOKEN_SAFETY_WINDOW_MS > Date.now()) {
+    return cached.accessToken
+  }
+
+  const { accessToken, expiresInSeconds } = await requestZoomInfoToken(auth, {
+    requestId,
+    signal,
   })
-  return data.access_token
+  rememberToken(cacheKey, { accessToken, expiresAt: Date.now() + expiresInSeconds * 1000 })
+  return accessToken
 }
 
 function buildApiUrl(input: ZoomInfoProviderRequest): string {
@@ -174,6 +233,7 @@ async function invokeZoomInfo(
         : undefined,
       timeout: OUTBOUND_FETCH_TIMEOUT_MS,
       maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
+      maxRedirects: 0,
       signal,
     },
     'apiUrl'
@@ -196,7 +256,11 @@ export async function requestZoomInfo(
   requestId: string,
   signal?: AbortSignal
 ): Promise<{ status: number; data: unknown }> {
-  const accessToken = await fetchAccessToken(input, requestId, signal)
+  const auth = resolveZoomInfoAuth(input)
+  const accessToken =
+    'accessToken' in auth
+      ? auth.accessToken
+      : await fetchAccessToken(auth.credentials, requestId, signal)
   const invocation = await invokeZoomInfo(input, accessToken, signal)
   if (invocation.status < 200 || invocation.status >= 300) {
     throw new ZoomInfoOperationError(

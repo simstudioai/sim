@@ -1,10 +1,13 @@
 import { ZendeskIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const ZendeskBlock: BlockConfig = {
   type: 'zendesk',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'zendesk_v2' },
   name: 'Zendesk',
   description: 'Manage support tickets, users, and organizations in Zendesk',
   triggerAllowed: true,
@@ -796,6 +799,20 @@ Return ONLY the search query - no explanations.`,
       'zendesk_webhook',
     ],
   },
+}
+
+export const ZendeskV2Block: BlockConfig = {
+  ...ZendeskBlock,
+  type: 'zendesk_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(ZendeskBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'zendesk',
+    title: 'Zendesk Credential',
+  }),
 }
 
 export const ZendeskBlockMeta = {

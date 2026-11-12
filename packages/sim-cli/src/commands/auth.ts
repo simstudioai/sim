@@ -6,7 +6,13 @@ import { toRecord } from '@sim/utils/object'
 import { Command, Option } from 'commander'
 import { printLine } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
-import { buildApprovalUrl, createAuthRequest, pollForKey } from '../auth/device-flow'
+import {
+  buildApprovalUrl,
+  createAuthRequest,
+  type KeyRequest,
+  type MintedKey,
+  pollForKey,
+} from '../auth/device-flow'
 import {
   discoverOAuthProvider,
   grantsWriteAccess,
@@ -369,8 +375,25 @@ interface LoginOptions {
   browser: boolean
   method?: 'oauth' | 'api-key'
   readOnly?: boolean
+  expiresIn?: string
   callbackPort?: string
   yes?: boolean
+}
+
+/** The lifetime bounds the server enforces on every API key, in whole days. */
+const MIN_KEY_EXPIRY_DAYS = 1
+const MAX_KEY_EXPIRY_DAYS = 365
+
+function parseExpiresIn(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined
+  const days = Number(value)
+  if (!/^\d+$/.test(value.trim()) || days < MIN_KEY_EXPIRY_DAYS || days > MAX_KEY_EXPIRY_DAYS) {
+    throw new SimApiError(
+      `Invalid --expires-in "${redact(value)}". Use a whole number of days from ${MIN_KEY_EXPIRY_DAYS} to ${MAX_KEY_EXPIRY_DAYS}.`,
+      0
+    )
+  }
+  return days
 }
 
 /**
@@ -378,9 +401,10 @@ interface LoginOptions {
  *
  * An explicit method selects the credential type: OAuth never falls back to
  * an API key, and API-key login skips OAuth discovery. With no method selected,
- * OAuth is preferred, with the pairing-code handoff used for remote terminals
- * or a server without the provider. An unreachable server remains
- * an error rather than being mistaken for one that lacks the feature.
+ * OAuth is preferred, with the pairing-code handoff used for remote terminals,
+ * a server without the provider, or an `--expires-in` only an API key honors.
+ * An unreachable server remains an error rather than being mistaken for one
+ * that lacks the feature.
  *
  * `--callback-port` overrides the remote-session guess, because naming the port
  * is how someone with an SSH tunnel says the loopback redirect does reach them.
@@ -407,6 +431,7 @@ async function chooseLoginFlow(
   if (status === 'unreachable') {
     throw new SimApiError(`Could not reach ${profile.endpoint}. Check the endpoint.`, 0)
   }
+  if (options.method === undefined && options.expiresIn !== undefined) return 'handoff'
   if (status === 'unavailable') {
     if (options.method === 'oauth') {
       throw new SimApiError(
@@ -539,11 +564,15 @@ export function loginCommand(): Command {
     .addOption(
       new Option(
         '--method <method>',
-        'Credential to obtain: oauth requires OAuth support; api-key creates a permanent key through pairing (auto-selects when omitted)'
+        'Credential to obtain: oauth requires OAuth support; api-key creates an API key through pairing (auto-selects when omitted)'
       ).choices(['oauth', 'api-key'])
     )
     .option('--no-browser', 'Print the approval URL without opening it (either login method)')
     .option('--read-only', 'Ask only for permission to read, never to change anything')
+    .option(
+      '--expires-in <days>',
+      `Log in with an API key that expires after this many days (${MIN_KEY_EXPIRY_DAYS}-${MAX_KEY_EXPIRY_DAYS}); without it an API key never expires`
+    )
     .option('--callback-port <port>', 'Pin the local port the browser returns to')
     .option('-y, --yes', 'Overwrite an existing API-key profile without prompting')
     .action(async (options: LoginOptions, command: Command) => {
@@ -574,30 +603,27 @@ export function loginCommand(): Command {
         }
       }
 
-      /** Validate a pinned port before opening a browser or starting either flow. */
+      /** Validate pinned values before opening a browser or starting either flow. */
       const callbackPort = parseCallbackPort(options.callbackPort)
+      const expiresInDays = parseExpiresIn(options.expiresIn)
 
       const loginFlow = await chooseLoginFlow(profile, options)
       /**
-       * Neither flag has a meaning in the handoff: it mints a permanent,
-       * full-power API key on the server and never opens a local listener.
-       * Honouring `--read-only` by ignoring it would hand back the opposite of
-       * what was asked for, so the whole login stops here rather than storing a
-       * credential the person did not agree to.
+       * Each of these flags means something in only one flow. Ignoring one would
+       * store a credential other than the one asked for, so the whole login stops
+       * here instead.
        */
-      if (loginFlow === 'handoff') {
-        if (options.readOnly) {
-          throw new SimApiError(
-            'API-key login cannot issue a read-only login. Use --method oauth, or drop --read-only.',
-            0
-          )
-        }
-        if (callbackPort !== undefined) {
-          throw new SimApiError(
-            'API-key login has no local callback, so --callback-port does not apply. Use --method oauth, or drop --callback-port.',
-            0
-          )
-        }
+      if (loginFlow === 'handoff' && callbackPort !== undefined) {
+        throw new SimApiError(
+          'API-key login has no local callback, so --callback-port does not apply. Use --method oauth, or drop --callback-port.',
+          0
+        )
+      }
+      if (loginFlow === 'oauth' && expiresInDays !== undefined) {
+        throw new SimApiError(
+          'OAuth logins renew themselves, so --expires-in does not apply. Use --method api-key, or drop --expires-in.',
+          0
+        )
       }
       await withProfileLoginLease(profile.name, async () => {
         assertLoginProfileUnchanged(profile.name, snapshot)
@@ -605,19 +631,71 @@ export function loginCommand(): Command {
           await loginWithOAuth(profile, options, callbackPort, snapshot)
           return
         }
-        await loginWithHandoff(profile, options, snapshot)
+        await loginWithHandoff(
+          profile,
+          options,
+          { readOnly: options.readOnly === true, expiresInDays },
+          snapshot
+        )
       })
     })
 }
 
-/** The pairing-code handoff, which mints a permanent API key; see `device-flow.ts`. */
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Clock difference tolerated between this machine and the server when checking
+ * a minted key's expiry against the lifetime requested.
+ */
+const EXPIRY_TOLERANCE_MS = 60 * 60 * 1000
+
+/**
+ * Refuses a minted key that is not exactly the one requested.
+ *
+ * The approval decides what is minted, and a server that predates read-only
+ * and expiring handoff keys ignores the request and mints a full-access key
+ * that never expires. A server that reports anything else — full access after
+ * `--read-only`, read-only without it, a lifetime other than `--expires-in` —
+ * minted a key nobody asked for, and storing it would hide that. The key
+ * already exists on the account by then, so the refusal points at the
+ * revocation guidance the handoff's failure path prints.
+ */
+function requireRequestedKey(key: MintedKey, keyRequest: KeyRequest): void {
+  const refuse = (issued: string, flag: string) =>
+    new SimApiError(
+      `The server issued ${issued}, not the key requested, so the CLI did not store it. Revoke that key as described above, then update the Sim deployment or adjust ${flag}.`,
+      0
+    )
+
+  const requestedAccess = keyRequest.readOnly ? 'read' : 'write'
+  // A server that predates the field reports none and mints full access.
+  const issuedAccess = key.access ?? 'write'
+  if (issuedAccess !== requestedAccess) {
+    throw refuse(issuedAccess === 'read' ? 'a read-only key' : 'a full-access key', '--read-only')
+  }
+
+  if (keyRequest.expiresInDays === undefined) {
+    if (key.expiresAt)
+      throw refuse(`a key that expires ${safeOneLine(key.expiresAt ?? '')}`, '--expires-in')
+    return
+  }
+  const expiresAt = key.expiresAt ? Date.parse(key.expiresAt) : Number.NaN
+  if (Number.isNaN(expiresAt)) throw refuse('a key that never expires', '--expires-in')
+  const requested = Date.now() + keyRequest.expiresInDays * DAY_MS
+  if (Math.abs(expiresAt - requested) > EXPIRY_TOLERANCE_MS) {
+    throw refuse(`a key that expires ${safeOneLine(key.expiresAt ?? '')}`, '--expires-in')
+  }
+}
+
+/** The pairing-code handoff, which mints an API key; see `device-flow.ts`. */
 async function loginWithHandoff(
   profile: ResolvedProfile,
   options: LoginOptions,
+  keyRequest: KeyRequest,
   expected: LoginProfileSnapshot
 ): Promise<void> {
   const auth = createAuthRequest()
-  const url = buildApprovalUrl(profile.endpoint, auth, profile.workspaceId ?? undefined)
+  const url = buildApprovalUrl(profile.endpoint, auth, profile.workspaceId ?? undefined, keyRequest)
 
   printLine(
     `Signing in to ${styles().bold(profile.endpoint)} as profile ${styles().bold(safeOneLine(profile.name))}`
@@ -637,6 +715,7 @@ async function loginWithHandoff(
         0
       )
     }
+    requireRequestedKey(key, keyRequest)
 
     const settings: Record<string, string | null> = {
       endpoint: profile.endpoint,
@@ -675,15 +754,24 @@ async function loginWithHandoff(
     })
   } catch (error) {
     const keyId = typeof key.id === 'string' && key.id ? safeOneLine(key.id) : 'unknown'
+    // An older server does not report the name, but names every key `CLI (<UTC time>Z)` as it mints.
+    const listedAs = key.name
+      ? `"${safeOneLine(key.name)}"`
+      : `the newest key named "CLI (…Z)", created at about ${new Date().toISOString().slice(0, 19).replace('T', ' ')}Z,`
     printLine(
       styles().yellow(
-        `API key ${keyId} was created but could not be stored safely. Revoke it in Settings → API keys.`
+        `API key ${keyId} was created on your account but could not be stored safely. Revoke ${listedAs} in Settings → API keys.`
       )
     )
     throw error
   }
 
   printLine(styles().green(`\n✓ Logged in. Key stored in ${credentialsPath()}`))
+  printLine(
+    styles().dim(
+      `  ${key.access === 'read' ? 'Read-only key — commands that change anything will be refused.' : 'Full-access key.'} ${key.expiresAt ? `Expires ${safeOneLine(key.expiresAt)}.` : 'Never expires.'}`
+    )
+  )
   if (key.workspaceBound && key.workspaceId) {
     printLine(styles().dim(`  Workspace-scoped key — it can only reach ${key.workspaceId}.`))
   } else if (key.workspaceId) {
@@ -823,16 +911,45 @@ interface VerifiedWorkspace {
  * missing workspace needs `sim configure`, and an unreachable endpoint needs
  * neither.
  */
-type Verification = { keyType: KeyType | null; authenticated: boolean | null } & (
-  | { status: 'verified'; workspace: VerifiedWorkspace; detail: null }
-  | {
-      status: 'rejected' | 'unreachable' | 'unauthenticated' | 'no-workspace' | 'disabled'
-      workspace: null
-      detail: string
-    }
-)
+type Verification = CredentialFacts & { authenticated: boolean | null } & (
+    | { status: 'verified'; workspace: VerifiedWorkspace; detail: null }
+    | {
+        status: 'rejected' | 'unreachable' | 'unauthenticated' | 'no-workspace' | 'disabled'
+        workspace: null
+        detail: string
+      }
+  )
 
 type KeyType = GetMetaResponse['data']['keyType']
+
+/** What the API reports about the calling credential itself, when it could be asked. */
+interface CredentialFacts {
+  keyType: KeyType | null
+  /** When the credential expires; null when it never does or could not be read. */
+  expiresAt: string | null
+  /** The only workspace a workspace-scoped key can reach; null for any other credential. */
+  boundWorkspaceId: string | null
+}
+
+const UNKNOWN_CREDENTIAL: CredentialFacts = {
+  keyType: null,
+  expiresAt: null,
+  boundWorkspaceId: null,
+}
+
+/** Reads the credential facts out of a metadata response, tolerating an older server's shape. */
+function credentialFactsFrom(response: unknown): CredentialFacts | null {
+  const data = toRecord(toRecord(response).data)
+  const { keyType, expiresAt, workspaceId } = data
+  if (keyType !== 'personal' && keyType !== 'workspace' && keyType !== 'oauth_access_token') {
+    return null
+  }
+  return {
+    keyType,
+    expiresAt: typeof expiresAt === 'string' ? expiresAt : null,
+    boundWorkspaceId: typeof workspaceId === 'string' ? workspaceId : null,
+  }
+}
 
 /** Definitive profile refusals, including a workspace the credential cannot access. */
 const PROFILE_REJECTION_STATUSES = new Set([401, 403, 404])
@@ -873,22 +990,17 @@ async function verifyProfile(
       status: 'unauthenticated',
       authenticated: false,
       workspace: null,
-      keyType: null,
+      ...UNKNOWN_CREDENTIAL,
       detail: `not logged in — run: sim login --profile ${safeOneLine(profile.name)}`,
     }
   }
 
-  let keyType: KeyType | null = null
+  let facts = UNKNOWN_CREDENTIAL
   let authenticated: boolean | null = null
   try {
-    const response = await client.request<unknown>('getMeta')
-    const reportedKeyType = toRecord(toRecord(response).data).keyType
-    if (
-      reportedKeyType === 'personal' ||
-      reportedKeyType === 'workspace' ||
-      reportedKeyType === 'oauth_access_token'
-    ) {
-      keyType = reportedKeyType
+    const reported = credentialFactsFrom(await client.request<unknown>('getMeta'))
+    if (reported) {
+      facts = reported
       authenticated = true
     }
   } catch (error) {
@@ -898,7 +1010,7 @@ async function verifyProfile(
         status: 'rejected',
         authenticated: false,
         workspace: null,
-        keyType: null,
+        ...UNKNOWN_CREDENTIAL,
         detail: error.message,
       }
     }
@@ -909,7 +1021,7 @@ async function verifyProfile(
       status: 'no-workspace',
       authenticated,
       workspace: null,
-      keyType,
+      ...facts,
       detail: `no workspace to check against — run: sim configure --profile ${safeOneLine(profile.name)} --set-workspace <id>`,
     }
   }
@@ -925,7 +1037,7 @@ async function verifyProfile(
       status: 'verified',
       authenticated: true,
       workspace: { id, name, memberCount },
-      keyType,
+      ...facts,
       detail: null,
     }
   } catch (error) {
@@ -934,7 +1046,7 @@ async function verifyProfile(
       status: PROFILE_REJECTION_STATUSES.has(error.status) ? 'rejected' : 'unreachable',
       authenticated: error.status === 401 ? false : authenticated,
       workspace: null,
-      keyType,
+      ...facts,
       detail: error.message,
     }
   }
@@ -978,7 +1090,7 @@ export function whoamiCommand(): Command {
             status: 'disabled',
             authenticated: authentication.configured ? null : false,
             workspace: null,
-            keyType: null,
+            ...UNKNOWN_CREDENTIAL,
             detail: 'not checked (--no-verify)',
           }
 
@@ -1001,6 +1113,17 @@ export function whoamiCommand(): Command {
             verification.keyType ??
               styles().dim(options.verify ? 'unknown' : 'not checked (--no-verify)'),
           ],
+          [
+            'Key expires',
+            verification.keyType
+              ? verification.expiresAt
+                ? safeOneLine(verification.expiresAt)
+                : 'never'
+              : styles().dim(options.verify ? 'unknown' : 'not checked (--no-verify)'),
+          ],
+          ...(verification.boundWorkspaceId
+            ? [['Key bound to', safeOneLine(verification.boundWorkspaceId)] as [string, string]]
+            : []),
           ['Workspace', annotate(profile.workspaceId ?? '', sources.workspaceId)],
           ['Output', annotate(profile.output, sources.output)],
           ['Verified', presentVerification(verification)],
@@ -1021,6 +1144,8 @@ export function whoamiCommand(): Command {
             status: verification.status,
             workspace: verification.workspace,
             keyType: verification.keyType,
+            expiresAt: verification.expiresAt,
+            boundWorkspaceId: verification.boundWorkspaceId,
             detail: verification.detail,
           },
         }

@@ -20,6 +20,16 @@ const ACCESS_REQUEST_COLUMNS: ColumnSpec[] = [
   { header: 'created', path: 'createdAt', format: 'timestamp' },
 ]
 
+const WORKSPACE_FIELDS: ColumnSpec[] = [
+  { header: 'id' },
+  { header: 'name' },
+  { header: 'color' },
+  { header: 'logo', path: 'logoUrl' },
+  { header: 'members', path: 'memberCount' },
+  { header: 'created', path: 'createdAt', format: 'timestamp' },
+  { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+]
+
 const FILE_SHARE_FIELDS: ColumnSpec[] = [
   { header: 'shared', path: 'isActive', format: 'bool' },
   { header: 'URL', path: 'url' },
@@ -371,6 +381,18 @@ export const CLI_CONTRACT: CliContract = {
   updateWorkflowTrigger: {
     describe: 'Enable or disable one trigger of the live deployment',
   },
+  listWorkspaceSchedules: {
+    describe: 'Show the timing and health of every schedule the workspace’s deployments run',
+    columns: [
+      { header: 'workflow', path: 'workflowName' },
+      { header: 'block', path: 'blockId' },
+      { header: 'cron', path: 'cronExpression' },
+      { header: 'timezone' },
+      { header: 'status' },
+      { header: 'failures', path: 'failedCount' },
+      { header: 'next run', path: 'nextRunAt', format: 'timestamp' },
+    ],
+  },
   setSecret: { hidden: true },
 
   // Soft deletes, all three: `tables restore`, `knowledge restore` and
@@ -613,6 +635,10 @@ export const CLI_CONTRACT: CliContract = {
    * Each name is the operation's own verb instead.
    */
   getWorkflowState: { command: 'workflows state get' },
+  getWorkflowOutline: {
+    command: 'workflows outline',
+    describe: 'Show a workflow’s draft as a compact read-only outline',
+  },
   replaceWorkflowState: {
     command: 'workflows state replace',
     confirm: 'This replaces the entire draft graph and cannot be undone.',
@@ -1523,15 +1549,20 @@ export const CLI_CONTRACT: CliContract = {
     // `mode` is not a field of the strict v2 workspace schema, so it rendered
     // an em-dash on every call; `color` and `logoUrl` are returned and were the
     // two the record left out.
-    fields: [
-      { header: 'id' },
-      { header: 'name' },
-      { header: 'color' },
-      { header: 'logo', path: 'logoUrl' },
-      { header: 'members', path: 'memberCount' },
-      { header: 'created', path: 'createdAt', format: 'timestamp' },
-      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
-    ],
+    fields: WORKSPACE_FIELDS,
+  },
+  updateWorkspace: {
+    profileWorkspacePath: true,
+    fields: WORKSPACE_FIELDS,
+    // Body strings are sent as typed, so this flag cannot send JSON null; the
+    // literal "null" fails the path-or-HTTPS rule with a 400 rather than
+    // storing anything. Clearing stays an API and MCP capability.
+    flags: {
+      logoUrl: {
+        describe:
+          'New workspace logo: a root-relative path (starting with /) or an https:// URL. To remove the logo, send logoUrl: null through the API or MCP',
+      },
+    },
   },
   listWorkspaceMembers: {
     command: 'workspaces members list',
@@ -2286,6 +2317,16 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'trigger' },
       { header: 'duration', path: 'durationMs', format: 'duration' },
       { header: 'cost', path: 'cost.total', format: 'cost' },
+      { header: 'run', path: 'runId' },
+    ],
+  },
+  listPausedRuns: {
+    command: 'workflows runs paused',
+    describe: 'List runs waiting on human input across the workspace',
+    columns: [
+      { header: 'paused at', path: 'pausedAt', format: 'timestamp' },
+      { header: 'workflow', path: 'workflowName' },
+      { header: 'waiting points', path: 'points', format: 'count' },
       { header: 'run', path: 'runId' },
     ],
   },

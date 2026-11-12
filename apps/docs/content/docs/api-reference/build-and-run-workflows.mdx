@@ -1,0 +1,323 @@
+---
+title: Build and run workflows with the API
+description: Discover blocks, edit a draft with dry runs and lint, test it, deploy it, run it, and debug or resume runs.
+---
+
+import { Callout } from '@/components/ui/callout'
+import { Tab, Tabs } from '@/components/ui/tabs'
+
+Build a workflow without the workflow builder: find the blocks you need, write the draft graph in batches, check each batch before committing it, test the draft, deploy it, and run it. Every step has an HTTP request and an equivalent [`sim` CLI](/cli) command, and the same operations are available to AI agents through [Sim MCP](#use-sim-mcp).
+
+## Prerequisites
+
+Set `BASE_URL` to your deployment origin (`https://www.sim.ai` for Sim Cloud), `SIM_API_KEY` to a personal API key, and `WORKSPACE_ID` to the target workspace. Examples use `jq` to read responses.
+
+| Step | Required access |
+| --- | --- |
+| Discover blocks and tools | Workspace read access |
+| Create a workflow | Workspace write access |
+| Edit the graph and run the draft | Workspace write access with a personal API key or an OAuth token with `api:write` |
+| Deploy | Workspace **Admin** access with a personal API key or an OAuth token with `api:write` |
+| Run the deployment | Workspace read access with a full-access API key or an OAuth token with `api:write` |
+
+Workspace API keys cannot edit graphs, deploy, or run the draft; those requests return `403`. See [Authentication](/api-reference/authentication) for key types and scopes. The CLI uses your `sim login` session or profile; set the workspace with `--workspace` or `SIM_WORKSPACE`.
+
+## 1. Discover blocks
+
+The block catalog is filtered per workspace, so every request takes `workspaceId`. List candidates, then read one block to get its configuration fields, operations, and outputs.
+
+<Tabs items={['curl', 'CLI']}>
+  <Tab value="curl">
+    ```bash
+    curl -sS --fail-with-body -H "X-API-Key: $SIM_API_KEY" \
+      "$BASE_URL/api/v2/blocks?workspaceId=$WORKSPACE_ID&search=slack"
+
+    curl -sS --fail-with-body -H "X-API-Key: $SIM_API_KEY" \
+      "$BASE_URL/api/v2/blocks/slack?workspaceId=$WORKSPACE_ID"
+    ```
+  </Tab>
+  <Tab value="CLI">
+    ```bash
+    sim blocks list --search slack
+    sim blocks get slack
+    ```
+  </Tab>
+</Tabs>
+
+In a block detail, `inputSchema` lists fields that always apply, `operationInputSchema` lists the fields each operation reveals, and `outputs` lists what downstream blocks can reference. A block's `id` is the `type` you use when adding it. `GET /api/v2/tools` and `GET /api/v2/tools/{toolId}` (`sim tools list`, `sim tools get`) describe the underlying tools and their parameters. Use `capability=trigger` to find blocks that can start a workflow.
+
+## 2. Create a workflow
+
+<Tabs items={['curl', 'CLI']}>
+  <Tab value="curl">
+    ```bash
+    curl -sS --fail-with-body -X POST "$BASE_URL/api/v2/workflows" \
+      -H "X-API-Key: $SIM_API_KEY" -H 'Content-Type: application/json' \
+      -d "{\"workspaceId\": \"$WORKSPACE_ID\", \"name\": \"Ticket triage\"}"
+    ```
+  </Tab>
+  <Tab value="CLI">
+    ```bash
+    sim workflows create --name "Ticket triage" --output json
+    ```
+  </Tab>
+</Tabs>
+
+The response includes the workflow `id` and `blocks`, the blocks the workflow was seeded with. It contains a Start block; connect edges to its `id`. Set `WORKFLOW_ID` and `START_ID` from the response.
+
+## 3. Define inputs [#inputs]
+
+The Start block's `inputFormat` field declares the input fields a run accepts. A run passes values for them in `input`, keyed by field name, and blocks reference them as `<start.fieldName>`. Set the field with an `edit` operation in the next step.
+
+## 4. Preview edits with a dry run [#dry-run]
+
+`POST /api/v2/workflows/{workflowId}/operations` applies a batch of semantic edits: `add`, `edit`, `delete`, `insert_into_subflow`, and `extract_from_subflow`. Save this batch as `ops.json`. It adds a Function block, declares a `ticketId` input, and connects Start to the new block:
+
+```json
+{
+  "operations": [
+    {
+      "operation_type": "add",
+      "block_id": "lookup",
+      "params": {
+        "type": "function",
+        "name": "Lookup",
+        "inputs": { "code": "return { ticketId: <start.ticketId>, priority: 'high' }" }
+      }
+    },
+    {
+      "operation_type": "edit",
+      "block_id": "START_ID",
+      "params": {
+        "inputs": { "inputFormat": [{ "name": "ticketId", "type": "string" }] },
+        "connections": { "source": "lookup" }
+      }
+    }
+  ]
+}
+```
+
+Replace `START_ID` with the Start block ID. The CLI's `--operations` takes just the array, so the CLI examples pass `.operations` from this file. `inputs` maps field IDs from the block catalog to values. `connections` maps a source handle to a target block, and replaces that block's outgoing edges. Within one batch, refer to new blocks by the `block_id` you gave them.
+
+Add `?dryRun=true` to validate and lint without saving:
+
+<Tabs items={['curl', 'CLI']}>
+  <Tab value="curl">
+    ```bash
+    curl -sS --fail-with-body -X POST \
+      "$BASE_URL/api/v2/workflows/$WORKFLOW_ID/operations?dryRun=true" \
+      -H "X-API-Key: $SIM_API_KEY" -H 'Content-Type: application/json' \
+      -d @ops.json
+    ```
+  </Tab>
+  <Tab value="CLI">
+    ```bash
+    jq .operations ops.json |
+      sim workflows operations apply "$WORKFLOW_ID" --operations @- --dry-run
+    ```
+  </Tab>
+</Tabs>
+
+A dry run returns the same validation, warnings, lint, and ID conflicts as a committed write, with `dryRun: true`. Its `previewBlockIds` are provisional; never use them in a later request.
+
+## 5. Read the result and lint [#lint]
+
+Check these fields before applying, and again after:
+
+| Field | Means |
+| --- | --- |
+| `skipped` | Operations the engine declined, each with `type`, `blockId`, and `reason` |
+| `inputValidationErrors` | Block inputs that were dropped instead of saved |
+| `deferred` | Edges waiting for a target block. They apply when the target exists; do not resubmit them |
+| `lint.fieldIssues` | Blocks with `missingRequiredFields`, which fail at run time, or values stranded on an inactive field mode |
+| `lint.unresolvedReferences` | Credential, resource, tool, skill, or `<block.output>` references that will not resolve. They are saved anyway |
+| `lint.orphanBlocks`, `lint.sources`, `lint.emptyOutgoingPorts` | Disconnected blocks, unreachable blocks, and branches that lead nowhere |
+| `lint.manualRunIssue` | Why a manual run from the workflow builder's **Run** button would be refused: `no-trigger`, `multiple-api-triggers`, or `trigger-not-connected`. API runs do not apply this check |
+| `warnings` | Normalizations, plus a line counting lint findings by category |
+
+Lint is advisory. It never blocks a write or a deploy, so fix findings before you rely on the workflow.
+
+## 6. Apply the batch [#apply]
+
+Apply without `dryRun`. Set `atomic: true` in the body to write nothing when any operation is declined or any input would be dropped; the request then returns `409` with `OPERATIONS_NOT_APPLIED`. Without it, the batch applies what it can and reports the rest in `skipped` and `inputValidationErrors`.
+
+<Tabs items={['curl', 'CLI']}>
+  <Tab value="curl">
+    ```bash
+    jq '. + {atomic: true}' ops.json | curl -sS --fail-with-body -X POST \
+      "$BASE_URL/api/v2/workflows/$WORKFLOW_ID/operations" \
+      -H "X-API-Key: $SIM_API_KEY" -H 'Content-Type: application/json' \
+      -d @-
+    ```
+  </Tab>
+  <Tab value="CLI">
+    ```bash
+    jq .operations ops.json |
+      sim workflows operations apply "$WORKFLOW_ID" --operations @- --atomic --yes
+    ```
+  </Tab>
+</Tabs>
+
+`mintedBlockIds` maps each non-UUID `block_id` to the ID the block was given. Use the minted IDs in later requests. Read the full draft with `GET /api/v2/workflows/{workflowId}/state` (`sim workflows state get`). Edits change the draft only; the deployed workflow keeps running its version until you deploy.
+
+## 7. Test the draft [#test-run]
+
+Run the saved draft with `run.source: "manual"`. Manual runs are synchronous or streamed, never `async`.
+
+<Tabs items={['curl', 'CLI']}>
+  <Tab value="curl">
+    ```bash
+    curl -sS --fail-with-body -X POST \
+      "$BASE_URL/api/v2/workflows/$WORKFLOW_ID/execute" \
+      -H "X-API-Key: $SIM_API_KEY" -H 'Content-Type: application/json' \
+      -d '{"run": {"source": "manual"}, "input": {"ticketId": "T-123"}}'
+    ```
+  </Tab>
+  <Tab value="CLI">
+    ```bash
+    sim workflows run "$WORKFLOW_ID" --manual --input '{"ticketId": "T-123"}'
+    ```
+  </Tab>
+</Tabs>
+
+Narrow a test run with these options:
+
+| Goal | Request | CLI |
+| --- | --- | --- |
+| Enter through a specific trigger | `run.entry: {type: "trigger", blockId}` | `--trigger <blockId>` |
+| Use the trigger's mock payload instead of `input` | `run.entry: {type: "trigger", useMockPayload: true}` | `--mock-payload` |
+| Stop after one block | `run.stopAfterBlockId` | `--stop-after <blockId>` |
+| Rerun from a block, reusing an earlier run's upstream outputs | `run.entry: {type: "block", blockId, sourceRunId}` | `--from-block <blockId> --source-run <runId>` |
+| Rerun one block only | Block entry plus `stopAfterBlockId` naming the same block | `--from-block` and `--stop-after` with the same block |
+
+`stopAfterBlockId` cannot name a block inside a loop or parallel. A run that routes away from the stop block fails as soon as that is decided.
+
+## 8. Deploy [#deploy]
+
+Deploying creates a new version and activates it in the background. The response returns while the attempt may still be preparing.
+
+<Tabs items={['curl', 'CLI']}>
+  <Tab value="curl">
+    ```bash
+    curl -sS --fail-with-body -X POST \
+      "$BASE_URL/api/v2/workflows/$WORKFLOW_ID/deploy" \
+      -H "X-API-Key: $SIM_API_KEY" -H 'Content-Type: application/json' \
+      -d '{"name": "First release"}'
+
+    curl -sS --fail-with-body -H "X-API-Key: $SIM_API_KEY" \
+      "$BASE_URL/api/v2/workflows/$WORKFLOW_ID/deployment" \
+      | jq '.data.latestDeploymentAttempt.status'
+    ```
+  </Tab>
+  <Tab value="CLI">
+    ```bash
+    sim workflows deploy "$WORKFLOW_ID" --name "First release"
+    sim workflows deployment status "$WORKFLOW_ID"
+    ```
+  </Tab>
+</Tabs>
+
+Poll `GET /api/v2/workflows/{workflowId}/deployment` until `latestDeploymentAttempt.status` is `active`, or `failed` with an `error`. The deploy response also carries advisory `lint` for the deployed version. Each accepted deploy creates a version, so retrying after a timeout can create a duplicate; check the deployment first. The deployment read also reports `needsRedeployment` when the draft has changed, and `webhooks` with the public URL for each webhook trigger.
+
+## 9. Run the deployment [#execute]
+
+Omit `run` to execute the active deployment. Choose how to wait:
+
+| Mode | Request | Response |
+| --- | --- | --- |
+| Synchronous | Default | `200` with `status`, `output`, and `error` |
+| Bounded wait | `waitTimeoutSeconds` | The result, or a `202` receipt when the run is still going; the run continues in the background |
+| Asynchronous | `async: true` | `202` with `runId` and `statusUrl` |
+
+<Tabs items={['curl', 'CLI']}>
+  <Tab value="curl">
+    ```bash
+    RUN_ID="run_$(uuidgen | tr 'A-Z' 'a-z')"
+    curl -sS --fail-with-body -X POST \
+      "$BASE_URL/api/v2/workflows/$WORKFLOW_ID/execute" \
+      -H "X-API-Key: $SIM_API_KEY" -H 'Content-Type: application/json' \
+      -H "X-Run-Id: $RUN_ID" \
+      -d '{"input": {"ticketId": "T-123"}, "async": true}'
+
+    curl -sS --fail-with-body -H "X-API-Key: $SIM_API_KEY" \
+      "$BASE_URL/api/v2/workflows/$WORKFLOW_ID/runs/$RUN_ID?includeOutput=true"
+    ```
+  </Tab>
+  <Tab value="CLI">
+    ```bash
+    RUN_ID="run_$(uuidgen | tr 'A-Z' 'a-z')"
+    sim workflows run "$WORKFLOW_ID" --input '{"ticketId": "T-123"}' --async --run-id "$RUN_ID"
+    sim workflows runs wait "$RUN_ID" --workflow "$WORKFLOW_ID"
+    sim workflows runs get "$RUN_ID" --workflow "$WORKFLOW_ID" --include-output
+    ```
+  </Tab>
+</Tabs>
+
+Run failures are reported in the result, not as HTTP errors: branch on `status` (`completed`, `failed`, `paused`, `cancelled`). A run that exceeds its timeout returns `200` with `status: "failed"` and `error.code: "TIMEOUT"`. Poll the run resource until `status` is no longer `queued`, `pending`, `running`, or `redacting` (a finished run whose output is still being scrubbed); `sim workflows runs wait` does this and exits `0` completed, `1` failed, `2` cancelled, `3` needs input, or `4` timed out.
+
+`X-Run-Id` claims a run ID so a retry cannot start a second run. After an uncertain response, retry with the same ID: if the ID was already claimed, the request returns `409` with `RUN_ID_CONFLICT` and does not replay the result. Read the run instead. Do not retry with a new or omitted ID, which can start another run.
+
+## 10. Debug a failed run [#debugging]
+
+Both the execute response and the polled run resource name the failing block in `error.blockId`, `error.blockName`, and `error.blockType`. The run resource reads these from the run's trace, so they are absent when the trace is unavailable or hidden by your organization's permission groups, when no failed block in the trace recorded the run error, and for a timeout, cancellation, usage-limit, or invalid-input failure. Read the trace spans for the full picture:
+
+<Tabs items={['curl', 'CLI']}>
+  <Tab value="curl">
+    ```bash
+    curl -sS --fail-with-body -H "X-API-Key: $SIM_API_KEY" \
+      "$BASE_URL/api/v2/logs/$RUN_ID?includeWorkflowState=false" \
+      | jq '.data.traceSpans'
+    ```
+  </Tab>
+  <Tab value="CLI">
+    ```bash
+    sim logs get "$RUN_ID" --trace
+    ```
+  </Tab>
+</Tabs>
+
+Each span has `blockId`, `name`, `type`, `status`, `errorMessage`, `input`, `output`, timing, and nested `children`. Find the span with an error, fix that block with an `edit` operation, then rerun from it with `run.entry: {type: "block", blockId, sourceRunId}` to reuse the upstream outputs. Spans marked `contentWithheld` omit content that could not be shown safely. Trace spans expire on the workspace's retention schedule, so an empty `traceSpans` array does not prove none were recorded.
+
+## 11. Resume a paused run [#approvals]
+
+A Human in the Loop block pauses the run until someone responds. The run resource reports `status: "paused"` and lists each pause under `paused.points`, with its `contextId`, `kind`, and, for a human pause, the `inputFields` to fill. A `time` pause resumes on its own at `resumeAt`.
+
+<Tabs items={['curl', 'CLI']}>
+  <Tab value="curl">
+    ```bash
+    curl -sS --fail-with-body -X POST \
+      "$BASE_URL/api/v2/workflows/$WORKFLOW_ID/runs/$RUN_ID/resume" \
+      -H "X-API-Key: $SIM_API_KEY" -H 'Content-Type: application/json' \
+      -d '{"contextId": "CONTEXT_ID", "input": {"approved": true}}'
+    ```
+  </Tab>
+  <Tab value="CLI">
+    ```bash
+    sim workflows runs resume "$RUN_ID" --workflow "$WORKFLOW_ID" \
+      --context CONTEXT_ID --input '{"approved": true}'
+    ```
+  </Tab>
+</Tabs>
+
+Resume returns the resumed run's result (`200`) or a queue receipt (`202`). Poll the run resource as in step 9.
+
+## Use Sim MCP [#use-sim-mcp]
+
+AI agents can follow the same loop through [Sim MCP](/mcp/overview) (`https://mcp.sim.ai/mcp` on Sim Cloud, `/api/mcp` on a self-hosted deployment). Its tools are `search_operations`, `describe_operation`, `call_read_operation`, and `call_write_operation`. Operation names match the API reference, such as `listBlocks`, `getBlock`, `createWorkflow`, `applyWorkflowOperations`, `executeWorkflow`, `deployWorkflow`, `getWorkflowDeployment`, `getWorkflowRun`, `getLog`, and `resumeWorkflow`. Pass the dry run as `query: {"dryRun": true}`.
+
+<Callout type="info">
+Use `describe_operation` for the current request schema instead of copying one into a prompt. Schemas change as Sim adds fields.
+</Callout>
+
+MCP results are limited to 1 MiB and do not stream; see [MCP tools](/mcp/tools).
+
+Coding agents that use the CLI can install the [Sim skills](https://github.com/simstudioai/skills), which teach this loop step by step (`bunx skills add simstudioai/skills --global`).
+
+## Related docs
+
+- [Apply workflow operations](/api-reference/workflows/applyWorkflowOperations)
+- [Execute workflow](/api-reference/workflows/executeWorkflowV2)
+- [Get workflow run](/api-reference/workflow-runs/getWorkflowRunV2)
+- [Get log](/api-reference/logs/getLog)
+- [CLI workflow commands](/cli/workflows)
+- [Sim MCP tools](/mcp/tools)

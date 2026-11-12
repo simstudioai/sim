@@ -19,6 +19,7 @@ import {
   type V2ExecuteWorkflowData,
   type V2ResumeWorkflowBody,
   v2ExecuteWorkflowDataSchema,
+  v2ResumeWorkflowDataSchema,
   v2WorkflowRunStatusSchema,
 } from '@/lib/api/contracts/v2/workflows'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
@@ -407,7 +408,7 @@ async function resume(
     }
     throw new Error('Timed wait did not finish after automatic resume')
   }
-  const result = v2ExecuteWorkflowDataSchema.parse(
+  const result = v2ResumeWorkflowDataSchema.parse(
     record(
       await execute(
         fixture.workflowId,
@@ -677,7 +678,7 @@ try {
             assert(!resumedScopes.has(index), 'Each iteration or branch resumes once')
             resumedScopes.add(index)
           }
-          const resumed = v2ExecuteWorkflowDataSchema.parse(
+          const resumed = v2ResumeWorkflowDataSchema.parse(
             record(
               await execute(
                 fixture.workflowId,

@@ -183,6 +183,12 @@ const GROUP_DOCUMENTATION: Record<string, GroupDocumentation> = {
     description: 'Manage reusable dependency sets for Function blocks.',
     related: [['Function sandboxes', '/workflows/blocks/function#sandboxes']],
   },
+  schedules: {
+    description: 'List the schedules deployed workflows run across a workspace.',
+    notes: [
+      'A schedule’s timing comes from its schedule block. Edit the block with `sim workflows operations apply`, then deploy; pause or resume one with `sim workflows triggers update`.',
+    ],
+  },
   secrets: {
     description: 'Set and manage workspace or personal secrets.',
     notes: [
@@ -230,6 +236,7 @@ const GROUP_DOCUMENTATION: Record<string, GroupDocumentation> = {
     description: 'Build, deploy, run, and inspect workflows from the terminal.',
     related: [
       ['Workflow builder', '/workflows'],
+      ['Build and run workflows with the API', '/api-reference/build-and-run-workflows'],
       ['Import and workspace sync', '/cli/workflow-sync'],
       ['Scripting and exit codes', '/cli/scripting#exit-codes'],
     ],
@@ -389,7 +396,7 @@ const GROUP_SECTIONS: Record<string, readonly CommandSection[]> = {
       title: 'Workflows',
       prefixes: ['list', 'get', 'create', 'update', 'duplicate', 'move', 'mv', 'delete', 'restore'],
     },
-    { title: 'Draft state and edits', prefixes: ['state', 'operations', 'variables'] },
+    { title: 'Draft state and edits', prefixes: ['state', 'outline', 'operations', 'variables'] },
     {
       title: 'Deployments and versions',
       prefixes: [
@@ -405,7 +412,15 @@ const GROUP_SECTIONS: Record<string, readonly CommandSection[]> = {
     },
     {
       title: 'Run and inspect',
-      prefixes: ['run', 'runs list', 'runs get', 'runs wait', 'runs resume', 'runs cancel'],
+      prefixes: [
+        'run',
+        'runs list',
+        'runs paused',
+        'runs get',
+        'runs wait',
+        'runs resume',
+        'runs cancel',
+      ],
     },
     { title: 'Chat deployments', prefixes: ['chat status', 'chat publish', 'chat unpublish'] },
     { title: 'Export and import', prefixes: ['export', 'import-preview', 'import'] },
@@ -414,7 +429,7 @@ const GROUP_SECTIONS: Record<string, readonly CommandSection[]> = {
   workspaces: [
     {
       title: 'Workspace access',
-      prefixes: ['list', 'get', 'members', 'invitations', 'permission-config'],
+      prefixes: ['list', 'get', 'update', 'members', 'invitations', 'permission-config'],
     },
     {
       title: 'Access requests',

@@ -7,3 +7,9 @@ export const OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM = 'credentialDraftId'
  * message to show.
  */
 export const OAUTH_CREDENTIAL_ACCOUNT_CONFLICT_ERROR = 'credential_account_conflict'
+/**
+ * `error` code for a connection link the signed-in user cannot open: unknown,
+ * expired, or created by another account. Deliberately one code for all three,
+ * so the response never says whether the link exists or whose it is.
+ */
+export const OAUTH_LINK_UNAVAILABLE_ERROR = 'oauth_link_unavailable'

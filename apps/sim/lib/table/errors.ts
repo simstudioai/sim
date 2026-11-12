@@ -9,6 +9,7 @@ export type TableQueryErrorCode =
   | 'CURSOR_FILTER_CONFLICT'
   | 'INVALID_FILTER'
   | 'INVALID_ORDER'
+  | 'TABLE_QUERY_TIMEOUT'
 
 /**
  * Error thrown when caller-supplied filter or sort input is malformed.

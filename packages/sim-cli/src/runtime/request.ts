@@ -51,6 +51,8 @@ export interface FieldSpec {
   nullable?: true
   values?: readonly string[]
   default?: unknown
+  /** The largest value the API accepts for a numeric field, when the contract bounds it. */
+  maximum?: number
   /** The field's `.describe()` from the route contract, used as `--help` text. */
   describe?: string
 }

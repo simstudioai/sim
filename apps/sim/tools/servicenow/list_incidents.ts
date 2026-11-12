@@ -12,6 +12,7 @@ import {
   transformRecordListResponse,
   withQueryString,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listIncidentsTool: ToolConfig<
@@ -23,6 +24,7 @@ export const listIncidentsTool: ToolConfig<
   description:
     'Search ServiceNow incidents by state, priority, assignment, caller, or text. All filters are ANDed together.',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     ...authParams,

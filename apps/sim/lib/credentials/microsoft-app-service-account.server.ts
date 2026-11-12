@@ -2,7 +2,9 @@ import { createHash, createPrivateKey, type KeyObject, X509Certificate } from 'n
 import { db } from '@sim/db'
 import { credential } from '@sim/db/schema'
 import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { backoffWithJitter } from '@sim/utils/retry'
 import { eq } from 'drizzle-orm'
 import { SignJWT } from 'jose'
 import { LRUCache } from 'lru-cache'
@@ -33,7 +35,7 @@ import { MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
  * Saved Microsoft Entra app-only credentials (OAuth 2.0 client credentials).
  *
  * One app registration serves every Microsoft service that runs without a
- * signed-in user: Microsoft Graph for Entra ID and SharePoint, and the
+ * signed-in user: Microsoft Graph for Entra ID, SharePoint, and Intune, and the
  * credential's own Dataverse environment for Dataverse and Dynamics 365. The
  * app's application permissions and the environment's application user decide
  * what it can do; Sim stores no permission list of its own.
@@ -59,6 +61,22 @@ const CERTIFICATE_ASSERTION_TTL_SECONDS = 300
 const MIN_RSA_MODULUS_BITS = 2048
 const MAX_RSA_MODULUS_BITS = 4096
 const MAX_PEM_LENGTH = 16_384
+/** A certificate issued moments ago on a machine whose clock runs ahead is not refused as "not valid yet". */
+const CERTIFICATE_CLOCK_SKEW_MS = 5 * 60 * 1000
+
+/** Extra token requests a run makes while a new federated credential propagates through Entra. */
+const FEDERATION_PROPAGATION_RETRIES = 2
+/**
+ * The refusal Microsoft documents for a federated credential that has not reached every Entra
+ * node yet. AADSTS700213 is left out: Microsoft documents it only as a case-sensitive mismatch.
+ */
+const FEDERATION_PROPAGATION_AADSTS = 70021
+/**
+ * A run's whole token request, retries included, settles inside this budget so it stays under the
+ * 30 s deadline that concurrent runs sharing the mint wait for. A retry is only started when even
+ * a request that runs to its full timeout would still finish in time.
+ */
+const RUN_TOKEN_BUDGET_MS = 25_000
 
 /** Re-mint once less than this much of a token's lifetime remains. */
 const TOKEN_REUSE_MARGIN_MS = 5 * 60 * 1000
@@ -69,8 +87,18 @@ const GUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 const TENANT_DOMAIN_PATTERN =
   /^(?=.{4,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/
 
-/** The Microsoft services that may use this credential, and the resource each one calls. */
-type MicrosoftAppService = 'microsoft-ad' | 'sharepoint' | 'microsoft-dataverse'
+/**
+ * The Microsoft services that may use this credential. Each one's `serviceAccountProviderId` in
+ * `oauth.ts` offers the credential in its picker; this list is what the resolver accepts.
+ */
+const MICROSOFT_APP_SERVICES = [
+  'microsoft-ad',
+  'sharepoint',
+  'microsoft-intune',
+  'microsoft-dataverse',
+] as const
+
+type MicrosoftAppService = (typeof MICROSOFT_APP_SERVICES)[number]
 
 const tenantSchema = z
   .string()
@@ -167,7 +195,9 @@ const storedSecretSchema = z
 /** A configuration problem Sim can name the fix for; its message is shown to the person saving. */
 export class MicrosoftAppCredentialError extends Error {
   /**
-   * @param status The HTTP status Microsoft answered with, when Microsoft itself refused.
+   * @param status The HTTP status of the failed exchange: Microsoft's answer, or 502 when Entra
+   *   could not be reached or answered without a token. Absent for a problem with the stored
+   *   configuration itself (an expired certificate, say), which only a reconnect fixes.
    * @param aadsts The Entra `AADSTS` error code, when Entra reported one.
    */
   constructor(
@@ -280,6 +310,12 @@ function loadCertificateMaterial(
       'This certificate has expired. Upload a new one to the app registration and save it here.'
     )
   }
+  const validFrom = Date.parse(certificate.validFrom)
+  if (validFrom > Date.now() + CERTIFICATE_CLOCK_SKEW_MS) {
+    throw new MicrosoftAppCredentialError(
+      `This certificate is not valid until ${new Date(validFrom).toISOString()}. Use a certificate that is already valid.`
+    )
+  }
   return {
     key,
     thumbprintS256: createHash('sha256').update(certificate.raw).digest('base64url'),
@@ -363,7 +399,7 @@ async function requestEntraToken(
     })
   } catch {
     signal?.throwIfAborted()
-    throw new MicrosoftAppCredentialError('Could not reach Microsoft Entra. Try again.')
+    throw new MicrosoftAppCredentialError('Could not reach Microsoft Entra. Try again.', 502)
   }
   const payload = (await response.json().catch(() => ({}))) as {
     access_token?: unknown
@@ -595,6 +631,36 @@ export async function verifyAndEncryptMicrosoftAppCredential(
   }
 }
 
+/**
+ * Requests a run's token, retrying a federated credential's "no matching federated identity
+ * record" refusal: Entra can answer it for several minutes after the federated credential is
+ * added, even after a token was issued, and Microsoft asks callers to retry. The retries stop
+ * within {@link RUN_TOKEN_BUDGET_MS}. The save-time subject-pin probe never comes here, because
+ * it expects that very refusal.
+ * @see https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations#time-for-federated-credential-changes-to-propagate
+ */
+async function requestRunEntraToken(
+  config: MicrosoftAppConfig,
+  resource: string,
+  owner: WorkloadIdentityOwner
+): Promise<EntraToken> {
+  const deadline = Date.now() + RUN_TOKEN_BUDGET_MS
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await requestEntraToken(config, resource, owner)
+    } catch (error) {
+      const propagating =
+        config.authType === 'federated' &&
+        error instanceof MicrosoftAppCredentialError &&
+        error.aadsts === FEDERATION_PROPAGATION_AADSTS
+      if (!propagating || attempt > FEDERATION_PROPAGATION_RETRIES) throw error
+      const delay = backoffWithJitter(attempt, null)
+      if (Date.now() + delay + REQUEST_TIMEOUT_MS > deadline) throw error
+      await sleep(delay)
+    }
+  }
+}
+
 interface CachedToken {
   accessToken: string
   instanceUrl?: string
@@ -613,14 +679,14 @@ export interface MicrosoftAppCredentialToken {
 }
 
 function isMicrosoftAppService(value: string | undefined): value is MicrosoftAppService {
-  return value === 'microsoft-ad' || value === 'sharepoint' || value === 'microsoft-dataverse'
+  return (MICROSOFT_APP_SERVICES as readonly (string | undefined)[]).includes(value)
 }
 
 /**
  * Resolves an executor-authorized Microsoft app credential (the executor
  * already checked the caller may use it) to a token for the service the tool
  * belongs to. The resource is decided by the tool's service, never by caller
- * params: Graph for Entra ID and SharePoint, the stored environment for
+ * params: Graph for Entra ID, SharePoint, and Intune, the stored environment for
  * Dataverse. Any other service is refused, so a Microsoft block that needs a
  * signed-in user can never receive an app-only token.
  */
@@ -683,14 +749,18 @@ export async function resolveMicrosoftAppCredentialToken(
       : { organizationId: row.organizationId ?? undefined }
     let token: EntraToken
     try {
-      token = await requestEntraToken(config, resource, owner)
+      token = await requestRunEntraToken(config, resource, owner)
     } catch (error) {
       if (!(error instanceof MicrosoftAppCredentialError)) throw error
-      // Report in the shared service-account codes: an outage is not a bad credential.
+      // Report in the shared service-account codes: an outage is not a bad credential, and a
+      // stored certificate that can no longer sign (expired, say) is one only a reconnect fixes.
       throw new TokenServiceAccountValidationError(
-        error.status === undefined ? 'provider_unavailable' : providerFailureCode(error.status),
-        error.status ?? 502,
-        { step: 'microsoft_app_token', reason: error.aadsts ? `AADSTS${error.aadsts}` : undefined }
+        error.status === undefined ? 'invalid_credentials' : providerFailureCode(error.status),
+        error.status ?? 400,
+        {
+          step: 'microsoft_app_token',
+          reason: error.aadsts ? `AADSTS${error.aadsts}` : error.message,
+        }
       )
     }
     const value: CachedToken = { accessToken: token.accessToken, instanceUrl }

@@ -22,6 +22,19 @@ export const DATADOG_SITES = [
 
 export type DatadogSite = (typeof DATADOG_SITES)[number]
 
+/** Each site's name in the site pickers: Datadog's region name and the site host. */
+export const DATADOG_SITE_LABELS: Record<DatadogSite, string> = {
+  'datadoghq.com': 'US1 (datadoghq.com)',
+  'us3.datadoghq.com': 'US3 (us3.datadoghq.com)',
+  'us5.datadoghq.com': 'US5 (us5.datadoghq.com)',
+  'datadoghq.eu': 'EU (datadoghq.eu)',
+  'ap1.datadoghq.com': 'AP1 (ap1.datadoghq.com)',
+  'ap2.datadoghq.com': 'AP2 (ap2.datadoghq.com)',
+  'uk1.datadoghq.com': 'UK1 (uk1.datadoghq.com)',
+  'ddog-gov.com': 'US1-FED (ddog-gov.com)',
+  'us2.ddog-gov.com': 'US2-FED (us2.ddog-gov.com)',
+}
+
 /** Base parameters for write-only operations (only need API key) */
 interface DatadogWriteOnlyParams {
   apiKey: string

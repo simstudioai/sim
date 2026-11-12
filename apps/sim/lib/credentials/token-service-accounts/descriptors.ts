@@ -24,6 +24,8 @@ export interface TokenServiceAccountField {
   placeholder: string
   /** Rendered with SecretInput and never echoed back. */
   secret: boolean
+  /** Preserve exact password bytes instead of normalizing surrounding whitespace. */
+  preserveWhitespace?: boolean
   /**
    * The value is a URL whose scheme and path matter (a self-hosted instance or
    * deployment URL), so the connect form sends it as typed and the provider's
@@ -67,7 +69,37 @@ export interface TokenServiceAccountDescriptor {
    * token route surfaces this so tool header builders can switch schemes.
    */
   authStyle?: 'bearer' | 'x-api-token'
+  /**
+   * A client-credentials grant the provider offers beside the pasted token. A credential saved
+   * with `authMethod: 'client_credentials'` stores the client ID and secret (and `domain`, when
+   * the descriptor has one) and mints a short-lived token at execution time; a credential saved
+   * without it keeps the pasted-token mode unchanged.
+   */
+  clientCredentials?: TokenServiceAccountClientCredentials
 }
+
+/** Copy for a token provider's client-credentials mode in the connect modal. */
+interface TokenServiceAccountClientCredentials {
+  /** Authentication dropdown label for the client-credentials mode. */
+  label: string
+  /** Authentication dropdown label for the existing pasted-token mode. */
+  tokenLabel: string
+  /** Guidance shown under the client ID field. */
+  helpText: string
+  /** Replaces the generic `invalid_credentials` copy for this mode. */
+  invalidCredentialsHelp: string
+  /** Copy for `grant_not_permitted`, when the provider can refuse the grant for one account. */
+  notPermittedHelp?: string
+  /**
+   * Preselects this mode for a new connection, for providers whose current setup no longer
+   * issues a pasted token. A reconnect preselects nothing; the admin restates the mode while
+   * retyping the secret.
+   */
+  preferred?: boolean
+}
+
+/** `authMethod` value selecting the client-credentials mode of a provider whose default is a pasted token (a token provider, or the Atlassian service account). */
+export const CLIENT_CREDENTIALS_AUTH_METHOD = 'client_credentials' as const
 
 export const HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID = 'hubspot-service-account' as const
 export const AIRTABLE_SERVICE_ACCOUNT_PROVIDER_ID = 'airtable-service-account' as const
@@ -92,6 +124,9 @@ export const CODA_SERVICE_ACCOUNT_PROVIDER_ID = 'coda-service-account' as const
 export const GAUGE_SERVICE_ACCOUNT_PROVIDER_ID = 'gauge-service-account' as const
 export const HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID = 'higgsfield-service-account' as const
 export const THRIVE_SERVICE_ACCOUNT_PROVIDER_ID = 'thrive-service-account' as const
+export const PLANETSCALE_SERVICE_ACCOUNT_PROVIDER_ID = 'planetscale-service-account' as const
+export const GONG_SERVICE_ACCOUNT_PROVIDER_ID = 'gong-service-account' as const
+export const SERVICENOW_SERVICE_ACCOUNT_PROVIDER_ID = 'servicenow-service-account' as const
 export const SUPABASE_SERVICE_ACCOUNT_PROVIDER_ID = 'supabase-service-account' as const
 export const INFISICAL_SERVICE_ACCOUNT_PROVIDER_ID = 'infisical-service-account' as const
 export const OKTA_SERVICE_ACCOUNT_PROVIDER_ID = 'okta-service-account' as const
@@ -99,6 +134,14 @@ export const DEVIN_SERVICE_ACCOUNT_PROVIDER_ID = 'devin-service-account' as cons
 export const EMAILBISON_SERVICE_ACCOUNT_PROVIDER_ID = 'emailbison-service-account' as const
 export const UPSTASH_SERVICE_ACCOUNT_PROVIDER_ID = 'upstash-service-account' as const
 export const ALGOLIA_SERVICE_ACCOUNT_PROVIDER_ID = 'algolia-service-account' as const
+/**
+ * The Twilio credential's `apiToken` holds either the account auth token or an API key pair
+ * (`SKxxx:secret`), deliberately in one field: the pair is exactly the Basic username and password
+ * Twilio takes for a key, so every surface (saved credential, inline block field, API) carries it
+ * with no extra field. Build request auth only with `twilioAuthorization`; a consumer that needs
+ * the account auth token itself (webhook signature HMAC) must refuse a value `isTwilioApiKeyPair`
+ * matches, since an API key secret cannot sign.
+ */
 export const TWILIO_SERVICE_ACCOUNT_PROVIDER_ID = 'twilio-service-account' as const
 export const AZURE_DEVOPS_SERVICE_ACCOUNT_PROVIDER_ID = 'azure-devops-service-account' as const
 export const PLANE_SERVICE_ACCOUNT_PROVIDER_ID = 'plane-service-account' as const
@@ -221,6 +264,9 @@ export type TokenServiceAccountProviderId =
   | typeof GAUGE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof THRIVE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof PLANETSCALE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof GONG_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof SERVICENOW_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SUPABASE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof INFISICAL_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof OKTA_SERVICE_ACCOUNT_PROVIDER_ID
@@ -327,21 +373,21 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
   [HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'HubSpot',
-    tokenNoun: 'private app access token',
-    connectNoun: 'private app token',
+    tokenNoun: 'service key or private app access token',
+    connectNoun: 'service key',
     fields: [
       {
         id: 'apiToken',
-        label: 'Private app access token',
+        label: 'Service key or private app token',
         placeholder: 'pat-na1-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
         secret: true,
         hintPattern: /^pat-/i,
-        hintMessage: 'HubSpot private app tokens usually start with pat-.',
+        hintMessage: 'HubSpot service keys and private app tokens usually start with pat-.',
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/hubspot-service-account',
     helpText:
-      'Tokens are tied to the super admin who created the private app; if that user is removed from the portal, some calls may start failing.',
+      'Create a service key in HubSpot under Development > Keys > Service keys (or Settings > Integrations > Service keys, depending on your account); new legacy private apps can no longer be created, but existing private app tokens keep working. If the key rotates automatically, paste the new key here after each rotation.',
   },
   [AIRTABLE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: AIRTABLE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -463,6 +509,14 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/linear-service-account',
+    clientCredentials: {
+      label: 'OAuth app (client credentials)',
+      tokenLabel: 'Personal API key (lin_api_)',
+      helpText:
+        'Turn on client credentials tokens for the OAuth app in Linear first, and use an OAuth app only Sim uses: requesting a token replaces an existing authorization of this app in the workspace, a client-credentials request for it with other scopes revokes Sim’s tokens, and rotating the client secret invalidates its tokens until you reconnect here.',
+      invalidCredentialsHelp:
+        'Linear rejected these client credentials. Check the client ID and secret, and that client credentials tokens are turned on for the OAuth app.',
+    },
   },
   [MONDAY_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: MONDAY_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -506,9 +560,20 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/shopify-service-account',
     helpText:
-      'The token is revealed once, is bound to a single store, and does not expire. Dev Dashboard apps issue tokens through OAuth rather than a UI reveal.',
+      'Only custom apps created in the Shopify admin reveal this token. For an app created in the Dev Dashboard, choose Client credentials instead.',
     invalidCredentialsHelp:
       'Shopify rejected this token. Make sure you copied the Admin API access token (starts with shpat_) — not the API key or API secret key — for an app installed on this exact store domain, and that it has not since been revoked or regenerated.',
+    clientCredentials: {
+      preferred: true,
+      label: 'Client credentials (Dev Dashboard app)',
+      tokenLabel: 'Admin API access token (shpat_)',
+      helpText:
+        'Use the client ID and secret from the Dev Dashboard app. The app must be installed on this store, and the app and store must belong to the same Shopify organization.',
+      invalidCredentialsHelp:
+        'Shopify rejected these client credentials. Check that the client ID and secret belong to a Dev Dashboard app that is installed on this exact store domain.',
+      notPermittedHelp:
+        'Shopify does not allow client credentials for this store. Client credentials only work when the app and the store belong to the same Shopify organization, so check that this store is part of the organization that owns the app.',
+    },
   },
   [WEBFLOW_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: WEBFLOW_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -526,6 +591,8 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/webflow-service-account',
     helpText:
       'Site tokens expire after 365 days without API activity, and each token grants access to a single site.',
+    invalidCredentialsHelp:
+      'Webflow rejected this token, or it reaches no site. Generate a site API token in the site settings with at least the sites:read scope.',
   },
   [TRELLO_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: TRELLO_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -1866,7 +1933,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'Access token',
-        placeholder: 'Paste a workspace, project, or repository access token',
+        placeholder: 'Paste an access token or a Bitbucket API token',
         secret: true,
       },
       {
@@ -1881,9 +1948,9 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/bitbucket-service-account',
     helpText:
-      'Use a Bitbucket Cloud workspace, project, or repository access token with at least the repository scope. Enter any repository the token can read, as workspace/repository; Sim reads it once to verify the token.',
+      'Use a Bitbucket Cloud workspace, project, or repository access token with at least the repository scope, or an Atlassian API token created for Bitbucket with at least repository read (app passwords no longer work). Enter any repository the token can read, as workspace/repository; Sim reads it once to verify the token.',
     invalidCredentialsHelp:
-      'Bitbucket rejected this token. Check that it has not expired or been revoked, has the repository scope, and can read the repository you entered.',
+      'Bitbucket rejected this token. Check that it has not expired or been revoked, has repository read access, and can read the repository you entered. App passwords no longer work; use an access token or an API token created for Bitbucket.',
   },
   [GRAFANA_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: GRAFANA_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -2136,9 +2203,11 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     fields: [
       {
         id: 'apiToken',
-        label: 'Auth token',
-        placeholder: 'Paste your Twilio auth token',
+        label: 'Auth token or API key',
+        placeholder: 'Paste your auth token, or SKxxx:secret for an API key',
         secret: true,
+        hintPattern: /^(?!SK)|^SK[0-9a-fA-F]{32}:\S+$/,
+        hintMessage: 'Enter an API key as its SID and secret joined by a colon: SKxxx:secret.',
       },
       {
         id: 'providerWorkspaceId',
@@ -2151,9 +2220,9 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/twilio_sms',
     helpText:
-      'Copy the Account SID and Auth Token from Account Info on your Twilio Console dashboard.',
+      'Copy the Account SID and Auth Token from Account Info on your Twilio Console dashboard. To use an API key instead, enter its SID and secret joined by a colon (SKxxx:secret); a Standard or Main key works, and a restricted key needs read access to phone numbers.',
     invalidCredentialsHelp:
-      'Twilio rejected this Account SID and auth token. Check that the token belongs to this account and has not been rotated.',
+      'Twilio rejected this Account SID and auth token or API key. Check that the token or key belongs to this account and has not been rotated or deleted, and that an API key is entered as SKxxx:secret.',
   },
   [ALGOLIA_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: ALGOLIA_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -2300,7 +2369,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/infisical',
     helpText:
-      'Use https://us.infisical.com for US Cloud, https://eu.infisical.com for EU Cloud, or your self-hosted URL. Universal Auth tokens expire with their TTL; a Token Auth token with a long TTL keeps runs working.',
+      'Use https://us.infisical.com for US Cloud, https://eu.infisical.com for EU Cloud, or your self-hosted URL. Sim does not renew the token, so it stops working when its Access Token TTL runs out: set a long Access Token TTL and Max TTL on the identity, and leave Access Token Period unset, since a periodic token expires unless it is renewed.',
     invalidCredentialsHelp:
       'Paste a machine identity access token, not a client secret or service token, and make sure the instance URL matches the region the identity lives in.',
   },
@@ -2340,7 +2409,109 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     invalidCredentialsHelp:
       'Thrive rejected this API key. Check that the tenant ID matches the key and that the region host is the one your tenant uses.',
   },
+  [PLANETSCALE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: PLANETSCALE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'PlanetScale',
+    tokenNoun: 'service token',
+    connectNoun: 'service token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Service token',
+        placeholder: 'Paste your PlanetScale service token',
+        secret: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Service token ID',
+        placeholder: 'Paste the service token ID',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/planetscale',
+    helpText:
+      "Create a service token on your PlanetScale organization's Service tokens page, copy its ID and token, and grant it access to the organization and databases your workflows use.",
+    invalidCredentialsHelp:
+      'PlanetScale rejected this service token. Check that the token ID and token belong together and that the token has not been deleted or expired.',
+  },
+  [GONG_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: GONG_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Gong',
+    tokenNoun: 'access key secret',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Access key secret',
+        placeholder: 'Paste your Gong access key secret',
+        secret: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Access key',
+        placeholder: 'Paste your Gong access key',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/gong',
+    helpText:
+      'A Gong technical administrator creates the access key and secret on the API page of the Gong company settings. Sim calls https://api.gong.io; an account whose API page shows a different base URL is not supported yet.',
+    invalidCredentialsHelp:
+      'Gong rejected this access key and secret. Check that they were created together, have not been revoked, and that your Gong plan includes API access. If the API page in Gong shows a base URL other than https://api.gong.io, that account is not supported yet.',
+  },
+  [SERVICENOW_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: SERVICENOW_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'ServiceNow',
+    tokenNoun: 'password',
+    connectNoun: 'login',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Password',
+        placeholder: 'Enter the ServiceNow user password',
+        secret: true,
+        preserveWhitespace: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Username',
+        placeholder: 'Enter the ServiceNow username',
+        secret: false,
+      },
+      {
+        id: 'domain',
+        label: 'Instance URL',
+        placeholder: 'yourcompany.service-now.com',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/servicenow',
+    helpText:
+      "Use a dedicated integration user with the roles your workflows need and without multi-factor authentication. Enter your instance's https URL, like acme.service-now.com or a custom instance URL. The instance must be reachable from the internet.",
+    invalidCredentialsHelp:
+      'ServiceNow rejected this username and password. Check the instance URL, and that the user is active, not locked out, and not required to use multi-factor authentication.',
+  },
 }
+
+/**
+ * Required contract fields per token provider in client-credentials mode: the client ID and
+ * secret replace the token, and every other descriptor field (a store domain) stays required.
+ */
+export const TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS: Record<
+  string,
+  ReadonlyArray<'clientId' | 'clientSecret' | Exclude<TokenServiceAccountFieldId, 'apiToken'>>
+> = Object.fromEntries(
+  Object.values(TOKEN_SERVICE_ACCOUNT_DESCRIPTORS)
+    .filter((descriptor) => descriptor.clientCredentials)
+    .map((descriptor) => [
+      descriptor.providerId,
+      [
+        'clientId',
+        'clientSecret',
+        ...descriptor.fields.flatMap((field) => (field.id === 'apiToken' ? [] : [field.id])),
+      ],
+    ])
+)
 
 /**
  * Required contract fields per token service-account provider, consumed by the
@@ -2379,13 +2550,22 @@ export function getTokenServiceAccountDescriptor(
 export function getTokenServiceAccountErrorMessage(
   descriptor: TokenServiceAccountDescriptor,
   code: string | undefined,
-  fallbackMessage = "We couldn't add this credential. Try again in a moment."
+  fallbackMessage = "We couldn't add this credential. Try again in a moment.",
+  authMethod?: string
 ): string {
+  const clientCredentials =
+    authMethod === CLIENT_CREDENTIALS_AUTH_METHOD ? descriptor.clientCredentials : undefined
   switch (code) {
     case 'invalid_credentials':
       return (
+        clientCredentials?.invalidCredentialsHelp ??
         descriptor.invalidCredentialsHelp ??
         `We couldn't authenticate with that ${descriptor.tokenNoun}. Double-check it in ${descriptor.serviceLabel} and try again.`
+      )
+    case 'grant_not_permitted':
+      return (
+        clientCredentials?.notPermittedHelp ??
+        `${descriptor.serviceLabel} does not allow these client credentials for this account.`
       )
     case 'site_not_found':
       return "We couldn't find an account at that domain. Check the spelling and try again."

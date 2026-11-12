@@ -1,3 +1,7 @@
+import {
+  savedCredentialTokenParam,
+  ZOOMINFO_CREDENTIAL_OAUTH,
+} from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 import type { ZoomInfoSearchNewsParams, ZoomInfoSearchNewsResponse } from '@/tools/zoominfo/types'
 import {
@@ -15,6 +19,7 @@ export const zoominfoSearchNewsTool: InternalToolConfig<
   name: 'ZoomInfo Search News',
   description: 'Search ZoomInfo news articles by category, URL, or date range.',
   version: '1.0.0',
+  oauth: ZOOMINFO_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -29,6 +34,7 @@ export const zoominfoSearchNewsTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'ZoomInfo OAuth client secret',
     },
+    accessToken: savedCredentialTokenParam('ZoomInfo'),
     categories: {
       type: 'string',
       required: false,

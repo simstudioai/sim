@@ -12,6 +12,7 @@ import {
   transformRecordListResponse,
   withQueryString,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchCisTool: ToolConfig<ServiceNowSearchCisParams, ServiceNowRecordListResponse> = {
@@ -20,6 +21,7 @@ export const searchCisTool: ToolConfig<ServiceNowSearchCisParams, ServiceNowReco
   description:
     'Search the ServiceNow CMDB for configuration items. Defaults to the base cmdb_ci table, which returns CIs of every class; pass a CI class to scope the search to a subclass such as cmdb_ci_linux_server.',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     ...authParams,

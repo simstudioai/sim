@@ -36,9 +36,11 @@ import {
   CodaIcon,
   ConfluenceIcon,
   ConvexIcon,
+  CrowdStrikeIcon,
   CrunchbaseIcon,
   CursorIcon,
   DatabricksIcon,
+  DatadogIcon,
   DaytonaIcon,
   DevinIcon,
   DiscordIcon,
@@ -60,6 +62,7 @@ import {
   GithubIcon,
   GitLabIcon,
   GmailIcon,
+  GongIcon,
   GoogleAdsIcon,
   GoogleBigQueryIcon,
   GoogleCalendarIcon,
@@ -128,6 +131,7 @@ import {
   PersonaIcon,
   PipedriveIcon,
   PlaneIcon,
+  PlanetScaleIcon,
   PowerBIIcon,
   ProfoundIcon,
   PulseIcon,
@@ -142,9 +146,11 @@ import {
   RipplingIcon,
   RocketlaneIcon,
   RootlyIcon,
+  SailPointIcon,
   SalesforceIcon,
   SendgridIcon,
   SentryIcon,
+  ServiceNowIcon,
   ShopifyIcon,
   SimilarwebIcon,
   SixtyfourIcon,
@@ -178,9 +184,11 @@ import {
   xIcon,
   YouComIcon,
   YouTubeIcon,
+  ZendeskIcon,
   ZepIcon,
   ZohoDeskIcon,
   ZoomIcon,
+  ZoomInfoIcon,
 } from '@/components/icons'
 import { env } from '@/lib/core/config/env'
 import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
@@ -591,7 +599,8 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
       'vertex-ai': {
         name: 'Vertex AI',
-        description: 'Access Google Cloud Vertex AI for Gemini models with OAuth.',
+        description:
+          'Access Google Cloud Vertex AI for Gemini models with OAuth or a Google service account.',
         providerId: 'vertex-ai',
         icon: VertexIcon,
         baseProviderIcon: VertexIcon,
@@ -600,6 +609,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/cloud-platform',
         ],
+        serviceAccountProviderId: 'google-service-account',
       },
     },
     defaultService: 'gmail',
@@ -671,6 +681,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'microsoft-intune',
         icon: IntuneIcon,
         baseProviderIcon: MicrosoftIcon,
+        serviceAccountProviderId: 'microsoft-app-service-account',
         scopes: [
           'openid',
           'profile',
@@ -1659,6 +1670,75 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'fivetran',
   },
+  zoominfo: {
+    name: 'ZoomInfo',
+    icon: ZoomInfoIcon,
+    services: {
+      zoominfo: {
+        name: 'ZoomInfo',
+        description: 'Search and enrich B2B company and contact data with ZoomInfo.',
+        providerId: 'zoominfo',
+        serviceAccountProviderId: 'zoominfo-service-account',
+        authType: 'service_account',
+        icon: ZoomInfoIcon,
+        baseProviderIcon: ZoomInfoIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'zoominfo',
+  },
+  sailpoint: {
+    name: 'SailPoint',
+    icon: SailPointIcon,
+    services: {
+      sailpoint: {
+        name: 'SailPoint',
+        description: 'Govern identities and access in SailPoint Identity Security Cloud.',
+        providerId: 'sailpoint',
+        serviceAccountProviderId: 'sailpoint-service-account',
+        authType: 'service_account',
+        icon: SailPointIcon,
+        baseProviderIcon: SailPointIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'sailpoint',
+  },
+  datadog: {
+    name: 'Datadog',
+    icon: DatadogIcon,
+    services: {
+      datadog: {
+        name: 'Datadog',
+        description: 'Monitor infrastructure, applications, and logs with Datadog.',
+        providerId: 'datadog',
+        serviceAccountProviderId: 'datadog-service-account',
+        authType: 'service_account',
+        icon: DatadogIcon,
+        baseProviderIcon: DatadogIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'datadog',
+  },
+  crowdstrike: {
+    name: 'CrowdStrike',
+    icon: CrowdStrikeIcon,
+    services: {
+      crowdstrike: {
+        name: 'CrowdStrike',
+        description:
+          'Investigate and respond to CrowdStrike Falcon alerts, hosts, IOCs, and vulnerabilities.',
+        providerId: 'crowdstrike',
+        serviceAccountProviderId: 'crowdstrike-service-account',
+        authType: 'service_account',
+        icon: CrowdStrikeIcon,
+        baseProviderIcon: CrowdStrikeIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'crowdstrike',
+  },
   vanta: {
     name: 'Vanta',
     icon: VantaIcon,
@@ -2641,6 +2721,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'zep',
   },
+  zendesk: {
+    name: 'Zendesk',
+    icon: ZendeskIcon,
+    services: {
+      zendesk: {
+        name: 'Zendesk',
+        description: 'Manage tickets, users, and organizations in Zendesk Support.',
+        providerId: 'zendesk',
+        serviceAccountProviderId: 'zendesk-service-account',
+        icon: ZendeskIcon,
+        baseProviderIcon: ZendeskIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'zendesk',
+  },
   discord: {
     name: 'Discord',
     icon: DiscordIcon,
@@ -3471,6 +3568,59 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'thrive',
+  },
+  planetscale: {
+    name: 'PlanetScale',
+    icon: PlanetScaleIcon,
+    services: {
+      planetscale: {
+        name: 'PlanetScale',
+        description: 'Manage PlanetScale databases, branches, backups, and deploy requests.',
+        providerId: 'planetscale',
+        serviceAccountProviderId: 'planetscale-service-account',
+        icon: PlanetScaleIcon,
+        baseProviderIcon: PlanetScaleIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'planetscale',
+  },
+  gong: {
+    name: 'Gong',
+    icon: GongIcon,
+    services: {
+      gong: {
+        name: 'Gong',
+        description:
+          'Read calls, transcripts, users, and activity, and manage Engage flows in Gong.',
+        providerId: 'gong',
+        serviceAccountProviderId: 'gong-service-account',
+        icon: GongIcon,
+        baseProviderIcon: GongIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'gong',
+  },
+  servicenow: {
+    name: 'ServiceNow',
+    icon: ServiceNowIcon,
+    services: {
+      servicenow: {
+        name: 'ServiceNow',
+        description:
+          'Work with incidents, change requests, catalog items, and records in ServiceNow.',
+        providerId: 'servicenow',
+        serviceAccountProviderId: 'servicenow-service-account',
+        icon: ServiceNowIcon,
+        baseProviderIcon: ServiceNowIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'servicenow',
   },
   higgsfield: {
     name: 'Higgsfield',

@@ -116,6 +116,7 @@ export async function validateAtlassianServiceAccount(
     `https://api.atlassian.com/ex/${product}/${cloudId}/${identityPath}`,
     {
       headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+      redirect: 'error',
     }
   )
   await assertAtlassianResponseOk(myselfRes, 'myself', 'invalid_credentials', { cloudId })

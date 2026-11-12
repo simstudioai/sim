@@ -154,6 +154,11 @@ function graph(includeCustom = false) {
   }
 }
 
+/** Resolves the graph the write is given, running its reader the way the row-locked transaction does. */
+async function resolveWrittenState(state: unknown) {
+  return typeof state === 'function' ? state({}) : state
+}
+
 const add: EditWorkflowOperation = {
   operation_type: 'add',
   block_id: 'new-worker',
@@ -171,7 +176,9 @@ describe('custom blocks in authorized workflow authoring', () => {
       workflowRecord: context.workflow,
       normalizedData: graph(true),
     }))
-    mocks.replace.mockImplementation(async ({ state }) => prepareWorkflowStateForPersistence(state))
+    mocks.replace.mockImplementation(async ({ state }) =>
+      prepareWorkflowStateForPersistence(await resolveWrittenState(state))
+    )
   })
 
   it.each([session, copilot])(
@@ -218,7 +225,7 @@ describe('custom blocks in authorized workflow authoring', () => {
       expect(result.lint.fieldIssues).toEqual([])
       expect(mocks.replace).toHaveBeenCalledTimes(dryRun ? 0 : 1)
       if (!dryRun) {
-        const persisted = mocks.replace.mock.calls[0][0].state
+        const { state: persisted } = await mocks.replace.mock.results[0].value
         expect(persisted.blocks.worker.subBlocks['input-text']).toMatchObject({
           value: 'updated',
           type: 'short-input',
@@ -265,7 +272,7 @@ describe('custom blocks in authorized workflow authoring', () => {
     mocks.replace.mockImplementation(async ({ state, workspaceId }) => {
       const foreignType = workspaceId === 'one' ? other.type : customBlock.type
       expect(getBlock(foreignType)).toBeUndefined()
-      return prepareWorkflowStateForPersistence(state)
+      return prepareWorkflowStateForPersistence(await resolveWrittenState(state))
     })
     const results = await Promise.all(
       [customBlock, other].map((row, index) =>
@@ -298,7 +305,7 @@ describe('custom blocks in authorized workflow authoring', () => {
       expect(result.lint.fieldIssues).toEqual([])
       expect(mocks.replace).toHaveBeenCalledTimes(dryRun ? 0 : 1)
       if (!dryRun) {
-        const persisted = mocks.replace.mock.calls[0][0].state
+        const { state: persisted } = await mocks.replace.mock.results[0].value
         expect(persisted.blocks.worker.subBlocks['input-text']).toMatchObject({
           value: 'hello',
           type: 'short-input',

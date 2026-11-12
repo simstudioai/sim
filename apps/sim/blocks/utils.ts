@@ -75,8 +75,12 @@ interface SavedCredentialOptions {
    * endpoints, keyless self-hosted servers) passes a condition or `false`.
    */
   required?: SubBlockConfig['required']
-  /** Where the picker shows. Defaults to the replaced secret's own `condition`. */
-  condition?: SubBlockConfig['condition']
+  /**
+   * Where the picker shows. Defaults to the replaced secret's own `condition`;
+   * `null` shows it in every operation, for a block whose replaced fields show
+   * differently (a key every operation sends beside one only some send).
+   */
+  condition?: SubBlockConfig['condition'] | null
 }
 
 /**
@@ -116,7 +120,7 @@ export function withSavedCredential(
   if (new Set(legacy.subBlocks.filter(isReplaced).map(inherited)).size > 1) {
     throw new Error(`Block "${legacy.type}": the replaced secrets show or require differently`)
   }
-  const condition = options.condition ?? secretCondition
+  const condition = options.condition === null ? undefined : (options.condition ?? secretCondition)
   const conditionFields = (value: SubBlockConfig['condition']): string[] =>
     value && typeof value !== 'function'
       ? [value.field, ...conditionFields(value.and as SubBlockConfig['condition'])]
@@ -476,7 +480,7 @@ export function getCohereRerankerApiKeyCondition() {
 
 /**
  * Whether `model` can only run with credentials that live on the block beyond an
- * API key: a Vertex OAuth credential, Bedrock AWS keys, or an Azure endpoint,
+ * API key: a Vertex credential, Bedrock AWS keys, or an Azure endpoint,
  * unless the deployment supplies them server-side (the same env flags that hide
  * those fields). The fields render only while the block's own `model` is in
  * that provider family, so nothing outside the family can inherit them.
@@ -521,6 +525,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       type: 'oauth-input',
       serviceId: 'vertex-ai',
       canonicalParamId: 'vertexCredential',
+      credentialKind: 'any',
       mode: 'basic',
       requiredScopes: getScopesForService('vertex-ai'),
       placeholder: 'Select Google Cloud account',
@@ -630,7 +635,8 @@ export const PROVIDER_CREDENTIAL_INPUTS = {
   vertexLocation: { type: 'string', description: 'Google Cloud location for Vertex AI' },
   vertexCredential: {
     type: 'string',
-    description: 'Google Cloud OAuth credential ID for Vertex AI',
+    description:
+      'Google Cloud credential ID for Vertex AI (OAuth account or Google service account)',
   },
   bedrockAccessKeyId: { type: 'string', description: 'AWS Access Key ID for Bedrock' },
   bedrockSecretKey: { type: 'string', description: 'AWS Secret Access Key for Bedrock' },
@@ -702,6 +708,60 @@ export function parseOptionalJsonInput<T = unknown>(value: unknown, label: strin
 
   return value as T
 }
+
+const COLUMN_SELECTION_LABEL = 'Columns to Return'
+
+function parseColumnSelection(raw: unknown): string[] | undefined {
+  const parsed = parseOptionalJsonInput<unknown>(raw, COLUMN_SELECTION_LABEL)
+  if (parsed === undefined || parsed === null) return undefined
+  if (!Array.isArray(parsed)) {
+    throw new Error(`Invalid ${COLUMN_SELECTION_LABEL}: expected a list of column ids or names`)
+  }
+  if (parsed.length === 0) return undefined
+  const columns = parsed.map((column) => (typeof column === 'string' ? column.trim() : ''))
+  if (columns.some((column) => column.length === 0)) {
+    throw new Error(
+      `Invalid ${COLUMN_SELECTION_LABEL}: every entry must be a non-empty column id or name`
+    )
+  }
+  return columns
+}
+
+/**
+ * Resolves a Table block's "Columns to Return" for a query. The canvas selection wins; a
+ * model-supplied `columns` (Agent tool use) is the fallback, so an empty canvas value does not
+ * clobber it. Only an absent value (`undefined`, `null`, `''`, or `[]`) means "all columns";
+ * anything else must be a list of column ids/names, and a malformed value fails fast rather than
+ * silently widening a deliberately narrowed query. A JSON string is accepted because an
+ * agent-authored block config serializes arrays that way.
+ */
+export function resolveTableColumnSelection(params: {
+  outputColumns?: unknown
+  columns?: unknown
+}): string[] | undefined {
+  return parseColumnSelection(params.outputColumns) ?? parseColumnSelection(params.columns)
+}
+
+/** The Table blocks' "Columns to Return" picker, shown for Query Rows. */
+export const TABLE_OUTPUT_COLUMNS_SUBBLOCK: SubBlockConfig = {
+  id: 'outputColumns',
+  title: COLUMN_SELECTION_LABEL,
+  type: 'dropdown',
+  selectorKey: 'table.outputColumns',
+  multiSelect: true,
+  searchable: true,
+  preserveLabelCase: true,
+  placeholder: 'All columns',
+  description: 'Only include these columns in each returned row. Leave empty for all columns.',
+  dependsOn: { any: ['tableSelector', 'manualTableId'] },
+  condition: { field: 'operation', value: 'query_rows' },
+}
+
+/** Block input entry for {@link TABLE_OUTPUT_COLUMNS_SUBBLOCK}. */
+export const TABLE_OUTPUT_COLUMNS_INPUT = {
+  type: 'array',
+  description: 'Table columns to include in each queried row; omit for all columns',
+} as const
 
 /**
  * Parses an optional numeric block input value.
