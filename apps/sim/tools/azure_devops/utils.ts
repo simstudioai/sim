@@ -1,3 +1,4 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -127,28 +128,26 @@ export function mapWorkItem(raw: AzureDevOpsRawWorkItem): AzureDevOpsWorkItem {
     areaPath: (fields['System.AreaPath'] as string | undefined) ?? '',
     url: raw.url,
     rev: raw.rev ?? null,
-    description: stringField(fields['System.Description']),
-    iterationPath: stringField(fields['System.IterationPath']),
-    reason: stringField(fields['System.Reason']),
-    tags: stringField(fields['System.Tags']),
+    description: toStringOrNull(fields['System.Description']),
+    iterationPath: toStringOrNull(fields['System.IterationPath']),
+    reason: toStringOrNull(fields['System.Reason']),
+    tags: toStringOrNull(fields['System.Tags']),
     priority: typeof priority === 'number' ? priority : null,
     assignedToUniqueName: assignedTo?.uniqueName ?? null,
     createdBy: identityField(fields['System.CreatedBy'])?.displayName ?? null,
-    createdDate: stringField(fields['System.CreatedDate']),
+    createdDate: toStringOrNull(fields['System.CreatedDate']),
     changedBy: identityField(fields['System.ChangedBy'])?.displayName ?? null,
-    changedDate: stringField(fields['System.ChangedDate']),
+    changedDate: toStringOrNull(fields['System.ChangedDate']),
     webUrl: raw._links?.html?.href ?? null,
-    relations: (raw.relations ?? []).map((relation) => ({
-      rel: relation.rel,
-      url: relation.url,
-      attributes: relation.attributes ?? {},
-    })),
+    relations: raw.relations
+      ? raw.relations.map((relation) => ({
+          rel: relation.rel,
+          url: relation.url,
+          attributes: relation.attributes ?? {},
+        }))
+      : null,
     fields,
   }
-}
-
-function stringField(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
 }
 
 function identityField(value: unknown): AzureDevOpsIdentityRef | null {
@@ -232,8 +231,9 @@ export const WORK_ITEM_DETAIL_OUTPUT_PROPERTIES: Record<string, OutputProperty> 
   relations: {
     type: 'array',
     description:
-      'Links to other work items, attachments, and artifacts (rel such as System.LinkTypes.Hierarchy-Forward or AttachedFile, url, attributes)',
+      'Links to other work items, attachments, and artifacts (rel such as System.LinkTypes.Hierarchy-Forward or AttachedFile, url, attributes); null when the response did not include relations (Create and Update do not expand them)',
     optional: true,
+    nullable: true,
     items: {
       type: 'object',
       properties: {

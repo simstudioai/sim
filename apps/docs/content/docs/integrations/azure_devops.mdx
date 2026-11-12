@@ -400,7 +400,7 @@ Execute a WIQL query to search for work items in Azure DevOps and return full fi
 |     ↳ `changedBy` | string | Display name of the last user to change the work item |
 |     ↳ `changedDate` | string | ISO 8601 last-changed timestamp |
 |     ↳ `webUrl` | string | Browser URL for the work item |
-|     ↳ `relations` | array | Links to other work items, attachments, and artifacts \(rel such as System.LinkTypes.Hierarchy-Forward or AttachedFile, url, attributes\) |
+|     ↳ `relations` | array | Links to other work items, attachments, and artifacts \(rel such as System.LinkTypes.Hierarchy-Forward or AttachedFile, url, attributes\); null when the response did not include relations \(Create and Update do not expand them\) |
 |       ↳ `rel` | string | Relation type |
 |       ↳ `url` | string | URL of the linked resource |
 |       ↳ `attributes` | json | Link attributes \(name, comment, isLocked\) |
@@ -447,7 +447,7 @@ Fetch full details of a single work item by ID from Azure DevOps, including titl
 |     ↳ `changedBy` | string | Display name of the last user to change the work item |
 |     ↳ `changedDate` | string | ISO 8601 last-changed timestamp |
 |     ↳ `webUrl` | string | Browser URL for the work item |
-|     ↳ `relations` | array | Links to other work items, attachments, and artifacts \(rel such as System.LinkTypes.Hierarchy-Forward or AttachedFile, url, attributes\) |
+|     ↳ `relations` | array | Links to other work items, attachments, and artifacts \(rel such as System.LinkTypes.Hierarchy-Forward or AttachedFile, url, attributes\); null when the response did not include relations \(Create and Update do not expand them\) |
 |       ↳ `rel` | string | Relation type |
 |       ↳ `url` | string | URL of the linked resource |
 |       ↳ `attributes` | json | Link attributes \(name, comment, isLocked\) |
@@ -496,7 +496,7 @@ Fetch full details for multiple work items by ID from Azure DevOps. Pass comma-s
 |     ↳ `changedBy` | string | Display name of the last user to change the work item |
 |     ↳ `changedDate` | string | ISO 8601 last-changed timestamp |
 |     ↳ `webUrl` | string | Browser URL for the work item |
-|     ↳ `relations` | array | Links to other work items, attachments, and artifacts \(rel such as System.LinkTypes.Hierarchy-Forward or AttachedFile, url, attributes\) |
+|     ↳ `relations` | array | Links to other work items, attachments, and artifacts \(rel such as System.LinkTypes.Hierarchy-Forward or AttachedFile, url, attributes\); null when the response did not include relations \(Create and Update do not expand them\) |
 |       ↳ `rel` | string | Relation type |
 |       ↳ `url` | string | URL of the linked resource |
 |       ↳ `attributes` | json | Link attributes \(name, comment, isLocked\) |
@@ -556,7 +556,7 @@ Create a new Basic-process work item (Issue, Task, or Epic) in Azure DevOps. Ret
 |     ↳ `changedBy` | string | Display name of the last user to change the work item |
 |     ↳ `changedDate` | string | ISO 8601 last-changed timestamp |
 |     ↳ `webUrl` | string | Browser URL for the work item |
-|     ↳ `relations` | array | Links to other work items, attachments, and artifacts \(rel such as System.LinkTypes.Hierarchy-Forward or AttachedFile, url, attributes\) |
+|     ↳ `relations` | array | Links to other work items, attachments, and artifacts \(rel such as System.LinkTypes.Hierarchy-Forward or AttachedFile, url, attributes\); null when the response did not include relations \(Create and Update do not expand them\) |
 |       ↳ `rel` | string | Relation type |
 |       ↳ `url` | string | URL of the linked resource |
 |       ↳ `attributes` | json | Link attributes \(name, comment, isLocked\) |
@@ -617,7 +617,7 @@ Update one or more fields on an existing work item in Azure DevOps. Provide only
 |     ↳ `changedBy` | string | Display name of the last user to change the work item |
 |     ↳ `changedDate` | string | ISO 8601 last-changed timestamp |
 |     ↳ `webUrl` | string | Browser URL for the work item |
-|     ↳ `relations` | array | Links to other work items, attachments, and artifacts \(rel such as System.LinkTypes.Hierarchy-Forward or AttachedFile, url, attributes\) |
+|     ↳ `relations` | array | Links to other work items, attachments, and artifacts \(rel such as System.LinkTypes.Hierarchy-Forward or AttachedFile, url, attributes\); null when the response did not include relations \(Create and Update do not expand them\) |
 |       ↳ `rel` | string | Relation type |
 |       ↳ `url` | string | URL of the linked resource |
 |       ↳ `attributes` | json | Link attributes \(name, comment, isLocked\) |

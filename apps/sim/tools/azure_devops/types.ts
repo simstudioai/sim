@@ -300,7 +300,7 @@ export interface AzureDevOpsWorkItem {
   changedBy?: string | null
   changedDate?: string | null
   webUrl?: string | null
-  relations?: AzureDevOpsWorkItemRelation[]
+  relations?: AzureDevOpsWorkItemRelation[] | null
   fields?: Record<string, unknown>
 }
 

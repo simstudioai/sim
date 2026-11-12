@@ -120,6 +120,12 @@ export async function executeSharePointUploadFile(
   const userFiles = processFilesToUserFiles(input.files, context.requestId, logger)
   if (userFiles.length === 0) return failureResponse('No valid files to upload', 400)
 
+  try {
+    buildUploadUrl(input, input.fileName || userFiles[0]?.name || 'file')
+  } catch (error) {
+    return failureResponse(getErrorMessage(error, 'Invalid upload path'), 400)
+  }
+
   const client = new SharePointClient(input.accessToken, context.signal)
   const uploadedFiles: SharePointUploadedItem[] = []
   const skippedFiles: SharepointSkippedFile[] = []
@@ -142,7 +148,12 @@ export async function executeSharePointUploadFile(
       try {
         uploadUrls = buildUploadUrl(input, fileName)
       } catch (error) {
-        return failureResponse(getErrorMessage(error, 'Invalid upload path'), 400)
+        errors.push({
+          name: fileName,
+          status: 400,
+          error: getErrorMessage(error, 'Invalid upload path'),
+        })
+        continue
       }
       const { url, replaceUrl } = uploadUrls
       const skipOversized = (size: number) => {
