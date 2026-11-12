@@ -6,7 +6,7 @@ import { TokenServiceAccountValidationError } from '@/lib/credentials/token-serv
  * How a failed token request is retried:
  * - `permanent`: the provider refused the credentials or the account (or the failure is not a
  *   provider answer at all); asking again cannot help until the secret changes.
- * - `throttled`: a 429, or an outage with a `Retry-After`; the provider said when to come back.
+ * - `throttled`: a 429, or a 503 with a `Retry-After`; the provider is rate limiting the caller.
  * - `transient`: any other outage (5xx, timeout, network failure, malformed token response).
  */
 export type TokenRequestFailureKind = 'permanent' | 'throttled' | 'transient'
@@ -41,9 +41,17 @@ const PERMANENT_FAILURE_REPLAY_MS = 30_000
  */
 const RETRY_AFTER_BOUNDS = { baseMs: 1_000, maxMs: 5 * 60_000 } as const
 /**
- * An outage is retried after 5 s at first (Entra's resilience guidance: the first back-off retry at
- * least 5 s after the response), doubling while it continues, up to 30 s: the flat replay every
- * failure used to get, so no outage is replayed longer than before.
+ * A throttled answer that names no `Retry-After` is replayed for at least a minute, doubling while
+ * throttling continues, up to the five-minute `Retry-After` cap. Token endpoints document their
+ * limits per minute (Vanta: 5 tokens and 25 token requests a minute), so asking again sooner lands
+ * in the window that was just exhausted.
+ */
+const THROTTLED_BACKOFF = { baseMs: 60_000, maxMs: RETRY_AFTER_BOUNDS.maxMs } as const
+/**
+ * An outage is retried no sooner than 5 s after it (Entra's resilience guidance: without a
+ * `Retry-After`, the first back-off retry at least 5 s after the response), doubling with jitter
+ * while it continues, up to 30 s: the flat replay every failure used to get, so no outage is
+ * replayed longer than before.
  */
 const OUTAGE_BACKOFF = { baseMs: 5_000, maxMs: 30_000 } as const
 /** The pause before the one in-request retry: MSAL's documented one-second retry-once. */
@@ -55,19 +63,32 @@ const IN_REQUEST_RETRY_DELAY = { baseMs: 1_000, maxMs: 1_000 } as const
  */
 const IN_REQUEST_RETRY_BUDGET_MS = 2_000
 
+/** Whether a token request failure with this code is a refusal that asking again cannot fix. */
+export function isPermanentTokenFailureCode(code: string): boolean {
+  return code !== 'provider_unavailable'
+}
+
 /** Classifies a failed token request; see {@link TokenRequestFailureKind}. */
-export function classifyTokenRequestFailure(error: unknown): TokenRequestFailureKind {
+function classifyTokenRequestFailure(error: unknown): TokenRequestFailureKind {
   if (!(error instanceof TokenServiceAccountValidationError)) return 'permanent'
-  if (error.code !== 'provider_unavailable') return 'permanent'
-  return error.status === 429 || error.retryAfterMs !== undefined ? 'throttled' : 'transient'
+  if (isPermanentTokenFailureCode(error.code)) return 'permanent'
+  return error.status === 429 || (error.status === 503 && error.retryAfterMs !== undefined)
+    ? 'throttled'
+    : 'transient'
+}
+
+/** Exponential backoff with ±20% jitter, kept within `bounds` so jitter never undercuts the floor. */
+function boundedBackoff(attempt: number, bounds: { baseMs: number; maxMs: number }): number {
+  return Math.min(Math.max(backoffWithJitter(attempt, null, bounds), bounds.baseMs), bounds.maxMs)
 }
 
 /**
- * Decides how long a failed token request is replayed. A failure carrying `retryAfterMs` (the
- * provider's `Retry-After`, or what remains of a replay another layer already decided) is replayed
- * that long within 1 s to 5 min. Otherwise a permanent failure is replayed 30 s and an outage backs
- * off from 5 s to 30 s with jitter as it continues. `previousConsecutiveFailures` counts the
- * non-permanent failures immediately before this one (0 after a success or a permanent failure).
+ * Decides how long a failed token request is replayed. A remembered failure another layer is
+ * replaying (`replayForMs`) is replayed exactly as long as that layer still does. Otherwise a
+ * provider's `Retry-After` is honored within 1 s to 5 min; without one, a throttled answer backs
+ * off from 1 min to 5 min, an outage from 5 s to 30 s, and a refusal is replayed 30 s.
+ * `previousConsecutiveFailures` counts the non-permanent failures immediately before this one (0
+ * after a success or a permanent failure).
  */
 export function assessTokenRequestFailure(
   error: unknown,
@@ -75,26 +96,20 @@ export function assessTokenRequestFailure(
 ): TokenRequestFailure {
   const kind = classifyTokenRequestFailure(error)
   const consecutiveFailures = kind === 'permanent' ? 1 : previousConsecutiveFailures + 1
-  const retryAfterMs =
-    error instanceof TokenServiceAccountValidationError ? error.retryAfterMs : undefined
-  if (retryAfterMs !== undefined) {
-    return {
-      kind,
-      consecutiveFailures,
-      replayMs: backoffWithJitter(1, retryAfterMs, RETRY_AFTER_BOUNDS),
-    }
-  }
-  if (kind === 'permanent') {
-    return { kind, consecutiveFailures, replayMs: PERMANENT_FAILURE_REPLAY_MS }
-  }
-  return {
+  const replay = (replayMs: number): TokenRequestFailure => ({
     kind,
     consecutiveFailures,
-    replayMs: Math.min(
-      backoffWithJitter(consecutiveFailures, null, OUTAGE_BACKOFF),
-      OUTAGE_BACKOFF.maxMs
-    ),
+    replayMs,
+  })
+  if (error instanceof TokenServiceAccountValidationError) {
+    if (error.replayForMs !== undefined) return replay(Math.max(error.replayForMs, 0))
+    if (error.retryAfterMs !== undefined && kind !== 'permanent') {
+      return replay(backoffWithJitter(1, error.retryAfterMs, RETRY_AFTER_BOUNDS))
+    }
   }
+  if (kind === 'permanent') return replay(PERMANENT_FAILURE_REPLAY_MS)
+  if (kind === 'throttled') return replay(boundedBackoff(consecutiveFailures, THROTTLED_BACKOFF))
+  return replay(boundedBackoff(consecutiveFailures, OUTAGE_BACKOFF))
 }
 
 /**

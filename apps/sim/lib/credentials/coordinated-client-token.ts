@@ -7,7 +7,7 @@ import { and, eq, inArray, lt, sql } from 'drizzle-orm'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import {
   assessTokenRequestFailure,
-  classifyTokenRequestFailure,
+  isPermanentTokenFailureCode,
   requestTokenWithRetry,
   TOKEN_EXPIRY_MARGIN_MS,
   TOKEN_FAILURE_STREAK_RETENTION_MS,
@@ -49,6 +49,13 @@ export interface CoordinatedClientTokenInput {
    */
   minRemainingMs?: number
   /**
+   * The provider is asked for a token at most once per this interval while its exchanges fail:
+   * a quick outage is not retried inside the exchange, and every failure is replayed at least this
+   * long. For providers that rate-limit token minting itself (Vanta: 5 tokens a minute), where
+   * every exchange the provider processes also revokes the application's previous token.
+   */
+  minExchangeIntervalMs?: number
+  /**
    * A request setting beyond the secret that a remembered exchange failure is specific to, so a
    * refusal for one setting does not block another.
    */
@@ -73,6 +80,8 @@ export interface CoordinatedClientToken {
   accessToken: string
   expiresInSeconds: number
 }
+
+type StoredRow = typeof clientCredentialToken.$inferSelect
 
 interface StoredApplicationToken {
   accessToken: string
@@ -208,7 +217,7 @@ function replayedFailure(
     failure.code,
     failure.status,
     { step },
-    { retryAfterMs: Math.max(replayMs, 0) }
+    { replayForMs: Math.max(replayMs, 0) }
   )
 }
 
@@ -217,13 +226,13 @@ function replayedFailure(
  * failure memo for this secret once its replay has ended. Anything unreadable starts a new streak.
  */
 async function consecutiveFailuresBefore(
-  row: typeof clientCredentialToken.$inferSelect | undefined,
+  row: StoredRow | undefined,
   step: string
 ): Promise<number> {
   if (!row || Date.now() - row.expiresAt.getTime() > TOKEN_FAILURE_STREAK_RETENTION_MS) return 0
   try {
     const failure = decodeFailure((await decryptSecret(row.encryptedValue)).decrypted, step)
-    if (classifyTokenRequestFailure(replayedFailure(failure, step, 0)) === 'permanent') return 0
+    if (isPermanentTokenFailureCode(failure.code)) return 0
     return failure.consecutiveFailures ?? 1
   } catch {
     return 0
@@ -247,14 +256,16 @@ function isServable(expiresAt: Date, minRemainingMs: number): boolean {
  * tokens into existence; a token minted with a different secret is never served, and a token the
  * provider rejects is expired through {@link invalidateCoordinatedClientToken}.
  *
- * A quick outage is retried once inside the exchange. An exchange that still fails validation is
- * remembered for every worker, with the policy the per-instance mint cache applies (see
- * `assessTokenRequestFailure`): a refusal of the credentials for 30 seconds, a throttled answer as
- * long as its `Retry-After` asks (at most five minutes), and an outage for 5 seconds growing to 30
- * while it continues, so a hot workflow neither hammers the token endpoint with a revoked secret
- * nor floods a struggling one. While an outage or throttling is remembered, the stored token for
- * the same secret is still served until shortly before it actually expires; a refusal is
- * reported at once. Tokens are encrypted at rest.
+ * A quick outage is retried once inside the exchange (unless `minExchangeIntervalMs` is set). An
+ * exchange that still fails validation is remembered for every worker, with the policy the
+ * per-instance mint cache applies (see `assessTokenRequestFailure`): a refusal of the credentials
+ * for 30 seconds, a throttled answer as long as its `Retry-After` asks (at most five minutes) or
+ * for a minute growing to five without one, and an outage for 5 seconds growing to 30 while it
+ * continues, so a hot workflow neither hammers the token endpoint with a revoked secret nor floods
+ * a struggling one. While an outage or throttling is remembered, the stored token for the same
+ * secret is still served until shortly before it actually expires; a refusal is reported at once.
+ * A remembered failure, and that fallback, are served from committed rows without taking the
+ * application lock. Tokens are encrypted at rest.
  */
 export async function resolveCoordinatedClientToken(
   input: CoordinatedClientTokenInput
@@ -270,48 +281,85 @@ export async function resolveCoordinatedClientToken(
       : [secretFingerprint, input.failureKeyQualifier]
   )}`
 
-  const serveIfFresh = async (
-    row: typeof clientCredentialToken.$inferSelect | undefined,
+  const fallbackRemainingMs = Math.min(TOKEN_EXPIRY_MARGIN_MS, minRemainingMs)
+  const decodedRows = new WeakMap<StoredRow, Promise<StoredApplicationToken>>()
+
+  /**
+   * The token `row` holds for this secret while more than `remainingMs` of it is left. The record
+   * is decoded and its pinned state verified (throwing on a malformed record or a mismatch) once
+   * per row, whenever it could be served, and for an expired record too when `verifyExpired` is
+   * set and settings are pinned.
+   */
+  const serveStored = async (
+    row: StoredRow | undefined,
+    remainingMs: number,
     verifyExpired = false
-  ) => {
+  ): Promise<CoordinatedClientToken | undefined> => {
     if (!row) return undefined
-    const servable = isServable(row.expiresAt, minRemainingMs)
+    const servable = isServable(row.expiresAt, remainingMs)
     if (!servable && !(verifyExpired && pinnedState)) return undefined
-    const stored = decodeApplicationToken((await decryptSecret(row.encryptedValue)).decrypted, step)
-    pinnedState?.verify(stored.record)
+    let decoded = decodedRows.get(row)
+    if (!decoded) {
+      decoded = decryptSecret(row.encryptedValue).then(({ decrypted }) => {
+        const stored = decodeApplicationToken(decrypted, step)
+        pinnedState?.verify(stored.record)
+        return stored
+      })
+      decodedRows.set(row, decoded)
+    }
+    const stored = await decoded
     if (!servable || stored.secretFingerprint !== secretFingerprint) return undefined
     return { accessToken: stored.accessToken, expiresInSeconds: remainingSeconds(row.expiresAt) }
   }
 
   /**
-   * The stored token for this secret while it has not yet run out, to serve when its refresh
-   * fails with an outage. Anything that would not be served fresh (a record that does not decode
-   * or verify) is never a fallback.
+   * The stored token for this secret while it has not yet run out, served while its refresh fails
+   * with an outage or throttling. A record that does not decode or verify is never a fallback.
    */
-  const stillValid = async (row: typeof clientCredentialToken.$inferSelect | undefined) => {
-    if (!row || !isServable(row.expiresAt, Math.min(TOKEN_EXPIRY_MARGIN_MS, minRemainingMs)))
-      return undefined
-    try {
-      const stored = decodeApplicationToken(
-        (await decryptSecret(row.encryptedValue)).decrypted,
-        step
-      )
-      pinnedState?.verify(stored.record)
-      if (stored.secretFingerprint !== secretFingerprint) return undefined
-      return { accessToken: stored.accessToken, expiresInSeconds: remainingSeconds(row.expiresAt) }
-    } catch {
-      return undefined
+  const fallbackFrom = (row: StoredRow | undefined) =>
+    serveStored(row, fallbackRemainingMs).catch(() => undefined)
+
+  /**
+   * Replays the application's unexpired failure memo for this secret: the still-valid token for a
+   * remembered outage or throttling, the failure otherwise. `undefined` when nothing is remembered.
+   * Reading committed rows needs no lock, so this also runs before the application lock is taken.
+   */
+  const replayRemembered = async (
+    applicationRow: StoredRow | undefined,
+    failureRow: StoredRow | undefined
+  ): Promise<
+    CoordinatedClientToken | { failure: TokenServiceAccountValidationError } | undefined
+  > => {
+    if (!failureRow || failureRow.expiresAt.getTime() <= Date.now()) return undefined
+    const failure = decodeFailure((await decryptSecret(failureRow.encryptedValue)).decrypted, step)
+    if (!isPermanentTokenFailureCode(failure.code)) {
+      const fallback = await fallbackFrom(applicationRow)
+      if (fallback) return fallback
     }
+    return { failure: replayedFailure(failure, step, failureRow.expiresAt.getTime() - Date.now()) }
+  }
+
+  const settle = (
+    outcome: CoordinatedClientToken | { failure: TokenServiceAccountValidationError }
+  ): CoordinatedClientToken => {
+    signal?.throwIfAborted()
+    if ('failure' in outcome) throw outcome.failure
+    return outcome
   }
 
   try {
-    const [current] = await db
+    const current = await db
       .select()
       .from(clientCredentialToken)
-      .where(eq(clientCredentialToken.id, applicationKey))
-      .limit(1)
-    const fresh = await serveIfFresh(current)
+      .where(inArray(clientCredentialToken.id, [applicationKey, failureKey]))
+    const currentApplication = current.find((entry) => entry.id === applicationKey)
+    const fresh = await serveStored(currentApplication, minRemainingMs, true)
     if (fresh) return fresh
+    const remembered = await replayRemembered(
+      currentApplication,
+      current.find((entry) => entry.id === failureKey)
+    )
+    if (remembered) return settle(remembered)
 
     await deleteExpiredClientTokenFailures()
     const outcome = await db.transaction<
@@ -325,24 +373,17 @@ export async function resolveCoordinatedClientToken(
         .from(clientCredentialToken)
         .where(inArray(clientCredentialToken.id, [applicationKey, failureKey]))
       const applicationRow = entries.find((entry) => entry.id === applicationKey)
-      const minted = await serveIfFresh(applicationRow, true)
+      const minted = await serveStored(applicationRow, minRemainingMs, true)
       if (minted) return minted
       const failureRow = entries.find((entry) => entry.id === failureKey)
-      if (failureRow && failureRow.expiresAt.getTime() > Date.now()) {
-        const failure = replayedFailure(
-          decodeFailure((await decryptSecret(failureRow.encryptedValue)).decrypted, step),
-          step,
-          failureRow.expiresAt.getTime() - Date.now()
-        )
-        if (classifyTokenRequestFailure(failure) !== 'permanent') {
-          const fallback = await stillValid(applicationRow)
-          if (fallback) return fallback
-        }
-        return { failure }
-      }
+      const rememberedUnderLock = await replayRemembered(applicationRow, failureRow)
+      if (rememberedUnderLock) return rememberedUnderLock
       signal?.throwIfAborted()
       try {
-        const exchanged = await requestTokenWithRetry(() => input.exchange(signal), signal)
+        const exchanged =
+          input.minExchangeIntervalMs === undefined
+            ? await requestTokenWithRetry(() => input.exchange(signal), signal)
+            : await input.exchange(signal)
         const { encrypted } = await encryptSecret(
           JSON.stringify({
             accessToken: exchanged.accessToken,
@@ -371,6 +412,7 @@ export async function resolveCoordinatedClientToken(
           error,
           await consecutiveFailuresBefore(failureRow, step)
         )
+        const replayMs = Math.max(assessed.replayMs, input.minExchangeIntervalMs ?? 0)
         const failure: StoredFailure = {
           code: STORED_FAILURE_CODES.has(error.code)
             ? (error.code as StoredFailure['code'])
@@ -381,7 +423,7 @@ export async function resolveCoordinatedClientToken(
             : { consecutiveFailures: assessed.consecutiveFailures }),
         }
         const { encrypted } = await encryptSecret(JSON.stringify(failure))
-        const expiresAt = new Date(Date.now() + assessed.replayMs)
+        const expiresAt = new Date(Date.now() + replayMs)
         await tx
           .insert(clientCredentialToken)
           .values({ id: failureKey, encryptedValue: encrypted, expiresAt })
@@ -390,22 +432,20 @@ export async function resolveCoordinatedClientToken(
             set: { encryptedValue: encrypted, expiresAt, updatedAt: new Date() },
           })
         if (assessed.kind !== 'permanent') {
-          const fallback = await stillValid(applicationRow)
+          const fallback = await fallbackFrom(applicationRow)
           if (fallback) {
             logger.warn('Serving a still-valid client-credentials token after its refresh failed', {
               namespace,
               failure: assessed.kind,
-              retryInMs: assessed.replayMs,
+              retryInMs: replayMs,
             })
             return fallback
           }
         }
-        return { failure: replayedFailure(failure, step, assessed.replayMs) }
+        return { failure: replayedFailure(failure, step, replayMs) }
       }
     })
-    signal?.throwIfAborted()
-    if ('failure' in outcome) throw outcome.failure
-    return outcome
+    return settle(outcome)
   } catch (error) {
     signal?.throwIfAborted()
     if (error instanceof TokenServiceAccountValidationError) throw error

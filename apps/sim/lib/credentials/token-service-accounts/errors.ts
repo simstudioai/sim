@@ -37,15 +37,24 @@ export type TokenServiceAccountValidationCode =
 export interface TokenServiceAccountValidationErrorOptions {
   /** See {@link TokenServiceAccountValidationError.retryAfterMs}. */
   retryAfterMs?: number
+  /** See {@link TokenServiceAccountValidationError.replayForMs}. */
+  replayForMs?: number
 }
 
 export class TokenServiceAccountValidationError extends Error {
   /**
-   * The earliest a repeat of the failed request can be expected to succeed, in milliseconds: the
-   * provider's `Retry-After` on a throttled or unavailable answer (uncapped, as the provider sent
-   * it), or how long a remembered failure is still replayed. Absent when nothing is known.
+   * The provider's `Retry-After` on a 429 or 503 answer, in milliseconds, uncapped as the provider
+   * sent it. Absent when the provider named none. Only ever set from a provider's own answer.
    */
   public readonly retryAfterMs?: number
+
+  /**
+   * Set when this is a remembered failure being replayed rather than a fresh provider answer: how
+   * much longer, in milliseconds, it is replayed before the provider is asked again. It says when
+   * the provider will next be asked, not that asking will then succeed (a replayed refusal of the
+   * credentials carries it too).
+   */
+  public readonly replayForMs?: number
 
   constructor(
     public readonly code: TokenServiceAccountValidationCode,
@@ -56,6 +65,7 @@ export class TokenServiceAccountValidationError extends Error {
     super(code)
     this.name = 'TokenServiceAccountValidationError'
     if (options.retryAfterMs !== undefined) this.retryAfterMs = options.retryAfterMs
+    if (options.replayForMs !== undefined) this.replayForMs = options.replayForMs
   }
 }
 

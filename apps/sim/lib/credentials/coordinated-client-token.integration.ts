@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { db } from '@sim/db'
 import { clientCredentialToken } from '@sim/db/schema'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
@@ -14,6 +15,7 @@ import {
 } from '@/lib/credentials/coordinated-client-token'
 import { verifyAndBuildServiceAccountSecret } from '@/lib/credentials/service-account-secret'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 
 const NAMESPACE = `fixture${generateId().replaceAll('-', '')}`
 const ownedKeyPrefixes = new Set<string>([`${NAMESPACE}:`])
@@ -181,9 +183,11 @@ describe('coordinated client-credentials token against shared storage', () => {
     await expect(
       resolveCoordinatedClientToken(input('memo', exchange, 'revoked'))
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
-    await expect(
-      resolveCoordinatedClientToken(input('memo', exchange, 'revoked'))
-    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    const replayed = await resolveCoordinatedClientToken(input('memo', exchange, 'revoked')).catch(
+      (error: unknown) => error
+    )
+    expect(replayed).toMatchObject({ code: 'invalid_credentials', replayForMs: expect.any(Number) })
+    expect(replayed).not.toHaveProperty('retryAfterMs', expect.anything())
     expect(exchange).toHaveBeenCalledOnce()
 
     await db
@@ -371,12 +375,93 @@ describe('coordinated token resolution while the provider fails', () => {
       ).rejects.toMatchObject({ code: 'provider_unavailable', status: 429 })
       await expect(
         resolveCoordinatedClientToken(input(application, exchange))
-      ).rejects.toMatchObject({ status: 429, retryAfterMs: expect.any(Number) })
+      ).rejects.toMatchObject({ status: 429, replayForMs: expect.any(Number) })
 
       expect(exchange).toHaveBeenCalledOnce()
       const stored = await failureRowOf(application)
       expect(stored.expiresAt.getTime() - before).toBeGreaterThanOrEqual(replayMs)
       expect(stored.expiresAt.getTime() - Date.now()).toBeLessThanOrEqual(replayMs)
+    }
+  )
+
+  it('replays a throttled exchange that names no Retry-After for at least a minute', async () => {
+    const exchange = failing(429)
+    const before = Date.now()
+
+    await expect(
+      resolveCoordinatedClientToken(input('throttled-bare', exchange))
+    ).rejects.toMatchObject({ code: 'provider_unavailable', status: 429 })
+
+    expect(exchange).toHaveBeenCalledOnce()
+    expect(
+      (await failureRowOf('throttled-bare')).expiresAt.getTime() - before
+    ).toBeGreaterThanOrEqual(60_000)
+  })
+
+  it.each([
+    [
+      'the still-valid token while its refresh is remembered failing',
+      'unlocked-fallback',
+      'outage',
+    ],
+    ['a remembered refusal', 'unlocked-refusal', 'refusal'],
+  ] as const)(
+    'serves %s without waiting for the application lock',
+    async (_case, application, remembered) => {
+      const appKey = applicationKey(NAMESPACE, [application])
+      const fingerprint = sha256Json([application, 'secret-1'])
+      const token = await encryptSecret(
+        JSON.stringify({ accessToken: `${application}:token-1`, secretFingerprint: fingerprint })
+      )
+      const failure = await encryptSecret(
+        JSON.stringify(
+          remembered === 'outage'
+            ? { code: 'provider_unavailable', status: 503, consecutiveFailures: 1 }
+            : { code: 'invalid_credentials', status: 401 }
+        )
+      )
+      await db.insert(clientCredentialToken).values([
+        {
+          id: appKey,
+          encryptedValue: token.encrypted,
+          accessTokenDigest: sha256Json(['coordinated_client_token', `${application}:token-1`]),
+          expiresAt: new Date(Date.now() + 4 * 60_000),
+        },
+        {
+          id: `${appKey}:${sha256Json(fingerprint)}`,
+          encryptedValue: failure.encrypted,
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      ])
+      const { exchange } = provider(application)
+      const lockHeld = createDeferred<void>()
+      const release = createDeferred<void>()
+      const holder = db.transaction(async (tx) => {
+        await acquireAdvisoryXactLock(tx, `${NAMESPACE}_client_token`, appKey)
+        lockHeld.resolve()
+        await release.promise
+      })
+
+      try {
+        await lockHeld.promise
+        const outcome = await Promise.race([
+          resolveCoordinatedClientToken(input(application, exchange)).then(
+            (value) => ({ value }),
+            (error: unknown) => ({ error })
+          ),
+          sleep(3_000).then(() => 'waited on the lock' as const),
+        ])
+
+        expect(outcome).toEqual(
+          remembered === 'outage'
+            ? { value: expect.objectContaining({ accessToken: `${application}:token-1` }) }
+            : { error: expect.objectContaining({ code: 'invalid_credentials' }) }
+        )
+        expect(exchange).not.toHaveBeenCalled()
+      } finally {
+        release.resolve()
+        await holder
+      }
     }
   )
 
@@ -393,6 +478,7 @@ describe('coordinated token resolution while the provider fails', () => {
       await expireFailureRowsOf('outage')
     }
 
+    expect(replays[0]).toBeGreaterThanOrEqual(5_000)
     expect(replays[0]).toBeLessThanOrEqual(6_000 + 2_500)
     expect(replays[1]).toBeGreaterThanOrEqual(8_000)
     expect(Math.max(...replays)).toBeLessThanOrEqual(30_000 + 2_500)

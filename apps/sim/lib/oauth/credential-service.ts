@@ -675,8 +675,9 @@ interface FailedClientCredentialMint {
  * {@link assessTokenRequestFailure}) so a hot workflow neither hammers the
  * provider's token endpoint with a revoked secret nor floods a struggling one:
  * a refusal for 30 s, a throttled answer as long as its `Retry-After` asks (at
- * most five minutes), and an outage for 5 s growing to 30 s while it lasts. A
- * quick outage is first retried once inside the mint.
+ * most five minutes) or for 1 min growing to 5 min without one, and an outage
+ * for 5 s growing to 30 s while it lasts. A quick outage is first retried once
+ * inside the mint.
  *
  * Both maps are pruned of expired entries on each resolution
  * ({@link pruneExpiredClientCredentialCaches}), so their size is bounded by the

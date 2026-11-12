@@ -15,6 +15,11 @@ import {
 
 const SCOPES = VANTA_PERMISSION_OPTIONS.map((option) => option.value)
 const EXPIRY_BUFFER_MS = 30_000
+/**
+ * Vanta answers 429 when an application mints more than 5 tokens a minute, and every token it
+ * issues revokes the previous one, so a failing exchange is retried at most every 15 s (4 a minute).
+ */
+const MIN_EXCHANGE_INTERVAL_MS = 15_000
 const STEP = 'vanta_token_mint'
 
 export interface VantaClientTokenFields {
@@ -152,6 +157,7 @@ export async function resolveVantaClientToken(
     step: STEP,
     signal: options.signal,
     minRemainingMs: EXPIRY_BUFFER_MS,
+    minExchangeIntervalMs: MIN_EXCHANGE_INTERVAL_MS,
     failureKeyQualifier: scope,
     accessTokenDigestTag: apiDomain,
     pinnedState: {
