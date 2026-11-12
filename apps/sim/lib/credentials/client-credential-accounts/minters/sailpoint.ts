@@ -11,7 +11,11 @@ import {
   requireClientSecret,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
-import { requestSailPointToken, SailPointAuthError } from '@/lib/internal/sailpoint/client'
+import {
+  requestSailPointToken,
+  resolveSailPointHosts,
+  SailPointAuthError,
+} from '@/lib/internal/sailpoint/client'
 
 const STEP = 'sailpoint_token_mint'
 /** Bounds the whole exchange, including its 429 backoff retries. */
@@ -45,11 +49,12 @@ export async function mintSailPointServiceAccountToken(
     })
   }
 
+  const { tokenUrl } = resolveSailPointHosts(host)
   const timeout = AbortSignal.timeout(TOKEN_EXCHANGE_TIMEOUT_MS)
   let minted: { token: string; expiresInSeconds: number }
   try {
     minted = await requestSailPointToken(
-      `https://${host}/oauth/token`,
+      tokenUrl,
       fields.clientId,
       clientSecret,
       options?.signal ? AbortSignal.any([options.signal, timeout]) : timeout

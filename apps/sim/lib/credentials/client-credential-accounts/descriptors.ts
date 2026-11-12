@@ -413,7 +413,8 @@ export function resolveZohoDeskDataCenter(rawDataCenter?: string): {
 
 /**
  * A SailPoint Identity Security Cloud API host: one tenant label under `api.identitynow.com`, or
- * under `api.identitynowgov.com` for government tenants (the same hosts the legacy block accepts).
+ * under `api.identitynowgov.com` for government tenants. Stricter than the legacy block's inline
+ * tenant, which also admits a dotted prefix under either domain.
  */
 const SAILPOINT_API_HOST_REGEX =
   /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.api\.identitynow(?:gov)?\.com$/

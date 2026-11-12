@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { savedCredentialTokenParam } from '@/tools/shared/saved-credentials'
 import type { OutputProperty, ToolConfig } from '@/tools/types'
 
 const logger = createLogger('Zendesk')
@@ -57,12 +58,7 @@ export function zendeskAuthorization(params: ZendeskAuthParams): string {
 
 /** Hidden params a saved Zendesk credential fills; every Zendesk tool declares them. */
 export const ZENDESK_CREDENTIAL_PARAMS = {
-  accessToken: {
-    type: 'string',
-    required: false,
-    visibility: 'hidden',
-    description: 'Token injected by the executor from the selected Zendesk credential',
-  },
+  accessToken: savedCredentialTokenParam('Zendesk'),
   authStyle: {
     type: 'string',
     required: false,
