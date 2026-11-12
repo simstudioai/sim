@@ -19,7 +19,6 @@ import { formatDateTime } from '@sim/utils/formatting'
 import { useRouter } from 'next/navigation'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
-import { savedTokenExpiryLabel } from '@/lib/credentials/expiry-label'
 import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import {
@@ -40,6 +39,7 @@ import {
   type ServiceAccountProviderId,
 } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
+import { useSavedTokenExpiryLabel } from '@/app/workspace/[workspaceId]/integrations/hooks/use-saved-token-expiry-label'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import {
   useCreateCredentialDraft,
@@ -100,6 +100,7 @@ export function ConnectedCredentialDetail({
   })
   const connectMicrosoftDataverseOAuthService = useConnectMicrosoftDataverseOAuthService()
   const isAdmin = credential?.role === 'admin'
+  const expiryLabel = useSavedTokenExpiryLabel(credential?.expiresAt)
 
   const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false)
   const [isShareModalOpen, setIsShareModalOpen] = useState(false)
@@ -335,8 +336,7 @@ export function ConnectedCredentialDetail({
         {credential.expiresAt && (
           <DetailSection title='Token expiry'>
             <span className='text-[var(--text-secondary)] text-small'>
-              {formatDateTime(new Date(credential.expiresAt), 'UTC')} ·{' '}
-              {savedTokenExpiryLabel(new Date(credential.expiresAt), Date.now())}
+              {formatDateTime(new Date(credential.expiresAt), 'UTC')} · {expiryLabel}
             </span>
           </DetailSection>
         )}

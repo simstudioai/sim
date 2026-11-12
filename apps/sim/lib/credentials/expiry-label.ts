@@ -11,3 +11,13 @@ export function savedTokenExpiryLabel(expiresAt: Date, now: number): string {
   const days = Math.ceil(remainingMs / DAY_MS)
   return `expires in ${days} ${days === 1 ? 'day' : 'days'}`
 }
+
+/**
+ * How long until {@link savedTokenExpiryLabel} reads differently: until the day count drops, or
+ * until the token expires on its last day. `null` once it reads `expired`, which never changes.
+ */
+export function msUntilSavedTokenExpiryLabelChanges(expiresAt: Date, now: number): number | null {
+  const remainingMs = expiresAt.getTime() - now
+  if (!(remainingMs > 0)) return null
+  return remainingMs - (Math.ceil(remainingMs / DAY_MS) - 1) * DAY_MS
+}

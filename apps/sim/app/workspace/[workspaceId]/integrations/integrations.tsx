@@ -14,7 +14,6 @@ import {
 import { Lock } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
-import { savedTokenExpiryLabel } from '@/lib/credentials/expiry-label'
 import {
   blockTypeToIconMap,
   formatIntegrationType,
@@ -27,6 +26,7 @@ import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components/
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
+import { useSavedTokenExpiryLabel } from '@/app/workspace/[workspaceId]/integrations/hooks/use-saved-token-expiry-label'
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
 import {
   ALL_CATEGORY,
@@ -155,6 +155,7 @@ function ConnectedItem({
   icon: Icon,
   expiresAt,
 }: ConnectedItemProps) {
+  const expiryLabel = useSavedTokenExpiryLabel(expiresAt)
   return (
     <SettingsResourceRow
       iconVariant='custom'
@@ -162,9 +163,9 @@ function ConnectedItem({
       title={name}
       description={description}
       badge={
-        expiresAt ? (
+        expiryLabel ? (
           <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
-            {savedTokenExpiryLabel(new Date(expiresAt), Date.now())}
+            {expiryLabel}
           </span>
         ) : undefined
       }

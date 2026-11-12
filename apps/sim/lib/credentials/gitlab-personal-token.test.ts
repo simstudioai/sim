@@ -95,6 +95,7 @@ describe('GitLab personal token verification', () => {
   it.each([
     ['midnight UTC on its expiry date', '2027-03-01', new Date('2027-03-01T00:00:00.000Z')],
     ['no expiry for a date that does not exist', '2027-02-30', null],
+    ['no expiry for a date already past', '2020-01-01', null],
   ])('records %s', async (_, expiresAt, expected) => {
     mocks.fetch
       .mockReset()

@@ -20,6 +20,7 @@ import type {
   TokenServiceAccountValidationResult,
   TokenServiceAccountValidator,
 } from '@/lib/credentials/token-service-accounts/server'
+import { credibleTokenExpiry } from '@/lib/credentials/vendor-token-expiry'
 
 interface TokenCheckRequest {
   url: string
@@ -98,18 +99,12 @@ interface TokenCheck {
   }) => Date | undefined
 }
 
-/**
- * The expiry a check states for an accepted token, when it is still ahead. The vendor just accepted
- * the token, so a stated expiry that has already passed contradicts the request (a misread value or
- * a skewed clock) and is dropped rather than recorded as fact; an imminent one is kept.
- */
+/** The expiry a check states for an accepted token, when it is credible. */
 function credibleExpiry(
   check: TokenCheck,
   accepted: { headers: ProviderResponse['headers']; body: unknown }
 ): Date | undefined {
-  const expiresAt = check.expiresAt?.(accepted)
-  if (!expiresAt || Number.isNaN(expiresAt.getTime())) return undefined
-  return expiresAt.getTime() > Date.now() ? expiresAt : undefined
+  return credibleTokenExpiry(check.expiresAt?.(accepted))
 }
 
 /** `accepted` with the expiry the check states, when there is a credible one. */

@@ -59,3 +59,13 @@ export function gitlabTokenExpiration(expiresAt: unknown): Date | undefined {
   const match = typeof expiresAt === 'string' ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(expiresAt) : null
   return match ? calendarMomentUtc(match.slice(1, 4).map(Number)) : undefined
 }
+
+/**
+ * A stated expiry for a token the vendor just accepted, when it is still ahead. The acceptance
+ * proves the token works now, so a moment already past contradicts the request (a misread value or
+ * a skewed clock) and is dropped rather than recorded as fact; an imminent one is kept.
+ */
+export function credibleTokenExpiry(expiresAt: Date | undefined): Date | undefined {
+  if (!expiresAt || Number.isNaN(expiresAt.getTime())) return undefined
+  return expiresAt.getTime() > Date.now() ? expiresAt : undefined
+}
