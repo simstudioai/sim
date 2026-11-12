@@ -9,7 +9,7 @@ import {
   linkAwsMarketplaceLicenseAsAdmin,
   listUnlinkedAwsMarketplaceLicenses,
 } from '@/lib/billing/aws-marketplace/application/admin'
-import { getAwsMarketplaceProductCode } from '@/lib/billing/aws-marketplace/config'
+import { isAwsMarketplaceEnabled } from '@/lib/billing/aws-marketplace/config'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getAdminAuditActor } from '@/app/api/v1/admin/dashboard/actor'
@@ -29,7 +29,7 @@ const logger = createLogger('AdminAwsMarketplaceLicensesAPI')
 /** The Marketplace licenses no organization holds yet. */
 export const GET = withRouteHandler(
   withAdminAuth(async (request) => {
-    if (!getAwsMarketplaceProductCode()) return adminNotFoundResponse('AWS Marketplace')
+    if (!isAwsMarketplaceEnabled()) return adminNotFoundResponse('AWS Marketplace')
     const parsed = await parseRequest(
       adminDashboardListAwsMarketplaceLicensesContract,
       request,
@@ -56,7 +56,7 @@ export const GET = withRouteHandler(
 /** Links a Marketplace license to an organization once the team has provisioned it. */
 export const POST = withRouteHandler(
   withAdminAuth(async (request) => {
-    if (!getAwsMarketplaceProductCode()) return adminNotFoundResponse('AWS Marketplace')
+    if (!isAwsMarketplaceEnabled()) return adminNotFoundResponse('AWS Marketplace')
     const parsed = await parseRequest(
       adminDashboardLinkAwsMarketplaceLicenseContract,
       request,

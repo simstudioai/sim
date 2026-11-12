@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
-import { getAwsMarketplaceProductCode } from '@/lib/billing/aws-marketplace/config'
+import { isAwsMarketplaceEnabled } from '@/lib/billing/aws-marketplace/config'
 import { reconcileAwsMarketplaceLicenses } from '@/lib/billing/aws-marketplace/reconcile'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { runDetached } from '@/lib/core/utils/background'
@@ -20,7 +20,7 @@ export const dynamic = 'force-dynamic'
  * Applies AWS Marketplace agreement events from the SQS queue and re-verifies licenses no event
  * touched within a day. Acknowledges the cron call at once and works in the background; a Redis
  * lock keeps runs from overlapping, and every write is idempotent, so a replayed run is harmless.
- * A no-op on deployments without `AWS_MARKETPLACE_PRODUCT_CODE`.
+ * A no-op on deployments without `AWS_MARKETPLACE_PRODUCTS`.
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const authError = verifyCronAuth(request, 'AWS Marketplace reconcile')
@@ -28,7 +28,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return authError
   }
 
-  if (!getAwsMarketplaceProductCode()) {
+  if (!isAwsMarketplaceEnabled()) {
     return NextResponse.json({
       success: true,
       message: 'AWS Marketplace is not configured – skipped',

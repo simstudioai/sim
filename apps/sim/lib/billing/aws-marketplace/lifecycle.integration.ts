@@ -17,13 +17,16 @@ import { NextRequest } from 'next/server'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const PRODUCT = 'product-placeholder'
+/** A second listing, sold as platform access plus metered usage. */
+const USAGE_PRODUCT = 'usage-product-placeholder'
 /** New SaaS products: ResolveCustomer names the buyer by account ID, never `CustomerIdentifier`. */
 const ACCOUNT = '000000000000'
 const AGREEMENT = 'agmt-placeholder'
 const CONTACT = { contactEmail: 'buyer@example.test', companyName: 'Example Co' }
 
 const { meteringSend, entitlementSend, queueSend } = vi.hoisted(() => {
-  process.env.AWS_MARKETPLACE_PRODUCT_CODE = 'product-placeholder'
+  process.env.AWS_MARKETPLACE_PRODUCTS =
+    'product-placeholder=contract,usage-product-placeholder=platform-with-usage'
   process.env.AWS_MARKETPLACE_EVENTS_QUEUE_URL =
     'https://queue.example.test/aws-marketplace-placeholder'
   process.env.ADMIN_API_KEY = 'admin-key-placeholder'
@@ -300,13 +303,18 @@ function deliverOnce(events: Array<Record<string, unknown>>) {
   return deleted
 }
 
-function licenseUpdated(licenseArn: string, agreementId?: string, time?: Date) {
+function licenseUpdated(
+  licenseArn: string,
+  agreementId?: string,
+  time?: Date,
+  productCode = PRODUCT
+) {
   return {
     'detail-type': 'License Updated - Manufacturer',
     ...(time && { time: time.toISOString() }),
     detail: {
       license: { arn: licenseArn },
-      product: { code: PRODUCT },
+      product: { code: productCode },
       ...(agreementId && { agreement: { id: agreementId } }),
     },
   }
@@ -388,6 +396,39 @@ describe('POST /api/marketplace/aws/register', () => {
     expect(response.headers.get('set-cookie')).toBeNull()
     expect(await readLicense(licenseArn)).toBeUndefined()
     expect(meteringSend.mock.calls[0][0].input.RegistrationToken).toBe('opaque+token')
+  })
+
+  it('admits a buyer of the usage listing only on a current platform entitlement', async () => {
+    const usageOnly = uniqueArn()
+    resolvesTo(usageOnly, USAGE_PRODUCT)
+    entitlementsByLicense.set(usageOnly, [
+      currentEntitlement({ ProductCode: USAGE_PRODUCT, Dimension: 'llm_credits' }),
+    ])
+
+    const unconfirmed = await registration('x-amzn-marketplace-token=usage-only-token')
+
+    expect(claimTokenOf(unconfirmed)).not.toBeNull()
+    expect(entitlementSend).toHaveBeenCalledTimes(3)
+    expect(await readLicense(usageOnly)).toMatchObject({
+      productCode: USAGE_PRODUCT,
+      status: 'pending',
+    })
+
+    const withPlatform = uniqueArn()
+    resolvesTo(withPlatform, USAGE_PRODUCT)
+    entitlementsByLicense.set(withPlatform, [
+      currentEntitlement({ ProductCode: USAGE_PRODUCT, Dimension: 'llm_credits' }),
+      currentEntitlement({ ProductCode: USAGE_PRODUCT, Dimension: 'platform' }),
+    ])
+
+    const admitted = await registration('x-amzn-marketplace-token=platform-token')
+
+    expect(claimTokenOf(admitted)).not.toBeNull()
+    expect(await readLicense(withPlatform)).toMatchObject({
+      productCode: USAGE_PRODUCT,
+      status: 'active',
+      dimension: 'platform',
+    })
   })
 
   it('records a lapsed license as inactive and issues no claim', async () => {
@@ -1379,6 +1420,47 @@ describe('reconcileAwsMarketplaceLicenses', () => {
     expect((await readLicense(healthyArn))?.lastVerifiedAt.getTime()).toBeGreaterThan(
       Date.now() - 60_000
     )
+  })
+})
+
+describe('license events across listings', () => {
+  it('records a usage listing license seen first by event as pending until AWS reports platform', async () => {
+    const licenseArn = uniqueArn()
+    entitlementsByLicense.set(licenseArn, [
+      currentEntitlement({ ProductCode: USAGE_PRODUCT, Dimension: 'llm_credits' }),
+    ])
+    const deleted = deliverOnce([licenseUpdated(licenseArn, undefined, undefined, USAGE_PRODUCT)])
+
+    expect(await reconcileAwsMarketplaceLicenses()).toMatchObject({ applied: 1, discarded: 0 })
+    expect(deleted).toEqual(['r-0'])
+    expect(await readLicense(licenseArn)).toMatchObject({
+      productCode: USAGE_PRODUCT,
+      status: 'pending',
+      dimension: null,
+    })
+    expect(await emailsTo(TEAM)).toEqual([
+      expect.objectContaining({ text: expect.stringMatching(/Unconfirmed/) }),
+    ])
+  })
+
+  it("applies a usage listing's event under its own plan: a lapsed platform ends access", async () => {
+    const { licenseArn } = await insertLicense({ productCode: USAGE_PRODUCT, status: 'active' })
+    entitlementsByLicense.set(licenseArn, [
+      currentEntitlement({ ProductCode: USAGE_PRODUCT, Dimension: 'llm_credits' }),
+      currentEntitlement({
+        ProductCode: USAGE_PRODUCT,
+        Dimension: 'platform',
+        ExpirationDate: new Date(Date.now() - 60_000),
+      }),
+    ])
+    const deleted = deliverOnce([licenseUpdated(licenseArn, undefined, undefined, USAGE_PRODUCT)])
+
+    expect(await reconcileAwsMarketplaceLicenses()).toMatchObject({ applied: 1, discarded: 0 })
+    expect(deleted).toEqual(['r-0'])
+    expect(await readLicense(licenseArn)).toMatchObject({
+      status: 'inactive',
+      dimension: 'platform',
+    })
   })
 })
 

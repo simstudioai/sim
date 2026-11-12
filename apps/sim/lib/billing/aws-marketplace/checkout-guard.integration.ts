@@ -8,10 +8,10 @@ const PRODUCT = 'product-placeholder'
 const ACCOUNT = '000000000000'
 const TEAM_PLAN = 'team_6000'
 
-const productCode = vi.hoisted(() => ({ current: 'product-placeholder' as string | null }))
+const marketplace = vi.hoisted(() => ({ enabled: true }))
 
 vi.mock('@/lib/billing/aws-marketplace/config', () => ({
-  getAwsMarketplaceProductCode: () => productCode.current,
+  isAwsMarketplaceEnabled: () => marketplace.enabled,
 }))
 
 import {
@@ -84,7 +84,7 @@ async function organizationWithLicense(status: LicenseStatus | null) {
 }
 
 afterEach(() => {
-  productCode.current = PRODUCT
+  marketplace.enabled = true
 })
 
 afterAll(async () => {
@@ -147,7 +147,7 @@ describe('Stripe checkout for an AWS Marketplace-billed reference', () => {
     const { ownerId, organizationId } = await organizationWithLicense('active')
     const userId = await createUser()
     await insertLicense({ organizationId: null, linkedByUserId: userId, status: 'active' })
-    productCode.current = null
+    marketplace.enabled = false
 
     await expect(
       authorizeSubscriptionReference(ownerId, organizationId, 'upgrade-subscription', TEAM_PLAN)
