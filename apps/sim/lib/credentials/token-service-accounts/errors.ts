@@ -222,7 +222,7 @@ export interface ProviderResponse {
 export function isVendorJsonForbidden(response: ProviderResponse): boolean {
   return (
     response.status === 403 &&
-    (response.headers.get('content-type') ?? '').includes('application/json')
+    (response.headers.get('content-type') ?? '').toLowerCase().includes('application/json')
   )
 }
 

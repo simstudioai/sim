@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import {
   MAX_JSON_API_RESPONSE_BYTES,
   secureFetchWithValidation,
@@ -130,12 +131,8 @@ export async function requestZoomInfoToken(
     logger.warn('ZoomInfo token fetch failed', { requestId, status: response.status, error: text })
     throw new ZoomInfoTokenError(response.status)
   }
-  const data = (await response.json()) as {
-    access_token?: string
-    expires_in?: number
-    scope?: string
-  }
-  if (!data.access_token) {
+  const data: unknown = await response.json()
+  if (!isRecordLike(data) || typeof data.access_token !== 'string' || !data.access_token.trim()) {
     throw new ZoomInfoOperationError('ZoomInfo token response missing access_token', 500)
   }
   return {

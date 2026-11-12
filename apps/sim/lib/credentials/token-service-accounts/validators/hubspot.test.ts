@@ -156,6 +156,14 @@ describe('validateHubspotServiceAccount', () => {
       'lacks the contacts scope',
       () => jsonResponse({ status: 'error', category: 'MISSING_SCOPES' }, 403),
     ],
+    [
+      'lacks the contacts scope, answered with a mixed-case JSON media type',
+      () =>
+        new Response(JSON.stringify({ status: 'error', category: 'MISSING_SCOPES' }), {
+          status: 403,
+          headers: { 'Content-Type': 'Application/JSON; charset=UTF-8' },
+        }),
+    ],
   ])(
     'accepts a service key that account-info refuses but that %s',
     async (_case, contactsAnswer) => {
