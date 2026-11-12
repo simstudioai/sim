@@ -1,4 +1,4 @@
-import type { OutputProperty, ToolResponse } from '@/tools/types'
+import type { OutputProperty, ToolConfig, ToolResponse } from '@/tools/types'
 
 /**
  * Shared constants, output property definitions, and TypeScript interfaces for
@@ -8,8 +8,47 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * @see https://developer.squareup.com/reference/square
  */
 
-/** Square production API base URL. */
-export const SQUARE_BASE_URL = 'https://connect.squareup.com'
+/**
+ * Square environments and their API base URLs. Credentials and resources of one environment
+ * cannot be used in the other, so a sandbox access token only works against the sandbox.
+ * @see https://developer.squareup.com/docs/devtools/sandbox/overview
+ */
+const SQUARE_ENVIRONMENT_BASE_URLS = {
+  production: 'https://connect.squareup.com',
+  sandbox: 'https://connect.squareupsandbox.com',
+} as const
+
+type SquareEnvironment = keyof typeof SQUARE_ENVIRONMENT_BASE_URLS
+
+export const SQUARE_ENVIRONMENTS: ReadonlySet<string> = new Set(
+  Object.keys(SQUARE_ENVIRONMENT_BASE_URLS)
+)
+
+/** The environment every Square credential and tool used before the sandbox could be chosen. */
+export const DEFAULT_SQUARE_ENVIRONMENT: SquareEnvironment = 'production'
+
+export const SQUARE_ENVIRONMENT_OPTIONS = [
+  { value: 'production', label: 'Production (connect.squareup.com)' },
+  { value: 'sandbox', label: 'Sandbox (connect.squareupsandbox.com)' },
+] as const satisfies ReadonlyArray<{ value: SquareEnvironment; label: string }>
+
+/**
+ * The API base URL of a Square environment. Absent means production, so tools run without a saved
+ * credential keep their host; an unknown environment is refused rather than guessed.
+ */
+export function squareBaseUrl(environment?: string): string {
+  const key = environment ?? DEFAULT_SQUARE_ENVIRONMENT
+  if (!SQUARE_ENVIRONMENTS.has(key)) throw new Error(`Unknown Square environment: ${key}`)
+  return SQUARE_ENVIRONMENT_BASE_URLS[key as SquareEnvironment]
+}
+
+/** The environment a saved Square credential was verified in; only the credential fills it. */
+export const SQUARE_ENVIRONMENT_PARAM = {
+  type: 'string',
+  required: false,
+  visibility: 'hidden',
+  description: 'Square environment of the selected credential: production or sandbox',
+} as const satisfies ToolConfig['params'][string]
 
 /**
  * Square API version pinned for every request via the `Square-Version` header.
@@ -683,6 +722,7 @@ interface InventoryCountObject {
 
 export interface CreatePaymentParams {
   apiKey: string
+  environment?: string
   sourceId: string
   amount: number
   currency: string
@@ -697,11 +737,13 @@ export interface CreatePaymentParams {
 
 export interface GetPaymentParams {
   apiKey: string
+  environment?: string
   paymentId: string
 }
 
 export interface ListPaymentsParams {
   apiKey: string
+  environment?: string
   locationId?: string
   beginTime?: string
   endTime?: string
@@ -711,6 +753,7 @@ export interface ListPaymentsParams {
 
 export interface RefundPaymentParams {
   apiKey: string
+  environment?: string
   paymentId: string
   amount: number
   currency: string
@@ -720,6 +763,7 @@ export interface RefundPaymentParams {
 
 export interface CreateCustomerParams {
   apiKey: string
+  environment?: string
   givenName?: string
   familyName?: string
   companyName?: string
@@ -735,11 +779,13 @@ export interface CreateCustomerParams {
 
 export interface GetCustomerParams {
   apiKey: string
+  environment?: string
   customerId: string
 }
 
 export interface ListCustomersParams {
   apiKey: string
+  environment?: string
   limit?: number
   cursor?: string
   sortField?: string
@@ -748,6 +794,7 @@ export interface ListCustomersParams {
 
 export interface SearchCustomersParams {
   apiKey: string
+  environment?: string
   query?: Record<string, unknown>
   limit?: number
   cursor?: string
@@ -755,6 +802,7 @@ export interface SearchCustomersParams {
 
 export interface UpdateCustomerParams {
   apiKey: string
+  environment?: string
   customerId: string
   givenName?: string
   familyName?: string
@@ -770,26 +818,31 @@ export interface UpdateCustomerParams {
 
 export interface DeleteCustomerParams {
   apiKey: string
+  environment?: string
   customerId: string
 }
 
 export interface ListLocationsParams {
   apiKey: string
+  environment?: string
 }
 
 export interface CreateOrderParams {
   apiKey: string
+  environment?: string
   order: Record<string, unknown>
   idempotencyKey?: string
 }
 
 export interface GetOrderParams {
   apiKey: string
+  environment?: string
   orderId: string
 }
 
 export interface SearchOrdersParams {
   apiKey: string
+  environment?: string
   locationIds: string[]
   query?: Record<string, unknown>
   limit?: number
@@ -798,17 +851,20 @@ export interface SearchOrdersParams {
 
 export interface CreateInvoiceParams {
   apiKey: string
+  environment?: string
   invoice: Record<string, unknown>
   idempotencyKey?: string
 }
 
 export interface GetInvoiceParams {
   apiKey: string
+  environment?: string
   invoiceId: string
 }
 
 export interface ListInvoicesParams {
   apiKey: string
+  environment?: string
   locationId: string
   limit?: number
   cursor?: string
@@ -816,6 +872,7 @@ export interface ListInvoicesParams {
 
 export interface PublishInvoiceParams {
   apiKey: string
+  environment?: string
   invoiceId: string
   version: number
   idempotencyKey?: string
@@ -823,24 +880,28 @@ export interface PublishInvoiceParams {
 
 export interface UpsertCatalogObjectParams {
   apiKey: string
+  environment?: string
   object: Record<string, unknown>
   idempotencyKey?: string
 }
 
 export interface GetCatalogObjectParams {
   apiKey: string
+  environment?: string
   objectId: string
   includeRelatedObjects?: boolean
 }
 
 export interface ListCatalogParams {
   apiKey: string
+  environment?: string
   types?: string
   cursor?: string
 }
 
 export interface SearchCatalogObjectsParams {
   apiKey: string
+  environment?: string
   objectTypes?: string[]
   query?: Record<string, unknown>
   limit?: number
@@ -849,6 +910,7 @@ export interface SearchCatalogObjectsParams {
 
 export interface CreateCatalogImageParams {
   apiKey: string
+  environment?: string
   file?: unknown
   fileName?: string
   objectId?: string
@@ -858,22 +920,26 @@ export interface CreateCatalogImageParams {
 
 export interface CancelPaymentParams {
   apiKey: string
+  environment?: string
   paymentId: string
 }
 
 export interface CompletePaymentParams {
   apiKey: string
+  environment?: string
   paymentId: string
   versionToken?: string
 }
 
 export interface GetRefundParams {
   apiKey: string
+  environment?: string
   refundId: string
 }
 
 export interface ListRefundsParams {
   apiKey: string
+  environment?: string
   locationId?: string
   status?: string
   beginTime?: string
@@ -884,6 +950,7 @@ export interface ListRefundsParams {
 
 export interface PayOrderParams {
   apiKey: string
+  environment?: string
   orderId: string
   orderVersion?: number
   paymentIds?: string[]
@@ -892,6 +959,7 @@ export interface PayOrderParams {
 
 export interface SearchInvoicesParams {
   apiKey: string
+  environment?: string
   locationId: string
   limit?: number
   cursor?: string
@@ -899,28 +967,33 @@ export interface SearchInvoicesParams {
 
 export interface CancelInvoiceParams {
   apiKey: string
+  environment?: string
   invoiceId: string
   version: number
 }
 
 export interface DeleteInvoiceParams {
   apiKey: string
+  environment?: string
   invoiceId: string
   version?: number
 }
 
 export interface DeleteCatalogObjectParams {
   apiKey: string
+  environment?: string
   objectId: string
 }
 
 export interface GetLocationParams {
   apiKey: string
+  environment?: string
   locationId: string
 }
 
 export interface BatchRetrieveInventoryCountsParams {
   apiKey: string
+  environment?: string
   catalogObjectIds?: string[]
   locationIds?: string[]
   states?: string[]

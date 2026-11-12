@@ -4,7 +4,8 @@ import type { CatalogObjectResponse, GetCatalogObjectParams } from '@/tools/squa
 import {
   CATALOG_OBJECT_METADATA_OUTPUT_PROPERTIES,
   CATALOG_OBJECT_OUTPUT,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENT_PARAM,
+  squareBaseUrl,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -19,6 +20,7 @@ export const squareGetCatalogObjectTool: ToolConfig<GetCatalogObjectParams, Cata
     errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
     params: {
+      environment: SQUARE_ENVIRONMENT_PARAM,
       apiKey: {
         type: 'string',
         required: true,
@@ -42,7 +44,7 @@ export const squareGetCatalogObjectTool: ToolConfig<GetCatalogObjectParams, Cata
     request: {
       url: (params) => {
         const url = new URL(
-          `${SQUARE_BASE_URL}/v2/catalog/object/${encodeURIComponent(params.objectId)}`
+          `${squareBaseUrl(params.environment)}/v2/catalog/object/${encodeURIComponent(params.objectId)}`
         )
         if (params.includeRelatedObjects !== undefined) {
           url.searchParams.append('include_related_objects', String(params.includeRelatedObjects))

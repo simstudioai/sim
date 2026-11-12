@@ -4,7 +4,8 @@ import type { CancelPaymentParams, PaymentResponse } from '@/tools/square/types'
 import {
   PAYMENT_METADATA_OUTPUT_PROPERTIES,
   PAYMENT_OUTPUT,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENT_PARAM,
+  squareBaseUrl,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -18,6 +19,7 @@ export const squareCancelPaymentTool: ToolConfig<CancelPaymentParams, PaymentRes
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENT_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -34,7 +36,7 @@ export const squareCancelPaymentTool: ToolConfig<CancelPaymentParams, PaymentRes
 
   request: {
     url: (params) =>
-      `${SQUARE_BASE_URL}/v2/payments/${encodeURIComponent(params.paymentId)}/cancel`,
+      `${squareBaseUrl(params.environment)}/v2/payments/${encodeURIComponent(params.paymentId)}/cancel`,
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
     body: () => ({}),

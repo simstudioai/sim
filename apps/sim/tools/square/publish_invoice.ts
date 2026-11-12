@@ -9,7 +9,8 @@ import type { InvoiceResponse, PublishInvoiceParams } from '@/tools/square/types
 import {
   INVOICE_METADATA_OUTPUT_PROPERTIES,
   INVOICE_OUTPUT,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENT_PARAM,
+  squareBaseUrl,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -31,6 +32,7 @@ export const squarePublishInvoiceTool: ToolConfig<
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENT_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -59,7 +61,7 @@ export const squarePublishInvoiceTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${SQUARE_BASE_URL}/v2/invoices/${encodeURIComponent(params.invoiceId)}/publish`,
+      `${squareBaseUrl(params.environment)}/v2/invoices/${encodeURIComponent(params.invoiceId)}/publish`,
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
     body: (params) => withSquareIdempotencyKey(DELIVERY, params, { version: params.version }),

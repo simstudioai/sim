@@ -4,7 +4,8 @@ import type { CatalogListResponse, SearchCatalogObjectsParams } from '@/tools/sq
 import {
   CATALOG_OBJECT_OUTPUT,
   LIST_METADATA_OUTPUT_PROPERTIES,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENT_PARAM,
+  squareBaseUrl,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -21,6 +22,7 @@ export const squareSearchCatalogObjectsTool: ToolConfig<
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENT_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -55,7 +57,7 @@ export const squareSearchCatalogObjectsTool: ToolConfig<
   },
 
   request: {
-    url: () => `${SQUARE_BASE_URL}/v2/catalog/search`,
+    url: (params) => `${squareBaseUrl(params.environment)}/v2/catalog/search`,
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
     body: (params) => {

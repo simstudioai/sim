@@ -7,7 +7,8 @@ import type {
 import {
   INVENTORY_COUNT_OUTPUT,
   LIST_METADATA_OUTPUT_PROPERTIES,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENT_PARAM,
+  squareBaseUrl,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -24,6 +25,7 @@ export const squareBatchRetrieveInventoryCountsTool: ToolConfig<
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENT_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -69,7 +71,7 @@ export const squareBatchRetrieveInventoryCountsTool: ToolConfig<
   },
 
   request: {
-    url: () => `${SQUARE_BASE_URL}/v2/inventory/counts/batch-retrieve`,
+    url: (params) => `${squareBaseUrl(params.environment)}/v2/inventory/counts/batch-retrieve`,
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
     body: (params) => {

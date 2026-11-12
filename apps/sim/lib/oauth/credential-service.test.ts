@@ -1484,6 +1484,7 @@ describe('token credentials saved before their provider had a region or host to 
   it.each([
     ['launchdarkly-service-account', 'us'],
     ['langsmith-service-account', 'us'],
+    ['square-service-account', 'production'],
   ])(
     'resolves a %s token stored without one to the host it always used (%s)',
     async (providerId, domain) => {

@@ -3,6 +3,7 @@ import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
 export const squareCatalogImageInputSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
+  environment: z.enum(['production', 'sandbox']).optional(),
   file: FileInputSchema,
   fileName: z.string().optional().nullable(),
   objectId: z.string().optional().nullable(),

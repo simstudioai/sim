@@ -4,7 +4,8 @@ import type { GetRefundParams, RefundResponse } from '@/tools/square/types'
 import {
   REFUND_METADATA_OUTPUT_PROPERTIES,
   REFUND_OUTPUT,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENT_PARAM,
+  squareBaseUrl,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -18,6 +19,7 @@ export const squareGetRefundTool: ToolConfig<GetRefundParams, RefundResponse> = 
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENT_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -33,7 +35,8 @@ export const squareGetRefundTool: ToolConfig<GetRefundParams, RefundResponse> = 
   },
 
   request: {
-    url: (params) => `${SQUARE_BASE_URL}/v2/refunds/${encodeURIComponent(params.refundId)}`,
+    url: (params) =>
+      `${squareBaseUrl(params.environment)}/v2/refunds/${encodeURIComponent(params.refundId)}`,
     method: 'GET',
     headers: (params) => squareHeaders(params.apiKey),
   },

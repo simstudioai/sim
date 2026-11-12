@@ -17,6 +17,7 @@ import {
   DEFAULT_LAUNCHDARKLY_INSTANCE,
   LAUNCHDARKLY_INSTANCE_OPTIONS,
 } from '@/tools/launchdarkly/utils'
+import { DEFAULT_SQUARE_ENVIRONMENT, SQUARE_ENVIRONMENT_OPTIONS } from '@/tools/square/types'
 
 /** Discriminator stored inside every encrypted token service-account secret blob. */
 export const TOKEN_SERVICE_ACCOUNT_SECRET_TYPE = 'token_service_account' as const
@@ -1430,13 +1431,25 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'Access token',
-        placeholder: 'Paste your Square production access token',
+        placeholder: 'Paste your Square access token',
         secret: true,
+      },
+      {
+        id: 'domain',
+        label: 'Environment',
+        placeholder: 'Select an environment',
+        secret: false,
+        options: SQUARE_ENVIRONMENT_OPTIONS,
+        defaultValue: DEFAULT_SQUARE_ENVIRONMENT,
+        hintMessage:
+          'production (default) or sandbox: the Square environment the access token was issued for.',
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/square',
     helpText:
-      'Use a production access token from your app in the Square Developer Console; sandbox tokens are not supported.',
+      'Use an access token from your app in the Square Developer Console, and choose Sandbox for a sandbox token; a token only works in the environment that issued it.',
+    invalidCredentialsHelp:
+      'Square rejected this access token. Check that it is active and that the environment matches the one the token was issued for.',
   },
   [TAILSCALE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: TAILSCALE_SERVICE_ACCOUNT_PROVIDER_ID,

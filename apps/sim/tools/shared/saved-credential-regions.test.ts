@@ -6,7 +6,8 @@ import * as langsmithTools from '@/tools/langsmith'
 import * as launchDarklyTools from '@/tools/launchdarkly'
 import * as newRelicTools from '@/tools/new_relic'
 import { prepareToolRequestUrl } from '@/tools/request-transport'
-import type { ToolConfig } from '@/tools/types'
+import * as squareTools from '@/tools/square'
+import { isInternalToolConfig, type ToolConfig } from '@/tools/types'
 
 /**
  * Tool families whose saved credential carries the region, instance, or host its token belongs
@@ -60,6 +61,16 @@ const FAMILIES: {
     ],
     refusesUnknownRegion: false,
   },
+  {
+    service: 'Square',
+    tools: squareTools,
+    defaultHost: 'connect.squareup.com',
+    regions: [
+      ['production', 'connect.squareup.com'],
+      ['sandbox', 'connect.squareupsandbox.com'],
+    ],
+    refusesUnknownRegion: true,
+  },
 ]
 
 /**
@@ -99,9 +110,23 @@ function requestHost(tool: ToolConfig, credential?: Record<string, string>): str
   return new URL(prepareToolRequestUrl(tool, params)).host
 }
 
+/** Tools that send their own request; an internal operation's host is checked by its own test. */
 const cases = FAMILIES.flatMap((family) =>
-  Object.values(family.tools).map((tool) => ({ ...family, tool }))
+  Object.values(family.tools)
+    .filter((tool) => !isInternalToolConfig(tool))
+    .map((tool) => ({ ...family, tool }))
 )
+
+describe('internal operations of a regional tool family', () => {
+  it.each([undefined, 'sandbox'])(
+    'hands the Square catalog image upload the credential environment (%s)',
+    (environment) => {
+      const tool = squareTools.squareCreateCatalogImageTool
+      const params = { ...placeholderParams(tool), environment }
+      expect(tool.operation.input(params)).toMatchObject({ environment })
+    }
+  )
+})
 
 describe.each(cases)('$tool.id', ({ tool, defaultHost, regions, refusesUnknownRegion }) => {
   it.each(regions)('sends a run with a saved %s credential to %s', (domain, host) => {

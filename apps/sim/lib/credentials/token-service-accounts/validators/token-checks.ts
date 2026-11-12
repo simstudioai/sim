@@ -48,6 +48,7 @@ import {
   planetScaleHeaders,
 } from '@/tools/planetscale/utils'
 import { createBasicAuthHeader } from '@/tools/servicenow/utils'
+import { SQUARE_ENVIRONMENTS, squareBaseUrl } from '@/tools/square/types'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import { getThriveBaseUrl, getThriveHeaders, THRIVE_HOSTS } from '@/tools/thrive/utils'
 import { isTwilioApiKeyPair, twilioAuthorization } from '@/tools/twilio/utils'
@@ -1465,13 +1466,15 @@ export const validateSportmonksServiceAccount = tokenCheckValidator({
 })
 
 /**
- * Square's list-locations read answers 200 for a valid production access token and 401 for a bad
- * one; a token without the merchant-profile scope gets 403.
+ * Square's list-locations read answers 200 for a valid access token and 401 for a bad one, in the
+ * environment (production or sandbox) that issued it; a token without the merchant-profile scope
+ * gets 403.
  */
 export const validateSquareServiceAccount = tokenCheckValidator({
   serviceLabel: 'Square',
-  request: ({ apiToken }) => ({
-    url: 'https://connect.squareup.com/v2/locations',
+  domain: allowedDomain(SQUARE_ENVIRONMENTS),
+  request: ({ apiToken, domain }) => ({
+    url: `${squareBaseUrl(domain)}/v2/locations`,
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
   forbiddenMeansScoped: true,

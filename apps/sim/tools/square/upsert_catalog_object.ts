@@ -9,7 +9,8 @@ import type { CatalogObjectResponse, UpsertCatalogObjectParams } from '@/tools/s
 import {
   CATALOG_OBJECT_METADATA_OUTPUT_PROPERTIES,
   CATALOG_OBJECT_OUTPUT,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENT_PARAM,
+  squareBaseUrl,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -36,6 +37,7 @@ export const squareUpsertCatalogObjectTool: ToolConfig<
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENT_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -58,7 +60,7 @@ export const squareUpsertCatalogObjectTool: ToolConfig<
   },
 
   request: {
-    url: () => `${SQUARE_BASE_URL}/v2/catalog/object`,
+    url: (params) => `${squareBaseUrl(params.environment)}/v2/catalog/object`,
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
     body: (params) => withSquareIdempotencyKey(DELIVERY, params, { object: params.object }),

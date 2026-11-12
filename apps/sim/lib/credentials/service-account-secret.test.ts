@@ -880,6 +880,18 @@ describe('a token provider whose region or host defaults to the one it always us
       'https://azure.api.smith.langchain.com/api/v1/workspaces',
       'azure-us',
     ],
+    [
+      'square-service-account',
+      undefined,
+      'https://connect.squareup.com/v2/locations',
+      'production',
+    ],
+    [
+      'square-service-account',
+      'sandbox',
+      'https://connect.squareupsandbox.com/v2/locations',
+      'sandbox',
+    ],
   ])('%s with %s is checked at %s and stored as %s', async (providerId, domain, url, stored) => {
     const result = await verifyAndBuildServiceAccountSecret(providerId, {
       apiToken: 'token-1',
@@ -896,6 +908,7 @@ describe('a token provider whose region or host defaults to the one it always us
   it.each([
     ['launchdarkly-service-account', 'app.launchdarkly.example.com'],
     ['langsmith-service-account', 'eu.api.smith.langchain.com.example.com'],
+    ['square-service-account', 'connect.squareupsandbox.com'],
   ])(
     'refuses %s with an unlisted region or host %s without sending the token',
     async (providerId, domain) => {

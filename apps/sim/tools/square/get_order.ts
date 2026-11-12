@@ -4,7 +4,8 @@ import type { GetOrderParams, OrderResponse } from '@/tools/square/types'
 import {
   ORDER_METADATA_OUTPUT_PROPERTIES,
   ORDER_OUTPUT,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENT_PARAM,
+  squareBaseUrl,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -18,6 +19,7 @@ export const squareGetOrderTool: ToolConfig<GetOrderParams, OrderResponse> = {
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENT_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -33,7 +35,8 @@ export const squareGetOrderTool: ToolConfig<GetOrderParams, OrderResponse> = {
   },
 
   request: {
-    url: (params) => `${SQUARE_BASE_URL}/v2/orders/${encodeURIComponent(params.orderId)}`,
+    url: (params) =>
+      `${squareBaseUrl(params.environment)}/v2/orders/${encodeURIComponent(params.orderId)}`,
     method: 'GET',
     headers: (params) => squareHeaders(params.apiKey),
   },

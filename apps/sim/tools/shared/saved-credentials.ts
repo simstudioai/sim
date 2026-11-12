@@ -381,7 +381,10 @@ export const SMARTLEAD_CREDENTIAL_OAUTH = tokenCredentialOAuth('smartlead', {
 export const SPORTMONKS_CREDENTIAL_OAUTH = tokenCredentialOAuth('sportmonks', {
   apiKey: 'accessToken',
 })
-export const SQUARE_CREDENTIAL_OAUTH = tokenCredentialOAuth('square', { apiKey: 'accessToken' })
+export const SQUARE_CREDENTIAL_OAUTH = tokenCredentialOAuth('square', {
+  apiKey: 'accessToken',
+  environment: 'domain',
+})
 export const STRIPE_CREDENTIAL_OAUTH = tokenCredentialOAuth('stripe', { apiKey: 'accessToken' })
 export const SUPABASE_CREDENTIAL_OAUTH = tokenCredentialOAuth('supabase', {
   apiKey: 'accessToken',

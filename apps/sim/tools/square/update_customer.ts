@@ -4,7 +4,8 @@ import type { CustomerResponse, UpdateCustomerParams } from '@/tools/square/type
 import {
   CUSTOMER_METADATA_OUTPUT_PROPERTIES,
   CUSTOMER_OUTPUT,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENT_PARAM,
+  squareBaseUrl,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -18,6 +19,7 @@ export const squareUpdateCustomerTool: ToolConfig<UpdateCustomerParams, Customer
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENT_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -93,7 +95,8 @@ export const squareUpdateCustomerTool: ToolConfig<UpdateCustomerParams, Customer
   },
 
   request: {
-    url: (params) => `${SQUARE_BASE_URL}/v2/customers/${encodeURIComponent(params.customerId)}`,
+    url: (params) =>
+      `${squareBaseUrl(params.environment)}/v2/customers/${encodeURIComponent(params.customerId)}`,
     method: 'PUT',
     headers: (params) => squareHeaders(params.apiKey),
     body: (params) => {
