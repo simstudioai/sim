@@ -691,7 +691,9 @@ export function collectSnapshot(
       160
     )
     if (!text) return
-    const id = registerElement(el, roleFor(el), text)
+    // Identity uses the name the resolver recomputes, not the displayed text,
+    // which differs for aria-labelled leaves and past the name's length cap.
+    const id = registerElement(el, roleFor(el), nameFor(el))
     textLineCount++
     const marker = isNew(el) ? ' new' : ''
     const lineIndex = lines.length

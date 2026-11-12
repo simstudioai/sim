@@ -683,6 +683,23 @@ describe('collectSnapshot', () => {
     expect(clickElement(ref)).toMatchObject({ dispatched: true })
   })
 
+  it('acts on a text line whose accessible name differs from its rendered text', () => {
+    document.body.innerHTML = '<p><span aria-label="Details">i</span></p>'
+    visible(document.querySelector('span') as HTMLSpanElement)
+    const ref = refFor(outlineOf(collectSnapshot()), 'i')
+
+    expect(clickElement(ref)).toMatchObject({ dispatched: true })
+  })
+
+  it('acts on a text line longer than the identity name budget', () => {
+    const text = 'Terms of service '.repeat(10).trim()
+    document.body.innerHTML = `<p>${text}</p>`
+    visible(document.querySelector('p') as HTMLParagraphElement)
+    const ref = refFor(outlineOf(collectSnapshot()), text.slice(0, 160))
+
+    expect(clickElement(ref)).toMatchObject({ dispatched: true })
+  })
+
   it('invalidates a connected ref whose name changed to a longer, different word', () => {
     document.body.innerHTML = '<div role="listitem">Item 1</div>'
     const row = visible(document.querySelector('[role="listitem"]') as HTMLDivElement)
