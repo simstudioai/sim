@@ -54,10 +54,13 @@ declare global {
       observedRoots: WeakSet<ParentNode>
     }>
     __simAgentNextElementId?: number
-    /** Each element's ref and the identity it was issued for, so a later snapshot keeps the ref. */
-    __simAgentIssuedRefs?: WeakMap<Element, { id: number; identity: string; namespace: number }>
-    /** Refs issued by earlier snapshots of this document, resolvable while their element lives. */
-    __simAgentEarlierRefs?: Map<number, { element: WeakRef<Element>; locator: SnapshotRefLocator }>
+    /** Every ref this document issued, resolvable while its element keeps that identity. */
+    __simAgentIssuedRefs?: Map<
+      number,
+      { element: WeakRef<Element>; locator: SnapshotRefLocator; namespace: number }
+    >
+    /** The ref each element was last issued, so an unchanged element keeps it. */
+    __simAgentRefOfElement?: WeakMap<Element, number>
     /** Elements an earlier snapshot of this document listed; a later snapshot marks the rest `new`. */
     __simAgentShownElements?: WeakSet<Element>
     /** Installed by {@link installPageHelpers} before every page function; cached per call. */
@@ -596,17 +599,13 @@ export function collectSnapshot(
     return ''
   }
 
-  // A ref the model already holds stays valid while its element keeps the
-  // identity it was issued for; a changed or replaced element gets a new ref,
-  // so an id never comes to mean a different element. Refs are reused only
-  // within the browser scope (refNamespace) that issued them.
-  const issuedRefs = window.__simAgentIssuedRefs ?? new WeakMap()
+  // An unchanged element keeps its ref, and a ref stays resolvable after a
+  // later snapshot leaves it out; a changed element gets a new ref.
+  const issuedRefs = window.__simAgentIssuedRefs ?? new Map()
   window.__simAgentIssuedRefs = issuedRefs
-  // A ref from an earlier snapshot still resolves while its element lives,
-  // even when a later scoped, query, or modal-covered snapshot left it out.
-  const earlierRefs = window.__simAgentEarlierRefs ?? new Map()
-  window.__simAgentEarlierRefs = earlierRefs
-  const earlierRefCap = 5000
+  const refOfElement = window.__simAgentRefOfElement ?? new WeakMap()
+  window.__simAgentRefOfElement = refOfElement
+  const issuedRefCap = 5000
   const registerElement = (el: Element, role: string, name: string): number => {
     const locator = {
       url: pageUrlFor(el),
@@ -617,22 +616,28 @@ export function collectSnapshot(
       ancestor: ancestorSignature(el),
       context: contextSignature(el),
     }
-    const identity = JSON.stringify([locator.tag, locator.role, locator.name, locator.attributes])
-    const issued = issuedRefs.get(el)
+    const priorId = refOfElement.get(el)
+    const prior = priorId === undefined ? undefined : issuedRefs.get(priorId)
+    const unchanged =
+      prior !== undefined &&
+      prior.namespace === refNamespace &&
+      prior.locator.tag === locator.tag &&
+      prior.locator.role === locator.role &&
+      prior.locator.name === locator.name &&
+      Object.keys({ ...prior.locator.attributes, ...locator.attributes }).every(
+        (key) => prior.locator.attributes[key] === locator.attributes[key]
+      )
     const id =
-      issued &&
-      issued.namespace === refNamespace &&
-      issued.identity === identity &&
-      registry[issued.id] === undefined
-        ? issued.id
+      unchanged && priorId !== undefined && registry[priorId] === undefined
+        ? priorId
         : nextElementId++
-    issuedRefs.set(el, { id, identity, namespace: refNamespace })
+    refOfElement.set(el, id)
     registry[id] = el
     locators[id] = locator
-    earlierRefs.delete(id)
-    earlierRefs.set(id, { element: new WeakRef(el), locator })
-    const oldest = earlierRefs.keys().next()
-    if (earlierRefs.size > earlierRefCap && !oldest.done) earlierRefs.delete(oldest.value)
+    issuedRefs.delete(id)
+    issuedRefs.set(id, { element: new WeakRef(el), locator, namespace: refNamespace })
+    const oldest = issuedRefs.keys().next()
+    if (issuedRefs.size > issuedRefCap && !oldest.done) issuedRefs.delete(oldest.value)
     refCount++
     window.__simAgentNextElementId = nextElementId
     return id
@@ -724,8 +729,7 @@ export function collectSnapshot(
       160
     )
     if (!text) return
-    // Identity uses the name the resolver recomputes, not the displayed text,
-    // which differs for aria-labelled leaves and past the name's length cap.
+    // The resolver recomputes nameFor, which differs from the shown text for aria-labelled or long leaves.
     const id = registerElement(el, roleFor(el), nameFor(el))
     textLineCount++
     const marker = isNew(el) ? ' new' : ''
@@ -889,8 +893,8 @@ export function collectSnapshot(
       window.__simAgentStaleReason = 'the scoped snapshot root left the DOM'
       return null
     }
-    const earlier = locators[id] ? undefined : earlierRefs.get(id)
-    const locator = locators[id] ?? earlier?.locator
+    const issued = issuedRefs.get(id)
+    const locator = issued?.locator
     if (!locator) {
       window.__simAgentStaleReason = `id ${id} is not in the current snapshot's registry`
       return null
@@ -1021,7 +1025,7 @@ export function collectSnapshot(
       return true
     }
 
-    const current = registry[id] ?? earlier?.element.deref()
+    const current = registry[id] ?? issued?.element.deref()
     if (current?.isConnected) {
       if (!identityMatches(current, true)) {
         window.__simAgentStaleReason = `the node is still mounted but its identity drifted (now <${String(current.tagName || '').toLowerCase()}> role=${roleFor(current) || 'none'} name="${nameFor(current).slice(0, 60)}")`
@@ -1911,12 +1915,8 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
       coveredByRelatedPopup = true
     }
   }
-  // Typing reaches a focused top-page field through the keyboard, never the
-  // pointer, so an overlay over it (a promo card, a sticky banner) does not
-  // stop the text, as Playwright's fill does not hit-test either. Modal
-  // dialogs still refuse: their background is aria-hidden or inert, which the
-  // visibility and focus checks above reject. Framed fields keep the strict
-  // check because the driver maps their point through the parent page.
+  // Top-page typing goes through keyboard focus, so a non-modal overlay does not block it (modals
+  // fail the aria-hidden/inert checks above); framed fields keep the check for their mapped point.
   const topPageField = view === window && window.top === window
   let coveredBy: string | undefined
   if (!chosenPoint && topPageField && blockedPoints.length > 0) {

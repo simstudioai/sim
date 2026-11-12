@@ -20,12 +20,9 @@ const OBSERVABLE_ACTIONS: ReadonlySet<BrowserToolName> = new Set([
   'browser_wait_for',
 ])
 
-/** Waits exist to see what the page became, so they observe even when the model omits observe. */
-const OBSERVES_BY_DEFAULT: ReadonlySet<BrowserToolName> = new Set(['browser_wait_for'])
-
-/** Whether this call ends with a post-action observation, requested or by default. */
-export function observesAfterAction(tool: BrowserToolName, params: Record<string, unknown>): boolean {
-  return params.observe !== undefined || OBSERVES_BY_DEFAULT.has(tool)
+/** The call's post-action observation request; a wait observes by default, to show what the page became. */
+export function observeRequest(tool: BrowserToolName, params: Record<string, unknown>): unknown {
+  return params.observe ?? (tool === 'browser_wait_for' ? {} : undefined)
 }
 
 /** Preserves a dispatched action when its acknowledgement or observation is interrupted. */
@@ -47,7 +44,7 @@ export async function withPostActionObservation(
   observe: (query: string | undefined) => Promise<unknown>,
   assertCurrent: () => void
 ): Promise<unknown> {
-  const request = params.observe ?? (OBSERVES_BY_DEFAULT.has(tool) ? {} : undefined)
+  const request = observeRequest(tool, params)
   if (request === undefined) return action(params)
   if (
     !OBSERVABLE_ACTIONS.has(tool) ||

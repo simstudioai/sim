@@ -3155,35 +3155,32 @@ describe('credential protection', () => {
   it.each([
     ['browser_snapshot', 'true'],
     ['browser_find', 'false'],
-  ] as const)(
-    'passes the current root ref to %s',
-    async (tool, markNew) => {
-      const contents = await openPage()
-      respondWith(contents, {
-        collectSnapshot: {
-          url: 'https://example.com/login',
-          title: 'Scoped',
-          scoped: true,
-          outline: '- button "Save" [ref=1]',
-          truncated: false,
-          refIds: [1],
-          refLineIndexes: { 1: 0 },
-          nextElementId: 2,
-        },
-      })
-      const result = await driver.executeTool('chat-test', tool, { elementId: 0, query: 'Save' })
-      expect(result).toMatchObject({ ok: true, result: { scoped: true } })
-      expect(
-        vi
-          .mocked(contents.executeJavaScript)
-          .mock.calls.some(
-            ([expression]) =>
-              isPageCall(expression, 'collectSnapshot') &&
-              expression.includes(`.apply(null, [1,0,${markNew},`)
-          )
-      ).toBe(true)
-    }
-  )
+  ] as const)('passes the current root ref to %s', async (tool, markNew) => {
+    const contents = await openPage()
+    respondWith(contents, {
+      collectSnapshot: {
+        url: 'https://example.com/login',
+        title: 'Scoped',
+        scoped: true,
+        outline: '- button "Save" [ref=1]',
+        truncated: false,
+        refIds: [1],
+        refLineIndexes: { 1: 0 },
+        nextElementId: 2,
+      },
+    })
+    const result = await driver.executeTool('chat-test', tool, { elementId: 0, query: 'Save' })
+    expect(result).toMatchObject({ ok: true, result: { scoped: true } })
+    expect(
+      vi
+        .mocked(contents.executeJavaScript)
+        .mock.calls.some(
+          ([expression]) =>
+            isPageCall(expression, 'collectSnapshot') &&
+            expression.includes(`.apply(null, [1,0,${markNew},`)
+        )
+    ).toBe(true)
+  })
 
   it.each([
     { kind: 'input:checkbox', checked: true, disabled: false, readOnly: false },

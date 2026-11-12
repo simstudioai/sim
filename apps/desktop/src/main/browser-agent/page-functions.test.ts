@@ -353,13 +353,17 @@ describe('combobox typing surfaces', () => {
   })
 
   it('types into a top-page field a promo card covers, naming the cover', () => {
-    document.body.innerHTML = '<input type="search" aria-label="Search" /><div>Shop for your home</div>'
+    document.body.innerHTML =
+      '<input type="search" aria-label="Search" /><div>Shop for your home</div>'
     const input = visible(document.querySelector('input') as HTMLInputElement)
     const card = visible(document.querySelector('div') as HTMLDivElement)
     register(input)
     Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => card })
 
-    expect(focusElementForTyping(0)).toMatchObject({ focused: true, coveredBy: 'Shop for your home' })
+    expect(focusElementForTyping(0)).toMatchObject({
+      focused: true,
+      coveredBy: 'Shop for your home',
+    })
     expect(typeIntoElement(0, 'cooking pot', false)).toMatchObject({ dispatched: true })
     expect(input.value).toBe('cooking pot')
   })
@@ -705,7 +709,8 @@ describe('collectSnapshot', () => {
     const menu = visible(document.querySelector('[role="button"]') as HTMLDivElement)
     const ref = refFor(outlineOf(collectSnapshot()), 'Products ▾')
 
-    ;(menu.querySelector('ul') as HTMLUListElement).innerHTML = ' <li>Starter</li> <li>Business</li>'
+    ;(menu.querySelector('ul') as HTMLUListElement).innerHTML =
+      ' <li>Starter</li> <li>Business</li>'
 
     expect(clickElement(ref)).toMatchObject({ dispatched: true })
   })
