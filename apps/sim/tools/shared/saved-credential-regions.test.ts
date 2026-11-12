@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import * as hexTools from '@/tools/hex'
 import * as langsmithTools from '@/tools/langsmith'
 import * as launchDarklyTools from '@/tools/launchdarkly'
 import * as newRelicTools from '@/tools/new_relic'
@@ -82,16 +83,27 @@ const FAMILIES: {
     ],
     refusesUnknownRegion: true,
   },
+  {
+    service: 'Hex',
+    tools: hexTools,
+    defaultHost: 'app.hex.tech',
+    regions: [
+      ['app.hex.tech', 'app.hex.tech'],
+      ['eu.hex.tech', 'eu.hex.tech'],
+      ['acme.hex.tech', 'acme.hex.tech'],
+    ],
+    refusesUnknownRegion: true,
+  },
 ]
 
 /**
- * A value of each param's type, so every URL builder can run. Hidden params are left unset: only
- * a saved credential fills them.
+ * A value of each required param's type, so every URL builder can run. Optional params are left
+ * unset, and so are hidden ones: only a saved credential fills them.
  */
 function placeholderParams(tool: ToolConfig): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(tool.params)
-      .filter(([, param]) => param.visibility !== 'hidden')
+      .filter(([, param]) => param.required === true && param.visibility !== 'hidden')
       .map(([name, param]) => {
         switch (param.type) {
           case 'number':

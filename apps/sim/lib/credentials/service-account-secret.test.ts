@@ -894,6 +894,24 @@ describe('a token provider whose region or host defaults to the one it always us
     ],
     ['sendgrid-service-account', undefined, 'https://api.sendgrid.com/v3/scopes', 'global'],
     ['sendgrid-service-account', 'eu', 'https://api.eu.sendgrid.com/v3/scopes', 'eu'],
+    [
+      'hex-service-account',
+      undefined,
+      'https://app.hex.tech/api/v1/projects?limit=1',
+      'app.hex.tech',
+    ],
+    [
+      'hex-service-account',
+      'eu.hex.tech',
+      'https://eu.hex.tech/api/v1/projects?limit=1',
+      'eu.hex.tech',
+    ],
+    [
+      'hex-service-account',
+      'https://Acme.hex.tech/',
+      'https://acme.hex.tech/api/v1/projects?limit=1',
+      'acme.hex.tech',
+    ],
   ])('%s with %s is checked at %s and stored as %s', async (providerId, domain, url, stored) => {
     const result = await verifyAndBuildServiceAccountSecret(providerId, {
       apiToken: 'token-1',
@@ -912,6 +930,9 @@ describe('a token provider whose region or host defaults to the one it always us
     ['langsmith-service-account', 'eu.api.smith.langchain.com.example.com'],
     ['square-service-account', 'connect.squareupsandbox.com'],
     ['sendgrid-service-account', 'api.eu.sendgrid.com'],
+    ['hex-service-account', 'hex.tech.example.com'],
+    ['hex-service-account', 'acme.hex.tech@example.com'],
+    ['hex-service-account', 'a.b.hex.tech'],
   ])(
     'refuses %s with an unlisted region or host %s without sending the token',
     async (providerId, domain) => {

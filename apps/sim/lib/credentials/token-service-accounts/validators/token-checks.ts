@@ -29,6 +29,7 @@ import { normalizeEmailBisonBaseUrl } from '@/tools/emailbison/utils'
 import { normalizeGitLabHost } from '@/tools/gitlab/utils'
 import { gongAuthorization } from '@/tools/gong/utils'
 import { GRANOLA_API_BASE, granolaHeaders } from '@/tools/granola/utils'
+import { hexApiBase, normalizeHexHost } from '@/tools/hex/utils'
 import { buildJotformHeaders, buildJotformUrl, JOTFORM_REGION_HOSTS } from '@/tools/jotform/utils'
 import { LANGSMITH_REGIONS, langsmithApiBase } from '@/tools/langsmith/utils'
 import { LAUNCHDARKLY_INSTANCES, launchDarklyApiBase } from '@/tools/launchdarkly/utils'
@@ -801,11 +802,15 @@ export const validateGranolaServiceAccount = tokenCheckValidator({
   }),
 })
 
-/** Hex's list-projects endpoint (the one the Hex tools call) answers 200 for a valid token and 401 otherwise. */
+/**
+ * Hex's list-projects endpoint (the one the Hex tools call) answers 200 for a valid token and 401
+ * otherwise, on the hex.tech host of the token's workspace.
+ */
 export const validateHexServiceAccount = tokenCheckValidator({
   serviceLabel: 'Hex',
-  request: ({ apiToken }) => ({
-    url: 'https://app.hex.tech/api/v1/projects?limit=1',
+  domain: ({ domain }) => normalizeHexHost(domain),
+  request: ({ apiToken, domain }) => ({
+    url: `${hexApiBase(domain)}/projects?limit=1`,
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
 })

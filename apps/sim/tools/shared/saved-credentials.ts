@@ -272,7 +272,10 @@ export const GRAFANA_CREDENTIAL_OAUTH = tokenCredentialOAuth('grafana', {
 })
 export const GRAIN_CREDENTIAL_OAUTH = tokenCredentialOAuth('grain', { apiKey: 'accessToken' })
 export const GRANOLA_CREDENTIAL_OAUTH = tokenCredentialOAuth('granola', { apiKey: 'accessToken' })
-export const HEX_CREDENTIAL_OAUTH = tokenCredentialOAuth('hex', { apiKey: 'accessToken' })
+export const HEX_CREDENTIAL_OAUTH = tokenCredentialOAuth('hex', {
+  apiKey: 'accessToken',
+  host: 'domain',
+})
 export const HUGGINGFACE_CREDENTIAL_OAUTH = tokenCredentialOAuth('huggingface', {
   apiKey: 'accessToken',
 })

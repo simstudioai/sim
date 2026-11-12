@@ -12,6 +12,7 @@
  * `@/lib/credentials/token-service-accounts/server`.
  */
 
+import { DEFAULT_HEX_HOST, HEX_HOST_PATTERN } from '@/tools/hex/utils'
 import { DEFAULT_LANGSMITH_REGION, LANGSMITH_REGION_OPTIONS } from '@/tools/langsmith/utils'
 import {
   DEFAULT_LAUNCHDARKLY_INSTANCE,
@@ -1096,9 +1097,22 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     connectNoun: 'API token',
     fields: [
       { id: 'apiToken', label: 'API token', placeholder: 'Paste your Hex API token', secret: true },
+      {
+        id: 'domain',
+        label: 'Workspace host',
+        placeholder: DEFAULT_HEX_HOST,
+        secret: false,
+        defaultValue: DEFAULT_HEX_HOST,
+        hintPattern: HEX_HOST_PATTERN,
+        hintMessage:
+          'The hex.tech host your workspace signs in at: app.hex.tech (default), eu.hex.tech, or your single-tenant host.',
+      },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/hex',
-    helpText: 'Sim checks the token by listing projects, so it needs Read projects access.',
+    helpText:
+      'Sim checks the token by listing projects, so it needs Read projects access. Leave the host as app.hex.tech unless your workspace signs in at another hex.tech address, such as eu.hex.tech.',
+    invalidCredentialsHelp:
+      'Hex rejected this token. Check that it is active, has Read projects access, and belongs to the workspace host you entered.',
   },
   [HUGGINGFACE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: HUGGINGFACE_SERVICE_ACCOUNT_PROVIDER_ID,

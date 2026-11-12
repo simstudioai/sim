@@ -1,4 +1,5 @@
 import type { HexGetGroupParams, HexGetGroupResponse } from '@/tools/hex/types'
+import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
 import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -10,6 +11,7 @@ export const getGroupTool: ToolConfig<HexGetGroupParams, HexGetGroupResponse> = 
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
+    host: HEX_HOST_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -25,7 +27,7 @@ export const getGroupTool: ToolConfig<HexGetGroupParams, HexGetGroupResponse> = 
   },
 
   request: {
-    url: (params) => `https://app.hex.tech/api/v1/groups/${params.groupId.trim()}`,
+    url: (params) => `${hexApiBase(params.host)}/groups/${params.groupId.trim()}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
