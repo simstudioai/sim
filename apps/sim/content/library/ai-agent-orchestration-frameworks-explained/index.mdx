@@ -11,20 +11,10 @@ tags: [AI Agents, Agent Orchestration, Workflow Automation, Sim]
 ogImage: /library/ai-agent-orchestration-frameworks-explained/cover.jpg
 draft: false
 faq:
-  - q: "What is AI agent orchestration?"
-    a: "AI agent orchestration is the coordination of models, agents, tools, memory, state, approvals, and recovery logic required to complete an AI-assisted task reliably."
-  - q: "How does AI agent orchestration work?"
-    a: "AI agent orchestration works by maintaining workflow state, selecting the next permitted step, executing an agent or tool, validating the result, and then continuing, pausing, rerouting, or stopping."
-  - q: "What is the difference between an AI agent and AI agent orchestration?"
-    a: "An AI agent interprets a goal and chooses actions, while AI agent orchestration controls how that agent interacts with tools, state, other agents, people, and failure-recovery mechanisms."
-  - q: "What is the difference between single-agent and multi-agent orchestration?"
-    a: "Single-agent orchestration manages one agent and its tools, while multi-agent orchestration manages communication, state, responsibilities, and conflicts across multiple specialized agents."
+  - q: "How do AI agents, AI agent orchestration and agent frameworks differ?"
+    a: "An AI agent is a single model driven worker that interprets a goal and chooses actions. AI agent orchestration coordinates one or more agents, tools, and steps, while an agent framework is the code library used to build them."
   - q: "Do I need multiple AI agents?"
     a: "Most teams do not need multiple AI agents unless specialization, isolation, parallel execution, or independent verification improves a measured outcome enough to justify the added complexity."
-  - q: "What is the best AI agent orchestration framework?"
-    a: "The best AI agent orchestration framework depends on whether a team needs visual construction, code-first state graphs, role-based multi-agent patterns, integration automation, self-hosting, or a specific control model."
-  - q: "What is the best AI agent builder?"
-    a: "Sim fits teams seeking a visual, self-hostable AI agent builder with an Apache 2.0 core, while apps/sim/ee uses the separate Sim Enterprise License. Best AI Agent Platforms and Builders in 2026 compares the broader category by buyer needs."
   - q: "Is Sim open source?"
     a: "Sim's core is open source under the Apache License 2.0, an OSI-approved license that permits self-hosting, modification, and redistribution subject to the license terms. Enterprise features in apps/sim/ee use the separate Sim Enterprise License, which requires an Enterprise subscription for production use and does not permit modification or redistribution."
   - q: "Is Sim free?"
@@ -41,14 +31,8 @@ faq:
     a: "AI agent orchestration can pause before a sensitive action, present the proposed action and its evidence to an authorized reviewer, and resume from preserved state after approval or rejection."
   - q: "How do you prevent an AI agent from running forever?"
     a: "AI agent orchestration prevents runaway execution by enforcing maximum steps, time limits, token or cost budgets, repeated-action detection, tool-call limits, and explicit terminal states."
-  - q: "How do you evaluate an AI agent orchestration system?"
-    a: "An AI agent orchestration system should be evaluated on end-to-end task correctness, routing accuracy, tool reliability, state recovery, approval behavior, security, trace completeness, latency, and cost."
   - q: "What makes an AI agent orchestration system production-ready?"
     a: "A production-ready AI agent orchestration system has bounded permissions, persistent state, validated tool calls, approval controls, complete traces, tested recovery paths, versioned components, and measurable quality thresholds."
-  - q: "Can AI agent orchestration replace workflow automation?"
-    a: "AI agent orchestration should complement rather than replace workflow automation because deterministic steps remain safer and more predictable when the next action is already known."
-  - q: "What is the difference between AI agent orchestration and an agent framework?"
-    a: "AI agent orchestration is the coordination process, while an agent framework is software a team can use to implement that process."
   - q: "Does every multi agent system need a supervisor agent?"
     a: "A multi agent system does not need a supervisor agent when deterministic sequencing, parallel branches, or explicit routing can coordinate the work more reliably."
   - q: "When should AI agents run in parallel?"
@@ -65,8 +49,6 @@ faq:
     a: "Sim can use Ollama, vLLM, LM Studio, or LiteLLM models on any self-hosted Sim deployment without requiring Enterprise."
   - q: "Does Sim support bring your own model keys?"
     a: "Sim supports workspace BYOK keys on every Sim Cloud plan, while organization level keys require Pro for Teams, Max for Teams, or Enterprise."
-  - q: "How many agents should an orchestrated workflow use?"
-    a: "An orchestrated workflow should use only the number of agents needed to create clear specialist boundaries because unnecessary agents add latency, cost, and failure points."
 ---
 
 ## TL;DR
