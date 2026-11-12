@@ -603,6 +603,8 @@ export const env = createEnv({
     ZOOM_MCP_CLIENT_SECRET:                z.string().optional(),                  // Zoom Search MCP OAuth client secret
     ZOOM_CLIENT_ID:                        z.string().optional(),                  // Zoom OAuth client ID
     ZOOM_CLIENT_SECRET:                    z.string().optional(),                  // Zoom OAuth client secret
+    WEBEX_CLIENT_ID:                       z.string().optional(),                  // Webex OAuth client ID
+    WEBEX_CLIENT_SECRET:                   z.string().optional(),                  // Webex OAuth client secret
     WORDPRESS_CLIENT_ID:                   z.string().optional(),                  // WordPress.com OAuth client ID
     WORDPRESS_CLIENT_SECRET:               z.string().optional(),                  // WordPress.com OAuth client secret
     SPOTIFY_CLIENT_ID:                     z.string().optional(),                  // Spotify OAuth client ID

@@ -366,6 +366,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/vercel.mdx',
   'integrations/wealthbox-service-account.mdx',
   'integrations/wealthbox.mdx',
+  'integrations/webex.mdx',
   'integrations/webflow-service-account.mdx',
   'integrations/webflow.mdx',
   'integrations/whatsapp.mdx',

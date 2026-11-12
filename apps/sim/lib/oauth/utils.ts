@@ -596,6 +596,16 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'webhooks:read': 'Read webhook subscriptions',
   'webhooks:write': 'Create and manage webhook subscriptions',
   'me:read': 'Read your user profile',
+
+  // Webex scopes
+  'spark:messages_write': 'Send messages to Webex rooms and people',
+  'spark:messages_read': 'Read messages from Webex rooms',
+  'spark:rooms_read': 'List and read Webex rooms',
+  'spark:rooms_write': 'Create and update Webex rooms',
+  'spark:memberships_read': 'List members of Webex rooms',
+  'spark:people_read': 'Read Webex people profiles',
+  'meeting:schedules_write': 'Create and update Webex meetings',
+  'meeting:schedules_read': 'Read Webex meeting schedules',
 }
 
 /** Scope labels that cannot be keyed by scope alone because providers reuse names. */

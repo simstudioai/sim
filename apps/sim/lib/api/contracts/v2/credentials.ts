@@ -310,6 +310,7 @@ export const V2_OAUTH_CONNECTION_PROVIDER_IDS = [
   'salesforce-sandbox',
   'zoho-desk',
   'zoom',
+  'webex',
   'wordpress',
   'spotify',
 ] as const

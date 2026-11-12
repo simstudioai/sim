@@ -452,6 +452,7 @@ import {
 import { VisionBlock, VisionV2Block } from '@/blocks/blocks/vision'
 import { WaitBlock } from '@/blocks/blocks/wait'
 import { WealthboxBlock, WealthboxBlockMeta } from '@/blocks/blocks/wealthbox'
+import { WebexBlock, WebexBlockMeta } from '@/blocks/blocks/webex'
 import { WebflowBlock, WebflowBlockMeta } from '@/blocks/blocks/webflow'
 import { WebhookRequestBlock } from '@/blocks/blocks/webhook_request'
 import { WhatsAppBlock, WhatsAppBlockMeta, WhatsAppV2Block } from '@/blocks/blocks/whatsapp'
@@ -945,6 +946,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   vision_v2: VisionV2Block,
   wait: WaitBlock,
   wealthbox: WealthboxBlock,
+  webex: WebexBlock,
   webflow: WebflowBlock,
   webhook_request: WebhookRequestBlock,
   whatsapp: WhatsAppBlock,
@@ -1269,6 +1271,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   vanta: VantaBlockMeta,
   vercel: VercelBlockMeta,
   wealthbox: WealthboxBlockMeta,
+  webex: WebexBlockMeta,
   webflow: WebflowBlockMeta,
   whatsapp: WhatsAppBlockMeta,
   wikipedia: WikipediaBlockMeta,

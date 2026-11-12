@@ -2685,6 +2685,65 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
     },
 
     {
+      providerId: 'webex',
+      clientId: env.WEBEX_CLIENT_ID as string,
+      clientSecret: env.WEBEX_CLIENT_SECRET as string,
+      authorizationUrl: 'https://webexapis.com/v1/authorize',
+      tokenUrl: 'https://webexapis.com/v1/access_token',
+      userInfoUrl: 'https://webexapis.com/v1/people/me',
+      scopes: getCanonicalScopesForProvider('webex'),
+      responseType: 'code',
+      accessType: 'offline',
+      authentication: 'post',
+      prompt: 'consent',
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/webex`,
+      getUserInfo: async (tokens) => {
+        try {
+          logger.info('Fetching Webex user profile')
+
+          const response = await fetch('https://webexapis.com/v1/people/me', {
+            headers: {
+              Authorization: `Bearer ${tokens.accessToken}`,
+            },
+          })
+
+          if (!response.ok) {
+            await response.text().catch(() => {})
+            logger.error('Failed to fetch Webex user info', {
+              status: response.status,
+              statusText: response.statusText,
+            })
+            throw new Error('Failed to fetch user info')
+          }
+
+          const profile = await response.json()
+          const person =
+            isRecordLike(profile) && isRecordLike(profile.item)
+              ? (profile.item as Record<string, unknown>)
+              : (profile as Record<string, unknown>)
+          const id = typeof person.id === 'string' ? person.id : undefined
+          const email = typeof person.email === 'string' ? person.email : undefined
+          const displayName =
+            (typeof person.displayName === 'string' ? person.displayName : '').trim() ||
+            'Webex User'
+
+          return {
+            id: `${id ?? 'webex-user'}-${generateId()}`,
+            name: displayName,
+            email: email || syntheticConnectorEmail('webex', id),
+            emailVerified: Boolean(email),
+            image: typeof person.avatar === 'string' ? person.avatar : undefined,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }
+        } catch (error) {
+          logger.error('Error in Webex getUserInfo:', { error })
+          return null
+        }
+      },
+    },
+
+    {
       providerId: 'spotify',
       clientId: env.SPOTIFY_CLIENT_ID as string,
       clientSecret: env.SPOTIFY_CLIENT_SECRET as string,

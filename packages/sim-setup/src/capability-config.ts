@@ -1149,6 +1149,10 @@ export const OAUTH_CLIENT_SETUP_FIELDS = {
     ZOOM_CLIENT_ID: { input: 'text' },
     ZOOM_CLIENT_SECRET: { input: 'secret' },
   },
+  webex: {
+    WEBEX_CLIENT_ID: { input: 'text' },
+    WEBEX_CLIENT_SECRET: { input: 'secret' },
+  },
   wordpress: {
     WORDPRESS_CLIENT_ID: { input: 'text' },
     WORDPRESS_CLIENT_SECRET: { input: 'secret' },

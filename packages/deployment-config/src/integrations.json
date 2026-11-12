@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-11",
+  "updatedAt": "2026-11-12",
   "integrations": [
     {
       "type": "onepassword",
@@ -30362,6 +30362,83 @@
       "integrationType": "sales",
       "tags": ["sales-engagement"],
       "updatedAt": "2026-10-14"
+    },
+    {
+      "type": "webex",
+      "slug": "webex",
+      "name": "Webex",
+      "description": "Send messages, manage rooms and schedule Webex meetings",
+      "longDescription": "Connect your Webex account to send and read messages, manage rooms and room members, look up people, and schedule, update, and cancel meetings from your workflows.",
+      "bgColor": "#00BCEB",
+      "iconName": "WebexIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/webex",
+      "operations": [
+        {
+          "name": "Send Message",
+          "description": "Send a message to a Webex room or as a direct message to a person. Supports plain text and Markdown."
+        },
+        {
+          "name": "List Messages",
+          "description": "List messages in a Webex room, from newest to oldest."
+        },
+        {
+          "name": "Get Message",
+          "description": "Get details of a specific Webex message by its ID."
+        },
+        {
+          "name": "Delete Message",
+          "description": "Delete a specific Webex message by its ID."
+        },
+        {
+          "name": "List Rooms",
+          "description": "List Webex rooms (spaces) that the authenticated user is a member of."
+        },
+        {
+          "name": "Create Room",
+          "description": "Create a new Webex room (space)."
+        },
+        {
+          "name": "Get Room",
+          "description": "Get details of a specific Webex room by its ID."
+        },
+        {
+          "name": "List Room Members",
+          "description": "List members (memberships) in a Webex room."
+        },
+        {
+          "name": "Get Person",
+          "description": "Get details of a Webex person (user) by their ID. Use \"me\" to get the authenticated user."
+        },
+        {
+          "name": "Create Meeting",
+          "description": "Schedule a new Webex meeting."
+        },
+        {
+          "name": "List Meetings",
+          "description": "List Webex meetings for the authenticated user."
+        },
+        {
+          "name": "Get Meeting",
+          "description": "Get details of a specific Webex meeting by its ID."
+        },
+        {
+          "name": "Update Meeting",
+          "description": "Update an existing Webex meeting."
+        },
+        {
+          "name": "Delete Meeting",
+          "description": "Delete (cancel) a Webex meeting by its ID."
+        }
+      ],
+      "operationCount": 14,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "webex",
+      "category": "tools",
+      "integrationType": "communication",
+      "tags": ["messaging", "meeting", "calendar", "automation"],
+      "updatedAt": "2026-11-12"
     },
     {
       "type": "webflow",

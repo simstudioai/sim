@@ -310,6 +310,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   vision_v2: 'Vision',
   wait: 'Wait',
   wealthbox: 'Wealthbox',
+  webex: 'Webex',
   webflow: 'Webflow',
   webhook_request: 'Webhook',
   whatsapp_v2: 'WhatsApp',

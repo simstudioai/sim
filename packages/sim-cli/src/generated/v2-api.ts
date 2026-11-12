@@ -2044,6 +2044,7 @@ export type CreateCredentialConnectionBody =
         | 'salesforce-sandbox'
         | 'zoho-desk'
         | 'zoom'
+        | 'webex'
         | 'wordpress'
         | 'spotify'
     }

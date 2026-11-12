@@ -1,0 +1,506 @@
+---
+title: Webex
+description: Send messages, manage rooms and schedule Webex meetings
+integration:
+  type: "webex"
+  color: "#00BCEB"
+---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
+
+{/* MANUAL-CONTENT-START:intro */}
+With the [Webex](https://www.webex.com/) block, you can:
+
+- **Messaging**: send plain-text or Markdown messages to a room or a person, read messages, delete them, and list a room's history.
+- **Rooms**: list rooms, create spaces, read room details, and list a room's members.
+- **People**: look up a person's profile by ID.
+- **Meetings**: schedule, read, update, and cancel Webex meetings.
+
+Connect a Webex account from the block or from **Integrations** in your workspace. For a self-hosted deployment, register your own Webex integration at [developer.webex.com](https://developer.webex.com/) and set `WEBEX_CLIENT_ID` and `WEBEX_CLIENT_SECRET`.
+
+In Sim, the Webex block lets your agents announce a release in a team room, digest a room's conversation, schedule meetings from a form, and alert a room when a job fails.
+{/* MANUAL-CONTENT-END */}
+
+## OAuth scopes [#oauth-scopes]
+
+Sim requests these scopes when someone connects a Webex account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/webex` |
+| Environment variables | `WEBEX_CLIENT_ID`, `WEBEX_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `spark:messages_write` | Send messages to Webex rooms and people |
+| `spark:messages_read` | Read messages from Webex rooms |
+| `spark:rooms_read` | List and read Webex rooms |
+| `spark:rooms_write` | Create and update Webex rooms |
+| `spark:memberships_read` | List members of Webex rooms |
+| `spark:people_read` | Read Webex people profiles |
+| `meeting:schedules_write` | Create and update Webex meetings |
+| `meeting:schedules_read` | Read Webex meeting schedules |
+
+## Use the block [#usage-instructions]
+
+Connect your Webex account to send and read messages, manage rooms and room members, look up people, and schedule, update, and cancel meetings from your workflows.
+
+## Actions
+
+### Webex Send Message
+
+Send a message to a Webex room or as a direct message to a person. Supports plain text and Markdown.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `roomId` | string | No | Room ID to send the message to \(e.g., Y2lzY29zcGFyazovL3Vz...\) |
+| `toPersonId` | string | No | Person ID for direct messages |
+| `toPersonEmail` | string | No | Email address for direct messages \(e.g., user@example.com\) |
+| `text` | string | No | Plain text message content |
+| `markdown` | string | No | Markdown-formatted message content |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | object | The sent message object |
+|   ↳ `id` | string | Message ID |
+|   ↳ `roomId` | string | Room ID where the message was sent |
+|   ↳ `roomType` | string | Room type: direct or group |
+|   ↳ `text` | string | Plain text of the message |
+|   ↳ `markdown` | string | Markdown text of the message |
+|   ↳ `personId` | string | Sender person ID |
+|   ↳ `personEmail` | string | Sender email address |
+|   ↳ `created` | string | ISO 8601 creation timestamp |
+
+</ReferenceDetails>
+
+### Webex List Messages
+
+List messages in a Webex room, from newest to oldest.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `roomId` | string | Yes | Room ID to list messages from |
+| `max` | number | No | Maximum number of messages to return \(1-1000, default 50\) |
+| `before` | string | No | ISO 8601 date – list messages sent before this date |
+| `beforeMessage` | string | No | Message ID – list messages sent before this message |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messages` | array | List of Webex messages |
+|   ↳ `id` | string | Message ID |
+|   ↳ `roomId` | string | Room ID where the message was sent |
+|   ↳ `roomType` | string | Room type: direct or group |
+|   ↳ `text` | string | Plain text of the message |
+|   ↳ `markdown` | string | Markdown text of the message |
+|   ↳ `personId` | string | Sender person ID |
+|   ↳ `personEmail` | string | Sender email address |
+|   ↳ `created` | string | ISO 8601 creation timestamp |
+
+</ReferenceDetails>
+
+### Webex Get Message
+
+Get details of a specific Webex message by its ID.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | The message ID to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | object | The message object |
+|   ↳ `id` | string | Message ID |
+|   ↳ `roomId` | string | Room ID where the message was sent |
+|   ↳ `roomType` | string | Room type: direct or group |
+|   ↳ `text` | string | Plain text of the message |
+|   ↳ `markdown` | string | Markdown text of the message |
+|   ↳ `personId` | string | Sender person ID |
+|   ↳ `personEmail` | string | Sender email address |
+|   ↳ `created` | string | ISO 8601 creation timestamp |
+
+</ReferenceDetails>
+
+### Webex Delete Message
+
+Delete a specific Webex message by its ID.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | The message ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the deletion succeeded |
+
+</ReferenceDetails>
+
+### Webex List Rooms
+
+List Webex rooms (spaces) that the authenticated user is a member of.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `max` | number | No | Maximum number of rooms to return \(1-1000\) |
+| `type` | string | No | Room type filter: direct or group |
+| `sortBy` | string | No | Sort by: id, lastactivity \(default\), created |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rooms` | array | List of Webex rooms |
+|   ↳ `id` | string | Room ID |
+|   ↳ `title` | string | Room title |
+|   ↳ `type` | string | Room type: direct or group |
+|   ↳ `isLocked` | boolean | Whether the room is locked |
+|   ↳ `teamId` | string | Team ID if room belongs to a team |
+|   ↳ `lastActivity` | string | ISO 8601 timestamp of last activity |
+|   ↳ `creatorId` | string | Creator person ID |
+|   ↳ `created` | string | ISO 8601 creation timestamp |
+
+</ReferenceDetails>
+
+### Webex Create Room
+
+Create a new Webex room (space).
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Yes | Room title \(e.g., "Project Alpha"\) |
+| `teamId` | string | No | Optional team ID to create the room inside a team |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `room` | object | The created room object |
+|   ↳ `id` | string | Room ID |
+|   ↳ `title` | string | Room title |
+|   ↳ `type` | string | Room type: direct or group |
+|   ↳ `isLocked` | boolean | Whether the room is locked |
+|   ↳ `teamId` | string | Team ID if room belongs to a team |
+|   ↳ `lastActivity` | string | ISO 8601 timestamp of last activity |
+|   ↳ `creatorId` | string | Creator person ID |
+|   ↳ `created` | string | ISO 8601 creation timestamp |
+
+</ReferenceDetails>
+
+### Webex Get Room
+
+Get details of a specific Webex room by its ID.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `roomId` | string | Yes | The room ID to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `room` | object | The room object |
+|   ↳ `id` | string | Room ID |
+|   ↳ `title` | string | Room title |
+|   ↳ `type` | string | Room type: direct or group |
+|   ↳ `isLocked` | boolean | Whether the room is locked |
+|   ↳ `teamId` | string | Team ID if room belongs to a team |
+|   ↳ `lastActivity` | string | ISO 8601 timestamp of last activity |
+|   ↳ `creatorId` | string | Creator person ID |
+|   ↳ `created` | string | ISO 8601 creation timestamp |
+
+</ReferenceDetails>
+
+### Webex List Members
+
+List members (memberships) in a Webex room.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `roomId` | string | Yes | The room ID to list members for |
+| `personEmail` | string | No | Filter by person email address |
+| `max` | number | No | Maximum number of members to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | List of room memberships |
+|   ↳ `id` | string | Membership ID |
+|   ↳ `roomId` | string | Room ID |
+|   ↳ `personId` | string | Person ID |
+|   ↳ `personEmail` | string | Person email address |
+|   ↳ `personDisplayName` | string | Person display name |
+|   ↳ `personOrgId` | string | Person org ID |
+|   ↳ `isModerator` | boolean | Whether they are a moderator |
+|   ↳ `isMonitor` | boolean | Whether they are a monitor |
+|   ↳ `created` | string | ISO 8601 creation timestamp |
+
+</ReferenceDetails>
+
+### Webex Get Person
+
+Get details of a Webex person (user) by their ID. Use "me" to get the authenticated user.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `personId` | string | Yes | Person ID, or "me" for the authenticated user |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `person` | object | The person object |
+|   ↳ `id` | string | Person ID |
+|   ↳ `emails` | array | Email addresses |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `nickName` | string | Nick name |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `avatar` | string | Avatar URL |
+|   ↳ `orgId` | string | Organisation ID |
+|   ↳ `status` | string | Presence status |
+|   ↳ `type` | string | Person type: person or bot |
+|   ↳ `created` | string | ISO 8601 creation timestamp |
+
+</ReferenceDetails>
+
+### Webex Create Meeting
+
+Schedule a new Webex meeting.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Yes | Meeting title \(e.g., "Weekly Team Standup"\) |
+| `start` | string | Yes | Meeting start time in ISO 8601 format \(e.g., 2026-03-01T10:00:00Z\) |
+| `end` | string | Yes | Meeting end time in ISO 8601 format \(e.g., 2026-03-01T11:00:00Z\) |
+| `agenda` | string | No | Meeting agenda or description |
+| `password` | string | No | Meeting password \(letters, digits, and special characters allowed\) |
+| `timezone` | string | No | Timezone for start/end times \(e.g., America/New_York\) |
+| `enabledAutoRecordMeeting` | boolean | No | Automatically record the meeting |
+| `allowAnyUserToBeCoHost` | boolean | No | Allow any attendee to become co-host |
+| `invitees` | string | No | Comma-separated email addresses to invite |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `meeting` | object | The created meeting object |
+|   ↳ `id` | string | Meeting ID |
+|   ↳ `meetingNumber` | string | Meeting number |
+|   ↳ `title` | string | Meeting title |
+|   ↳ `password` | string | Meeting password |
+|   ↳ `phoneAndVideoSystemPassword` | string | Numeric password for phone/video systems |
+|   ↳ `meetingType` | string | Meeting type |
+|   ↳ `state` | string | Meeting state \(scheduled, ready, lobby, inProgress, ended, missed, expired\) |
+|   ↳ `timezone` | string | Timezone |
+|   ↳ `start` | string | ISO 8601 start time |
+|   ↳ `end` | string | ISO 8601 end time |
+|   ↳ `hostUserId` | string | Host user ID |
+|   ↳ `hostDisplayName` | string | Host display name |
+|   ↳ `hostEmail` | string | Host email |
+|   ↳ `webLink` | string | Meeting join URL |
+|   ↳ `sipAddress` | string | SIP address |
+|   ↳ `dialInIpAddress` | string | Dial-in IP address |
+|   ↳ `agenda` | string | Meeting agenda |
+|   ↳ `enabledAutoRecordMeeting` | boolean | Auto-record enabled |
+|   ↳ `allowAnyUserToBeCoHost` | boolean | Allow any user to be co-host |
+
+</ReferenceDetails>
+
+### Webex List Meetings
+
+List Webex meetings for the authenticated user.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `max` | number | No | Maximum number of meetings to return \(1-100\) |
+| `from` | string | No | Start of date range in ISO 8601 format |
+| `to` | string | No | End of date range in ISO 8601 format |
+| `meetingType` | string | No | Meeting type filter: scheduledMeeting, meeting, webinar |
+| `state` | string | No | State filter: scheduled, ready, lobby, inProgress, ended, missed, expired |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `meetings` | array | List of Webex meetings |
+|   ↳ `id` | string | Meeting ID |
+|   ↳ `meetingNumber` | string | Meeting number |
+|   ↳ `title` | string | Meeting title |
+|   ↳ `password` | string | Meeting password |
+|   ↳ `phoneAndVideoSystemPassword` | string | Numeric password for phone/video systems |
+|   ↳ `meetingType` | string | Meeting type |
+|   ↳ `state` | string | Meeting state \(scheduled, ready, lobby, inProgress, ended, missed, expired\) |
+|   ↳ `timezone` | string | Timezone |
+|   ↳ `start` | string | ISO 8601 start time |
+|   ↳ `end` | string | ISO 8601 end time |
+|   ↳ `hostUserId` | string | Host user ID |
+|   ↳ `hostDisplayName` | string | Host display name |
+|   ↳ `hostEmail` | string | Host email |
+|   ↳ `webLink` | string | Meeting join URL |
+|   ↳ `sipAddress` | string | SIP address |
+|   ↳ `dialInIpAddress` | string | Dial-in IP address |
+|   ↳ `agenda` | string | Meeting agenda |
+|   ↳ `enabledAutoRecordMeeting` | boolean | Auto-record enabled |
+|   ↳ `allowAnyUserToBeCoHost` | boolean | Allow any user to be co-host |
+
+</ReferenceDetails>
+
+### Webex Get Meeting
+
+Get details of a specific Webex meeting by its ID.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Yes | The meeting ID to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `meeting` | object | The meeting object |
+|   ↳ `id` | string | Meeting ID |
+|   ↳ `meetingNumber` | string | Meeting number |
+|   ↳ `title` | string | Meeting title |
+|   ↳ `password` | string | Meeting password |
+|   ↳ `phoneAndVideoSystemPassword` | string | Numeric password for phone/video systems |
+|   ↳ `meetingType` | string | Meeting type |
+|   ↳ `state` | string | Meeting state \(scheduled, ready, lobby, inProgress, ended, missed, expired\) |
+|   ↳ `timezone` | string | Timezone |
+|   ↳ `start` | string | ISO 8601 start time |
+|   ↳ `end` | string | ISO 8601 end time |
+|   ↳ `hostUserId` | string | Host user ID |
+|   ↳ `hostDisplayName` | string | Host display name |
+|   ↳ `hostEmail` | string | Host email |
+|   ↳ `webLink` | string | Meeting join URL |
+|   ↳ `sipAddress` | string | SIP address |
+|   ↳ `dialInIpAddress` | string | Dial-in IP address |
+|   ↳ `agenda` | string | Meeting agenda |
+|   ↳ `enabledAutoRecordMeeting` | boolean | Auto-record enabled |
+|   ↳ `allowAnyUserToBeCoHost` | boolean | Allow any user to be co-host |
+
+</ReferenceDetails>
+
+### Webex Update Meeting
+
+Update an existing Webex meeting.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Yes | The meeting ID to update |
+| `title` | string | No | New meeting title |
+| `start` | string | No | New start time in ISO 8601 format |
+| `end` | string | No | New end time in ISO 8601 format |
+| `agenda` | string | No | New agenda |
+| `password` | string | No | New meeting password |
+| `timezone` | string | No | New timezone \(e.g., Europe/Paris\) |
+| `enabledAutoRecordMeeting` | boolean | No | Toggle auto-record |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `meeting` | object | The updated meeting object |
+|   ↳ `id` | string | Meeting ID |
+|   ↳ `meetingNumber` | string | Meeting number |
+|   ↳ `title` | string | Meeting title |
+|   ↳ `password` | string | Meeting password |
+|   ↳ `phoneAndVideoSystemPassword` | string | Numeric password for phone/video systems |
+|   ↳ `meetingType` | string | Meeting type |
+|   ↳ `state` | string | Meeting state \(scheduled, ready, lobby, inProgress, ended, missed, expired\) |
+|   ↳ `timezone` | string | Timezone |
+|   ↳ `start` | string | ISO 8601 start time |
+|   ↳ `end` | string | ISO 8601 end time |
+|   ↳ `hostUserId` | string | Host user ID |
+|   ↳ `hostDisplayName` | string | Host display name |
+|   ↳ `hostEmail` | string | Host email |
+|   ↳ `webLink` | string | Meeting join URL |
+|   ↳ `sipAddress` | string | SIP address |
+|   ↳ `dialInIpAddress` | string | Dial-in IP address |
+|   ↳ `agenda` | string | Meeting agenda |
+|   ↳ `enabledAutoRecordMeeting` | boolean | Auto-record enabled |
+|   ↳ `allowAnyUserToBeCoHost` | boolean | Allow any user to be co-host |
+
+</ReferenceDetails>
+
+### Webex Delete Meeting
+
+Delete (cancel) a Webex meeting by its ID.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Yes | The meeting ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the deletion succeeded |
+
+</ReferenceDetails>
+
+
