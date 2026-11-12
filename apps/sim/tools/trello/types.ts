@@ -37,6 +37,7 @@ export interface TrelloList {
   idBoard: string
 }
 
+/** Badge counts Trello shows on the card front; each field is null when Trello omits it. */
 export interface TrelloCardBadges {
   votes: number | null
   comments: number | null
@@ -51,6 +52,7 @@ export interface TrelloCardBadges {
   dueComplete: boolean | null
 }
 
+/** One checklist item; optional fields are null when Trello omits them. */
 export interface TrelloCardCheckItem {
   id: string
   name: string
@@ -61,6 +63,7 @@ export interface TrelloCardCheckItem {
   idMember: string | null
 }
 
+/** A card checklist with its items, returned only when checklists are requested. */
 export interface TrelloCardChecklist {
   id: string
   name: string
@@ -70,6 +73,7 @@ export interface TrelloCardChecklist {
   checkItems: TrelloCardCheckItem[]
 }
 
+/** A card attachment, returned only when attachments are requested; metadata fields may be null. */
 export interface TrelloCardAttachment {
   id: string
   name: string | null
@@ -497,6 +501,7 @@ export const TRELLO_CARD_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
           type: 'string',
           description: 'Label color',
           optional: true,
+          nullable: true,
         },
       },
     },
@@ -505,6 +510,7 @@ export const TRELLO_CARD_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
     type: 'string',
     description: 'Card due date in ISO 8601 format',
     optional: true,
+    nullable: true,
   },
   dueComplete: {
     type: 'boolean',
@@ -515,14 +521,31 @@ export const TRELLO_CARD_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
     type: 'string',
     description: 'Card start date in ISO 8601 format',
     optional: true,
+    nullable: true,
   },
-  pos: { type: 'number', description: 'Position of the card in its list', optional: true },
-  shortUrl: { type: 'string', description: 'Short card URL without the name slug', optional: true },
-  shortLink: { type: 'string', description: '8-character short card ID', optional: true },
+  pos: {
+    type: 'number',
+    description: 'Position of the card in its list',
+    optional: true,
+    nullable: true,
+  },
+  shortUrl: {
+    type: 'string',
+    description: 'Short card URL without the name slug',
+    optional: true,
+    nullable: true,
+  },
+  shortLink: {
+    type: 'string',
+    description: '8-character short card ID',
+    optional: true,
+    nullable: true,
+  },
   idShort: {
     type: 'number',
     description: 'Board-specific numeric card ID (can change when the card moves)',
     optional: true,
+    nullable: true,
   },
   idMembers: {
     type: 'array',
@@ -538,11 +561,13 @@ export const TRELLO_CARD_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
     type: 'string',
     description: 'When the card last had activity (ISO 8601)',
     optional: true,
+    nullable: true,
   },
   badges: {
     type: 'object',
     description: 'Card badge counts shown on the front of the card',
     optional: true,
+    nullable: true,
     properties: {
       votes: { type: 'number', description: 'Vote count', optional: true },
       comments: { type: 'number', description: 'Comment count', optional: true },
@@ -577,6 +602,7 @@ export const TRELLO_CARD_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
     type: 'array',
     description: 'Checklists with their items. Only returned when checklists are requested',
     optional: true,
+    nullable: true,
     items: {
       type: 'object',
       properties: {
@@ -612,6 +638,7 @@ export const TRELLO_CARD_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
     type: 'array',
     description: 'Card attachments. Only returned when attachments are requested',
     optional: true,
+    nullable: true,
     items: {
       type: 'object',
       properties: {
@@ -639,6 +666,7 @@ export const TRELLO_CARD_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
     type: 'array',
     description: 'Member objects on the card. Only returned when members are requested',
     optional: true,
+    nullable: true,
     items: {
       type: 'object',
       properties: {

@@ -179,7 +179,9 @@ describe('Confluence operations', () => {
   })
 
   it('keeps a trailing CQL order by after the parenthesized filter', async () => {
-    const fetchMock = vi.fn(async () => Response.json({ results: [], totalSize: 0, _links: {} }))
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json({ results: [], totalSize: 0, _links: {} })
+    )
     vi.stubGlobal('fetch', fetchMock)
 
     await executeConfluenceSearch(

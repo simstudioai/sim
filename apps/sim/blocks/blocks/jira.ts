@@ -1166,9 +1166,7 @@ Return ONLY the comment text - no explanations.`,
               customFieldId: params.customFieldId || undefined,
               customFieldValue: params.customFieldValue || undefined,
               customFields: params.customFields || undefined,
-              parent: params.updateParentIssue
-                ? String(params.updateParentIssue).trim()
-                : undefined,
+              parent: String(params.updateParentIssue ?? '').trim() || undefined,
               notifyUsers:
                 params.notifyUsers === 'false'
                   ? false

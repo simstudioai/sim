@@ -148,8 +148,8 @@ export const trelloUpdateCardTool: ToolConfig<TrelloUpdateCardParams, TrelloUpda
       if (params.start !== undefined) body.start = params.start
       if (params.pos !== undefined) body.pos = params.pos
       if (params.idBoard !== undefined) body.idBoard = params.idBoard.trim()
-      if (params.labelIds?.length) body.idLabels = params.labelIds
-      if (params.memberIds?.length) body.idMembers = params.memberIds
+      if (params.labelIds?.length) body.idLabels = params.labelIds.join(',')
+      if (params.memberIds?.length) body.idMembers = params.memberIds.join(',')
 
       if (Object.keys(body).length === 0) {
         throw new Error('At least one field must be provided to update')
