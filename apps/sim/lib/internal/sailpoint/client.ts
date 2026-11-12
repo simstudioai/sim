@@ -183,8 +183,9 @@ async function readBoundedBody(
 /**
  * Exchanges API client credentials for an access token at a tenant's token
  * endpoint (`client_credentials` grant, credentials in the form body), with
- * redirects refused and up to four backoff retries on 429. A refusal throws
- * {@link SailPointAuthError} with the provider's status and message.
+ * redirects refused and up to four backoff retries on 429 (`maxThrottleRetries`).
+ * A refusal throws {@link SailPointAuthError} with the provider's status,
+ * message, and `Retry-After`.
  *
  * @see https://developer.sailpoint.com/docs/api/authentication
  */
@@ -192,7 +193,8 @@ export async function requestSailPointToken(
   tokenUrl: string,
   clientId: string,
   clientSecret: string,
-  signal: AbortSignal
+  signal: AbortSignal,
+  { maxThrottleRetries = MAX_FETCH_RETRIES }: { maxThrottleRetries?: number } = {}
 ): Promise<{ token: string; expiresInSeconds: number }> {
   let attempt = 0
 
@@ -214,7 +216,7 @@ export async function requestSailPointToken(
       signal,
     })
 
-    if (response.status === 429 && attempt < MAX_FETCH_RETRIES) {
+    if (response.status === 429 && attempt < maxThrottleRetries) {
       const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'))
       await consumeOrCancelBody(response, DEFAULT_MAX_ERROR_BODY_BYTES)
       attempt += 1

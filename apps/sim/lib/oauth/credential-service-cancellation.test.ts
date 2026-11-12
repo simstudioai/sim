@@ -257,6 +257,20 @@ describe('client credential token refresh after a failed mint', () => {
     expect(mint).toHaveBeenCalledTimes(2)
   })
 
+  it('never serves a refused token again when a later refresh fails with an outage', async () => {
+    const mint = minter()
+    mint.mockResolvedValueOnce({ accessToken: 'current-token', expiresInSeconds: 600 })
+    await resolveFor('ramp-refused-then-outage')
+    mint.mockRejectedValueOnce(refused()).mockRejectedValue(unavailable())
+    vi.advanceTimersByTime(6 * 60_000)
+    await resolveFor('ramp-refused-then-outage')
+    vi.advanceTimersByTime(31_000)
+
+    await expect(resolveFor('ramp-refused-then-outage')).resolves.toEqual({
+      error: expect.objectContaining({ code: 'provider_unavailable' }),
+    })
+  })
+
   it('retries a quick transient failure once inside the mint', async () => {
     const mint = minter()
     mint.mockRejectedValueOnce(unavailable(503)).mockResolvedValueOnce(token)

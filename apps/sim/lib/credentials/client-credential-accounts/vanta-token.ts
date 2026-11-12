@@ -1,5 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
-import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
+import { PayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { VANTA_PERMISSION_OPTIONS } from '@/lib/credentials/client-credential-accounts/descriptors'
 import {
   invalidateCoordinatedClientToken,
@@ -108,9 +108,13 @@ async function exchangeToken(
       label: 'Vanta authentication response',
       signal,
     })
-  } catch {
+  } catch (error) {
     signal?.throwIfAborted()
-    throw unavailable('provider returned an unreadable token response')
+    throw unavailable(
+      error instanceof SyntaxError || error instanceof PayloadSizeLimitError
+        ? 'provider returned an invalid token response'
+        : 'provider token response could not be read'
+    )
   }
   if (
     !isRecordLike(payload) ||

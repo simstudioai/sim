@@ -333,6 +333,32 @@ describe('coordinated token resolution while the provider fails', () => {
     expect(exchange).toHaveBeenCalledTimes(2)
   })
 
+  it('never serves a refused token again once the refusal memo ends and an outage follows', async () => {
+    const exchange = issuingOnce('refused-then-outage', 4 * 60_000, rejecting())
+    await resolveCoordinatedClientToken(input('refused-then-outage', exchange))
+    await expect(
+      resolveCoordinatedClientToken(input('refused-then-outage', exchange))
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    await expireFailureRowsOf('refused-then-outage')
+    exchange.mockImplementation(failing(503))
+
+    await expect(
+      resolveCoordinatedClientToken(input('refused-then-outage', exchange))
+    ).rejects.toMatchObject({ code: 'provider_unavailable' })
+  })
+
+  it('keeps the token another secret minted when a different secret is refused', async () => {
+    const exchange = issuingOnce('refused-other-secret', 4 * 60_000, failing(503))
+    await resolveCoordinatedClientToken(input('refused-other-secret', exchange))
+    await expect(
+      resolveCoordinatedClientToken(input('refused-other-secret', rejecting(), 'revoked'))
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+
+    await expect(
+      resolveCoordinatedClientToken(input('refused-other-secret', exchange))
+    ).resolves.toMatchObject({ accessToken: 'refused-other-secret:token-1' })
+  })
+
   it('keeps refusing for every worker a refusal whose code the shared row cannot store', async () => {
     const exchange = issuingOnce('consent-refresh', 4 * 60_000, async () => {
       throw new TokenServiceAccountValidationError('consent_required', 400, { step: 'mint' })
@@ -562,16 +588,14 @@ describe('coordinated token resolution while the provider fails', () => {
 })
 
 describe('default token rows shared with the previous build during a rolling deploy', () => {
-  it('serves a still-valid token when the previous build remembered an outage', async () => {
-    const application = 'legacy-outage'
+  /** Seeds a still-valid token and the previous build's failure memo of `status` for one secret. */
+  async function seedPreviousBuildFailure(application: string, status: number) {
     const appKey = applicationKey(NAMESPACE, [application])
     const fingerprint = sha256Json([application, 'secret-1'])
     const token = await encryptSecret(
       JSON.stringify({ accessToken: 'legacy-token', secretFingerprint: fingerprint })
     )
-    const outage = await encryptSecret(
-      JSON.stringify({ code: 'provider_unavailable', status: 503 })
-    )
+    const failure = await encryptSecret(JSON.stringify({ code: 'provider_unavailable', status }))
     await db.insert(clientCredentialToken).values([
       {
         id: appKey,
@@ -581,15 +605,31 @@ describe('default token rows shared with the previous build during a rolling dep
       },
       {
         id: `${appKey}:${sha256Json(fingerprint)}`,
-        encryptedValue: outage.encrypted,
+        encryptedValue: failure.encrypted,
         expiresAt: new Date(Date.now() + 20_000),
       },
     ])
+  }
+
+  it('serves a still-valid token when the previous build remembered an outage', async () => {
+    const application = 'legacy-outage'
+    await seedPreviousBuildFailure(application, 503)
     const { exchange } = provider(application)
 
     await expect(
       resolveCoordinatedClientToken(input(application, exchange))
     ).resolves.toMatchObject({ accessToken: 'legacy-token' })
+    expect(exchange).not.toHaveBeenCalled()
+  })
+
+  it('replays a refusal the previous build stored as provider_unavailable without serving the token', async () => {
+    const application = 'legacy-unmapped-refusal'
+    await seedPreviousBuildFailure(application, 400)
+    const { exchange } = provider(application)
+
+    await expect(resolveCoordinatedClientToken(input(application, exchange))).rejects.toMatchObject(
+      { code: 'provider_unavailable', status: 400 }
+    )
     expect(exchange).not.toHaveBeenCalled()
   })
 

@@ -13,7 +13,10 @@ import {
   TOKEN_FAILURE_STREAK_RETENTION_MS,
   type TokenRequestFailure,
 } from '@/lib/credentials/token-request-resilience'
-import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
+import {
+  providerFailureCode,
+  TokenServiceAccountValidationError,
+} from '@/lib/credentials/token-service-accounts/errors'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 
 const logger = createLogger('CoordinatedClientToken')
@@ -214,9 +217,18 @@ function decodeFailure(value: string, step: string): StoredFailure {
   }
 }
 
-/** Whether a remembered failure refused the credentials, so no stored token is served for it. */
+/**
+ * Whether a remembered failure refused the credentials, so no stored token is served for it. A
+ * build before failure kinds stored a refusal whose code it could not store as
+ * `provider_unavailable` with the provider's status and no streak count, so such a row whose
+ * status names a refusal (a non-transient 4xx) is one too.
+ */
 function isRememberedRefusal(failure: StoredFailure): boolean {
-  return failure.refusal === true || isPermanentTokenFailureCode(failure.code)
+  if (failure.refusal === true || isPermanentTokenFailureCode(failure.code)) return true
+  return (
+    failure.consecutiveFailures === undefined &&
+    isPermanentTokenFailureCode(providerFailureCode(failure.status))
+  )
 }
 
 /** The error a remembered failure is replayed as, with how long it is still replayed. */
@@ -279,7 +291,8 @@ function isServable(expiresAt: Date, minRemainingMs: number): boolean {
  * for a minute growing to five without one, and an outage for 5 seconds growing to 30 while it
  * continues, so a hot workflow neither hammers the token endpoint with a revoked secret nor floods
  * a struggling one. While an outage or throttling is remembered, the stored token for the same
- * secret is still served until shortly before it actually expires; a refusal is reported at once.
+ * secret is still served until shortly before it actually expires; a refusal is reported at once
+ * and expires that secret's stored token, so no later outage serves it again.
  * A remembered failure, and that fallback, are served from committed rows without taking the
  * application lock. Tokens are encrypted at rest.
  */
@@ -334,6 +347,13 @@ export async function resolveCoordinatedClientToken(
    */
   const fallbackFrom = (row: StoredRow | undefined) =>
     serveStored(row, fallbackRemainingMs).catch(() => undefined)
+
+  /**
+   * Whether `row` holds a token minted with this secret, expired or not, so a refusal of the
+   * secret ends that token too and a token another secret minted stays in service.
+   */
+  const holdsTokenForSecret = async (row: StoredRow | undefined) =>
+    (await serveStored(row, Number.NEGATIVE_INFINITY).catch(() => undefined)) !== undefined
 
   /**
    * Replays the application's unexpired failure memo for this secret: the still-valid token for a
@@ -453,16 +473,23 @@ export async function resolveCoordinatedClientToken(
             target: clientCredentialToken.id,
             set: { encryptedValue: encrypted, expiresAt, updatedAt: new Date() },
           })
-        if (assessed.kind !== 'permanent') {
-          const fallback = await fallbackFrom(applicationRow)
-          if (fallback) {
-            logger.warn('Serving a still-valid client-credentials token after its refresh failed', {
-              namespace,
-              failure: assessed.kind,
-              retryInMs: replayMs,
-            })
-            return fallback
+        if (assessed.kind === 'permanent') {
+          if (await holdsTokenForSecret(applicationRow)) {
+            await tx
+              .update(clientCredentialToken)
+              .set({ expiresAt: new Date(0), updatedAt: new Date() })
+              .where(eq(clientCredentialToken.id, applicationKey))
           }
+          return { failure: replayedFailure(failure, step, replayMs) }
+        }
+        const fallback = await fallbackFrom(applicationRow)
+        if (fallback) {
+          logger.warn('Serving a still-valid client-credentials token after its refresh failed', {
+            namespace,
+            failure: assessed.kind,
+            retryInMs: replayMs,
+          })
+          return fallback
         }
         return { failure: replayedFailure(failure, step, replayMs) }
       }

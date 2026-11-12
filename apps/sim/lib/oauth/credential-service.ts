@@ -733,7 +733,8 @@ function secretFingerprintOf(encryptedServiceAccountKey: string): string {
  * per-instance cache: re-reads the credential row, serves a cached token minted
  * from the same ciphertext while enough of it remains, replays a recent mint
  * failure, and otherwise decrypts and mints, falling back to the cached token
- * while it is still valid when the refresh fails with an outage. Wrapped in
+ * while it is still valid when the refresh fails with an outage and dropping it
+ * when the refresh is refused, so no later outage serves it again. Wrapped in
  * `coalesceLocally` so concurrent block executions on one instance share a
  * single mint. `sharedToken` providers coordinate one token per application
  * themselves (including the in-request retry and the fallback), so their tokens
@@ -816,7 +817,11 @@ async function resolveMintedServiceAccountToken(
         retryAtMs,
         expiresAtMs: retryAtMs + TOKEN_FAILURE_STREAK_RETENTION_MS,
       })
-      const fallback = failure.kind === 'permanent' ? undefined : stillValid()
+      if (failure.kind === 'permanent') {
+        clientCredentialTokenCache.delete(cacheIdentity)
+        throw error
+      }
+      const fallback = stillValid()
       if (fallback) {
         logger.warn('Serving a still-valid client-credential token after its refresh failed', {
           ...(options?.privacyMode === 'selector' ? {} : { credentialId }),

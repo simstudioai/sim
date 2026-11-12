@@ -226,7 +226,8 @@ export class CrowdStrikeTokenRedirectError extends Error {
  * With `followRedirects: false` a redirect is never followed and throws
  * {@link CrowdStrikeTokenRedirectError}, so the secret reaches no other host;
  * the legacy block's inline path keeps following one as it always has. A
- * refusal throws {@link CrowdStrikeAuthError} with Falcon's status.
+ * refusal throws {@link CrowdStrikeAuthError} with Falcon's status and
+ * `Retry-After`, even when its error body cannot be read.
  *
  * @see https://developer.crowdstrike.com/api-reference/collections/oauth2.md
  */
@@ -264,7 +265,9 @@ export async function requestCrowdStrikeToken(
     )
   }
 
-  const data = await readFalconJson(response, signal)
+  const data = response.ok
+    ? await readFalconJson(response, signal)
+    : await readFalconJson(response, signal).catch(() => null)
   signal?.throwIfAborted()
   if (!response.ok) {
     throw new CrowdStrikeAuthError(
