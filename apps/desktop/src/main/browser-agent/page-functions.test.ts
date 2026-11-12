@@ -334,8 +334,8 @@ describe('combobox typing surfaces', () => {
     expect(input.value).toBe('Mondu')
   })
 
-  it('refuses mixed or unrelated blockers instead of treating them as suggestions', () => {
-    const { option } = composeField()
+  it('does not treat mixed or unrelated blockers as suggestions, and types through keyboard focus', () => {
+    const { input, option } = composeField()
     const overlay = visible(document.createElement('div'))
     overlay.setAttribute('aria-label', 'Unrelated overlay')
     document.body.append(overlay)
@@ -344,11 +344,38 @@ describe('combobox typing surfaces', () => {
       value: (x: number) => (x > 70 ? overlay : option),
     })
 
-    expect(focusElementForTyping(0)).toEqual({
-      error: 'obstructed',
-      blocker: 'Mondu',
-      blockerControls: [],
+    expect(focusElementForTyping(0)).toMatchObject({
+      focused: true,
+      coveredBy: 'Mondu',
+      coveredByRelatedPopup: false,
     })
+    expect(document.activeElement).toBe(input)
+  })
+
+  it('types into a top-page field a promo card covers, naming the cover', () => {
+    document.body.innerHTML = '<input type="search" aria-label="Search" /><div>Shop for your home</div>'
+    const input = visible(document.querySelector('input') as HTMLInputElement)
+    const card = visible(document.querySelector('div') as HTMLDivElement)
+    register(input)
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => card })
+
+    expect(focusElementForTyping(0)).toMatchObject({ focused: true, coveredBy: 'Shop for your home' })
+    expect(typeIntoElement(0, 'cooking pot', false)).toMatchObject({ dispatched: true })
+    expect(input.value).toBe('cooking pot')
+  })
+
+  it('still refuses a covered field inside a frame', () => {
+    const frame = document.createElement('iframe')
+    document.body.append(frame)
+    const inner = frame.contentDocument as Document
+    inner.body.innerHTML = '<input type="text" /><div>Cover</div>'
+    const field = visible(inner.querySelector('input') as HTMLInputElement)
+    const cover = visible(inner.querySelector('div') as HTMLDivElement)
+    field.scrollIntoView = () => {}
+    register(field)
+    Object.defineProperty(inner, 'elementFromPoint', { configurable: true, value: () => cover })
+
+    expect(focusElementForTyping(0)).toMatchObject({ error: 'obstructed', blocker: 'Cover' })
   })
 
   it('refuses ambiguous composite fields and descendant passwords', () => {

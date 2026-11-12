@@ -4080,6 +4080,11 @@ async function executeToolInner(
           },
         }
         const notes: string[] = []
+        if (typeof initialSurface.coveredBy === 'string') {
+          notes.push(
+            `The field is covered by ${initialSurface.coveredBy}, so the text went in through keyboard focus.`
+          )
+        }
         if (submitNote) notes.push(submitNote)
         if (!combinedObservation.effectObserved) {
           notes.push(

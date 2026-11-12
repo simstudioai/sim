@@ -1911,6 +1911,18 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
       coveredByRelatedPopup = true
     }
   }
+  // Typing reaches a focused top-page field through the keyboard, never the
+  // pointer, so an overlay over it (a promo card, a sticky banner) does not
+  // stop the text, as Playwright's fill does not hit-test either. Modal
+  // dialogs still refuse: their background is aria-hidden or inert, which the
+  // visibility and focus checks above reject. Framed fields keep the strict
+  // check because the driver maps their point through the parent page.
+  const topPageField = view === window && window.top === window
+  let coveredBy: string | undefined
+  if (!chosenPoint && topPageField && blockedPoints.length > 0) {
+    chosenPoint = { x: blockedPoints[0].x, y: blockedPoints[0].y }
+    coveredBy = blockerLabel(firstBlocker)
+  }
   if (!chosenPoint) {
     return {
       error: 'obstructed',
@@ -1921,6 +1933,7 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
 
   return {
     focused: true,
+    ...(coveredBy ? { coveredBy } : {}),
     kind:
       editableTag === 'INPUT'
         ? 'input'
