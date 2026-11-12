@@ -19,6 +19,7 @@ import {
   POSTGRESQL_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 
+/** The `service_account` provider id of a saved PostgreSQL, MySQL, or SQL Server connection. */
 export type DatabaseConnectionProviderId =
   | typeof POSTGRESQL_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof MYSQL_SERVICE_ACCOUNT_PROVIDER_ID
@@ -34,6 +35,10 @@ interface DatabaseTlsField {
   hint: string
 }
 
+/**
+ * Everything the connect modal, the provider catalog, and the blocks need to
+ * know about one saved database connection type, without server-only code.
+ */
 export interface DatabaseConnectionDescriptor {
   providerId: DatabaseConnectionProviderId
   /** The OAuth service id its blocks' picker and tools name. */
@@ -126,6 +131,7 @@ export const DATABASE_CONNECTION_DESCRIPTORS = {
 
 const DATABASE_LOGIN_FIELD_IDS = ['host', 'port', 'database', 'username', 'password'] as const
 
+/** A field a saved connection of provider `P` stores: a login field or one of its TLS settings. */
 export type DatabaseConnectionFieldId<P extends DatabaseConnectionProviderId> =
   | (typeof DATABASE_LOGIN_FIELD_IDS)[number]
   | (typeof DATABASE_CONNECTION_DESCRIPTORS)[P]['tls'][number]['id']
