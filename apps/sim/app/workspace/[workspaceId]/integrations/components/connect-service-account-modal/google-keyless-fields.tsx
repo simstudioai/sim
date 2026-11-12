@@ -5,9 +5,9 @@ import {
   GOOGLE_DELEGATION_SERVICES,
   type GoogleDelegationService,
   googleDelegationScopesFor,
+  googleInitialDelegatedServices,
   googleWorkloadIdentityAudience,
   googleWorkloadIdentitySetupCommands,
-  isGoogleDelegationService,
   isGoogleDelegationUser,
   isGoogleProjectNumber,
   isGoogleServiceAccountEmail,
@@ -32,16 +32,27 @@ export interface GoogleKeylessInput {
   delegatedUser: string
 }
 
-/** An empty form, delegating the Workspace service the dialog was opened for. */
-export function emptyGoogleKeylessInput(oauthServiceId?: string): GoogleKeylessInput {
+/** A reconnected credential's stored domain-wide delegation. */
+interface StoredGoogleDelegation {
+  user: string
+  services: readonly string[]
+}
+
+/**
+ * The form a dialog opens on: a reconnect keeps the credential's stored
+ * delegation, and the Workspace service the dialog was opened for is added to it.
+ */
+export function emptyGoogleKeylessInput(
+  oauthServiceId?: string,
+  stored?: StoredGoogleDelegation
+): GoogleKeylessInput {
   return {
     projectNumber: '',
     poolId: '',
     providerId: '',
     serviceAccountEmail: '',
-    delegatedServices:
-      oauthServiceId && isGoogleDelegationService(oauthServiceId) ? [oauthServiceId] : [],
-    delegatedUser: '',
+    delegatedServices: googleInitialDelegatedServices(oauthServiceId, stored?.services),
+    delegatedUser: stored?.user ?? '',
   }
 }
 
@@ -49,6 +60,12 @@ const DELEGATION_OPTIONS = GOOGLE_DELEGATION_SERVICES.map((service) => ({
   value: service,
   label: getServiceConfigByServiceId(service)?.name ?? service,
 }))
+
+/** "Gmail, Google Drive, …, and Google Calendar": the services keyless credentials can delegate. */
+export const GOOGLE_DELEGATION_SERVICE_NAMES = new Intl.ListFormat('en', {
+  style: 'long',
+  type: 'conjunction',
+}).format(DELEGATION_OPTIONS.map((option) => option.label))
 
 /** Whether the provider and service account fields have Google's documented format. */
 function isTrustComplete(value: GoogleKeylessInput): boolean {
@@ -74,18 +91,19 @@ function normalize(input: GoogleKeylessInput): GoogleKeylessInput {
 /**
  * Whether every field has Google's documented format, so the commands can be
  * shown, and a delegated credential names its user. A dialog opened for a
- * Workspace service requires delegation, since the credential is useless there
- * without it.
+ * delegable Workspace service requires that service, since the credential is
+ * useless there without it.
  */
 export function isGoogleKeylessInputComplete(
   input: GoogleKeylessInput,
-  requireDelegation: boolean
+  requiredService?: GoogleDelegationService
 ): boolean {
   const value = normalize(input)
   const delegated = value.delegatedServices.length > 0
   return (
     isTrustComplete(value) &&
-    (delegated ? isGoogleDelegationUser(value.delegatedUser) : !requireDelegation)
+    (!requiredService || value.delegatedServices.includes(requiredService)) &&
+    (!delegated || isGoogleDelegationUser(value.delegatedUser))
   )
 }
 

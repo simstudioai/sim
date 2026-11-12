@@ -7,6 +7,10 @@ import { credentialOperations } from '@/lib/credentials/application/operations'
 import { storedAwsAuthType } from '@/lib/credentials/aws-service-account.server'
 import { storedDatabricksAuthType } from '@/lib/credentials/databricks-service-account.server'
 import { isGoogleWorkloadIdentitySecret } from '@/lib/credentials/google-workload-identity'
+import {
+  type GoogleStoredDelegation,
+  storedGoogleDelegation,
+} from '@/lib/credentials/google-workload-identity.server'
 import { storedMicrosoftAppAuthType } from '@/lib/credentials/microsoft-app-service-account.server'
 import { storedSnowflakeAuthType } from '@/lib/credentials/snowflake-service-account.server'
 import {
@@ -30,13 +34,19 @@ export interface PrepareWorkloadIdentityInput {
   credentialId?: string
 }
 
-/** The reconnected credential's stored mode; absent without one, or for anyone but its admin. */
-interface ReconnectAuthTypeField {
+/**
+ * What a reconnect reopens on, read from the stored secret: absent without a
+ * credential being reconnected, or for anyone but its admin.
+ */
+interface ReconnectFields {
+  /** The stored mode. */
   reconnectAuthType?: WorkloadIdentityProviderAuthType
+  /** A keyless Google credential's domain-wide delegation, so a reconnect keeps it. */
+  reconnectDelegation?: GoogleStoredDelegation
 }
 
 export type PrepareWorkloadIdentityResult =
-  | ({ available: false } & ReconnectAuthTypeField)
+  | ({ available: false } & ReconnectFields)
   | ({
       available: true
       issuer: string
@@ -45,7 +55,7 @@ export type PrepareWorkloadIdentityResult =
       subject: string
       subjectProof: string
       expiresAt: string
-    } & ReconnectAuthTypeField)
+    } & ReconnectFields)
 
 /**
  * Every keyless provider also has key-based modes under the same provider ID, so a
@@ -67,15 +77,16 @@ const STORED_AUTH_TYPE: {
 
 /**
  * The stored auth mode of a credential of this provider in this workspace, which
- * this person administers. Only the mode leaves the stored secret, and only for
- * someone allowed to reconnect the credential.
+ * this person administers, and a keyless Google credential's delegation. Only
+ * these non-secret fields leave the stored secret, and only for someone allowed
+ * to reconnect the credential.
  */
-async function storedReconnectAuthType(
+async function storedReconnectFields(
   provider: WorkloadIdentityProvider,
   credentialId: string,
   workspaceId: string,
   userId: string
-): Promise<WorkloadIdentityProviderAuthType | undefined> {
+): Promise<ReconnectFields> {
   const access = await getCredentialActorContext(credentialId, userId, { workspaceId })
   const row = access.credential
   if (
@@ -87,10 +98,15 @@ async function storedReconnectAuthType(
     workloadIdentityProviderFor(row.providerId) !== provider ||
     !row.encryptedServiceAccountKey
   ) {
-    return undefined
+    return {}
   }
   const { decrypted } = await decryptSecret(row.encryptedServiceAccountKey)
-  return STORED_AUTH_TYPE[provider](decrypted)
+  const reconnectAuthType = STORED_AUTH_TYPE[provider](decrypted)
+  const reconnectDelegation = provider === 'google' ? storedGoogleDelegation(decrypted) : undefined
+  return {
+    ...(reconnectAuthType ? { reconnectAuthType } : {}),
+    ...(reconnectDelegation ? { reconnectDelegation } : {}),
+  }
 }
 
 /**
@@ -110,15 +126,14 @@ export const prepareWorkloadIdentity = defineAuthorizedWorkspaceUseCase({
   },
   authorizationOptions: {},
   execute: async ({ principal, input }): Promise<PrepareWorkloadIdentityResult> => {
-    const reconnectAuthType = input.credentialId
-      ? await storedReconnectAuthType(
+    const reconnect = input.credentialId
+      ? await storedReconnectFields(
           input.provider,
           input.credentialId,
           input.workspaceId,
           requirePrincipalSubjectUserId(principal)
         )
-      : undefined
-    const reconnect = reconnectAuthType ? { reconnectAuthType } : {}
+      : {}
     // A deployment without a signing key offers only key- and secret-based credentials.
     if (!(await isWorkloadIdentityConfigured())) return { available: false, ...reconnect }
     const userId = requirePrincipalSubjectUserId(principal)

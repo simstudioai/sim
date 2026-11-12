@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   googleDelegationServiceFor,
+  googleInitialDelegatedServices,
   googleKeylessOffer,
   googleWorkloadIdentitySetupCommands,
 } from '@/lib/credentials/google-workload-identity'
@@ -63,6 +64,26 @@ describe('keyless setup in the Google service account dialog', () => {
         googleKeylessOffer({ oauthServiceId, available: false, reconnectsKeyless: true })
       ).toBe('none')
     }
+  })
+})
+
+describe('the services a keyless dialog opens delegating', () => {
+  it('keeps every stored service when reconnected from the credential’s own page', () => {
+    expect(googleInitialDelegatedServices(undefined, ['google-calendar', 'gmail'])).toEqual([
+      'gmail',
+      'google-calendar',
+    ])
+  })
+
+  it('adds the service the dialog was opened for to the stored ones', () => {
+    expect(googleInitialDelegatedServices('google-docs', ['gmail'])).toEqual([
+      'gmail',
+      'google-docs',
+    ])
+  })
+
+  it('delegates nothing when opened for a Google Cloud service with nothing stored', () => {
+    expect(googleInitialDelegatedServices('google-bigquery')).toEqual([])
   })
 })
 

@@ -56,6 +56,7 @@ import { DatabricksAccountModal } from '@/app/workspace/[workspaceId]/integratio
 import {
   buildGoogleKeylessConfig,
   emptyGoogleKeylessInput,
+  GOOGLE_DELEGATION_SERVICE_NAMES,
   GoogleKeylessFields,
   type GoogleKeylessInput,
   isGoogleKeylessInputComplete,
@@ -672,9 +673,11 @@ function GoogleServiceAccountModalForm({
   oauthServiceId,
   onCreated,
 }: GoogleServiceAccountModalProps) {
-  const delegableService = Boolean(oauthServiceId && isGoogleDelegationService(oauthServiceId))
+  const delegableService =
+    oauthServiceId && isGoogleDelegationService(oauthServiceId) ? oauthServiceId : undefined
   const keylessService =
-    delegableService || Boolean(oauthServiceId && GOOGLE_KEYLESS_SERVICES.has(oauthServiceId))
+    Boolean(delegableService) ||
+    Boolean(oauthServiceId && GOOGLE_KEYLESS_SERVICES.has(oauthServiceId))
   const keyless = useKeylessSetup({
     provider: 'google',
     workspaceId,
@@ -700,9 +703,11 @@ function GoogleServiceAccountModalForm({
   const authType: GoogleAuthType = offerKeyless
     ? (selectedAuthType ?? keyless.reconnectAuthType ?? 'json_key')
     : 'json_key'
-  const [keylessInput, setKeylessInput] = useState<GoogleKeylessInput>(() =>
-    emptyGoogleKeylessInput(oauthServiceId)
-  )
+  // Untouched, the form follows the reconnected credential's stored delegation, which
+  // arrives with the keyless setup the keyless fields wait for.
+  const [editedKeylessInput, setKeylessInput] = useState<GoogleKeylessInput | null>(null)
+  const keylessInput =
+    editedKeylessInput ?? emptyGoogleKeylessInput(oauthServiceId, keyless.reconnectDelegation)
   const [jsonInput, setJsonInput] = useState('')
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
@@ -851,9 +856,8 @@ function GoogleServiceAccountModalForm({
         {cloudOnly && (
           <ChipModalDescription>
             This keyless credential works only with Google Cloud services (BigQuery, Vertex AI) and,
-            through domain-wide delegation, Gmail, Google Drive, Google Docs, Google Sheets, and
-            Google Calendar. Reconnect it from one of those integrations or from the credential’s
-            own page.
+            through domain-wide delegation, {GOOGLE_DELEGATION_SERVICE_NAMES}. Reconnect it from one
+            of those integrations or from the credential’s own page.
           </ChipModalDescription>
         )}
 

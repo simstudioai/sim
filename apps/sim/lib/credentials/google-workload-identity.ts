@@ -62,6 +62,20 @@ export function googleDelegationServiceFor(
 }
 
 /**
+ * The services a keyless dialog opens delegating: a reconnected credential's
+ * stored services, so a reconnect never drops one, plus the delegable service
+ * the dialog was opened for. Anything this release does not know is left out.
+ */
+export function googleInitialDelegatedServices(
+  oauthServiceId: string | undefined,
+  storedServices: readonly string[] = []
+): GoogleDelegationService[] {
+  const services = new Set(storedServices)
+  if (oauthServiceId) services.add(oauthServiceId)
+  return GOOGLE_DELEGATION_SERVICES.filter((service) => services.has(service))
+}
+
+/**
  * User-identity scopes, which a service account can't be granted: Google
  * rejects a service-account token request that includes them.
  */
