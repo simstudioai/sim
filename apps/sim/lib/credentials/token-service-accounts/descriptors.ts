@@ -48,8 +48,9 @@ export interface TokenServiceAccountField {
   url?: boolean
   /**
    * The connection can be saved without this field (a workspace ID only one token type needs),
-   * so the connect form and the create body do not require it; the provider's check decides when
-   * it must be set.
+   * so the connect form, the create body, and the stored secret do not require it; the provider's
+   * check decides when it must be set. Applies to a domain or workspace field in pasted-token
+   * mode; the token itself is always required.
    */
   optional?: boolean
   /** Soft-format hint shown while the current value doesn't match `hintPattern`. */
