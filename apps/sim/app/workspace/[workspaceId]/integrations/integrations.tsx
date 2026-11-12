@@ -14,6 +14,7 @@ import {
 import { Lock } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { savedTokenExpiryLabel } from '@/lib/credentials/expiry-label'
 import {
   blockTypeToIconMap,
   formatIntegrationType,
@@ -142,15 +143,31 @@ interface ConnectedItemProps {
   name: string
   description: string
   icon: ComponentType<{ className?: string }>
+  /** ISO time the saved token stops working, when its vendor stated one. */
+  expiresAt?: string
 }
 
-function ConnectedItem({ href, blockType, name, description, icon: Icon }: ConnectedItemProps) {
+function ConnectedItem({
+  href,
+  blockType,
+  name,
+  description,
+  icon: Icon,
+  expiresAt,
+}: ConnectedItemProps) {
   return (
     <SettingsResourceRow
       iconVariant='custom'
       icon={<IntegrationTile blockType={blockType} icon={Icon} />}
       title={name}
       description={description}
+      badge={
+        expiresAt ? (
+          <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
+            {savedTokenExpiryLabel(new Date(expiresAt), Date.now())}
+          </span>
+        ) : undefined
+      }
       href={href}
       clickLabel={`Open ${name}`}
       navigable
@@ -439,6 +456,7 @@ function IntegrationsContent() {
                     name={item.name}
                     description={item.description}
                     icon={item.icon}
+                    expiresAt={item.credential.expiresAt}
                   />
                 ))}
               </IntegrationSection>

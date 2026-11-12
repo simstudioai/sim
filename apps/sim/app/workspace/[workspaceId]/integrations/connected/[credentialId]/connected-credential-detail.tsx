@@ -15,9 +15,11 @@ import {
 import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { formatDate } from '@sim/utils/formatting'
 import { useRouter } from 'next/navigation'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
+import { savedTokenExpiryLabel } from '@/lib/credentials/expiry-label'
 import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import {
@@ -328,6 +330,14 @@ export function ConnectedCredentialDetail({
         {credential.type === 'personal_token' && credential.instanceUrl && (
           <DetailSection title='GitLab instance'>
             <ChipCopyInput value={credential.instanceUrl} copyLabel='Copy GitLab instance' />
+          </DetailSection>
+        )}
+        {credential.expiresAt && (
+          <DetailSection title='Token expiry'>
+            <span className='text-[var(--text-secondary)] text-small'>
+              {formatDate(new Date(credential.expiresAt))} ·{' '}
+              {savedTokenExpiryLabel(new Date(credential.expiresAt), Date.now())}
+            </span>
           </DetailSection>
         )}
       </CredentialDetailLayout>
