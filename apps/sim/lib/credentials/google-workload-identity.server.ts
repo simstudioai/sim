@@ -815,12 +815,21 @@ function readStoredConfig(decrypted: string): GoogleWorkloadIdentityConfig {
  * the authorized scope Google documents as covering them. `gmail.readonly`
  * ("View your email messages and settings") is covered by `gmail.modify`
  * ("Read, compose, and send emails"); the Gmail label picker asks for it.
+ * `calendar.events.readonly` ("View events on all your calendars") is covered
+ * by `calendar` ("See, edit, share, and permanently delete all the calendars
+ * you can access"), not by its `calendar.events` sibling, which the Calendar
+ * delegation does not authorize; the Calendar connector asks for it.
  * @see https://developers.google.com/workspace/gmail/api/auth/scopes
+ * @see https://developers.google.com/workspace/calendar/api/auth
  */
 const DELEGATED_READ_COVERS: ReadonlyMap<string, string> = new Map([
   [
     'https://www.googleapis.com/auth/gmail.readonly',
     'https://www.googleapis.com/auth/gmail.modify',
+  ],
+  [
+    'https://www.googleapis.com/auth/calendar.events.readonly',
+    'https://www.googleapis.com/auth/calendar',
   ],
 ])
 

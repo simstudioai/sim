@@ -724,6 +724,30 @@ describe('getting a delegated Google Workspace token for a run', () => {
     expect(claimsOf(google.signJwt[0])).toMatchObject({ sub: WORKSPACE_USER, scope: gmailModify })
   })
 
+  it('serves the Calendar connector’s calendar.events.readonly, minting calendar', async () => {
+    const google = fakeGoogle(fetch)
+    const calendarSecret = JSON.stringify({
+      type: 'google_workload_identity_v1',
+      config: {
+        ...storedConfig,
+        delegation: { user: WORKSPACE_USER, services: ['google-calendar'] },
+      },
+    })
+
+    await expect(
+      resolve({
+        credentialId: 'dwd-calendar-connector',
+        decrypted: calendarSecret,
+        service: 'google-calendar',
+        scopes: ['https://www.googleapis.com/auth/calendar.events.readonly'],
+      })
+    ).resolves.toBe(`ya29.dwd-${WORKSPACE_USER}-${CALENDAR_SCOPE}`)
+    expect(claimsOf(google.signJwt[0])).toMatchObject({
+      sub: WORKSPACE_USER,
+      scope: CALENDAR_SCOPE,
+    })
+  })
+
   it('refuses another Workspace user before contacting Google', async () => {
     fakeGoogle(fetch)
 
@@ -840,20 +864,12 @@ describe('getting a delegated Google Workspace token for a run', () => {
 
   it('refuses a read-only scope whose read-write scope the delegation does not authorize', async () => {
     fakeGoogle(fetch)
-    const calendarOnly = JSON.stringify({
-      type: 'google_workload_identity_v1',
-      config: {
-        ...storedConfig,
-        delegation: { user: WORKSPACE_USER, services: ['google-calendar'] },
-      },
-    })
 
     await expect(
       resolve({
-        credentialId: 'dwd-calendar-events',
-        decrypted: calendarOnly,
-        service: 'google-calendar',
-        scopes: ['https://www.googleapis.com/auth/calendar.events.readonly'],
+        credentialId: 'dwd-gmail-drive-readonly',
+        service: 'google-drive',
+        scopes: [DRIVE_READONLY],
       })
     ).rejects.toMatchObject({ code: 'unsupported_use' })
     expect(fetch).not.toHaveBeenCalled()
