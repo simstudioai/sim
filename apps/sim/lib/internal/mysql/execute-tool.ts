@@ -1,5 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import type { z } from 'zod'
+import { withSavedDatabaseConnection } from '@/lib/credentials/database-connections/server'
 import {
   executeMysqlDelete,
   executeMysqlInsert,
@@ -18,6 +19,7 @@ import {
   mysqlUpdateInputSchema,
 } from '@/lib/internal/mysql/schema'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
+import { MYSQL_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 
 async function executeOperation<TInput>(
   schema: z.ZodType<TInput>,
@@ -50,7 +52,7 @@ async function executeOperation<TInput>(
   }
 }
 
-export const executeMysqlTool: InternalToolOperationHandler = async ({ toolId, input, signal }) => {
+const runMysqlTool: InternalToolOperationHandler = async ({ toolId, input, signal }) => {
   signal?.throwIfAborted()
 
   switch (toolId) {
@@ -106,3 +108,9 @@ export const executeMysqlTool: InternalToolOperationHandler = async ({ toolId, i
       return Response.json({ error: `Unsupported MySQL tool: ${toolId}` }, { status: 500 })
   }
 }
+
+/** Runs a MySQL tool on its inline connection, or on the saved connection the executor authorized. */
+export const executeMysqlTool = withSavedDatabaseConnection(
+  MYSQL_SERVICE_ACCOUNT_PROVIDER_ID,
+  runMysqlTool
+)

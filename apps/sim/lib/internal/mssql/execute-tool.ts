@@ -1,5 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import type { z } from 'zod'
+import { withSavedDatabaseConnection } from '@/lib/credentials/database-connections/server'
 import {
   executeMssqlDelete,
   executeMssqlInsert,
@@ -18,6 +19,7 @@ import {
   mssqlUpdateInputSchema,
 } from '@/lib/internal/mssql/schema'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
+import { MSSQL_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 
 async function executeOperation<TInput>(
   schema: z.ZodType<TInput>,
@@ -50,7 +52,7 @@ async function executeOperation<TInput>(
   }
 }
 
-export const executeMssqlTool: InternalToolOperationHandler = async ({ toolId, input, signal }) => {
+const runMssqlTool: InternalToolOperationHandler = async ({ toolId, input, signal }) => {
   signal?.throwIfAborted()
 
   switch (toolId) {
@@ -109,3 +111,9 @@ export const executeMssqlTool: InternalToolOperationHandler = async ({ toolId, i
       )
   }
 }
+
+/** Runs a SQL Server tool on its inline connection, or on the saved connection the executor authorized. */
+export const executeMssqlTool = withSavedDatabaseConnection(
+  MSSQL_SERVICE_ACCOUNT_PROVIDER_ID,
+  runMssqlTool
+)
