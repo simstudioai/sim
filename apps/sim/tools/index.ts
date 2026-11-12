@@ -23,6 +23,7 @@ import {
 } from '@/lib/core/errors/database-query-error'
 import {
   classifyFailure,
+  inheritFailureMarks,
   logFailureOnce,
   markFailureKind,
   markFailureLogged,
@@ -3109,8 +3110,9 @@ async function expireRejectedServiceAccountToken(
 
 /**
  * A 401 for a saved service-account token past the expiry its vendor stated when it was saved
- * becomes an error that says so and asks for a new token, keeping the provider's status and body.
- * Any other failure, or one whose expiry cannot be read, is returned unchanged.
+ * becomes an error that says so and asks for a new token, keeping the provider's status and body
+ * and the refusal's log attribution and logged response body. Any other failure, or one whose
+ * expiry cannot be read, is returned unchanged.
  */
 async function explainExpiredServiceAccountToken(
   error: unknown,
@@ -3125,7 +3127,9 @@ async function explainExpiredServiceAccountToken(
       statusText: 'statusText' in error ? error.statusText : undefined,
       data: 'data' in error ? error.data : undefined,
     })
-    return explained ?? error
+    if (!explained) return error
+    if (externalHttpFailures.has(error)) externalHttpFailures.add(explained)
+    return inheritFailureMarks(explained, error)
   } catch (lookupError) {
     logger.warn('Could not check whether a refused saved token had expired', {
       requestId,

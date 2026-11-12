@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
 import { credential } from '@sim/db/schema'
 import { and, eq, lte } from 'drizzle-orm'
+import { UserFailure } from '@/lib/core/errors/user-failure'
 import { getTokenServiceAccountDescriptor } from '@/lib/credentials/token-service-accounts/descriptors'
-import { CredentialRevokedError } from '@/lib/oauth/credential-revoked'
 
 /** The provider's own failure that a saved token's expiry explains. */
 interface ProviderRefusal {
@@ -13,11 +13,11 @@ interface ProviderRefusal {
 
 /**
  * A provider refused a saved token that is past the expiry its vendor stated when it was saved.
- * Only replacing the token restores the credential, so it is the user's to fix, like a revoked
- * grant. It keeps the provider's `status`, `statusText`, and `data`, so callers that branch on the
- * HTTP failure still see it.
+ * Only replacing the token restores the credential, so it is the user's to fix. It keeps the
+ * provider's `status`, `statusText`, and `data`, so callers that branch on the HTTP failure still
+ * see it; the boundary that replaces the refusal with it carries the refusal's log attribution over.
  */
-class SavedTokenExpiredError extends CredentialRevokedError {
+class SavedTokenExpiredError extends UserFailure {
   readonly status: number
   readonly statusText?: string
   readonly data?: unknown

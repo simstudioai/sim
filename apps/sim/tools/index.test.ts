@@ -486,6 +486,7 @@ vi.mock('@/tools/utils.server', async (importOriginal) => {
 
 import type { QueryClient } from '@tanstack/react-query'
 import { adoptToolFailure, classifyFailure, logFailureOnce } from '@/lib/core/errors/failure-log'
+import { UserFailure } from '@/lib/core/errors/user-failure'
 import * as getQueryClientModule from '@/app/_shell/providers/get-query-client'
 import { ApiBlockHandler } from '@/executor/handlers/api/handler'
 import { buildBlockExecutionError } from '@/executor/utils/errors'
@@ -3834,19 +3835,35 @@ describe('Internal Route Trust', () => {
       return executeTool(toolId, { credential: 'saved-credential' })
     }
 
-    it('reports the expiry instead of the bare refusal, keeping the HTTP status', async () => {
+    it('reports the expiry instead of the bare refusal', async () => {
       mockExplainExpiredSavedToken.mockImplementation(async (_id, refusal) =>
-        Object.assign(new Error(EXPIRED), { status: (refusal as { status: number }).status })
+        Object.assign(new UserFailure(EXPIRED), refusal)
       )
 
       const result = await callWith('service_account', 401)
 
       expect(result).toMatchObject({ success: false, error: EXPIRED })
-      expect(result.output).toMatchObject({ status: 401 })
       expect(mockExplainExpiredSavedToken).toHaveBeenCalledWith(
         'saved-credential',
-        expect.objectContaining({ status: 401 })
+        expect.objectContaining({ status: 401, data: { message: 'Bad credentials' } })
       )
+    })
+
+    it("logs the explained refusal as the provider's refusal, with its response body", async () => {
+      mockExplainExpiredSavedToken.mockImplementation(async (_id, refusal) =>
+        Object.assign(new UserFailure(EXPIRED), refusal)
+      )
+      mockToolsLogger.warn.mockClear()
+
+      const result = await callWith('service_account', 401)
+
+      expect(classifyFailure(adoptToolFailure(new Error(result.error), result))).toBe(
+        'third_party_client'
+      )
+      const [, fields] =
+        mockToolsLogger.warn.mock.calls.find(([message]) => message === 'Error executing tool') ??
+        []
+      expect(fields).toMatchObject({ error: EXPIRED, errorData: { message: 'Bad credentials' } })
     })
 
     it("keeps the provider's message when the token has not expired", async () => {
@@ -3946,7 +3963,9 @@ describe('Internal Route Trust', () => {
 
     it('reports an expired saved token instead of the bare refusal', async () => {
       mockExplainExpiredSavedToken.mockReset()
-      mockExplainExpiredSavedToken.mockResolvedValue(new Error('The saved token expired.'))
+      mockExplainExpiredSavedToken.mockImplementation(async (_id, refusal) =>
+        Object.assign(new UserFailure('The saved token expired.'), refusal)
+      )
 
       const result = await runWith('service_account', 401)
 
