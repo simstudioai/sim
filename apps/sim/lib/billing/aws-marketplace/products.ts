@@ -4,6 +4,20 @@
  * retiring a listing is a configuration change, never a branch.
  */
 
+import type { usageLogCategoryEnum } from '@sim/db/schema'
+
+type UsageLogCategory = (typeof usageLogCategoryEnum.enumValues)[number]
+
+/**
+ * Usage a listing bills through AWS: the organization's billed cost in `usage_log` for these
+ * categories, reported hourly on `dimension` in whole units of `usdPerUnit`.
+ */
+export interface AwsMarketplaceUsagePricing {
+  readonly dimension: string
+  readonly usdPerUnit: number
+  readonly categories: readonly UsageLogCategory[]
+}
+
 /** How one listing is sold, and so what Sim requires before granting access. */
 interface AwsMarketplacePlan {
   readonly id: string
@@ -12,13 +26,22 @@ interface AwsMarketplacePlan {
    * any current entitlement, which suits a listing with a single contract dimension.
    */
   readonly requiredDimension: string | null
+  /** Usage billed through AWS on top of the contract; null bills nothing beyond it. */
+  readonly usage: AwsMarketplaceUsagePricing | null
 }
 
 const PLANS = [
   /** A contract-only listing: any current entitlement grants access. */
-  { id: 'contract', requiredDimension: null },
-  /** Platform access by contract, plus LLM usage on Sim's keys billed through AWS. */
-  { id: 'platform-with-usage', requiredDimension: 'platform' },
+  { id: 'contract', requiredDimension: null, usage: null },
+  /**
+   * Platform access by contract, plus LLM usage on Sim's keys billed through AWS as credits of
+   * one cent. Bring-your-own-key usage is logged as `model_unbilled` and never reaches AWS.
+   */
+  {
+    id: 'platform-with-usage',
+    requiredDimension: 'platform',
+    usage: { dimension: 'llm_credits', usdPerUnit: 0.01, categories: ['model'] },
+  },
 ] as const satisfies readonly AwsMarketplacePlan[]
 
 const AWS_MARKETPLACE_PLANS: ReadonlyMap<string, AwsMarketplacePlan> = new Map(

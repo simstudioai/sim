@@ -1938,6 +1938,17 @@ export const awsMarketplaceLicenseStatusEnum = pgEnum('aws_marketplace_license_s
 ])
 
 /**
+ * A usage report's progress: `pending` until AWS answers, `reported` once AWS accepted it (a
+ * duplicate counts, since AWS keeps the first record for the hour), `rejected` when AWS refused it
+ * or it aged out of the 24 hours AWS accepts.
+ */
+export const awsMarketplaceUsageReportStatusEnum = pgEnum('aws_marketplace_usage_report_status', [
+  'pending',
+  'reported',
+  'rejected',
+])
+
+/**
  * An AWS Marketplace SaaS contract license, one row per license ARN: AWS grants a new license with
  * every agreement, so one account can hold several, and the account ID names the buyer but not the
  * license. `status` is the newest Entitlement Service read, never a contract amount; `pending`
@@ -1972,6 +1983,8 @@ export const awsMarketplaceLicense = pgTable(
     claimTokenHash: text('claim_token_hash'),
     claimExpiresAt: timestamp('claim_expires_at'),
     linkedByUserId: text('linked_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+    /** When `organization_id` last changed to its current value; usage counts from here. */
+    organizationLinkedAt: timestamp('organization_linked_at'),
     /** Whom to contact about provisioning, as the buyer entered it during setup. */
     contactEmail: text('contact_email'),
     companyName: text('company_name'),
@@ -1990,6 +2003,47 @@ export const awsMarketplaceLicense = pgTable(
     index('aws_marketplace_license_last_attempt_idx').on(table.lastVerificationAttemptAt),
     index('aws_marketplace_license_organization_id_idx').on(table.organizationId),
     index('aws_marketplace_license_linked_by_user_id_idx').on(table.linkedByUserId),
+  ]
+)
+
+/**
+ * The usage an organization owes through AWS Marketplace, one row per organization, dimension and
+ * closed hour, each billed to exactly one license. The unique key is what keeps an hour from being
+ * billed twice, across renewals and overlapping licenses alike. `cost_through_usd` and
+ * `quantity_through` are running totals across the organization's rows, so a fraction of a unit
+ * carries into the next hour instead of being rounded away or billed twice.
+ */
+export const awsMarketplaceUsageReport = pgTable(
+  'aws_marketplace_usage_report',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    licenseId: text('license_id')
+      .notNull()
+      .references(() => awsMarketplaceLicense.id, { onDelete: 'cascade' }),
+    dimension: text('dimension').notNull(),
+    hourStart: timestamp('hour_start').notNull(),
+    costThroughUsd: decimal('cost_through_usd').notNull(),
+    quantity: integer('quantity').notNull(),
+    quantityThrough: integer('quantity_through').notNull(),
+    status: awsMarketplaceUsageReportStatusEnum('status').notNull().default('pending'),
+    meteringRecordId: text('metering_record_id'),
+    /** Why AWS refused the record, or why it can no longer be sent. */
+    error: text('error'),
+    reportedAt: timestamp('reported_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('aws_marketplace_usage_report_org_dimension_hour_unique').on(
+      table.organizationId,
+      table.dimension,
+      table.hourStart
+    ),
+    index('aws_marketplace_usage_report_status_hour_idx').on(table.status, table.hourStart),
+    index('aws_marketplace_usage_report_license_id_idx').on(table.licenseId),
   ]
 )
 
