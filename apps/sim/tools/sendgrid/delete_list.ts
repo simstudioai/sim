@@ -1,4 +1,5 @@
 import type { DeleteListParams } from '@/tools/sendgrid/types'
+import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
 import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -10,6 +11,7 @@ export const sendGridDeleteListTool: ToolConfig<DeleteListParams, ToolResponse> 
   oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
+    region: SENDGRID_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -25,7 +27,7 @@ export const sendGridDeleteListTool: ToolConfig<DeleteListParams, ToolResponse> 
   },
 
   request: {
-    url: (params) => `https://api.sendgrid.com/v3/marketing/lists/${params.listId}`,
+    url: (params) => `${SENDGRID_REGIONS.apiBase(params.region)}/marketing/lists/${params.listId}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

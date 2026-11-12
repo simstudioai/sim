@@ -4,7 +4,7 @@ import type {
   LangsmithCreateFeedbackParams,
   LangsmithCreateFeedbackResponse,
 } from '@/tools/langsmith/types'
-import { LANGSMITH_API_BASE, truncateLangsmithErrorText } from '@/tools/langsmith/utils'
+import { LANGSMITH_REGIONS, truncateLangsmithErrorText } from '@/tools/langsmith/utils'
 import { LANGSMITH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -18,6 +18,7 @@ export const langsmithCreateFeedbackTool: ToolConfig<
   version: '1.0.0',
   oauth: LANGSMITH_CREDENTIAL_OAUTH,
   params: {
+    region: LANGSMITH_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -68,7 +69,7 @@ export const langsmithCreateFeedbackTool: ToolConfig<
     },
   },
   request: {
-    url: () => `${LANGSMITH_API_BASE}/feedback`,
+    url: (params) => `${LANGSMITH_REGIONS.apiBase(params.region)}/feedback`,
     method: 'POST',
     headers: (params) => ({
       'X-Api-Key': params.apiKey,

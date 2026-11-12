@@ -14,6 +14,21 @@ describe('required fields for a service-account create', () => {
     )
   })
 
+  it.each([
+    'launchdarkly-service-account',
+    'langsmith-service-account',
+    'square-service-account',
+    'sendgrid-service-account',
+    'hex-service-account',
+    'sentry-service-account',
+  ])(
+    'lets a %s create omit the region or host it defaults, as it could before one existed',
+    (providerId) => {
+      expect(getMissingServiceAccountFields(providerId, { apiToken: 'token' })).toEqual([])
+      expect(getMissingServiceAccountFields(providerId, {})).toEqual(['apiToken'])
+    }
+  )
+
   it('does not let a JSON configuration stand in for another token provider’s token', () => {
     expect(
       getMissingServiceAccountFields('hubspot-service-account', { serviceAccountJson: '{}' })

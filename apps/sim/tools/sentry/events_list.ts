@@ -1,4 +1,5 @@
 import type { SentryListEventsParams, SentryListEventsResponse } from '@/tools/sentry/types'
+import { SENTRY_REGIONS } from '@/tools/sentry/utils'
 import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -11,6 +12,7 @@ export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEvents
   oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {
+    region: SENTRY_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -68,9 +70,9 @@ export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEvents
       let baseUrl: string
 
       if (params.issueId && params.issueId !== null && params.issueId !== '') {
-        baseUrl = `https://sentry.io/api/0/organizations/${params.organizationSlug}/issues/${params.issueId}/events/`
+        baseUrl = `${SENTRY_REGIONS.apiBase(params.region)}/organizations/${params.organizationSlug}/issues/${params.issueId}/events/`
       } else {
-        baseUrl = `https://sentry.io/api/0/projects/${params.organizationSlug}/${params.projectSlug}/events/`
+        baseUrl = `${SENTRY_REGIONS.apiBase(params.region)}/projects/${params.organizationSlug}/${params.projectSlug}/events/`
       }
 
       const isIssueScoped = Boolean(

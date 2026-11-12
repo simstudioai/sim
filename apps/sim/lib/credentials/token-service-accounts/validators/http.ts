@@ -46,6 +46,17 @@ interface TokenCheck {
    */
   workspaceId?: (fields: TokenServiceAccountFields) => string
   /**
+   * The domain a credential takes when none is given (its descriptor field's `defaultValue`). A
+   * credential on it keeps the bare service name credentials saved before the field existed have,
+   * and its host failing to resolve is the vendor being unavailable rather than the user's typo.
+   */
+  defaultDomain?: string
+  /**
+   * The domain picks one of the vendor's own region hosts from a fixed list, never a host the user
+   * typed, so one failing to resolve is the vendor being unavailable rather than the user's typo.
+   */
+  domainIsVendorRegion?: boolean
+  /**
    * The request goes to a host the user chose (self-hosted or white-label), so
    * it runs through the same SSRF-guarded egress profile as the tools instead
    * of a plain fetch.
@@ -101,7 +112,7 @@ export function readJsonBody(response: ProviderResponse, serviceLabel: string): 
 }
 
 /** A domain that must be one of a fixed set (a region or regional host), compared case-insensitively. */
-export function allowedDomain(allowed: ReadonlySet<string>) {
+export function allowedDomain(allowed: { has(value: string): boolean }) {
   return ({ domain }: TokenServiceAccountFields): string => {
     const value = (domain ?? '').trim().toLowerCase()
     if (!allowed.has(value)) throw new Error('unknown region')
@@ -190,7 +201,8 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
       ...(domain === undefined ? {} : { domain }),
       ...(workspaceId === undefined ? {} : { providerWorkspaceId: workspaceId }),
     }
-    const where = domain ?? workspaceId
+    const typedDomain = domain === check.defaultDomain ? undefined : domain
+    const where = typedDomain ?? workspaceId
     const accepted: TokenServiceAccountValidationResult = {
       displayName: where ? `${check.serviceLabel} (${where})` : check.serviceLabel,
       principal: null,
@@ -214,7 +226,7 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
           },
           'verify',
           // A host built from the typed domain or account id that doesn't exist is the user's typo.
-          domain === undefined && workspaceId === undefined
+          (typedDomain === undefined || check.domainIsVendorRegion) && workspaceId === undefined
             ? undefined
             : { dnsFailureCode: 'site_not_found' }
         )

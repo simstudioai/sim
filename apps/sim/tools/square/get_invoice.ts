@@ -4,7 +4,7 @@ import type { GetInvoiceParams, InvoiceResponse } from '@/tools/square/types'
 import {
   INVOICE_METADATA_OUTPUT_PROPERTIES,
   INVOICE_OUTPUT,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -18,6 +18,7 @@ export const squareGetInvoiceTool: ToolConfig<GetInvoiceParams, InvoiceResponse>
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -33,7 +34,8 @@ export const squareGetInvoiceTool: ToolConfig<GetInvoiceParams, InvoiceResponse>
   },
 
   request: {
-    url: (params) => `${SQUARE_BASE_URL}/v2/invoices/${encodeURIComponent(params.invoiceId)}`,
+    url: (params) =>
+      `${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/invoices/${encodeURIComponent(params.invoiceId)}`,
     method: 'GET',
     headers: (params) => squareHeaders(params.apiKey),
   },

@@ -1,4 +1,5 @@
 import type { HexUpdateProjectParams, HexUpdateProjectResponse } from '@/tools/hex/types'
+import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
 import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -11,6 +12,7 @@ export const updateProjectTool: ToolConfig<HexUpdateProjectParams, HexUpdateProj
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
+    host: HEX_HOST_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -32,7 +34,7 @@ export const updateProjectTool: ToolConfig<HexUpdateProjectParams, HexUpdateProj
   },
 
   request: {
-    url: (params) => `https://app.hex.tech/api/v1/projects/${params.projectId.trim()}`,
+    url: (params) => `${hexApiBase(params.host)}/projects/${params.projectId.trim()}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

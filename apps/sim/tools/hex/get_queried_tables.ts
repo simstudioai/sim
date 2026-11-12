@@ -1,4 +1,5 @@
 import type { HexGetQueriedTablesParams, HexGetQueriedTablesResponse } from '@/tools/hex/types'
+import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
 import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -14,6 +15,7 @@ export const getQueriedTablesTool: ToolConfig<
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
+    host: HEX_HOST_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -39,7 +41,7 @@ export const getQueriedTablesTool: ToolConfig<
       const searchParams = new URLSearchParams()
       if (params.limit) searchParams.set('limit', String(params.limit))
       const qs = searchParams.toString()
-      return `https://app.hex.tech/api/v1/projects/${params.projectId.trim()}/queriedTables${qs ? `?${qs}` : ''}`
+      return `${hexApiBase(params.host)}/projects/${params.projectId.trim()}/queriedTables${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

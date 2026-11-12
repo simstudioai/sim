@@ -1470,6 +1470,49 @@ describe('token provider credentials saved in client-credentials mode', () => {
   })
 })
 
+describe('token credentials saved before their provider had a region or host to choose', () => {
+  function storeBlob(blob: Record<string, unknown>) {
+    queueTableRows(credential, [{ encryptedServiceAccountKey: 'enc-legacy' }])
+    mocks.decryptSecret.mockResolvedValue({ decrypted: JSON.stringify(blob) })
+  }
+
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it.each([
+    ['launchdarkly-service-account', 'us'],
+    ['langsmith-service-account', 'us'],
+    ['square-service-account', 'production'],
+    ['sendgrid-service-account', 'global'],
+    ['hex-service-account', 'app.hex.tech'],
+    ['sentry-service-account', 'us'],
+  ])(
+    'resolves a %s token stored without one to the host it always used (%s)',
+    async (providerId, domain) => {
+      storeBlob({ type: 'token_service_account', providerId, apiToken: 'legacy-token' })
+
+      await expect(resolveServiceAccountToken('legacy-1', providerId)).resolves.toMatchObject({
+        accessToken: 'legacy-token',
+        domain,
+      })
+    }
+  )
+
+  it('keeps the region a newer credential was saved with', async () => {
+    storeBlob({
+      type: 'token_service_account',
+      providerId: 'launchdarkly-service-account',
+      apiToken: 'eu-token',
+      domain: 'eu',
+    })
+
+    await expect(
+      resolveServiceAccountToken('eu-1', 'launchdarkly-service-account')
+    ).resolves.toMatchObject({ accessToken: 'eu-token', domain: 'eu' })
+  })
+})
+
 describe('Atlassian service-account resolution', () => {
   const fetchMock = vi.fn<typeof fetch>()
 

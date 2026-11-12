@@ -12,6 +12,15 @@
  * `@/lib/credentials/token-service-accounts/server`.
  */
 
+import type { ClientCredentialAccountOption } from '@/lib/credentials/client-credential-accounts/descriptors'
+import { DEFAULT_HEX_HOST, HEX_HOST_PATTERN } from '@/tools/hex/utils'
+import { LANGSMITH_REGIONS } from '@/tools/langsmith/utils'
+import { LAUNCHDARKLY_INSTANCES } from '@/tools/launchdarkly/utils'
+import { NEW_RELIC_REGIONS } from '@/tools/new_relic/utils'
+import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
+import { SENTRY_REGIONS } from '@/tools/sentry/utils'
+import { SQUARE_ENVIRONMENTS } from '@/tools/square/types'
+
 /** Discriminator stored inside every encrypted token service-account secret blob. */
 export const TOKEN_SERVICE_ACCOUNT_SECRET_TYPE = 'token_service_account' as const
 
@@ -35,6 +44,16 @@ export interface TokenServiceAccountField {
   /** Soft-format hint shown while the current value doesn't match `hintPattern`. */
   hintPattern?: RegExp
   hintMessage?: string
+  /** Fixed value set (a region or instance), rendered by the connect modal as a dropdown. */
+  options?: ReadonlyArray<ClientCredentialAccountOption>
+  /**
+   * Only on the `domain` field (a region, instance, or host): the value the connection takes when
+   * none is given. It is also what a credential saved before the field existed resolves to, and
+   * what a reconnect that leaves the field blank keeps when nothing is stored, so adding the field
+   * leaves existing credentials, and API callers that omit it, on the host they used before. A
+   * field with a default is not required.
+   */
+  defaultValue?: string
 }
 
 export interface TokenServiceAccountDescriptor {
@@ -1074,9 +1093,22 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     connectNoun: 'API token',
     fields: [
       { id: 'apiToken', label: 'API token', placeholder: 'Paste your Hex API token', secret: true },
+      {
+        id: 'domain',
+        label: 'Workspace host',
+        placeholder: DEFAULT_HEX_HOST,
+        secret: false,
+        defaultValue: DEFAULT_HEX_HOST,
+        hintPattern: HEX_HOST_PATTERN,
+        hintMessage:
+          'The hex.tech host your workspace signs in at: app.hex.tech (default), eu.hex.tech, or your single-tenant host.',
+      },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/hex',
-    helpText: 'Sim checks the token by listing projects, so it needs Read projects access.',
+    helpText:
+      'Sim checks the token by listing projects, so it needs Read projects access. Leave the host as app.hex.tech unless your workspace signs in at another hex.tech address, such as eu.hex.tech.',
+    invalidCredentialsHelp:
+      'Hex rejected this token. Check that it is active, has Read projects access, and belongs to the workspace host you entered.',
   },
   [HUGGINGFACE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: HUGGINGFACE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -1137,8 +1169,22 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         placeholder: 'Paste your LangSmith API key',
         secret: true,
       },
+      {
+        id: 'domain',
+        label: 'Region',
+        placeholder: 'Select a region',
+        secret: false,
+        options: LANGSMITH_REGIONS.options,
+        defaultValue: LANGSMITH_REGIONS.defaultRegion,
+        hintMessage:
+          'us (default), eu, apac, aws-us, or azure-us: the LangSmith region your organization is in.',
+      },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/langsmith',
+    helpText:
+      'Choose the region shown in the address you sign in at (for example eu.smith.langchain.com); a key only works in its own region.',
+    invalidCredentialsHelp:
+      'LangSmith rejected this API key. Check that it is active and that the region matches the one your organization is in.',
   },
   [LAUNCHDARKLY_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: LAUNCHDARKLY_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -1152,8 +1198,22 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         placeholder: 'Paste your LaunchDarkly access token',
         secret: true,
       },
+      {
+        id: 'domain',
+        label: 'Instance',
+        placeholder: 'Select an instance',
+        secret: false,
+        options: LAUNCHDARKLY_INSTANCES.options,
+        defaultValue: LAUNCHDARKLY_INSTANCES.defaultRegion,
+        hintMessage:
+          'us (default), eu, or federal: the LaunchDarkly instance the token was created in.',
+      },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/launchdarkly',
+    helpText:
+      'Choose EU or Federal if your account signs in at app.eu.launchdarkly.com or app.launchdarkly.us; a token only works on the instance that issued it.',
+    invalidCredentialsHelp:
+      'LaunchDarkly rejected this token. Check that it is active and that the instance matches the one your account signs in to.',
   },
   [LINQ_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: LINQ_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -1308,10 +1368,20 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         placeholder: 'Paste your SendGrid API key',
         secret: true,
       },
+      {
+        id: 'domain',
+        label: 'Region',
+        placeholder: 'Select a region',
+        secret: false,
+        options: SENDGRID_REGIONS.options,
+        defaultValue: SENDGRID_REGIONS.defaultRegion,
+        hintMessage:
+          'global (default), or eu for a key of an EU regional subuser, which SendGrid serves from api.eu.sendgrid.com.',
+      },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/sendgrid',
     helpText:
-      'Create a key in SendGrid under Settings > API Keys. A restricted key only works for the actions it is scoped to.',
+      'Create a key in SendGrid under Settings > API Keys. A restricted key only works for the actions it is scoped to. Choose EU subuser for a key of an EU regional subuser; Marketing Campaigns actions (contacts and lists) are not available to EU subusers.',
   },
   [SIMILARWEB_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: SIMILARWEB_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -1382,13 +1452,25 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'Access token',
-        placeholder: 'Paste your Square production access token',
+        placeholder: 'Paste your Square access token',
         secret: true,
+      },
+      {
+        id: 'domain',
+        label: 'Environment',
+        placeholder: 'Select an environment',
+        secret: false,
+        options: SQUARE_ENVIRONMENTS.options,
+        defaultValue: SQUARE_ENVIRONMENTS.defaultRegion,
+        hintMessage:
+          'production (default) or sandbox: the Square environment the access token was issued for.',
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/square',
     helpText:
-      'Use a production access token from your app in the Square Developer Console; sandbox tokens are not supported.',
+      'Use an access token from your app in the Square Developer Console, and choose Sandbox for a sandbox token; a token only works in the environment that issued it.',
+    invalidCredentialsHelp:
+      'Square rejected this access token. Check that it is active and that the environment matches the one the token was issued for.',
   },
   [TAILSCALE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: TAILSCALE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -1794,12 +1876,22 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         placeholder: 'Paste your Sentry auth token',
         secret: true,
       },
+      {
+        id: 'domain',
+        label: 'Data storage region',
+        placeholder: 'Select a region',
+        secret: false,
+        options: SENTRY_REGIONS.options,
+        defaultValue: SENTRY_REGIONS.defaultRegion,
+        hintMessage:
+          'us (default) or de: the data storage location shown in your organization settings.',
+      },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/sentry',
     helpText:
-      'Use a user auth token or an internal integration token with the scopes your operations need, such as org:read, project:read, project:write, and event:read. The organization slug stays a field on the block.',
+      'Use a user auth token or an internal integration token with the scopes your operations need, such as org:read, project:read, project:write, and event:read. Choose EU if your organization stores its data in the EU (de.sentry.io). The organization slug stays a field on the block.',
     invalidCredentialsHelp:
-      'Sentry rejected this token. Check that it was copied in full, has not been revoked, and belongs to sentry.io rather than a self-hosted Sentry.',
+      'Sentry rejected this token. Check that it was copied in full, has not been revoked, belongs to sentry.io rather than a self-hosted Sentry, and that the region matches where your organization stores its data.',
   },
   [STRIPE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: STRIPE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -2074,11 +2166,18 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     connectNoun: 'API key',
     fields: [
       { id: 'apiToken', label: 'User API key', placeholder: 'NRAK-...', secret: true },
-      { id: 'domain', label: 'Region', placeholder: 'us or eu', secret: false },
+      {
+        id: 'domain',
+        label: 'Region',
+        placeholder: 'Select a data center',
+        secret: false,
+        options: NEW_RELIC_REGIONS.options,
+        hintMessage: 'us, eu, or jp: the data center your New Relic account is in.',
+      },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/new_relic',
     helpText:
-      'Create a User API key (NRAK-...) in New Relic under API keys. Enter us, or eu if your account is in the EU data center.',
+      'Create a User API key (NRAK-...) in New Relic under API keys, and choose the data center your account is in (US, EU, or JP).',
     invalidCredentialsHelp:
       "New Relic rejected this key. Check that it is a User API key (NRAK-...), not a license or browser key, and that the region matches your account's data center.",
   },
@@ -2493,9 +2592,15 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
   },
 }
 
+/** Whether a create must give the field: every field is required unless it has a default. */
+export function isTokenServiceAccountFieldRequired(field: TokenServiceAccountField): boolean {
+  return field.defaultValue === undefined
+}
+
 /**
  * Required contract fields per token provider in client-credentials mode: the client ID and
- * secret replace the token, and every other descriptor field (a store domain) stays required.
+ * secret replace the token, and every other descriptor field without a default (a store domain)
+ * stays required.
  */
 export const TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS: Record<
   string,
@@ -2508,7 +2613,9 @@ export const TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS: Record<
       [
         'clientId',
         'clientSecret',
-        ...descriptor.fields.flatMap((field) => (field.id === 'apiToken' ? [] : [field.id])),
+        ...descriptor.fields.flatMap((field) =>
+          field.id !== 'apiToken' && isTokenServiceAccountFieldRequired(field) ? [field.id] : []
+        ),
       ],
     ])
 )
@@ -2516,15 +2623,27 @@ export const TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS: Record<
 /**
  * Required contract fields per token service-account provider, consumed by the
  * `createCredentialBodySchema` superRefine so validation errors name the exact
- * missing field. Derived from each descriptor's field list.
+ * missing field. Derived from each descriptor's field list; a field with a
+ * `defaultValue` is optional.
  */
 export const TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS: Record<string, TokenServiceAccountFieldId[]> =
   Object.fromEntries(
     Object.values(TOKEN_SERVICE_ACCOUNT_DESCRIPTORS).map((descriptor) => [
       descriptor.providerId,
-      descriptor.fields.map((field) => field.id),
+      descriptor.fields.filter(isTokenServiceAccountFieldRequired).map((field) => field.id),
     ])
   )
+
+/**
+ * The region or host a token credential's `domain` takes when none was given or stored: the
+ * descriptor's `defaultValue`, or `undefined` when it has none.
+ */
+export function getTokenServiceAccountDomainDefault(
+  providerId: string | null | undefined
+): string | undefined {
+  return getTokenServiceAccountDescriptor(providerId)?.fields.find((field) => field.id === 'domain')
+    ?.defaultValue
+}
 
 export function isTokenServiceAccountProviderId(
   value: string | null | undefined

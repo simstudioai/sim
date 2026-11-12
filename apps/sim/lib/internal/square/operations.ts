@@ -10,7 +10,7 @@ import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
-import { SQUARE_API_VERSION, SQUARE_BASE_URL } from '@/tools/square/types'
+import { SQUARE_API_VERSION, SQUARE_ENVIRONMENTS } from '@/tools/square/types'
 
 const logger = createLogger('SquareCatalogImage')
 const MAX_SQUARE_RESPONSE_BYTES = 10 * 1024 * 1024
@@ -71,15 +71,18 @@ export async function executeSquareCreateCatalogImage(
       input.fileName || userFile.name
     )
 
-    const response = await fetch(`${SQUARE_BASE_URL}/v2/catalog/images`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${input.accessToken}`,
-        'Square-Version': SQUARE_API_VERSION,
-      },
-      body: formData,
-      signal: context.signal,
-    })
+    const response = await fetch(
+      `${SQUARE_ENVIRONMENTS.apiBase(input.environment)}/v2/catalog/images`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${input.accessToken}`,
+          'Square-Version': SQUARE_API_VERSION,
+        },
+        body: formData,
+        signal: context.signal,
+      }
+    )
 
     if (!response.ok) {
       const errorText = await readResponseTextWithLimit(response, {

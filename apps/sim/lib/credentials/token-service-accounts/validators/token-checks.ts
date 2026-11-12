@@ -29,7 +29,10 @@ import { normalizeEmailBisonBaseUrl } from '@/tools/emailbison/utils'
 import { normalizeGitLabHost } from '@/tools/gitlab/utils'
 import { gongAuthorization } from '@/tools/gong/utils'
 import { GRANOLA_API_BASE, granolaHeaders } from '@/tools/granola/utils'
+import { DEFAULT_HEX_HOST, hexApiBase, normalizeHexHost } from '@/tools/hex/utils'
 import { buildJotformHeaders, buildJotformUrl, JOTFORM_REGION_HOSTS } from '@/tools/jotform/utils'
+import { LANGSMITH_REGIONS } from '@/tools/langsmith/utils'
+import { LAUNCHDARKLY_INSTANCES } from '@/tools/launchdarkly/utils'
 import {
   getLogfireBaseUrl,
   LOGFIRE_READ_TOKEN_INFO_PATH,
@@ -37,7 +40,7 @@ import {
 } from '@/tools/logfire/utils'
 import type { MailgunRegion } from '@/tools/mailgun/types'
 import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
-import { getNerdGraphEndpoint, newRelicHeaders } from '@/tools/new_relic/utils'
+import { getNerdGraphEndpoint, NEW_RELIC_REGIONS, newRelicHeaders } from '@/tools/new_relic/utils'
 import { oktaHeaders } from '@/tools/okta/utils'
 import { planeApiUrl, planeHeaders } from '@/tools/plane/utils'
 import {
@@ -45,7 +48,11 @@ import {
   PLANETSCALE_API_ORIGIN,
   planetScaleHeaders,
 } from '@/tools/planetscale/utils'
+import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
+import { SENTRY_REGIONS } from '@/tools/sentry/utils'
 import { createBasicAuthHeader } from '@/tools/servicenow/utils'
+import type { CredentialRegions } from '@/tools/shared/credential-regions'
+import { SQUARE_ENVIRONMENTS } from '@/tools/square/types'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import { getThriveBaseUrl, getThriveHeaders, THRIVE_HOSTS } from '@/tools/thrive/utils'
 import { isTwilioApiKeyPair, twilioAuthorization } from '@/tools/twilio/utils'
@@ -61,6 +68,18 @@ import { WHATSAPP_GRAPH_VERSION } from '@/tools/whatsapp/utils'
 
 /** Regions for vendors with one US and one EU API host. */
 const US_OR_EU: ReadonlySet<string> = new Set(['us', 'eu'])
+
+/**
+ * The connection fields of a credential whose domain is one of the vendor's fixed regions: only a
+ * listed region is accepted, and the default one is the host the vendor always used.
+ */
+function vendorRegion(regions: CredentialRegions<string>) {
+  return {
+    domain: allowedDomain(regions),
+    defaultDomain: regions.defaultRegion,
+    domainIsVendorRegion: true,
+  }
+}
 
 /** Affinity's whoami endpoint answers 200 for a valid key and 401 otherwise. */
 export const validateAffinityServiceAccount = tokenCheckValidator({
@@ -797,11 +816,16 @@ export const validateGranolaServiceAccount = tokenCheckValidator({
   }),
 })
 
-/** Hex's list-projects endpoint (the one the Hex tools call) answers 200 for a valid token and 401 otherwise. */
+/**
+ * Hex's list-projects endpoint (the one the Hex tools call) answers 200 for a valid token and 401
+ * otherwise, on the hex.tech host of the token's workspace.
+ */
 export const validateHexServiceAccount = tokenCheckValidator({
   serviceLabel: 'Hex',
-  request: ({ apiToken }) => ({
-    url: 'https://app.hex.tech/api/v1/projects?limit=1',
+  domain: ({ domain }) => normalizeHexHost(domain),
+  defaultDomain: DEFAULT_HEX_HOST,
+  request: ({ apiToken, domain }) => ({
+    url: `${hexApiBase(domain)}/projects?limit=1`,
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
 })
@@ -914,20 +938,29 @@ export const validateJupyterServiceAccount = tokenCheckValidator({
   },
 })
 
-/** LangSmith's workspace list answers 200 for a valid API key and 401/403 otherwise. */
+/**
+ * LangSmith's workspace list answers 200 for a valid API key and 401/403 otherwise, in the region
+ * the key's organization lives in; a key from another region is not recognized.
+ */
 export const validateLangsmithServiceAccount = tokenCheckValidator({
   serviceLabel: 'LangSmith',
-  request: ({ apiToken }) => ({
-    url: 'https://api.smith.langchain.com/api/v1/workspaces',
+  ...vendorRegion(LANGSMITH_REGIONS),
+  request: ({ apiToken, domain }) => ({
+    url: `${LANGSMITH_REGIONS.apiBase(domain)}/workspaces`,
     headers: { 'X-Api-Key': apiToken, Accept: 'application/json' },
   }),
 })
 
-/** LaunchDarkly's caller-identity endpoint describes the calling token, so it answers 200 for any valid token and 401 otherwise. */
+/**
+ * LaunchDarkly's caller-identity endpoint describes the calling token, so it answers 200 for any
+ * valid token and 401 otherwise, on the instance (commercial, EU, or federal) the token was
+ * created in.
+ */
 export const validateLaunchdarklyServiceAccount = tokenCheckValidator({
   serviceLabel: 'LaunchDarkly',
-  request: ({ apiToken }) => ({
-    url: 'https://app.launchdarkly.com/api/v2/caller-identity',
+  ...vendorRegion(LAUNCHDARKLY_INSTANCES),
+  request: ({ apiToken, domain }) => ({
+    url: `${LAUNCHDARKLY_INSTANCES.apiBase(domain)}/caller-identity`,
     headers: { Authorization: apiToken, Accept: 'application/json' },
   }),
 })
@@ -1079,16 +1112,16 @@ const NERDGRAPH_RETRYABLE_ERROR_CLASSES: ReadonlySet<unknown> = new Set([
 
 /**
  * A New Relic User API key is bound to its data center, so it is checked against the
- * NerdGraph host of the region typed with it (`us` or `eu`, stored lower-cased because
- * the tools send anything but `eu` to the US host). An unknown key, or one from the other
+ * NerdGraph host of the region typed with it (`us`, `eu`, or `jp`, stored lower-cased because
+ * the tools send anything else to the US host). An unknown key, or one from the other
  * region, gets 401, or a 200 whose `errors` carry `BAD_API_KEY`, so only a resolved user
  * proves the key. Only an error in a server class means NerdGraph failed to answer.
  */
 export const validateNewRelicServiceAccount = tokenCheckValidator({
   serviceLabel: 'New Relic',
-  domain: allowedDomain(US_OR_EU),
+  domain: allowedDomain(NEW_RELIC_REGIONS),
   request: ({ apiToken, domain }) => ({
-    url: getNerdGraphEndpoint(domain as 'us' | 'eu'),
+    url: getNerdGraphEndpoint(domain),
     method: 'POST',
     headers: { ...newRelicHeaders(apiToken), Accept: 'application/json' },
     body: JSON.stringify({ query: '{ actor { user { id } } }' }),
@@ -1344,11 +1377,16 @@ export const validateRootlyServiceAccount = tokenCheckValidator({
   }),
 })
 
-/** SendGrid's scopes endpoint lists the scopes of the key that calls it, so any valid key gets 200 and a bad one 401. */
+/**
+ * SendGrid's scopes endpoint lists the scopes of the key that calls it, so any valid key gets 200
+ * and a bad one 401. SendGrid serves it on both the global host and the EU host of regional
+ * subusers: https://www.twilio.com/docs/sendgrid/api-reference/api-key-permissions/retrieve-a-list-of-scopes-for-which-this-user-has-access
+ */
 export const validateSendGridServiceAccount = tokenCheckValidator({
   serviceLabel: 'SendGrid',
-  request: ({ apiToken }) => ({
-    url: 'https://api.sendgrid.com/v3/scopes',
+  ...vendorRegion(SENDGRID_REGIONS),
+  request: ({ apiToken, domain }) => ({
+    url: `${SENDGRID_REGIONS.apiBase(domain)}/scopes`,
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
 })
@@ -1356,13 +1394,15 @@ export const validateSendGridServiceAccount = tokenCheckValidator({
 /**
  * Listing the token's Sentry organizations answers 200 for a valid token and 401 for a bad one;
  * a token without `org:read` (an organization token, or a narrowly scoped one) gets Sentry's JSON
- * 403.
+ * 403. The list is per region, so it is read on the host of the region the token's organization
+ * stores its data in: https://docs.sentry.io/api/users/list-your-organizations/
  */
 export const validateSentryServiceAccount = tokenCheckValidator({
   serviceLabel: 'Sentry',
   forbiddenMeansScoped: true,
-  request: ({ apiToken }) => ({
-    url: 'https://sentry.io/api/0/organizations/',
+  ...vendorRegion(SENTRY_REGIONS),
+  request: ({ apiToken, domain }) => ({
+    url: `${SENTRY_REGIONS.apiBase(domain)}/organizations/`,
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
 })
@@ -1454,13 +1494,15 @@ export const validateSportmonksServiceAccount = tokenCheckValidator({
 })
 
 /**
- * Square's list-locations read answers 200 for a valid production access token and 401 for a bad
- * one; a token without the merchant-profile scope gets 403.
+ * Square's list-locations read answers 200 for a valid access token and 401 for a bad one, in the
+ * environment (production or sandbox) that issued it; a token without the merchant-profile scope
+ * gets 403.
  */
 export const validateSquareServiceAccount = tokenCheckValidator({
   serviceLabel: 'Square',
-  request: ({ apiToken }) => ({
-    url: 'https://connect.squareup.com/v2/locations',
+  ...vendorRegion(SQUARE_ENVIRONMENTS),
+  request: ({ apiToken, domain }) => ({
+    url: `${SQUARE_ENVIRONMENTS.apiBase(domain)}/v2/locations`,
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
   forbiddenMeansScoped: true,

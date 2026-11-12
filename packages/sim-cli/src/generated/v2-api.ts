@@ -8843,6 +8843,7 @@ type ListCredentialProvidersResponseRef0 =
           value: string
           label: string
         }>
+        defaultValue?: string
         hint?: string
       }>
     }
@@ -8869,6 +8870,7 @@ type ListCredentialProvidersResponseRef0 =
           value: string
           label: string
         }>
+        defaultValue?: string
         hint?: string
       }>
       keyless?: {

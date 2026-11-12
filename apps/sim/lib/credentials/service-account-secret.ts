@@ -55,6 +55,7 @@ import { getTokenClientCredentialMinter } from '@/lib/credentials/token-service-
 import {
   CLIENT_CREDENTIALS_AUTH_METHOD,
   getTokenServiceAccountDescriptor,
+  isTokenServiceAccountFieldRequired,
   isTokenServiceAccountProviderId,
   SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
   TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
@@ -578,8 +579,9 @@ async function buildTokenServiceAccountSecret(
   const apiToken = descriptor.fields.find((field) => field.id === 'apiToken')?.preserveWhitespace
     ? fields.apiToken
     : fields.apiToken?.trim()
-  const domain = fields.domain?.trim()
-  const requiresDomain = descriptor.fields.some((field) => field.id === 'domain')
+  const domainField = descriptor.fields.find((field) => field.id === 'domain')
+  const domain = fields.domain?.trim() || domainField?.defaultValue
+  const requiresDomain = Boolean(domainField)
   const providerWorkspaceId = fields.providerWorkspaceId?.trim()
   const requiresWorkspace = descriptor.fields.some((field) => field.id === 'providerWorkspaceId')
   if (
@@ -588,9 +590,9 @@ async function buildTokenServiceAccountSecret(
     (requiresDomain && !domain) ||
     (requiresWorkspace && !providerWorkspaceId)
   ) {
-    const required = descriptor.fields.map((field) => field.id).join(' and ')
+    const requiredFields = descriptor.fields.filter(isTokenServiceAccountFieldRequired)
     throw new ServiceAccountSecretError(
-      `${required} ${descriptor.fields.length > 1 ? 'are' : 'is'} required for ${descriptor.serviceLabel} service account credentials`
+      `${requiredFields.map((field) => field.id).join(' and ')} ${requiredFields.length > 1 ? 'are' : 'is'} required for ${descriptor.serviceLabel} service account credentials`
     )
   }
   const validation = await validator({ apiToken, domain, providerWorkspaceId })
@@ -634,8 +636,9 @@ async function buildTokenClientCredentialSecret(
   }
   const clientId = fields.clientId?.trim()
   const clientSecret = fields.clientSecret?.trim()
-  const domain = fields.domain?.trim()
-  const requiresDomain = descriptor.fields.some((field) => field.id === 'domain')
+  const domainField = descriptor.fields.find((field) => field.id === 'domain')
+  const domain = fields.domain?.trim() || domainField?.defaultValue
+  const requiresDomain = Boolean(domainField)
   if (!clientId || !clientSecret || (requiresDomain && !domain)) {
     throw new ServiceAccountSecretError(
       `clientId, clientSecret${requiresDomain ? ', and domain are' : ' are'} required for ${descriptor.serviceLabel} client credentials`

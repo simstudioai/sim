@@ -35,7 +35,7 @@ export const newRelicGetEntityTool: ToolConfig<NewRelicGetEntityParams, NewRelic
         type: 'string',
         required: false,
         visibility: 'user-only',
-        description: 'New Relic data center region: us or eu',
+        description: 'New Relic data center region: us, eu, or jp',
       },
       guid: {
         type: 'string',

@@ -1,4 +1,5 @@
 import type { HexCreateCollectionParams, HexCreateCollectionResponse } from '@/tools/hex/types'
+import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
 import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -13,6 +14,7 @@ export const createCollectionTool: ToolConfig<
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
+    host: HEX_HOST_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -34,7 +36,7 @@ export const createCollectionTool: ToolConfig<
   },
 
   request: {
-    url: 'https://app.hex.tech/api/v1/collections',
+    url: (params) => `${hexApiBase(params.host)}/collections`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export type NewRelicRegion = 'us' | 'eu'
+type NewRelicRegion = 'us' | 'eu' | 'jp'
 
 interface NewRelicBaseParams {
   apiKey: string

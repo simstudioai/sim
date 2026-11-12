@@ -272,7 +272,10 @@ export const GRAFANA_CREDENTIAL_OAUTH = tokenCredentialOAuth('grafana', {
 })
 export const GRAIN_CREDENTIAL_OAUTH = tokenCredentialOAuth('grain', { apiKey: 'accessToken' })
 export const GRANOLA_CREDENTIAL_OAUTH = tokenCredentialOAuth('granola', { apiKey: 'accessToken' })
-export const HEX_CREDENTIAL_OAUTH = tokenCredentialOAuth('hex', { apiKey: 'accessToken' })
+export const HEX_CREDENTIAL_OAUTH = tokenCredentialOAuth('hex', {
+  apiKey: 'accessToken',
+  host: 'domain',
+})
 export const HUGGINGFACE_CREDENTIAL_OAUTH = tokenCredentialOAuth('huggingface', {
   apiKey: 'accessToken',
 })
@@ -299,9 +302,11 @@ export const JUPYTER_CREDENTIAL_OAUTH = tokenCredentialOAuth('jupyter', {
 })
 export const LANGSMITH_CREDENTIAL_OAUTH = tokenCredentialOAuth('langsmith', {
   apiKey: 'accessToken',
+  region: 'domain',
 })
 export const LAUNCHDARKLY_CREDENTIAL_OAUTH = tokenCredentialOAuth('launchdarkly', {
   apiKey: 'accessToken',
+  instance: 'domain',
 })
 export const LEMLIST_CREDENTIAL_OAUTH = tokenCredentialOAuth('lemlist', { apiKey: 'accessToken' })
 export const LINQ_CREDENTIAL_OAUTH = tokenCredentialOAuth('linq', { apiKey: 'accessToken' })
@@ -360,8 +365,14 @@ export const ROCKETLANE_CREDENTIAL_OAUTH = tokenCredentialOAuth('rocketlane', {
   apiKey: 'accessToken',
 })
 export const ROOTLY_CREDENTIAL_OAUTH = tokenCredentialOAuth('rootly', { apiKey: 'accessToken' })
-export const SENDGRID_CREDENTIAL_OAUTH = tokenCredentialOAuth('sendgrid', { apiKey: 'accessToken' })
-export const SENTRY_CREDENTIAL_OAUTH = tokenCredentialOAuth('sentry', { apiKey: 'accessToken' })
+export const SENDGRID_CREDENTIAL_OAUTH = tokenCredentialOAuth('sendgrid', {
+  apiKey: 'accessToken',
+  region: 'domain',
+})
+export const SENTRY_CREDENTIAL_OAUTH = tokenCredentialOAuth('sentry', {
+  apiKey: 'accessToken',
+  region: 'domain',
+})
 export const SERVICENOW_CREDENTIAL_OAUTH = tokenCredentialOAuth('servicenow', {
   instanceUrl: 'domain',
   username: 'providerWorkspaceId',
@@ -379,7 +390,10 @@ export const SMARTLEAD_CREDENTIAL_OAUTH = tokenCredentialOAuth('smartlead', {
 export const SPORTMONKS_CREDENTIAL_OAUTH = tokenCredentialOAuth('sportmonks', {
   apiKey: 'accessToken',
 })
-export const SQUARE_CREDENTIAL_OAUTH = tokenCredentialOAuth('square', { apiKey: 'accessToken' })
+export const SQUARE_CREDENTIAL_OAUTH = tokenCredentialOAuth('square', {
+  apiKey: 'accessToken',
+  environment: 'domain',
+})
 export const STRIPE_CREDENTIAL_OAUTH = tokenCredentialOAuth('stripe', { apiKey: 'accessToken' })
 export const SUPABASE_CREDENTIAL_OAUTH = tokenCredentialOAuth('supabase', {
   apiKey: 'accessToken',

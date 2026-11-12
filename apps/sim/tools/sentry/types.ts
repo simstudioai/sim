@@ -5,6 +5,8 @@ import type { ToolResponse } from '@/tools/types'
  */
 interface SentryBaseParams {
   apiKey: string
+  /** Data storage region of a saved credential (`us` or `de`); absent means sentry.io. */
+  region?: string
   organizationSlug: string
 }
 

@@ -1,4 +1,5 @@
 import type { SentryListTeamsParams, SentryListTeamsResponse } from '@/tools/sentry/types'
+import { SENTRY_REGIONS } from '@/tools/sentry/utils'
 import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -11,6 +12,7 @@ export const listTeamsTool: ToolConfig<SentryListTeamsParams, SentryListTeamsRes
   oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {
+    region: SENTRY_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -45,7 +47,7 @@ export const listTeamsTool: ToolConfig<SentryListTeamsParams, SentryListTeamsRes
 
   request: {
     url: (params) => {
-      const baseUrl = `https://sentry.io/api/0/organizations/${params.organizationSlug}/teams/`
+      const baseUrl = `${SENTRY_REGIONS.apiBase(params.region)}/organizations/${params.organizationSlug}/teams/`
       const queryParams: string[] = []
 
       if (params.query && params.query !== null && params.query !== '') {

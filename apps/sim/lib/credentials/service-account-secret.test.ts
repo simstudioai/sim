@@ -831,3 +831,182 @@ describe('a ServiceNow login', () => {
     expect(secureFetch).not.toHaveBeenCalled()
   })
 })
+
+describe('a token provider whose region or host defaults to the one it always used', () => {
+  const fetchMock = vi.fn<typeof fetch>()
+
+  beforeEach(() => {
+    mockEncryptSecret.mockImplementation(async (value: string) => ({ encrypted: value }))
+    fetchMock.mockReset().mockResolvedValue(Response.json({ accountId: 'acct-1' }))
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  const requestedUrl = () => new Request(fetchMock.mock.calls[0][0], fetchMock.mock.calls[0][1]).url
+
+  it.each([
+    [
+      'launchdarkly-service-account',
+      undefined,
+      'https://app.launchdarkly.com/api/v2/caller-identity',
+      'us',
+    ],
+    [
+      'launchdarkly-service-account',
+      'eu',
+      'https://app.eu.launchdarkly.com/api/v2/caller-identity',
+      'eu',
+    ],
+    [
+      'launchdarkly-service-account',
+      'Federal',
+      'https://app.launchdarkly.us/api/v2/caller-identity',
+      'federal',
+    ],
+    [
+      'langsmith-service-account',
+      undefined,
+      'https://api.smith.langchain.com/api/v1/workspaces',
+      'us',
+    ],
+    [
+      'langsmith-service-account',
+      'eu',
+      'https://eu.api.smith.langchain.com/api/v1/workspaces',
+      'eu',
+    ],
+    [
+      'langsmith-service-account',
+      'azure-us',
+      'https://azure.api.smith.langchain.com/api/v1/workspaces',
+      'azure-us',
+    ],
+    [
+      'square-service-account',
+      undefined,
+      'https://connect.squareup.com/v2/locations',
+      'production',
+    ],
+    [
+      'square-service-account',
+      'sandbox',
+      'https://connect.squareupsandbox.com/v2/locations',
+      'sandbox',
+    ],
+    ['sendgrid-service-account', undefined, 'https://api.sendgrid.com/v3/scopes', 'global'],
+    ['sendgrid-service-account', 'eu', 'https://api.eu.sendgrid.com/v3/scopes', 'eu'],
+    [
+      'hex-service-account',
+      undefined,
+      'https://app.hex.tech/api/v1/projects?limit=1',
+      'app.hex.tech',
+    ],
+    [
+      'hex-service-account',
+      'eu.hex.tech',
+      'https://eu.hex.tech/api/v1/projects?limit=1',
+      'eu.hex.tech',
+    ],
+    [
+      'hex-service-account',
+      'https://Acme.hex.tech/',
+      'https://acme.hex.tech/api/v1/projects?limit=1',
+      'acme.hex.tech',
+    ],
+    ['sentry-service-account', undefined, 'https://sentry.io/api/0/organizations/', 'us'],
+    ['sentry-service-account', 'de', 'https://de.sentry.io/api/0/organizations/', 'de'],
+  ])('%s with %s is checked at %s and stored as %s', async (providerId, domain, url, stored) => {
+    const result = await verifyAndBuildServiceAccountSecret(providerId, {
+      apiToken: 'token-1',
+      ...(domain === undefined ? {} : { domain }),
+    })
+
+    expect(requestedUrl()).toBe(url)
+    expect(JSON.parse(result.encryptedServiceAccountKey)).toMatchObject({
+      apiToken: 'token-1',
+      domain: stored,
+    })
+  })
+
+  it.each([
+    ['launchdarkly-service-account', 'LaunchDarkly'],
+    ['langsmith-service-account', 'LangSmith'],
+    ['square-service-account', 'Square'],
+    ['sendgrid-service-account', 'SendGrid'],
+    ['hex-service-account', 'Hex'],
+    ['sentry-service-account', 'Sentry'],
+  ])(
+    'names a %s credential on its default host %s, as before the field existed',
+    async (providerId, label) => {
+      const result = await verifyAndBuildServiceAccountSecret(providerId, { apiToken: 'token-1' })
+
+      expect(result.displayName).toBe(label)
+    }
+  )
+
+  it.each([
+    ['sentry-service-account', 'de', 'Sentry (de)'],
+    ['hex-service-account', 'eu.hex.tech', 'Hex (eu.hex.tech)'],
+  ])('names a %s credential in %s after it', async (providerId, domain, displayName) => {
+    const result = await verifyAndBuildServiceAccountSecret(providerId, {
+      apiToken: 'token-1',
+      domain,
+    })
+
+    expect(result.displayName).toBe(displayName)
+  })
+
+  const hostNotFound = () =>
+    Object.assign(new TypeError('fetch failed'), { cause: { code: 'ENOTFOUND' } })
+
+  it.each([
+    ['sendgrid-service-account', undefined],
+    ['sendgrid-service-account', 'eu'],
+    ['sentry-service-account', 'de'],
+    ['launchdarkly-service-account', 'federal'],
+    ['hex-service-account', undefined],
+  ])(
+    'reports a %s vendor host (%s) that does not resolve as the vendor being unavailable',
+    async (providerId, domain) => {
+      fetchMock.mockRejectedValue(hostNotFound())
+
+      await expect(
+        verifyAndBuildServiceAccountSecret(providerId, {
+          apiToken: 'token-1',
+          ...(domain === undefined ? {} : { domain }),
+        })
+      ).rejects.toMatchObject({ code: 'provider_unavailable' })
+    }
+  )
+
+  it('reports a typed Hex host that does not resolve as a host not found', async () => {
+    fetchMock.mockRejectedValue(hostNotFound())
+
+    await expect(
+      verifyAndBuildServiceAccountSecret('hex-service-account', {
+        apiToken: 'token-1',
+        domain: 'acme.hex.tech',
+      })
+    ).rejects.toMatchObject({ code: 'site_not_found' })
+  })
+
+  it.each([
+    ['launchdarkly-service-account', 'app.launchdarkly.example.com'],
+    ['langsmith-service-account', 'eu.api.smith.langchain.com.example.com'],
+    ['square-service-account', 'connect.squareupsandbox.com'],
+    ['sendgrid-service-account', 'api.eu.sendgrid.com'],
+    ['hex-service-account', 'hex.tech.example.com'],
+    ['hex-service-account', 'acme.hex.tech@example.com'],
+    ['hex-service-account', 'a.b.hex.tech'],
+    ['hex-service-account', 'status.hex.tech'],
+    ['hex-service-account', 'learn.hex.tech'],
+    ['sentry-service-account', 'de.sentry.io.example.com'],
+  ])(
+    'refuses %s with an unlisted region or host %s without sending the token',
+    async (providerId, domain) => {
+      await expect(
+        verifyAndBuildServiceAccountSecret(providerId, { apiToken: 'token-1', domain })
+      ).rejects.toMatchObject({ code: 'invalid_credentials' })
+      expect(fetchMock).not.toHaveBeenCalled()
+    }
+  )
+})

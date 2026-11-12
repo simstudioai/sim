@@ -79,6 +79,24 @@ describe('v2 credential provider catalog contract', () => {
     ).toBe(false)
   })
 
+  it('tells API callers the region an optional region field takes when omitted', async () => {
+    const providers = await listProviders()
+    const sentry = providers.find(
+      (provider) =>
+        provider.type === 'service_account' && provider.providerId === 'sentry-service-account'
+    )
+
+    expect(sentry?.fields.find((field) => field.id === 'domain')).toMatchObject({
+      required: false,
+      defaultValue: 'us',
+      options: [
+        { value: 'us', label: 'US (sentry.io)' },
+        { value: 'de', label: 'EU (de.sentry.io)' },
+      ],
+    })
+    expect(responseSchema.safeParse({ data: providers, nextCursor: null }).success).toBe(true)
+  })
+
   it('keeps the field-less GitHub installation in the internal catalog for existing credentials', async () => {
     const catalog = await listCredentialProviderCatalog(createSessionPrincipal(), context)
     const installation = catalog.find(

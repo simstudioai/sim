@@ -4,7 +4,7 @@ import type { InvoiceListResponse, ListInvoicesParams } from '@/tools/square/typ
 import {
   INVOICE_OUTPUT,
   LIST_METADATA_OUTPUT_PROPERTIES,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -18,6 +18,7 @@ export const squareListInvoicesTool: ToolConfig<ListInvoicesParams, InvoiceListR
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -46,7 +47,7 @@ export const squareListInvoicesTool: ToolConfig<ListInvoicesParams, InvoiceListR
 
   request: {
     url: (params) => {
-      const url = new URL(`${SQUARE_BASE_URL}/v2/invoices`)
+      const url = new URL(`${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/invoices`)
       url.searchParams.append('location_id', params.locationId)
       if (params.limit !== undefined) url.searchParams.append('limit', params.limit.toString())
       if (params.cursor) url.searchParams.append('cursor', params.cursor)
