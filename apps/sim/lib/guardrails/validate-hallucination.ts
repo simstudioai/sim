@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { searchKnowledgeAsExecutor } from '@/lib/internal/knowledge/search'
+import { resolveBedrockCredentialSession } from '@/lib/internal/llm/bedrock-credential'
 import { resolveVertexAccessToken } from '@/lib/internal/llm/credentials'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
@@ -10,6 +11,7 @@ import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeProviderRequest } from '@/providers'
 import { isAbortError } from '@/providers/streaming-tool-loop-shared'
+import type { BedrockCredentialSession } from '@/providers/types'
 import { getProviderFromModel } from '@/providers/utils'
 
 const logger = createLogger('HallucinationValidator')
@@ -40,6 +42,8 @@ export interface HallucinationValidationInput {
     bedrockAccessKeyId?: string
     bedrockSecretKey?: string
     bedrockRegion?: string
+    /** A saved AWS credential ID; resolved for the acting user before the scoring call. */
+    bedrockCredential?: string
   }
   workflowId?: string
   workspaceId?: string
@@ -115,6 +119,7 @@ async function scoreHallucinationWithLLM(
   model: string,
   apiKey: string | undefined,
   providerCredentials: HallucinationValidationInput['providerCredentials'],
+  bedrockSession: BedrockCredentialSession | undefined,
   workspaceId: string | undefined,
   requestId: string,
   resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry,
@@ -182,6 +187,7 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
         bedrockAccessKeyId: providerCredentials?.bedrockAccessKeyId,
         bedrockSecretKey: providerCredentials?.bedrockSecretKey,
         bedrockRegion: providerCredentials?.bedrockRegion,
+        bedrockSession,
         workspaceId,
         abortSignal,
       },
@@ -247,6 +253,7 @@ export async function validateHallucination(
     providerCredentials,
     workflowId,
     workspaceId,
+    actorUserId,
     executionContext,
     billingAttribution,
     requestId,
@@ -319,6 +326,17 @@ export async function validateHallucination(
       throw new Error('Hallucination model input provenance is unavailable')
     }
 
+    const bedrockSession =
+      getProviderFromModel(model) === 'bedrock' && providerCredentials?.bedrockCredential
+        ? await resolveBedrockCredentialSession({
+            credentialId: providerCredentials.bedrockCredential,
+            actingUserId: actorUserId,
+            workflowId,
+            workspaceId,
+            signal: abortSignal,
+          })
+        : undefined
+
     // Step 2: Use LLM to score confidence
     const { score, reasoning, cost } = await scoreHallucinationWithLLM(
       inputProjection.value,
@@ -326,6 +344,7 @@ export async function validateHallucination(
       model,
       apiKey,
       providerCredentials,
+      bedrockSession,
       workspaceId,
       requestId,
       providerRegistry,

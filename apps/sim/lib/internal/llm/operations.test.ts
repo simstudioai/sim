@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   importProvenance: vi.fn(),
   isComplete: vi.fn(),
   resolveVertexAccessToken: vi.fn(),
+  resolveBedrockCredentialSession: vi.fn(),
 }))
 
 vi.mock('@/providers', () => providersMock)
@@ -26,6 +27,9 @@ vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentContextMock)
 vi.mock('@/lib/internal/llm/credentials', () => ({
   resolveVertexAccessToken: mocks.resolveVertexAccessToken,
+}))
+vi.mock('@/lib/internal/llm/bedrock-credential', () => ({
+  resolveBedrockCredentialSession: mocks.resolveBedrockCredentialSession,
 }))
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
@@ -109,5 +113,64 @@ describe('executeLlmProviderOperation', () => {
       expect.objectContaining({ apiKey: 'vertex-token' }),
       expect.anything()
     )
+  })
+
+  it("signs a Bedrock call with the selected AWS credential's session for the caller", async () => {
+    const session = {
+      credentialId: 'aws-cred',
+      accessKeyId: 'ASIASESSIONKEY000001',
+      secretAccessKey: 'session-secret',
+      sessionToken: 'session-token',
+    }
+    mocks.resolveBedrockCredentialSession.mockResolvedValueOnce(session)
+
+    await executeLlmProviderOperation(
+      {
+        provider: 'bedrock',
+        model: 'bedrock/claude',
+        bedrockCredential: 'aws-cred',
+        bedrockRegion: 'eu-west-1',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+      },
+      { actorUserId: 'user-1', headers: new Headers(), requestId: 'request-1' }
+    )
+
+    expect(mocks.resolveBedrockCredentialSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentialId: 'aws-cred',
+        actingUserId: 'user-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+      })
+    )
+    expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
+      'bedrock',
+      expect.objectContaining({ bedrockSession: session, bedrockRegion: 'eu-west-1' }),
+      expect.anything()
+    )
+  })
+
+  it('fails a Bedrock call whose AWS credential cannot be used before provider work', async () => {
+    mockExecuteProviderRequest.mockClear()
+    mocks.resolveBedrockCredentialSession.mockRejectedValueOnce(
+      new Error('Not authorized to use this AWS credential')
+    )
+
+    await expect(
+      executeLlmProviderOperation(
+        {
+          provider: 'bedrock',
+          model: 'bedrock/claude',
+          bedrockCredential: 'aws-cred',
+          workspaceId: 'workspace-1',
+        },
+        { actorUserId: 'user-1', headers: new Headers(), requestId: 'request-1' }
+      )
+    ).rejects.toMatchObject<LlmOperationError>({
+      status: 400,
+      body: { error: 'Not authorized to use this AWS credential' },
+    })
+    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
   })
 })

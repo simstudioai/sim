@@ -22,6 +22,7 @@ export const guardrailsValidationInputSchema = z.object({
   bedrockAccessKeyId: z.string().optional(),
   bedrockSecretKey: z.string().optional(),
   bedrockRegion: z.string().optional(),
+  bedrockCredential: z.string().optional(),
   workflowId: z.string().optional(),
   piiEntityTypes: z.array(z.string()).optional(),
   piiMode: z.string().optional(),
