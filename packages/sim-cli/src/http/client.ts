@@ -164,40 +164,54 @@ function toNonJsonError(
 function toApiError(url: string, response: Response, raw: string): SimApiError {
   const { status } = response
   const headerRequestId = responseRequestId(response)
-  const failure = (message: string) =>
-    new SimApiError(message, status, null, undefined, 1, headerRequestId)
 
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
   } catch {
-    if (!raw.trim()) return failure(`Request failed with status ${status}`)
+    if (!raw.trim()) {
+      return new SimApiError(
+        `Request failed with status ${status}`,
+        status,
+        null,
+        undefined,
+        1,
+        headerRequestId
+      )
+    }
     return toNonJsonError(url, status, response.headers.get('content-type'), raw, headerRequestId)
   }
 
-  const body = parsed as { error?: unknown; message?: unknown }
+  const body = parsed as { error?: unknown; message?: unknown; requestId?: unknown }
+  const error =
+    body.error && typeof body.error === 'object'
+      ? (body.error as {
+          code?: unknown
+          message?: unknown
+          details?: unknown
+          requestId?: unknown
+        })
+      : null
+  /** v2 nests the id in `error`; internal routes stamp it beside `error`; the header backs both. */
+  const requestId =
+    nonEmptyString(error?.requestId) ?? nonEmptyString(body.requestId) ?? headerRequestId
+  const failure = (message: string, code: string | null = null, details?: unknown) =>
+    new SimApiError(message, status, code, details, 1, requestId)
 
-  if (body.error && typeof body.error === 'object') {
-    const error = body.error as {
-      code?: unknown
-      message?: unknown
-      details?: unknown
-      requestId?: unknown
-    }
-    return new SimApiError(
+  if (error) {
+    return failure(
       typeof error.message === 'string' ? error.message : `Request failed with status ${status}`,
-      status,
       typeof error.code === 'string' ? error.code : null,
-      error.details,
-      1,
-      typeof error.requestId === 'string' && error.requestId ? error.requestId : headerRequestId
+      error.details
     )
   }
-
   if (typeof body.error === 'string') return failure(body.error)
   if (typeof body.message === 'string') return failure(body.message)
-
   return failure(`Request failed with status ${status}`)
+}
+
+function nonEmptyString(value: unknown): string | null {
+  return typeof value === 'string' && value ? value : null
 }
 
 /**
