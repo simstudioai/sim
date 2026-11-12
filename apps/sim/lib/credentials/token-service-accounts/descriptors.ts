@@ -114,6 +114,13 @@ export interface TokenServiceAccountDescriptor {
    */
   authStyle?: 'bearer' | 'x-api-token'
   /**
+   * The pasted secret is a password whenever the connection also stores a username in
+   * `providerWorkspaceId` (Splunk, whose token sign-in is off by default): such a credential
+   * resolves with `authStyle: 'basic'` so its tools send HTTP Basic. One saved without a username
+   * resolves exactly as a pasted token.
+   */
+  passwordWithUsername?: true
+  /**
    * A client-credentials grant the provider offers beside the pasted token. A credential saved
    * with `authMethod: 'client_credentials'` stores the client ID and secret (and `domain`, when
    * the descriptor has one) and mints a short-lived token at execution time; a credential saved
@@ -2732,9 +2739,17 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     fields: [
       {
         id: 'apiToken',
-        label: 'Authentication token',
-        placeholder: 'Paste a Splunk authentication token',
+        label: 'Authentication token or password',
+        placeholder: 'Paste a Splunk authentication token, or the password',
         secret: true,
+        preserveWhitespace: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Username',
+        placeholder: 'Only to sign in with a password',
+        secret: false,
+        optional: true,
       },
       {
         id: 'domain',
@@ -2744,11 +2759,12 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         url: true,
       },
     ],
+    passwordWithUsername: true,
     docsUrl: 'https://docs.sim.ai/integrations/splunk',
     helpText:
-      'Create a token in Splunk Web under Settings > Tokens, and enter the management URL with its port (8089 by default). The URL must be reachable from Sim over https with a certificate from a public certificate authority; Sim does not skip certificate checks.',
+      'Create a token in Splunk Web under Settings > Tokens and leave the username blank, or enter a username and its password when token authentication is turned off. Enter the management URL with its port (8089 by default). The URL must be reachable from Sim over https with a certificate from a public certificate authority; Sim does not skip certificate checks.',
     invalidCredentialsHelp:
-      'Splunk rejected this token. Check that token authentication is turned on, that the token is enabled and not expired, and that the management URL points at the same deployment.',
+      'Splunk rejected these credentials. For a token, check that token authentication is turned on and that the token is enabled and not expired; for a password, check the username and password. Also check that the management URL points at the same deployment.',
   },
   [CBINSIGHTS_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: CBINSIGHTS_SERVICE_ACCOUNT_PROVIDER_ID,

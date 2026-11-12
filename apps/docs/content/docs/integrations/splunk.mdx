@@ -10,11 +10,11 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [Splunk](https://www.splunk.com/) with a bearer token to search logs, metrics, and events in Splunk Enterprise or Splunk Cloud. **Run Search** returns a synchronous result; for longer searches, create a job, inspect its status, page through its results, and cancel it when needed.
+Use [Splunk](https://www.splunk.com/) with an authentication token or a username and password to search logs, metrics, and events in Splunk Enterprise or Splunk Cloud. **Run Search** returns a synchronous result; for longer searches, create a job, inspect its status, page through its results, and cancel it when needed.
 
 Saved-search actions list, read, and dispatch existing searches. Alert actions inspect fired alerts and their instances. Index and app lookups help identify the data and configuration available to the credential.
 
-Connect Splunk once as a Splunk credential: create an authentication token in Splunk Web under **Settings > Tokens** (token authentication must be turned on), and enter the management URL with its port, such as `https://splunk.example.com:8089`. Sim checks the token by reading the user it authenticates as. The management URL must be reachable from Sim over https with a certificate from a public certificate authority; Sim never skips certificate verification, so a management port serving Splunk's default self-signed certificate cannot be saved. Workflows built with the earlier Splunk block keep the URL, token, or username and password they entered in the block.
+Connect Splunk once as a Splunk credential, and enter the management URL with its port, such as `https://splunk.example.com:8089`. To sign in with a token, create an authentication token in Splunk Web under **Settings > Tokens** (token authentication must be turned on) and leave the username blank. Token authentication is off by default on Splunk Enterprise, so you can instead enter a username and its password, which Sim sends with HTTP Basic authentication. Sim checks either sign-in by reading the user it authenticates as. The management URL must be reachable from Sim over https with a certificate from a public certificate authority; Sim never skips certificate verification, so a management port serving Splunk's default self-signed certificate cannot be saved. Workflows built with the earlier Splunk block keep the URL, token, or username and password they entered in the block.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]

@@ -1480,6 +1480,38 @@ describe('token provider credentials saved in client-credentials mode', () => {
     })
   })
 
+  it('marks a saved Splunk username and password as basic, and a saved token as before', async () => {
+    storeBlob('splunk-login', {
+      type: 'token_service_account',
+      providerId: 'splunk-service-account',
+      apiToken: 'saved-password',
+      providerWorkspaceId: 'svc-sim',
+      domain: 'https://splunk.example.com:8089',
+    })
+    await expect(
+      resolveServiceAccountToken('splunk-login', 'splunk-service-account')
+    ).resolves.toEqual({
+      accessToken: 'saved-password',
+      domain: 'https://splunk.example.com:8089',
+      providerWorkspaceId: 'svc-sim',
+      authStyle: 'basic',
+    })
+
+    storeBlob('splunk-token', {
+      type: 'token_service_account',
+      providerId: 'splunk-service-account',
+      apiToken: 'splunk-token',
+      domain: 'https://splunk.example.com:8089',
+    })
+    await expect(
+      resolveServiceAccountToken('splunk-token', 'splunk-service-account')
+    ).resolves.toEqual({
+      accessToken: 'splunk-token',
+      domain: 'https://splunk.example.com:8089',
+      providerWorkspaceId: undefined,
+    })
+  })
+
   it('still returns a pasted Shopify token as is', async () => {
     storeBlob(
       'shopify-pasted',

@@ -510,15 +510,21 @@ export const SPORTMONKS_CREDENTIAL_OAUTH = tokenCredentialOAuth('sportmonks', {
   apiKey: 'accessToken',
 })
 /**
- * Credential policy for every Splunk tool. A saved Splunk credential fills the authentication
- * token and the management URL; the tools send the token whenever one is set, so the inline
- * username and password are never read and the credential-only block drops them.
+ * Credential policy for every Splunk tool. A saved Splunk credential fills the management URL
+ * and its secret into both sign-ins: a saved token has no username, so the username is cleared
+ * and the tools send the token; a saved username and password resolves with `authStyle: 'basic'`,
+ * which the tools read to send HTTP Basic instead. The caller can never set `authStyle`.
  */
-export const SPLUNK_CREDENTIAL_OAUTH = tokenCredentialOAuth(
-  'splunk',
-  { authToken: 'accessToken', baseUrl: 'domain' },
-  ['username', 'password']
-)
+export const SPLUNK_CREDENTIAL_OAUTH = {
+  ...tokenCredentialOAuth('splunk', {
+    authToken: 'accessToken',
+    baseUrl: 'domain',
+    username: 'providerWorkspaceId',
+    password: 'accessToken',
+  }),
+  optionalCredentialParams: ['username'],
+  authoritativeParams: ['authStyle'],
+} as const satisfies OAuthConfig
 export const SQUARE_CREDENTIAL_OAUTH = tokenCredentialOAuth('square', {
   apiKey: 'accessToken',
   environment: 'domain',

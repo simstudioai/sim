@@ -838,6 +838,59 @@ describe('a ServiceNow login', () => {
   })
 })
 
+describe('a Splunk username and password', () => {
+  const secureFetch = inputValidationMockFns.mockSecureFetchWithPinnedIP
+
+  beforeEach(() => {
+    mockEncryptSecret.mockImplementation(async (value: string) => ({ encrypted: value }))
+    inputValidationMockFns.mockValidateUrlWithDNS.mockReset().mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.7',
+      originalHostname: 'splunk.example.com',
+    })
+    secureFetch.mockReset().mockResolvedValue(
+      new Response(JSON.stringify({ entry: [{ content: { username: 'svc-sim' } }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+  })
+
+  it('verifies and stores a password with surrounding spaces exactly as typed', async () => {
+    const result = await verifyAndBuildServiceAccountSecret('splunk-service-account', {
+      apiToken: ' pass word ',
+      providerWorkspaceId: 'svc-sim',
+      domain: 'splunk.example.com:8089',
+    })
+
+    expect(secureFetch).toHaveBeenCalledWith(
+      expect.any(String),
+      '203.0.113.7',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: `Basic ${Buffer.from('svc-sim: pass word ').toString('base64')}`,
+        }),
+      })
+    )
+    expect(JSON.parse(result.encryptedServiceAccountKey).apiToken).toBe(' pass word ')
+  })
+
+  it('still sends a pasted token without its surrounding whitespace', async () => {
+    await verifyAndBuildServiceAccountSecret('splunk-service-account', {
+      apiToken: ' splunk-token\n',
+      domain: 'splunk.example.com:8089',
+    })
+
+    expect(secureFetch).toHaveBeenCalledWith(
+      expect.any(String),
+      '203.0.113.7',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer splunk-token' }),
+      })
+    )
+  })
+})
+
 describe('a token provider whose region or host defaults to the one it always used', () => {
   const fetchMock = vi.fn<typeof fetch>()
 
