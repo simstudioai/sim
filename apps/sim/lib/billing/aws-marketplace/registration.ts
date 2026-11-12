@@ -29,7 +29,7 @@ function errorName(error: unknown): string | undefined {
   return error instanceof Error ? error.name : undefined
 }
 
-/** AWS may not have finished right after a purchase, so an empty answer is asked again briefly. */
+/** AWS may not have finished right after a purchase, so a read with no answer about access is asked again briefly. */
 async function readEntitlements(
   product: AwsMarketplaceProduct,
   licenseArn: string

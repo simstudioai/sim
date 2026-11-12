@@ -405,12 +405,13 @@ describe('POST /api/marketplace/aws/register', () => {
       currentEntitlement({ ProductCode: USAGE_PRODUCT, Dimension: 'llm_credits' }),
     ])
 
-    const refused = await registration('x-amzn-marketplace-token=usage-only-token')
+    const unconfirmed = await registration('x-amzn-marketplace-token=usage-only-token')
 
-    expect(errorOf(refused)).toBe('no-subscription')
+    expect(claimTokenOf(unconfirmed)).not.toBeNull()
+    expect(entitlementSend).toHaveBeenCalledTimes(3)
     expect(await readLicense(usageOnly)).toMatchObject({
       productCode: USAGE_PRODUCT,
-      status: 'inactive',
+      status: 'pending',
     })
 
     const withPlatform = uniqueArn()

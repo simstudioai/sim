@@ -17,8 +17,9 @@ export interface EntitlementSummary {
    */
   active: boolean
   /**
-   * Entitlements AWS returned for any dimension, current or lapsed: whether AWS has answered at all.
-   * Zero is ambiguous, see the license's status.
+   * Entitlements AWS returned for the dimension that grants access (any dimension, for a plan with
+   * none), current or lapsed: whether AWS has answered about access at all. A usage dimension alone
+   * is no answer. Zero is ambiguous, see the license's status.
    */
   entitlementCount: number
   dimension: string | null
@@ -57,7 +58,7 @@ function summarizeEntitlements(
   const chosen = current[0] ?? lapsed[0]
   return {
     active: current.length > 0,
-    entitlementCount: allEntitlements.length,
+    entitlementCount: entitlements.length,
     dimension: chosen?.Dimension ?? null,
     quantity: chosen?.Value?.IntegerValue ?? null,
     expiresAt: chosen?.ExpirationDate ?? null,

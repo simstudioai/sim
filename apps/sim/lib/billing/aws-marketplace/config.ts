@@ -9,7 +9,7 @@ let products: ReadonlyMap<string, AwsMarketplaceProduct> | undefined
 /**
  * The products this deployment sells through AWS Marketplace, by product code. Empty on
  * self-hosted installs and every environment but production, which turns the Marketplace surfaces
- * off. A malformed setting throws a message naming the bad entry.
+ * off. The container entrypoint refuses to start on a malformed setting.
  */
 export function getAwsMarketplaceProducts(): ReadonlyMap<string, AwsMarketplaceProduct> {
   products ??= env.AWS_MARKETPLACE_PRODUCTS

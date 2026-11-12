@@ -104,9 +104,9 @@ describe('verifyLicense', () => {
     expect(summary).toMatchObject({ active: true, dimension: 'b-current', quantity: 50 })
   })
 
-  it('does not let a current usage entitlement stand in for a required platform one', async () => {
+  it('reads a usage entitlement alone as no answer about access, not as access', async () => {
     const summary = await readAs(USAGE, entitlement({ Dimension: 'llm_credits' }))
-    expect(summary).toMatchObject({ active: false, entitlementCount: 1, dimension: null })
+    expect(summary).toMatchObject({ active: false, entitlementCount: 0, dimension: null })
   })
 
   it('reads a lapsed platform as inactive even while usage is current', async () => {
@@ -115,7 +115,7 @@ describe('verifyLicense', () => {
       entitlement({ Dimension: 'llm_credits' }),
       entitlement({ Dimension: 'platform', ExpirationDate: new Date('2026-01-01T00:00:00.000Z') })
     )
-    expect(summary).toMatchObject({ active: false, entitlementCount: 2, dimension: 'platform' })
+    expect(summary).toMatchObject({ active: false, entitlementCount: 1, dimension: 'platform' })
   })
 
   it('reads a current platform as active and describes it, not the usage dimension', async () => {

@@ -5,7 +5,7 @@
  */
 
 /** How one listing is sold, and so what Sim requires before granting access. */
-export interface AwsMarketplacePlan {
+interface AwsMarketplacePlan {
   readonly id: string
   /**
    * The entitlement dimension that must be current for a license to count as active. Null accepts
@@ -21,7 +21,7 @@ const PLANS = [
   { id: 'platform-with-usage', requiredDimension: 'platform' },
 ] as const satisfies readonly AwsMarketplacePlan[]
 
-export const AWS_MARKETPLACE_PLANS: ReadonlyMap<string, AwsMarketplacePlan> = new Map(
+const AWS_MARKETPLACE_PLANS: ReadonlyMap<string, AwsMarketplacePlan> = new Map(
   PLANS.map((plan) => [plan.id, plan])
 )
 
