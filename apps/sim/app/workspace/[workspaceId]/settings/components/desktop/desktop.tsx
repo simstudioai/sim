@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import type { DesktopPreferenceKey, DesktopPreferences } from '@sim/desktop-bridge'
 import { Label, Switch, toast } from '@sim/emcn'
 import { useParams, useRouter } from 'next/navigation'
-import { getDesktopBridge, getDesktopShellVersion } from '@/lib/desktop'
+import { getDesktopBridge, getDesktopPlatform, getDesktopShellVersion } from '@/lib/desktop'
 import { ComputerUseSettings } from '@/app/workspace/[workspaceId]/settings/components/desktop/computer-use'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -126,7 +126,11 @@ export function Desktop() {
           )}
           <PreferenceRow
             id='desktop-tray-enabled'
-            label='Show Sim in Control Center'
+            label={
+              getDesktopPlatform() === 'win32'
+                ? 'Show Sim in the system tray'
+                : 'Show Sim in Control Center'
+            }
             checked={preferences.trayEnabled}
             disabled={pendingPreference !== null}
             onCheckedChange={(checked) => void updatePreference('trayEnabled', checked)}

@@ -74,6 +74,9 @@ export function showShellDialog(
         app.isPackaged
       ),
     })
+    // Windows attaches the app menu to every window; its accelerators would
+    // otherwise act on (and close) this sheet behind the page's back.
+    if (process.platform === 'win32') win.removeMenu()
     const pageUrl = localPageUrl('dialog.html')
     attachShellTheme(win)
     let settled = false

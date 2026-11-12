@@ -14,8 +14,8 @@ import { normalizeOrigin, normalizeUsername } from '@/main/browser-credentials/o
  * The encrypted credential store.
  *
  * The whole record set is encrypted as one blob with Electron `safeStorage`
- * (Keychain on macOS), written atomically with restrictive permissions. There
- * is no plaintext fallback: when OS-backed encryption is unavailable the vault
+ * (Keychain on macOS, DPAPI on Windows), written atomically with restrictive
+ * permissions. There is no plaintext fallback: when OS-backed encryption is unavailable the vault
  * reports itself unavailable and refuses to store anything, because a password
  * file Sim cannot encrypt is worse than a feature the user does not get.
  *

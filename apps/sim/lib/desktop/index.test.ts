@@ -150,6 +150,7 @@ describe('desktop surface availability', () => {
               running: oversizedValue,
               interactive: false,
               active: true,
+              shell: oversizedValue,
             },
           ],
         })),
@@ -168,6 +169,7 @@ describe('desktop surface availability', () => {
         cwd: 'x'.repeat(1024),
         running: 'x'.repeat(1024),
         active: true,
+        shell: 'x'.repeat(32),
       },
     ])
   })

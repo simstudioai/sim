@@ -5,10 +5,10 @@ import { safeCompare } from '@sim/security/compare'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import type { BrowserWindow } from 'electron'
-import { app } from 'electron'
 import { APP_ENTRY_ROUTE } from '@/main/app-routes'
 import { showShellDialog } from '@/main/dialogs'
 import type { EventRecorder } from '@/main/observability'
+import { bringWindowToFront } from '@/main/shell-window'
 
 const logger = createLogger('DesktopHandoff')
 
@@ -524,9 +524,7 @@ export function createAuthFlow(deps: AuthFlowDeps): AuthFlow {
       try {
         await win.loadURL(`${origin}${APP_ENTRY_ROUTE}`)
       } catch {}
-      win.show()
-      win.focus()
-      app.focus({ steal: true })
+      bringWindowToFront(win)
     },
   }
 }

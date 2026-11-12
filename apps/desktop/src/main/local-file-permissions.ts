@@ -7,6 +7,7 @@ import { showShellDialog } from '@/main/dialogs'
 import type { LocalFileAuthorization } from '@/main/local-files'
 import type { LocalFileAccess, LocalFilesystemService } from '@/main/local-filesystem'
 import { openNativeFile } from '@/main/native-directory'
+import { resolveWin32NativePath } from '@/main/win32-path'
 
 const MAX_PENDING_REQUESTS = 32
 
@@ -25,9 +26,18 @@ interface PendingFolderDecision {
   decision: Promise<void>
 }
 
-function nativePath(value: unknown): string {
+/**
+ * Lexically resolves a model-supplied path. Runs before any filesystem call,
+ * which on Windows is what keeps a UNC path from reaching the network.
+ */
+export function nativePath(
+  value: unknown,
+  platform: NodeJS.Platform = process.platform,
+  home: () => string = homedir
+): string {
   if (typeof value !== 'string' || value.length > 4096 || value.includes('\0'))
     throw new Error('A native absolute path or ~/ path is required.')
+  if (platform === 'win32') return resolveWin32NativePath(value, home())
   const path =
     value === '~' ? homedir() : value.startsWith('~/') ? join(homedir(), value.slice(2)) : value
   if (!isAbsolute(path)) throw new Error('Use an absolute path or ~/ path.')

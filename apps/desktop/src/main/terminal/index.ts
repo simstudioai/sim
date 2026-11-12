@@ -37,11 +37,7 @@ import {
   isResourceTabSelectionShortcut,
   resourceTabTargetIndex,
 } from '@/main/resource-shortcuts'
-import {
-  type ForegroundProcessGroup,
-  readForegroundProcessGroup,
-  signalProcessGroup,
-} from '@/main/terminal/process-group'
+import { osProcessGroups, type TerminalProcessGroups } from '@/main/terminal/process-group'
 import type { RunLedger } from '@/main/terminal/run-ledger'
 import { elide, type ShellStartupBounds, TerminalSession } from '@/main/terminal/session'
 import {
@@ -164,20 +160,10 @@ export interface TerminalServiceOptions {
    */
   loadCwd?(): string | undefined
   canSpawn?(): boolean
-  /** Reads and signals a terminal's foreground process group; the OS's by default. */
+  /** Reads and signals a terminal's foreground command; the OS's by default. */
   processGroups?: TerminalProcessGroups
   /** Where tagged tmux runs are recorded, so a later process can still stop them. */
   runLedger?: RunLedger
-}
-
-interface TerminalProcessGroups {
-  foreground(shellPid: number): Promise<ForegroundProcessGroup>
-  signal(pgid: number, signal: NodeJS.Signals): void
-}
-
-const OS_PROCESS_GROUPS: TerminalProcessGroups = {
-  foreground: readForegroundProcessGroup,
-  signal: signalProcessGroup,
 }
 
 /** The terminal work a restart would cut off. */
@@ -186,14 +172,6 @@ export interface TerminalWork {
   commands: string[]
   /** Terminals whose foreground could not be read, which may be running anything. */
   uncheckedCount: number
-}
-
-async function foregroundGroupId(
-  groups: TerminalProcessGroups,
-  shellPid: number
-): Promise<number | null> {
-  const foreground = await groups.foreground(shellPid)
-  return foreground.kind === 'group' ? foreground.pgid : null
 }
 
 /**
@@ -324,21 +302,21 @@ export class TerminalService {
   }
 
   /**
-   * What each terminal is running. A shell without integration (fish, sh) announces nothing, so
-   * the OS's foreground process group answers for it; one the OS could not be asked about is
-   * reported as unchecked rather than idle.
+   * What each terminal is running. A shell without integration (fish, sh, cmd) announces nothing,
+   * so the OS answers for it with whatever holds its foreground since it spawned; one the OS could
+   * not be asked about is reported as unchecked rather than idle.
    */
   async runningWork(): Promise<TerminalWork> {
-    const groups = this.options.processGroups ?? OS_PROCESS_GROUPS
+    const groups = this.options.processGroups ?? osProcessGroups
     const perSession = await Promise.all(
       [...this.sessions.values()].map(
         async (session): Promise<{ command: string | null; unchecked: boolean }> => {
           if (session.isBusy) return { command: session.foreground ?? '', unchecked: false }
           if (session.hasShellIntegration) return { command: null, unchecked: false }
-          const foreground = await groups.foreground(session.pid)
+          const foreground = await groups.foreground(session.pid, session.spawnedAt)
           return {
-            command: foreground.kind === 'group' ? '' : null,
-            unchecked: foreground.kind === 'unknown',
+            command: foreground?.length ? '' : null,
+            unchecked: foreground === null,
           }
         }
       )
@@ -648,7 +626,7 @@ export class TerminalService {
     shortcut: FocusedResourceShortcut,
     ownerWindow: BrowserWindow | null,
     emitRendererCommand: (command: TerminalShortcutCommand, terminalId: string) => void,
-    confirmCloseRunning?: (running: string) => boolean | Promise<boolean>
+    confirmCloseRunning?: (running: string, shell: string) => boolean | Promise<boolean>
   ): boolean {
     // Hard reload and history have no terminal meaning — leave them to the Browser or shell.
     if (
@@ -713,13 +691,13 @@ export class TerminalService {
   private async confirmCloseRunningTerminal(
     terminal: TerminalSession,
     running: string,
-    confirm: (running: string) => boolean | Promise<boolean>
+    confirm: (running: string, shell: string) => boolean | Promise<boolean>
   ): Promise<void> {
     const id = this.activeId
     if (!id || this.pendingCloseConfirmations.has(id)) return
     this.pendingCloseConfirmations.add(id)
     try {
-      if (!(await confirm(running))) return
+      if (!(await confirm(running, terminal.shellProgram))) return
       if (this.sessions.get(id) !== terminal) return
       if (terminal.isBusy && (terminal.foreground ?? 'A process') !== running) return
       this.closeTerminal(id)
@@ -1012,25 +990,31 @@ export class TerminalService {
   }
 
   /**
-   * Interrupts the command a run started. Escalation is bound to that command's own process
-   * group, read while it still holds the foreground, and each signal is sent only while the same
-   * call and the same group still hold it, so a command the user starts meanwhile is never hit.
+   * Interrupts the command a run started. Escalation is bound to that command's own processes,
+   * read only once Ctrl-C has failed (on Windows the lookup starts PowerShell) and while it still
+   * holds the foreground; each signal goes only to those of them still running while the same call
+   * does, so a command the user starts meanwhile is never hit.
    */
   private async stopCommand(session: TerminalSession, toolCallId: string): Promise<void> {
-    if (session.agentCommandToolCallId !== toolCallId) return
-    const groups = this.options.processGroups ?? OS_PROCESS_GROUPS
-    const pgid = await foregroundGroupId(groups, session.pid)
-    if (session.agentCommandToolCallId !== toolCallId) return
+    const startedAt = session.agentCommandStartedAt
+    if (session.agentCommandToolCallId !== toolCallId || startedAt === null) return
+    const groups = this.options.processGroups ?? osProcessGroups
     session.kill('SIGINT')
-    for (const escalation of ['SIGTERM', 'SIGKILL'] as const) {
+    let command: number[] | undefined
+    for (const escalation of groups.escalations) {
       if (await this.commandEnds(session, toolCallId, STOP_ESCALATION_MS)) return
-      if (pgid === null || (await foregroundGroupId(groups, session.pid)) !== pgid) return
+      const remaining =
+        command === undefined
+          ? ((await groups.foreground(session.pid, startedAt)) ?? [])
+          : await groups.stillRunning(session.pid, command)
+      command ??= remaining
+      if (remaining.length === 0) return
       if (session.agentCommandToolCallId !== toolCallId) return
       logger.info('Stopped command ignored the previous signal; escalating', {
         toolCallId,
         signal: escalation,
       })
-      groups.signal(pgid, escalation)
+      groups.signal(remaining, escalation)
     }
   }
 
@@ -1440,6 +1424,7 @@ export class TerminalService {
     if (!session.hasShellIntegration) {
       await this.awaitShellStartup(session, latch)
     }
+    await session.waitForPromptDrawn(latch.signal)
     if (session.isBusy) {
       throw new TerminalError(
         'BUSY',

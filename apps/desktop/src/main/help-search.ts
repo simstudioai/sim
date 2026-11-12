@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { DOCS_SEARCH_ENDPOINT } from '@/main/external-links'
+import { desktopFeatures } from '@/shared/platform-features'
 
 const logger = createLogger('DesktopHelpSearch')
 
@@ -12,7 +13,7 @@ interface NativeHelpSearchBridge {
 
 interface HelpSearchRuntime {
   isElectron: boolean
-  isMacOS: boolean
+  isSupported: boolean
   loadBridge: () => unknown
 }
 
@@ -30,7 +31,7 @@ function loadNativeBridge(): unknown {
 
 const nativeRuntime: HelpSearchRuntime = {
   isElectron: Boolean(process.versions.electron),
-  isMacOS: process.platform === 'darwin',
+  isSupported: desktopFeatures(process.platform).helpSearch,
   loadBridge: loadNativeBridge,
 }
 
@@ -39,7 +40,7 @@ const nativeRuntime: HelpSearchRuntime = {
  * The bridge is optional so non-macOS development and unit tests remain portable.
  */
 export function installDocumentationHelpSearch(runtime = nativeRuntime): boolean {
-  if (!runtime.isMacOS || !runtime.isElectron) return false
+  if (!runtime.isSupported || !runtime.isElectron) return false
 
   try {
     const bridge = runtime.loadBridge()

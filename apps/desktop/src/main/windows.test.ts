@@ -29,27 +29,28 @@ describe('attachWindowOpenPolicy', () => {
     vi.mocked(shell.openExternal).mockClear()
   })
 
-  function setup(isCommittedRelaunchPending: () => boolean = () => false) {
+  function setup(platform: NodeJS.Platform = 'darwin') {
     const contents = makeContents()
     const openAppWindow = vi.fn()
     attachWindowOpenPolicy(contents as unknown as WebContents, {
       appOrigin: () => APP,
       openAppWindow,
       allowHttpLocalhost: false,
-      isCommittedRelaunchPending,
+      isCommittedRelaunchPending: () => false,
+      platform,
     })
     return { contents, openAppWindow }
   }
 
-  it('allows the MCP OAuth popup', () => {
-    const { contents } = setup()
+  it.each(['darwin', 'win32'] as const)('allows the MCP OAuth popup isolated on %s', (platform) => {
+    const { contents } = setup(platform)
     const result = contents.handler?.({
       url: 'https://mcp.example/authorize',
       frameName: 'mcp-oauth-s1',
     })
     expect(result).toEqual({
       action: 'allow',
-      overrideBrowserWindowOptions: {
+      overrideBrowserWindowOptions: expect.objectContaining({
         webPreferences: expect.objectContaining({
           preload: undefined,
           additionalArguments: [],
@@ -59,7 +60,7 @@ describe('attachWindowOpenPolicy', () => {
           webSecurity: true,
           webviewTag: false,
         }),
-      },
+      }),
     })
   })
 

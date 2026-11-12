@@ -18,6 +18,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { app } from 'electron'
 import { ToolError } from '@/main/browser-agent/errors'
 import type { BrowserAppSession } from '@/main/browser-agent/session'
+import { toWin32SafeFileName } from '@/main/win32-path'
 
 /** Granted local folders; the caller owns and must close each returned file handle. */
 export interface LocalFileSource {
@@ -39,12 +40,14 @@ function directoryName(value: string): string {
   return encodeURIComponent(value).replaceAll('.', '%2E')
 }
 
-/** A file name that cannot leave the staging directory. */
+/** A file name that cannot leave the staging directory, and that Windows stores as spelled. */
 function stagedFileName(name: string): string {
   const base = basename(name)
     .replace(/[\x00-\x1f\x7f]/g, '')
     .trim()
-  return base && base !== '.' && base !== '..' ? base.slice(0, 200) : 'upload'
+    .slice(0, 200)
+  const safe = process.platform === 'win32' ? toWin32SafeFileName(base) : base
+  return safe && safe !== '.' && safe !== '..' ? safe : 'upload'
 }
 
 function filenameFromDisposition(header: string | null): string | null {

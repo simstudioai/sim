@@ -1,6 +1,7 @@
 /**
- * Fetches the node-pty prebuilt binaries for every architecture the macOS
- * universal build ships.
+ * Fetches the node-pty prebuilt binaries for every architecture the host
+ * platform's package ships: both halves of the macOS universal build, or the
+ * x64 Windows build.
  *
  * `@lydell/node-pty` selects its native binary at runtime from a per-arch
  * package (`@lydell/node-pty-darwin-arm64`, `-darwin-x64`), each declaring a
@@ -12,6 +13,9 @@
  * Both binaries live at distinct paths, so `@electron/universal` never has to
  * lipo them together — it sees byte-identical trees in both halves and keeps
  * one. That is why this build needs no `x64ArchFiles` rule.
+ *
+ * Windows packages are x64-only for now. The Windows prebuild ships ConPTY
+ * (`conpty.node` plus its bundled `conpty/` helper) instead of `pty.node`.
  */
 import { execFileSync } from 'node:child_process'
 import { createHash, timingSafeEqual } from 'node:crypto'
@@ -24,7 +28,6 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs'
-import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createLogger } from '@sim/logger'
@@ -32,7 +35,19 @@ import { getErrorMessage } from '@sim/utils/errors'
 
 const logger = createLogger('DesktopPtyPrebuilds')
 
-const REQUIRED_ARCHES = ['darwin-arm64', 'darwin-x64'] as const
+interface RequiredPrebuild {
+  arch: string
+  /** The binary whose presence proves the package was fully extracted. */
+  binary: string
+}
+
+const REQUIRED_PREBUILDS: Partial<Record<NodeJS.Platform, readonly RequiredPrebuild[]>> = {
+  darwin: [
+    { arch: 'darwin-arm64', binary: 'pty.node' },
+    { arch: 'darwin-x64', binary: 'pty.node' },
+  ],
+  win32: [{ arch: 'win32-x64', binary: 'conpty.node' }],
+}
 
 const desktopDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const workspaceRoot = dirname(dirname(desktopDir))
@@ -92,16 +107,18 @@ async function fetchPrebuild(arch: string, version: string): Promise<void> {
     throw new Error(`Failed to download ${url}: ${response.status} ${response.statusText}`)
   }
 
-  const staging = mkdtempSync(join(tmpdir(), 'sim-pty-prebuild-'))
+  const target = packageDir(arch)
+  mkdirSync(dirname(target), { recursive: true })
+  // Staged beside the target, not in the OS temp dir: a CI workspace on
+  // another drive (D:\a on Windows runners) would make the rename fail.
+  const staging = mkdtempSync(join(dirname(target), '.sim-pty-prebuild-'))
   try {
     const tarball = join(staging, 'package.tgz')
     const bytes = Buffer.from(await response.arrayBuffer())
     verifyIntegrity(bytes, expectedIntegrity(arch, version), packageName)
     writeFileSync(tarball, bytes)
-    execFileSync('tar', ['-xzf', tarball, '-C', staging], { stdio: 'pipe' })
+    execFileSync(tarExecutable(), ['-xzf', tarball, '-C', staging], { stdio: 'pipe' })
 
-    const target = packageDir(arch)
-    mkdirSync(dirname(target), { recursive: true })
     rmSync(target, { recursive: true, force: true })
     renameSync(join(staging, 'package'), target)
   } finally {
@@ -109,18 +126,34 @@ async function fetchPrebuild(arch: string, version: string): Promise<void> {
   }
 }
 
+/**
+ * Windows' own bsdtar. Under Git Bash, a bare `tar` resolves to GNU tar, which
+ * reads the `C:` in an absolute path as a remote host.
+ */
+function tarExecutable(): string {
+  if (process.platform !== 'win32') return 'tar'
+  return join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe')
+}
+
 async function run(): Promise<void> {
+  const required = REQUIRED_PREBUILDS[process.platform]
+  if (!required) {
+    logger.info('No packaged node-pty prebuilds for this platform', {
+      platform: process.platform,
+    })
+    return
+  }
   const version = await pinnedVersion()
-  for (const arch of REQUIRED_ARCHES) {
-    const dir = packageDir(arch)
-    if (existsSync(join(dir, 'prebuilds', arch, 'pty.node'))) {
+  for (const { arch, binary } of required) {
+    const binaryPath = join(packageDir(arch), 'prebuilds', arch, binary)
+    if (existsSync(binaryPath)) {
       logger.info('node-pty prebuild present', { arch })
       continue
     }
     logger.info('Fetching node-pty prebuild', { arch, version })
     await fetchPrebuild(arch, version)
-    if (!existsSync(join(dir, 'prebuilds', arch, 'pty.node'))) {
-      throw new Error(`Downloaded @lydell/node-pty-${arch} but pty.node is missing`)
+    if (!existsSync(binaryPath)) {
+      throw new Error(`Downloaded @lydell/node-pty-${arch} but ${binary} is missing`)
     }
   }
 }

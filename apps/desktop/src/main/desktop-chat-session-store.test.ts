@@ -115,7 +115,8 @@ describe('DesktopChatSessionStore', () => {
     expect(onDisk).not.toContain('report.csv')
     expect(JSON.parse(onDisk)).toEqual({ v: 1, ciphertext: expect.any(String) })
     expect(provider.encryptString).toHaveBeenCalledOnce()
-    expect(statSync(filePath).mode & 0o077).toBe(0)
+    // POSIX mode bits; on Windows the per-user %APPDATA% ACL keeps the file private.
+    if (process.platform !== 'win32') expect(statSync(filePath).mode & 0o077).toBe(0)
   })
 
   it('does not replace the durable store with an oversized encrypted envelope', () => {

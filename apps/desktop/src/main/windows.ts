@@ -29,6 +29,13 @@ const ISOLATED_CHILD_WINDOW_OPTIONS = {
   },
 } satisfies BrowserWindowConstructorOptions
 
+/** Popups keep the native Windows frame but not the app's menu bar, which Alt still reveals. */
+function childWindowOptions(platform: NodeJS.Platform): BrowserWindowConstructorOptions {
+  return platform === 'win32'
+    ? { ...ISOLATED_CHILD_WINDOW_OPTIONS, autoHideMenuBar: true }
+    : ISOLATED_CHILD_WINDOW_OPTIONS
+}
+
 /**
  * Marks a WebContents as a guarded popup child (MCP OAuth, blank-then-assign)
  * so the navigation classifier can apply the more permissive popup policy.
@@ -46,6 +53,8 @@ export interface WindowPolicyDeps {
   openAppWindow: (url: string) => void
   allowHttpLocalhost: boolean
   isCommittedRelaunchPending: () => boolean
+  /** Injectable for platform-specific window behavior tests. */
+  platform?: NodeJS.Platform
 }
 
 /**
@@ -63,7 +72,7 @@ export function attachWindowOpenPolicy(contents: WebContents, deps: WindowPolicy
       case 'popup-blank':
         return {
           action: 'allow',
-          overrideBrowserWindowOptions: ISOLATED_CHILD_WINDOW_OPTIONS,
+          overrideBrowserWindowOptions: childWindowOptions(deps.platform ?? process.platform),
         }
       case 'popup-internal': {
         deps.openAppWindow(details.url)

@@ -1052,6 +1052,26 @@ describe('handleUnifiedChatPost', () => {
     expect(persistChatResources).not.toHaveBeenCalled()
   })
 
+  it("forwards the desktop's platform and each terminal's shell", async () => {
+    const terminals = [{ id: '1', cwd: 'C:\\work', active: true, shell: 'powershell' }]
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Build it',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          desktopCapabilities: { terminal: true, platform: 'win32', terminals },
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+      expect.objectContaining({ desktopPlatform: 'win32', terminals })
+    )
+  })
+
   it('accepts and forwards more than eight open terminal hints', async () => {
     const terminals = Array.from({ length: 12 }, (_, index) => ({
       id: String(index + 1),
