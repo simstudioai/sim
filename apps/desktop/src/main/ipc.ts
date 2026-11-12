@@ -1551,6 +1551,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-import:continue-sign-in': {
       kind: 'invoke',
       gate: 'app-origin',
+      platformFeature: 'browserImport',
       requires: 'browser',
       passSender: true,
       needsUserActivation: true,
@@ -1569,6 +1570,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-import:bring-sign-in-back': {
       kind: 'invoke',
       gate: 'app-origin',
+      platformFeature: 'browserImport',
       requires: 'browser',
       passSender: true,
       needsUserActivation: true,
@@ -1598,6 +1600,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-import:cancel-sign-in': {
       kind: 'invoke',
       gate: 'app-origin',
+      platformFeature: 'browserImport',
       requires: 'browser',
       passSender: true,
       denied: undefined,
@@ -1609,6 +1612,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-import:pending-sign-in': {
       kind: 'invoke',
       gate: 'app-origin',
+      platformFeature: 'browserImport',
       requires: 'browser',
       passSender: true,
       denied: null,

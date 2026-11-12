@@ -387,6 +387,10 @@ describe('registerIpcHandlers', () => {
     'terminal-themes:list-profiles',
     'computer-use:execute-tool',
     'browser-import:all',
+    'browser-import:continue-sign-in',
+    'browser-import:bring-sign-in-back',
+    'browser-import:cancel-sign-in',
+    'browser-import:pending-sign-in',
     'browser-credentials:import',
     'browser-credentials:copy',
   ])('registers no handler on Windows for %s, which that shell does not ship', (channel) => {
