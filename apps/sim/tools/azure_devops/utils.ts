@@ -1,4 +1,5 @@
 import { toStringOrNull } from '@sim/utils/coerce'
+import { toRecordOrNull } from '@sim/utils/object'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -69,7 +70,9 @@ export async function fetchWorkItemsChunk(
     label: 'Azure DevOps work items response',
     signal,
   })
-  return (data.value ?? []).map(mapWorkItem)
+  return (data.value ?? []).map((raw: AzureDevOpsRawWorkItem) =>
+    mapWorkItem(raw, { includeRawDetails: false })
+  )
 }
 
 /** States for Azure DevOps Basic process work items (Issue, Task, Epic). */
@@ -115,7 +118,15 @@ export function appendEffortPatchOp(
   appendFieldPatchOp(ops, 'Microsoft.VSTS.Scheduling.Effort', effort, patchOp, 'number')
 }
 
-export function mapWorkItem(raw: AzureDevOpsRawWorkItem): AzureDevOpsWorkItem {
+/**
+ * Maps a raw work item to the tool output. Multi-item hydration (query, batch) passes
+ * `includeRawDetails: false` to keep the per-item payload to the summary and detail fields,
+ * leaving the full field bag and relations to single-item reads.
+ */
+export function mapWorkItem(
+  raw: AzureDevOpsRawWorkItem,
+  { includeRawDetails = true }: { includeRawDetails?: boolean } = {}
+): AzureDevOpsWorkItem {
   const fields = raw.fields ?? {}
   const assignedTo = identityField(fields['System.AssignedTo'])
   const priority = fields['Microsoft.VSTS.Common.Priority']
@@ -139,19 +150,26 @@ export function mapWorkItem(raw: AzureDevOpsRawWorkItem): AzureDevOpsWorkItem {
     changedBy: identityField(fields['System.ChangedBy'])?.displayName ?? null,
     changedDate: toStringOrNull(fields['System.ChangedDate']),
     webUrl: raw._links?.html?.href ?? null,
-    relations: raw.relations
-      ? raw.relations.map((relation) => ({
-          rel: relation.rel,
-          url: relation.url,
-          attributes: relation.attributes ?? {},
-        }))
-      : null,
-    fields,
+    ...(includeRawDetails && {
+      relations: raw.relations
+        ? raw.relations.map((relation) => ({
+            rel: relation.rel,
+            url: relation.url,
+            attributes: relation.attributes ?? {},
+          }))
+        : null,
+      fields,
+    }),
   }
 }
 
 function identityField(value: unknown): AzureDevOpsIdentityRef | null {
-  return value && typeof value === 'object' ? (value as AzureDevOpsIdentityRef) : null
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    displayName: toStringOrNull(record.displayName) ?? undefined,
+    uniqueName: toStringOrNull(record.uniqueName) ?? undefined,
+  }
 }
 
 /** Output schema for the work item fields beyond the original summary set. */
@@ -250,6 +268,14 @@ export const WORK_ITEM_DETAIL_OUTPUT_PROPERTIES: Record<string, OutputProperty> 
     optional: true,
   },
 }
+
+/** Detail output schema for multi-item reads, which omit the raw field bag and relations. */
+export const WORK_ITEM_LIST_DETAIL_OUTPUT_PROPERTIES: Record<string, OutputProperty> =
+  Object.fromEntries(
+    Object.entries(WORK_ITEM_DETAIL_OUTPUT_PROPERTIES).filter(
+      ([key]) => key !== 'relations' && key !== 'fields'
+    )
+  )
 
 export function formatWorkItem(w: AzureDevOpsWorkItem): string {
   return [

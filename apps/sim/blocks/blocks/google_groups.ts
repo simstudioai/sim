@@ -829,9 +829,12 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
               oauthCredential,
               groupEmail: rest.groupEmail,
               ...Object.fromEntries(
-                UPDATE_SETTINGS_FIELDS.filter(
-                  (key) => rest[key] !== undefined && rest[key] !== null && rest[key] !== ''
-                ).map((key) => [key, String(rest[key])])
+                UPDATE_SETTINGS_FIELDS.map((key) => [
+                  key,
+                  rest[key] === undefined || rest[key] === null || rest[key] === ''
+                    ? undefined
+                    : String(rest[key]),
+                ])
               ),
             }
           default:

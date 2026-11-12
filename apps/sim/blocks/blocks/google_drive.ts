@@ -1754,15 +1754,13 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
           includeRevisions: includeRevisionsValue,
           includeDeleted: includeDeletedValue,
           transferOwnership: rest.role === 'owner' ? true : undefined,
-          orderBy: (effectiveOrderBy as string | undefined)?.trim() || undefined,
-          driveId: (effectiveDriveId as string | undefined)?.trim() || undefined,
+          orderBy: effectiveOrderBy?.trim() || undefined,
+          driveId: effectiveDriveId?.trim() || undefined,
           startModifiedTime:
             params.operation === 'list_comments'
-              ? (commentsStartModifiedTime as string | undefined)?.trim() || undefined
+              ? commentsStartModifiedTime?.trim() || undefined
               : undefined,
-          expirationTime: isUserOrGroupShare
-            ? (shareExpirationTime as string | undefined)?.trim() || undefined
-            : undefined,
+          expirationTime: isUserOrGroupShare ? shareExpirationTime?.trim() || undefined : undefined,
           allowFileDiscovery: allowFileDiscoveryValue,
           moveToNewOwnersRoot: moveToNewOwnersRootValue,
           ...rest,

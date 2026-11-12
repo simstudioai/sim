@@ -3,6 +3,7 @@ import type {
   MicrosoftWordReplaceTextResponse,
   MicrosoftWordToolParams,
 } from '@/tools/microsoft_word/types'
+import { DOCUMENT_METADATA_DETAIL_PROPERTIES } from '@/tools/microsoft_word/utils'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const replaceTextTool: InternalToolConfig<
@@ -97,26 +98,7 @@ export const replaceTextTool: InternalToolConfig<
           description: 'ISO 8601 last modification time',
           optional: true,
         },
-        driveId: {
-          type: 'string',
-          description: 'ID of the drive holding the document (pass as driveId for SharePoint)',
-          optional: true,
-        },
-        parentFolderId: {
-          type: 'string',
-          description: 'ID of the folder containing the document',
-          optional: true,
-        },
-        createdBy: {
-          type: 'object',
-          description: 'Identity that created the document (id, displayName)',
-          optional: true,
-        },
-        lastModifiedBy: {
-          type: 'object',
-          description: 'Identity that last modified the document (id, displayName)',
-          optional: true,
-        },
+        ...DOCUMENT_METADATA_DETAIL_PROPERTIES,
       },
     },
   },

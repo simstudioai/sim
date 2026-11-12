@@ -270,3 +270,8 @@ export function mapDirectoryObjectMember(member: Record<string, unknown>): Recor
     userPrincipalName: member.userPrincipalName ?? null,
   }
 }
+
+/** True only for a real `true` or the string `"true"`, so `"false"` from an agent or stored value stays off. */
+export function isTrueFlag(value: unknown): boolean {
+  return value === true || value === 'true'
+}

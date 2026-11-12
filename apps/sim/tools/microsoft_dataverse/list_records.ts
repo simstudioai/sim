@@ -8,6 +8,7 @@ import { DATAVERSE_RECORDS_ARRAY_OUTPUT } from '@/tools/microsoft_dataverse/type
 import {
   DATAVERSE_OAUTH_CONFIG,
   getDataverseRequestBaseUrl,
+  isSet,
 } from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -17,17 +18,12 @@ const DATAVERSE_MAX_PAGE_SIZE = 5000
 const DATAVERSE_MAX_NEXT_LINK_LENGTH = 32_768
 
 function getExplicitPageSize(params: DataverseListRecordsParams): number | undefined {
-  if (params.pageSize === undefined || params.pageSize === null) return undefined
+  if (!isSet(params.pageSize)) return undefined
   const pageSize = Number(params.pageSize)
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > DATAVERSE_MAX_PAGE_SIZE) {
     throw new Error(`pageSize must be an integer from 1 to ${DATAVERSE_MAX_PAGE_SIZE}`)
   }
   return pageSize
-}
-
-/** A numeric query option counts as provided unless it is absent or blank, so an explicit 0 is still sent. */
-function isSet(value: unknown): boolean {
-  return value !== undefined && value !== null && value !== ''
 }
 
 /** Dataverse serves the same environment on `org.crm…` and `org.api.crm…`; compare them as one host. */
@@ -156,7 +152,6 @@ export const dataverseListRecordsTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = getDataverseRequestBaseUrl(params)
-      getExplicitPageSize(params)
       if (params.nextLink) return assertNextLink(params.nextLink, baseUrl, params.entitySetName)
       const queryParts: string[] = []
       if (params.select) queryParts.push(`$select=${encodeURIComponent(params.select)}`)

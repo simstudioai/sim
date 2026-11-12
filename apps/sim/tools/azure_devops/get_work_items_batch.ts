@@ -9,7 +9,7 @@ import {
   fetchWorkItemsChunk,
   formatWorkItem,
   mapWorkItem,
-  WORK_ITEM_DETAIL_OUTPUT_PROPERTIES,
+  WORK_ITEM_LIST_DETAIL_OUTPUT_PROPERTIES,
   WORK_ITEMS_BATCH_SIZE,
 } from '@/tools/azure_devops/utils'
 import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
@@ -78,7 +78,7 @@ export const getWorkItemsBatchTool: ToolConfig<GetWorkItemsBatchParams, GetWorkI
     transformResponse: async (response, params, context) => {
       const firstData = await response.json()
       const workItems: AzureDevOpsWorkItem[] = (firstData.value ?? []).map(
-        (raw: AzureDevOpsRawWorkItem) => mapWorkItem(raw)
+        (raw: AzureDevOpsRawWorkItem) => mapWorkItem(raw, { includeRawDetails: false })
       )
 
       const allIds = (params?.ids ?? '')
@@ -154,7 +154,7 @@ export const getWorkItemsBatchTool: ToolConfig<GetWorkItemsBatchParams, GetWorkI
                 },
                 areaPath: { type: 'string', description: 'Area path of the work item' },
                 url: { type: 'string', description: 'API URL for the work item' },
-                ...WORK_ITEM_DETAIL_OUTPUT_PROPERTIES,
+                ...WORK_ITEM_LIST_DETAIL_OUTPUT_PROPERTIES,
               },
             },
           },

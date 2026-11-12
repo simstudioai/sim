@@ -428,7 +428,7 @@ describe('Azure DevOps response transforms', () => {
     const fetchMock = vi
       .fn()
       .mockImplementation(() => Promise.resolve(responseJson({ value: [rawWorkItem] })))
-    globalThis.fetch = fetchMock as unknown as typeof fetch
+    vi.stubGlobal('fetch', fetchMock)
 
     const transform = queryWorkItemsTool.transformResponse as NonNullable<
       typeof queryWorkItemsTool.transformResponse

@@ -1,5 +1,10 @@
 import type { GmailMessage } from '@/tools/gmail/types'
-import { extractExtendedHeaders, extractMessageBody, GMAIL_API_BASE } from '@/tools/gmail/utils'
+import {
+  extractExtendedHeaders,
+  extractMessageBody,
+  GMAIL_API_BASE,
+  getHeaderValue,
+} from '@/tools/gmail/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -95,8 +100,6 @@ export const gmailGetThreadV2Tool: ToolConfig<GmailGetThreadParams, GmailGetThre
     const messages = (data.messages || []).map((message: Partial<GmailMessage>) => {
       const payload = message.payload
       const headers = payload?.headers || []
-      const getHeader = (name: string): string | undefined =>
-        headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value
 
       const body = payload ? extractMessageBody(payload) : ''
 
@@ -105,10 +108,10 @@ export const gmailGetThreadV2Tool: ToolConfig<GmailGetThreadParams, GmailGetThre
         threadId: message.threadId,
         labelIds: message.labelIds ?? null,
         snippet: message.snippet ?? null,
-        from: getHeader('From') ?? null,
-        to: getHeader('To') ?? null,
-        subject: getHeader('Subject') ?? null,
-        date: getHeader('Date') ?? null,
+        from: getHeaderValue(headers, 'From') ?? null,
+        to: getHeaderValue(headers, 'To') ?? null,
+        subject: getHeaderValue(headers, 'Subject') ?? null,
+        date: getHeaderValue(headers, 'Date') ?? null,
         body: body || null,
         ...extractExtendedHeaders(headers),
         internalDate: message.internalDate ?? null,

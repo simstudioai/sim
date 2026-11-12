@@ -59,7 +59,8 @@ export async function fetchThreadingHeaders(
 }
 
 /** Case-insensitive lookup of a top-level message header value. */
-function getHeaderValue(
+/** Case-insensitive header lookup on a Gmail message payload. */
+export function getHeaderValue(
   headers: ReadonlyArray<{ name: string; value: string }> | undefined,
   name: string
 ): string | undefined {
@@ -106,10 +107,10 @@ export async function processMessage(
   }
 
   const headers = message.payload.headers || []
-  const subject = headers.find((h) => h.name.toLowerCase() === 'subject')?.value || ''
-  const from = headers.find((h) => h.name.toLowerCase() === 'from')?.value || ''
-  const to = headers.find((h) => h.name.toLowerCase() === 'to')?.value || ''
-  const date = headers.find((h) => h.name.toLowerCase() === 'date')?.value || ''
+  const subject = getHeaderValue(headers, 'subject') || ''
+  const from = getHeaderValue(headers, 'from') || ''
+  const to = getHeaderValue(headers, 'to') || ''
+  const date = getHeaderValue(headers, 'date') || ''
 
   // Extract the message body
   const body = extractMessageBody(message.payload)
@@ -175,10 +176,10 @@ export function processMessageForSummary(message: GmailMessage): GmailMessageSum
   }
 
   const headers = message.payload.headers || []
-  const subject = headers.find((h) => h.name.toLowerCase() === 'subject')?.value || 'No Subject'
-  const from = headers.find((h) => h.name.toLowerCase() === 'from')?.value || 'Unknown Sender'
-  const to = headers.find((h) => h.name.toLowerCase() === 'to')?.value || ''
-  const date = headers.find((h) => h.name.toLowerCase() === 'date')?.value || ''
+  const subject = getHeaderValue(headers, 'subject') || 'No Subject'
+  const from = getHeaderValue(headers, 'from') || 'Unknown Sender'
+  const to = getHeaderValue(headers, 'to') || ''
+  const date = getHeaderValue(headers, 'date') || ''
 
   return {
     id: message.id,

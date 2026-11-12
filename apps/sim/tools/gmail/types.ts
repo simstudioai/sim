@@ -115,7 +115,6 @@ export interface GmailMessage {
   threadId: string
   labelIds: string[]
   snippet: string
-  historyId?: string
   internalDate?: string
   payload: {
     headers: Array<{

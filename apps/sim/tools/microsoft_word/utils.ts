@@ -4,17 +4,34 @@ import { GRAPH_ID_PATTERN } from '@/tools/microsoft_excel/utils'
 import type {
   MicrosoftWordDocumentMetadata,
   MicrosoftWordGraphDriveItem,
-  MicrosoftWordIdentity,
 } from '@/tools/microsoft_word/types'
+import { toIdentity } from '@/tools/onedrive/utils'
+import type { OutputProperty } from '@/tools/types'
 
 export const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0'
 
-function toIdentity(
-  identitySet: MicrosoftWordGraphDriveItem['createdBy']
-): MicrosoftWordIdentity | null {
-  const identity = identitySet?.user ?? identitySet?.application ?? identitySet?.device
-  if (!identity) return null
-  return { id: identity.id ?? null, displayName: identity.displayName ?? null }
+/** Output properties for the drive and identity fields on every Word document metadata object. */
+export const DOCUMENT_METADATA_DETAIL_PROPERTIES: Record<string, OutputProperty> = {
+  driveId: {
+    type: 'string',
+    description: 'ID of the drive holding the document (pass as driveId for SharePoint)',
+    optional: true,
+  },
+  parentFolderId: {
+    type: 'string',
+    description: 'ID of the folder containing the document',
+    optional: true,
+  },
+  createdBy: {
+    type: 'object',
+    description: 'Identity that created the document (id, displayName)',
+    optional: true,
+  },
+  lastModifiedBy: {
+    type: 'object',
+    description: 'Identity that last modified the document (id, displayName)',
+    optional: true,
+  },
 }
 
 /** Projects a Graph `driveItem` onto the metadata shape the Word tools return. */

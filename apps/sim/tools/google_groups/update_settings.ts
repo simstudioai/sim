@@ -1,6 +1,7 @@
 import {
   type GoogleGroupsUpdateSettingsParams,
   type GoogleGroupsUpdateSettingsResponse,
+  mapGroupSettings,
   SETTINGS_OBJECT_OUTPUT,
 } from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
@@ -310,41 +311,7 @@ export const updateSettingsTool: ToolConfig<
     if (!response.ok) {
       throw new Error(data.error?.message || 'Failed to update group settings')
     }
-    const settings = {
-      email: data.email ?? null,
-      name: data.name ?? null,
-      description: data.description ?? null,
-      whoCanJoin: data.whoCanJoin ?? null,
-      whoCanViewMembership: data.whoCanViewMembership ?? null,
-      whoCanViewGroup: data.whoCanViewGroup ?? null,
-      whoCanPostMessage: data.whoCanPostMessage ?? null,
-      allowExternalMembers: data.allowExternalMembers ?? null,
-      allowWebPosting: data.allowWebPosting ?? null,
-      primaryLanguage: data.primaryLanguage ?? null,
-      isArchived: data.isArchived ?? null,
-      archiveOnly: data.archiveOnly ?? null,
-      messageModerationLevel: data.messageModerationLevel ?? null,
-      spamModerationLevel: data.spamModerationLevel ?? null,
-      replyTo: data.replyTo ?? null,
-      customReplyTo: data.customReplyTo ?? null,
-      includeCustomFooter: data.includeCustomFooter ?? null,
-      customFooterText: data.customFooterText ?? null,
-      sendMessageDenyNotification: data.sendMessageDenyNotification ?? null,
-      defaultMessageDenyNotificationText: data.defaultMessageDenyNotificationText ?? null,
-      membersCanPostAsTheGroup: data.membersCanPostAsTheGroup ?? null,
-      includeInGlobalAddressList: data.includeInGlobalAddressList ?? null,
-      whoCanLeaveGroup: data.whoCanLeaveGroup ?? null,
-      whoCanContactOwner: data.whoCanContactOwner ?? null,
-      favoriteRepliesOnTop: data.favoriteRepliesOnTop ?? null,
-      whoCanApproveMembers: data.whoCanApproveMembers ?? null,
-      whoCanBanUsers: data.whoCanBanUsers ?? null,
-      whoCanModerateMembers: data.whoCanModerateMembers ?? null,
-      whoCanModerateContent: data.whoCanModerateContent ?? null,
-      whoCanAssistContent: data.whoCanAssistContent ?? null,
-      enableCollaborativeInbox: data.enableCollaborativeInbox ?? null,
-      whoCanDiscoverGroup: data.whoCanDiscoverGroup ?? null,
-      defaultSender: data.default_sender ?? data.defaultSender ?? null,
-    }
+    const settings = mapGroupSettings(data)
     return {
       success: true,
       output: { ...settings, settings },

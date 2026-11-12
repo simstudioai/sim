@@ -8,6 +8,10 @@ import {
 } from '@/tools/google_tasks/types'
 import type { ToolConfig } from '@/tools/types'
 
+function hasValue(value: unknown): boolean {
+  return value !== undefined && value !== null && value !== ''
+}
+
 export const listTool: ToolConfig<GoogleTasksListParams, GoogleTasksListResponse> = {
   id: 'google_tasks_list',
   name: 'Google Tasks List Tasks',
@@ -109,15 +113,14 @@ export const listTool: ToolConfig<GoogleTasksListParams, GoogleTasksListResponse
       if (params.pageToken) queryParams.set('pageToken', params.pageToken)
       if (params.showCompleted !== undefined)
         queryParams.set('showCompleted', String(params.showCompleted))
-      if (params.showDeleted !== undefined)
-        queryParams.set('showDeleted', String(params.showDeleted))
-      if (params.showHidden !== undefined) queryParams.set('showHidden', String(params.showHidden))
+      if (hasValue(params.showDeleted)) queryParams.set('showDeleted', String(params.showDeleted))
+      if (hasValue(params.showHidden)) queryParams.set('showHidden', String(params.showHidden))
       if (params.dueMin) queryParams.set('dueMin', params.dueMin)
       if (params.dueMax) queryParams.set('dueMax', params.dueMax)
       if (params.completedMin) queryParams.set('completedMin', params.completedMin)
       if (params.completedMax) queryParams.set('completedMax', params.completedMax)
       if (params.updatedMin) queryParams.set('updatedMin', params.updatedMin)
-      if (params.showAssigned !== undefined)
+      if (hasValue(params.showAssigned))
         queryParams.set('showAssigned', String(params.showAssigned))
       const qs = queryParams.toString()
       return `${TASKS_API_BASE}/${taskListPath(params.taskListId)}/tasks${qs ? `?${qs}` : ''}`

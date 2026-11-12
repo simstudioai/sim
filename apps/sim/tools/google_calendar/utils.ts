@@ -1,5 +1,5 @@
 import { generateId } from '@sim/utils/id'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import type {
   GoogleCalendarApiEventResponse,
   GoogleCalendarEventDetails,
@@ -126,7 +126,7 @@ function parseReminders(
     }
   }
 
-  if (isRecordLike(parsed) && !Array.isArray(parsed)) {
+  if (isRecordLike(parsed)) {
     if (typeof parsed.useDefault !== 'boolean') {
       throw new Error('Reminders object needs a boolean useDefault, like {"useDefault":true}')
     }
@@ -147,10 +147,9 @@ function validateReminderOverrides(parsed: unknown): GoogleCalendarReminderOverr
   }
 
   return parsed.map((entry: unknown) => {
-    const method =
-      typeof entry === 'object' && entry !== null ? Reflect.get(entry, 'method') : undefined
-    const rawMinutes =
-      typeof entry === 'object' && entry !== null ? Reflect.get(entry, 'minutes') : undefined
+    const rec = toRecord(entry)
+    const method = rec.method
+    const rawMinutes = rec.minutes
     const minutes =
       typeof rawMinutes === 'number'
         ? rawMinutes

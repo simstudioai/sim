@@ -3,6 +3,7 @@ import type {
   MicrosoftAdListUserMembershipsResponse,
 } from '@/tools/microsoft_ad/types'
 import { MEMBERSHIP_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
+import { isTrueFlag } from '@/tools/microsoft_ad/utils'
 import { assertGraphNextPageUrlForCollection, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
@@ -60,7 +61,7 @@ export const listUserMembershipsTool: ToolConfig<
   },
   request: {
     url: (params) => {
-      const relationship = params.transitive ? 'transitiveMemberOf' : 'memberOf'
+      const relationship = isTrueFlag(params.transitive) ? 'transitiveMemberOf' : 'memberOf'
       if (params.nextLink)
         return assertGraphNextPageUrlForCollection(params.nextLink, [
           'memberOf',

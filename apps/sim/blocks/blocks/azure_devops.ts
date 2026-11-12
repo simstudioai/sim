@@ -13,6 +13,15 @@ function normalizeDate(input: unknown): string | undefined {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00Z` : value
 }
 
+/**
+ * Dedicated Max Results value for an operation, falling back to the shared List Builds `top`
+ * that these tools read before they had their own field, so saved workflows keep their page size.
+ */
+function resolveTop(dedicated: unknown, shared: unknown): number | undefined {
+  const value = dedicated || shared
+  return value ? Number(value) : undefined
+}
+
 export const AzureDevOpsBlock: BlockConfig = {
   type: 'azure_devops',
   hideFromToolbar: true,
@@ -318,14 +327,23 @@ export const AzureDevOpsBlock: BlockConfig = {
       title: 'Continuation Token',
       type: 'short-input',
       placeholder: 'From a previous page',
-      condition: {
-        field: 'operation',
-        value: [
-          'azure_devops_list_builds',
-          'azure_devops_list_pipelines',
-          'azure_devops_get_comments',
-        ],
-      },
+      condition: { field: 'operation', value: 'azure_devops_list_builds' },
+      mode: 'advanced',
+    },
+    {
+      id: 'pipelinesContinuationToken',
+      title: 'Continuation Token',
+      type: 'short-input',
+      placeholder: 'From a previous page',
+      condition: { field: 'operation', value: 'azure_devops_list_pipelines' },
+      mode: 'advanced',
+    },
+    {
+      id: 'commentsContinuationToken',
+      title: 'Continuation Token',
+      type: 'short-input',
+      placeholder: 'From a previous page',
+      condition: { field: 'operation', value: 'azure_devops_get_comments' },
       mode: 'advanced',
     },
     {
@@ -710,8 +728,8 @@ export const AzureDevOpsBlock: BlockConfig = {
           case 'azure_devops_list_pipelines':
             return {
               ...base,
-              top: params.pipelinesTop ? Number(params.pipelinesTop) : undefined,
-              continuationToken: (params.continuationToken as string) || undefined,
+              top: resolveTop(params.pipelinesTop, params.top),
+              continuationToken: (params.pipelinesContinuationToken as string) || undefined,
             }
           case 'azure_devops_get_pipeline':
             return { ...base, pipelineId: Number(params.pipelineId) }
@@ -810,8 +828,8 @@ export const AzureDevOpsBlock: BlockConfig = {
             return {
               ...base,
               workItemId: Number(params.workItemId),
-              top: params.commentsTop ? Number(params.commentsTop) : undefined,
-              continuationToken: (params.continuationToken as string) || undefined,
+              top: resolveTop(params.commentsTop, params.top),
+              continuationToken: (params.commentsContinuationToken as string) || undefined,
             }
           default:
             return base
@@ -889,6 +907,14 @@ export const AzureDevOpsBlock: BlockConfig = {
     minTime: { type: 'string', description: 'Only builds after this ISO 8601 time' },
     maxTime: { type: 'string', description: 'Only builds before this ISO 8601 time' },
     continuationToken: { type: 'string', description: 'Continuation token for the next page' },
+    pipelinesContinuationToken: {
+      type: 'string',
+      description: 'Continuation token for the next page of pipelines',
+    },
+    commentsContinuationToken: {
+      type: 'string',
+      description: 'Continuation token for the next page of comments',
+    },
     startLine: { type: 'number', description: 'First log line to return' },
     endLine: { type: 'number', description: 'Last log line to return' },
   },
