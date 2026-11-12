@@ -93,7 +93,7 @@ function accessTokenDigestOf(accessToken: string, tag = DEFAULT_ACCESS_TOKEN_DIG
  * the transaction that takes an application lock, so its row locks are released before any
  * provider call.
  */
-export async function deleteExpiredClientTokenFailures(): Promise<void> {
+async function deleteExpiredClientTokenFailures(): Promise<void> {
   await db.execute(sql`
     DELETE FROM ${clientCredentialToken} WHERE ${clientCredentialToken.id} IN (
       SELECT ${clientCredentialToken.id} FROM ${clientCredentialToken}
