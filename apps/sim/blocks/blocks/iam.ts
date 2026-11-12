@@ -32,7 +32,7 @@ function serializeTags(tags: unknown): string | undefined {
     const entry = isRecordLike(row) && isRecordLike(row.cells) ? row.cells : row
     const key = isRecordLike(entry) ? entry.key : undefined
     const value = isRecordLike(entry) ? entry.value : undefined
-    if (typeof key === 'string' && key && value != null) obj[key] = String(value)
+    if (typeof key === 'string' && key && value !== undefined) obj[key] = String(value ?? '')
   }
   return Object.keys(obj).length > 0 ? JSON.stringify(obj) : undefined
 }
