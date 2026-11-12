@@ -77,6 +77,10 @@ export function getConversationBinding(providerId: ProviderId, request: Provider
           apiKey: request.apiKey,
           accessKey: request.bedrockAccessKeyId,
           secretKey: request.bedrockSecretKey,
+          // A saved credential resolves to new session keys each run; the credential is the account.
+          ...(request.bedrockSession
+            ? { bedrockCredential: request.bedrockSession.credentialId }
+            : {}),
         },
         project: request.vertexProject,
         location: request.vertexLocation,

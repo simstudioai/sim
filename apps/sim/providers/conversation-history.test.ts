@@ -63,6 +63,33 @@ describe('native history request binding', () => {
     ).not.toBe(initial)
   })
 
+  it('binds a saved AWS credential, not the session it resolved to for one run', () => {
+    const session = (credentialId: string, accessKeyId: string) => ({
+      credentialId,
+      accessKeyId,
+      secretAccessKey: `${accessKeyId}-secret`,
+      sessionToken: `${accessKeyId}-token`,
+    })
+    const first = getConversationBinding('bedrock', {
+      ...request,
+      bedrockSession: session('aws-cred-1', 'ASIAFIRSTSESSION0001'),
+    })
+
+    expect(
+      getConversationBinding('bedrock', {
+        ...request,
+        bedrockSession: session('aws-cred-1', 'ASIANEXTSESSION00002'),
+      })
+    ).toBe(first)
+    expect(
+      getConversationBinding('bedrock', {
+        ...request,
+        bedrockSession: session('aws-cred-2', 'ASIAFIRSTSESSION0001'),
+      })
+    ).not.toBe(first)
+    expect(getConversationBinding('bedrock', request)).not.toBe(first)
+  })
+
   it('binds JSON-shaped parameter projection metadata for pending tool replay', () => {
     const tool: ProviderToolConfig = {
       id: 'lookup',
