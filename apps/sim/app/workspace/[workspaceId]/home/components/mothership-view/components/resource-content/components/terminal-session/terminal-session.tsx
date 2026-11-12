@@ -21,6 +21,7 @@ import { useTheme } from 'next-themes'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import '@xterm/xterm/css/xterm.css'
 import type { TerminalTabsState } from '@sim/terminal-protocol'
+import { formatShortcut } from '@/lib/core/utils/platform'
 import { getDesktopBridge } from '@/lib/desktop'
 import {
   loadDesktopTerminalAppearance,
@@ -579,7 +580,7 @@ const TerminalView = memo(function TerminalView({
         })
         return
       }
-      toast.error('Could not paste from the clipboard. Press ⌘V to paste.')
+      toast.error(`Could not paste from the clipboard. Press ${formatShortcut('V')} to paste.`)
     })()
   }
 
