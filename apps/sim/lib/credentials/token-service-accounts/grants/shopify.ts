@@ -21,7 +21,12 @@ const MAX_TOKEN_LIFETIME_SECONDS = 86_400
  * Shopify answers `shop_not_permitted` when the app and store are in different organizations,
  * which no secret fixes, and 404 for a store domain that does not exist.
  */
-function classifyShopifyRefusal(shop: string, status: number, body: string) {
+function classifyShopifyRefusal(
+  shop: string,
+  status: number,
+  body: string,
+  retryAfterMs: number | undefined
+) {
   if (/shop_not_permitted/i.test(body)) {
     return new TokenServiceAccountValidationError('grant_not_permitted', status, {
       step: STEP,
@@ -32,7 +37,8 @@ function classifyShopifyRefusal(shop: string, status: number, body: string) {
   return new TokenServiceAccountValidationError(
     status === 404 ? 'site_not_found' : providerFailureCode(status),
     status,
-    { step: STEP, domain: shop, reason: 'provider rejected token exchange' }
+    { step: STEP, domain: shop, reason: 'provider rejected token exchange' },
+    { retryAfterMs }
   )
 }
 
@@ -82,7 +88,8 @@ export async function mintShopifyClientCredentialsToken(
           dnsFailureCode: 'site_not_found',
           dnsFailureReason: 'store domain does not resolve',
         },
-        classifyRefusal: (status, body) => classifyShopifyRefusal(shop, status, body),
+        classifyRefusal: (status, body, retryAfterMs) =>
+          classifyShopifyRefusal(shop, status, body, retryAfterMs),
         signal,
       }),
     signal: options?.signal,
