@@ -11,6 +11,8 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Infisical](https://infisical.com/) to list, read, create, update, or delete secrets in a project environment. Connect a saved Infisical credential (a machine identity access token), then set the project ID, environment slug, and any secret path required by the selected operation.
+
+Sim stores the access token as pasted and does not renew it, so the credential stops working when the token's Access Token TTL runs out. On the identity's Universal Auth or Token Auth configuration, set a long Access Token TTL and Access Token Max TTL, and leave Access Token Period unset: a periodic token expires at the end of each period unless it is renewed. Replace the credential with a new token before the old one expires. See Infisical's [Universal Auth](https://infisical.com/docs/documentation/platform/identities/universal-auth) and [Token Auth](https://infisical.com/docs/documentation/platform/identities/token-auth) guides.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]

@@ -12,6 +12,7 @@ import {
   type ToolSchema,
   ToolSchemaEnrichmentError,
 } from '@/tools/params'
+import { tokenCredentialOAuth } from '@/tools/shared/saved-credentials'
 import type { HttpMethod, ParameterVisibility } from '@/tools/types'
 
 const mockToolConfig = {
@@ -465,6 +466,47 @@ describe('Tool Parameters Utils', () => {
       })
       expect(copilotSchema.required).toContain('credentialId')
     })
+
+    it.concurrent(
+      'lets copilot pass a saved credential instead of the inline values it supplies',
+      () => {
+        const hybridTool = {
+          ...mockToolConfig,
+          id: 'hybrid_schema_tool',
+          oauth: tokenCredentialOAuth('databricks', { apiKey: 'accessToken', host: 'domain' }),
+          params: {
+            host: {
+              type: 'string',
+              required: true,
+              visibility: 'user-only' as ParameterVisibility,
+              description: 'Workspace host',
+            },
+            apiKey: {
+              type: 'string',
+              required: true,
+              visibility: 'user-only' as ParameterVisibility,
+              description: 'Access token',
+            },
+            warehouseId: {
+              type: 'string',
+              required: true,
+              visibility: 'user-or-llm' as ParameterVisibility,
+              description: 'Warehouse ID',
+            },
+          },
+        }
+
+        const copilotSchema = createUserToolSchema(hybridTool, { surface: 'copilot' })
+        const workflowSchema = createUserToolSchema(hybridTool)
+
+        expect(copilotSchema.properties.credentialId).toMatchObject({ type: 'string' })
+        expect(copilotSchema.required).toEqual(['warehouseId'])
+        expect(copilotSchema.properties).toHaveProperty('apiKey')
+        expect(copilotSchema.properties).toHaveProperty('host')
+        expect(workflowSchema.properties).not.toHaveProperty('credentialId')
+        expect(workflowSchema.required).toEqual(['host', 'apiKey', 'warehouseId'])
+      }
+    )
 
     it.concurrent('emits file params as reference strings by default', () => {
       const toolWithFileParams = {

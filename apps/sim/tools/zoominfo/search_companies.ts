@@ -1,3 +1,7 @@
+import {
+  savedCredentialTokenParam,
+  ZOOMINFO_CREDENTIAL_OAUTH,
+} from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 import type {
   ZoomInfoSearchCompaniesParams,
@@ -18,6 +22,7 @@ export const zoominfoSearchCompaniesTool: InternalToolConfig<
   name: 'ZoomInfo Search Companies',
   description: 'Search the ZoomInfo company database by name, industry, location, and size.',
   version: '1.0.0',
+  oauth: ZOOMINFO_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -32,6 +37,7 @@ export const zoominfoSearchCompaniesTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'ZoomInfo OAuth client secret',
     },
+    accessToken: savedCredentialTokenParam('ZoomInfo'),
     companyName: {
       type: 'string',
       required: false,

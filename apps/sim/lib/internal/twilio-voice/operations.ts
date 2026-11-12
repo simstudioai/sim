@@ -15,6 +15,7 @@ import {
 import { TwilioVoiceOperationError } from '@/lib/internal/twilio-voice/errors'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { getExtensionFromMimeType } from '@/lib/uploads/utils/file'
+import { twilioAuthorization } from '@/tools/twilio/utils'
 import type { TwilioGetRecordingParams } from '@/tools/twilio_voice/types'
 
 const logger = createLogger('TwilioGetRecordingOperation')
@@ -79,7 +80,7 @@ export async function getTwilioRecording(
       400
     )
   }
-  const authHeader = `Basic ${Buffer.from(`${input.accountSid}:${input.authToken}`).toString('base64')}`
+  const authHeader = twilioAuthorization(input.accountSid, input.authToken)
   const infoUrl = `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(input.accountSid)}/Recordings/${encodeURIComponent(input.recordingSid)}.json`
   const infoResponse = await fetchPinned(
     infoUrl,

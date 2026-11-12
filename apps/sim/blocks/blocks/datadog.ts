@@ -1,6 +1,8 @@
 import { DatadogIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
+import { DATADOG_SITE_LABELS, DATADOG_SITES } from '@/tools/datadog/types'
 
 /**
  * Normalizes a `switch` sub-block value. Switches serialize their state as the
@@ -33,6 +35,8 @@ function datadogNumber(value: unknown): number | undefined {
 
 export const DatadogBlock: BlockConfig = {
   type: 'datadog',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'datadog_v2' },
   name: 'Datadog',
   description: 'Monitor infrastructure, applications, and logs with Datadog',
   authMode: AuthMode.ApiKey,
@@ -1906,17 +1910,7 @@ Return ONLY the search query string - no explanations.`,
       id: 'site',
       title: 'Datadog Site',
       type: 'dropdown',
-      options: [
-        { label: 'US1 (datadoghq.com)', id: 'datadoghq.com' },
-        { label: 'US3 (us3.datadoghq.com)', id: 'us3.datadoghq.com' },
-        { label: 'US5 (us5.datadoghq.com)', id: 'us5.datadoghq.com' },
-        { label: 'EU (datadoghq.eu)', id: 'datadoghq.eu' },
-        { label: 'AP1 (ap1.datadoghq.com)', id: 'ap1.datadoghq.com' },
-        { label: 'AP2 (ap2.datadoghq.com)', id: 'ap2.datadoghq.com' },
-        { label: 'UK1 (uk1.datadoghq.com)', id: 'uk1.datadoghq.com' },
-        { label: 'US1-FED (ddog-gov.com)', id: 'ddog-gov.com' },
-        { label: 'US2-FED (us2.ddog-gov.com)', id: 'us2.ddog-gov.com' },
-      ],
+      options: DATADOG_SITES.map((site) => ({ label: DATADOG_SITE_LABELS[site], id: site })),
       value: () => 'datadoghq.com',
       mode: 'advanced',
     },
@@ -2625,3 +2619,18 @@ export const DatadogBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const DatadogV2Block: BlockConfig = {
+  ...DatadogBlock,
+  type: 'datadog_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    DatadogBlock,
+    { id: 'credential', type: 'oauth-input', serviceId: 'datadog', title: 'Datadog Credential' },
+    // The API key shows in every operation and the application key only where it is sent,
+    // and the site is optional; one credential carries all three, in every operation.
+    { condition: null, required: true }
+  ),
+}

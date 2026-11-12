@@ -1,5 +1,6 @@
 import type { CreateMonitorParams, CreateMonitorResponse, MonitorType } from '@/tools/datadog/types'
 import { datadogErrorMessage, parseJsonParam, resolveDatadogSite } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createMonitorTool: ToolConfig<CreateMonitorParams, CreateMonitorResponse> = {
@@ -8,6 +9,7 @@ export const createMonitorTool: ToolConfig<CreateMonitorParams, CreateMonitorRes
   description:
     'Create a new monitor/alert in Datadog. Monitors can track metrics, service checks, events, and more.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     name: {

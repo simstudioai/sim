@@ -28,6 +28,7 @@ import type { AwsS3ListObjectsBody } from '@/lib/api/contracts/tools/aws/s3-list
 import type { AwsS3PresignedUrlBody } from '@/lib/api/contracts/tools/aws/s3-presigned-url'
 import type { AwsS3PutObjectBody } from '@/lib/api/contracts/tools/aws/s3-put-object'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { awsSessionLifetime } from '@/lib/internal/aws/credentials'
 import { createS3Client, type S3ConnectionConfig } from '@/lib/internal/s3/client'
 import { S3OperationError } from '@/lib/internal/s3/errors'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
@@ -280,7 +281,27 @@ export async function executeS3ListObjects(input: AwsS3ListObjectsBody, signal?:
   })
 }
 
+/**
+ * A URL signed with a saved role's STS session stops working when that session
+ * ends. The session is minted for this call, so its full duration is the
+ * longest expiry the URL can keep; comparing against the duration rather than
+ * the time left keeps mint latency and clock skew from refusing the default
+ * expiry on a default-length session.
+ */
 export async function executeS3PresignedUrl(input: AwsS3PresignedUrlBody, signal?: AbortSignal) {
+  const now = Date.now()
+  const session = awsSessionLifetime(input.accessKeyId)
+  const sessionSeconds = session?.durationSeconds
+  if (sessionSeconds !== undefined && input.expiresIn > sessionSeconds) {
+    throw new S3OperationError(
+      `This presigned URL would stop working when the AWS role session that signs it ends, after ${sessionSeconds} seconds. Set an expiry of ${sessionSeconds} seconds or less, or give the credential a longer session duration.`,
+      400
+    )
+  }
+  const requestedEnd = now + input.expiresIn * 1000
+  const expiresAt = session?.expiration
+    ? Math.min(requestedEnd, session.expiration.getTime())
+    : requestedEnd
   return withS3Client(input, async (client) => {
     signal?.throwIfAborted()
     const command =
@@ -299,7 +320,7 @@ export async function executeS3PresignedUrl(input: AwsS3PresignedUrlBody, signal
         url,
         method: input.method,
         expiresIn: input.expiresIn,
-        expiresAt: new Date(Date.now() + input.expiresIn * 1000).toISOString(),
+        expiresAt: new Date(expiresAt).toISOString(),
       },
     }
   })

@@ -6,6 +6,7 @@ import type {
   ServiceNowDownloadAttachmentV2Response,
 } from '@/tools/servicenow/types'
 import { buildServiceNowHeaders, normalizeInstanceUrl } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolFileData } from '@/tools/types'
 
 const logger = createLogger('ServiceNowDownloadAttachmentTool')
@@ -52,6 +53,7 @@ export const downloadAttachmentTool = {
   name: 'Download ServiceNow Attachment',
   description: 'Download an attachment file from ServiceNow by its sys_id',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     instanceUrl: {

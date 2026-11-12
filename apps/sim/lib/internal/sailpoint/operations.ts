@@ -5,7 +5,7 @@ import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   getSailPointErrorMessage,
   readTotalCount,
-  type SailPointCredentials,
+  type SailPointAuth,
   type SailPointFetchResult,
   type SailPointHosts,
   sailpointFetch,
@@ -239,7 +239,7 @@ function outputForResult(result: SailPointFetchResult, kind: ResultKind): Respon
 }
 
 async function executeRequest(
-  credentials: SailPointCredentials,
+  credentials: SailPointAuth,
   context: SailPointOperationContext,
   buildRequest: (hosts: SailPointHosts) => { init: RequestInit; url: string },
   kind: ResultKind
@@ -250,7 +250,7 @@ async function executeRequest(
 
 async function executeLoad(
   input: InputRecord,
-  credentials: SailPointCredentials,
+  credentials: SailPointAuth,
   context: SailPointOperationContext
 ): Promise<Response> {
   context.signal?.throwIfAborted()
@@ -341,11 +341,13 @@ export async function executeSailPointOperation(
   context: SailPointOperationContext
 ): Promise<Response> {
   const input = parsedInput as InputRecord
-  const credentials: SailPointCredentials = {
-    clientId: String(input.clientId),
-    clientSecret: String(input.clientSecret),
-    tenant: String(input.tenant),
-  }
+  const credentials: SailPointAuth = input.accessToken
+    ? { accessToken: String(input.accessToken), tenant: String(input.tenant) }
+    : {
+        clientId: String(input.clientId),
+        clientSecret: String(input.clientSecret),
+        tenant: String(input.tenant),
+      }
 
   switch (input.operation) {
     case 'sailpoint_search': {

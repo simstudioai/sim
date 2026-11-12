@@ -1,4 +1,12 @@
 /**
+ * The Basic `Authorization` value Gong expects: the access key and its secret joined by a colon,
+ * Base64-encoded. Throws where `btoa` does, for a pair that is not Latin-1.
+ */
+export function gongAuthorization(accessKey: string, accessKeySecret: string): string {
+  return `Basic ${btoa(`${accessKey}:${accessKeySecret}`)}`
+}
+
+/**
  * Extract a useful Gong API error message from documented error payloads.
  */
 export function getGongErrorMessage(data: unknown, fallback: string): string {

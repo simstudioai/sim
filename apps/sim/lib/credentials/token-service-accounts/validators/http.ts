@@ -9,6 +9,7 @@ import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   fetchProvider,
   isHostNotFound,
+  isVendorJsonForbidden,
   type ProviderResponse,
   providerFailureCode,
   TokenServiceAccountValidationError,
@@ -97,47 +98,6 @@ export function readJsonBody(response: ProviderResponse, serviceLabel: string): 
     maxBytes: MAX_CHECK_RESPONSE_BYTES,
     label: `${serviceLabel} credential check`,
   })
-}
-
-/**
- * Drops the tabs and newlines the URL parser ignores, then refuses `https:/host`, which
- * would otherwise get a second scheme and parse as a host named `https`.
- */
-function refuseMalformedScheme(typed: string): string {
-  const stripped = typed.replace(/[\t\n\r]/g, '')
-  if (/^https?:(?!\/\/)/i.test(stripped)) throw new Error('malformed scheme')
-  return stripped
-}
-
-/**
- * A typed http(s) base URL in the form tools build request paths on: a bare host
- * is taken as https, trailing slashes are dropped, and any other scheme,
- * credentials, a query, or a fragment is refused, since each would retarget the
- * request.
- */
-export function normalizeHttpBaseUrl(raw: string | undefined): string {
-  const trimmed = (raw ?? '').trim()
-  if (!trimmed) throw new Error('missing URL')
-  const typed = refuseMalformedScheme(trimmed)
-  const url = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(typed) ? typed : `https://${typed}`)
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('http(s) only')
-  if (url.username || url.password || url.search || url.hash) {
-    throw new Error('credentials, query, or fragment in URL')
-  }
-  return `${url.origin}${url.pathname.replace(/\/+$/, '')}`
-}
-
-/**
- * Refuses a typed URL that carries credentials or a non-http(s) scheme, before a
- * tool's own normalizer can drop the credentials silently or read the scheme as
- * a host, and so verify a different identity or host than the user meant.
- */
-export function refuseUnsafeTypedUrl(raw: string | undefined): string {
-  const typed = refuseMalformedScheme((raw ?? '').trim())
-  if (/^(?!https?:\/\/)[a-z][a-z\d+.-]*:\/\//i.test(typed)) throw new Error('http(s) only')
-  const authority = typed.replace(/^[a-z][a-z\d+.-]*:\/\//i, '').split(/[/?#]/)[0]
-  if (authority.includes('@')) throw new Error('credentials in URL')
-  return typed
 }
 
 /** A domain that must be one of a fixed set (a region or regional host), compared case-insensitively. */
@@ -258,11 +218,7 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
             ? undefined
             : { dnsFailureCode: 'site_not_found' }
         )
-    // A JSON 403 is the vendor's own answer; an HTML one is a firewall or CDN page.
-    const scopedForbidden =
-      check.forbiddenMeansScoped &&
-      response.status === 403 &&
-      (response.headers.get('content-type') ?? '').includes('application/json')
+    const scopedForbidden = check.forbiddenMeansScoped && isVendorJsonForbidden(response)
     if ((check.rejectsKey || check.provesKey) && !response.ok) {
       const unreadable = Symbol('unreadable')
       const errorBody = await readJsonBody(response, check.serviceLabel).catch(() => unreadable)

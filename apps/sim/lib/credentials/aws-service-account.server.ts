@@ -34,6 +34,7 @@ import { AWS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
  * sessions resolved from them stay out of block outputs, logs, and model input,
  * with two exceptions: an S3 presigned URL made with temporary credentials
  * carries the temporary access key ID and session token (never the secret), and
+ * stops working when that session ends, so its expiry can't outlast the session;
  * operations whose purpose is to issue AWS credentials (STS assume role and get
  * session token, IAM create access key) return the credentials they issue, as
  * the same operations do with inline keys. Using a credential therefore includes
@@ -126,6 +127,10 @@ export interface AwsSessionCredentials {
   accessKeyId: string
   secretAccessKey: string
   sessionToken?: string
+  /** The STS session length Sim requested; long-lived access keys have none. */
+  durationSeconds?: number
+  /** When an STS session ends; long-lived access keys have none. */
+  expiration?: Date
 }
 
 /** STS lives in every partition; a role's partition decides the default endpoint. */
@@ -145,7 +150,10 @@ export function buildAwsRoleSessionName(label: string | undefined): string {
   return `sim-${cleaned || 'credential'}`
 }
 
-function toSessionCredentials(credentials: Credentials | undefined): AwsSessionCredentials {
+function toSessionCredentials(
+  credentials: Credentials | undefined,
+  durationSeconds: number
+): AwsSessionCredentials {
   if (!credentials?.AccessKeyId || !credentials.SecretAccessKey || !credentials.SessionToken) {
     throw new AwsCredentialError('AWS STS returned no credentials')
   }
@@ -153,6 +161,8 @@ function toSessionCredentials(credentials: Credentials | undefined): AwsSessionC
     accessKeyId: credentials.AccessKeyId,
     secretAccessKey: credentials.SecretAccessKey,
     sessionToken: credentials.SessionToken,
+    durationSeconds,
+    ...(credentials.Expiration ? { expiration: credentials.Expiration } : {}),
   }
 }
 
@@ -186,7 +196,7 @@ export async function resolveAwsSessionCredentials(
       }),
       { abortSignal: options.signal }
     )
-    return toSessionCredentials(response.Credentials)
+    return toSessionCredentials(response.Credentials, durationSeconds)
   }
   const webIdentityToken = await mintWorkloadIdentityToken({
     subject: config.subject,
@@ -212,7 +222,7 @@ export async function resolveAwsSessionCredentials(
     }),
     { abortSignal: options.signal }
   )
-  return toSessionCredentials(response.Credentials)
+  return toSessionCredentials(response.Credentials, durationSeconds)
 }
 
 /** The auth mode a decrypted AWS secret holds, or undefined when it is not one. */

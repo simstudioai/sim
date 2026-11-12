@@ -128,7 +128,12 @@ export interface ToolResponse {
 }
 
 /** A field of a resolved saved credential that can fill a tool param. */
-export type CredentialParamSource = 'accessToken' | 'domain' | 'providerWorkspaceId'
+export type CredentialParamSource =
+  | 'accessToken'
+  | 'domain'
+  | 'providerWorkspaceId'
+  /** Datadog's application key, a secret sent beside the API key. */
+  | 'applicationKey'
 
 export interface OAuthConfig {
   required: boolean // Whether this tool requires OAuth authentication
@@ -154,6 +159,13 @@ export interface OAuthConfig {
    * operation instead (AWS session keys) leave it unset.
    */
   credentialParams?: Readonly<Record<string, CredentialParamSource>>
+  /**
+   * Inline secrets a saved client-credential account replaces with the token
+   * it mints (`credentialParams.accessToken`): the tool authenticates with the
+   * token and never reads them. Listed in `credentialSuppliedParams` too.
+   * Built by `clientCredentialOAuth`.
+   */
+  tokenReplacesParams?: readonly string[]
   /** Token-response fields that must replace any caller-supplied tool parameter of the same name. */
   authoritativeParams?: readonly (
     | 'apiDomain'

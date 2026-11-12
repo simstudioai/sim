@@ -7,6 +7,7 @@ import type {
 } from '@/lib/credentials/client-credential-accounts/server'
 import { tenantPrincipal, userPrincipal } from '@/lib/credentials/principal'
 import {
+  assertCredentialText,
   fetchProvider,
   parseProviderJson,
   requireClientSecret,
@@ -19,20 +20,9 @@ const STEP = 'fivetran_basic_auth'
 /** Fivetran keys do not expire on their own; the TTL only bounds the local token cache. */
 const SYNTHETIC_TOKEN_TTL_SECONDS = 3600
 const MAX_AUTH_VALUE_BYTES = 1_024
-const FORBIDDEN_CREDENTIAL_TEXT = /[\u0000-\u001f\u007f]/
 
 function invalidCredentials(reason: string): TokenServiceAccountValidationError {
   return new TokenServiceAccountValidationError('invalid_credentials', 400, { step: STEP, reason })
-}
-
-function assertCredentialText(value: string, label: string): void {
-  if (
-    !value ||
-    FORBIDDEN_CREDENTIAL_TEXT.test(value) ||
-    Buffer.byteLength(value, 'utf8') > MAX_AUTH_VALUE_BYTES
-  ) {
-    throw invalidCredentials(`${label} is invalid`)
-  }
 }
 
 /**
@@ -47,9 +37,9 @@ export async function mintFivetranServiceAccountToken(
 ): Promise<ClientCredentialAccountMintResult> {
   const apiKey = fields.clientId.trim()
   const apiSecret = requireClientSecret(fields.clientSecret, STEP, 'Fivetran').trim()
-  assertCredentialText(apiKey, 'API key')
+  assertCredentialText(apiKey, 'API key', STEP, { maxBytes: MAX_AUTH_VALUE_BYTES })
   if (apiKey.includes(':')) throw invalidCredentials('API key is invalid')
-  assertCredentialText(apiSecret, 'API secret')
+  assertCredentialText(apiSecret, 'API secret', STEP, { maxBytes: MAX_AUTH_VALUE_BYTES })
 
   const accessToken = Buffer.from(`${apiKey}:${apiSecret}`, 'utf8').toString('base64')
   if (options?.skipIdentity) {

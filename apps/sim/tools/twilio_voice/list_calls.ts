@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { TWILIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
+import { twilioAuthorization } from '@/tools/twilio/utils'
 import type { TwilioListCallsOutput, TwilioListCallsParams } from '@/tools/twilio_voice/types'
 import type { ToolConfig, ToolResponseContext } from '@/tools/types'
 
@@ -56,7 +57,7 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Twilio Auth Token',
+      description: 'Twilio Auth Token, or an API key as SKxxx:secret',
     },
     to: {
       type: 'string',
@@ -126,9 +127,8 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
       if (!params.accountSid || !params.authToken) {
         throw new Error('Twilio credentials are required')
       }
-      const authToken = Buffer.from(`${params.accountSid}:${params.authToken}`).toString('base64')
       return {
-        Authorization: `Basic ${authToken}`,
+        Authorization: twilioAuthorization(params.accountSid, params.authToken),
       }
     },
   },
@@ -150,7 +150,7 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
       }
     }
 
-    const authToken = Buffer.from(`${params?.accountSid}:${params?.authToken}`).toString('base64')
+    const authorization = twilioAuthorization(params?.accountSid ?? '', params?.authToken ?? '')
 
     const calls = await mapWithConcurrency(
       (data.calls || []) as TwilioCallRecord[],
@@ -163,7 +163,7 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
           try {
             const recordingsResponse = await fetch(recordingsUrl, {
               method: 'GET',
-              headers: { Authorization: `Basic ${authToken}` },
+              headers: { Authorization: authorization },
               signal: context?.signal,
             })
 

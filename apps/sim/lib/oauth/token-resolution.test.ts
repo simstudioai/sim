@@ -582,11 +582,48 @@ describe('ordinary tool credential binding', () => {
     expect(mockRefreshTokenIfNeeded).not.toHaveBeenCalled()
   })
 
+  it('releases the application key a Datadog key pair resolves beside its API key', async () => {
+    mockGetToolMetadata.mockReturnValue({
+      id: 'fixture-tool',
+      params: {},
+      oauth: { required: false, provider: 'datadog', credentialKind: 'service-account' },
+    })
+    mockResolveOAuthAccountId.mockResolvedValue({
+      ...serviceAccount,
+      providerId: 'datadog-service-account',
+    })
+    mockResolveServiceAccountToken.mockResolvedValue({
+      accessToken: 'dd-api-key',
+      applicationKey: 'dd-application-key',
+      domain: 'datadoghq.eu',
+    })
+
+    expect(
+      await resolveCredentialAccessToken({
+        requestId: 'binding-test',
+        credentialId: 'credential-1',
+        toolId: 'fixture-tool',
+        authenticate,
+      })
+    ).toMatchObject({
+      ok: true,
+      token: {
+        accessToken: 'dd-api-key',
+        applicationKey: 'dd-application-key',
+        domain: 'datadoghq.eu',
+      },
+    })
+  })
+
   it.each([
     ['oracle-fusion', 'oracle-fusion-service-account'],
     ['vanta', 'vanta-service-account'],
     ['ramp', 'ramp-service-account'],
     ['greenhouse', 'greenhouse-service-account'],
+    ['crowdstrike', 'crowdstrike-service-account'],
+    ['datadog', 'datadog-service-account'],
+    ['sailpoint', 'sailpoint-service-account'],
+    ['zoominfo', 'zoominfo-service-account'],
     ['google-email', 'google-service-account'],
     ['jira', 'atlassian-service-account'],
     ['confluence', 'atlassian-service-account'],
@@ -694,7 +731,7 @@ describe('Microsoft app credential binding', () => {
     }
   )
 
-  it.each(['microsoft-ad', 'sharepoint', 'microsoft-dataverse'] as const)(
+  it.each(['microsoft-ad', 'sharepoint', 'microsoft-dataverse', 'microsoft-intune'] as const)(
     'mints an app-only token for %s and tells the resolver which service it is for',
     async (provider) => {
       toolFor(provider)

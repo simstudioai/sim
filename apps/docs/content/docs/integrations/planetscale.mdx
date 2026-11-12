@@ -2,7 +2,7 @@
 title: PlanetScale
 description: Manage PlanetScale databases, branches, backups, and deploy requests
 integration:
-  type: "planetscale"
+  type: "planetscale_v2"
   color: "#111111"
 ---
 
@@ -12,7 +12,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 {/* MANUAL-CONTENT-START:intro */}
 Use [PlanetScale](https://planetscale.com/) to inspect databases and branches, create or delete branches, restore backups into a new branch, and create or inspect backups. Vitess deploy-request actions create, review, approve, queue, or close schema-change requests.
 
-Create an organization service token with access to the databases and actions your workflow needs. Enter the service token ID, token, and organization slug in the block. Deploy requests are specific to Vitess; use the MySQL or PostgreSQL block to execute SQL.
+Connect PlanetScale once as a PlanetScale credential: create a service token on your organization's **Service tokens** page, grant it access to the databases and actions your workflows need, then add its ID and token. The organization slug stays in the block. Workflows built with the earlier PlanetScale block keep the service token ID and token they entered in the block. Deploy requests are specific to Vitess; use the MySQL or PostgreSQL block to execute SQL.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
@@ -31,8 +31,6 @@ List databases
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serviceTokenId` | string | Yes | PlanetScale service token ID |
-| `serviceToken` | string | Yes | PlanetScale service token secret |
 | `organization` | string | Yes | PlanetScale organization slug |
 | `q` | string | No | Search term to filter databases by name |
 | `page` | number | No | If provided, specifies the page offset of returned results |
@@ -74,8 +72,6 @@ Get a database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serviceTokenId` | string | Yes | PlanetScale service token ID |
-| `serviceToken` | string | Yes | PlanetScale service token secret |
 | `organization` | string | Yes | PlanetScale organization slug |
 | `database` | string | Yes | Database name slug from `list_databases`. Example: `app-db`. |
 
@@ -109,8 +105,6 @@ List branches
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serviceTokenId` | string | Yes | PlanetScale service token ID |
-| `serviceToken` | string | Yes | PlanetScale service token secret |
 | `organization` | string | Yes | PlanetScale organization slug |
 | `database` | string | Yes | Database name slug from `list_databases`. Example: `app-db`. |
 | `q` | string | No | Search branches by name |
@@ -156,8 +150,6 @@ Get a branch
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serviceTokenId` | string | Yes | PlanetScale service token ID |
-| `serviceToken` | string | Yes | PlanetScale service token secret |
 | `organization` | string | Yes | PlanetScale organization slug |
 | `database` | string | Yes | Database name slug from `list_databases`. Example: `app-db`. |
 | `branch` | string | Yes | Branch name from `list_branches`. Example: `main`. |
@@ -192,8 +184,6 @@ Create a branch
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serviceTokenId` | string | Yes | PlanetScale service token ID |
-| `serviceToken` | string | Yes | PlanetScale service token secret |
 | `organization` | string | Yes | PlanetScale organization slug |
 | `database` | string | Yes | The name of the database the branch belongs to |
 | `name` | string | Yes | The name of the branch to create |
@@ -237,8 +227,6 @@ Delete a branch
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serviceTokenId` | string | Yes | PlanetScale service token ID |
-| `serviceToken` | string | Yes | PlanetScale service token secret |
 | `organization` | string | Yes | PlanetScale organization slug |
 | `database` | string | Yes | The name of the database the branch belongs to |
 | `branch` | string | Yes | The name of the branch |
@@ -262,8 +250,6 @@ List backups
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serviceTokenId` | string | Yes | PlanetScale service token ID |
-| `serviceToken` | string | Yes | PlanetScale service token secret |
 | `organization` | string | Yes | PlanetScale organization slug |
 | `database` | string | Yes | The name of the database the branch belongs to |
 | `branch` | string | Yes | The name of the branch |
@@ -312,8 +298,6 @@ Get a backup
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serviceTokenId` | string | Yes | PlanetScale service token ID |
-| `serviceToken` | string | Yes | PlanetScale service token secret |
 | `organization` | string | Yes | PlanetScale organization slug |
 | `backupId` | string | Yes | The ID for the backup |
 | `database` | string | Yes | The name of the database the branch belongs to |
@@ -348,8 +332,6 @@ Create a backup
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serviceTokenId` | string | Yes | PlanetScale service token ID |
-| `serviceToken` | string | Yes | PlanetScale service token secret |
 | `organization` | string | Yes | PlanetScale organization slug |
 | `database` | string | Yes | The name of the database the branch belongs to |
 | `branch` | string | Yes | The name of the branch |
@@ -387,8 +369,6 @@ List deploy requests (Vitess only)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serviceTokenId` | string | Yes | PlanetScale service token ID |
-| `serviceToken` | string | Yes | PlanetScale service token secret |
 | `organization` | string | Yes | PlanetScale organization slug |
 | `database` | string | Yes | The name of the deploy request's database |
 | `state` | string | No | Filter by state of the deploy request \(open, closed, deployed\) |
@@ -437,8 +417,6 @@ Get a deploy request (Vitess only)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serviceTokenId` | string | Yes | PlanetScale service token ID |
-| `serviceToken` | string | Yes | PlanetScale service token secret |
 | `organization` | string | Yes | PlanetScale organization slug |
 | `database` | string | Yes | The name of the deploy request's database |
 | `deployRequestNumber` | number | Yes | The number of the deploy request |
@@ -475,8 +453,6 @@ Create a deploy request (Vitess only)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serviceTokenId` | string | Yes | PlanetScale service token ID |
-| `serviceToken` | string | Yes | PlanetScale service token secret |
 | `organization` | string | Yes | PlanetScale organization slug |
 | `database` | string | Yes | The name of the deploy request's database |
 | `branch` | string | Yes | The name of the branch the deploy request is created from |
@@ -517,8 +493,6 @@ Review a deploy request (Vitess only)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serviceTokenId` | string | Yes | PlanetScale service token ID |
-| `serviceToken` | string | Yes | PlanetScale service token secret |
 | `organization` | string | Yes | PlanetScale organization slug |
 | `database` | string | Yes | The name of the database the deploy request belongs to |
 | `deployRequestNumber` | number | Yes | The number of the deploy request |
@@ -548,8 +522,6 @@ Queue a deploy request (Vitess only)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serviceTokenId` | string | Yes | PlanetScale service token ID |
-| `serviceToken` | string | Yes | PlanetScale service token secret |
 | `organization` | string | Yes | PlanetScale organization slug |
 | `database` | string | Yes | The name of the deploy request's database |
 | `deployRequestNumber` | number | Yes | The number of the deploy request |
@@ -587,8 +559,6 @@ Close a deploy request (Vitess only)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `serviceTokenId` | string | Yes | PlanetScale service token ID |
-| `serviceToken` | string | Yes | PlanetScale service token secret |
 | `organization` | string | Yes | PlanetScale organization slug |
 | `database` | string | Yes | The name of the deploy request's database |
 | `deployRequestNumber` | number | Yes | The number of the deploy request |

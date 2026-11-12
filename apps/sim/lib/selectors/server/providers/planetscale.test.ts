@@ -1,4 +1,11 @@
+import {
+  selectorCredentialBundleMock,
+  selectorCredentialBundleMockFns,
+} from '@sim/testing/mocks/selector-credential-bundle.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/selectors/server/providers/credential-bundle', () => selectorCredentialBundleMock)
+
 import {
   buildSelectorContextFromValues,
   getSelectorContextSubBlocks,
@@ -270,5 +277,47 @@ describe('PlanetScale server selectors', () => {
         args({ signal: controller.signal })
       )
     ).rejects.toMatchObject({ name: 'AbortError' })
+  })
+})
+
+describe('PlanetScale saved-credential selectors', () => {
+  const fetchMock = vi.fn<typeof fetch>()
+  const resolveBundle = selectorCredentialBundleMockFns.mockResolveSelectorCredentialBundle
+  beforeEach(() => {
+    vi.stubGlobal('fetch', fetchMock)
+    fetchMock.mockReset()
+    resolveBundle.mockReset()
+  })
+
+  it.each([
+    'planetscale.savedDatabases',
+    'planetscale.savedBranches',
+    'planetscale.savedBackups',
+    'planetscale.savedDeployRequests',
+  ] as const)('%s lists with the saved token ID and token, never typed ones', async (key) => {
+    resolveBundle.mockResolvedValue({
+      accessToken: 'saved-secret',
+      providerWorkspaceId: 'saved-id',
+    })
+    fetchMock.mockResolvedValueOnce(page([]))
+    const input = args({ selectorKey: key })
+
+    await expect(planetScaleSelectorAttachments[key].execute(input)).resolves.toMatchObject({
+      kind: 'list',
+    })
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get('Authorization')).toBe(
+      'saved-id:saved-secret'
+    )
+  })
+
+  it('refuses a saved credential without a token ID before contacting PlanetScale', async () => {
+    resolveBundle.mockResolvedValue({ accessToken: 'saved-secret' })
+
+    await expect(
+      planetScaleSelectorAttachments['planetscale.savedDatabases'].execute(
+        args({ selectorKey: 'planetscale.savedDatabases' })
+      )
+    ).rejects.toMatchObject({ name: 'SelectorConnectionUnavailableError' })
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

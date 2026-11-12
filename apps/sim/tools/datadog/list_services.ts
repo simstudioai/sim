@@ -5,6 +5,7 @@ import type {
   ServiceDefinitionAttributes,
 } from '@/tools/datadog/types'
 import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listServicesTool: ToolConfig<ListServicesParams, ListServicesResponse> = {
@@ -13,6 +14,7 @@ export const listServicesTool: ToolConfig<ListServicesParams, ListServicesRespon
   description:
     'List service definitions from the Datadog Service Catalog. Requires the `apm_service_catalog_read` permission.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     pageSize: {

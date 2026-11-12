@@ -443,6 +443,26 @@ describe('withSavedCredential', () => {
     expect(subBlocks.find((subBlock) => subBlock.id === 'credential')?.required).toBe(true)
   })
 
+  it('shows the picker in every operation when the successor says so, over secrets shown differently', () => {
+    const partlyConditional: BlockConfig = {
+      ...legacy,
+      subBlocks: legacy.subBlocks.map((subBlock) =>
+        subBlock.id === 'accessKeyId' && subBlock.mode !== 'trigger'
+          ? { ...subBlock, condition: { field: 'operation', value: 'read' } }
+          : subBlock
+      ),
+    }
+
+    expect(() => withSavedCredential(partlyConditional, picker)).toThrow(
+      /show or require differently/
+    )
+    const { subBlocks } = withSavedCredential(partlyConditional, picker, { condition: null })
+    const credential = subBlocks.find((subBlock) => subBlock.id === 'credential')
+
+    expect(credential).not.toHaveProperty('condition')
+    expect(credential?.required).toBe(true)
+  })
+
   it('refuses options that would silently do nothing', () => {
     expect(() =>
       withSavedCredential(legacy, picker, {

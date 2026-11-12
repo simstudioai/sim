@@ -29,7 +29,7 @@ export const getRecordingTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Twilio Auth Token',
+      description: 'Twilio Auth Token, or an API key as SKxxx:secret',
     },
   },
 

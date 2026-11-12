@@ -2,6 +2,10 @@ import type {
   CrowdStrikeQueryAlertsParams,
   CrowdStrikeQueryAlertsResponse,
 } from '@/tools/crowdstrike/types'
+import {
+  CROWDSTRIKE_CREDENTIAL_OAUTH,
+  savedCredentialTokenParam,
+} from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const crowdstrikeQueryAlertsTool: InternalToolConfig<
@@ -13,6 +17,7 @@ export const crowdstrikeQueryAlertsTool: InternalToolConfig<
   description:
     'Search CrowdStrike Falcon alerts with a Falcon Query Language filter and return their composite IDs. Uses the current Alerts API (GET /alerts/queries/alerts/v2), which replaced the Detects API decommissioned on September 30, 2025. Requires the "Alerts: Read" API scope.',
   version: '1.0.0',
+  oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -33,6 +38,7 @@ export const crowdstrikeQueryAlertsTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'CrowdStrike Falcon cloud region',
     },
+    accessToken: savedCredentialTokenParam('CrowdStrike'),
     filter: {
       type: 'string',
       required: false,
@@ -76,6 +82,7 @@ export const crowdstrikeQueryAlertsTool: InternalToolConfig<
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,
+      accessToken: params.accessToken,
       filter: params.filter,
       includeHidden: params.includeHidden,
       limit: params.limit,

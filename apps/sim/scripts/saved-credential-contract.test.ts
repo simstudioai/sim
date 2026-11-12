@@ -248,4 +248,76 @@ describe('savedCredentialContractErrors', () => {
 
     expect(errors).toEqual([expect.stringContaining('no credential policy')])
   })
+
+  /** An operation tool that mints its own token from inline client credentials, at a chosen region. */
+  function mintingTool(oauth: OAuthConfig) {
+    const executable = {
+      ...operationTool('minting_fixture', {
+        accessToken: { type: 'string' },
+        clientId: { type: 'string' },
+        clientSecret: { type: 'string' },
+        region: { type: 'string' },
+      }),
+      oauth,
+    }
+    return {
+      metadata: () => executable as ToolMetadata,
+      executable: () => executable,
+    }
+  }
+
+  const mintingOAuth: OAuthConfig = {
+    required: false,
+    provider: PROVIDER,
+    credentialKind: 'service-account',
+    credentialParams: { accessToken: 'accessToken', region: 'domain' },
+    tokenReplacesParams: ['clientId', 'clientSecret'],
+    credentialSuppliedParams: ['accessToken', 'region', 'clientId', 'clientSecret'],
+  }
+
+  it('passes a tool whose inline client credentials the minted token replaces', () => {
+    const errors = savedCredentialContractErrors(
+      nativeBlock('minting_fixture'),
+      [],
+      mintingTool(mintingOAuth)
+    )
+
+    expect(errors).toEqual([])
+  })
+
+  it('fails a token-replaced secret when the credential never fills the token', () => {
+    const errors = savedCredentialContractErrors(
+      nativeBlock('minting_fixture'),
+      [],
+      mintingTool({ ...mintingOAuth, credentialParams: { region: 'domain' } })
+    )
+
+    expect(errors).toContainEqual(
+      expect.stringContaining('needs credentialParams to fill "accessToken"')
+    )
+  })
+
+  it('still fails a credential-supplied secret that neither the credential nor its token fills', () => {
+    const errors = savedCredentialContractErrors(
+      nativeBlock('minting_fixture'),
+      [],
+      mintingTool({ ...mintingOAuth, tokenReplacesParams: ['clientId'] })
+    )
+
+    expect(errors).toEqual([expect.stringContaining('"clientSecret" is credential-supplied')])
+  })
+
+  it('still requires the region a minting tool sends its token to be filled by the credential', () => {
+    const errors = savedCredentialContractErrors(
+      nativeBlock('minting_fixture'),
+      [],
+      mintingTool({
+        ...mintingOAuth,
+        credentialParams: { accessToken: 'accessToken' },
+        credentialSuppliedParams: ['accessToken', 'clientId', 'clientSecret'],
+      })
+    )
+
+    expect(errors).toEqual([expect.stringContaining('"region" decides the host')])
+  })
 })

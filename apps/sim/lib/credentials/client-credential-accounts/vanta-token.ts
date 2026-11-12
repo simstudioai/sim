@@ -6,6 +6,7 @@ import { eq, inArray, sql } from 'drizzle-orm'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { VANTA_PERMISSION_OPTIONS } from '@/lib/credentials/client-credential-accounts/descriptors'
+import { deleteExpiredClientTokenFailures } from '@/lib/credentials/coordinated-client-token'
 import {
   fetchProvider,
   isTransientProviderStatus,
@@ -197,14 +198,7 @@ export async function resolveVantaClientToken(
   const secretFingerprint = digest([apiDomain, fields.clientId, clientSecret])
   const failureKey = `${applicationKey}:${digest([secretFingerprint, scope])}`
   try {
-    // Release cleanup row locks before taking an application lock or calling the provider.
-    await db.execute(sql`
-      DELETE FROM ${clientCredentialToken} WHERE ${clientCredentialToken.id} IN (
-        SELECT ${clientCredentialToken.id} FROM ${clientCredentialToken}
-        WHERE ${clientCredentialToken.accessTokenDigest} IS NULL
-          AND ${clientCredentialToken.expiresAt} < now()
-        ORDER BY ${clientCredentialToken.expiresAt} LIMIT 100 FOR UPDATE SKIP LOCKED
-      )`)
+    await deleteExpiredClientTokenFailures()
     const outcome = await db.transaction<VantaClientTokenResult | { failure: VantaTokenFailure }>(
       async (tx) => {
         await tx.execute(sql`SET LOCAL lock_timeout = '15s'`)

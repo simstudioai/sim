@@ -40,9 +40,10 @@ import {
 import { GOOGLE_WORKLOAD_IDENTITY_SECRET_TYPE } from '@/lib/credentials/google-workload-identity'
 import { OciCredentialVerificationError } from '@/lib/credentials/oci-api-key-service-account.server'
 import { keylessFailure } from '@/lib/credentials/orchestration/credential-create'
-import type {
-  AtlassianProduct,
-  ServiceAccountFieldId,
+import {
+  type AtlassianProduct,
+  offersClientCredentialsMode,
+  type ServiceAccountFieldId,
 } from '@/lib/credentials/service-account-fields'
 import {
   ServiceAccountSecretError,
@@ -352,7 +353,13 @@ export async function updateCredentialRecord(
       const isMultiGrantProvider = Boolean(
         getClientCredentialAccountDescriptor(providerId)?.defaultAuthMethod
       )
-      const needsStoredAuthMethod = params.authMethod === undefined && isMultiGrantProvider
+      // A token provider that also offers client credentials keeps the stored mode when the
+      // reconnect sends client credentials without restating it; sending a token selects the
+      // token mode, exactly as before the client-credentials mode existed.
+      const needsStoredAuthMethod =
+        params.authMethod === undefined &&
+        (isMultiGrantProvider ||
+          (offersClientCredentialsMode(providerId) && params.apiToken === undefined))
       const needsStoredAtlassianProduct =
         providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID &&
         params.atlassianProduct === undefined

@@ -2,6 +2,10 @@ import type {
   CrowdStrikeGetAlertDetailsParams,
   CrowdStrikeGetAlertDetailsResponse,
 } from '@/tools/crowdstrike/types'
+import {
+  CROWDSTRIKE_CREDENTIAL_OAUTH,
+  savedCredentialTokenParam,
+} from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const crowdstrikeGetAlertDetailsTool: InternalToolConfig<
@@ -13,6 +17,7 @@ export const crowdstrikeGetAlertDetailsTool: InternalToolConfig<
   description:
     'Get full CrowdStrike Falcon alert records for one or more composite alert IDs (POST /alerts/entities/alerts/v2). Requires the "Alerts: Read" API scope.',
   version: '1.0.0',
+  oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -33,6 +38,7 @@ export const crowdstrikeGetAlertDetailsTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'CrowdStrike Falcon cloud region',
     },
+    accessToken: savedCredentialTokenParam('CrowdStrike'),
     compositeIds: {
       type: 'json',
       required: true,
@@ -52,6 +58,7 @@ export const crowdstrikeGetAlertDetailsTool: InternalToolConfig<
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,
+      accessToken: params.accessToken,
       compositeIds: params.compositeIds,
       includeHidden: params.includeHidden,
       operation: 'crowdstrike_get_alert_details',

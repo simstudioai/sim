@@ -5,10 +5,11 @@ import type {
   ContractJsonResponse,
 } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import type {
-  CrowdStrikeAggregateQuery,
-  CrowdStrikeSensorAggregateBucket,
-  CrowdStrikeSensorAggregateResult,
+import {
+  CROWDSTRIKE_CLOUDS,
+  type CrowdStrikeAggregateQuery,
+  type CrowdStrikeSensorAggregateBucket,
+  type CrowdStrikeSensorAggregateResult,
 } from '@/tools/crowdstrike/types'
 
 const crowdstrikeNullableStringSchema = z.string().nullable()
@@ -101,11 +102,15 @@ const crowdstrikeAggregatesResponseSchema = z.object({
   }),
 })
 
-const CROWDSTRIKE_CLOUDS = ['us-1', 'us-2', 'us-3', 'eu-1', 'us-gov-1', 'us-gov-2'] as const
-
+/**
+ * Inline API client credentials, or the token a saved CrowdStrike credential
+ * minted for `cloud` in their place; {@link crowdstrikeQueryBodySchema}
+ * requires one or the other.
+ */
 const baseRequestSchema = z.object({
-  clientId: z.string().min(1, 'Client ID is required'),
-  clientSecret: z.string().min(1, 'Client Secret is required'),
+  clientId: z.string().min(1, 'Client ID is required').optional(),
+  clientSecret: z.string().min(1, 'Client Secret is required').optional(),
+  accessToken: z.string().min(1).max(16_384).optional(),
   cloud: z.enum(CROWDSTRIKE_CLOUDS),
 })
 
@@ -999,31 +1004,41 @@ const getCaseDetailsSchema = baseRequestSchema.extend({
   caseIds: idsSchema(1000, 'case ID'),
 })
 
-export const crowdstrikeQueryBodySchema = z.discriminatedUnion('operation', [
-  querySensorsSchema,
-  getSensorDetailsSchema,
-  getSensorAggregatesSchema,
-  queryAlertsSchema,
-  getAlertDetailsSchema,
-  updateAlertsSchema,
-  performHostActionSchema,
-  queryHostGroupsSchema,
-  getHostGroupDetailsSchema,
-  performHostGroupActionSchema,
-  queryIndicatorsSchema,
-  getIndicatorDetailsSchema,
-  createIndicatorsSchema,
-  updateIndicatorsSchema,
-  deleteIndicatorsSchema,
-  queryVulnerabilitiesSchema,
-  getVulnerabilityDetailsSchema,
-  initRtrSessionSchema,
-  executeRtrCommandSchema,
-  getRtrCommandStatusSchema,
-  deleteRtrSessionSchema,
-  queryCasesSchema,
-  getCaseDetailsSchema,
-])
+export const crowdstrikeQueryBodySchema = z
+  .discriminatedUnion('operation', [
+    querySensorsSchema,
+    getSensorDetailsSchema,
+    getSensorAggregatesSchema,
+    queryAlertsSchema,
+    getAlertDetailsSchema,
+    updateAlertsSchema,
+    performHostActionSchema,
+    queryHostGroupsSchema,
+    getHostGroupDetailsSchema,
+    performHostGroupActionSchema,
+    queryIndicatorsSchema,
+    getIndicatorDetailsSchema,
+    createIndicatorsSchema,
+    updateIndicatorsSchema,
+    deleteIndicatorsSchema,
+    queryVulnerabilitiesSchema,
+    getVulnerabilityDetailsSchema,
+    initRtrSessionSchema,
+    executeRtrCommandSchema,
+    getRtrCommandStatusSchema,
+    deleteRtrSessionSchema,
+    queryCasesSchema,
+    getCaseDetailsSchema,
+  ])
+  .superRefine((body, ctx) => {
+    if (body.accessToken) return
+    if (!body.clientId) {
+      ctx.addIssue({ code: 'custom', path: ['clientId'], message: 'Client ID is required' })
+    }
+    if (!body.clientSecret) {
+      ctx.addIssue({ code: 'custom', path: ['clientSecret'], message: 'Client Secret is required' })
+    }
+  })
 
 export const crowdstrikeQueryContract = defineRouteContract({
   method: 'POST',

@@ -517,13 +517,22 @@ function normalizeCopilotCredentialParams(params: Record<string, unknown>): void
   }
 }
 
+/**
+ * Whether this deployment and these params let Sim's hosted key fill
+ * `tool.hosting.apiKeyParam`, the gate {@link injectHostedKeyIfNeeded} opens with.
+ */
+function hostedKeyMayFill(tool: ToolDefinition, params: Record<string, unknown>): boolean {
+  if (!isHosted || !tool.hosting) return false
+  return !tool.hosting.enabled || tool.hosting.enabled(params)
+}
+
 function enforceCopilotCredentialSelection(
   toolId: string,
   tool: ToolDefinition,
   params: Record<string, unknown>,
   scope: ToolExecutionScope
 ): void {
-  if (!scope.copilotToolExecution || !tool.oauth?.required) {
+  if (!scope.copilotToolExecution || !tool.oauth) {
     return
   }
 
@@ -532,6 +541,22 @@ function enforceCopilotCredentialSelection(
   }
 
   const toolLabel = tool.name || toolId
+  if (!tool.oauth.required) {
+    // Copilot's schema lets credentialId stand in for these, so it no longer requires them.
+    const missing = (tool.oauth.credentialSuppliedParams ?? []).filter(
+      (paramId) =>
+        tool.params[paramId]?.required &&
+        !(paramId === tool.hosting?.apiKeyParam && hostedKeyMayFill(tool, params)) &&
+        (params[paramId] === undefined || params[paramId] === null || params[paramId] === '')
+    )
+    if (missing.length > 0) {
+      throw new Error(
+        `${toolLabel} needs credentialId (a saved ${tool.oauth.provider} credential) or ${missing.join(', ')}.`
+      )
+    }
+    return
+  }
+
   throw new Error(
     `Copilot must pass credentialId for ${toolLabel}. Run \`credentials list\` and pass the exact credentialId for provider "${tool.oauth.provider}".`
   )
@@ -600,9 +625,10 @@ interface HostedKeyInjectionResult {
 }
 
 const CREDENTIAL_FIELD_LABELS: Record<CredentialParamSource, string> = {
-  accessToken: 'token',
-  domain: 'host',
-  providerWorkspaceId: 'workspace ID',
+  accessToken: 'a token',
+  domain: 'a host',
+  providerWorkspaceId: 'a workspace ID',
+  applicationKey: 'an application key',
 }
 
 /**
@@ -620,7 +646,7 @@ function applyCredentialParams(
     const value = credential[source]
     if (typeof value !== 'string' || value.length === 0) {
       throw new Error(
-        `${tool.name} needs a saved credential with a ${CREDENTIAL_FIELD_LABELS[source]}`
+        `${tool.name} needs a saved credential with ${CREDENTIAL_FIELD_LABELS[source]}`
       )
     }
     params[param] = value
@@ -639,11 +665,7 @@ async function injectHostedKeyIfNeeded(
   requestId: string,
   signal: AbortSignal | undefined
 ): Promise<HostedKeyInjectionResult> {
-  if (!tool.hosting) return { isUsingHostedKey: false }
-  if (!isHosted) return { isUsingHostedKey: false }
-  if (tool.hosting.enabled && !tool.hosting.enabled(params)) {
-    return { isUsingHostedKey: false }
-  }
+  if (!tool.hosting || !hostedKeyMayFill(tool, params)) return { isUsingHostedKey: false }
 
   const { envKeyPrefix, apiKeyParam, byokProviderId, rateLimit } = tool.hosting
   // A selected saved credential supplies this key; Sim's key must never stand in for it.
@@ -2069,6 +2091,7 @@ async function executeToolImplementation(
             await registerAssistantCredentialSecrets(resolvedSecretTraceRegistry, [
               data.accessToken,
               data.idToken,
+              data.applicationKey,
             ])
           }
           authorizedServiceAccountCredential =
@@ -2398,7 +2421,12 @@ async function executeToolImplementation(
           operationContext,
           effectiveSignal,
           resolvedSecretTraceRegistry
-        )
+        ).catch(async (error: unknown) => {
+          if (authorizedServiceAccountCredential) {
+            await expireRejectedServiceAccountToken(error, contextParams.accessToken, requestId)
+          }
+          throw error
+        })
 
     let finalResult = result
     if (tool.postProcess && result.success && !skipPostProcess) {
@@ -2923,6 +2951,14 @@ async function executeDeclaredInternalOperation({
         requestId,
         signal: operationController.signal,
       })
+      if (
+        result instanceof Response &&
+        (result.status === 401 || result.status === 403) &&
+        authorizedServiceAccountCredential &&
+        typeof params.accessToken === 'string'
+      ) {
+        await forgetRefusedServiceAccountToken(params.accessToken, requestId)
+      }
       if (result instanceof Response && result.status === 401 && refreshCredential) {
         await result.body?.cancel()
         operationController.signal.throwIfAborted()
@@ -2997,6 +3033,81 @@ async function executeDeclaredInternalOperation({
       isRecordLike(responseData) && isRecordLike(responseData.output)
         ? responseData.output
         : (responseData as Record<string, any>),
+  }
+}
+
+/**
+ * A 401 whose body blames the scope rather than the token: Atlassian's gateway answers
+ * `Unauthorized; scope does not match` for a valid token, and RFC 6750 names `insufficient_scope`.
+ */
+const SCOPE_REFUSAL_PATTERN = /scope does not match|insufficient_scope/i
+/**
+ * A tool call's 401 can come from the endpoint rather than the token, so a token minted within the
+ * last minute is kept: a call that keeps failing re-mints its application's token at most once a
+ * minute, instead of once per call.
+ */
+const REJECTED_TOKEN_MINIMUM_AGE_MS = 60_000
+
+function reportsScopeRefusal(error: Error): boolean {
+  const data = 'data' in error ? error.data : undefined
+  if (typeof data === 'string') return SCOPE_REFUSAL_PATTERN.test(data)
+  if (data === undefined || data === null) return false
+  try {
+    return SCOPE_REFUSAL_PATTERN.test(JSON.stringify(data))
+  } catch {
+    return false
+  }
+}
+
+/**
+ * A 401 means the provider no longer accepts the token a saved service-account credential
+ * resolved to. The rejected token is dropped from whichever cache holds it: a token coordinated
+ * across workers is expired at once, and a token cached on this instance is forgotten, so the
+ * next call mints a replacement rather than re-sending it. A 401 that only reports a missing scope
+ * leaves the token in service, since a replacement would carry the same scopes. A pasted token
+ * matches no cached token and is left alone.
+ */
+async function expireRejectedServiceAccountToken(
+  error: unknown,
+  accessToken: unknown,
+  requestId: string
+): Promise<void> {
+  if (!(error instanceof Error) || !('status' in error) || error.status !== 401) return
+  if (typeof accessToken !== 'string' || !accessToken || reportsScopeRefusal(error)) return
+  await forgetRefusedServiceAccountToken(accessToken, requestId)
+  try {
+    const { invalidateCoordinatedClientToken } = await import(
+      '@/lib/credentials/coordinated-client-token'
+    )
+    await invalidateCoordinatedClientToken(accessToken, {
+      minimumAgeMs: REJECTED_TOKEN_MINIMUM_AGE_MS,
+    })
+  } catch (invalidationError) {
+    logger.warn('Could not expire a service-account token the provider rejected', {
+      requestId,
+      error: toError(invalidationError).message,
+    })
+  }
+}
+
+/**
+ * Drops a refused service-account token from this instance's client-credential cache: an internal
+ * operation answers 401 or 403, and an external request 401, when the provider refused it. The
+ * next call mints a replacement: providers such as CrowdStrike Falcon and SailPoint fix a token's
+ * scopes when it is minted, so a scope granted since then only reaches a new token.
+ */
+async function forgetRefusedServiceAccountToken(
+  accessToken: string,
+  requestId: string
+): Promise<void> {
+  try {
+    const { forgetRejectedClientCredentialToken } = await import('@/lib/oauth/credential-service')
+    forgetRejectedClientCredentialToken(accessToken)
+  } catch (error) {
+    logger.warn('Could not drop a service-account token the provider refused', {
+      requestId,
+      error: toError(error).message,
+    })
   }
 }
 

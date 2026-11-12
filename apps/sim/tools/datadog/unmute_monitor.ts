@@ -5,6 +5,7 @@ import {
   datadogHeaders,
   datadogPathSegment,
 } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const unmuteMonitorTool: ToolConfig<UnmuteMonitorParams, UnmuteMonitorResponse> = {
@@ -13,6 +14,7 @@ export const unmuteMonitorTool: ToolConfig<UnmuteMonitorParams, UnmuteMonitorRes
   description:
     'Unmute a monitor so it resumes sending notifications. Reverses Mute Monitor, either for one scope or for every scope at once.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     monitorId: {

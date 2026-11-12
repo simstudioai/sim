@@ -8,7 +8,7 @@ export const IntuneBlock: BlockConfig = {
   name: 'Microsoft Intune',
   description: 'Manage devices, application inventory, and compliance with Microsoft Intune',
   longDescription:
-    'Read managed device and detected application inventories, inspect compliance policy status and device configuration metadata, and request device sync, restart, remote lock, or retirement. Uses Microsoft Graph v1.0 with a work or school account and an active Intune tenant license. Remote actions depend on device platform and the connected administrator’s Intune permissions.',
+    'Read managed device and detected application inventories, inspect compliance policy status and device configuration metadata, and request device sync, restart, remote lock, or retirement. Uses Microsoft Graph v1.0 with a work or school account, or a Microsoft app credential with application permissions, and an active Intune tenant license. Remote actions depend on device platform and on the connected administrator’s Intune permissions or the app’s application permissions.',
   docsLink: 'https://docs.sim.ai/integrations/intune',
   category: 'tools',
   integrationType: IntegrationType.Security,

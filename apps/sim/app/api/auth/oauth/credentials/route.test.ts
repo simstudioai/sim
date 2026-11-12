@@ -166,6 +166,69 @@ describe('OAuth Credentials API Route', () => {
     )
   })
 
+  describe('Vertex AI account listing', () => {
+    const workspaceId = '3f1c8a54-1c2e-4a1b-9d6e-2b7c5a9f0e11'
+
+    beforeEach(() => {
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockReset().mockResolvedValue({
+        success: true,
+        userId: 'user-123',
+        userName: 'Test User',
+        userEmail: 'test@example.com',
+        authType: 'session',
+      })
+      permissionsMockFns.mockCheckWorkspaceAccess.mockResolvedValue({
+        exists: true,
+        hasAccess: true,
+        canWrite: true,
+        canAdmin: true,
+      })
+      permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue(
+        DEFAULT_PERMISSION_GROUP_CONFIG
+      )
+    })
+
+    it('lists the workspace’s Google service accounts beside its Vertex AI OAuth accounts', async () => {
+      const updatedAt = new Date('2026-01-01T00:00:00Z')
+      dbChainMockFns.where
+        .mockResolvedValueOnce([
+          {
+            id: 'vertex-oauth-1',
+            displayName: 'Vertex account',
+            providerId: 'vertex-ai',
+            scope: getCanonicalScopesForProvider('vertex-ai').join(' '),
+            updatedAt,
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            id: 'google-sa-1',
+            displayName: 'Keyless Vertex',
+            providerId: 'google-service-account',
+            updatedAt,
+          },
+        ])
+
+      const response = await GET(
+        createMockRequestWithQuery('GET', `?provider=vertex-ai&workspaceId=${workspaceId}`),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      const { credentials } = await response.json()
+      expect(
+        credentials.map((credential: { id: string; type: string; provider: string }) => ({
+          id: credential.id,
+          type: credential.type,
+          provider: credential.provider,
+        }))
+      ).toEqual([
+        { id: 'vertex-oauth-1', type: 'oauth', provider: 'vertex-ai' },
+        { id: 'google-sa-1', type: 'service_account', provider: 'google-service-account' },
+      ])
+    })
+  })
+
   /** The session/executor split documented on {@link integrationsWithheldFromSession} in the route. */
   describe('integrations.manage', () => {
     const INTEGRATIONS_WITHHELD = {

@@ -1,5 +1,10 @@
 import { toArray, toRecord } from '@sim/utils/object'
-import { validateOktaDomain, validateSupabaseProjectId } from '@/lib/core/security/input-validation'
+import {
+  normalizeHttpBaseUrl,
+  refuseUnsafeTypedUrl,
+  validateOktaDomain,
+  validateSupabaseProjectId,
+} from '@/lib/core/security/input-validation'
 import {
   fetchProvider,
   TokenServiceAccountValidationError,
@@ -11,9 +16,7 @@ import type {
 } from '@/lib/credentials/token-service-accounts/server'
 import {
   allowedDomain,
-  normalizeHttpBaseUrl,
   readJsonBody,
-  refuseUnsafeTypedUrl,
   tokenCheckValidator,
 } from '@/lib/credentials/token-service-accounts/validators/http'
 import { buildJupyterAuthHeaders, normalizeJupyterServerUrl } from '@/lib/internal/jupyter/protocol'
@@ -24,6 +27,7 @@ import { convexApiUrl, convexAuthHeaders } from '@/tools/convex/utils'
 import { buildDynatraceUrl, dynatraceHeaders } from '@/tools/dynatrace/utils'
 import { normalizeEmailBisonBaseUrl } from '@/tools/emailbison/utils'
 import { normalizeGitLabHost } from '@/tools/gitlab/utils'
+import { gongAuthorization } from '@/tools/gong/utils'
 import { GRANOLA_API_BASE, granolaHeaders } from '@/tools/granola/utils'
 import { buildJotformHeaders, buildJotformUrl, JOTFORM_REGION_HOSTS } from '@/tools/jotform/utils'
 import {
@@ -36,8 +40,15 @@ import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
 import { getNerdGraphEndpoint, newRelicHeaders } from '@/tools/new_relic/utils'
 import { oktaHeaders } from '@/tools/okta/utils'
 import { planeApiUrl, planeHeaders } from '@/tools/plane/utils'
+import {
+  isPlanetScaleTokenPart,
+  PLANETSCALE_API_ORIGIN,
+  planetScaleHeaders,
+} from '@/tools/planetscale/utils'
+import { createBasicAuthHeader } from '@/tools/servicenow/utils'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import { getThriveBaseUrl, getThriveHeaders, THRIVE_HOSTS } from '@/tools/thrive/utils'
+import { isTwilioApiKeyPair, twilioAuthorization } from '@/tools/twilio/utils'
 import { WHATSAPP_GRAPH_VERSION } from '@/tools/whatsapp/utils'
 
 /**
@@ -60,9 +71,24 @@ export const validateAffinityServiceAccount = tokenCheckValidator({
   }),
 })
 
-/** Listing one AgentMail inbox answers 200 for a valid key and 403 otherwise. */
+/**
+ * The AgentMail 403 codes its docs give for a valid key whose permissions or scope do not
+ * cover the request: https://docs.agentmail.to/knowledge-base/api-403-error
+ */
+const AGENTMAIL_SCOPED_KEY_CODES: ReadonlySet<unknown> = new Set([
+  'missing_permission',
+  'forbidden',
+])
+
+/**
+ * Listing one AgentMail inbox answers 200 for a valid key. A valid key that lacks the
+ * inbox-read permission or is scoped to a pod or inbox gets a 403 coded `missing_permission`
+ * or `forbidden`, and can still run the tools its scope covers. Every other refusal, from
+ * the gateway's bare `{"message":"Forbidden"}` to a suspended account, rejects the key.
+ */
 export const validateAgentMailServiceAccount = tokenCheckValidator({
   serviceLabel: 'AgentMail',
+  provesKey: (errorBody) => AGENTMAIL_SCOPED_KEY_CODES.has(toRecord(errorBody).code),
   request: ({ apiToken }) => ({
     url: 'https://api.agentmail.to/v0/inboxes?limit=1',
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
@@ -376,9 +402,11 @@ export const validateDaytonaServiceAccount = tokenCheckValidator({
 
 /**
  * Listing one session of the organization is the tools' own read on their host and auth: 200
- * proves the key and its access to that organization. Devin answers an unknown key, or a key
- * from another organization, with a problem+json 403, so a 403 rejects. The id must survive
- * URL encoding unchanged, so it can never steer the tools' unencoded path.
+ * proves the key and its access to that organization (it needs `ViewOrgSessions`). Devin
+ * answers an invalid key with 401, and both a key outside the organization and one without the
+ * permission with the same problem+json 403; nothing documented tells those two apart, so a
+ * 403 rejects. The id must survive URL encoding unchanged, so it can never steer the tools'
+ * unencoded path.
  */
 export const validateDevinServiceAccount = tokenCheckValidator({
   serviceLabel: 'Devin',
@@ -621,8 +649,11 @@ const BITBUCKET_REPOSITORY = /^[A-Za-z0-9][A-Za-z0-9_-]{0,254}\/[A-Za-z0-9_-][A-
  * Reading one repository the token can see is the request Atlassian documents for all
  * three kinds (`GET /2.0/repositories/{workspace}/{repository}` with the `repository`
  * scope): 200 with the repository, 401 for a bad token, 403 without the scope, and 404 for
- * a repository that does not exist or that the token cannot reach.
+ * a repository that does not exist or that the token cannot reach. An Atlassian API token
+ * created for Bitbucket passes the same read, since Bitbucket takes it as a Bearer token
+ * without the account email.
  * https://support.atlassian.com/bitbucket-cloud/docs/using-access-tokens/
+ * https://support.atlassian.com/bitbucket-cloud/docs/using-api-tokens/
  */
 export const validateBitbucketServiceAccount = tokenCheckValidator({
   serviceLabel: 'Bitbucket',
@@ -676,6 +707,37 @@ export const validateGitLabServiceAccount = tokenCheckValidator({
       token.scopes.some((scope) => GITLAB_API_SCOPES.has(String(scope)))
     const name = typeof token.name === 'string' ? token.name.trim() : ''
     return usable && name ? { displayName: name } : usable
+  },
+})
+
+/**
+ * Listing workspaces is a cheap documented read on the fixed host the tools call, with the same
+ * Basic header the tools send (`gongAuthorization`). Gong documents a 403 ("Access denied") for
+ * this read without telling a bad key from a missing permission, so any refusal rejects. The
+ * access key is the Basic username, so one with a colon is refused unsent, as is a pair the
+ * header cannot encode.
+ */
+export const validateGongServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Gong',
+  workspaceId: ({ providerWorkspaceId }) => {
+    const accessKey = (providerWorkspaceId ?? '').trim()
+    if (!/^[\x21-\x39\x3b-\x7e]+$/.test(accessKey)) throw new Error('invalid access key')
+    return accessKey
+  },
+  request: ({ apiToken, providerWorkspaceId = '' }) => {
+    let authorization: string
+    try {
+      authorization = gongAuthorization(providerWorkspaceId, apiToken)
+    } catch {
+      throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+        step: 'verify',
+        reason: 'invalid Gong access key secret',
+      })
+    }
+    return {
+      url: 'https://api.gong.io/v2/workspaces',
+      headers: { Authorization: authorization, Accept: 'application/json' },
+    }
   },
 })
 
@@ -1005,11 +1067,22 @@ export const validateMem0ServiceAccount = tokenCheckValidator({
 })
 
 /**
+ * The NerdGraph error classes New Relic's own Go client retries: NerdGraph failing to
+ * answer, not a verdict on the key.
+ * https://github.com/newrelic/newrelic-client-go/blob/main/internal/http/graphql.go
+ */
+const NERDGRAPH_RETRYABLE_ERROR_CLASSES: ReadonlySet<unknown> = new Set([
+  'TIMEOUT',
+  'INTERNAL_SERVER_ERROR',
+  'SERVER_ERROR',
+])
+
+/**
  * A New Relic User API key is bound to its data center, so it is checked against the
  * NerdGraph host of the region typed with it (`us` or `eu`, stored lower-cased because
  * the tools send anything but `eu` to the US host). An unknown key, or one from the other
- * region, gets 401; NerdGraph can also answer 200 with an `errors` array, so only a
- * resolved user proves the key.
+ * region, gets 401, or a 200 whose `errors` carry `BAD_API_KEY`, so only a resolved user
+ * proves the key. Only an error in a server class means NerdGraph failed to answer.
  */
 export const validateNewRelicServiceAccount = tokenCheckValidator({
   serviceLabel: 'New Relic',
@@ -1020,7 +1093,20 @@ export const validateNewRelicServiceAccount = tokenCheckValidator({
     headers: { ...newRelicHeaders(apiToken), Accept: 'application/json' },
     body: JSON.stringify({ query: '{ actor { user { id } } }' }),
   }),
-  acceptsBody: (body) => toRecord(toRecord(toRecord(body).data).actor).user != null,
+  acceptsBody: (body) => {
+    const { data, errors } = toRecord(body)
+    if (toRecord(toRecord(data).actor).user != null) return true
+    const failedToAnswer = toArray(errors).some((error) =>
+      NERDGRAPH_RETRYABLE_ERROR_CLASSES.has(toRecord(toRecord(error).extensions).errorClass)
+    )
+    if (failedToAnswer) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'NerdGraph answered with errors and no user',
+      })
+    }
+    return false
+  },
 })
 
 /**
@@ -1127,6 +1213,34 @@ export const validatePlaneServiceAccount = tokenCheckValidator({
       })
     }
     return true
+  },
+})
+
+/**
+ * Listing the organizations a service token can reach is the read PlanetScale's own docs use, sent
+ * with the `<token id>:<token>` Authorization the tools build (`planetScaleHeaders`). A bad ID or
+ * token gets 401. PlanetScale documents no meaning for a 403 here, so it rejects like any other
+ * refusal. An ID or token the tools' header builder refuses (a colon or whitespace would split
+ * the pair) is refused unsent.
+ */
+export const validatePlanetScaleServiceAccount = tokenCheckValidator({
+  serviceLabel: 'PlanetScale',
+  workspaceId: ({ providerWorkspaceId }) => {
+    const tokenId = (providerWorkspaceId ?? '').trim()
+    if (!isPlanetScaleTokenPart(tokenId)) throw new Error('invalid service token ID')
+    return tokenId
+  },
+  request: ({ apiToken, providerWorkspaceId = '' }) => {
+    let headers: Record<string, string>
+    try {
+      headers = planetScaleHeaders({ serviceTokenId: providerWorkspaceId, serviceToken: apiToken })
+    } catch {
+      throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+        step: 'verify',
+        reason: 'invalid PlanetScale service token',
+      })
+    }
+    return { url: `${PLANETSCALE_API_ORIGIN}/v1/organizations`, headers }
   },
 })
 
@@ -1251,6 +1365,56 @@ export const validateSentryServiceAccount = tokenCheckValidator({
     url: 'https://sentry.io/api/0/organizations/',
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
+})
+
+/**
+ * A typed ServiceNow instance reduced to the https origin the tools build `/api/now/...` paths on:
+ * a bare host is taken as https and a pasted console path or query is dropped. Like a self-managed
+ * GitLab host, any public https host is allowed (instances on `service-now.com`, custom instance
+ * URLs, and self-hosted instances, matching what the earlier block accepted); the
+ * `configuredEndpoint` egress check refuses private and loopback addresses, and the saved password
+ * only ever goes to the host stored with it.
+ */
+function normalizeServiceNowInstanceUrl(raw: string | undefined): string {
+  const typed = refuseUnsafeTypedUrl(raw)
+  const url = new URL(/^https?:\/\//i.test(typed) ? typed : `https://${typed}`)
+  if (url.protocol !== 'https:') throw new Error('https only')
+  return url.origin
+}
+
+/**
+ * Reading one user id from the Table API is a cheap documented read with the Basic
+ * `username:password` the tools send, on the instance it was typed with. ServiceNow answers bad
+ * credentials with 401 and a request its ACLs refuse with a JSON 403, which still proves the
+ * login. The username is the Basic username, so one with a colon is refused unsent. Only a
+ * Table API `result` list proves the login: a hibernating instance answers 200 with a page.
+ */
+export const validateServiceNowServiceAccount = tokenCheckValidator({
+  serviceLabel: 'ServiceNow',
+  domain: ({ domain }) => normalizeServiceNowInstanceUrl(domain),
+  workspaceId: ({ providerWorkspaceId }) => {
+    const username = (providerWorkspaceId ?? '').trim()
+    if (!/^[^:\x00-\x1f\x7f]+$/.test(username)) throw new Error('invalid username')
+    return username
+  },
+  egress: 'configuredEndpoint',
+  forbiddenMeansScoped: true,
+  request: ({ apiToken, domain, providerWorkspaceId = '' }) => ({
+    url: `${domain}/api/now/table/sys_user?sysparm_limit=1&sysparm_fields=sys_id`,
+    headers: {
+      Authorization: createBasicAuthHeader(providerWorkspaceId, apiToken),
+      Accept: 'application/json',
+    },
+  }),
+  acceptsBody: (body) => {
+    if (!Array.isArray(toRecord(body).result)) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'ServiceNow returned an unexpected table read',
+      })
+    }
+    return true
+  },
 })
 
 /** Similarweb's capabilities endpoint costs no data credits and answers 200 only for a valid key. */
@@ -1425,9 +1589,14 @@ export const validateTriggerDevServiceAccount = tokenCheckValidator({
 const TWILIO_ACCOUNT_SID = /^AC[0-9a-f]{32}$/
 
 /**
- * Fetching the account resource with the SID and auth token as Basic auth (the tools' scheme)
- * answers 200 for a matching pair and 401 (code 20003) for a wrong token, an unknown SID, or a SID
- * the token doesn't belong to. The SID is checked first so it can never rewrite the path.
+ * The credential holds the account SID plus either its auth token or an API key pair
+ * (`SKxxx:secret`, sent as Twilio's Basic username and password for a key). An auth token fetches
+ * the account resource (the tools' scheme, `accountSid:authToken`): 200 for a matching pair, 401
+ * (code 20003) for a wrong token, an unknown SID, or a SID the token doesn't belong to. A Standard
+ * API key may not read the Accounts resource, so a key lists one of the account's phone numbers
+ * instead; Twilio refuses that read for a wrong secret or a key of another account. The SID is
+ * checked first so it can never rewrite the path, and a value with a colon that isn't a key pair
+ * is refused unsent.
  */
 export const validateTwilioServiceAccount = tokenCheckValidator({
   serviceLabel: 'Twilio',
@@ -1436,13 +1605,23 @@ export const validateTwilioServiceAccount = tokenCheckValidator({
     if (!TWILIO_ACCOUNT_SID.test(accountSid)) throw new Error('invalid Account SID')
     return accountSid
   },
-  request: ({ apiToken, providerWorkspaceId }) => ({
-    url: `https://api.twilio.com/2010-04-01/Accounts/${providerWorkspaceId}.json`,
-    headers: {
-      Authorization: `Basic ${Buffer.from(`${providerWorkspaceId}:${apiToken}`).toString('base64')}`,
-      Accept: 'application/json',
-    },
-  }),
+  request: ({ apiToken, providerWorkspaceId = '' }) => {
+    const apiKey = isTwilioApiKeyPair(apiToken)
+    if (!apiKey && apiToken.includes(':')) {
+      throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+        step: 'verify',
+        reason: 'neither an auth token nor an API key pair',
+      })
+    }
+    const account = `https://api.twilio.com/2010-04-01/Accounts/${providerWorkspaceId}`
+    return {
+      url: apiKey ? `${account}/IncomingPhoneNumbers.json?PageSize=1` : `${account}.json`,
+      headers: {
+        Authorization: twilioAuthorization(providerWorkspaceId, apiToken),
+        Accept: 'application/json',
+      },
+    }
+  },
 })
 
 /**

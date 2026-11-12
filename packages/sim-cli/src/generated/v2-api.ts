@@ -7340,6 +7340,10 @@ export type GetSelectorBody = {
     | 'planetscale.branches'
     | 'planetscale.backups'
     | 'planetscale.deployRequests'
+    | 'planetscale.savedDatabases'
+    | 'planetscale.savedBranches'
+    | 'planetscale.savedBackups'
+    | 'planetscale.savedDeployRequests'
     | 'cloudwatch.logGroups'
     | 'cloudwatch.logStreams'
     | 'cloudwatch.savedLogGroups'
@@ -10514,6 +10518,10 @@ export type ListSelectorBody = {
     | 'planetscale.branches'
     | 'planetscale.backups'
     | 'planetscale.deployRequests'
+    | 'planetscale.savedDatabases'
+    | 'planetscale.savedBranches'
+    | 'planetscale.savedBackups'
+    | 'planetscale.savedDeployRequests'
     | 'cloudwatch.logGroups'
     | 'cloudwatch.logStreams'
     | 'cloudwatch.savedLogGroups'
@@ -19846,6 +19854,10 @@ export const V2_OPERATIONS = {
           'planetscale.branches',
           'planetscale.backups',
           'planetscale.deployRequests',
+          'planetscale.savedDatabases',
+          'planetscale.savedBranches',
+          'planetscale.savedBackups',
+          'planetscale.savedDeployRequests',
           'cloudwatch.logGroups',
           'cloudwatch.logStreams',
           'cloudwatch.savedLogGroups',
@@ -22273,6 +22285,10 @@ export const V2_OPERATIONS = {
           'planetscale.branches',
           'planetscale.backups',
           'planetscale.deployRequests',
+          'planetscale.savedDatabases',
+          'planetscale.savedBranches',
+          'planetscale.savedBackups',
+          'planetscale.savedDeployRequests',
           'cloudwatch.logGroups',
           'cloudwatch.logStreams',
           'cloudwatch.savedLogGroups',

@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { generateKeyPairSync } from 'node:crypto'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { createLocalJWKSet, decodeProtectedHeader, jwtVerify } from 'jose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { env } from '@/lib/core/config/env'
@@ -147,6 +148,36 @@ describe('workload identity issuer', () => {
     expect((await workloadIdentityDiscoveryResponse()).status).toBe(404)
   })
 
+  it.each([
+    'https://sim.example.com',
+    'https://oidc.example.com/workload',
+    'https://sim.example.com/oidc/workload/v2',
+  ])(
+    'keeps a pinned issuer on another path working, warning that a proxy must route it (%s)',
+    async (url) => {
+      setEnv('WORKLOAD_IDENTITY_ISSUER', url)
+      const logger = getMockLogger('WorkloadIdentityIssuer')
+      logger.warn.mockClear()
+      const issuer = await loadIssuer()
+
+      expect(await issuer.isWorkloadIdentityConfigured()).toBe(true)
+      expect(issuer.getWorkloadIdentityIssuer()).toBe(url)
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('/oidc/workload'), {
+        issuer: url,
+      })
+    }
+  )
+
+  it('accepts a pinned issuer behind a path prefix without a warning', async () => {
+    setEnv('WORKLOAD_IDENTITY_ISSUER', 'https://example.com/sim/oidc/workload')
+    const logger = getMockLogger('WorkloadIdentityIssuer')
+    logger.warn.mockClear()
+    const issuer = await loadIssuer()
+
+    expect(await issuer.isWorkloadIdentityConfigured()).toBe(true)
+    expect(logger.warn).not.toHaveBeenCalled()
+  })
+
   it('keeps signing with the current key when the retiring key is malformed', async () => {
     setEnv('WORKLOAD_IDENTITY_PREVIOUS_KEY', 'not a PEM key')
     const issuer = await loadIssuer()
@@ -183,10 +214,11 @@ describe('workload identity issuer', () => {
     ).rejects.toMatchObject({ detailCode: 'WORKLOAD_IDENTITY_NOT_CONFIGURED' })
   })
 
-  it('uses the pinned issuer URL when one is configured', async () => {
-    setEnv('WORKLOAD_IDENTITY_ISSUER', 'https://oidc.example.com/workload/')
+  it('uses a pinned issuer on another host when it keeps the served path', async () => {
+    setEnv('WORKLOAD_IDENTITY_ISSUER', 'https://oidc.example.com/oidc/workload/')
     const issuer = await loadIssuer()
 
-    expect(issuer.getWorkloadIdentityIssuer()).toBe('https://oidc.example.com/workload')
+    expect(await issuer.isWorkloadIdentityConfigured()).toBe(true)
+    expect(issuer.getWorkloadIdentityIssuer()).toBe('https://oidc.example.com/oidc/workload')
   })
 })

@@ -7030,7 +7030,7 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "crowdstrike",
+      "type": "crowdstrike_v2",
       "slug": "crowdstrike",
       "name": "CrowdStrike",
       "description": "Investigate and respond to CrowdStrike Falcon alerts, hosts, IOCs, and vulnerabilities",
@@ -7135,11 +7135,12 @@
       "operationCount": 23,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "crowdstrike",
       "category": "tools",
       "integrationType": "security",
       "tags": ["identity", "monitoring", "incident-management", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-11"
     },
     {
       "type": "crunchbase_v2",
@@ -7617,7 +7618,7 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "datadog",
+      "type": "datadog_v2",
       "slug": "datadog",
       "name": "Datadog",
       "description": "Monitor infrastructure, applications, and logs with Datadog",
@@ -7794,11 +7795,12 @@
       "operationCount": 41,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "datadog",
       "category": "tools",
       "integrationType": "observability",
       "tags": ["monitoring", "incident-management", "error-tracking"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-11"
     },
     {
       "type": "datagma",
@@ -10945,7 +10947,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "gong",
+      "type": "gong_v2",
       "slug": "gong",
       "name": "Gong",
       "description": "Read Gong data, upload calls, assign or unassign flow prospects, and request data erasure",
@@ -11085,11 +11087,12 @@
         }
       ],
       "triggerCount": 2,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "gong",
       "category": "tools",
       "integrationType": "sales",
       "tags": ["meeting", "sales-engagement", "speech-to-text"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-11"
     },
     {
       "type": "google_ads",
@@ -17872,7 +17875,7 @@
       "slug": "microsoft-intune",
       "name": "Microsoft Intune",
       "description": "Manage devices, application inventory, and compliance with Microsoft Intune",
-      "longDescription": "Read managed device and detected application inventories, inspect compliance policy status and device configuration metadata, and request device sync, restart, remote lock, or retirement. Uses Microsoft Graph v1.0 with a work or school account and an active Intune tenant license. Remote actions depend on device platform and the connected administrator’s Intune permissions.",
+      "longDescription": "Read managed device and detected application inventories, inspect compliance policy status and device configuration metadata, and request device sync, restart, remote lock, or retirement. Uses Microsoft Graph v1.0 with a work or school account, or a Microsoft app credential with application permissions, and an active Intune tenant license. Remote actions depend on device platform and on the connected administrator’s Intune permissions or the app’s application permissions.",
       "bgColor": "#FFFFFF",
       "iconName": "IntuneIcon",
       "docsUrl": "https://docs.sim.ai/integrations/intune",
@@ -17942,7 +17945,7 @@
       "category": "tools",
       "integrationType": "security",
       "tags": ["microsoft-365", "monitoring", "automation"],
-      "updatedAt": "2026-10-09"
+      "updatedAt": "2026-11-11"
     },
     {
       "type": "microsoft_planner",
@@ -21177,7 +21180,7 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "planetscale",
+      "type": "planetscale_v2",
       "slug": "planetscale",
       "name": "PlanetScale",
       "description": "Manage PlanetScale databases, branches, backups, and deploy requests",
@@ -21250,11 +21253,12 @@
       "operationCount": 15,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "planetscale",
       "category": "tools",
       "integrationType": "databases",
       "tags": ["cloud", "ci-cd", "automation"],
-      "updatedAt": "2026-09-29"
+      "updatedAt": "2026-11-11"
     },
     {
       "type": "polymarket",
@@ -24203,11 +24207,11 @@
       "updatedAt": "2026-11-09"
     },
     {
-      "type": "sailpoint",
+      "type": "sailpoint_v2",
       "slug": "sailpoint",
       "name": "SailPoint",
       "description": "Govern identities and access in SailPoint Identity Security Cloud",
-      "longDescription": "Connect SailPoint Identity Security Cloud with a Personal Access Token to search identity-governance data, manage access requests and approvals, review certifications, and import source data. The token owner and scopes determine the operations available to the integration.",
+      "longDescription": "Connect SailPoint Identity Security Cloud with a Personal Access Token or a client-credentials API client to search identity-governance data, manage access requests and approvals, review certifications, and import source data. The token owner and scopes determine the operations available to the integration.",
       "bgColor": "#FFFFFF",
       "iconName": "SailPointIcon",
       "docsUrl": "https://docs.sim.ai/integrations/sailpoint",
@@ -24376,11 +24380,12 @@
       "operationCount": 40,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "sailpoint",
       "category": "tools",
       "integrationType": "security",
       "tags": ["identity", "automation"],
-      "updatedAt": "2026-09-08"
+      "updatedAt": "2026-11-11"
     },
     {
       "type": "salesforce",
@@ -25522,7 +25527,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "servicenow_v2",
+      "type": "servicenow_v3",
       "slug": "servicenow",
       "name": "ServiceNow",
       "description": "Create, read, update, and delete ServiceNow records",
@@ -25701,11 +25706,12 @@
         }
       ],
       "triggerCount": 5,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "servicenow",
       "category": "tools",
       "integrationType": "support",
       "tags": ["customer-support", "ticketing", "incident-management"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-11"
     },
     {
       "type": "sftp_v2",
@@ -31137,7 +31143,7 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "zendesk",
+      "type": "zendesk_v2",
       "slug": "zendesk",
       "name": "Zendesk",
       "description": "Manage support tickets, users, and organizations in Zendesk",
@@ -31280,11 +31286,12 @@
         }
       ],
       "triggerCount": 5,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "zendesk",
       "category": "tools",
       "integrationType": "support",
       "tags": ["customer-support", "ticketing"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-11"
     },
     {
       "type": "zep_v2",
@@ -31611,7 +31618,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "zoominfo",
+      "type": "zoominfo_v2",
       "slug": "zoominfo",
       "name": "ZoomInfo",
       "description": "Search and enrich B2B company and contact data with ZoomInfo.",
@@ -31648,11 +31655,12 @@
       "operationCount": 6,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "zoominfo",
       "category": "tools",
       "integrationType": "sales",
       "tags": ["enrichment", "sales-engagement"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-11"
     }
   ]
 }

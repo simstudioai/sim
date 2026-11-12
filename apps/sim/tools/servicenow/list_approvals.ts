@@ -16,6 +16,7 @@ import {
   transformRecordListResponse,
   withQueryString,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listApprovalsTool: ToolConfig<
@@ -26,6 +27,7 @@ export const listApprovalsTool: ToolConfig<
   name: 'List ServiceNow Approvals',
   description: `List approval records from the ServiceNow Approval [sysapproval_approver] table. Defaults to the "requested" state, which is what a user's pending approvals look like.`,
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     ...authParams,

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import {
   atlassianProductSchema,
+  nonBlankSecretSchema,
   quickBooksOAuthClientConfigSchema,
   workloadIdentitySubjectGrantShape,
   workspaceCredentialRoleSchema,
@@ -490,10 +491,7 @@ const v2ServiceAccountCredentialFieldsSchema = z
         'Write-only provider service-account JSON configuration, including Oracle Database connection fields.'
       )
       .meta({ writeOnly: true }),
-    apiToken: z
-      .string()
-      .trim()
-      .min(1)
+    apiToken: nonBlankSecretSchema
       .max(8192)
       .optional()
       .describe('Write-only provider API token.')
@@ -765,10 +763,7 @@ const v2ServiceAccountSecretFieldsShape = {
       'Write-only provider service-account JSON configuration, including Oracle Database connection fields.'
     )
     .meta({ writeOnly: true }),
-  apiToken: z
-    .string()
-    .trim()
-    .min(1)
+  apiToken: nonBlankSecretSchema
     .max(8192)
     .optional()
     .describe('Write-only provider API token.')

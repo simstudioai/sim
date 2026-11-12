@@ -10,6 +10,7 @@ import {
   readString,
   toRecordObject,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const orderCatalogItemTool: ToolConfig<
@@ -21,6 +22,7 @@ export const orderCatalogItemTool: ToolConfig<
   description:
     'Submit a service catalog request for a catalog item using the Service Catalog API order_now endpoint. Returns the generated request number and sys_id.',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     ...authParams,

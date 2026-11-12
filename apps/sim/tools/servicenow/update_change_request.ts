@@ -16,6 +16,7 @@ import {
   buildTableRecordUrl,
   transformRecordResponse,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateChangeRequestTool: ToolConfig<
@@ -27,6 +28,7 @@ export const updateChangeRequestTool: ToolConfig<
   description:
     'Update fields on an existing ServiceNow change request. Only the fields you supply are changed. Use Move ServiceNow Change State for state transitions.',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     ...authParams,

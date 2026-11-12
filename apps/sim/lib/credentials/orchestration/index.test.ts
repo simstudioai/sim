@@ -314,6 +314,66 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     )
   })
 
+  it.each([
+    [
+      'shopify-service-account',
+      {
+        type: 'token_service_account',
+        providerId: 'shopify-service-account',
+        authMethod: 'client_credentials',
+      },
+      { domain: 'acme.myshopify.com' },
+    ],
+    [
+      'atlassian-service-account',
+      { type: 'atlassian_service_account', authMethod: 'client_credentials' },
+      { domain: 'acme.atlassian.net' },
+    ],
+  ])(
+    'keeps a %s credential on client credentials when a reconnect sends only a new secret',
+    async (providerId, storedBlob, extraFields) => {
+      mockCredential({ providerId, displayName: 'Fixture' })
+      mockStoredBlob(storedBlob)
+
+      await performUpdateCredential({
+        credentialId: 'cred-1',
+        userId: 'user-1',
+        clientId: 'cid',
+        clientSecret: 'rotated-secret',
+        ...extraFields,
+      })
+
+      expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+        providerId,
+        expect.objectContaining({
+          authMethod: 'client_credentials',
+          clientSecret: 'rotated-secret',
+        })
+      )
+    }
+  )
+
+  it('switches a client-credentials credential to a pasted token when the reconnect sends one', async () => {
+    mockCredential({ providerId: 'shopify-service-account', displayName: 'Fixture' })
+    mockStoredBlob({
+      type: 'token_service_account',
+      providerId: 'shopify-service-account',
+      authMethod: 'client_credentials',
+    })
+
+    await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      apiToken: 'shpat_new',
+      domain: 'acme.myshopify.com',
+    })
+
+    expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+      'shopify-service-account',
+      expect.objectContaining({ apiToken: 'shpat_new', authMethod: undefined })
+    )
+  })
+
   it('carries the stored dataCenter forward for a client-credential reconnect', async () => {
     mockCredential({ providerId: 'zoho-desk-service-account', displayName: 'Acme Desk' })
     mockIsClientCredentialAccountProviderId.mockReturnValue(true)

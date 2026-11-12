@@ -5,6 +5,7 @@ import {
   datadogHeaders,
   datadogPathSegment,
 } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getSloHistoryTool: ToolConfig<GetSloHistoryParams, GetSloHistoryResponse> = {
@@ -13,6 +14,7 @@ export const getSloHistoryTool: ToolConfig<GetSloHistoryParams, GetSloHistoryRes
   description:
     'Get an SLO’s history over a time window, including the overall SLI value and remaining error budget.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     sloId: {

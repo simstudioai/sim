@@ -1,6 +1,6 @@
 import type { OAuthService } from '@/lib/oauth'
 import type { SubBlockConfig } from '@/blocks/types'
-import type { CredentialParamSource, OAuthConfig } from '@/tools/types'
+import type { CredentialParamSource, OAuthConfig, ToolConfig } from '@/tools/types'
 
 /**
  * Credential policy for every AWS tool. `required: false` keeps the inline
@@ -38,6 +38,19 @@ export const OPERATION_RESOLVED_CREDENTIAL_PROVIDERS: ReadonlySet<string> = new 
 ])
 
 /**
+ * The hidden param a tool receives a saved credential's minted access token through. Hidden, so
+ * neither the user nor the model can fill it; the executor sets it from the selected credential.
+ */
+export function savedCredentialTokenParam(serviceLabel: string) {
+  return {
+    type: 'string',
+    required: false,
+    visibility: 'hidden',
+    description: `Access token minted from the selected ${serviceLabel} credential`,
+  } as const satisfies ToolConfig['params'][string]
+}
+
+/**
  * Credential policy for a tool that takes an inline token and also accepts a
  * saved token credential. `credentialParams` maps each inline param to the
  * credential field that fills it server-side; the same keys are the params
@@ -54,6 +67,30 @@ export function tokenCredentialOAuth(
     credentialKind: 'service-account',
     credentialParams,
     credentialSuppliedParams: Object.keys(credentialParams),
+  } as const satisfies OAuthConfig
+}
+
+/**
+ * Credential policy for a tool that takes its sign-in secrets inline (an API
+ * client's id and secret, or a user's API token) and also accepts a saved
+ * client-credential account. With a credential selected, the executor fills
+ * the tool's hidden `accessToken` with the token minted from the saved account,
+ * plus every other mapped param (a cloud, site, or tenant the account is bound
+ * to); the inline secrets in `tokenReplacesParams` are then never read.
+ */
+function clientCredentialOAuth<const Replaced extends readonly string[]>(
+  provider: OAuthService,
+  credentialParams: Readonly<Record<string, CredentialParamSource>>,
+  tokenReplacesParams: Replaced
+) {
+  const filled = { accessToken: 'accessToken', ...credentialParams } as const
+  return {
+    required: false,
+    provider,
+    credentialKind: 'service-account',
+    credentialParams: filled,
+    tokenReplacesParams,
+    credentialSuppliedParams: [...Object.keys(filled), ...tokenReplacesParams],
   } as const satisfies OAuthConfig
 }
 
@@ -92,6 +129,54 @@ export const DATABRICKS_CREDENTIAL_OAUTH = tokenCredentialOAuth('databricks', {
   apiKey: 'accessToken',
   host: 'domain',
 })
+
+/**
+ * Credential policy for every CrowdStrike tool. A saved CrowdStrike API client
+ * resolves to a token minted at its Falcon cloud; the credential fills the
+ * token and that cloud, and the token replaces the inline client id and secret.
+ */
+export const CROWDSTRIKE_CREDENTIAL_OAUTH = clientCredentialOAuth(
+  'crowdstrike',
+  { cloud: 'domain' },
+  ['clientId', 'clientSecret']
+)
+
+/**
+ * Credential policy for every Datadog tool that sends both keys. A saved
+ * Datadog key pair fills the API key, the application key, and the site the
+ * tools build their host from.
+ */
+export const DATADOG_CREDENTIAL_OAUTH = tokenCredentialOAuth('datadog', {
+  apiKey: 'accessToken',
+  applicationKey: 'applicationKey',
+  site: 'domain',
+})
+
+/** Credential policy for the Datadog intake tools, which send only the API key. */
+export const DATADOG_API_KEY_CREDENTIAL_OAUTH = tokenCredentialOAuth('datadog', {
+  apiKey: 'accessToken',
+  site: 'domain',
+})
+
+/**
+ * Credential policy for every SailPoint tool. A saved SailPoint API client
+ * resolves to a token minted at its tenant; the credential fills the token and
+ * that tenant's API host, and the token replaces the inline client id and secret.
+ */
+export const SAILPOINT_CREDENTIAL_OAUTH = clientCredentialOAuth('sailpoint', { tenant: 'domain' }, [
+  'clientId',
+  'clientSecret',
+])
+
+/**
+ * Credential policy for every ZoomInfo tool. A saved ZoomInfo app resolves to
+ * a token for ZoomInfo's single API host, which replaces the inline client id
+ * and secret.
+ */
+export const ZOOMINFO_CREDENTIAL_OAUTH = clientCredentialOAuth('zoominfo', {}, [
+  'clientId',
+  'clientSecret',
+])
 
 /** Token credential policies for tools that take an inline key or a saved token credential. */
 export const AFFINITY_CREDENTIAL_OAUTH = tokenCredentialOAuth('affinity', { apiKey: 'accessToken' })
@@ -171,6 +256,10 @@ export const GITLAB_CREDENTIAL_OAUTH = tokenCredentialOAuth('gitlab', {
   accessToken: 'accessToken',
   host: 'domain',
 })
+export const GONG_CREDENTIAL_OAUTH = tokenCredentialOAuth('gong', {
+  accessKey: 'providerWorkspaceId',
+  accessKeySecret: 'accessToken',
+})
 export const GRAFANA_CREDENTIAL_OAUTH = tokenCredentialOAuth('grafana', {
   baseUrl: 'domain',
   apiKey: 'accessToken',
@@ -247,6 +336,10 @@ export const PLANE_CREDENTIAL_OAUTH = tokenCredentialOAuth('plane', {
   apiKey: 'accessToken',
   baseUrl: 'domain',
 })
+export const PLANETSCALE_CREDENTIAL_OAUTH = tokenCredentialOAuth('planetscale', {
+  serviceTokenId: 'providerWorkspaceId',
+  serviceToken: 'accessToken',
+})
 export const PROFOUND_CREDENTIAL_OAUTH = tokenCredentialOAuth('profound', { apiKey: 'accessToken' })
 export const PULSE_CREDENTIAL_OAUTH = tokenCredentialOAuth('pulse', { apiKey: 'accessToken' })
 export const QUARTR_CREDENTIAL_OAUTH = tokenCredentialOAuth('quartr', { apiKey: 'accessToken' })
@@ -263,6 +356,11 @@ export const ROCKETLANE_CREDENTIAL_OAUTH = tokenCredentialOAuth('rocketlane', {
 export const ROOTLY_CREDENTIAL_OAUTH = tokenCredentialOAuth('rootly', { apiKey: 'accessToken' })
 export const SENDGRID_CREDENTIAL_OAUTH = tokenCredentialOAuth('sendgrid', { apiKey: 'accessToken' })
 export const SENTRY_CREDENTIAL_OAUTH = tokenCredentialOAuth('sentry', { apiKey: 'accessToken' })
+export const SERVICENOW_CREDENTIAL_OAUTH = tokenCredentialOAuth('servicenow', {
+  instanceUrl: 'domain',
+  username: 'providerWorkspaceId',
+  password: 'accessToken',
+})
 export const SIMILARWEB_CREDENTIAL_OAUTH = tokenCredentialOAuth('similarweb', {
   apiKey: 'accessToken',
 })
@@ -321,6 +419,18 @@ export const YOUTUBE_CREDENTIAL_OAUTH = tokenCredentialOAuth('youtube', { apiKey
 export const ZEP_CREDENTIAL_OAUTH = tokenCredentialOAuth('zep', { apiKey: 'accessToken' })
 
 /**
+ * Credential policy for every Zendesk tool. A saved Zendesk credential resolves
+ * to an OAuth bearer token or an encoded API-token Basic credential (named by
+ * the authoritative `authStyle`) plus its subdomain, so the block's email, API
+ * token, and subdomain all come from the credential; the tools read the token
+ * from `accessToken`.
+ */
+export const ZENDESK_CREDENTIAL_OAUTH = {
+  ...clientCredentialOAuth('zendesk', { subdomain: 'domain' }, ['email', 'apiToken']),
+  authoritativeParams: ['authStyle'],
+} as const satisfies OAuthConfig
+
+/**
  * Every saved-credential policy keyed by the picker's service id. A
  * credential-only block replaces exactly the params its policy supplies, so
  * the block and its tools read one table.
@@ -346,9 +456,11 @@ export const SAVED_CREDENTIAL_OAUTH = {
   clerk: CLERK_CREDENTIAL_OAUTH,
   cloudflare: CLOUDFLARE_CREDENTIAL_OAUTH,
   convex: CONVEX_CREDENTIAL_OAUTH,
+  crowdstrike: CROWDSTRIKE_CREDENTIAL_OAUTH,
   crunchbase: CRUNCHBASE_CREDENTIAL_OAUTH,
   cursor: CURSOR_CREDENTIAL_OAUTH,
   databricks: DATABRICKS_CREDENTIAL_OAUTH,
+  datadog: DATADOG_CREDENTIAL_OAUTH,
   daytona: DAYTONA_CREDENTIAL_OAUTH,
   devin: DEVIN_CREDENTIAL_OAUTH,
   discord: DISCORD_CREDENTIAL_OAUTH,
@@ -364,6 +476,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   gamma: GAMMA_CREDENTIAL_OAUTH,
   'github-token': GITHUB_CREDENTIAL_OAUTH,
   gitlab: GITLAB_CREDENTIAL_OAUTH,
+  gong: GONG_CREDENTIAL_OAUTH,
   grafana: GRAFANA_CREDENTIAL_OAUTH,
   grain: GRAIN_CREDENTIAL_OAUTH,
   granola: GRANOLA_CREDENTIAL_OAUTH,
@@ -391,6 +504,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   pagerduty: PAGERDUTY_CREDENTIAL_OAUTH,
   persona: PERSONA_CREDENTIAL_OAUTH,
   plane: PLANE_CREDENTIAL_OAUTH,
+  planetscale: PLANETSCALE_CREDENTIAL_OAUTH,
   profound: PROFOUND_CREDENTIAL_OAUTH,
   pulse: PULSE_CREDENTIAL_OAUTH,
   quartr: QUARTR_CREDENTIAL_OAUTH,
@@ -401,8 +515,10 @@ export const SAVED_CREDENTIAL_OAUTH = {
   rippling: RIPPLING_CREDENTIAL_OAUTH,
   rocketlane: ROCKETLANE_CREDENTIAL_OAUTH,
   rootly: ROOTLY_CREDENTIAL_OAUTH,
+  sailpoint: SAILPOINT_CREDENTIAL_OAUTH,
   sendgrid: SENDGRID_CREDENTIAL_OAUTH,
   sentry: SENTRY_CREDENTIAL_OAUTH,
+  servicenow: SERVICENOW_CREDENTIAL_OAUTH,
   similarweb: SIMILARWEB_CREDENTIAL_OAUTH,
   sixtyfour: SIXTYFOUR_CREDENTIAL_OAUTH,
   smartlead: SMARTLEAD_CREDENTIAL_OAUTH,
@@ -425,6 +541,8 @@ export const SAVED_CREDENTIAL_OAUTH = {
   youcom: YOUCOM_CREDENTIAL_OAUTH,
   youtube: YOUTUBE_CREDENTIAL_OAUTH,
   zep: ZEP_CREDENTIAL_OAUTH,
+  zendesk: ZENDESK_CREDENTIAL_OAUTH,
+  zoominfo: ZOOMINFO_CREDENTIAL_OAUTH,
 } as const
 
 export type SavedCredentialService = keyof typeof SAVED_CREDENTIAL_OAUTH

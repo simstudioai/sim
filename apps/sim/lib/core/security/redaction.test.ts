@@ -38,6 +38,9 @@ describe('isSensitiveKey', () => {
     'stripe_secret_key',
     'deployKey',
     'convexDeployKey',
+    'applicationKey',
+    'application_key',
+    'datadogApplicationKey',
     `${'a'.repeat(10000)}password`,
   ])('treats %s as sensitive', (key) => {
     expect(isSensitiveKey(key)).toBe(true)
@@ -47,6 +50,7 @@ describe('isSensitiveKey', () => {
     'tokenCount',
     'tokenizer',
     'deployKeyName',
+    'applicationKeyName',
     'passwordStrength',
     'authMethod',
     'name',
@@ -387,6 +391,20 @@ describe('redactApiKeys', () => {
     expect(result.users[0].credentials.apiKey).toBe('[REDACTED]')
     expect(result.users[0].credentials.username).toBe('john_doe')
     expect(result.nestedArray[0][0].password).toBe('[REDACTED]')
+  })
+
+  it.concurrent("redacts the application key a legacy Datadog block's inputs carry", () => {
+    const result = redactApiKeys({
+      apiKey: 'dd-api',
+      applicationKey: 'dd-app',
+      site: 'datadoghq.com',
+    })
+
+    expect(result).toEqual({
+      apiKey: '[REDACTED]',
+      applicationKey: '[REDACTED]',
+      site: 'datadoghq.com',
+    })
   })
 
   it.concurrent('should filter UserFile objects to only expose allowed fields', () => {

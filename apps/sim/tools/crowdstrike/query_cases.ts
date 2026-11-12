@@ -2,6 +2,10 @@ import type {
   CrowdStrikeQueryCasesParams,
   CrowdStrikeQueryCasesResponse,
 } from '@/tools/crowdstrike/types'
+import {
+  CROWDSTRIKE_CREDENTIAL_OAUTH,
+  savedCredentialTokenParam,
+} from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const crowdstrikeQueryCasesTool: InternalToolConfig<
@@ -13,6 +17,7 @@ export const crowdstrikeQueryCasesTool: InternalToolConfig<
   description:
     'Search CrowdStrike Falcon Case Management cases with a Falcon Query Language filter and return their IDs (GET /cases/queries/cases/v1). Case Management supersedes the CrowdScore Incidents API, which CrowdStrike has removed from its published API spec. Requires the "Cases: Read" API scope.',
   version: '1.0.0',
+  oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -33,6 +38,7 @@ export const crowdstrikeQueryCasesTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'CrowdStrike Falcon cloud region',
     },
+    accessToken: savedCredentialTokenParam('CrowdStrike'),
     filter: {
       type: 'string',
       required: false,
@@ -71,6 +77,7 @@ export const crowdstrikeQueryCasesTool: InternalToolConfig<
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,
+      accessToken: params.accessToken,
       filter: params.filter,
       limit: params.limit,
       offset: params.offset,

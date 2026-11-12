@@ -4,12 +4,14 @@ import { account, credential } from '@sim/db/schema'
 import { sealedTextEquals } from '@sim/db/sealed-text'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { and, desc, eq, isNotNull, sql } from 'drizzle-orm'
 import { withLeaderLock } from '@/lib/concurrency/leader-lock'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { env } from '@/lib/core/config/env'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { waitWithAbort } from '@/lib/core/utils/concurrency'
+import { mintAtlassianServiceAccountToken } from '@/lib/credentials/atlassian-client-credentials'
 import {
   isClientCredentialAccountProviderId,
   VANTA_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -19,14 +21,17 @@ import {
   parseClientCredentialAccountSecretBlob,
 } from '@/lib/credentials/client-credential-accounts/server'
 import { isGoogleWorkloadIdentitySecret } from '@/lib/credentials/google-workload-identity'
+import { getTokenClientCredentialMinter } from '@/lib/credentials/token-service-accounts/client-credentials'
 import {
+  type CLIENT_CREDENTIALS_AUTH_METHOD,
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
   SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
-  parseTokenServiceAccountSecretBlob,
-  type TokenServiceAccountSecretBlob,
+  parseStoredSecretMode,
+  parseTokenServiceAccountSecret,
+  type TokenServiceAccountClientCredentialBlob,
 } from '@/lib/credentials/token-service-accounts/server'
 import { CLEARED_REFRESH_REVOCATION, CredentialRevokedError } from '@/lib/oauth/credential-revoked'
 import {
@@ -497,21 +502,78 @@ export async function getSlackBotCredential(
   }
 }
 
-interface AtlassianServiceAccountSecret {
+interface AtlassianServiceAccountSecretBase {
   type: typeof ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE
-  apiToken: string
   domain: string
   cloudId: string
   atlassianAccountId?: string
 }
 
+/** A scoped API token, used as the bearer token as is. */
+interface AtlassianServiceAccountTokenSecret extends AtlassianServiceAccountSecretBase {
+  apiToken: string
+}
+
+/** An OAuth 2.0 credential, minted into a bearer token with the client-credentials grant. */
+interface AtlassianServiceAccountClientSecret extends AtlassianServiceAccountSecretBase {
+  authMethod: typeof CLIENT_CREDENTIALS_AUTH_METHOD
+  clientId: string
+  clientSecret: string
+}
+
+type AtlassianServiceAccountSecret =
+  | AtlassianServiceAccountTokenSecret
+  | AtlassianServiceAccountClientSecret
+
+function parseAtlassianServiceAccountSecret(decrypted: string): AtlassianServiceAccountSecret {
+  const malformed = new Error('Stored Atlassian service account secret is malformed')
+  const parsed: unknown = JSON.parse(decrypted)
+  if (
+    !isRecordLike(parsed) ||
+    parsed.type !== ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE ||
+    typeof parsed.cloudId !== 'string' ||
+    !parsed.cloudId
+  ) {
+    throw malformed
+  }
+  const base: AtlassianServiceAccountSecretBase = {
+    type: ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
+    domain: typeof parsed.domain === 'string' ? parsed.domain : '',
+    cloudId: parsed.cloudId,
+    ...(typeof parsed.atlassianAccountId === 'string'
+      ? { atlassianAccountId: parsed.atlassianAccountId }
+      : {}),
+  }
+  const mode = parseStoredSecretMode(parsed)
+  if (!mode) throw malformed
+  return { ...base, ...mode }
+}
+
 /**
- * Loads the decrypted Atlassian service account secret blob for a credential.
+ * Loads the decrypted Atlassian service account secret blob for a credential:
+ * a scoped API token, or an OAuth 2.0 credential's client ID and secret.
  * Throws if the credential is missing or not an Atlassian service account.
  */
 export async function getAtlassianServiceAccountSecret(
   credentialId: string
 ): Promise<AtlassianServiceAccountSecret> {
+  const { decrypted } = await readStoredServiceAccountSecret(
+    credentialId,
+    'Atlassian service account secret not found'
+  )
+  return parseAtlassianServiceAccountSecret(decrypted)
+}
+
+/** A credential's encrypted service-account secret, read once along with its plaintext. */
+interface StoredServiceAccountSecret {
+  encryptedServiceAccountKey: string
+  decrypted: string
+}
+
+async function readStoredServiceAccountSecret(
+  credentialId: string,
+  notFoundMessage: string
+): Promise<StoredServiceAccountSecret> {
   const [credentialRow] = await db
     .select({ encryptedServiceAccountKey: credential.encryptedServiceAccountKey })
     .from(credential)
@@ -519,19 +581,11 @@ export async function getAtlassianServiceAccountSecret(
     .limit(1)
 
   if (!credentialRow?.encryptedServiceAccountKey) {
-    throw new Error('Atlassian service account secret not found')
+    throw new Error(notFoundMessage)
   }
 
   const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
-  const parsed = JSON.parse(decrypted) as AtlassianServiceAccountSecret
-  if (
-    parsed.type !== ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE ||
-    !parsed.apiToken ||
-    !parsed.cloudId
-  ) {
-    throw new Error('Stored Atlassian service account secret is malformed')
-  }
-  return parsed
+  return { encryptedServiceAccountKey: credentialRow.encryptedServiceAccountKey, decrypted }
 }
 
 /**
@@ -547,6 +601,8 @@ export interface ServiceAccountTokenResult {
   /** Atlassian and domain-scoped token providers (e.g. Shopify) — the site/store domain. */
   domain?: string
   providerWorkspaceId?: string
+  /** Datadog only — the application key sent beside the API key (`accessToken`). */
+  applicationKey?: string
   /** Salesforce or NetSuite — the provider origin the token must be used against. */
   instanceUrl?: string
   /**
@@ -558,37 +614,16 @@ export interface ServiceAccountTokenResult {
    * Set when the token must be sent in an `x-api-token` header instead of
    * `Authorization: Bearer` (e.g. Pipedrive personal API tokens), or is a
    * Sim-signed OIDC token a keyless Snowflake credential presents through
-   * workload identity federation. Absent means Bearer; OAuth credentials never
+   * workload identity federation, or `basic` for an HTTP Basic credential (a
+   * Zendesk API token sign-in). Absent means Bearer; OAuth credentials never
    * carry it.
    */
-  authStyle?: 'x-api-token' | 'snowflake-workload-identity'
-}
-
-/**
- * Loads and parses the decrypted secret blob for a token service-account
- * credential (pasted long-lived provider token). Throws if the credential is
- * missing or the blob doesn't belong to the expected provider.
- */
-async function getTokenServiceAccountSecret(
-  credentialId: string,
-  providerId: string
-): Promise<TokenServiceAccountSecretBlob> {
-  const [credentialRow] = await db
-    .select({ encryptedServiceAccountKey: credential.encryptedServiceAccountKey })
-    .from(credential)
-    .where(eq(credential.id, credentialId))
-    .limit(1)
-
-  if (!credentialRow?.encryptedServiceAccountKey) {
-    throw new Error('Token service account secret not found')
-  }
-
-  const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
-  return parseTokenServiceAccountSecretBlob(decrypted, providerId)
+  authStyle?: 'x-api-token' | 'snowflake-workload-identity' | 'basic'
 }
 
 interface CachedClientCredentialToken {
-  accessToken: string
+  /** The minted token and the destination fields it is bound to, exactly as tools receive them. */
+  token: ServiceAccountTokenResult
   expiresAtMs: number
   /**
    * Fingerprint of the encrypted secret the token was minted from (see
@@ -597,10 +632,12 @@ interface CachedClientCredentialToken {
    * the cached token belongs to the old app and must be re-minted.
    */
   secretFingerprint: string
-  /** Salesforce or NetSuite — the provider origin returned alongside the minted token. */
-  instanceUrl?: string
-  /** Zoho Desk only — the Desk REST base derived from the token's api_domain. */
-  apiDomain?: string
+}
+
+/** A token minted from a stored secret, with how long it stays valid. */
+interface MintedServiceAccountToken {
+  token: ServiceAccountTokenResult
+  expiresInSeconds: number
 }
 
 interface FailedClientCredentialMint {
@@ -653,6 +690,19 @@ function pruneExpiredClientCredentialCaches(nowMs: number): void {
 }
 
 /**
+ * Drops this instance's cached client-credential token once a provider has
+ * refused it (a revoked API client, or a token minted before the client was
+ * granted a scope), so the next resolution mints a replacement instead of
+ * serving the refused token until it nears expiry. Matching on the token value
+ * leaves alone a replacement another call has already minted.
+ */
+export function forgetRejectedClientCredentialToken(accessToken: string): void {
+  for (const [identity, entry] of clientCredentialTokenCache) {
+    if (entry.token.accessToken === accessToken) clientCredentialTokenCache.delete(identity)
+  }
+}
+
+/**
  * Rotation fingerprint for a stored encrypted secret: the ciphertext prefix
  * (IV + first blocks) is unique per encryption, so any re-encrypt — secret
  * rotation or re-pointing at a different app — changes it.
@@ -662,17 +712,21 @@ function secretFingerprintOf(encryptedServiceAccountKey: string): string {
 }
 
 /**
- * Resolves a client-credential service-account credential to a short-lived
- * access token: decrypts the stored credential material (client id + secret,
- * or the private key and run-as username for key-based grants) and mints via
- * the provider's registered minter (skipping the connect-time identity
- * lookup), read-through the per-instance cache. Wrapped in `coalesceLocally`
- * so concurrent block executions on one instance share a single mint.
+ * Resolves a stored secret that mints short-lived tokens, read-through the
+ * per-instance cache: re-reads the credential row, serves a cached token minted
+ * from the same ciphertext while enough of it remains, replays a recent mint
+ * failure, and otherwise decrypts and mints. Wrapped in `coalesceLocally` so
+ * concurrent block executions on one instance share a single mint.
+ * `sharedToken` providers coordinate one token per application themselves, so
+ * their tokens are never cached here, and a caller that already read the
+ * secret to choose its mode passes it as `stored` rather than reading it twice.
  */
-async function resolveClientCredentialAccountToken(
+async function resolveMintedServiceAccountToken(
   credentialId: string,
-  providerId: string,
-  options?: CredentialTokenResolutionOptions
+  mint: (decrypted: string) => Promise<MintedServiceAccountToken>,
+  options: CredentialTokenResolutionOptions | undefined,
+  sharedToken: boolean,
+  stored?: StoredServiceAccountSecret
 ): Promise<ServiceAccountTokenResult> {
   const signal = options?.signal
   signal?.throwIfAborted()
@@ -682,30 +736,29 @@ async function resolveClientCredentialAccountToken(
       : credentialId
   const resolution = coalesceLocally(`ccsa:${cacheIdentity}`, async () => {
     pruneExpiredClientCredentialCaches(Date.now())
-    const [credentialRow] = await db
-      .select({ encryptedServiceAccountKey: credential.encryptedServiceAccountKey })
-      .from(credential)
-      .where(eq(credential.id, credentialId))
-      .limit(1)
-    if (!credentialRow?.encryptedServiceAccountKey) {
+    const encryptedServiceAccountKey =
+      stored?.encryptedServiceAccountKey ??
+      (
+        await db
+          .select({ encryptedServiceAccountKey: credential.encryptedServiceAccountKey })
+          .from(credential)
+          .where(eq(credential.id, credentialId))
+          .limit(1)
+      )[0]?.encryptedServiceAccountKey
+    if (!encryptedServiceAccountKey) {
       clientCredentialTokenCache.delete(cacheIdentity)
       clientCredentialMintFailureCache.delete(cacheIdentity)
       throw new Error('Client-credential service account secret not found')
     }
-    const secretFingerprint = secretFingerprintOf(credentialRow.encryptedServiceAccountKey)
+    const secretFingerprint = secretFingerprintOf(encryptedServiceAccountKey)
 
-    const usesSharedToken = providerId === VANTA_SERVICE_ACCOUNT_PROVIDER_ID
-    const cached = usesSharedToken ? undefined : clientCredentialTokenCache.get(cacheIdentity)
+    const cached = sharedToken ? undefined : clientCredentialTokenCache.get(cacheIdentity)
     if (
       cached &&
       cached.secretFingerprint === secretFingerprint &&
       cached.expiresAtMs - Date.now() > CLIENT_CREDENTIAL_TOKEN_MIN_TTL_MS
     ) {
-      return {
-        accessToken: cached.accessToken,
-        instanceUrl: cached.instanceUrl,
-        apiDomain: cached.apiDomain,
-      }
+      return { ...cached.token }
     }
 
     const failed = clientCredentialMintFailureCache.get(cacheIdentity)
@@ -719,40 +772,16 @@ async function resolveClientCredentialAccountToken(
     clientCredentialMintFailureCache.delete(cacheIdentity)
 
     try {
-      const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
-      const blob = parseClientCredentialAccountSecretBlob(decrypted, providerId)
-      const minter = getClientCredentialAccountMinter(providerId)
-      if (!minter) {
-        throw new Error(`No minter registered for service-account provider ${providerId}`)
-      }
-
-      const mint = await minter(
-        {
-          clientId: blob.clientId,
-          clientSecret: blob.clientSecret,
-          certificateId: blob.certificateId,
-          orgId: blob.orgId,
-          dataCenter: blob.dataCenter,
-          scope: blob.scope,
-          authMethod: blob.authMethod,
-          privateKey: blob.privateKey,
-          username: blob.username,
-        },
-        { skipIdentity: true }
-      )
-      if (!usesSharedToken)
+      const decrypted =
+        stored?.decrypted ?? (await decryptSecret(encryptedServiceAccountKey)).decrypted
+      const minted = await mint(decrypted)
+      if (!sharedToken)
         clientCredentialTokenCache.set(cacheIdentity, {
-          accessToken: mint.accessToken,
-          expiresAtMs: Date.now() + mint.expiresInSeconds * 1000,
+          token: minted.token,
+          expiresAtMs: Date.now() + minted.expiresInSeconds * 1000,
           secretFingerprint,
-          instanceUrl: mint.instanceUrl,
-          apiDomain: mint.apiDomain,
         })
-      return {
-        accessToken: mint.accessToken,
-        instanceUrl: mint.instanceUrl,
-        apiDomain: mint.apiDomain,
-      }
+      return { ...minted.token }
     } catch (error) {
       if (!(error instanceof Error && error.name === 'AbortError')) {
         clientCredentialMintFailureCache.set(cacheIdentity, {
@@ -765,6 +794,95 @@ async function resolveClientCredentialAccountToken(
     }
   })
   return waitWithAbort(resolution, signal)
+}
+
+/**
+ * Resolves a client-credential service-account credential to a short-lived
+ * access token: decrypts the stored credential material (client id + secret,
+ * or the private key and run-as username for key-based grants) and mints via
+ * the provider's registered minter, skipping the connect-time identity lookup.
+ */
+function resolveClientCredentialAccountToken(
+  credentialId: string,
+  providerId: string,
+  options?: CredentialTokenResolutionOptions
+): Promise<ServiceAccountTokenResult> {
+  return resolveMintedServiceAccountToken(
+    credentialId,
+    async (decrypted) => {
+      const blob = parseClientCredentialAccountSecretBlob(decrypted, providerId)
+      const minter = getClientCredentialAccountMinter(providerId)
+      if (!minter) {
+        throw new Error(`No minter registered for service-account provider ${providerId}`)
+      }
+      const mint = await minter(
+        {
+          clientId: blob.clientId,
+          clientSecret: blob.clientSecret,
+          certificateId: blob.certificateId,
+          orgId: blob.orgId,
+          dataCenter: blob.dataCenter,
+          scope: blob.scope,
+          authMethod: blob.authMethod,
+          privateKey: blob.privateKey,
+          username: blob.username,
+          apiToken: blob.apiToken,
+        },
+        { skipIdentity: true }
+      )
+      return {
+        token: {
+          accessToken: mint.accessToken,
+          instanceUrl: mint.instanceUrl,
+          apiDomain: mint.apiDomain,
+          ...(mint.domain ? { domain: mint.domain } : {}),
+          ...(mint.applicationKey ? { applicationKey: mint.applicationKey } : {}),
+          ...(mint.authStyle ? { authStyle: mint.authStyle } : {}),
+        },
+        expiresInSeconds: mint.expiresInSeconds,
+      }
+    },
+    options,
+    providerId === VANTA_SERVICE_ACCOUNT_PROVIDER_ID
+  )
+}
+
+/**
+ * Resolves a token provider credential saved in client-credentials mode
+ * (Shopify Dev Dashboard app, Linear OAuth app): mints with the stored client
+ * ID and secret instead of returning a pasted token. The stored store domain
+ * travels with the token exactly as it does for a pasted one. Every grant
+ * shares one coordinated token per application, so none is cached per instance.
+ */
+function resolveTokenClientCredentialToken(
+  credentialId: string,
+  secret: TokenServiceAccountClientCredentialBlob,
+  stored: StoredServiceAccountSecret,
+  options?: CredentialTokenResolutionOptions
+): Promise<ServiceAccountTokenResult> {
+  const mint = getTokenClientCredentialMinter(secret.providerId)
+  if (!mint) {
+    return Promise.reject(
+      new Error(
+        `No client-credentials grant registered for service-account provider ${secret.providerId}`
+      )
+    )
+  }
+  const { clientId, clientSecret, domain } = secret
+  return resolveMintedServiceAccountToken(
+    credentialId,
+    async () => {
+      // The mint is shared by every coalesced caller, so no one caller's signal may cancel it.
+      const minted = await mint({ clientId, clientSecret, domain })
+      return {
+        token: { accessToken: minted.accessToken, domain },
+        expiresInSeconds: minted.expiresInSeconds,
+      }
+    },
+    options,
+    true,
+    stored
+  )
 }
 
 interface ServiceAccountTokenOptions extends CredentialTokenResolutionOptions {
@@ -838,9 +956,29 @@ const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolve
     }
     return resolveGitHubInstallationAccessToken(binding, githubRepositoryScope)
   },
-  [ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => {
-    const secret = await getAtlassianServiceAccountSecret(credentialId)
-    return { accessToken: secret.apiToken, cloudId: secret.cloudId, domain: secret.domain }
+  [ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId, options) => {
+    const stored = await readStoredServiceAccountSecret(
+      credentialId,
+      'Atlassian service account secret not found'
+    )
+    const secret = parseAtlassianServiceAccountSecret(stored.decrypted)
+    if (!('authMethod' in secret)) {
+      return { accessToken: secret.apiToken, cloudId: secret.cloudId, domain: secret.domain }
+    }
+    const { clientId, clientSecret, cloudId, domain } = secret
+    return resolveMintedServiceAccountToken(
+      credentialId,
+      async () => {
+        const minted = await mintAtlassianServiceAccountToken(clientId, clientSecret)
+        return {
+          token: { accessToken: minted.accessToken, cloudId, domain },
+          expiresInSeconds: minted.expiresInSeconds,
+        }
+      },
+      options,
+      true,
+      stored
+    )
   },
   [SLACK_CUSTOM_BOT_PROVIDER_ID]: async (credentialId) => {
     const botCredential = await getSlackBotCredential(credentialId)
@@ -887,7 +1025,14 @@ export async function resolveServiceAccountToken(
     return resolveSnowflakeCredentialToken(credentialId)
   }
   if (providerId && isTokenServiceAccountProviderId(providerId)) {
-    const secret = await getTokenServiceAccountSecret(credentialId, providerId)
+    const stored = await readStoredServiceAccountSecret(
+      credentialId,
+      'Token service account secret not found'
+    )
+    const secret = parseTokenServiceAccountSecret(stored.decrypted, providerId)
+    if ('authMethod' in secret) {
+      return resolveTokenClientCredentialToken(credentialId, secret, stored, options)
+    }
     const descriptorAuthStyle = getTokenServiceAccountDescriptor(providerId)?.authStyle
     return {
       accessToken: secret.apiToken,
