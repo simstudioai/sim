@@ -533,6 +533,13 @@ export const PERMISSION_GROUP_FIELDS = {
     'request',
     'Access requests are unavailable for the listed canonical target keys when access is restricted.'
   ),
+  disableComputerUse: booleanRestriction('capability', {
+    scope: 'workspace-or-organization',
+    id: 'disable-computer-use',
+    label: 'Computer Use',
+    category: 'Tools',
+    hint: "Revoke computer use. Chat cannot operate apps on a member's Mac, even when the device allows it.",
+  }),
 } satisfies Record<string, PermissionGroupField>
 
 export type PermissionGroupFields = typeof PERMISSION_GROUP_FIELDS

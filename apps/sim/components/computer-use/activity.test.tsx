@@ -1,12 +1,10 @@
 /** @vitest-environment jsdom */
 import { act } from 'react'
 import type { ComputerUseActivity as Activity, ComputerUseStatus } from '@sim/desktop-bridge'
-import { createDeferred } from '@sim/testing/helpers/deferred'
 import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ComputerUseActivity } from '@/components/computer-use/activity'
-import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 
 const native = vi.hoisted(() => ({
   getActivity: vi.fn<() => Promise<Activity | null>>(),
@@ -39,22 +37,7 @@ it.each(['pending', 'failed'] as const)(
     native.getStatus.mockImplementation(() =>
       state === 'failed' ? Promise.reject(new Error('unavailable')) : new Promise(() => {})
     )
-    await act(async () =>
-      root.render(
-        <FeatureFlagsProvider
-          flags={{
-            dashboards: false,
-            'workflow-tests': false,
-            changelog: false,
-            'mothership-model-selector': false,
-            'mothership-plan-mode': false,
-            'mothership-computer-use': true,
-          }}
-        >
-          <ComputerUseActivity />
-        </FeatureFlagsProvider>
-      )
-    )
+    await act(async () => root.render(<ComputerUseActivity />))
     const listener = native.onActivity.mock.calls[0]?.[0]
     if (!listener) throw new Error('Activity listener not registered')
     await act(async () =>
@@ -72,50 +55,5 @@ it.each(['pending', 'failed'] as const)(
     expect(native.cancel).toHaveBeenCalledOnce()
     await act(async () => listener(null))
     expect(container.querySelector('button')).toBeNull()
-  }
-)
-
-it.each(['active', 'completed'] as const)(
-  'loads an existing %s action without waking the helper when rollout is off',
-  async (state) => {
-    const snapshot = createDeferred<Activity | null>()
-    native.getActivity.mockReturnValue(snapshot.promise)
-    await act(async () =>
-      root.render(
-        <FeatureFlagsProvider
-          flags={{
-            dashboards: false,
-            'workflow-tests': false,
-            changelog: false,
-            'mothership-model-selector': false,
-            'mothership-plan-mode': false,
-            'mothership-computer-use': false,
-          }}
-        >
-          <ComputerUseActivity />
-        </FeatureFlagsProvider>
-      )
-    )
-    if (state === 'completed') {
-      const listener = native.onActivity.mock.calls[0]?.[0]
-      if (!listener) throw new Error('Activity listener not registered')
-      await act(async () => listener(null))
-    }
-    await act(async () =>
-      snapshot.resolve({
-        toolCallId: 'existing',
-        scopeId: 'chat',
-        action: 'click',
-        startedAt: Date.now(),
-      })
-    )
-    expect(native.getStatus).not.toHaveBeenCalled()
-    const stop = container.querySelector<HTMLButtonElement>('button')
-    if (state === 'completed') expect(stop).toBeNull()
-    else {
-      expect(stop?.textContent).toContain('Stop')
-      await act(async () => stop?.click())
-      expect(native.cancel).toHaveBeenCalledOnce()
-    }
   }
 )

@@ -7,23 +7,26 @@ import {
   organizationAuthorizationMock,
   organizationAuthorizationMockFns,
 } from '@sim/testing/mocks/organization-authorization.mock'
+import {
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+  resetPermissionGroupScopeMock,
+} from '@sim/testing/mocks/permission-group-scope.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   ownedChat: vi.fn(),
-  available: vi.fn(),
   claim: vi.fn(),
 }))
 vi.mock('@/lib/mothership/chat/application/context', () => ({
   resolveOwnedChatContext: mocks.ownedChat,
 }))
-vi.mock('@/lib/computer-use/availability.server', () => ({
-  isComputerUseAvailable: mocks.available,
-}))
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 vi.mock('@/lib/computer-use/repository', () => ({ claimComputerUseTool: mocks.claim }))
 
 import { authorizeComputerUse } from '@/lib/computer-use/application/authorize'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
 const principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
 const input = { toolCallId: 'call-1' }
@@ -56,7 +59,7 @@ describe('native computer authorization', () => {
     mothershipAsyncRunsMockFns.mockGetRunSegment.mockResolvedValue(run)
     mocks.ownedChat.mockResolvedValue(context)
     workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
-    mocks.available.mockResolvedValue(true)
+    resetPermissionGroupScopeMock()
     mocks.claim.mockResolvedValue({ args: { action: 'list_apps' } })
   })
   it('returns canonical arguments only after current chat access and an atomic claim', async () => {
@@ -81,11 +84,20 @@ describe('native computer authorization', () => {
     ).rejects.toThrow()
     expect(mothershipAsyncRunsMockFns.mockGetAsyncToolCall).not.toHaveBeenCalled()
   })
-  it('rejects disabled rollout without claiming an action', async () => {
-    mocks.available.mockResolvedValue(false)
-    await expect(authorizeComputerUse.execute({ principal, input })).rejects.toThrow('unavailable')
-    expect(mocks.claim).not.toHaveBeenCalled()
-  })
+  it.each(['disableComputerUse', 'hideCopilot'] as const)(
+    'rejects a permission group with %s without claiming an action',
+    async (key) => {
+      mocks.ownedChat.mockResolvedValue({ ...context, workspaceOrganizationId: 'org-1' })
+      permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        [key]: true,
+      })
+      await expect(authorizeComputerUse.execute({ principal, input })).rejects.toThrow(
+        'Computer use is not available'
+      )
+      expect(mocks.claim).not.toHaveBeenCalled()
+    }
+  )
   it('rechecks current workspace membership', async () => {
     workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
     await expect(authorizeComputerUse.execute({ principal, input })).rejects.toThrow()

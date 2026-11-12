@@ -1,6 +1,5 @@
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { ComputerUseSchema } from '@sim/desktop-bridge/computer-use'
-import { isComputerUseAvailable } from '@/lib/computer-use/availability.server'
 import { claimComputerUseTool } from '@/lib/computer-use/repository'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
@@ -19,13 +18,13 @@ export const authorizeComputerUse = defineAuthorizedChatUseCase({
     id: 'desktop.computer.execute',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
-    capability: 'copilot.use',
+    capability: 'computer_use.use',
     principalKinds: ['session'],
   }),
   organizationOperation: defineOrganizationOperation({
     id: 'desktop.computer.execute',
     minimumRole: 'member',
-    capability: 'copilot.use',
+    capability: 'computer_use.use',
     principalKinds: ['session'],
   }),
   async resolveContext({
@@ -60,8 +59,6 @@ export const authorizeComputerUse = defineAuthorizedChatUseCase({
   },
   authorizationOptions: {},
   async execute({ principal, context, input }) {
-    if (!(await isComputerUseAvailable(context.organizationId ?? context.workspaceOrganizationId)))
-      throw new OrchestrationError('forbidden', 'Computer use is unavailable on this deployment')
     const claimed = await claimComputerUseTool({
       toolCallId: input.toolCallId,
       runId: context.runId,

@@ -5,9 +5,10 @@ import type { ComputerUseAppPermission } from '@sim/desktop-bridge'
 import { Chip, ChipSwitch, Label, toast } from '@sim/emcn'
 import { ComputerUseActivity } from '@/components/computer-use/activity'
 import { getDesktopBridge } from '@/lib/desktop'
-import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
+import { CAPABILITY_RULES } from '@/lib/permission-groups/capabilities'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useComputerUseStatus } from '@/hooks/use-computer-use-status'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 export function ComputerUseSettings() {
   return (
@@ -21,7 +22,7 @@ export function ComputerUseSettings() {
 function ComputerUseSettingsControls() {
   const requestVersion = useRef(0)
   const bridge = getDesktopBridge()?.computerUse
-  const enabled = useFeatureFlag('mothership-computer-use')
+  const { config: permissionConfig } = usePermissionConfig()
   const { status, setStatus, refresh, error } = useComputerUseStatus()
   const [apps, setApps] = useState<ComputerUseAppPermission[]>([])
   const [pending, setPending] = useState(false)
@@ -36,13 +37,17 @@ function ComputerUseSettingsControls() {
     }
   }, [bridge])
   useEffect(() => {
-    if (!enabled) return
     void refreshApps()
     return () => {
       requestVersion.current += 1
     }
-  }, [enabled, refreshApps, status?.activeAction])
-  if (!bridge || !enabled || status?.supported === false) return null
+  }, [refreshApps, status?.activeAction])
+  if (
+    !bridge ||
+    CAPABILITY_RULES['computer_use.use'].deniedBy(permissionConfig) ||
+    status?.supported === false
+  )
+    return null
   const update = async (action: () => Promise<void>) => {
     setPending(true)
     try {

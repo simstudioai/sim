@@ -55,7 +55,6 @@ export function ExtensionProviders({
           changelog: false,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,
-          'mothership-computer-use': false,
         }}
       >
         <SettingsNavigationProvider navigationTarget='_blank'>

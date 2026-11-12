@@ -10,7 +10,7 @@ import { createDeferred } from '@sim/testing/helpers/deferred'
 import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { ComputerUseSettings } from '@/app/workspace/[workspaceId]/settings/components/desktop/computer-use'
 
 const native = vi.hoisted(() => ({
@@ -19,6 +19,10 @@ const native = vi.hoisted(() => ({
   revokeApp: vi.fn<(bundleId: string) => Promise<void>>(),
   cancel: vi.fn<() => Promise<void>>(),
   onActivity: vi.fn<(listener: (activity: ComputerUseActivity | null) => void) => () => void>(),
+}))
+const permission = vi.hoisted(() => ({ config: {} as Record<string, unknown> }))
+vi.mock('@/hooks/use-permission-config', () => ({
+  usePermissionConfig: () => ({ config: permission.config }),
 }))
 vi.mock('@/lib/desktop', () => libDesktopMock)
 
@@ -29,12 +33,11 @@ const initialPermissions = [
 let permissions: ComputerUseAppPermission[]
 let activity: ComputerUseActivity | null
 let listeners: Set<(activity: ComputerUseActivity | null) => void>
-let enabled: boolean
 let root: Root
 let container: HTMLDivElement
 
 beforeEach(() => {
-  enabled = true
+  permission.config = { ...DEFAULT_PERMISSION_GROUP_CONFIG }
   permissions = [...initialPermissions]
   activity = null
   listeners = new Set()
@@ -69,53 +72,18 @@ afterEach(async () => {
 })
 
 function renderSettings() {
-  root.render(
-    <FeatureFlagsProvider
-      flags={{
-        dashboards: false,
-        'workflow-tests': false,
-        changelog: false,
-        'mothership-model-selector': false,
-        'mothership-plan-mode': false,
-        'mothership-computer-use': enabled,
-      }}
-    >
-      <ComputerUseSettings />
-    </FeatureFlagsProvider>
-  )
+  root.render(<ComputerUseSettings />)
 }
 
-it('keeps settings dormant while rollout is off, including focus and activity changes', async () => {
-  enabled = false
-  await act(async () => renderSettings())
-  await act(async () => window.dispatchEvent(new Event('focus')))
-  expect(native.getStatus).not.toHaveBeenCalled()
-  expect(native.listAppPermissions).not.toHaveBeenCalled()
-  expect(container.textContent).toBe('')
-
-  enabled = true
-  await act(async () => renderSettings())
-  expect(native.getStatus).toHaveBeenCalled()
-  expect(appRow('com.example.First')).toBeDefined()
-  await act(async () => {
-    activity = { toolCallId: 'in-flight', scopeId: 'chat', action: 'click', startedAt: Date.now() }
-    for (const listener of listeners) listener(activity)
-  })
-  enabled = false
-  await act(async () => renderSettings())
-  native.getStatus.mockClear()
-  native.listAppPermissions.mockClear()
-  await act(async () => {
-    window.dispatchEvent(new Event('focus'))
-    for (const listener of listeners) listener(activity)
-  })
-  expect(native.getStatus).not.toHaveBeenCalled()
-  expect(native.listAppPermissions).not.toHaveBeenCalled()
-  const stop = container.querySelector<HTMLButtonElement>('button')
-  expect(stop?.textContent).toContain('Stop')
-  await act(async () => stop?.click())
-  expect(native.cancel).toHaveBeenCalledOnce()
-})
+it.each(['disableComputerUse', 'hideCopilot'])(
+  'withholds the device controls when the permission group sets %s',
+  async (key) => {
+    permission.config = { ...DEFAULT_PERMISSION_GROUP_CONFIG, [key]: true }
+    await act(async () => renderSettings())
+    expect(appRow('com.example.First')).toBeUndefined()
+    expect(container.querySelector('[role="switch"]')).toBeNull()
+  }
+)
 
 function appRow(bundleId: string) {
   return container.querySelector<HTMLElement>(`[title="${bundleId}"]`)?.parentElement
