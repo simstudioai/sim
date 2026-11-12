@@ -688,6 +688,8 @@ describe('typed base URLs', () => {
     ['//evil.com', 'a protocol-relative URL'],
     ['//user:pass@evil.com', 'a protocol-relative URL with credentials'],
     ['/\\evil.com', 'a slash and backslash the parser reads as an authority'],
+    ['https:///user:pass@evil.com', 'an extra slash hiding credentials from the authority'],
+    ['https:///evil.com', 'an extra slash after the scheme'],
   ])('refuses %j (%s) in both helpers', (typed) => {
     expect(() => refuseUnsafeTypedUrl(typed)).toThrow()
     expect(() => normalizeHttpBaseUrl(typed)).toThrow()

@@ -1412,13 +1412,14 @@ export function validateDatabaseIdentifier(
 /**
  * Drops the tabs and newlines the URL parser ignores, then refuses every typed form the parser
  * would read as a host other than the one typed: a malformed `https:/host` (which would get a
- * second scheme and parse as a host named `https`), any other scheme such as `ftp:/host`, and a
- * leading slash or backslash, which the parser takes as a protocol-relative authority. A bare
- * `host` or `host:port` and an `http(s)://` URL pass.
+ * second scheme and parse as a host named `https`), an extra slash or backslash after `https://`
+ * (which the parser skips, so `https:///user:pass@host` hides its credentials from the authority
+ * check), any other scheme such as `ftp:/host`, and a leading slash or backslash, which the parser
+ * takes as a protocol-relative authority. A bare `host` or `host:port` and an `http(s)://` URL pass.
  */
 function refuseUnsafeUrlForm(typed: string): string {
   const stripped = typed.replace(/[\t\n\r]/g, '')
-  if (/^https?:(?!\/\/)/i.test(stripped)) throw new Error('malformed scheme')
+  if (/^https?:(?!\/\/(?![/\\]))/i.test(stripped)) throw new Error('malformed scheme')
   if (/^[/\\]/.test(stripped)) throw new Error('protocol-relative URL')
   const hasScheme = /^[a-z][a-z\d+.-]*:/i.test(stripped)
   const isHostWithPort = /^[a-z\d.-]+:\d+(?:[/?#]|$)/i.test(stripped)
