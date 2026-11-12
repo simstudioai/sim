@@ -84,7 +84,8 @@ export const searchTool: ToolConfig<GoogleDriveSearchParams, GoogleDriveSearchRe
       url.searchParams.append('supportsAllDrives', 'true')
       url.searchParams.append('includeItemsFromAllDrives', 'true')
       const orderBy = params.orderBy?.trim()
-      if (orderBy && !/\bfullText\b/.test(params.query ?? '')) {
+      const queryWithoutLiterals = (params.query ?? '').replace(/'(?:[^'\\]|\\.)*'/g, "''")
+      if (orderBy && !/\bfullText\b/.test(queryWithoutLiterals)) {
         url.searchParams.append('orderBy', orderBy)
       }
 

@@ -126,7 +126,7 @@ interface TaskLink {
 
 /** Builds the `lists/{tasklist}` path segment, defaulting to the primary list. */
 export function taskListPath(taskListId: string | undefined): string {
-  return `lists/${safeUrlPathSegment(taskListId?.trim() || '@default', 'taskListId', { allowSeparators: true })}`
+  return `lists/${safeUrlPathSegment(String(taskListId ?? '').trim() || '@default', 'taskListId', { allowSeparators: true })}`
 }
 
 /** Builds the `lists/{tasklist}/tasks/{task}` path. */
