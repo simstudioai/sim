@@ -25,6 +25,7 @@ vi.mock('@/lib/credentials/workload-identity/issuer', () => ({
 
 import { credential } from '@sim/db/schema'
 import {
+  MicrosoftAppCredentialError,
   resolveMicrosoftAppCredentialToken,
   verifyAndEncryptMicrosoftAppCredential,
 } from '@/lib/credentials/microsoft-app-service-account.server'
@@ -133,7 +134,7 @@ function fakeMicrosoft(
   const tokenRequests: TokenRequest[] = []
   const pendingErrors = [...(options.tokenErrorsFirst ?? [])]
   fetch.mockImplementation(async (url: string, init: RequestInit = {}) => {
-    if (url.startsWith('https://login.microsoftonline.com/')) {
+    if (url.endsWith('/oauth2/v2.0/token')) {
       const form = Object.fromEntries(new URLSearchParams(String(init.body)))
       tokenRequests.push({ url, form, redirect: init.redirect })
       await options.tokenDelay?.()
@@ -152,7 +153,7 @@ function fakeMicrosoft(
         access_token: `at:${form.scope}`,
       })
     }
-    if (url.startsWith('https://graph.microsoft.com/')) {
+    if (url.includes('/v1.0/servicePrincipals(')) {
       return jsonResponse({ id: 'sp-object-id', appId: CLIENT_ID, displayName: 'Sim workflows' })
     }
     if (url.endsWith('/api/data/v9.2/WhoAmI')) return jsonResponse({ UserId: 'app-user' })
@@ -377,6 +378,80 @@ describe('saving a Microsoft app credential', () => {
     }
   )
 
+  describe('in a national cloud', () => {
+    it('signs in at the cloud’s own Entra endpoint and reads the service principal from its Graph', async () => {
+      const tokens = fakeMicrosoft(fetch)
+
+      await save({ authType: 'client_secret', clientSecret: SECRET, cloud: 'usgov_dod' })
+
+      expect(tokens.map(({ url, form }) => [url, form.scope])).toEqual([
+        [
+          `https://login.microsoftonline.us/${TENANT}/oauth2/v2.0/token`,
+          'https://dod-graph.microsoft.us/.default',
+        ],
+      ])
+      expect(fetch).toHaveBeenCalledWith(
+        `https://dod-graph.microsoft.us/v1.0/servicePrincipals(appId='${CLIENT_ID}')?$select=id,appId,displayName`,
+        expect.objectContaining({ redirect: 'error' })
+      )
+      expect(fetch.mock.calls.map(([url]) => String(url))).not.toContainEqual(
+        expect.stringContaining('microsoftonline.com')
+      )
+      const stored = JSON.parse(encryptionMockFns.mockEncryptSecret.mock.calls[0]?.[0] ?? '{}')
+      expect(stored.config.cloud).toBe('usgov_dod')
+    })
+
+    it('addresses the certificate assertion to the cloud’s token endpoint', async () => {
+      const tokens = fakeMicrosoft(fetch)
+
+      await save({
+        authType: 'certificate',
+        certificate: TEST_CERTIFICATE,
+        privateKey: TEST_PRIVATE_KEY,
+        cloud: 'china',
+      })
+
+      const chinaTokenUrl = `https://login.chinacloudapi.cn/${TENANT}/oauth2/v2.0/token`
+      expect(tokens[0]?.url).toBe(chinaTokenUrl)
+      await expect(
+        jwtVerify(tokens[0]?.form.client_assertion ?? '', createPublicKey(TEST_CERTIFICATE), {
+          algorithms: ['PS256'],
+          audience: chinaTokenUrl,
+        })
+      ).resolves.toBeDefined()
+    })
+
+    it('stores a global credential exactly as before, with no cloud field', async () => {
+      fakeMicrosoft(fetch)
+
+      await save({ authType: 'client_secret', clientSecret: SECRET, cloud: 'global' })
+
+      const stored = JSON.parse(encryptionMockFns.mockEncryptSecret.mock.calls[0]?.[0] ?? '{}')
+      expect(stored.config).not.toHaveProperty('cloud')
+    })
+
+    it('refuses a Dataverse environment outside the global cloud before contacting Entra', async () => {
+      fakeMicrosoft(fetch)
+
+      await expect(
+        save({
+          authType: 'client_secret',
+          clientSecret: SECRET,
+          cloud: 'usgov',
+          environmentUrl: ENVIRONMENT,
+        })
+      ).rejects.toThrow(/global cloud/)
+      expect(fetch).not.toHaveBeenCalled()
+    })
+
+    it('refuses a cloud Sim does not know', async () => {
+      await expect(
+        save({ authType: 'client_secret', clientSecret: SECRET, cloud: 'germany' })
+      ).rejects.toThrow(MicrosoftAppCredentialError)
+      expect(fetch).not.toHaveBeenCalled()
+    })
+  })
+
   it('never repeats the secret, key, or assertion in a refusal', async () => {
     fakeMicrosoft(fetch, {
       tokenError: jsonResponse(
@@ -493,6 +568,22 @@ describe('getting a Microsoft app token for a run', () => {
     expect(tokens).toHaveLength(2)
     expect(tokens[1]?.form.client_secret).toBe('rotated')
   })
+
+  it.each(['microsoft-ad', 'sharepoint', 'microsoft-intune'])(
+    'refuses a national-cloud credential for %s, whose tools call the global Graph, without minting',
+    async (service) => {
+      fakeMicrosoft(fetch)
+      storeCredential(
+        { authType: 'client_secret', clientSecret: SECRET, cloud: 'usgov' },
+        `ciphertext-usgov-${service}`
+      )
+
+      await expect(
+        resolveMicrosoftAppCredentialToken(`cred-usgov-${service}`, service)
+      ).rejects.toMatchObject({ code: 'invalid_credentials', status: 400 })
+      expect(fetch).not.toHaveBeenCalled()
+    }
+  )
 
   it('asks for a reconnect once the stored certificate has expired, without contacting Entra', async () => {
     fakeMicrosoft(fetch)

@@ -79,7 +79,7 @@ export const WORKLOAD_IDENTITY_KEYLESS_CONFIGS: Record<
   microsoft: {
     authType: 'federated',
     requiredFields: ['tenantId', 'clientId'],
-    optionalFields: ['environmentUrl'],
+    optionalFields: ['environmentUrl', 'cloud'],
   },
   google: {
     authType: 'workload_identity',
