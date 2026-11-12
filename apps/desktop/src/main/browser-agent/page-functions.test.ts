@@ -700,7 +700,35 @@ describe('collectSnapshot', () => {
     register(link)
     Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => slot })
 
-    expect(clickElement(0)).toMatchObject({ clickedThrough: '3:00 PM' })
+    expect(clickElement(0, false)).toMatchObject({ clickedThrough: '3:00 PM' })
+  })
+
+  it('refuses a nested control that leaves the target edges uncovered', () => {
+    document.body.innerHTML = '<a href="#card"><span role="button">Open</span></a>'
+    const link = visible(document.querySelector('a') as HTMLAnchorElement)
+    const inner = document.querySelector('span') as HTMLSpanElement
+    inner.getBoundingClientRect = () =>
+      ({ x: 15, y: 3, width: 70, height: 14, left: 15, top: 3, right: 85, bottom: 17 }) as DOMRect
+    register(link)
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => inner })
+
+    expect(clickElement(0, false)).toMatchObject({ error: 'nested-control' })
+  })
+
+  it('refuses to click through to a form field or through a synthetic fallback', () => {
+    document.body.innerHTML = '<label id="wrap" role="button"><input type="file" /></label>'
+    const wrap = visible(document.querySelector('#wrap') as HTMLLabelElement)
+    const input = visible(document.querySelector('input') as HTMLInputElement)
+    register(wrap)
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => input })
+    expect(clickElement(0, false)).not.toMatchObject({ clickedThrough: expect.anything() })
+
+    document.body.innerHTML = '<a href="#slot"><span role="button">3:00 PM</span></a>'
+    const link = visible(document.querySelector('a') as HTMLAnchorElement)
+    const slot = visible(document.querySelector('span') as HTMLSpanElement)
+    register(link)
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => slot })
+    expect(clickElement(0)).toMatchObject({ error: 'nested-control' })
   })
 
   it('still refuses a nested control that covers only part of the target', () => {
