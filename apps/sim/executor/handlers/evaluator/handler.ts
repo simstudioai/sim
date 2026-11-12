@@ -10,6 +10,7 @@ import type { BlockOutput } from '@/blocks/types'
 import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
 import { BlockType, DEFAULTS, EVALUATOR } from '@/executor/constants'
 import type { BlockHandler, BlockNodeMetadata, ExecutionContext } from '@/executor/types'
+import { resolveBlockBedrockSession } from '@/executor/utils/bedrock-credential'
 import { isJSONString, parseJSON, stringifyJSON } from '@/executor/utils/json'
 import { executeModelRequestWithFallbacks } from '@/executor/utils/model-fallback-request'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
@@ -50,6 +51,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
       bedrockAccessKeyId: inputs.bedrockAccessKeyId,
       bedrockSecretKey: inputs.bedrockSecretKey,
       bedrockRegion: inputs.bedrockRegion,
+      bedrockCredential: inputs.bedrockCredential,
     }
 
     let systemPromptObj: { systemPrompt: string; responseFormat: any } = {
@@ -189,6 +191,11 @@ export class EvaluatorBlockHandler implements BlockHandler {
         callerLabel: 'vertex-evaluator',
       })
     }
+    const bedrockSession = await resolveBlockBedrockSession(
+      ctx,
+      providerId,
+      evaluatorConfig.bedrockCredential
+    )
 
     try {
       const providerRequest: ProviderRequest = {
@@ -212,6 +219,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
         bedrockAccessKeyId: evaluatorConfig.bedrockAccessKeyId,
         bedrockSecretKey: evaluatorConfig.bedrockSecretKey,
         bedrockRegion: evaluatorConfig.bedrockRegion,
+        bedrockSession,
         workflowId: ctx.workflowId,
         workspaceId: ctx.workspaceId,
       }

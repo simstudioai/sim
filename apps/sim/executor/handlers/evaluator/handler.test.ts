@@ -12,6 +12,14 @@ const { mockResolveAutoModel } = vi.hoisted(() => ({
   mockResolveAutoModel: vi.fn(),
 }))
 
+const { mockResolveBedrockCredentialSession } = vi.hoisted(() => ({
+  mockResolveBedrockCredentialSession: vi.fn(),
+}))
+
+vi.mock('@/lib/internal/llm/bedrock-credential', () => ({
+  resolveBedrockCredentialSession: mockResolveBedrockCredentialSession,
+}))
+
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
@@ -174,6 +182,76 @@ describe('EvaluatorBlockHandler', () => {
     expect(fallback.responseFormat).toEqual(first.responseFormat)
     expect(fallback.systemPrompt).not.toContain('Sim auto system preamble')
     expect(fallback.apiKey).toBeUndefined()
+  })
+
+  it("signs a Bedrock evaluation with the selected AWS credential's session", async () => {
+    const session = {
+      credentialId: 'aws-cred',
+      accessKeyId: 'ASIASESSIONKEY000001',
+      secretAccessKey: 'session-secret',
+      sessionToken: 'session-token',
+    }
+    mockGetProviderFromModel.mockReturnValue('bedrock')
+    mockResolveBedrockCredentialSession.mockResolvedValueOnce(session)
+
+    await handler.execute(mockContext, mockBlock, {
+      ...admissionInputs,
+      model: 'bedrock/claude',
+      bedrockCredential: 'aws-cred',
+    })
+
+    expect(mockResolveBedrockCredentialSession).toHaveBeenCalledWith(
+      expect.objectContaining({ credentialId: 'aws-cred', actingUserId: 'test-user' })
+    )
+    expect(mockExecuteProviderRequest.mock.calls[0][1].bedrockSession).toEqual(session)
+  })
+
+  it('keeps the AWS credential session off a fallback on another provider', async () => {
+    mockGetProviderFromModel.mockImplementation((model: string) =>
+      model.startsWith('claude') ? 'anthropic' : 'bedrock'
+    )
+    mockResolveBedrockCredentialSession.mockResolvedValueOnce({
+      credentialId: 'aws-cred',
+      accessKeyId: 'AKIASAVEDKEY00000001',
+      secretAccessKey: 'saved-secret',
+    })
+    mockExecuteProviderRequest
+      .mockRejectedValueOnce(new Error('overloaded'))
+      .mockResolvedValueOnce({
+        content: '{"score1":7}',
+        model: 'claude-sonnet-5',
+        tokens: { input: 12, output: 3, total: 15 },
+        cost: 0,
+      })
+
+    await handler.execute(mockContext, mockBlock, {
+      ...admissionInputs,
+      model: 'bedrock/claude',
+      bedrockCredential: 'aws-cred',
+      fallbackModels: [{ model: 'claude-sonnet-5' }],
+    })
+
+    const [fallbackProvider, fallbackRequest] = mockExecuteProviderRequest.mock.calls[1]
+    expect(fallbackProvider).toBe('anthropic')
+    expect(fallbackRequest.bedrockSession).toBeUndefined()
+    expect(JSON.stringify(fallbackRequest)).not.toContain('saved-secret')
+  })
+
+  it('fails a Bedrock evaluation whose AWS credential cannot be used instead of sending it', async () => {
+    mockGetProviderFromModel.mockReturnValue('bedrock')
+    mockResolveBedrockCredentialSession.mockRejectedValueOnce(
+      new Error('Not authorized to use this AWS credential')
+    )
+    mockExecuteProviderRequest.mockClear()
+
+    await expect(
+      handler.execute(mockContext, mockBlock, {
+        ...admissionInputs,
+        model: 'bedrock/claude',
+        bedrockCredential: 'aws-cred',
+      })
+    ).rejects.toThrow('Not authorized to use this AWS credential')
+    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
   })
 
   it('refuses to reach the provider without an execution subject', async () => {

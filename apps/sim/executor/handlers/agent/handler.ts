@@ -91,6 +91,7 @@ import type {
   StreamingExecution,
   UserFile,
 } from '@/executor/types'
+import { resolveBlockBedrockSession } from '@/executor/utils/bedrock-credential'
 import { collectBlockData } from '@/executor/utils/block-data'
 import { stringifyJSON } from '@/executor/utils/json'
 import {
@@ -160,6 +161,7 @@ const AGENT_RAW_PROVIDER_ERROR_INPUT_PATHS: readonly ResolvedSecretInputPath[] =
   ['bedrockAccessKeyId'],
   ['bedrockSecretKey'],
   ['bedrockRegion'],
+  ['bedrockCredential'],
   ['reasoningEffort'],
   ['verbosity'],
   ['thinkingLevel'],
@@ -2706,7 +2708,11 @@ export class AgentBlockHandler implements BlockHandler {
         inputs = {
           ...(sameProvider
             ? config.modelInputs
-            : omit(config.modelInputs, [...PROVIDER_FAMILY_CREDENTIAL_FIELDS, 'vertexCredential'])),
+            : omit(config.modelInputs, [
+                ...PROVIDER_FAMILY_CREDENTIAL_FIELDS,
+                'vertexCredential',
+                'bedrockCredential',
+              ])),
           apiKey: resolveFallbackApiKey({
             candidate,
             configuredModel: config.configuredModel,
@@ -2920,6 +2926,7 @@ export class AgentBlockHandler implements BlockHandler {
       bedrockAccessKeyId: inputs.bedrockAccessKeyId,
       bedrockSecretKey: inputs.bedrockSecretKey,
       bedrockRegion: inputs.bedrockRegion,
+      bedrockCredential: inputs.bedrockCredential,
       responseFormat,
       workflowId: ctx.workflowId,
       workspaceId: ctx.workspaceId,
@@ -2992,6 +2999,11 @@ export class AgentBlockHandler implements BlockHandler {
           callerLabel: 'vertex-agent',
         })
       }
+      const bedrockSession = await resolveBlockBedrockSession(
+        ctx,
+        providerId,
+        providerRequest.bedrockCredential
+      )
 
       const { blockData, blockNameMapping } = collectBlockData(ctx)
       const agentMemoryRetrieval = agentConversation?.memoryId
@@ -3022,6 +3034,7 @@ export class AgentBlockHandler implements BlockHandler {
           bedrockAccessKeyId: providerRequest.bedrockAccessKeyId,
           bedrockSecretKey: providerRequest.bedrockSecretKey,
           bedrockRegion: providerRequest.bedrockRegion,
+          bedrockSession,
           responseFormat: providerRequest.responseFormat,
           workflowId: providerRequest.workflowId,
           workspaceId: ctx.workspaceId,

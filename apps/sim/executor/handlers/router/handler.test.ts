@@ -18,6 +18,14 @@ const { mockResolveAutoModel } = vi.hoisted(() => ({
   mockResolveAutoModel: vi.fn(),
 }))
 
+const { mockResolveBedrockCredentialSession } = vi.hoisted(() => ({
+  mockResolveBedrockCredentialSession: vi.fn(),
+}))
+
+vi.mock('@/lib/internal/llm/bedrock-credential', () => ({
+  resolveBedrockCredentialSession: mockResolveBedrockCredentialSession,
+}))
+
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
@@ -176,6 +184,28 @@ describe('RouterBlockHandler', () => {
       cost: 0.003,
       timing: { total: 300 },
     })
+  })
+
+  it("signs a Bedrock routing call with the selected AWS credential's session", async () => {
+    const session = {
+      credentialId: 'aws-cred',
+      accessKeyId: 'ASIASESSIONKEY000001',
+      secretAccessKey: 'session-secret',
+      sessionToken: 'session-token',
+    }
+    mockGetProviderFromModel.mockReturnValue('bedrock')
+    mockResolveBedrockCredentialSession.mockResolvedValueOnce(session)
+
+    await handler.execute(mockContext, mockBlock, {
+      prompt: 'Pick a destination',
+      model: 'bedrock/claude',
+      bedrockCredential: 'aws-cred',
+    })
+
+    expect(mockResolveBedrockCredentialSession).toHaveBeenCalledWith(
+      expect.objectContaining({ credentialId: 'aws-cred', actingUserId: 'test-user' })
+    )
+    expect(mockExecuteProviderRequest.mock.calls[0][1].bedrockSession).toEqual(session)
   })
 
   it('selects the same legacy destination when a fallback provider answers', async () => {
@@ -512,6 +542,32 @@ describe('RouterBlockHandler V2', () => {
       decidedBy: 'llm',
       billableRoutingCost: 0.002,
     })
+  })
+
+  it("signs a Bedrock Router V2 call with the selected AWS credential's session", async () => {
+    const session = {
+      credentialId: 'aws-cred',
+      accessKeyId: 'ASIASESSIONKEY000001',
+      secretAccessKey: 'session-secret',
+      sessionToken: 'session-token',
+    }
+    mockGetProviderFromModel.mockReturnValue('bedrock')
+    mockResolveBedrockCredentialSession.mockResolvedValueOnce(session)
+    mockExecuteProviderRequest.mockResolvedValueOnce({
+      content: '{"route":"route-support","reasoning":"Needs assistance"}',
+      model: 'bedrock/claude',
+      tokens: { input: 10, output: 2, total: 12 },
+      cost: 0,
+    })
+
+    await handler.execute(mockContext, mockRouterV2Block, {
+      context: 'Help me',
+      model: 'bedrock/claude',
+      routes: [{ id: 'route-support', title: 'Support', value: 'Needs help' }],
+      bedrockCredential: 'aws-cred',
+    })
+
+    expect(mockExecuteProviderRequest.mock.calls[0][1].bedrockSession).toEqual(session)
   })
 
   it('preserves route selection and reasoning when an Auto request falls back', async () => {
