@@ -1,8 +1,9 @@
 # values-aws-marketplace.yaml
 #
 # When to use: Sim installed from the AWS Marketplace container listing on Amazon EKS. The
-# Marketplace chart ships these values as its defaults (with every image pointed at the
-# AWS Marketplace registry), so a buyer edits only the placeholders marked EDIT below.
+# Marketplace chart ships these values as its defaults, with `global.imageRegistry` set to the
+# AWS Marketplace registry for every image, so a buyer edits only the placeholders marked EDIT
+# below. Rendered straight from this repository, the same images resolve to ghcr.io.
 #
 # What this profile does:
 #   - Runs only Sim's own images: app, realtime, migrations, and the cron image for the
@@ -64,7 +65,7 @@ externalDatabase:
   enabled: true
   host: "sim.xxxxxxxx.us-east-1.rds.amazonaws.com" # EDIT: the RDS endpoint
   port: 5432
-  username: sim # EDIT: the RDS master username
+  username: sim # The CloudFormation template's master user; change only for your own RDS instance
   database: sim
   sslMode: require
   existingSecret:

@@ -32,7 +32,10 @@ const logger = createLogger('AwsMarketplaceContainerLicense')
 /** Set by the Marketplace Helm profile to the listing's product ID (the License Manager SKU). */
 const PRODUCT_SKU_ENV = 'AWS_MARKETPLACE_LICENSE_PRODUCT_SKU'
 
-/** Optional override for where the license is read; defaults to the pod's own region. */
+/**
+ * Optional override for where the license is read. License Manager replicates a granted license to
+ * other Regions, so the default is the pod's own Region, the same chain AWS's EKS walkthrough uses.
+ */
 const LICENSE_REGION_ENV = 'AWS_MARKETPLACE_LICENSE_REGION'
 
 /** The issuer every AWS Marketplace license is signed by (a fixed value, not a placeholder). */
