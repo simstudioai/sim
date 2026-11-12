@@ -1,3 +1,4 @@
+import { jsonResponse } from '@sim/testing/helpers/http'
 import {
   inputValidationMock,
   inputValidationMockFns,
@@ -21,13 +22,6 @@ const FIELDS = {
 
 const secureFetch = inputValidationMockFns.mockSecureFetchWithValidation
 
-function login(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
-
 describe('Infisical Universal Auth login', () => {
   beforeEach(() => {
     secureFetch.mockReset()
@@ -48,7 +42,7 @@ describe('Infisical Universal Auth login', () => {
 
   it('logs in with a JSON body at the instance through the configured-endpoint guard', async () => {
     secureFetch.mockResolvedValueOnce(
-      login({
+      jsonResponse({
         accessToken: 'machine-token',
         expiresIn: 7200,
         accessTokenMaxTTL: 2_592_000,
@@ -84,7 +78,7 @@ describe('Infisical Universal Auth login', () => {
 
   it('serves a long-lived token for at most a day so an early revocation is picked up', async () => {
     secureFetch.mockResolvedValueOnce(
-      login({ accessToken: 'long-token', expiresIn: 2_592_000, tokenType: 'Bearer' })
+      jsonResponse({ accessToken: 'long-token', expiresIn: 2_592_000, tokenType: 'Bearer' })
     )
 
     const minted = await mintInfisicalUniversalAuthToken(FIELDS)
@@ -95,7 +89,7 @@ describe('Infisical Universal Auth login', () => {
 
   it('serves the token of an identity whose access token TTL is 0 (no expiry) for a day', async () => {
     secureFetch.mockResolvedValueOnce(
-      login({ accessToken: 'unbounded-token', expiresIn: 0, tokenType: 'Bearer' })
+      jsonResponse({ accessToken: 'unbounded-token', expiresIn: 0, tokenType: 'Bearer' })
     )
 
     const minted = await mintInfisicalUniversalAuthToken(FIELDS)
@@ -112,7 +106,7 @@ describe('Infisical Universal Auth login', () => {
     ['a fractional lifetime', { accessToken: 'token', expiresIn: 1.5 }],
     ['a non-object body', ['token']],
   ])('treats %s as the provider failing, not the credentials', async (_case, body) => {
-    secureFetch.mockResolvedValueOnce(login(body))
+    secureFetch.mockResolvedValueOnce(jsonResponse(body))
 
     await expect(mintInfisicalUniversalAuthToken(FIELDS)).rejects.toMatchObject({
       code: 'provider_unavailable',
@@ -128,7 +122,7 @@ describe('Infisical Universal Auth login', () => {
     [500, 'provider_unavailable'],
   ])('classifies a %s login refusal as %s', async (status, code) => {
     secureFetch.mockResolvedValueOnce(
-      login({ statusCode: status, message: 'nope', error: 'Unauthorized' }, status)
+      jsonResponse({ statusCode: status, message: 'nope', error: 'Unauthorized' }, status)
     )
 
     await expect(mintInfisicalUniversalAuthToken(FIELDS)).rejects.toMatchObject({ code, status })

@@ -1,3 +1,4 @@
+import { jsonResponse } from '@sim/testing/helpers/http'
 import {
   inputValidationMock,
   inputValidationMockFns,
@@ -21,13 +22,6 @@ const FIELDS = {
 
 const secureFetch = inputValidationMockFns.mockSecureFetchWithValidation
 
-function tokenResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
-
 describe('ServiceNow client credentials grant', () => {
   beforeEach(() => {
     secureFetch.mockReset()
@@ -48,7 +42,7 @@ describe('ServiceNow client credentials grant', () => {
 
   it('posts the grant as a form to the instance oauth_token.do through the egress guard', async () => {
     secureFetch.mockResolvedValueOnce(
-      tokenResponse({ access_token: 'sn-token', expires_in: 1799, token_type: 'Bearer' })
+      jsonResponse({ access_token: 'sn-token', expires_in: 1799, token_type: 'Bearer' })
     )
 
     const minted = await mintServiceNowClientCredentialsToken(FIELDS)

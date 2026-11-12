@@ -255,7 +255,6 @@ describe('a Snowflake key-pair connection', () => {
   const FINGERPRINT = `SHA256:${createHash('sha256')
     .update(publicKey.export({ type: 'spki', format: 'der' }))
     .digest('base64')}`
-  const fetchMock = vi.fn<typeof fetch>()
 
   function keyPairConfig(fields: Record<string, unknown> = {}) {
     return JSON.stringify({
@@ -267,33 +266,30 @@ describe('a Snowflake key-pair connection', () => {
     })
   }
 
-  /** Snowflake's side of key-pair auth: a KEYPAIR_JWT bearer token whose claims and key match. */
+  /** Snowflake's side of key-pair auth, behind the egress guard: a KEYPAIR_JWT bearer token whose claims and key match. */
   function snowflakeAccountTrustingKey(account: string) {
-    fetchMock.mockImplementation(async (_input, init) => {
-      const headers = new Headers(init?.headers)
-      const authorization = headers.get('authorization') ?? ''
-      if (headers.get('x-snowflake-authorization-token-type') !== 'KEYPAIR_JWT') {
-        return jsonResponse({ message: 'Invalid token type' }, 401)
+    secureFetch.mockImplementation(
+      async (_url: string, init: { headers: Record<string, string> }) => {
+        const headers = new Headers(init?.headers)
+        const authorization = headers.get('authorization') ?? ''
+        if (headers.get('x-snowflake-authorization-token-type') !== 'KEYPAIR_JWT') {
+          return jsonResponse({ message: 'Invalid token type' }, 401)
+        }
+        try {
+          const { payload } = await jwtVerify(authorization.replace(/^Bearer /, ''), publicKey, {
+            algorithms: ['RS256'],
+            issuer: `${account}.SIM_WORKFLOWS.${FINGERPRINT}`,
+            subject: `${account}.SIM_WORKFLOWS`,
+            requiredClaims: ['iat', 'exp'],
+          })
+          if ((payload.exp ?? 0) - (payload.iat ?? 0) > 3600) throw new Error('lifetime too long')
+        } catch {
+          return jsonResponse({ code: '390144', message: 'JWT token is invalid' }, 401)
+        }
+        return jsonResponse({ data: [['SIM_WORKFLOWS', account, 'ANALYST']] })
       }
-      try {
-        const { payload } = await jwtVerify(authorization.replace(/^Bearer /, ''), publicKey, {
-          algorithms: ['RS256'],
-          issuer: `${account}.SIM_WORKFLOWS.${FINGERPRINT}`,
-          subject: `${account}.SIM_WORKFLOWS`,
-          requiredClaims: ['iat', 'exp'],
-        })
-        if ((payload.exp ?? 0) - (payload.iat ?? 0) > 3600) throw new Error('lifetime too long')
-      } catch {
-        return jsonResponse({ code: '390144', message: 'JWT token is invalid' }, 401)
-      }
-      return jsonResponse({ data: [['SIM_WORKFLOWS', account, 'ANALYST']] })
-    })
+    )
   }
-
-  beforeEach(() => {
-    fetchMock.mockReset()
-    vi.stubGlobal('fetch', fetchMock)
-  })
 
   it('signs in with a JWT naming the account, the uppercased user, and the key fingerprint', async () => {
     snowflakeAccountTrustingKey('MYORG-MYACCOUNT')
@@ -315,7 +311,7 @@ describe('a Snowflake key-pair connection', () => {
         privateKey: PRIVATE_KEY.trim(),
       },
     })
-    expect(new URL(String(fetchMock.mock.calls[0][0])).href).toBe(
+    expect(new URL(String(secureFetch.mock.calls[0][0])).href).toBe(
       `https://${HOST}/api/v2/statements`
     )
   })
@@ -386,7 +382,7 @@ describe('a Snowflake key-pair connection', () => {
     const saving = verifyAndEncryptSnowflakeConnection(keyPairConfig({ privateKey: key }), owner)
     await expect(saving).rejects.toBeInstanceOf(SnowflakeCredentialError)
     await expect(saving).rejects.toThrow(/key/i)
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(secureFetch).not.toHaveBeenCalled()
   })
 
   it('refuses a host outside Snowflake before signing anything', async () => {
@@ -395,7 +391,7 @@ describe('a Snowflake key-pair connection', () => {
         verifyAndEncryptSnowflakeConnection(keyPairConfig({ host: 'evil.example.com' }), owner)
       )
     ).toMatch(/host/i)
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(secureFetch).not.toHaveBeenCalled()
   })
 
   it('signs a fresh JWT for each run with the key-pair token type', async () => {

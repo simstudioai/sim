@@ -156,14 +156,15 @@ function SnowflakeAccountForm({
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
   const [description, setDescription] = useState(initialDescription ?? '')
 
-  // A reconnect opens on the credential's stored mode, so it never switches auth by default;
-  // a new connection defaults to keyless wherever this deployment supports it.
-  const defaultAuthType: SnowflakeAuthType = credentialId
-    ? (keyless.reconnectAuthType ?? 'programmatic_access_token')
+  // A reconnect opens on the credential's stored mode, so it never switches auth by default. An
+  // organization credential's mode is not reported, so its reconnect starts with no mode chosen
+  // rather than a guess. A new connection defaults to keyless wherever this deployment supports it.
+  const defaultAuthType: SnowflakeAuthType | null = credentialId
+    ? (keyless.reconnectAuthType ?? null)
     : keyless.available
       ? 'workload_identity'
       : 'programmatic_access_token'
-  const authType: SnowflakeAuthType = selectedAuthType ?? defaultAuthType
+  const authType = selectedAuthType ?? defaultAuthType
   const connectionSubmit = useSavedConnectionSubmit({
     providerId: SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
     workspaceId,
@@ -178,6 +179,7 @@ function SnowflakeAccountForm({
     connectionSubmit.isPending || createCredential.isPending || updateCredential.isPending
   const disabled =
     isPending ||
+    !authType ||
     !normalizedHost ||
     (authType === 'programmatic_access_token' && !token.trim()) ||
     (authType === 'key_pair' && (!user.trim() || !privateKey.trim())) ||
@@ -277,7 +279,7 @@ function SnowflakeAccountForm({
         <ChipModalField
           type='dropdown'
           title='Authentication'
-          value={authType}
+          value={authType ?? undefined}
           onChange={(value) => {
             setSelectedAuthType(value as SnowflakeAuthType)
             clearErrors()
@@ -285,7 +287,7 @@ function SnowflakeAccountForm({
           options={authOptions}
           placeholder='Choose how Sim signs in to Snowflake'
           required
-          hint={AUTH_TYPE_HINTS[authType]}
+          hint={authType ? AUTH_TYPE_HINTS[authType] : undefined}
         />
         <ChipModalField
           type='input'
