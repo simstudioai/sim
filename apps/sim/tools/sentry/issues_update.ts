@@ -1,4 +1,5 @@
 import type { SentryUpdateIssueParams, SentryUpdateIssueResponse } from '@/tools/sentry/types'
+import { SENTRY_REGION_PARAM, sentryApiBase } from '@/tools/sentry/utils'
 import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -11,6 +12,7 @@ export const updateIssueTool: ToolConfig<SentryUpdateIssueParams, SentryUpdateIs
   oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {
+    region: SENTRY_REGION_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -65,7 +67,7 @@ export const updateIssueTool: ToolConfig<SentryUpdateIssueParams, SentryUpdateIs
 
   request: {
     url: (params) =>
-      `https://sentry.io/api/0/organizations/${params.organizationSlug}/issues/${params.issueId}/`,
+      `${sentryApiBase(params.region)}/organizations/${params.organizationSlug}/issues/${params.issueId}/`,
     method: 'PUT',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

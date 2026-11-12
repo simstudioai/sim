@@ -49,6 +49,7 @@ import {
   planetScaleHeaders,
 } from '@/tools/planetscale/utils'
 import { SENDGRID_REGIONS, sendGridApiBase } from '@/tools/sendgrid/utils'
+import { SENTRY_REGIONS, sentryApiBase } from '@/tools/sentry/utils'
 import { createBasicAuthHeader } from '@/tools/servicenow/utils'
 import { SQUARE_ENVIRONMENTS, squareBaseUrl } from '@/tools/square/types'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
@@ -1379,13 +1380,15 @@ export const validateSendGridServiceAccount = tokenCheckValidator({
 /**
  * Listing the token's Sentry organizations answers 200 for a valid token and 401 for a bad one;
  * a token without `org:read` (an organization token, or a narrowly scoped one) gets Sentry's JSON
- * 403.
+ * 403. The list is per region, so it is read on the host of the region the token's organization
+ * stores its data in: https://docs.sentry.io/api/users/list-your-organizations/
  */
 export const validateSentryServiceAccount = tokenCheckValidator({
   serviceLabel: 'Sentry',
   forbiddenMeansScoped: true,
-  request: ({ apiToken }) => ({
-    url: 'https://sentry.io/api/0/organizations/',
+  domain: allowedDomain(SENTRY_REGIONS),
+  request: ({ apiToken, domain }) => ({
+    url: `${sentryApiBase(domain)}/organizations/`,
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
 })

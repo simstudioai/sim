@@ -912,6 +912,8 @@ describe('a token provider whose region or host defaults to the one it always us
       'https://acme.hex.tech/api/v1/projects?limit=1',
       'acme.hex.tech',
     ],
+    ['sentry-service-account', undefined, 'https://sentry.io/api/0/organizations/', 'us'],
+    ['sentry-service-account', 'de', 'https://de.sentry.io/api/0/organizations/', 'de'],
   ])('%s with %s is checked at %s and stored as %s', async (providerId, domain, url, stored) => {
     const result = await verifyAndBuildServiceAccountSecret(providerId, {
       apiToken: 'token-1',
@@ -933,6 +935,7 @@ describe('a token provider whose region or host defaults to the one it always us
     ['hex-service-account', 'hex.tech.example.com'],
     ['hex-service-account', 'acme.hex.tech@example.com'],
     ['hex-service-account', 'a.b.hex.tech'],
+    ['sentry-service-account', 'de.sentry.io.example.com'],
   ])(
     'refuses %s with an unlisted region or host %s without sending the token',
     async (providerId, domain) => {

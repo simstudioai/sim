@@ -8,6 +8,7 @@ import * as launchDarklyTools from '@/tools/launchdarkly'
 import * as newRelicTools from '@/tools/new_relic'
 import { prepareToolRequestUrl } from '@/tools/request-transport'
 import * as sendGridTools from '@/tools/sendgrid'
+import * as sentryTools from '@/tools/sentry'
 import * as squareTools from '@/tools/square'
 import { type ExecutableToolConfig, isInternalToolConfig, type ToolConfig } from '@/tools/types'
 
@@ -91,6 +92,16 @@ const FAMILIES: {
       ['app.hex.tech', 'app.hex.tech'],
       ['eu.hex.tech', 'eu.hex.tech'],
       ['acme.hex.tech', 'acme.hex.tech'],
+    ],
+    refusesUnknownRegion: true,
+  },
+  {
+    service: 'Sentry',
+    tools: sentryTools,
+    defaultHost: 'sentry.io',
+    regions: [
+      ['us', 'sentry.io'],
+      ['de', 'de.sentry.io'],
     ],
     refusesUnknownRegion: true,
   },

@@ -19,6 +19,7 @@ import {
   LAUNCHDARKLY_INSTANCE_OPTIONS,
 } from '@/tools/launchdarkly/utils'
 import { DEFAULT_SENDGRID_REGION, SENDGRID_REGION_OPTIONS } from '@/tools/sendgrid/utils'
+import { DEFAULT_SENTRY_REGION, SENTRY_REGION_OPTIONS } from '@/tools/sentry/utils'
 import { DEFAULT_SQUARE_ENVIRONMENT, SQUARE_ENVIRONMENT_OPTIONS } from '@/tools/square/types'
 
 /** Discriminator stored inside every encrypted token service-account secret blob. */
@@ -1880,12 +1881,22 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         placeholder: 'Paste your Sentry auth token',
         secret: true,
       },
+      {
+        id: 'domain',
+        label: 'Data storage region',
+        placeholder: 'Select a region',
+        secret: false,
+        options: SENTRY_REGION_OPTIONS,
+        defaultValue: DEFAULT_SENTRY_REGION,
+        hintMessage:
+          'us (default) or de: the data storage location shown in your organization settings.',
+      },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/sentry',
     helpText:
-      'Use a user auth token or an internal integration token with the scopes your operations need, such as org:read, project:read, project:write, and event:read. The organization slug stays a field on the block.',
+      'Use a user auth token or an internal integration token with the scopes your operations need, such as org:read, project:read, project:write, and event:read. Choose EU if your organization stores its data in the EU (de.sentry.io). The organization slug stays a field on the block.',
     invalidCredentialsHelp:
-      'Sentry rejected this token. Check that it was copied in full, has not been revoked, and belongs to sentry.io rather than a self-hosted Sentry.',
+      'Sentry rejected this token. Check that it was copied in full, has not been revoked, belongs to sentry.io rather than a self-hosted Sentry, and that the region matches where your organization stores its data.',
   },
   [STRIPE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: STRIPE_SERVICE_ACCOUNT_PROVIDER_ID,

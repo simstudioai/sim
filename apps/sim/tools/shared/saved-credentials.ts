@@ -369,7 +369,10 @@ export const SENDGRID_CREDENTIAL_OAUTH = tokenCredentialOAuth('sendgrid', {
   apiKey: 'accessToken',
   region: 'domain',
 })
-export const SENTRY_CREDENTIAL_OAUTH = tokenCredentialOAuth('sentry', { apiKey: 'accessToken' })
+export const SENTRY_CREDENTIAL_OAUTH = tokenCredentialOAuth('sentry', {
+  apiKey: 'accessToken',
+  region: 'domain',
+})
 export const SERVICENOW_CREDENTIAL_OAUTH = tokenCredentialOAuth('servicenow', {
   instanceUrl: 'domain',
   username: 'providerWorkspaceId',
