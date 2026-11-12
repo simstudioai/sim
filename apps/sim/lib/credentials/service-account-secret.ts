@@ -27,6 +27,11 @@ import {
 } from '@/lib/credentials/client-credential-accounts/server'
 import { invalidateCoordinatedClientToken } from '@/lib/credentials/coordinated-client-token'
 import {
+  DATABASE_CONNECTION_DESCRIPTORS,
+  type DatabaseConnectionProviderId,
+} from '@/lib/credentials/database-connections/descriptors'
+import { verifyAndEncryptDatabaseConnection } from '@/lib/credentials/database-connections/server'
+import {
   DatabricksCredentialError,
   verifyAndEncryptDatabricksCredential,
 } from '@/lib/credentials/databricks-service-account.server'
@@ -539,6 +544,36 @@ async function buildOracleDatabaseServiceAccountSecret(
   }
 }
 
+/**
+ * Builds a saved PostgreSQL, MySQL, or SQL Server connection: the submitted
+ * connection JSON is proven with `SELECT 1` and stored encrypted.
+ */
+function databaseConnectionSecretBuilder(
+  providerId: DatabaseConnectionProviderId
+): ServiceAccountSecretBuilder {
+  const { label } = DATABASE_CONNECTION_DESCRIPTORS[providerId]
+  return async (fields) => {
+    if (!fields.serviceAccountJson)
+      throw new ServiceAccountSecretError(`${label} connection configuration is required`)
+    let result
+    try {
+      result = await verifyAndEncryptDatabaseConnection(providerId, fields.serviceAccountJson)
+    } catch {
+      throw new ServiceAccountSecretError(
+        `Could not verify the ${label} connection. Check the connection details, network access, and database permissions.`
+      )
+    }
+    const principal: ServiceAccountPrincipal = { kind: 'user', id: result.username }
+    return {
+      providerId,
+      encryptedServiceAccountKey: result.encryptedServiceAccountKey,
+      displayName: result.displayName,
+      auditMetadata: serviceAccountPrincipalMetadata(principal),
+      principal,
+    }
+  }
+}
+
 async function buildOciApiKeyServiceAccountSecret(
   fields: ServiceAccountSecretFields
 ): Promise<ServiceAccountSecretResult> {
@@ -826,6 +861,12 @@ const SERVICE_ACCOUNT_SECRET_BUILDERS: Record<string, ServiceAccountSecretBuilde
   [DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID]: buildDatabricksServiceAccountSecret,
   [MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID]: buildMicrosoftAppServiceAccountSecret,
   [SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID]: buildSnowflakeServiceAccountSecret,
+  ...Object.fromEntries(
+    Object.values(DATABASE_CONNECTION_DESCRIPTORS).map(({ providerId }) => [
+      providerId,
+      databaseConnectionSecretBuilder(providerId),
+    ])
+  ),
 }
 
 /**

@@ -20,6 +20,7 @@ import {
   getClientCredentialAccountMinter,
   parseClientCredentialAccountSecretBlob,
 } from '@/lib/credentials/client-credential-accounts/server'
+import { DATABASE_CONNECTION_DESCRIPTORS } from '@/lib/credentials/database-connections/descriptors'
 import {
   GOOGLE_SERVICE_ACCOUNT_EXCLUDED_SCOPES,
   isGoogleWorkloadIdentitySecret,
@@ -994,6 +995,13 @@ const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolve
   [OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => ({
     accessToken: credentialId,
   }),
+  // A saved database connection is read inside the tool operation, bound to the run's owner.
+  ...Object.fromEntries(
+    Object.values(DATABASE_CONNECTION_DESCRIPTORS).map(({ providerId }) => [
+      providerId,
+      async (credentialId: string) => ({ accessToken: credentialId }),
+    ])
+  ),
   [GITHUB_INSTALLATION_PROVIDER_ID]: async (credentialId, { githubRepositoryScope }) => {
     if (!githubRepositoryScope)
       throw new Error('GitHub installation tokens require a source repository')

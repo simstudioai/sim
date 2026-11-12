@@ -42,6 +42,15 @@ export const SLACK_CUSTOM_BOT_SECRET_TYPE = 'slack_custom_bot' as const
 
 export const ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID = 'oracledb-service-account' as const
 
+/** Saved PostgreSQL connection (host, port, database, user, password, SSL mode). */
+export const POSTGRESQL_SERVICE_ACCOUNT_PROVIDER_ID = 'postgresql-service-account' as const
+
+/** Saved MySQL connection (host, port, database, user, password, SSL mode). */
+export const MYSQL_SERVICE_ACCOUNT_PROVIDER_ID = 'mysql-service-account' as const
+
+/** Saved Microsoft SQL Server connection (host, port, database, login, password, TLS settings). */
+export const MSSQL_SERVICE_ACCOUNT_PROVIDER_ID = 'mssql-service-account' as const
+
 /** Saved AWS identity (access keys, an assumed role, or a keyless OIDC role) shared by every AWS block. */
 export const AWS_SERVICE_ACCOUNT_PROVIDER_ID = 'aws-service-account' as const
 
@@ -64,6 +73,9 @@ export type OAuthProvider =
   | 'aws'
   | 'databricks'
   | 'oracledb'
+  | 'postgresql'
+  | 'mysql'
+  | 'mssql'
   | 'oracle-epm'
   | 'oracle-fusion'
   | 'github-repositories'
@@ -256,6 +268,9 @@ export type OAuthService =
   | 'jama'
   | 'flow'
   | 'oracledb'
+  | 'postgresql'
+  | 'mysql'
+  | 'mssql'
   | 'oracle-epm'
   | 'oracle-fusion'
   | 'oci'
