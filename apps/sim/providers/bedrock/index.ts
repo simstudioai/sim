@@ -125,28 +125,31 @@ function enrichLastModelSegmentFromBedrockResponse(
 
 /**
  * The credentials a Bedrock client signs with, and the part of its cache key
- * that names them. A saved credential's session is used alone, so selecting one
- * never falls back to inline keys or the deployment's own AWS credentials. Its
- * key names the credential and session expiry plus a digest of the key material,
- * so a new session or a corrected key pair gets a fresh client without the
- * cache key holding a secret.
+ * that names them, or `null` when the client must not be cached. A saved
+ * credential's session is used alone, so selecting one never falls back to
+ * inline keys or the deployment's own AWS credentials. An STS session (assumed
+ * or keyless role) is fresh on every resolve, so its client is built for the one
+ * request rather than filling the shared client cache with entries never read
+ * again. A long-lived saved key pair is keyed by credential plus a digest of the
+ * key material, so a corrected pair gets a fresh client without the cache key
+ * holding a secret.
  */
 function resolveBedrockClientCredentials(request: ProviderRequest): {
   credentials: BedrockRuntimeClientConfig['credentials']
-  credentialKey: string
+  credentialKey: string | null
 } {
   const session = request.bedrockSession
   if (session) {
     const { accessKeyId, secretAccessKey, sessionToken } = session
+    if (sessionToken) {
+      return { credentials: { accessKeyId, secretAccessKey, sessionToken }, credentialKey: null }
+    }
     return {
-      credentials: sessionToken
-        ? { accessKeyId, secretAccessKey, sessionToken }
-        : { accessKeyId, secretAccessKey },
+      credentials: { accessKeyId, secretAccessKey },
       credentialKey: [
         'credential',
         session.credentialId,
-        session.expiration?.getTime() ?? 'long-lived',
-        sha256Hex([accessKeyId, secretAccessKey, sessionToken ?? ''].join('\0')),
+        sha256Hex([accessKeyId, secretAccessKey].join('\0')),
       ].join(':'),
     }
   }
@@ -204,10 +207,12 @@ export const bedrockProvider: ProviderConfig = {
     })
 
     const { credentials, credentialKey } = resolveBedrockClientCredentials(request)
-    const client = getCachedProviderClient(
-      `bedrock::${region}::${credentialKey}`,
-      () => new BedrockRuntimeClient({ region, credentials, requestHandler: awsRequestHandler() })
-    )
+    const buildClient = () =>
+      new BedrockRuntimeClient({ region, credentials, requestHandler: awsRequestHandler() })
+    const client =
+      credentialKey === null
+        ? buildClient()
+        : getCachedProviderClient(`bedrock::${region}::${credentialKey}`, buildClient)
 
     const { messages, systemContent } = convertBedrockRequestHistory(request)
     const canonicalModelId = `bedrock/${getBedrockBaseModelId(request.model)}`

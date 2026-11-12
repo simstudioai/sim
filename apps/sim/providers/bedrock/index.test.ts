@@ -169,7 +169,6 @@ describe('bedrockProvider credential handling', () => {
         accessKeyId: 'ASIASESSIONKEY000001',
         secretAccessKey: 'session-secret',
         sessionToken: 'session-token',
-        expiration: new Date('2030-01-01T00:00:00Z'),
       },
     })
 
@@ -202,30 +201,29 @@ describe('bedrockProvider credential handling', () => {
     expect(mockGetAwsCredentials).not.toHaveBeenCalled()
   })
 
-  it('reuses one client per session and builds a new one when the session changes', async () => {
-    const session = {
-      credentialId: 'cred-1',
-      accessKeyId: 'ASIASESSIONKEY000001',
-      secretAccessKey: 'session-secret',
-      sessionToken: 'session-token',
-      expiration: new Date('2030-01-01T00:00:00Z'),
+  it("keeps other clients warm while a role credential's STS sessions come and go", async () => {
+    const inlineKeys = {
+      bedrockAccessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+      bedrockSecretKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+    }
+    await bedrockProvider.executeRequest({ ...baseRequest, ...inlineKeys })
+    vi.mocked(BedrockRuntimeClient).mockClear()
+
+    for (let call = 0; call < 1_000; call++) {
+      await bedrockProvider.executeRequest({
+        ...baseRequest,
+        bedrockSession: {
+          credentialId: 'cred-role',
+          accessKeyId: `ASIASESSIONKEY${call}`,
+          secretAccessKey: `session-secret-${call}`,
+          sessionToken: `session-token-${call}`,
+        },
+      })
     }
     vi.mocked(BedrockRuntimeClient).mockClear()
 
-    await bedrockProvider.executeRequest({ ...baseRequest, bedrockSession: session })
-    await bedrockProvider.executeRequest({ ...baseRequest, bedrockSession: { ...session } })
-    expect(BedrockRuntimeClient).toHaveBeenCalledTimes(1)
-
-    await bedrockProvider.executeRequest({
-      ...baseRequest,
-      bedrockSession: {
-        ...session,
-        accessKeyId: 'ASIASESSIONKEY000002',
-        sessionToken: 'next-token',
-        expiration: new Date('2030-01-01T01:00:00Z'),
-      },
-    })
-    expect(BedrockRuntimeClient).toHaveBeenCalledTimes(2)
+    await bedrockProvider.executeRequest({ ...baseRequest, ...inlineKeys })
+    expect(BedrockRuntimeClient).not.toHaveBeenCalled()
   })
 
   it('builds a new client when a long-lived saved key pair is corrected', async () => {

@@ -6,11 +6,21 @@ import { recordCredentialAccess } from '@/lib/oauth/token-resolution'
 import { AWS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import type { BedrockCredentialSession } from '@/providers/types'
 
-/** A saved AWS credential could not be used for a Bedrock request. */
+/**
+ * A saved AWS credential could not be used for a Bedrock request: the caller is
+ * not allowed to use it (`unauthorized`), or it is not a live AWS credential or
+ * AWS refused it (`unusable`).
+ */
 export class BedrockCredentialError extends Error {
-  constructor(message: string, options?: { cause?: unknown }) {
-    super(message, options)
+  readonly reason: 'unauthorized' | 'unusable'
+
+  constructor(
+    message: string,
+    options?: { reason?: 'unauthorized' | 'unusable'; cause?: unknown }
+  ) {
+    super(message, { cause: options?.cause })
     this.name = 'BedrockCredentialError'
+    this.reason = options?.reason ?? 'unusable'
   }
 }
 
@@ -50,7 +60,9 @@ export async function resolveBedrockCredentialSession({
   signal,
 }: ResolveBedrockCredentialParams): Promise<BedrockCredentialSession> {
   if (!actingUserId) {
-    throw new BedrockCredentialError('Using an AWS credential requires an authenticated user')
+    throw new BedrockCredentialError('Using an AWS credential requires an authenticated user', {
+      reason: 'unauthorized',
+    })
   }
 
   const access = await authorizeCredentialUseForAuth(
@@ -58,7 +70,9 @@ export async function resolveBedrockCredentialSession({
     { credentialId, workflowId, workspaceId, callerUserId: actingUserId }
   )
   if (!access.ok) {
-    throw new BedrockCredentialError(access.error || 'Not authorized to use this AWS credential')
+    throw new BedrockCredentialError(access.error || 'Not authorized to use this AWS credential', {
+      reason: 'unauthorized',
+    })
   }
   if (
     access.credentialType !== 'service_account' ||
@@ -99,6 +113,5 @@ export async function resolveBedrockCredentialSession({
     accessKeyId: session.accessKeyId,
     secretAccessKey: session.secretAccessKey,
     ...(session.sessionToken ? { sessionToken: session.sessionToken } : {}),
-    ...(session.expiration ? { expiration: session.expiration } : {}),
   }
 }
