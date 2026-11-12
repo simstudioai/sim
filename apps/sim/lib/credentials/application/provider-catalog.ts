@@ -176,7 +176,7 @@ function withKeylessMode(
   if (!mode) return descriptor
   const { keyless, scope } = mode
   const scopeNote = scope ? ` ${scope}` : ''
-  const hint = `Keyless: send the keylessConfig from Create workload identity subject with ${keyless.requiredConfigFields.join(', ')} added.${scopeNote}`
+  const hint = `Keyless: send the keylessConfig from Create workload identity subject with ${keyless.requiredConfigFields.join(', ')} added. Add audience to sign for your own value instead of the default audience, and trust that value.${scopeNote}`
   const configurationField = descriptor.fields.find((field) => field.id === 'serviceAccountJson')
   const fields = configurationField
     ? descriptor.fields.map((field) =>

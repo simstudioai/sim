@@ -26,7 +26,7 @@ import {
 import {
   type KeylessSetup,
   KeylessTrustFields,
-  keylessSubjectFields,
+  keylessConfigFields,
   useKeylessSetup,
   useSavedConnectionSubmit,
 } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/keyless-connection'
@@ -87,14 +87,19 @@ function keylessErrorMessage(code: string): string | undefined {
   }
 }
 
-/** The statement that creates a service user trusting only this credential's subject. */
-function buildCreateUserStatement(issuer: string, subject: string) {
+/**
+ * The statement that creates a service user trusting only this credential's
+ * subject. Snowflake accepts the default `snowflakecomputing.com` audience with
+ * no `OIDC_AUDIENCE_LIST`; a custom audience must be listed there.
+ */
+function buildCreateUserStatement(issuer: string, subject: string, customAudience?: string) {
   return [
     'CREATE USER SIM_WORKFLOWS',
     '  WORKLOAD_IDENTITY = (',
     '    TYPE = OIDC',
     `    ISSUER = '${issuer}'`,
     `    SUBJECT = '${subject}'`,
+    ...(customAudience ? [`    OIDC_AUDIENCE_LIST = ('${customAudience}')`] : []),
     '  )',
     '  TYPE = SERVICE;',
   ].join('\n')
@@ -251,7 +256,7 @@ function SnowflakeAccountForm({
       config: {
         authType: 'workload_identity',
         host: normalizedHost,
-        ...keylessSubjectFields(keyless),
+        ...keylessConfigFields(keyless),
       },
       displayName,
       description,
@@ -260,7 +265,11 @@ function SnowflakeAccountForm({
 
   const createUserStatement =
     authType === 'workload_identity' && keyless.trust
-      ? buildCreateUserStatement(keyless.trust.issuer, keyless.trust.subject)
+      ? buildCreateUserStatement(
+          keyless.trust.issuer,
+          keyless.trust.subject,
+          keyless.customAudience
+        )
       : null
   const action = credentialId ? 'Reconnect' : 'Add'
   const authOptions = [
@@ -359,7 +368,12 @@ function SnowflakeAccountForm({
           </>
         )}
 
-        {authType === 'workload_identity' && <KeylessTrustFields setup={keyless} />}
+        {authType === 'workload_identity' && (
+          <KeylessTrustFields
+            setup={keyless}
+            audienceHint='The statement below lists it in OIDC_AUDIENCE_LIST.'
+          />
+        )}
 
         {createUserStatement && (
           <ChipModalField

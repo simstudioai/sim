@@ -19,7 +19,7 @@ import {
 import { MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import {
   KeylessTrustFields,
-  keylessSubjectFields,
+  keylessConfigFields,
   useKeylessSetup,
   useSavedConnectionSubmit,
 } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/keyless-connection'
@@ -137,7 +137,7 @@ function MicrosoftAppAccountForm({
       ...(isGlobal ? {} : { cloud: appCloud }),
       ...(isGlobal && environmentUrl.trim() ? { environmentUrl: environmentUrl.trim() } : {}),
     }
-    if (authType === 'federated') return { ...base, ...keylessSubjectFields(keyless) }
+    if (authType === 'federated') return { ...base, ...keylessConfigFields(keyless) }
     if (authType === 'certificate') return { ...base, privateKey, certificate }
     return { ...base, clientSecret }
   }
@@ -261,6 +261,7 @@ function MicrosoftAppAccountForm({
           <KeylessTrustFields
             setup={keyless}
             pasteHint='In the app registration, open Certificates & secrets → Federated credentials → Add credential → Other issuer, and paste these values.'
+            audienceHint='The federated credential’s Audience must match it.'
           />
         )}
 

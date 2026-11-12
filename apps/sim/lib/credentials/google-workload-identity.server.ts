@@ -28,6 +28,11 @@ import {
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
 import {
+  storedAudienceField,
+  storedWorkloadIdentityAudienceSchema,
+  workloadIdentityAudienceSchema,
+} from '@/lib/credentials/workload-identity/audiences'
+import {
   isWorkloadIdentityConfigured,
   mintWorkloadIdentityToken,
   type WorkloadIdentityOwner,
@@ -181,9 +186,18 @@ function knownDelegatedServices(delegation: StoredDelegation): GoogleDelegationS
   return GOOGLE_DELEGATION_SERVICES.filter((service) => delegation.services.includes(service))
 }
 
-/** Absent on every credential saved without delegation, so their stored secret is unchanged. */
+/**
+ * `delegation` and `audience` are absent on every credential saved without them, so
+ * their stored secret is unchanged and earlier releases' strict schema still reads it.
+ */
 const storedConfigSchema = z
-  .object({ ...refShape, subject: subjectSchema, delegation: storedDelegationSchema.optional() })
+  .object({
+    ...refShape,
+    subject: subjectSchema,
+    delegation: storedDelegationSchema.optional(),
+    /** A custom `aud` for Sim's token; absent means the provider's resource name. */
+    audience: storedWorkloadIdentityAudienceSchema,
+  })
   .strict()
 
 type GoogleWorkloadIdentityConfig = z.infer<typeof storedConfigSchema>
@@ -217,6 +231,7 @@ const submittedConfigSchema = z
     subject: z.string().min(1).max(512).optional(),
     subjectProof: z.string().min(1).max(512).optional(),
     delegation: submittedDelegationSchema.optional(),
+    audience: workloadIdentityAudienceSchema('google').optional(),
   })
   .strict()
 
@@ -303,24 +318,35 @@ function isProviderOutage(status: number): boolean {
   return providerFailureCode(status) === 'provider_unavailable'
 }
 
-const STS_REFUSED_MESSAGE =
-  'Google Cloud refused Sim’s token for this workload identity provider. Check the project number, pool ID, and provider ID; that the provider is enabled and is an OIDC provider for the issuer from Sim (the connect dialog or `sim credentials keyless-subject`), with no allowed audiences and the attribute mapping google.subject=assertion.sub; and that its attribute condition allows this credential’s subject.'
+function stsRefusedMessage(config: GoogleWorkloadIdentityConfig): string {
+  const audiences = config.audience
+    ? `with ${config.audience} in its allowed audiences`
+    : `with no allowed audiences, or with ${googleWorkloadIdentityAudience(config)} among them`
+  return `Google Cloud refused Sim’s token for this workload identity provider. Check the project number, pool ID, and provider ID; that the provider is enabled and is an OIDC provider for the issuer from Sim (the connect dialog or \`sim credentials keyless-subject\`), ${audiences}, and the attribute mapping google.subject=assertion.sub; and that its attribute condition allows this credential’s subject.`
+}
 
 /** Copy for an STS refusal. Only Google's documented issuer-connection error is matched by text. */
-function stsFailureMessage(status: number, payload: Record<string, unknown>): string {
+function stsFailureMessage(
+  status: number,
+  payload: Record<string, unknown>,
+  config: GoogleWorkloadIdentityConfig
+): string {
   if (isProviderOutage(status)) return 'Google Cloud STS is unavailable. Try again.'
   const description = typeof payload.error_description === 'string' ? payload.error_description : ''
   if (description.includes('Error connecting to the given credential')) {
     return 'Google Cloud could not fetch the signing keys from Sim’s issuer. The issuer must be reachable over public HTTPS.'
   }
   const code = typeof payload.error === 'string' ? payload.error : ''
-  return STS_DIAGNOSTIC_ERRORS.has(code) ? `${STS_REFUSED_MESSAGE} (${code})` : STS_REFUSED_MESSAGE
+  const message = stsRefusedMessage(config)
+  return STS_DIAGNOSTIC_ERRORS.has(code) ? `${message} (${code})` : message
 }
 
 /**
- * Exchanges a Sim token for this subject at Google STS. The audience is the
- * credential's own provider; the subject token's `aud` is that provider's
- * resource name, which a provider with no allowed audiences accepts.
+ * Exchanges a Sim token for this subject at Google STS. The STS audience is
+ * always the credential's own provider. The subject token's `aud` is the
+ * credential's custom audience, which the provider must list in its allowed
+ * audiences, or else that provider's resource name, which a provider with no
+ * allowed audiences accepts.
  */
 async function exchangeSubjectToken(
   config: GoogleWorkloadIdentityConfig,
@@ -328,7 +354,7 @@ async function exchangeSubjectToken(
 ): Promise<string> {
   const subjectToken = await mintWorkloadIdentityToken({
     subject: config.subject,
-    audience: googleWorkloadIdentityAudience(config),
+    audience: config.audience ?? googleWorkloadIdentityAudience(config),
     owner,
   })
   // Google asks that this request carry no Authorization header.
@@ -345,7 +371,7 @@ async function exchangeSubjectToken(
     {}
   )
   if (status !== 200) {
-    throw new GoogleWorkloadIdentityError(stsFailureMessage(status, payload), status)
+    throw new GoogleWorkloadIdentityError(stsFailureMessage(status, payload, config), status)
   }
   if (typeof payload.access_token !== 'string' || !payload.access_token) {
     throw new GoogleWorkloadIdentityError('Google Cloud STS answered without a token.', 502)
@@ -662,16 +688,33 @@ export interface GoogleStoredDelegation {
 }
 
 /**
- * The Workspace user and delegated services a stored keyless secret holds, so
- * a reconnect keeps them instead of silently dropping them. Neither is secret.
- * Undefined for a JSON key, a credential without delegation, or one whose
- * services this release does not know.
+ * The non-secret fields a reconnect keeps, from one parse of the decrypted secret:
+ * its mode, the domain-wide delegation (Workspace user and the services this
+ * release knows), and a custom audience. A JSON key reads as `json_key` alone.
  */
-export function storedGoogleDelegation(decrypted: string): GoogleStoredDelegation | undefined {
-  const delegation = parseDecryptedConfig(decrypted)?.delegation
-  if (!delegation) return undefined
-  const services = knownDelegatedServices(delegation)
-  return services.length > 0 ? { user: delegation.user, services } : undefined
+export function storedGoogleReconnectFields(decrypted: string): {
+  authType: 'workload_identity' | 'json_key'
+  delegation?: GoogleStoredDelegation
+  audience?: string
+} {
+  let secret: unknown
+  try {
+    secret = JSON.parse(decrypted)
+  } catch {
+    return { authType: 'json_key' }
+  }
+  if (toRecord(secret).type !== GOOGLE_WORKLOAD_IDENTITY_SECRET_TYPE) {
+    return { authType: 'json_key' }
+  }
+  const config = parseStoredConfig(secret)
+  const services = config?.delegation ? knownDelegatedServices(config.delegation) : []
+  return {
+    authType: 'workload_identity',
+    ...(config?.delegation && services.length > 0
+      ? { delegation: { user: config.delegation.user, services } }
+      : {}),
+    ...(config?.audience ? { audience: config.audience } : {}),
+  }
 }
 
 function bindSubject(
@@ -728,6 +771,11 @@ export async function verifyAndEncryptGoogleWorkloadIdentityCredential(
     serviceAccountEmail: submitted.serviceAccountEmail,
     subject: bindSubject(submitted.subject, submitted.subjectProof, owner),
     ...(submitted.delegation ? { delegation: submitted.delegation } : {}),
+    ...storedAudienceField(
+      submitted.audience,
+      googleWorkloadIdentityAudience(submitted),
+      googleStsAudience(submitted)
+    ),
   }
   if (!subjectSchema.safeParse(config.subject).success) {
     throw new GoogleWorkloadIdentityError('This credential’s subject is too long for Google Cloud.')
@@ -771,9 +819,9 @@ export async function verifyAndEncryptGoogleWorkloadIdentityCredential(
 
 /**
  * Minted tokens per credential, stored-secret version, delegated user (if any),
- * and scopes: a reconnect re-encrypts the secret and so never reuses the old
- * configuration's token, and a delegated token never answers for the service
- * account's own.
+ * and scopes: a reconnect (a changed audience included) re-encrypts the secret
+ * and so never reuses the old configuration's token, and a delegated token never
+ * answers for the service account's own.
  */
 const tokenCache = new LRUCache<string, string>({ max: TOKEN_CACHE_MAX })
 

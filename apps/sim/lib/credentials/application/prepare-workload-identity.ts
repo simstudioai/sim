@@ -4,16 +4,15 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import { credentialOperations } from '@/lib/credentials/application/operations'
-import { storedAwsAuthType } from '@/lib/credentials/aws-service-account.server'
-import { storedDatabricksAuthType } from '@/lib/credentials/databricks-service-account.server'
-import { isGoogleWorkloadIdentitySecret } from '@/lib/credentials/google-workload-identity'
+import { storedAwsReconnectFields } from '@/lib/credentials/aws-service-account.server'
+import { storedDatabricksReconnectFields } from '@/lib/credentials/databricks-service-account.server'
 import {
   type GoogleStoredDelegation,
-  storedGoogleDelegation,
+  storedGoogleReconnectFields,
 } from '@/lib/credentials/google-workload-identity.server'
 import { storedMicrosoftAppReconnectFields } from '@/lib/credentials/microsoft-app-service-account.server'
 import type { MicrosoftCloudId } from '@/lib/credentials/microsoft-clouds'
-import { storedSnowflakeAuthType } from '@/lib/credentials/snowflake-service-account.server'
+import { storedSnowflakeReconnectFields } from '@/lib/credentials/snowflake-service-account.server'
 import {
   fixedWorkloadIdentityAudience,
   isWorkloadIdentityServiceAccountProviderId,
@@ -46,6 +45,8 @@ interface ReconnectFields<P extends WorkloadIdentityProvider = WorkloadIdentityP
   reconnectDelegation?: GoogleStoredDelegation
   /** A Microsoft app credential's national cloud; absent for a global one. */
   reconnectCloud?: MicrosoftCloudId
+  /** A keyless credential's custom audience; absent when it uses the default. */
+  reconnectAudience?: string
 }
 
 export type PrepareWorkloadIdentityResult =
@@ -60,28 +61,25 @@ export type PrepareWorkloadIdentityResult =
       expiresAt: string
     } & ReconnectFields)
 
-function authTypeOnly<P extends WorkloadIdentityProvider>(
-  read: (decrypted: string) => WorkloadIdentityProviderAuthType<P> | undefined
+/** What a provider's stored-secret reader returns: the non-secret fields a reconnect keeps. */
+interface StoredReconnectRead<P extends WorkloadIdentityProvider> {
+  authType?: WorkloadIdentityProviderAuthType<P>
+  audience?: string
+  cloud?: MicrosoftCloudId
+  delegation?: GoogleStoredDelegation
+}
+
+function reconnectFrom<P extends WorkloadIdentityProvider>(
+  read: (decrypted: string) => StoredReconnectRead<P>
 ): (decrypted: string) => ReconnectFields<P> {
   return (decrypted) => {
-    const reconnectAuthType = read(decrypted)
-    return reconnectAuthType ? { reconnectAuthType } : {}
-  }
-}
-
-function storedMicrosoftAppReconnect(decrypted: string): ReconnectFields<'microsoft'> {
-  const { authType, cloud } = storedMicrosoftAppReconnectFields(decrypted)
-  return {
-    ...(authType ? { reconnectAuthType: authType } : {}),
-    ...(cloud ? { reconnectCloud: cloud } : {}),
-  }
-}
-
-function storedGoogleReconnect(decrypted: string): ReconnectFields<'google'> {
-  const reconnectDelegation = storedGoogleDelegation(decrypted)
-  return {
-    reconnectAuthType: isGoogleWorkloadIdentitySecret(decrypted) ? 'workload_identity' : 'json_key',
-    ...(reconnectDelegation ? { reconnectDelegation } : {}),
+    const { authType, audience, cloud, delegation } = read(decrypted)
+    return {
+      ...(authType ? { reconnectAuthType: authType } : {}),
+      ...(audience ? { reconnectAudience: audience } : {}),
+      ...(cloud ? { reconnectCloud: cloud } : {}),
+      ...(delegation ? { reconnectDelegation: delegation } : {}),
+    }
   }
 }
 
@@ -91,16 +89,16 @@ function storedGoogleReconnect(decrypted: string): ReconnectFields<'google'> {
  * on a default that would drop the credential's role, secret, or certificate. A
  * provider whose mode has further non-secret settings a reconnect must keep (a
  * Google credential's domain-wide delegation, a Microsoft app credential's national
- * cloud) reads those here too.
+ * cloud, a keyless credential's custom audience) reads those here too.
  */
 const STORED_RECONNECT: {
   [P in WorkloadIdentityProvider]: (decrypted: string) => ReconnectFields<P>
 } = {
-  aws: authTypeOnly<'aws'>(storedAwsAuthType),
-  databricks: authTypeOnly<'databricks'>(storedDatabricksAuthType),
-  snowflake: authTypeOnly<'snowflake'>(storedSnowflakeAuthType),
-  microsoft: storedMicrosoftAppReconnect,
-  google: storedGoogleReconnect,
+  aws: reconnectFrom<'aws'>(storedAwsReconnectFields),
+  databricks: reconnectFrom<'databricks'>(storedDatabricksReconnectFields),
+  snowflake: reconnectFrom<'snowflake'>(storedSnowflakeReconnectFields),
+  microsoft: reconnectFrom<'microsoft'>(storedMicrosoftAppReconnectFields),
+  google: reconnectFrom<'google'>(storedGoogleReconnectFields),
 }
 
 /**

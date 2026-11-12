@@ -625,7 +625,7 @@ const WORKLOAD_IDENTITY_SUBJECT_EXAMPLE = {
     subjectProof: WORKLOAD_IDENTITY_SUBJECT_PROOF,
   },
   requiredConfigFields: ['roleArn'],
-  optionalConfigFields: ['stsRegion', 'sessionDurationSeconds'],
+  optionalConfigFields: ['stsRegion', 'sessionDurationSeconds', 'audience'],
 } as const
 
 const SECRET_EXAMPLE = {
@@ -1840,7 +1840,7 @@ const declaredRoutes = [
       applicationOperation: credentialOperations.prepareWorkloadIdentity,
       operationId: 'createCredentialWorkloadIdentitySubject',
       summary: 'Create workload identity subject',
-      description: `Start a keyless credential. Returns the issuer, audience, and a fresh subject to configure in the cloud's trust policy, plus \`keylessConfig\`: a prefilled \`serviceAccountJson\` whose \`subjectProof\` is valid for 24 hours and only for the requesting user. Add the \`requiredConfigFields\`, then call Create service-account credential with the same \`providerId\`; Sim verifies the trust while saving. Google Cloud has no fixed audience: it is the credential's own pool provider. Without keyless support the deployment returns \`400\` with \`details.code\` \`WORKLOAD_IDENTITY_NOT_CONFIGURED\`. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Start a keyless credential. Returns the issuer, audience, and a fresh subject to configure in the cloud's trust policy, plus \`keylessConfig\`: a prefilled \`serviceAccountJson\` whose \`subjectProof\` is valid for 24 hours and only for the requesting user. Add the \`requiredConfigFields\`, then call Create service-account credential with the same \`providerId\`; Sim verifies the trust while saving. The returned \`audience\` is the default; set \`audience\` in \`keylessConfig\` to have Sim sign tokens for your own value instead, and trust that value in the cloud. Google Cloud has no fixed default: it is the credential's own pool provider. Without keyless support the deployment returns \`400\` with \`details.code\` \`WORKLOAD_IDENTITY_NOT_CONFIGURED\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'A subject and proof for one new keyless credential.' },
     }),

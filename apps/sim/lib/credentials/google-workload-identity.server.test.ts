@@ -92,6 +92,8 @@ function fakeGoogle(
     firstTokenError?: Response
     /** Answers a Workspace read instead of 200. */
     readError?: Response
+    /** The provider's allowed audiences; empty accepts only its own resource name, as Google does. */
+    allowedAudiences?: string[]
   } = {}
 ) {
   const sts: RecordedRequest[] = []
@@ -146,10 +148,10 @@ function fakeGoogle(
       sts.push(request)
       if (options.stsError) return options.stsError.clone()
       const [, audience, subject] = String(request.body.subjectToken).split('|')
-      if (
-        audience !== `https://iam.googleapis.com/${PROVIDER_NAME}` ||
-        options.acceptSubject?.(subject) === false
-      ) {
+      const audienceAccepted = options.allowedAudiences?.length
+        ? options.allowedAudiences.includes(audience)
+        : audience === `https://iam.googleapis.com/${PROVIDER_NAME}`
+      if (!audienceAccepted || options.acceptSubject?.(subject) === false) {
         return jsonResponse(
           { error: 'invalid_grant', error_description: 'The audience in ID Token does not match' },
           400
@@ -377,7 +379,7 @@ describe('saving a keyless Google Cloud credential', () => {
       const error: Error = await save({}).catch((caught) => caught)
       expect(error.message).toMatch(/Google Cloud|service account/)
       expect(error.message).not.toContain(leaked)
-      expect(error.message).not.toContain('sim-oidc')
+      expect(error.message).not.toContain('sim-oidc|')
       expect(error.message).not.toContain('fed:')
     }
   })
@@ -1012,5 +1014,108 @@ describe('reading a stored keyless secret', () => {
       resolveWith(decrypted, { service: 'google-bigquery', scopes: [BIGQUERY] })
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
     expect(fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('a keyless credential with its own audience', () => {
+  const fetch = vi.fn()
+  const CUSTOM_AUDIENCE = 'https://sim.example.com/acme-prod'
+  const customSecret = JSON.stringify({
+    type: 'google_workload_identity_v1',
+    config: { ...storedConfig, audience: CUSTOM_AUDIENCE },
+  })
+
+  beforeEach(() => {
+    fetch.mockReset()
+    vi.stubGlobal('fetch', fetch)
+    workloadIdentityConfigured.value = true
+    encryptionMockFns.mockEncryptSecret.mockReset()
+    encryptionMockFns.mockEncryptSecret.mockResolvedValue({ encrypted: 'ciphertext', iv: 'iv' })
+  })
+
+  it('signs the verification and the pin probe for that audience, still exchanging at the provider', async () => {
+    const google = fakeGoogle(fetch, {
+      allowedAudiences: [CUSTOM_AUDIENCE],
+      acceptSubject: (subject) => subject === SUBJECT,
+    })
+
+    await expect(save({ audience: ` ${CUSTOM_AUDIENCE} ` })).resolves.toMatchObject({
+      serviceAccountEmail: SA_EMAIL,
+    })
+    expect(google.sts.length).toBeGreaterThanOrEqual(2)
+    for (const request of google.sts) {
+      expect(String(request.body.subjectToken).split('|')[1]).toBe(CUSTOM_AUDIENCE)
+      expect(request.body.audience).toBe(`//iam.googleapis.com/${PROVIDER_NAME}`)
+    }
+    expect(google.sts.some((request) => !String(request.body.subjectToken).endsWith(SUBJECT))).toBe(
+      true
+    )
+    expect(encryptionMockFns.mockEncryptSecret).toHaveBeenCalledWith(
+      JSON.stringify({
+        type: 'google_workload_identity_v1',
+        config: { ...storedConfig, audience: CUSTOM_AUDIENCE },
+      })
+    )
+  })
+
+  it('refuses the pin when a stray subject is accepted for that audience', async () => {
+    fakeGoogle(fetch, { allowedAudiences: [CUSTOM_AUDIENCE] })
+
+    await expect(save({ audience: CUSTOM_AUDIENCE })).rejects.toThrow(
+      /also trusts other Sim credentials/
+    )
+  })
+
+  it.each([`https://iam.googleapis.com/${PROVIDER_NAME}`, `//iam.googleapis.com/${PROVIDER_NAME}`])(
+    'stores no audience when %s, the provider’s own name, is submitted',
+    async (audience) => {
+      fakeGoogle(fetch, { acceptSubject: (subject) => subject === SUBJECT })
+
+      await expect(save({ audience })).resolves.toMatchObject({ serviceAccountEmail: SA_EMAIL })
+      expect(encryptionMockFns.mockEncryptSecret).toHaveBeenCalledWith(
+        JSON.stringify({ type: 'google_workload_identity_v1', config: storedConfig })
+      )
+    }
+  )
+
+  it('refuses another cloud’s default audience without contacting Google', async () => {
+    fakeGoogle(fetch)
+
+    await expect(save({ audience: 'sts.amazonaws.com' })).rejects.toThrow(
+      /belongs to another cloud/
+    )
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('names the custom audience to allow when STS refuses the token', async () => {
+    fakeGoogle(fetch)
+
+    await expect(save({ audience: CUSTOM_AUDIENCE })).rejects.toThrow(
+      `with ${CUSTOM_AUDIENCE} in its allowed audiences`
+    )
+  })
+
+  it('names the provider’s own name when STS refuses a default-audience token', async () => {
+    fakeGoogle(fetch, { allowedAudiences: [CUSTOM_AUDIENCE] })
+
+    await expect(save({})).rejects.toThrow(
+      `with no allowed audiences, or with https://iam.googleapis.com/${PROVIDER_NAME} among them`
+    )
+  })
+
+  it('mints run tokens for the stored audience', async () => {
+    const google = fakeGoogle(fetch, { allowedAudiences: [CUSTOM_AUDIENCE] })
+
+    await expect(
+      resolveGoogleWorkloadIdentityToken({
+        credentialId: 'cred-custom-audience',
+        decrypted: customSecret,
+        secretVersion: 'v1',
+        owner: { workspaceId: 'ws-1' },
+        scopes: [BIGQUERY],
+        service: 'google-bigquery',
+      })
+    ).resolves.toBe(`ya29.sa-token-for-${BIGQUERY}`)
+    expect(google.sts[0]?.body.subjectToken).toBe(`sim-oidc|${CUSTOM_AUDIENCE}|${SUBJECT}`)
   })
 })

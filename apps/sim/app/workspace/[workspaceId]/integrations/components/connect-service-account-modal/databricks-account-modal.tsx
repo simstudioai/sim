@@ -15,7 +15,7 @@ import { resourceScopeFromOwner, resourceScopeKey } from '@/lib/core/resource-sc
 import { DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import {
   KeylessTrustFields,
-  keylessSubjectFields,
+  keylessConfigFields,
   useKeylessSetup,
   useSavedConnectionSubmit,
 } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/keyless-connection'
@@ -118,7 +118,7 @@ function DatabricksAccountForm({
   const buildConfig = (): Record<string, unknown> => {
     const base = { authType, host: host.trim() }
     if (authType === 'oidc_federation') {
-      return { ...base, clientId: clientId.trim(), ...keylessSubjectFields(keyless) }
+      return { ...base, clientId: clientId.trim(), ...keylessConfigFields(keyless) }
     }
     if (authType === 'service_principal') {
       return { ...base, clientId: clientId.trim(), clientSecret }
@@ -127,12 +127,8 @@ function DatabricksAccountForm({
   }
 
   const federationCommand =
-    authType === 'oidc_federation' && keyless.trust?.audience
-      ? buildFederationPolicyCommand(
-          keyless.trust.issuer,
-          keyless.trust.audience,
-          keyless.trust.subject
-        )
+    authType === 'oidc_federation' && keyless.trust && keyless.audience
+      ? buildFederationPolicyCommand(keyless.trust.issuer, keyless.audience, keyless.trust.subject)
       : null
   const action = credentialId ? 'Reconnect' : 'Add'
   const authOptions = [
@@ -214,7 +210,12 @@ function DatabricksAccountForm({
           </ChipModalField>
         )}
 
-        {authType === 'oidc_federation' && <KeylessTrustFields setup={keyless} />}
+        {authType === 'oidc_federation' && (
+          <KeylessTrustFields
+            setup={keyless}
+            audienceHint='The federation policy must list it as an audience. Your Databricks account ID is a good choice.'
+          />
+        )}
 
         {federationCommand && (
           <ChipModalField

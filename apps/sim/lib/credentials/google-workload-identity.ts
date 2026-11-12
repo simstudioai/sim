@@ -17,6 +17,7 @@
  */
 
 import { impersonateEmailSchema } from '@/lib/api/contracts/oauth-connections'
+import { storedAudienceField } from '@/lib/credentials/workload-identity/audiences'
 import { getProviderIdFromServiceId, getScopesForService } from '@/lib/oauth/utils'
 
 /**
@@ -266,8 +267,9 @@ export function googleWorkloadIdentityRole(domainWideDelegation: boolean): strin
  * The gcloud commands that set up trust for one credential: the pool, an OIDC
  * provider for Sim's issuer that accepts only this credential's subject, and
  * the binding that lets that subject impersonate the service account (and, with
- * domain-wide delegation, sign for it). The provider sets no allowed audiences,
- * so it accepts its own resource name.
+ * domain-wide delegation, sign for it). Without a custom audience the provider
+ * sets no allowed audiences, so it accepts its own resource name; with one, it
+ * allows only that audience.
  */
 export function googleWorkloadIdentitySetupCommands(input: {
   ref: GoogleWorkloadIdentityProviderRef
@@ -275,8 +277,15 @@ export function googleWorkloadIdentitySetupCommands(input: {
   issuer: string
   subject: string
   domainWideDelegation?: boolean
+  /** The audience Sim's tokens carry; the provider's own name or none sets no allowed audiences. */
+  audience?: string
 }): string {
   const { ref, serviceAccountEmail, issuer, subject } = input
+  const { audience: customAudience } = storedAudienceField(
+    input.audience?.trim(),
+    googleWorkloadIdentityAudience(ref),
+    googleStsAudience(ref)
+  )
   return [
     `gcloud iam workload-identity-pools create ${ref.poolId} \\`,
     `    --project="${ref.projectNumber}" \\`,
@@ -288,6 +297,7 @@ export function googleWorkloadIdentitySetupCommands(input: {
     '    --location="global" \\',
     `    --workload-identity-pool="${ref.poolId}" \\`,
     `    --issuer-uri="${issuer}" \\`,
+    ...(customAudience ? [`    --allowed-audiences="${customAudience}" \\`] : []),
     '    --attribute-mapping="google.subject=assertion.sub" \\',
     `    --attribute-condition="assertion.sub=='${subject}'"`,
     '',

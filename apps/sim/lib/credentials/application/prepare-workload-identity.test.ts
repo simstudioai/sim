@@ -197,6 +197,65 @@ const STORED_MODES = [
   },
 ] as const
 
+const CUSTOM_AUDIENCE = 'sim-123456789012'
+
+/** One stored keyless secret per provider, each carrying {@link CUSTOM_AUDIENCE}. */
+const CUSTOM_AUDIENCE_SECRETS = [
+  {
+    provider: 'aws',
+    providerId: 'aws-service-account',
+    secret: {
+      type: 'aws_credential_v1',
+      config: { authType: 'oidc_role', roleArn, subject, audience: CUSTOM_AUDIENCE },
+    },
+  },
+  {
+    provider: 'databricks',
+    providerId: 'databricks-service-account',
+    secret: {
+      type: 'databricks_credential_v1',
+      config: {
+        authType: 'oidc_federation',
+        host: databricksHost,
+        clientId,
+        subject,
+        audience: CUSTOM_AUDIENCE,
+      },
+    },
+  },
+  {
+    provider: 'snowflake',
+    providerId: 'snowflake-service-account',
+    secret: {
+      ...keylessSecret,
+      config: { ...keylessSecret.config, audience: CUSTOM_AUDIENCE },
+    },
+  },
+  {
+    provider: 'microsoft',
+    providerId: 'microsoft-app-service-account',
+    secret: {
+      type: 'microsoft_app_credential_v1',
+      config: { ...appConfig, authType: 'federated', subject, audience: CUSTOM_AUDIENCE },
+    },
+  },
+  {
+    provider: 'google',
+    providerId: 'google-service-account',
+    secret: {
+      type: 'google_workload_identity_v1',
+      config: {
+        projectNumber: '123456789012',
+        poolId: 'sim-pool',
+        providerId: 'sim-oidc',
+        serviceAccountEmail: 'runner@analytics-prod.iam.gserviceaccount.com',
+        subject,
+        audience: CUSTOM_AUDIENCE,
+      },
+    },
+  },
+] as const
+
 describe('preparing a reconnect', () => {
   beforeEach(() => {
     workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext.mockResolvedValue({
@@ -216,6 +275,25 @@ describe('preparing a reconnect', () => {
         available: true,
         reconnectAuthType: expected,
       })
+    }
+  )
+
+  it.each(CUSTOM_AUDIENCE_SECRETS)(
+    'reopens a $provider keyless credential on its custom audience',
+    async ({ provider, providerId, secret }) => {
+      reconnecting(secret, { providerId })
+      await expect(prepare(provider)).resolves.toMatchObject({
+        available: true,
+        reconnectAudience: CUSTOM_AUDIENCE,
+      })
+    }
+  )
+
+  it.each(STORED_MODES)(
+    'reports no audience for a $provider credential stored as $expected',
+    async ({ provider, providerId, secret }) => {
+      reconnecting(secret, { providerId })
+      expect(await prepare(provider)).not.toHaveProperty('reconnectAudience')
     }
   )
 
