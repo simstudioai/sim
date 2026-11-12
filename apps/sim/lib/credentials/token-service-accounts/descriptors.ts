@@ -53,6 +53,12 @@ export interface TokenServiceAccountField {
    * mode; the token itself is always required.
    */
   optional?: boolean
+  /**
+   * Only on an `optional` field: the `domain` value that makes it required after all (Railway's
+   * workspace ID once the token type is `workspace`), so the connect form blocks a submit the
+   * provider's check would reject. Compared case-insensitively against the typed domain.
+   */
+  requiredForDomain?: string
   /** Soft-format hint shown while the current value doesn't match `hintPattern`. */
   hintPattern?: RegExp
   hintMessage?: string
@@ -2750,6 +2756,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         placeholder: 'Required for a workspace token',
         secret: false,
         optional: true,
+        requiredForDomain: 'workspace',
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/railway',

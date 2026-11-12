@@ -144,13 +144,15 @@ function TokenServiceAccountModalForm({
   const trimmedWorkspaceId = providerWorkspaceId.trim()
   const isPending =
     createCredential.isPending || updateCredential.isPending || submitPending === true
+  const isFieldRequired = (field: TokenServiceAccountField): boolean =>
+    isTokenServiceAccountFieldRequired(field) ||
+    (field.requiredForDomain !== undefined &&
+      normalizedDomain.toLowerCase() === field.requiredForDomain)
   const isDisabled =
     !authMethod ||
     (usesClientCredentials ? !clientId.trim() || !clientSecret.trim() : !trimmedToken) ||
-    Boolean(domainField && isTokenServiceAccountFieldRequired(domainField) && !normalizedDomain) ||
-    Boolean(
-      workspaceField && isTokenServiceAccountFieldRequired(workspaceField) && !trimmedWorkspaceId
-    ) ||
+    Boolean(domainField && isFieldRequired(domainField) && !normalizedDomain) ||
+    Boolean(workspaceField && isFieldRequired(workspaceField) && !trimmedWorkspaceId) ||
     isPending
 
   const hintFor = (field: TokenServiceAccountField, value: string): string | undefined => {
@@ -182,7 +184,7 @@ function TokenServiceAccountModalForm({
           options={field.options}
           placeholder={placeholder}
           align='start'
-          required={isTokenServiceAccountFieldRequired(field)}
+          required={isFieldRequired(field)}
         />
       )
     }
@@ -194,7 +196,7 @@ function TokenServiceAccountModalForm({
         onChange={onChange}
         placeholder={placeholder}
         autoComplete='off'
-        required={isTokenServiceAccountFieldRequired(field)}
+        required={isFieldRequired(field)}
         error={formatError}
       />
     )
