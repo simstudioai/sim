@@ -9,6 +9,7 @@ import { AgentMailBlock, AgentMailV2Block } from '@/blocks/blocks/agentmail'
 import { AgentPhoneBlock, AgentPhoneV2Block } from '@/blocks/blocks/agentphone'
 import { AhrefsBlock, AhrefsV2Block } from '@/blocks/blocks/ahrefs'
 import { AlgoliaBlock, AlgoliaV2Block } from '@/blocks/blocks/algolia'
+import { AmplitudeBlock, AmplitudeV2Block } from '@/blocks/blocks/amplitude'
 import { ApifyBlock, ApifyV2Block } from '@/blocks/blocks/apify'
 import { ApolloBlock, ApolloV2Block } from '@/blocks/blocks/apollo'
 import { AppConfigBlock, AppConfigV2Block } from '@/blocks/blocks/appconfig'
@@ -414,6 +415,13 @@ const VERSIONS: Array<{
     secretIds: ['serviceTokenId', 'serviceToken'],
   },
   { legacy: GongBlock, successor: GongV2Block, secretIds: ['accessKey', 'accessKeySecret'] },
+  {
+    legacy: AmplitudeBlock,
+    successor: AmplitudeV2Block,
+    secretIds: ['apiKey', 'secretKey', 'dataResidency'],
+    optionalIds: ['secretKey', 'dataResidency'],
+    legacyOperation: 'list_events',
+  },
   {
     legacy: ServiceNowV2Block,
     successor: ServiceNowV3Block,

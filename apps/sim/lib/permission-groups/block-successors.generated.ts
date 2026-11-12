@@ -13,6 +13,7 @@ export const BLOCK_ACCESS_SUCCESSORS: Record<string, string> = {
   agentphone: 'agentphone_v2',
   ahrefs: 'ahrefs_v2',
   algolia: 'algolia_v2',
+  amplitude: 'amplitude_v2',
   api_trigger: 'start_trigger',
   apify: 'apify_v2',
   apollo: 'apollo_v2',

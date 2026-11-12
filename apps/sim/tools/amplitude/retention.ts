@@ -1,5 +1,6 @@
 import type { AmplitudeRetentionParams, AmplitudeRetentionResponse } from '@/tools/amplitude/types'
 import { getDashboardHost } from '@/tools/amplitude/utils'
+import { AMPLITUDE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const retentionTool: ToolConfig<AmplitudeRetentionParams, AmplitudeRetentionResponse> = {
@@ -7,6 +8,7 @@ export const retentionTool: ToolConfig<AmplitudeRetentionParams, AmplitudeRetent
   name: 'Amplitude Retention',
   description: 'Measure how many users return to perform an action after a starting action.',
   version: '1.0.0',
+  oauth: AMPLITUDE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

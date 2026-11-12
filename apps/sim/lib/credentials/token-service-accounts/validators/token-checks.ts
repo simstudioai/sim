@@ -21,6 +21,7 @@ import {
 } from '@/lib/credentials/token-service-accounts/validators/http'
 import { githubTokenExpiration, gitlabTokenExpiration } from '@/lib/credentials/vendor-token-expiry'
 import { buildJupyterAuthHeaders, normalizeJupyterServerUrl } from '@/lib/internal/jupyter/protocol'
+import { getDashboardHost } from '@/tools/amplitude/utils'
 import { ashbyAuthHeaders } from '@/tools/ashby/utils'
 import { BITBUCKET_API_BASE, bitbucketHeaders } from '@/tools/bitbucket/utils'
 import { checkrHeaders } from '@/tools/checkr/utils'
@@ -166,6 +167,43 @@ export const validateAlgoliaServiceAccount = tokenCheckValidator({
       })
     }
     return true
+  },
+})
+
+/** Printable ASCII without a colon: what an Amplitude API key can be as a Basic username. */
+const AMPLITUDE_API_KEY = /^[\x21-\x39\x3b-\x7e]{1,256}$/
+/** Printable ASCII, so the Basic credential encodes exactly as the tools' `btoa` does. */
+const AMPLITUDE_SECRET_KEY = /^[\x21-\x7e]{1,256}$/
+
+/**
+ * Amplitude's Dashboard REST API lists a project's visible events for the API key and secret key
+ * sent as HTTP Basic credentials, on the region's host the tools build with `getDashboardHost`.
+ * Amplitude answers 403 when either key is invalid (401 is a malformed header), so the check
+ * proves the pair and its region together; it is a read with no billing cost.
+ * https://amplitude.com/docs/apis/analytics/dashboard-rest
+ */
+export const validateAmplitudeServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Amplitude',
+  domain: allowedDomain(US_OR_EU),
+  workspaceId: ({ providerWorkspaceId }) => {
+    const apiKey = (providerWorkspaceId ?? '').trim()
+    if (!AMPLITUDE_API_KEY.test(apiKey)) throw new Error('invalid API key')
+    return apiKey
+  },
+  request: ({ apiToken, providerWorkspaceId = '', domain }) => {
+    if (!AMPLITUDE_SECRET_KEY.test(apiToken)) {
+      throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+        step: 'verify',
+        reason: 'invalid Amplitude secret key',
+      })
+    }
+    return {
+      url: `${getDashboardHost(domain)}/api/2/events/list`,
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${providerWorkspaceId}:${apiToken}`).toString('base64')}`,
+        Accept: 'application/json',
+      },
+    }
   },
 })
 

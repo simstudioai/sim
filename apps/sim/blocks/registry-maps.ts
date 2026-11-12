@@ -7,7 +7,7 @@ import { AgiloftBlock, AgiloftBlockMeta } from '@/blocks/blocks/agiloft'
 import { AhrefsBlock, AhrefsBlockMeta, AhrefsV2Block } from '@/blocks/blocks/ahrefs'
 import { AirtableBlock, AirtableBlockMeta } from '@/blocks/blocks/airtable'
 import { AlgoliaBlock, AlgoliaBlockMeta, AlgoliaV2Block } from '@/blocks/blocks/algolia'
-import { AmplitudeBlock, AmplitudeBlockMeta } from '@/blocks/blocks/amplitude'
+import { AmplitudeBlock, AmplitudeBlockMeta, AmplitudeV2Block } from '@/blocks/blocks/amplitude'
 import { ApiBlock } from '@/blocks/blocks/api'
 import { ApiTriggerBlock } from '@/blocks/blocks/api_trigger'
 import { ApifyBlock, ApifyBlockMeta, ApifyV2Block } from '@/blocks/blocks/apify'
@@ -504,6 +504,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   algolia: AlgoliaBlock,
   algolia_v2: AlgoliaV2Block,
   amplitude: AmplitudeBlock,
+  amplitude_v2: AmplitudeV2Block,
   api: ApiBlock,
   api_trigger: ApiTriggerBlock,
   apify: ApifyBlock,

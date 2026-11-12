@@ -251,6 +251,7 @@ export const AGENTPHONE_SERVICE_ACCOUNT_PROVIDER_ID = 'agentphone-service-accoun
 export const AGENTMAIL_SERVICE_ACCOUNT_PROVIDER_ID = 'agentmail-service-account' as const
 export const AFFINITY_SERVICE_ACCOUNT_PROVIDER_ID = 'affinity-service-account' as const
 export const TAVILY_SERVICE_ACCOUNT_PROVIDER_ID = 'tavily-service-account' as const
+export const AMPLITUDE_SERVICE_ACCOUNT_PROVIDER_ID = 'amplitude-service-account' as const
 
 const SHOPIFY_DOMAIN_HINT_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i
 
@@ -383,6 +384,7 @@ export type TokenServiceAccountProviderId =
   | typeof AGENTMAIL_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof AFFINITY_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof TAVILY_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof AMPLITUDE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof FLOW_SERVICE_ACCOUNT_PROVIDER_ID
 
 export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
@@ -2589,6 +2591,39 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       "Use a dedicated integration user with the roles your workflows need and without multi-factor authentication. Enter your instance's https URL, like acme.service-now.com or a custom instance URL. The instance must be reachable from the internet.",
     invalidCredentialsHelp:
       'ServiceNow rejected this username and password. Check the instance URL, and that the user is active, not locked out, and not required to use multi-factor authentication.',
+  },
+  [AMPLITUDE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: AMPLITUDE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Amplitude',
+    tokenNoun: 'secret key',
+    connectNoun: 'project keys',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Secret key',
+        placeholder: 'Paste the project secret key',
+        secret: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'API key',
+        placeholder: 'Paste the project API key',
+        secret: false,
+      },
+      {
+        id: 'domain',
+        label: 'Data residency',
+        placeholder: 'us or eu',
+        secret: false,
+        hintPattern: /^(us|eu|US|EU)$/,
+        hintMessage: 'Enter us or eu, the region your Amplitude project stores data in.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/amplitude',
+    helpText:
+      "In Amplitude, open Settings > Projects, choose the project, and copy the API key and secret key from its General tab. Enter eu only for a project hosted in Amplitude's EU data center.",
+    invalidCredentialsHelp:
+      'Amplitude rejected this API key and secret key. Check that both come from the same project, and that the data residency matches the region the project is hosted in.',
   },
 }
 

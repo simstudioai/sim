@@ -12,7 +12,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   ahrefs_v2: 'Ahrefs',
   airtable: 'Airtable',
   algolia_v2: 'Algolia',
-  amplitude: 'Amplitude',
+  amplitude_v2: 'Amplitude',
   api: 'API',
   apify_v2: 'Apify',
   apollo_v2: 'Apollo',

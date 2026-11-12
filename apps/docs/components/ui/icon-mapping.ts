@@ -345,6 +345,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   algolia: AlgoliaIcon,
   algolia_v2: AlgoliaIcon,
   amplitude: AmplitudeIcon,
+  amplitude_v2: AmplitudeIcon,
   api: ApiIcon,
   api_trigger: ApiIcon,
   apify: ApifyIcon,

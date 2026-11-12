@@ -1290,7 +1290,7 @@
       "updatedAt": "2026-11-09"
     },
     {
-      "type": "amplitude",
+      "type": "amplitude_v2",
       "slug": "amplitude",
       "name": "Amplitude",
       "description": "Track events and query analytics from Amplitude",
@@ -1355,11 +1355,12 @@
       "operationCount": 13,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "amplitude",
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["data-analytics", "marketing"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-12"
     },
     {
       "type": "apify_v2",

@@ -12,6 +12,7 @@ import {
   AhrefsIcon,
   AirtableIcon,
   AlgoliaIcon,
+  AmplitudeIcon,
   ApifyIcon,
   ApolloIcon,
   AsanaIcon,
@@ -1891,6 +1892,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'gauge',
+  },
+  amplitude: {
+    name: 'Amplitude',
+    icon: AmplitudeIcon,
+    services: {
+      amplitude: {
+        name: 'Amplitude',
+        description: 'Track events, identify users, and query analytics in Amplitude.',
+        providerId: 'amplitude',
+        serviceAccountProviderId: 'amplitude-service-account',
+        icon: AmplitudeIcon,
+        baseProviderIcon: AmplitudeIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'amplitude',
   },
   tavily: {
     name: 'Tavily',

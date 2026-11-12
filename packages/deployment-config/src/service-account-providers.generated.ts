@@ -9,6 +9,7 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   ahrefs: 'ahrefs-service-account',
   airtable: 'airtable-service-account',
   algolia: 'algolia-service-account',
+  amplitude: 'amplitude-service-account',
   apify: 'apify-service-account',
   apollo: 'apollo-service-account',
   asana: 'asana-service-account',

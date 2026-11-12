@@ -10,6 +10,7 @@ vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock
 import {
   validateAgentMailServiceAccount,
   validateAlgoliaServiceAccount,
+  validateAmplitudeServiceAccount,
   validateAshbyServiceAccount,
   validateAzureDevOpsServiceAccount,
   validateBrexServiceAccount,
@@ -457,6 +458,12 @@ describe('saved credentials whose connection names a host, region, or account', 
     ['Twilio', validateTwilioServiceAccount, { providerWorkspaceId: 'AC123/../Messages' }],
     ['PlanetScale', validatePlanetScaleServiceAccount, { providerWorkspaceId: 'id:extra' }],
     ['Gong', validateGongServiceAccount, { providerWorkspaceId: 'key:extra' }],
+    ['Amplitude', validateAmplitudeServiceAccount, { providerWorkspaceId: 'key', domain: 'mars' }],
+    [
+      'Amplitude',
+      validateAmplitudeServiceAccount,
+      { providerWorkspaceId: 'key:extra', domain: 'us' },
+    ],
     [
       'ServiceNow',
       validateServiceNowServiceAccount,
@@ -704,6 +711,58 @@ describe('Gong saved access key verification', () => {
 
     await expect(
       validateGongServiceAccount({ apiToken: 'sécret-€', providerWorkspaceId: 'KEY123' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('Amplitude saved project key verification', () => {
+  it('lists events on the EU host with the Basic API key and secret key the tools send', async () => {
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({ data: [] }))
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateAmplitudeServiceAccount({
+        apiToken: 'secret-key',
+        providerWorkspaceId: ' api-key ',
+        domain: 'EU',
+      })
+    ).resolves.toMatchObject({ normalizedDomain: 'eu', normalizedWorkspaceId: 'api-key' })
+    expect(fetch).toHaveBeenCalledWith(
+      'https://analytics.eu.amplitude.com/api/2/events/list',
+      expect.objectContaining({
+        method: 'GET',
+        redirect: 'error',
+        headers: expect.objectContaining({ Authorization: `Basic ${btoa('api-key:secret-key')}` }),
+      })
+    )
+  })
+
+  it('rejects a key pair Amplitude answers with its invalid-key 403', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('Invalid API key', { status: 403 }))
+    )
+
+    await expect(
+      validateAmplitudeServiceAccount({
+        apiToken: 'bad',
+        providerWorkspaceId: 'api-key',
+        domain: 'us',
+      })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it('refuses a secret key the tools could not encode, before any request', async () => {
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateAmplitudeServiceAccount({
+        apiToken: 'sécret',
+        providerWorkspaceId: 'api-key',
+        domain: 'us',
+      })
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
     expect(fetch).not.toHaveBeenCalled()
   })

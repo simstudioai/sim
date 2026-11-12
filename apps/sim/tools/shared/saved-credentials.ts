@@ -205,6 +205,25 @@ export const ALGOLIA_CREDENTIAL_OAUTH = tokenCredentialOAuth('algolia', {
   applicationId: 'providerWorkspaceId',
   apiKey: 'accessToken',
 })
+/**
+ * Credential policies for the Amplitude tools. A saved Amplitude project credential holds the
+ * project API key (as its account id), the secret key (as its token), and the data residency
+ * region (as its domain). Each policy maps only the params its tools declare: the Dashboard REST
+ * tools send both keys to the region's host, the ingestion tools send the API key to the
+ * region's host, and the User Profile tool sends the secret key to its single US host.
+ */
+export const AMPLITUDE_CREDENTIAL_OAUTH = tokenCredentialOAuth('amplitude', {
+  apiKey: 'providerWorkspaceId',
+  secretKey: 'accessToken',
+  dataResidency: 'domain',
+})
+export const AMPLITUDE_INGESTION_CREDENTIAL_OAUTH = tokenCredentialOAuth('amplitude', {
+  apiKey: 'providerWorkspaceId',
+  dataResidency: 'domain',
+})
+export const AMPLITUDE_PROFILE_CREDENTIAL_OAUTH = tokenCredentialOAuth('amplitude', {
+  secretKey: 'accessToken',
+})
 export const APIFY_CREDENTIAL_OAUTH = tokenCredentialOAuth('apify', { apiKey: 'accessToken' })
 export const APOLLO_CREDENTIAL_OAUTH = {
   required: false,
@@ -475,6 +494,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   agentphone: AGENTPHONE_CREDENTIAL_OAUTH,
   ahrefs: AHREFS_CREDENTIAL_OAUTH,
   algolia: ALGOLIA_CREDENTIAL_OAUTH,
+  amplitude: AMPLITUDE_CREDENTIAL_OAUTH,
   apify: APIFY_CREDENTIAL_OAUTH,
   apollo: APOLLO_CREDENTIAL_OAUTH,
   ashby: ASHBY_CREDENTIAL_OAUTH,
