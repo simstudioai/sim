@@ -231,7 +231,8 @@ export function collectSnapshot(
   startingElementId = 0,
   elementId: number | null = null,
   markNew = true,
-  refNamespace = 0
+  refNamespace = 0,
+  forgetIssuedRefs = false
 ): unknown {
   const resolver = window.__simAgentResolveElement
   const scopedRoot =
@@ -603,9 +604,11 @@ export function collectSnapshot(
 
   // An unchanged element keeps its ref, and a ref stays resolvable after a
   // later snapshot leaves it out; a changed element gets a new ref.
-  const issuedRefs = window.__simAgentIssuedRefs ?? new Map()
+  // The driver asks the page to forget when it cannot vouch for a reused id
+  // (a capture it never committed handed it out), so every element gets a new one.
+  const issuedRefs = (!forgetIssuedRefs && window.__simAgentIssuedRefs) || new Map()
   window.__simAgentIssuedRefs = issuedRefs
-  const refOfElement = window.__simAgentRefOfElement ?? new WeakMap()
+  const refOfElement = (!forgetIssuedRefs && window.__simAgentRefOfElement) || new WeakMap()
   window.__simAgentRefOfElement = refOfElement
   const issuedRefCap = 5000
   const textHashOf = (el: Element): number => {
@@ -958,8 +961,10 @@ export function collectSnapshot(
       // was revealed (its DOM text is unchanged) or it declares a popup. A
       // recycled row changes its DOM text with neither.
       const name = nameFor(candidate)
-      const opensPopup =
-        textHashOf(candidate) === locator.textHash ||
+      const revealedContent = (): boolean =>
+        Boolean(candidate.textContent?.trim()) && textHashOf(candidate) === locator.textHash
+      const opensPopup = (): boolean =>
+        revealedContent() ||
         ['aria-haspopup', 'aria-expanded', 'aria-controls'].some(
           (attribute) => (candidate.getAttribute(attribute) || 'false') !== 'false'
         ) ||
@@ -968,10 +973,11 @@ export function collectSnapshot(
         ) !== null
       const nameGrewInPlace =
         connected &&
-        opensPopup &&
+        name !== locator.name &&
         locator.name.length > 0 &&
         name.startsWith(locator.name) &&
-        (locator.name.length >= 120 || /\s/.test(name.charAt(locator.name.length)))
+        (locator.name.length >= 120 || /\s/.test(name.charAt(locator.name.length))) &&
+        opensPopup()
       if (name !== locator.name && !nameGrewInPlace) return false
       const candidateAttributes = locatorAttributes(candidate)
       const attributes = connected ? connectedIdentityAttributes : stableAttributes
@@ -1052,6 +1058,12 @@ export function collectSnapshot(
     }
 
     const current = registry[id] ?? issued?.element.deref()
+    // An earlier ref whose element has since been issued a new ref (it changed
+    // identity in between, e.g. a recycled row) no longer names it.
+    if (!inLatestSnapshot && current && refOfElement.get(current) !== id) {
+      window.__simAgentStaleReason = 'the element was given a new ref by a later snapshot'
+      return null
+    }
     if (current?.isConnected) {
       if (!identityMatches(current, true)) {
         window.__simAgentStaleReason = `the node is still mounted but its identity drifted (now <${String(current.tagName || '').toLowerCase()}> role=${roleFor(current) || 'none'} name="${nameFor(current).slice(0, 60)}")`

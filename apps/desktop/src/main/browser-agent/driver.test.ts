@@ -3152,6 +3152,33 @@ describe('credential protection', () => {
     })
   })
 
+  it('recaptures with fresh ids when the page reuses an id this scope never committed', async () => {
+    const contents = await openPage()
+    const snapshot = (refIds: number[], nextElementId: number) => ({
+      url: 'https://example.com/',
+      title: 'Example',
+      outline: refIds.map((ref) => `- button "B${ref}" [ref=${ref}]`).join('\n'),
+      truncated: false,
+      refIds,
+      refLineIndexes: Object.fromEntries(refIds.map((ref, index) => [ref, index])),
+      nextElementId,
+    })
+    respondWith(contents, { collectSnapshot: snapshot([4, 5], 6) })
+    await driver.executeTool('chat-test', 'browser_snapshot', {})
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (!isPageCall(expression, 'collectSnapshot')) return Promise.resolve(undefined)
+      const forgets = expression.includes(',true])')
+      return Promise.resolve(forgets ? snapshot([6, 7], 8) : snapshot([2, 6], 7))
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_snapshot', {})
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: { outline: expect.stringContaining('[ref=7]') },
+    })
+  })
+
   it('acts on a ref an earlier snapshot of the same page issued', async () => {
     const contents = await openPage()
     respondWith(contents, {

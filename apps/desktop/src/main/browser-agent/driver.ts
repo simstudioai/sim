@@ -2496,28 +2496,36 @@ async function captureSnapshot(
   }
 
   const mainStartingElementId = state.nextElementRefId
-  const mainSnapshot = unwrapPageResult(
-    await execInPage(
-      contents,
-      collectSnapshot,
-      [mainStartingElementId, elementId ?? null, markNew, state.generation],
-      false,
-      notAfter
+  // A page reuses ids it issued in a capture this scope never committed (an
+  // aborted or timed-out snapshot); when validation cannot vouch for one, the
+  // page forgets its issued refs and the capture runs once more.
+  const captureMain = async (forgetIssuedRefs: boolean) => {
+    const snapshot = unwrapPageResult(
+      await execInPage(
+        contents,
+        collectSnapshot,
+        [mainStartingElementId, elementId ?? null, markNew, state.generation, forgetIssuedRefs],
+        false,
+        notAfter
+      )
     )
-  )
-  if (!stillCurrent()) {
-    throw new ToolError('The tab changed while its snapshot was being captured. Try again.')
+    if (!stillCurrent()) {
+      throw new ToolError('The tab changed while its snapshot was being captured. Try again.')
+    }
+    if (
+      !isRecordLike(snapshot) ||
+      typeof snapshot.outline !== 'string' ||
+      !Array.isArray(snapshot.refIds)
+    ) {
+      throw new ToolError('The page returned an incomplete snapshot. Try browser_snapshot again.')
+    }
+    const refs = validateSnapshotRefs(snapshot, mainStartingElementId, (ref) =>
+      samePageTarget(state.issuedRefTargets.get(ref), contents)
+    )
+    return { snapshot, refs }
   }
-  if (
-    !isRecordLike(mainSnapshot) ||
-    typeof mainSnapshot.outline !== 'string' ||
-    !Array.isArray(mainSnapshot.refIds)
-  ) {
-    throw new ToolError('The page returned an incomplete snapshot. Try browser_snapshot again.')
-  }
-  const mainRefs = validateSnapshotRefs(mainSnapshot, mainStartingElementId, (ref) =>
-    samePageTarget(state.issuedRefTargets.get(ref), contents)
-  )
+  let { snapshot: mainSnapshot, refs: mainRefs } = await captureMain(false)
+  if (!mainRefs) ({ snapshot: mainSnapshot, refs: mainRefs } = await captureMain(true))
   if (!mainRefs) {
     throw new ToolError('The page returned invalid element ids. Try browser_snapshot again.')
   }
@@ -2556,13 +2564,15 @@ async function captureSnapshot(
       }
       const frameUrl = frame.url
       const frameStartingElementId = nextElementId
-      const frameSnapshot = await execInPage(
-        frame,
-        collectSnapshot,
-        [frameStartingElementId, null, markNew, state.generation],
-        false,
-        notAfter
-      )
+      const captureFrame = (forgetIssuedRefs: boolean) =>
+        execInPage(
+          frame,
+          collectSnapshot,
+          [frameStartingElementId, null, markNew, state.generation, forgetIssuedRefs],
+          false,
+          notAfter
+        )
+      let frameSnapshot = await captureFrame(false)
       if (!stillCurrent()) {
         throw new ToolError('The tab changed while its frames were being captured. Try again.')
       }
@@ -2578,10 +2588,21 @@ async function captureSnapshot(
         unreadableCrossOriginFrames++
         continue
       }
-      const frameRefs = validateSnapshotRefs(frameSnapshot, frameStartingElementId, (ref) =>
-        samePageTarget(state.issuedRefTargets.get(ref), frame)
-      )
+      const validateFrame = (snapshot: Record<string, unknown>) =>
+        validateSnapshotRefs(snapshot, frameStartingElementId, (ref) =>
+          samePageTarget(state.issuedRefTargets.get(ref), frame)
+        )
+      let frameRefs = validateFrame(frameSnapshot)
       if (!frameRefs) {
+        frameSnapshot = await captureFrame(true)
+        if (!stillCurrent()) {
+          throw new ToolError('The tab changed while its frames were being captured. Try again.')
+        }
+        if (isRecordLike(frameSnapshot) && Array.isArray(frameSnapshot.refIds)) {
+          frameRefs = validateFrame(frameSnapshot)
+        }
+      }
+      if (!frameRefs || !isRecordLike(frameSnapshot) || typeof frameSnapshot.outline !== 'string') {
         unreadableCrossOriginFrames++
         continue
       }

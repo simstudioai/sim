@@ -814,6 +814,28 @@ describe('collectSnapshot', () => {
     expect(refFor(outlineOf(collectSnapshot()), 'Delete')).not.toBe(first)
   })
 
+  it('refuses an earlier ref once a later snapshot reissued its recycled element', () => {
+    document.body.innerHTML = '<div role="row"><span>Order 1</span><button>Archive</button></div>'
+    for (const el of Array.from(document.querySelectorAll('span, button'))) visible(el)
+    const first = refFor(outlineOf(collectSnapshot()), 'Archive')
+    ;(document.querySelector('span') as HTMLSpanElement).textContent = 'Order 2'
+    const second = refFor(outlineOf(collectSnapshot()), 'Archive')
+    collectSnapshot(500, second)
+
+    expect(second).not.toBe(first)
+    expect(clickElement(first)).toMatchObject({ error: 'stale' })
+  })
+
+  it('does not take an icon-only control as revealing content when its label grows', () => {
+    document.body.innerHTML = '<button aria-label="Remove"></button>'
+    const button = visible(document.querySelector('button') as HTMLButtonElement)
+    const ref = refFor(outlineOf(collectSnapshot()), 'Remove')
+
+    button.setAttribute('aria-label', 'Remove member')
+
+    expect(clickElement(ref)).toMatchObject({ error: 'stale' })
+  })
+
   it('invalidates a connected ref whose name changed to a longer, different word', () => {
     document.body.innerHTML = '<div role="listitem">Item 1</div>'
     const row = visible(document.querySelector('[role="listitem"]') as HTMLDivElement)
