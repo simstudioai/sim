@@ -1,9 +1,11 @@
 import {
+  INFISICAL_SERVICE_ACCOUNT_PROVIDER_ID,
   isTokenServiceAccountProviderId,
   LINEAR_SERVICE_ACCOUNT_PROVIDER_ID,
   SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID,
   type TokenServiceAccountProviderId,
 } from '@/lib/credentials/token-service-accounts/descriptors'
+import { mintInfisicalUniversalAuthToken } from '@/lib/credentials/token-service-accounts/grants/infisical'
 import { mintLinearClientCredentialsToken } from '@/lib/credentials/token-service-accounts/grants/linear'
 import { mintShopifyClientCredentialsToken } from '@/lib/credentials/token-service-accounts/grants/shopify'
 
@@ -11,7 +13,7 @@ import { mintShopifyClientCredentialsToken } from '@/lib/credentials/token-servi
 export interface TokenClientCredentialFields {
   clientId: string
   clientSecret: string
-  /** The normalized account host, for providers whose token endpoint is per account (Shopify). */
+  /** The account host or instance URL, for providers whose token endpoint is per account (Shopify, Infisical). */
   domain?: string
 }
 
@@ -37,6 +39,7 @@ const TOKEN_CLIENT_CREDENTIAL_MINTERS: Partial<
 > = {
   [SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID]: mintShopifyClientCredentialsToken,
   [LINEAR_SERVICE_ACCOUNT_PROVIDER_ID]: mintLinearClientCredentialsToken,
+  [INFISICAL_SERVICE_ACCOUNT_PROVIDER_ID]: mintInfisicalUniversalAuthToken,
 }
 
 export function getTokenClientCredentialMinter(

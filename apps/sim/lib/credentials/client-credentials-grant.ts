@@ -1,8 +1,12 @@
 import { isRecordLike } from '@sim/utils/object'
+import { EgressRefusedError } from '@/lib/core/network/transport.server'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { PayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   type FetchProviderOptions,
   fetchProvider,
+  isHostNotFound,
+  type ProviderResponse,
   providerFailureCode,
   providerFailureReason,
   readProviderErrorSnippet,
@@ -11,6 +15,9 @@ import {
 } from '@/lib/credentials/token-service-accounts/errors'
 
 const MAX_TOKEN_RESPONSE_BYTES = 64 * 1024
+/** The guarded fetch refuses a larger declared body outright; JSON reads stay capped at {@link MAX_TOKEN_RESPONSE_BYTES}. */
+const MAX_CONFIGURED_ENDPOINT_RESPONSE_BYTES = 1024 * 1024
+const CONFIGURED_ENDPOINT_TIMEOUT_MS = 10_000
 /** Form fields the grant itself sets, which an extra field may never replace. */
 const RESERVED_GRANT_FIELDS = ['grant_type', 'client_id', 'client_secret'] as const
 
@@ -130,5 +137,56 @@ export async function exchangeClientCredentialsGrant(
   return {
     accessToken: payload.access_token,
     expiresAt: new Date(startedAt + lifetimeSeconds * 1000),
+  }
+}
+
+/** A token request to an endpoint on a host the admin configured (a self-hosted or per-tenant instance). */
+export interface ConfiguredTokenEndpointRequest {
+  url: string
+  headers: Record<string, string>
+  body: string
+  /** The validation step named in errors and logs. */
+  step: string
+  signal?: AbortSignal
+}
+
+/**
+ * Posts a token request to a host taken from a validated credential field rather than a constant,
+ * through the `configuredEndpoint` egress guard: private and loopback addresses are refused and the
+ * connection is pinned to the checked address, redirects are refused so the secret reaches no other
+ * host, and the response is size-capped. A host the policy refuses is `host_not_allowed`, one that
+ * does not resolve is `site_not_found`, and any other network failure is `provider_unavailable`;
+ * the caller classifies the response itself.
+ */
+export async function postToConfiguredTokenEndpoint(
+  request: ConfiguredTokenEndpointRequest
+): Promise<ProviderResponse & { json(): Promise<unknown> }> {
+  const { step, signal } = request
+  try {
+    return await secureFetchWithValidation(request.url, {
+      profile: 'configuredEndpoint',
+      method: 'POST',
+      headers: request.headers,
+      body: request.body,
+      signal,
+      timeout: CONFIGURED_ENDPOINT_TIMEOUT_MS,
+      maxRedirects: 0,
+      maxResponseBytes: MAX_CONFIGURED_ENDPOINT_RESPONSE_BYTES,
+      logUrlValidationDetails: false,
+    })
+  } catch (error) {
+    signal?.throwIfAborted()
+    if (error instanceof EgressRefusedError) {
+      throw new TokenServiceAccountValidationError('host_not_allowed', 400, {
+        step,
+        reason: 'token endpoint host not allowed',
+      })
+    }
+    const notFound = isHostNotFound(error)
+    throw new TokenServiceAccountValidationError(
+      notFound ? 'site_not_found' : 'provider_unavailable',
+      notFound ? 400 : 502,
+      { step, reason: notFound ? 'host does not resolve' : 'network error reaching provider' }
+    )
   }
 }

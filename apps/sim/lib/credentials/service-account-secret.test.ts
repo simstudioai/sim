@@ -1069,3 +1069,82 @@ describe('a Railway token', () => {
     })
   })
 })
+
+describe('an Infisical machine identity with Universal Auth', () => {
+  const login = inputValidationMockFns.mockSecureFetchWithValidation
+  const identityCheck = inputValidationMockFns.mockSecureFetchWithPinnedIP
+
+  beforeEach(() => {
+    storedCoordinatedTokens.clear()
+    mockEncryptSecret.mockImplementation(async (value: string) => ({ encrypted: value }))
+    inputValidationMockFns.mockValidateUrlWithDNS.mockReset().mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.9',
+      originalHostname: 'secrets.example.com',
+    })
+    login
+      .mockReset()
+      .mockResolvedValue(
+        Response.json({ accessToken: 'machine-token', expiresIn: 7200, tokenType: 'Bearer' })
+      )
+    identityCheck
+      .mockReset()
+      .mockResolvedValue(
+        Response.json({ identityDetails: { organization: { id: 'org-1', name: 'Acme' } } })
+      )
+  })
+
+  it('stores the client ID and secret, never a token, after proving the minted token', async () => {
+    const result = await verifyAndBuildServiceAccountSecret('infisical-service-account', {
+      authMethod: 'client_credentials',
+      clientId: 'identity-client',
+      clientSecret: 'identity-secret',
+      domain: 'https://Secrets.Example.com/',
+    })
+
+    expect(login.mock.calls[0]?.[0]).toBe(
+      'https://secrets.example.com/api/v1/auth/universal-auth/login'
+    )
+    expect(identityCheck).toHaveBeenCalledWith(
+      'https://secrets.example.com/api/v1/identities/details',
+      '203.0.113.9',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer machine-token' }),
+      })
+    )
+    const blob = JSON.parse(result.encryptedServiceAccountKey)
+    expect(blob).toMatchObject({
+      type: 'token_service_account',
+      providerId: 'infisical-service-account',
+      authMethod: 'client_credentials',
+      clientId: 'identity-client',
+      clientSecret: 'identity-secret',
+      domain: 'https://secrets.example.com',
+    })
+    expect(blob.apiToken).toBeUndefined()
+    expect(result.encryptedServiceAccountKey).not.toContain('machine-token')
+  })
+
+  it('keeps a pasted access token on the token path when no auth method is sent', async () => {
+    const result = await verifyAndBuildServiceAccountSecret('infisical-service-account', {
+      apiToken: 'pasted-token',
+      domain: 'https://secrets.example.com',
+    })
+
+    const blob = JSON.parse(result.encryptedServiceAccountKey)
+    expect(blob.apiToken).toBe('pasted-token')
+    expect(blob.authMethod).toBeUndefined()
+    expect(login).not.toHaveBeenCalled()
+  })
+
+  it('requires the instance URL without logging in', async () => {
+    await expect(
+      verifyAndBuildServiceAccountSecret('infisical-service-account', {
+        authMethod: 'client_credentials',
+        clientId: 'identity-client',
+        clientSecret: 'identity-secret',
+      })
+    ).rejects.toBeInstanceOf(ServiceAccountSecretError)
+    expect(login).not.toHaveBeenCalled()
+  })
+})

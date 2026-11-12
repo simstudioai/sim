@@ -2501,6 +2501,15 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       'Use https://us.infisical.com for US Cloud, https://eu.infisical.com for EU Cloud, or your self-hosted URL. Sim does not renew the token, so it stops working when its Access Token TTL runs out: set a long Access Token TTL and Max TTL on the identity, and leave Access Token Period unset, since a periodic token expires unless it is renewed.',
     invalidCredentialsHelp:
       'Paste a machine identity access token, not a client secret or service token, and make sure the instance URL matches the region the identity lives in.',
+    clientCredentials: {
+      preferred: true,
+      label: 'Universal Auth (client ID and secret)',
+      tokenLabel: 'Access token',
+      helpText:
+        'Use the Client ID and a Client Secret from the machine identity’s Universal Auth settings. For the instance URL use https://us.infisical.com for US Cloud, https://eu.infisical.com for EU Cloud, or your self-hosted URL. Sim logs in again whenever its token expires, so leave the Client Secret’s usage limit at 0 (unlimited) and Access Token Max Number of Uses at 0, and allow Sim’s outbound addresses if the identity restricts trusted IPs.',
+      invalidCredentialsHelp:
+        'Infisical rejected this client ID and secret. Check that Universal Auth is configured on the machine identity, that the Client Secret has not expired, been revoked, or reached its usage limit, and that the instance URL matches the region the identity lives in.',
+    },
   },
   [SUPABASE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: SUPABASE_SERVICE_ACCOUNT_PROVIDER_ID,
