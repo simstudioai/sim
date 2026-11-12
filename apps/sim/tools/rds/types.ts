@@ -9,8 +9,13 @@ export interface RdsConnectionConfig {
   database?: string
 }
 
+export type RdsStatementParameters =
+  | Record<string, unknown>
+  | Array<{ name: string; value?: unknown; typeHint?: string }>
+
 export interface RdsQueryParams extends RdsConnectionConfig {
   query: string
+  parameters?: RdsStatementParameters | string
 }
 
 export interface RdsInsertParams extends RdsConnectionConfig {
@@ -31,6 +36,7 @@ export interface RdsDeleteParams extends RdsConnectionConfig {
 
 export interface RdsExecuteParams extends RdsConnectionConfig {
   query: string
+  parameters?: RdsStatementParameters | string
 }
 
 export interface RdsIntrospectParams extends RdsConnectionConfig {
@@ -43,6 +49,7 @@ interface RdsBaseResponse extends ToolResponse {
     message: string
     rows: unknown[]
     rowCount: number
+    generatedFields?: unknown[]
   }
   error?: string
 }

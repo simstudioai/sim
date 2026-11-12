@@ -65,6 +65,12 @@ export const listAccountAssignmentsTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Pagination token from a previous request',
     },
+    accountId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only return assignments in this 12-digit AWS account ID',
+    },
   },
 
   operation: {
@@ -76,6 +82,7 @@ export const listAccountAssignmentsTool: InternalToolConfig<
       principalId: params.principalId,
       principalType: params.principalType,
       maxResults: params.maxResults,
+      accountId: params.accountId,
       nextToken: params.nextToken,
     }),
   },

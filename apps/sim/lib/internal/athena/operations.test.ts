@@ -51,8 +51,8 @@ describe('Athena operations', () => {
       success: true,
       output: {
         columns: [
-          { name: 'name', type: 'varchar' },
-          { name: 'count', type: 'bigint' },
+          expect.objectContaining({ name: 'name', type: 'varchar' }),
+          expect.objectContaining({ name: 'count', type: 'bigint' }),
         ],
         rows: [{ name: 'sim', count: '3' }],
         nextToken: 'next-page',
@@ -89,5 +89,20 @@ describe('Athena operations', () => {
       NextToken: 'current-page',
     })
     expect(mocks.destroy).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the first row of a DDL result, which has no header row', async () => {
+    mocks.send.mockResolvedValue({
+      ResultSet: {
+        ResultSetMetadata: { ColumnInfo: [{ Name: 'tab_name', Type: 'string' }] },
+        Rows: [{ Data: [{ VarCharValue: 'orders' }] }, { Data: [{ VarCharValue: 'users' }] }],
+      },
+    })
+
+    await expect(
+      executeAthenaGetQueryResults({ ...CONNECTION, queryExecutionId: 'show-tables-id' })
+    ).resolves.toMatchObject({
+      output: { rows: [{ tab_name: 'orders' }, { tab_name: 'users' }] },
+    })
   })
 })

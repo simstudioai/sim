@@ -60,6 +60,13 @@ export const listPoliciesTool: InternalToolConfig<IAMListPoliciesParams, IAMList
         visibility: 'user-or-llm',
         description: 'Pagination marker from a previous request',
       },
+      policyUsageFilter: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description:
+          'Filter by how the policy is used. Must be exactly one of: PermissionsPolicy, PermissionsBoundary',
+      },
     },
 
     operation: {
@@ -72,6 +79,7 @@ export const listPoliciesTool: InternalToolConfig<IAMListPoliciesParams, IAMList
         pathPrefix: params.pathPrefix,
         maxItems: params.maxItems,
         marker: params.marker,
+        policyUsageFilter: params.policyUsageFilter,
       }),
     },
 

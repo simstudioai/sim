@@ -64,6 +64,13 @@ export const getLogEventsTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Maximum number of events to return',
     },
+    nextToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Token from a previous call (nextForwardToken or nextBackwardToken) to page through the stream',
+    },
   },
 
   operation: {
@@ -76,6 +83,7 @@ export const getLogEventsTool: InternalToolConfig<
       ...(params.startTime !== undefined && { startTime: params.startTime }),
       ...(params.endTime !== undefined && { endTime: params.endTime }),
       ...(params.limit !== undefined && { limit: params.limit }),
+      ...(params.nextToken && { nextToken: params.nextToken }),
     }),
   },
 
@@ -90,6 +98,8 @@ export const getLogEventsTool: InternalToolConfig<
       success: true,
       output: {
         events: data.output.events,
+        nextForwardToken: data.output.nextForwardToken ?? null,
+        nextBackwardToken: data.output.nextBackwardToken ?? null,
       },
     }
   },
@@ -106,6 +116,17 @@ export const getLogEventsTool: InternalToolConfig<
           ingestionTime: { type: 'number', description: 'Ingestion time in epoch milliseconds' },
         },
       },
+    },
+    nextForwardToken: {
+      type: 'string',
+      description:
+        'Token for the next, newer page of events (returns the same token when the end of the stream is reached)',
+      optional: true,
+    },
+    nextBackwardToken: {
+      type: 'string',
+      description: 'Token for the previous, older page of events',
+      optional: true,
     },
   },
 }

@@ -6,6 +6,7 @@ import type {
 } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { validateAwsRegion } from '@/lib/core/security/input-validation'
+import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 
 const SendTemplatedEmailSchema = z.object({
   region: z
@@ -23,6 +24,10 @@ const SendTemplatedEmailSchema = z.object({
   ccAddresses: z.string().nullish(),
   bccAddresses: z.string().nullish(),
   configurationSetName: z.string().nullish(),
+  replyToAddresses: z.string().nullish(),
+  fromName: z.string().nullish(),
+  emailTags: z.array(z.object({ name: z.string().min(1), value: z.string() })).nullish(),
+  attachments: RawFileInputArraySchema.nullish(),
 })
 
 const SendTemplatedEmailResponseSchema = z.object({

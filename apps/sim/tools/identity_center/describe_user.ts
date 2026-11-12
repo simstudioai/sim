@@ -73,6 +73,8 @@ export const describeUserTool: InternalToolConfig<
         email: data.email ?? null,
         userStatus: data.userStatus ?? null,
         title: data.title ?? null,
+        givenName: data.givenName ?? null,
+        familyName: data.familyName ?? null,
         externalIds: data.externalIds ?? [],
       },
     }
@@ -99,6 +101,16 @@ export const describeUserTool: InternalToolConfig<
     title: {
       type: 'string',
       description: 'Job title, or null when the Identity Store omits it',
+      nullable: true,
+    },
+    givenName: {
+      type: 'string',
+      description: 'Given (first) name, or null when the Identity Store omits it',
+      nullable: true,
+    },
+    familyName: {
+      type: 'string',
+      description: 'Family (last) name, or null when the Identity Store omits it',
       nullable: true,
     },
     externalIds: {

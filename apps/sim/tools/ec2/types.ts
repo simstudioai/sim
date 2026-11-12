@@ -30,7 +30,12 @@ export interface Ec2DescribeInstancesResponse extends ToolResponse {
       instanceId: string
       instanceType: string | null
       state: string | null
+      stateCode: number | null
       stateReason: string | null
+      stateReasonCode: string | null
+      stateTransitionReason: string | null
+      reservationId: string | null
+      ownerId: string | null
       launchTime: string | null
       availabilityZone: string | null
       vpcId: string | null
@@ -42,11 +47,38 @@ export interface Ec2DescribeInstancesResponse extends ToolResponse {
       imageId: string | null
       keyName: string | null
       platformDetails: string | null
+      platform: string | null
       architecture: string | null
       iamInstanceProfileArn: string | null
+      ipv6Address: string | null
+      tenancy: string | null
+      instanceLifecycle: string | null
+      spotInstanceRequestId: string | null
+      monitoringState: string | null
+      ebsOptimized: boolean | null
+      rootDeviceName: string | null
+      rootDeviceType: string | null
+      metadataHttpTokens: string | null
       securityGroups: {
         groupId: string | null
         groupName: string | null
+      }[]
+      blockDeviceMappings: {
+        deviceName: string | null
+        volumeId: string | null
+        status: string | null
+        attachTime: string | null
+        deleteOnTermination: boolean | null
+      }[]
+      networkInterfaces: {
+        networkInterfaceId: string | null
+        subnetId: string | null
+        vpcId: string | null
+        privateIpAddress: string | null
+        publicIp: string | null
+        macAddress: string | null
+        status: string | null
+        deviceIndex: number | null
       }[]
       tags: Record<string, string>
     }[]

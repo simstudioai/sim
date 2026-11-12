@@ -23,6 +23,10 @@ const ScanSchema = z.object({
   expressionAttributeValues: z.record(z.string(), z.unknown()).optional(),
   limit: z.number().positive().optional(),
   exclusiveStartKey: z.record(z.string(), z.unknown()).optional(),
+  indexName: z.string().optional(),
+  consistentRead: z.boolean().optional(),
+  segment: z.number().int().min(0).max(999999).optional(),
+  totalSegments: z.number().int().min(1).max(1000000).optional(),
 })
 
 const ScanResponseSchema = z.object({
@@ -30,6 +34,7 @@ const ScanResponseSchema = z.object({
   // untyped-response: DynamoDB Items are arbitrary user attribute-value records
   items: z.array(z.record(z.string(), z.unknown())),
   count: z.number(),
+  scannedCount: z.number().nullable(),
   // untyped-response: DynamoDB LastEvaluatedKey mirrors the table's primary key shape
   lastEvaluatedKey: z.record(z.string(), z.unknown()).optional(),
 })

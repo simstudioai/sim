@@ -240,6 +240,53 @@ function resolveDocumentParam(value: unknown): { file?: object; filePath?: strin
   return {}
 }
 
+interface TextractQueryParam {
+  Text: string
+  Alias?: string
+  Pages?: string[]
+}
+
+/**
+ * Accepts a JSON array of query strings or `{Text, Alias, Pages}` objects, or
+ * one plain-text question per line.
+ */
+function parseTextractQueries(value: unknown): TextractQueryParam[] {
+  let raw: unknown = value
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return []
+    if (trimmed.startsWith('[')) {
+      try {
+        raw = JSON.parse(trimmed)
+      } catch {
+        throw new Error('Queries must be a JSON array or one question per line')
+      }
+    } else {
+      raw = trimmed.split('\n')
+    }
+  }
+  if (!Array.isArray(raw)) return []
+  return raw.flatMap((entry): TextractQueryParam[] => {
+    if (typeof entry === 'string') {
+      const text = entry.trim()
+      return text ? [{ Text: text }] : []
+    }
+    if (typeof entry !== 'object' || entry === null) return []
+    const record = entry as Record<string, unknown>
+    const text = typeof record.Text === 'string' ? record.Text.trim() : ''
+    if (!text) return []
+    return [
+      {
+        Text: text,
+        ...(typeof record.Alias === 'string' && record.Alias.trim()
+          ? { Alias: record.Alias.trim() }
+          : {}),
+        ...(Array.isArray(record.Pages) ? { Pages: record.Pages.map(String) } : {}),
+      },
+    ]
+  })
+}
+
 interface AwsAccessKeys {
   accessKeyId: string
   secretAccessKey: string
@@ -314,6 +361,11 @@ function textractToolParams(params: BlockToolParams, accessKeys: Partial<AwsAcce
   if (params.extractForms) featureTypes.push('FORMS')
   if (params.detectSignatures) featureTypes.push('SIGNATURES')
   if (params.analyzeLayout) featureTypes.push('LAYOUT')
+  const queries = parseTextractQueries(params.queries)
+  if (queries.length > 0) {
+    featureTypes.push('QUERIES')
+    parameters.queries = queries
+  }
   if (featureTypes.length > 0) parameters.featureTypes = featureTypes
 
   return parameters
@@ -475,6 +527,15 @@ export const TextractV2Block: BlockConfig = {
       type: 'switch' as SubBlockType,
       condition: { field: 'operation', value: 'analyze_document' },
     },
+    {
+      id: 'queries',
+      title: 'Queries',
+      type: 'long-input' as SubBlockType,
+      placeholder:
+        'One question per line (e.g., What is the policy number?), or a JSON array of {"Text", "Alias", "Pages"}',
+      condition: { field: 'operation', value: 'analyze_document' },
+      mode: 'advanced' as const,
+    },
   ],
   tools: {
     access: ['textract_parser_v2', 'textract_analyze_expense', 'textract_analyze_id'],
@@ -504,6 +565,10 @@ export const TextractV2Block: BlockConfig = {
     extractForms: { type: 'boolean', description: 'Extract form key-value pairs' },
     detectSignatures: { type: 'boolean', description: 'Detect signatures' },
     analyzeLayout: { type: 'boolean', description: 'Analyze document layout' },
+    queries: {
+      type: 'string',
+      description: 'Natural-language queries (one per line or a JSON array), for analyze_document',
+    },
     region: { type: 'string', description: 'AWS region' },
     accessKeyId: { type: 'string', description: 'AWS Access Key ID' },
     secretAccessKey: { type: 'string', description: 'AWS Secret Access Key' },
@@ -511,7 +576,8 @@ export const TextractV2Block: BlockConfig = {
   outputs: {
     blocks: {
       type: 'json',
-      description: 'Array of detected blocks (PAGE, LINE, WORD, TABLE, CELL, KEY_VALUE_SET, etc.)',
+      description:
+        'Array of detected blocks (PAGE, LINE, WORD, TABLE, CELL, KEY_VALUE_SET, QUERY, QUERY_RESULT, etc.)',
       condition: { field: 'operation', value: 'analyze_document' },
     },
     expenseDocuments: {
@@ -533,6 +599,18 @@ export const TextractV2Block: BlockConfig = {
     modelVersion: {
       type: 'string',
       description: 'Version of the Textract model used for processing',
+    },
+    jobStatus: {
+      type: 'string',
+      description: 'Async job status: SUCCEEDED or PARTIAL_SUCCESS (multi-page mode only)',
+    },
+    statusMessage: {
+      type: 'string',
+      description: 'Why an async job only partially succeeded (multi-page mode only)',
+    },
+    warnings: {
+      type: 'json',
+      description: 'Async job warnings: [{errorCode, pages}] (multi-page mode only)',
     },
   },
 }

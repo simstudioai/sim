@@ -58,6 +58,12 @@ export const describeAlarmsTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Maximum number of alarms to return',
     },
+    nextToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination token from a previous call',
+    },
   },
 
   operation: {
@@ -69,6 +75,7 @@ export const describeAlarmsTool: InternalToolConfig<
       ...(params.stateValue && { stateValue: params.stateValue }),
       ...(params.alarmType && { alarmType: params.alarmType }),
       ...(params.limit !== undefined && { limit: params.limit }),
+      ...(params.nextToken && { nextToken: params.nextToken }),
     }),
   },
 
@@ -83,6 +90,7 @@ export const describeAlarmsTool: InternalToolConfig<
       success: true,
       output: {
         alarms: data.output.alarms,
+        nextToken: data.output.nextToken ?? null,
       },
     }
   },
@@ -104,12 +112,81 @@ export const describeAlarmsTool: InternalToolConfig<
           metricName: { type: 'string', description: 'Metric name (MetricAlarm only)' },
           namespace: { type: 'string', description: 'Metric namespace (MetricAlarm only)' },
           threshold: { type: 'number', description: 'Threshold value (MetricAlarm only)' },
+          comparisonOperator: {
+            type: 'string',
+            description: 'Comparison operator (MetricAlarm only)',
+          },
+          evaluationPeriods: {
+            type: 'number',
+            description: 'Number of periods evaluated (MetricAlarm only)',
+          },
           stateUpdatedTimestamp: {
             type: 'number',
             description: 'Epoch ms when state last changed',
           },
+          alarmType: { type: 'string', description: 'MetricAlarm or CompositeAlarm' },
+          alarmDescription: { type: 'string', description: 'Alarm description' },
+          actionsEnabled: {
+            type: 'boolean',
+            description: 'Whether actions run on state changes',
+          },
+          alarmActions: { type: 'array', description: 'ARNs of actions run on ALARM' },
+          okActions: { type: 'array', description: 'ARNs of actions run on OK' },
+          insufficientDataActions: {
+            type: 'array',
+            description: 'ARNs of actions run on INSUFFICIENT_DATA',
+          },
+          stateReasonData: {
+            type: 'string',
+            description: 'Machine-readable JSON explaining the state',
+          },
+          stateTransitionedTimestamp: {
+            type: 'number',
+            description: 'Epoch ms when the state value last changed',
+          },
+          alarmConfigurationUpdatedTimestamp: {
+            type: 'number',
+            description: 'Epoch ms when the alarm configuration last changed',
+          },
+          statistic: { type: 'string', description: 'Statistic evaluated (MetricAlarm only)' },
+          extendedStatistic: {
+            type: 'string',
+            description: 'Percentile statistic evaluated (MetricAlarm only)',
+          },
+          dimensions: {
+            type: 'array',
+            description: 'Metric dimensions as {name, value} (MetricAlarm only)',
+          },
+          period: {
+            type: 'number',
+            description: 'Evaluation period in seconds (MetricAlarm only)',
+          },
+          unit: { type: 'string', description: 'Metric unit (MetricAlarm only)' },
+          datapointsToAlarm: {
+            type: 'number',
+            description: 'Breaching datapoints needed to alarm (MetricAlarm only)',
+          },
+          treatMissingData: {
+            type: 'string',
+            description: 'How missing data is treated (MetricAlarm only)',
+          },
+          thresholdMetricId: {
+            type: 'string',
+            description: 'ID of the metric-math threshold query (anomaly detection alarms)',
+          },
+          metrics: {
+            type: 'array',
+            description:
+              'Metric-math queries [{id, expression, label, returnData, period, accountId, metricStat}] (MetricAlarm only)',
+          },
+          alarmRule: { type: 'string', description: 'Rule expression (CompositeAlarm only)' },
         },
       },
+    },
+    nextToken: {
+      type: 'string',
+      description: 'Pagination token for the next page of alarms',
+      optional: true,
     },
   },
 }

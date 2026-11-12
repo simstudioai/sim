@@ -24,6 +24,7 @@ const UpdateSchema = z.object({
   expressionAttributeNames: z.record(z.string(), z.string()).optional(),
   expressionAttributeValues: z.record(z.string(), z.unknown()).optional(),
   conditionExpression: z.string().optional(),
+  returnValues: z.enum(['NONE', 'ALL_OLD', 'UPDATED_OLD', 'ALL_NEW', 'UPDATED_NEW']).optional(),
 })
 
 const UpdateResponseSchema = z.object({

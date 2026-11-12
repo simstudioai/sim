@@ -13,6 +13,7 @@ const UpdateSecretSchema = z.object({
   secretId: z.string().min(1, 'Secret ID is required'),
   secretValue: z.string().min(1, 'Secret value is required'),
   description: z.string().nullish(),
+  kmsKeyId: z.string().nullish(),
 })
 
 const UpdateSecretResponseSchema = z.object({

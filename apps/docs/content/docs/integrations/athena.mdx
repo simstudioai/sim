@@ -38,6 +38,10 @@ Start an SQL query execution in AWS Athena
 | `executionParameters` | json | No | Values for ? placeholders in a parameterized query or EXECUTE statement, applied in order. Pass a JSON array of strings \(e.g. \["2024-01-01", "US"\]\); a plain comma-separated list is also accepted when no value contains a comma |
 | `resultReuseEnabled` | boolean | No | Reuse a previous result of the same query instead of re-scanning data \(default: false\) |
 | `resultReuseMaxAgeInMinutes` | number | No | Maximum age in minutes of a previous result eligible for reuse \(0-10080, default: 60\) |
+| `encryptionOption` | string | No | Encryption for the query results in S3: SSE_S3, SSE_KMS, or CSE_KMS. Overridden when the workgroup enforces its own settings |
+| `kmsKey` | string | No | KMS key ARN or ID used when encryptionOption is SSE_KMS or CSE_KMS |
+| `expectedBucketOwner` | string | No | AWS account ID expected to own the output location bucket; the query fails if it does not |
+| `clientRequestToken` | string | No | Idempotency token \(32-128 characters\). Repeating a request with the same token returns the original query execution instead of starting a new one |
 
 #### Output
 
@@ -80,6 +84,14 @@ Get the status and details of an Athena query execution
 | `queryQueueTimeInMillis` | number | Time the query spent in queue in milliseconds |
 | `totalExecutionTimeInMillis` | number | Total execution time in milliseconds |
 | `outputLocation` | string | S3 location of query results |
+| `servicePreProcessingTimeInMillis` | number | Time Athena spent preprocessing the query before submitting it, in milliseconds |
+| `serviceProcessingTimeInMillis` | number | Time Athena spent finalizing and publishing results after execution, in milliseconds |
+| `dataManifestLocation` | string | S3 location of the manifest file listing files written by the query |
+| `reusedPreviousResult` | boolean | Whether the query reused a previous result instead of scanning data |
+| `athenaError` | json | Failure details for a FAILED query \(errorCategory: 1 system, 2 user, 3 other; errorType; retryable; errorMessage\) |
+| `executionParameters` | array | Values supplied for the query's ? placeholders |
+| `substatementType` | string | Kind of query statement that was run \(e.g., SELECT, INSERT, CREATE_TABLE\) |
+| `engineVersion` | json | Engine version used \(selectedEngineVersion, effectiveEngineVersion\) |
 
 </ReferenceDetails>
 
@@ -102,10 +114,10 @@ Retrieve the results of a completed Athena query execution
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `columns` | array | Column metadata \(name and type\) |
+| `columns` | array | Column metadata \(name, type, label, precision, scale, nullable, caseSensitive\) |
 | `rows` | array | Result rows as key-value objects |
 | `nextToken` | string | Pagination token for next page of results |
-| `updateCount` | number | Number of rows affected \(for INSERT/UPDATE statements\) |
+| `updateCount` | number | Number of rows inserted or updated by a CREATE TABLE AS SELECT, INSERT INTO, or UPDATE statement |
 
 </ReferenceDetails>
 
@@ -188,6 +200,14 @@ Get the status and details of up to 50 Athena query executions in one call
 |   ↳ `queryQueueTimeInMillis` | number | Time the query spent in queue in milliseconds |
 |   ↳ `totalExecutionTimeInMillis` | number | Total execution time in milliseconds |
 |   ↳ `outputLocation` | string | S3 location of query results |
+|   ↳ `servicePreProcessingTimeInMillis` | number | Time Athena spent preprocessing the query before submitting it, in milliseconds |
+|   ↳ `serviceProcessingTimeInMillis` | number | Time Athena spent finalizing and publishing results after execution, in milliseconds |
+|   ↳ `dataManifestLocation` | string | S3 location of the manifest file listing files written by the query |
+|   ↳ `reusedPreviousResult` | boolean | Whether the query reused a previous result instead of scanning data |
+|   ↳ `athenaError` | json | Failure details for a FAILED query \(errorCategory: 1 system, 2 user, 3 other; errorType; retryable; errorMessage\) |
+|   ↳ `executionParameters` | array | Values supplied for the query's ? placeholders |
+|   ↳ `substatementType` | string | Kind of query statement that was run \(e.g., SELECT, INSERT, CREATE_TABLE\) |
+|   ↳ `engineVersion` | json | Engine version used \(selectedEngineVersion, effectiveEngineVersion\) |
 | `unprocessedQueryExecutionIds` | array | Query execution IDs that could not be retrieved, with error details |
 |   ↳ `queryExecutionId` | string | Query execution ID |
 |   ↳ `errorCode` | string | Error code |

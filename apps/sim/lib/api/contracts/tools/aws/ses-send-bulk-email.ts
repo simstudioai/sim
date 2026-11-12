@@ -21,6 +21,9 @@ const SendBulkEmailSchema = z.object({
   destinations: z.string().min(1, 'Destinations JSON array is required'),
   defaultTemplateData: z.string().nullish(),
   configurationSetName: z.string().nullish(),
+  replyToAddresses: z.string().nullish(),
+  fromName: z.string().nullish(),
+  emailTags: z.array(z.object({ name: z.string().min(1), value: z.string() })).nullish(),
 })
 
 const SendBulkEmailResponseSchema = z.object({

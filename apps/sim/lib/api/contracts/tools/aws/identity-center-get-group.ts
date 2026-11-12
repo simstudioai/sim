@@ -20,6 +20,7 @@ const ResponseSchema = z.object({
   groupId: z.string(),
   displayName: z.string().nullable(),
   description: z.string().nullable(),
+  externalIds: z.array(z.object({ issuer: z.string(), id: z.string() })),
 })
 
 export const awsIdentityCenterGetGroupContract = defineRouteContract({

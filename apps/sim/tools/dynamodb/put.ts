@@ -62,6 +62,13 @@ export const putTool: InternalToolConfig<DynamoDBPutParams, DynamoDBPutResponse>
       description:
         'Expression attribute values used in conditionExpression (e.g., {":expected": "value"})',
     },
+    returnValues: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Set to "ALL_OLD" to return the item this put replaced as attributes (default: "NONE")',
+    },
   },
 
   operation: {
@@ -78,6 +85,7 @@ export const putTool: InternalToolConfig<DynamoDBPutParams, DynamoDBPutResponse>
       ...(params.expressionAttributeValues && {
         expressionAttributeValues: params.expressionAttributeValues,
       }),
+      ...(params.returnValues && { returnValues: params.returnValues }),
     }),
   },
 
@@ -93,6 +101,7 @@ export const putTool: InternalToolConfig<DynamoDBPutParams, DynamoDBPutResponse>
       output: {
         message: data.message || 'Item created successfully',
         item: data.item,
+        ...(data.attributes !== undefined && { attributes: data.attributes ?? null }),
       },
       error: undefined,
     }
@@ -101,5 +110,10 @@ export const putTool: InternalToolConfig<DynamoDBPutParams, DynamoDBPutResponse>
   outputs: {
     message: { type: 'string', description: 'Operation status message' },
     item: { type: 'json', description: 'Created item', optional: true },
+    attributes: {
+      type: 'json',
+      description: 'Item that was replaced, when returnValues is ALL_OLD (null if no item existed)',
+      optional: true,
+    },
   },
 }

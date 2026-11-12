@@ -47,6 +47,12 @@ export const describeChangeSetTool: InternalToolConfig<
       description:
         'Name or ID of the stack the change set belongs to (required if changeSetName is not an ARN)',
     },
+    nextToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination token from a previous call to fetch the next page of changes',
+    },
   },
 
   operation: {
@@ -56,6 +62,7 @@ export const describeChangeSetTool: InternalToolConfig<
       secretAccessKey: params.awsSecretAccessKey,
       changeSetName: params.changeSetName,
       ...(params.stackName && { stackName: params.stackName }),
+      ...(params.nextToken && { nextToken: params.nextToken }),
     }),
   },
 
@@ -80,6 +87,15 @@ export const describeChangeSetTool: InternalToolConfig<
         creationTime: data.output.creationTime,
         capabilities: data.output.capabilities,
         changes: data.output.changes,
+        parameters: data.output.parameters ?? [],
+        tags: data.output.tags ?? [],
+        notificationArns: data.output.notificationArns ?? [],
+        includeNestedStacks: data.output.includeNestedStacks,
+        parentChangeSetId: data.output.parentChangeSetId,
+        rootChangeSetId: data.output.rootChangeSetId,
+        onStackFailure: data.output.onStackFailure,
+        importExistingResources: data.output.importExistingResources,
+        nextToken: data.output.nextToken ?? null,
       },
     }
   },
@@ -109,7 +125,53 @@ export const describeChangeSetTool: InternalToolConfig<
     changes: {
       type: 'array',
       description:
-        'List of resource changes (action, logical/physical resource ID, resource type, replacement)',
+        'List of resource changes (action, logicalResourceId, physicalResourceId, resourceType, replacement, type, policyAction, scope, changeSetId, details [{attribute, name, requiresRecreation, evaluation, changeSource, causingEntity}])',
+    },
+    parameters: {
+      type: 'array',
+      description:
+        'Stack parameters for the change set (parameterKey, parameterValue, usePreviousValue, resolvedValue)',
+      optional: true,
+    },
+    tags: {
+      type: 'array',
+      description: 'Tags associated with the change set (key, value)',
+      optional: true,
+    },
+    notificationArns: {
+      type: 'array',
+      description: 'SNS topic ARNs that receive stack event notifications',
+      optional: true,
+    },
+    includeNestedStacks: {
+      type: 'boolean',
+      description: 'Whether change sets were created for nested stacks',
+      optional: true,
+    },
+    parentChangeSetId: {
+      type: 'string',
+      description: 'ID of the parent change set, for nested change sets',
+      optional: true,
+    },
+    rootChangeSetId: {
+      type: 'string',
+      description: 'ID of the top-level change set, for nested change sets',
+      optional: true,
+    },
+    onStackFailure: {
+      type: 'string',
+      description: 'Behavior when stack operations fail (DO_NOTHING, ROLLBACK, DELETE)',
+      optional: true,
+    },
+    importExistingResources: {
+      type: 'boolean',
+      description: 'Whether the change set imports resources that already exist',
+      optional: true,
+    },
+    nextToken: {
+      type: 'string',
+      description: 'Pagination token for the next page of changes, if more remain',
+      optional: true,
     },
   },
 }

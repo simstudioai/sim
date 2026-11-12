@@ -26,6 +26,8 @@ const GetMetricStatisticsSchema = z.object({
     .min(1, 'At least one statistic is required')
     .max(5, 'At most 5 statistics are allowed per GetMetricStatistics call'),
   dimensions: z.string().optional(),
+  extendedStatistics: z.array(z.string().min(1)).max(10).optional(),
+  unit: z.string().optional(),
 })
 
 const GetMetricStatisticsResponseSchema = z.object({
@@ -41,6 +43,7 @@ const GetMetricStatisticsResponseSchema = z.object({
         maximum: z.number().optional(),
         sampleCount: z.number().optional(),
         unit: z.string().optional(),
+        extendedStatistics: z.record(z.string(), z.number()).optional(),
       })
     ),
   }),

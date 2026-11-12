@@ -156,6 +156,20 @@ export const updateFunctionConfigurationTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'CloudWatch log group the function sends logs to',
     },
+    applicationLogLevel: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Minimum application log level sent to CloudWatch: TRACE, DEBUG, INFO, WARN, ERROR, or FATAL. Requires the JSON log format',
+    },
+    systemLogLevel: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Minimum system log level sent to CloudWatch: DEBUG, INFO, or WARN. Requires the JSON log format',
+    },
     revisionId: {
       type: 'string',
       required: false,
@@ -193,6 +207,10 @@ export const updateFunctionConfigurationTool: InternalToolConfig<
       ...(isSupplied(params.snapStartApplyOn) && { snapStartApplyOn: params.snapStartApplyOn }),
       ...(isSupplied(params.logFormat) && { logFormat: params.logFormat }),
       ...(isSupplied(params.logGroup) && { logGroup: params.logGroup }),
+      ...(isSupplied(params.applicationLogLevel) && {
+        applicationLogLevel: params.applicationLogLevel,
+      }),
+      ...(isSupplied(params.systemLogLevel) && { systemLogLevel: params.systemLogLevel }),
       ...(isSupplied(params.revisionId) && { revisionId: params.revisionId }),
     }),
   },

@@ -1,6 +1,7 @@
 import {
   DescribeGroupCommand,
   DescribeUserCommand,
+  type ExternalId,
   GetGroupIdCommand,
   GetUserIdCommand,
   IdentitystoreClient,
@@ -193,7 +194,21 @@ export async function getUserByEmail(
     userName: describeResponse.UserName ?? '',
     displayName: describeResponse.DisplayName ?? null,
     email: primaryEmail,
+    givenName: describeResponse.Name?.GivenName ?? null,
+    familyName: describeResponse.Name?.FamilyName ?? null,
+    userStatus: describeResponse.UserStatus ?? null,
+    title: describeResponse.Title ?? null,
+    externalIds: mapExternalIds(describeResponse.ExternalIds),
   }
+}
+
+function mapExternalIds(externalIds: ExternalId[] | undefined) {
+  return (
+    externalIds?.map((externalId) => ({
+      issuer: externalId.Issuer ?? '',
+      id: externalId.Id ?? '',
+    })) ?? []
+  )
 }
 
 function mapAssignmentStatus(status: AccountAssignmentOperationStatus) {
@@ -333,6 +348,7 @@ export async function getGroupByDisplayName(
     groupId,
     displayName: describeResponse.DisplayName ?? null,
     description: describeResponse.Description ?? null,
+    externalIds: mapExternalIds(describeResponse.ExternalIds),
   }
 }
 
@@ -361,12 +377,14 @@ export async function listAccountAssignmentsForPrincipal(
   principalType: 'USER' | 'GROUP',
   maxResults?: number | null,
   nextToken?: string | null,
+  accountId?: string | null,
   signal?: AbortSignal
 ) {
   const command = new ListAccountAssignmentsForPrincipalCommand({
     InstanceArn: instanceArn,
     PrincipalId: principalId,
     PrincipalType: principalType as PrincipalType,
+    ...(accountId ? { Filter: { AccountId: accountId } } : {}),
     ...(maxResults ? { MaxResults: maxResults } : {}),
     ...(nextToken ? { NextToken: nextToken } : {}),
   })
@@ -424,6 +442,8 @@ export async function describeUserById(
     email: primaryEmail,
     userStatus: response.UserStatus ?? null,
     title: response.Title ?? null,
+    givenName: response.Name?.GivenName ?? null,
+    familyName: response.Name?.FamilyName ?? null,
     externalIds:
       response.ExternalIds?.map((externalId) => ({
         issuer: externalId.Issuer ?? '',

@@ -50,6 +50,18 @@ const CreateChangeSetSchema = z
       ),
     changeSetType: z.enum(['CREATE', 'UPDATE', 'IMPORT']).optional(),
     description: z.string().max(1024, 'Description must be at most 1024 characters').optional(),
+    roleArn: z.string().min(1).optional(),
+    tags: z
+      .array(
+        z.object({
+          key: z
+            .string()
+            .min(1, 'Tag key is required')
+            .max(128, 'Tag key must be at most 128 characters'),
+          value: z.string().max(256, 'Tag value must be at most 256 characters'),
+        })
+      )
+      .optional(),
   })
   .superRefine((data, ctx) => {
     if (!data.templateBody && !data.usePreviousTemplate) {

@@ -84,7 +84,14 @@ export async function executeIamCreateUser(input: AwsIamCreateUserBody, signal?:
   return withIamClient(
     input,
     async (client) => {
-      const result = await createUser(client, input.userName, input.path, signal)
+      const result = await createUser(
+        client,
+        input.userName,
+        input.path,
+        input.permissionsBoundary,
+        input.tags,
+        signal
+      )
       return { message: `User "${result.userName}" created successfully`, ...result }
     },
     signal
@@ -125,6 +132,8 @@ export async function executeIamCreateRole(input: AwsIamCreateRoleBody, signal?:
         input.description,
         input.path,
         input.maxSessionDuration,
+        input.permissionsBoundary,
+        input.tags,
         signal
       )
       return { message: `Role "${result.roleName}" created successfully`, ...result }
@@ -211,6 +220,7 @@ export async function executeIamListPolicies(input: AwsIamListPoliciesBody, sign
         input.pathPrefix,
         input.maxItems,
         input.marker,
+        input.policyUsageFilter,
         signal
       ),
     signal

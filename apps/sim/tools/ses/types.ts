@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 export interface SESConnectionConfig {
@@ -16,6 +17,9 @@ export interface SESSendEmailParams extends SESConnectionConfig {
   bccAddresses?: string | null
   replyToAddresses?: string | null
   configurationSetName?: string | null
+  fromName?: string | null
+  emailTags?: Array<{ name: string; value: string }> | null
+  attachments?: UserFile[] | null
 }
 
 export interface SESSendTemplatedEmailParams extends SESConnectionConfig {
@@ -25,7 +29,11 @@ export interface SESSendTemplatedEmailParams extends SESConnectionConfig {
   templateData: string
   ccAddresses?: string | null
   bccAddresses?: string | null
+  replyToAddresses?: string | null
   configurationSetName?: string | null
+  fromName?: string | null
+  emailTags?: Array<{ name: string; value: string }> | null
+  attachments?: UserFile[] | null
 }
 
 export interface SESSendBulkEmailParams extends SESConnectionConfig {
@@ -34,6 +42,9 @@ export interface SESSendBulkEmailParams extends SESConnectionConfig {
   destinations: string
   defaultTemplateData?: string | null
   configurationSetName?: string | null
+  replyToAddresses?: string | null
+  fromName?: string | null
+  emailTags?: Array<{ name: string; value: string }> | null
 }
 
 export interface SESListIdentitiesParams extends SESConnectionConfig {
@@ -106,6 +117,8 @@ export interface SESGetAccountResponse extends ToolResponse {
     max24HourSend: number
     maxSendRate: number
     sentLast24Hours: number
+    productionAccessEnabled: boolean | null
+    enforcementStatus: string | null
   }
 }
 

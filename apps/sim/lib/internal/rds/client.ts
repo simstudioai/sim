@@ -4,6 +4,7 @@ import {
   type Field,
   RDSDataClient,
   type SqlParameter,
+  type TypeHint,
 } from '@aws-sdk/client-rds-data'
 import { awsClientConfig } from '@/lib/internal/aws/credentials'
 import type { RdsConnectionConfig } from '@/tools/rds/types'
@@ -22,7 +23,7 @@ export async function executeStatement(
   sql: string,
   parameters?: SqlParameter[],
   signal?: AbortSignal
-): Promise<{ rows: Record<string, unknown>[]; rowCount: number }> {
+): Promise<RdsStatementResult> {
   const command = new ExecuteStatementCommand({
     resourceArn,
     secretArn,
@@ -37,8 +38,43 @@ export async function executeStatement(
 
   return {
     rows,
-    rowCount: response.numberOfRecordsUpdated ?? rows.length,
+    rowCount: Math.max(rows.length, response.numberOfRecordsUpdated ?? 0),
+    ...(response.generatedFields &&
+      response.generatedFields.length > 0 && {
+        generatedFields: response.generatedFields.map(parseFieldValue),
+      }),
   }
+}
+
+interface RdsStatementResult {
+  rows: Record<string, unknown>[]
+  rowCount: number
+  generatedFields?: unknown[]
+}
+
+interface RdsNamedParameter {
+  name: string
+  value?: unknown
+  typeHint?: TypeHint
+}
+
+/**
+ * Builds Data API parameters for `:name` placeholders from either a `{ name: value }` map or a
+ * list of `{ name, value, typeHint }` entries. A type hint tells the Data API to cast a string
+ * to DATE, TIME, TIMESTAMP, DECIMAL, JSON or UUID.
+ */
+export function buildSqlParameters(
+  parameters: Record<string, unknown> | RdsNamedParameter[] | undefined
+): SqlParameter[] | undefined {
+  if (!parameters) return undefined
+  const entries: RdsNamedParameter[] = Array.isArray(parameters)
+    ? parameters
+    : Object.entries(parameters).map(([name, value]) => ({ name, value }))
+  return entries.map((entry) => ({
+    name: entry.name.replace(/^:/, ''),
+    value: toSqlParameterValue(entry.value),
+    ...(entry.typeHint && { typeHint: entry.typeHint }),
+  }))
 }
 
 function parseRdsResponse(response: ExecuteStatementCommandOutput): Record<string, unknown>[] {
@@ -104,6 +140,11 @@ export function sanitizeIdentifier(identifier: string): string {
   return sanitizeSingleIdentifier(identifier)
 }
 
+/** Placeholder name for a sanitized (possibly schema-qualified) column identifier. */
+function toParameterName(identifier: string): string {
+  return identifier.replace(/\./g, '_')
+}
+
 function sanitizeSingleIdentifier(identifier: string): string {
   const cleaned = identifier.replace(/`/g, '').replace(/"/g, '')
 
@@ -153,14 +194,15 @@ export async function executeInsert(
   table: string,
   data: Record<string, unknown>,
   signal?: AbortSignal
-): Promise<{ rows: Record<string, unknown>[]; rowCount: number }> {
+): Promise<RdsStatementResult> {
   const sanitizedTable = sanitizeIdentifier(table)
   const columns = Object.keys(data)
   const sanitizedColumns = columns.map((col) => sanitizeIdentifier(col))
+  const parameterNames = sanitizedColumns.map(toParameterName)
 
-  const placeholders = columns.map((col) => `:${col}`)
-  const parameters: SqlParameter[] = columns.map((col) => ({
-    name: col,
+  const placeholders = parameterNames.map((name) => `:${name}`)
+  const parameters: SqlParameter[] = columns.map((col, index) => ({
+    name: parameterNames[index],
     value: toSqlParameterValue(data[col]),
   }))
 
@@ -181,12 +223,17 @@ export async function executeUpdate(
   data: Record<string, unknown>,
   conditions: Record<string, unknown>,
   signal?: AbortSignal
-): Promise<{ rows: Record<string, unknown>[]; rowCount: number }> {
+): Promise<RdsStatementResult> {
   const sanitizedTable = sanitizeIdentifier(table)
 
   // Build SET clause with parameters
   const dataColumns = Object.keys(data)
-  const setClause = dataColumns.map((col) => `${sanitizeIdentifier(col)} = :set_${col}`).join(', ')
+  const setClause = dataColumns
+    .map((col) => {
+      const identifier = sanitizeIdentifier(col)
+      return `${identifier} = :set_${toParameterName(identifier)}`
+    })
+    .join(', ')
 
   // Build WHERE clause with parameters
   const conditionColumns = Object.keys(conditions)
@@ -194,17 +241,20 @@ export async function executeUpdate(
     throw new Error('At least one condition is required for UPDATE operations')
   }
   const whereClause = conditionColumns
-    .map((col) => `${sanitizeIdentifier(col)} = :where_${col}`)
+    .map((col) => {
+      const identifier = sanitizeIdentifier(col)
+      return `${identifier} = :where_${toParameterName(identifier)}`
+    })
     .join(' AND ')
 
   // Build parameters array (prefixed to avoid name collisions)
   const parameters: SqlParameter[] = [
     ...dataColumns.map((col) => ({
-      name: `set_${col}`,
+      name: `set_${toParameterName(sanitizeIdentifier(col))}`,
       value: toSqlParameterValue(data[col]),
     })),
     ...conditionColumns.map((col) => ({
-      name: `where_${col}`,
+      name: `where_${toParameterName(sanitizeIdentifier(col))}`,
       value: toSqlParameterValue(conditions[col]),
     })),
   ]
@@ -225,7 +275,7 @@ export async function executeDelete(
   table: string,
   conditions: Record<string, unknown>,
   signal?: AbortSignal
-): Promise<{ rows: Record<string, unknown>[]; rowCount: number }> {
+): Promise<RdsStatementResult> {
   const sanitizedTable = sanitizeIdentifier(table)
 
   // Build WHERE clause with parameters
@@ -234,11 +284,14 @@ export async function executeDelete(
     throw new Error('At least one condition is required for DELETE operations')
   }
   const whereClause = conditionColumns
-    .map((col) => `${sanitizeIdentifier(col)} = :${col}`)
+    .map((col) => {
+      const identifier = sanitizeIdentifier(col)
+      return `${identifier} = :${toParameterName(identifier)}`
+    })
     .join(' AND ')
 
   const parameters: SqlParameter[] = conditionColumns.map((col) => ({
-    name: col,
+    name: toParameterName(sanitizeIdentifier(col)),
     value: toSqlParameterValue(conditions[col]),
   }))
 

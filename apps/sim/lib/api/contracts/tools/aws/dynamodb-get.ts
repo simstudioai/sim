@@ -27,6 +27,8 @@ const GetSchema = z.object({
       if (val === true || val === 'true') return true
       return undefined
     }),
+  projectionExpression: z.string().optional(),
+  expressionAttributeNames: z.record(z.string(), z.string()).optional(),
 })
 
 const GetResponseSchema = z.object({

@@ -40,6 +40,18 @@ export const createUserTool: InternalToolConfig<IAMCreateUserParams, IAMCreateUs
       visibility: 'user-or-llm',
       description: 'Path for the user (e.g., /division_abc/), defaults to /',
     },
+    permissionsBoundary: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'ARN of a managed policy to set as the user permissions boundary',
+    },
+    tags: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'JSON object of up to 50 tag key/value pairs to attach to the new user',
+    },
   },
 
   operation: {
@@ -49,6 +61,8 @@ export const createUserTool: InternalToolConfig<IAMCreateUserParams, IAMCreateUs
       secretAccessKey: params.secretAccessKey,
       userName: params.userName,
       path: params.path,
+      permissionsBoundary: params.permissionsBoundary,
+      tags: params.tags,
     }),
   },
 
@@ -68,6 +82,8 @@ export const createUserTool: InternalToolConfig<IAMCreateUserParams, IAMCreateUs
         arn: data.arn ?? '',
         path: data.path ?? '',
         createDate: data.createDate ?? null,
+        permissionsBoundaryArn: data.permissionsBoundaryArn ?? null,
+        tags: data.tags ?? [],
       },
     }
   },
@@ -79,5 +95,15 @@ export const createUserTool: InternalToolConfig<IAMCreateUserParams, IAMCreateUs
     arn: { type: 'string', description: 'The ARN of the created user' },
     path: { type: 'string', description: 'The path of the created user' },
     createDate: { type: 'string', description: 'Date the user was created', optional: true },
+    permissionsBoundaryArn: {
+      type: 'string',
+      description: 'ARN of the permissions boundary policy set on the user',
+      optional: true,
+    },
+    tags: {
+      type: 'json',
+      description: 'Tags attached to the user (key, value pairs)',
+      optional: true,
+    },
   },
 }

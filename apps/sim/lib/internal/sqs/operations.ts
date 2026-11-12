@@ -44,13 +44,53 @@ import type { AwsSqsSetQueueAttributesBody } from '@/lib/api/contracts/tools/aws
 import type { AwsSqsStartMessageMoveTaskBody } from '@/lib/api/contracts/tools/aws/sqs-start-message-move-task'
 import type { AwsSqsTagQueueBody } from '@/lib/api/contracts/tools/aws/sqs-tag-queue'
 import type { AwsSqsUntagQueueBody } from '@/lib/api/contracts/tools/aws/sqs-untag-queue'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { createSqsClient } from '@/lib/internal/sqs/client'
 import type { SqsConnectionConfig } from '@/tools/sqs/types'
 
+/**
+ * Hostnames of SQS endpoints in every AWS partition: regional (incl. FIPS),
+ * legacy `queue.amazonaws.com`, dual-stack `api.aws`, and VPC interface endpoints.
+ * Anchored so other `amazonaws.com` hosts (EC2, API Gateway, ELB) never match.
+ */
+const AWS_SQS_HOSTS = [
+  /^sqs(-fips)?\.[a-z0-9-]+\.amazonaws\.com(\.cn)?$/,
+  /^([a-z0-9-]+\.)?queue\.amazonaws\.com(\.cn)?$/,
+  /^sqs(-fips)?\.[a-z0-9-]+\.api\.aws$/,
+  /^vpce-[a-z0-9-]+\.sqs\.[a-z0-9-]+\.vpce\.amazonaws\.com(\.cn)?$/,
+  /^sqs\.[a-z0-9-]+\.c2s\.ic\.gov$/,
+  /^sqs\.[a-z0-9-]+\.sc2s\.sgov\.gov$/,
+] as const
+
+/**
+ * The SQS client sends each request to the host of its `QueueUrl` (the SDK's
+ * `useQueueUrlAsEndpoint` default), so a queue URL on any other host would carry
+ * the signed request, including a saved credential's session token, off AWS.
+ * Enforced on the hosted deployment only: self-hosted installs may point queue
+ * URLs at SQS-compatible endpoints (LocalStack, ElasticMQ). A value that does not
+ * parse as a URL is left for SQS to reject, since the SDK only redirects when it
+ * parses.
+ */
+function assertAwsQueueUrl(queueUrl: string | undefined) {
+  if (!queueUrl || !isHosted) return
+  let parsed: URL
+  try {
+    parsed = new URL(queueUrl)
+  } catch {
+    return
+  }
+  const host = parsed.hostname.toLowerCase()
+  if (parsed.protocol === 'https:' && AWS_SQS_HOSTS.some((pattern) => pattern.test(host))) return
+  throw new Error(
+    'Queue URL must be an Amazon SQS queue URL (e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue)'
+  )
+}
+
 async function withSqsClient<T>(
-  config: SqsConnectionConfig,
+  config: SqsConnectionConfig & { queueUrl?: string },
   execute: (client: SQSClient) => Promise<T>
 ): Promise<T> {
+  assertAwsQueueUrl(config.queueUrl)
   const client = createSqsClient(config)
   try {
     return await execute(client)

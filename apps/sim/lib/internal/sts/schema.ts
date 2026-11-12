@@ -53,6 +53,12 @@ export const stsAssumeRoleInputSchema = authenticatedInputSchema.extend({
       (value) => !value || value.split(',').filter((key) => key.trim().length > 0).length <= 50,
       { message: 'A maximum of 50 transitive tag keys can be provided' }
     ),
+  sourceIdentity: z
+    .string()
+    .min(2)
+    .max(64)
+    .regex(/^[\w+=,.@-]*$/, 'Source identity may contain only letters, digits, and _+=,.@-')
+    .nullish(),
 })
 
 export const stsAssumeRoleWithWebIdentityInputSchema = z.object({

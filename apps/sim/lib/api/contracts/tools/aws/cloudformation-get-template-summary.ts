@@ -41,6 +41,7 @@ const GetTemplateSummaryResponseSchema = z.object({
         parameterType: z.string().optional(),
         noEcho: z.boolean().optional(),
         description: z.string().optional(),
+        allowedValues: z.array(z.string()),
       })
     ),
     capabilities: z.array(z.string()),

@@ -1,8 +1,14 @@
 import crypto from 'crypto'
 import { validateAwsRegion } from '@/lib/core/security/input-validation'
 
+/**
+ * SigV4 URI-encodes every byte except `A-Za-z0-9-_.~`, so `!'()*` (which
+ * `encodeURIComponent` leaves alone) are escaped too, matching the AWS SDK.
+ */
 export function encodeS3PathComponent(pathComponent: string): string {
-  return encodeURIComponent(pathComponent).replace(/%2F/g, '/')
+  return encodeURIComponent(pathComponent)
+    .replace(/[!'()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`)
+    .replace(/%2F/g, '/')
 }
 
 export function getSignatureKey(

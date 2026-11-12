@@ -1,4 +1,6 @@
 import type { SESv2Client, SuppressionListReason } from '@aws-sdk/client-sesv2'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { AwsSesCreateConfigurationSetBody } from '@/lib/api/contracts/tools/aws/ses-create-configuration-set'
 import type { AwsSesCreateEmailIdentityBody } from '@/lib/api/contracts/tools/aws/ses-create-email-identity'
 import type { AwsSesCreateTemplateBody } from '@/lib/api/contracts/tools/aws/ses-create-template'
@@ -18,6 +20,7 @@ import type { AwsSesSendCustomVerificationEmailBody } from '@/lib/api/contracts/
 import type { AwsSesSendEmailBody } from '@/lib/api/contracts/tools/aws/ses-send-email'
 import type { AwsSesSendTemplatedEmailBody } from '@/lib/api/contracts/tools/aws/ses-send-templated-email'
 import type { AwsSesUpdateTemplateBody } from '@/lib/api/contracts/tools/aws/ses-update-template'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   createConfigurationSet,
   createEmailIdentity,
@@ -35,17 +38,103 @@ import {
   listTemplates,
   parseBulkEmailDestinations,
   putSuppressedDestination,
+  type SesEmailAttachment,
   sendBulkEmail,
   sendCustomVerificationEmail,
   sendEmail,
   sendTemplatedEmail,
   updateTemplate,
 } from '@/lib/internal/ses/client'
+import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
+import { processFilesToUserFiles } from '@/lib/uploads/utils/file'
+import { downloadServableFilesWithinBudget } from '@/lib/uploads/utils/file.server'
+import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { SESConnectionConfig } from '@/tools/ses/types'
+
+const logger = createLogger('SesOperations')
 
 const VALID_SUPPRESSION_REASONS: SuppressionListReason[] = ['BOUNCE', 'COMPLAINT']
 
-export class SesOperationInputError extends Error {}
+/**
+ * SES v2 caps a message, attachments included, at 40 MB after base64 encoding,
+ * which grows bytes by a third; 28 MiB of raw attachment bytes stays under it.
+ */
+const SES_ATTACHMENT_MAX_BYTES = 28 * 1024 * 1024
+
+export class SesOperationInputError extends Error {
+  constructor(
+    message: string,
+    readonly status = 400
+  ) {
+    super(message)
+  }
+}
+
+/** Trusted caller scope a send needs to read the workspace files it attaches. */
+export interface SesSendContext {
+  requestId: string
+  userId?: string
+}
+
+function attachmentSizeError(observedBytes: number) {
+  const sizeMB = (observedBytes / (1024 * 1024)).toFixed(2)
+  return new SesOperationInputError(
+    `Total attachment size (${sizeMB}MB) exceeds the 28MB SES attachment limit`
+  )
+}
+
+async function resolveAttachments(
+  files: RawFileInput[] | null | undefined,
+  context: SesSendContext | undefined,
+  signal?: AbortSignal
+): Promise<SesEmailAttachment[] | null> {
+  if (!files?.length) return null
+  const requestId = context?.requestId ?? 'ses'
+  const userFiles = processFilesToUserFiles(files, requestId, logger)
+  if (userFiles.length === 0) return null
+
+  const declaredSize = userFiles.reduce((total, file) => total + file.size, 0)
+  if (declaredSize > SES_ATTACHMENT_MAX_BYTES) throw attachmentSizeError(declaredSize)
+  const userId = context?.userId
+  if (!userId) throw new SesOperationInputError('Authentication required', 401)
+  for (const file of userFiles) {
+    signal?.throwIfAborted()
+    const denied = await assertToolFileAccess(file.key, userId, requestId, logger)
+    if (denied) throw new SesOperationInputError('File not found', denied.status)
+  }
+
+  let resolved: Awaited<ReturnType<typeof downloadServableFilesWithinBudget>>
+  try {
+    resolved = await downloadServableFilesWithinBudget(userFiles, requestId, logger, {
+      totalMaxBytes: SES_ATTACHMENT_MAX_BYTES,
+      label: 'Total attachment size',
+      signal,
+    })
+  } catch (error) {
+    signal?.throwIfAborted()
+    if (isDocNotReadyError(error)) throw new SesOperationInputError(docNotReadyMessage(), 409)
+    if (isPayloadSizeLimitError(error)) {
+      throw attachmentSizeError(error.observedBytes ?? declaredSize)
+    }
+    throw new SesOperationInputError(
+      `Failed to download attachment: ${getErrorMessage(error, 'Unknown error')}`,
+      500
+    )
+  }
+
+  return userFiles.map((file, index) => {
+    const resolvedFile = resolved[index]
+    if (!resolvedFile) {
+      throw new SesOperationInputError('Failed to download attachment: Missing file data', 500)
+    }
+    return {
+      fileName: file.name,
+      contentType: resolvedFile.contentType || file.type || 'application/octet-stream',
+      content: resolvedFile.buffer,
+    }
+  })
+}
 
 async function withSesClient<T>(
   input: SESConnectionConfig,
@@ -67,7 +156,12 @@ function splitEmailAddresses(value?: string | null): string[] | null {
     .filter(Boolean)
 }
 
-export function executeSesSendEmail(input: AwsSesSendEmailBody, signal?: AbortSignal) {
+export async function executeSesSendEmail(
+  input: AwsSesSendEmailBody,
+  signal?: AbortSignal,
+  context?: SesSendContext
+) {
+  const attachments = await resolveAttachments(input.attachments, context, signal)
   return withSesClient(input, (client) =>
     sendEmail(
       client,
@@ -81,16 +175,21 @@ export function executeSesSendEmail(input: AwsSesSendEmailBody, signal?: AbortSi
         bccAddresses: splitEmailAddresses(input.bccAddresses),
         replyToAddresses: splitEmailAddresses(input.replyToAddresses),
         configurationSetName: input.configurationSetName,
+        fromName: input.fromName,
+        emailTags: input.emailTags,
+        attachments,
       },
       signal
     )
   )
 }
 
-export function executeSesSendTemplatedEmail(
+export async function executeSesSendTemplatedEmail(
   input: AwsSesSendTemplatedEmailBody,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  context?: SesSendContext
 ) {
+  const attachments = await resolveAttachments(input.attachments, context, signal)
   return withSesClient(input, (client) =>
     sendTemplatedEmail(
       client,
@@ -101,7 +200,11 @@ export function executeSesSendTemplatedEmail(
         templateData: input.templateData,
         ccAddresses: splitEmailAddresses(input.ccAddresses),
         bccAddresses: splitEmailAddresses(input.bccAddresses),
+        replyToAddresses: splitEmailAddresses(input.replyToAddresses),
         configurationSetName: input.configurationSetName,
+        fromName: input.fromName,
+        emailTags: input.emailTags,
+        attachments,
       },
       signal
     )
@@ -127,6 +230,9 @@ export function executeSesSendBulkEmail(input: AwsSesSendBulkEmailBody, signal?:
         destinations,
         defaultTemplateData: input.defaultTemplateData,
         configurationSetName: input.configurationSetName,
+        replyToAddresses: splitEmailAddresses(input.replyToAddresses),
+        fromName: input.fromName,
+        emailTags: input.emailTags,
       },
       signal
     )

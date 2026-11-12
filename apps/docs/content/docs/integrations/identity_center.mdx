@@ -164,6 +164,13 @@ Look up a user in the Identity Store by email address
 | `userName` | string | Username in the Identity Store |
 | `displayName` | string | Display name of the user |
 | `email` | string | Email address of the user |
+| `givenName` | string | Given \(first\) name, or null when the Identity Store omits it |
+| `familyName` | string | Family \(last\) name, or null when the Identity Store omits it |
+| `userStatus` | string | Account status \(ENABLED or DISABLED\) |
+| `title` | string | Job title of the user |
+| `externalIds` | array | External identity provider IDs linked to the user |
+|   ↳ `issuer` | string | Identity provider that issued the ID |
+|   ↳ `id` | string | Identifier at the issuer |
 
 </ReferenceDetails>
 
@@ -191,6 +198,8 @@ Resolve an Identity Store user ID to the user behind it. Use to turn the princip
 | `email` | string | Primary email address, or null when the user has no email attribute |
 | `userStatus` | string | Account status \(ENABLED or DISABLED\), or null when the Identity Store omits it |
 | `title` | string | Job title, or null when the Identity Store omits it |
+| `givenName` | string | Given \(first\) name, or null when the Identity Store omits it |
+| `familyName` | string | Family \(last\) name, or null when the Identity Store omits it |
 | `externalIds` | array | External identity provider IDs linked to the user |
 |   ↳ `issuer` | string | Identity provider that issued the ID |
 |   ↳ `id` | string | Identifier at the issuer |
@@ -218,6 +227,9 @@ Look up a group in the Identity Store by display name
 | `groupId` | string | Identity Store group ID \(use as principalId\) |
 | `displayName` | string | Display name of the group |
 | `description` | string | Group description |
+| `externalIds` | array | External identity provider IDs linked to the group |
+|   ↳ `issuer` | string | Identity provider that issued the ID |
+|   ↳ `id` | string | Identifier at the issuer |
 
 </ReferenceDetails>
 
@@ -450,6 +462,7 @@ List every account and permission set a specific user or group is assigned. Use 
 | `principalType` | string | Yes | Type of principal: USER or GROUP |
 | `maxResults` | number | No | Maximum number of assignments to return \(1-100\) |
 | `nextToken` | string | No | Pagination token from a previous request |
+| `accountId` | string | No | Only return assignments in this 12-digit AWS account ID |
 
 #### Output
 

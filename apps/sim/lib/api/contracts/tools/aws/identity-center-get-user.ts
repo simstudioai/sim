@@ -21,6 +21,11 @@ const ResponseSchema = z.object({
   userName: z.string(),
   displayName: z.string().nullable(),
   email: z.string().nullable(),
+  givenName: z.string().nullable(),
+  familyName: z.string().nullable(),
+  userStatus: z.string().nullable(),
+  title: z.string().nullable(),
+  externalIds: z.array(z.object({ issuer: z.string(), id: z.string() })),
 })
 
 export const awsIdentityCenterGetUserContract = defineRouteContract({

@@ -120,6 +120,15 @@ export const describeAlarmHistoryTool: InternalToolConfig<
             description: 'ConfigurationUpdate, StateUpdate, Action, or contributor variants',
           },
           historySummary: { type: 'string', description: 'Human-readable summary of the event' },
+          historyData: {
+            type: 'string',
+            description:
+              'JSON string with event details (e.g., old and new state with reason data for StateUpdate)',
+          },
+          alarmContributorId: {
+            type: 'string',
+            description: 'ID of the alarm contributor, for contributor history items',
+          },
         },
       },
     },

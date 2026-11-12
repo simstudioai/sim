@@ -588,6 +588,117 @@ Return ONLY the expression - no explanations.`,
       condition: { field: 'operation', value: 'query' },
       mode: 'advanced',
     },
+    {
+      id: 'getProjectionExpression',
+      title: 'Projection Expression',
+      type: 'short-input',
+      placeholder: 'pk, #name, email',
+      condition: { field: 'operation', value: 'get' },
+      mode: 'advanced',
+    },
+    {
+      id: 'getExpressionAttributeNames',
+      title: 'Expression Attribute Names (JSON)',
+      type: 'code',
+      placeholder: '{\n  "#name": "name"\n}',
+      condition: { field: 'operation', value: 'get' },
+      mode: 'advanced',
+    },
+    {
+      id: 'queryProjectionExpression',
+      title: 'Projection Expression',
+      type: 'short-input',
+      placeholder: 'pk, sk, #name',
+      condition: { field: 'operation', value: 'query' },
+      mode: 'advanced',
+    },
+    {
+      id: 'queryConsistentRead',
+      title: 'Consistent Read',
+      type: 'dropdown',
+      options: [
+        { label: 'Eventually Consistent', id: 'false' },
+        { label: 'Strongly Consistent', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'query' },
+      mode: 'advanced',
+    },
+    {
+      id: 'scanIndexName',
+      title: 'Index Name',
+      type: 'short-input',
+      placeholder: 'GSI1',
+      condition: { field: 'operation', value: 'scan' },
+      mode: 'advanced',
+    },
+    {
+      id: 'scanConsistentRead',
+      title: 'Consistent Read',
+      type: 'dropdown',
+      options: [
+        { label: 'Eventually Consistent', id: 'false' },
+        { label: 'Strongly Consistent', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'scan' },
+      mode: 'advanced',
+    },
+    {
+      id: 'scanSegment',
+      title: 'Segment',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'scan' },
+      mode: 'advanced',
+    },
+    {
+      id: 'scanTotalSegments',
+      title: 'Total Segments',
+      type: 'short-input',
+      placeholder: '4',
+      condition: { field: 'operation', value: 'scan' },
+      mode: 'advanced',
+    },
+    {
+      id: 'putReturnValues',
+      title: 'Return Values',
+      type: 'dropdown',
+      options: [
+        { label: 'None (default)', id: 'NONE' },
+        { label: 'Replaced item (ALL_OLD)', id: 'ALL_OLD' },
+      ],
+      value: () => 'NONE',
+      condition: { field: 'operation', value: 'put' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updateReturnValues',
+      title: 'Return Values',
+      type: 'dropdown',
+      options: [
+        { label: 'All new attributes (default)', id: 'ALL_NEW' },
+        { label: 'Updated new attributes', id: 'UPDATED_NEW' },
+        { label: 'All old attributes', id: 'ALL_OLD' },
+        { label: 'Updated old attributes', id: 'UPDATED_OLD' },
+        { label: 'None', id: 'NONE' },
+      ],
+      value: () => 'ALL_NEW',
+      condition: { field: 'operation', value: 'update' },
+      mode: 'advanced',
+    },
+    {
+      id: 'deleteReturnValues',
+      title: 'Return Values',
+      type: 'dropdown',
+      options: [
+        { label: 'None (default)', id: 'NONE' },
+        { label: 'Deleted item (ALL_OLD)', id: 'ALL_OLD' },
+      ],
+      value: () => 'NONE',
+      condition: { field: 'operation', value: 'delete' },
+      mode: 'advanced',
+    },
   ],
   tools: {
     access: [
@@ -661,6 +772,11 @@ Return ONLY the expression - no explanations.`,
           if (params.consistentRead === 'true' || params.consistentRead === true) {
             result.consistentRead = true
           }
+          if (params.getProjectionExpression) {
+            result.projectionExpression = params.getProjectionExpression
+          }
+          const getNames = parseJson(params.getExpressionAttributeNames, 'expressionAttributeNames')
+          if (getNames !== undefined) result.expressionAttributeNames = getNames
         }
 
         if (op === 'put') {
@@ -681,6 +797,7 @@ Return ONLY the expression - no explanations.`,
             'expressionAttributeValues'
           )
           if (values !== undefined) result.expressionAttributeValues = values
+          if (params.putReturnValues === 'ALL_OLD') result.returnValues = 'ALL_OLD'
         }
 
         if (op === 'query') {
@@ -700,6 +817,12 @@ Return ONLY the expression - no explanations.`,
           if (esk !== undefined) result.exclusiveStartKey = esk
           if (params.scanIndexForward === 'false' || params.scanIndexForward === false) {
             result.scanIndexForward = false
+          }
+          if (params.queryProjectionExpression) {
+            result.projectionExpression = params.queryProjectionExpression
+          }
+          if (params.queryConsistentRead === 'true' || params.queryConsistentRead === true) {
+            result.consistentRead = true
           }
         }
 
@@ -725,6 +848,20 @@ Return ONLY the expression - no explanations.`,
           if (lim) result.limit = Number.parseInt(String(lim), 10)
           const esk = parseJson(params.scanExclusiveStartKey, 'exclusiveStartKey')
           if (esk !== undefined) result.exclusiveStartKey = esk
+          if (params.scanIndexName) result.indexName = params.scanIndexName
+          if (params.scanConsistentRead === 'true' || params.scanConsistentRead === true) {
+            result.consistentRead = true
+          }
+          if (
+            params.scanSegment !== undefined &&
+            params.scanSegment !== null &&
+            params.scanSegment !== ''
+          ) {
+            result.segment = Number.parseInt(String(params.scanSegment), 10)
+          }
+          if (params.scanTotalSegments) {
+            result.totalSegments = Number.parseInt(String(params.scanTotalSegments), 10)
+          }
         }
 
         if (op === 'update') {
@@ -746,6 +883,7 @@ Return ONLY the expression - no explanations.`,
           if (values !== undefined) result.expressionAttributeValues = values
           if (params.updateConditionExpression)
             result.conditionExpression = params.updateConditionExpression
+          if (params.updateReturnValues) result.returnValues = params.updateReturnValues
         }
 
         if (op === 'delete') {
@@ -768,6 +906,7 @@ Return ONLY the expression - no explanations.`,
             'expressionAttributeValues'
           )
           if (values !== undefined) result.expressionAttributeValues = values
+          if (params.deleteReturnValues === 'ALL_OLD') result.returnValues = 'ALL_OLD'
         }
 
         return result
@@ -840,6 +979,26 @@ Return ONLY the expression - no explanations.`,
       type: 'string',
       description: 'Sort order for query: true for ascending, false for descending',
     },
+    getProjectionExpression: { type: 'string', description: 'Attributes to retrieve in get' },
+    getExpressionAttributeNames: {
+      type: 'json',
+      description: 'Attribute name mappings for get projection',
+    },
+    queryProjectionExpression: { type: 'string', description: 'Attributes to retrieve in query' },
+    queryConsistentRead: { type: 'string', description: 'Use strongly consistent read for query' },
+    scanIndexName: { type: 'string', description: 'Secondary index name for scan' },
+    scanConsistentRead: { type: 'string', description: 'Use strongly consistent read for scan' },
+    scanSegment: { type: 'number', description: 'Parallel scan segment number' },
+    scanTotalSegments: { type: 'number', description: 'Parallel scan total segment count' },
+    putReturnValues: { type: 'string', description: 'Return values for put (NONE or ALL_OLD)' },
+    updateReturnValues: {
+      type: 'string',
+      description: 'Return values for update (ALL_NEW, UPDATED_NEW, ALL_OLD, UPDATED_OLD, NONE)',
+    },
+    deleteReturnValues: {
+      type: 'string',
+      description: 'Return values for delete (NONE or ALL_OLD)',
+    },
   },
   outputs: {
     message: {
@@ -857,6 +1016,14 @@ Return ONLY the expression - no explanations.`,
     count: {
       type: 'number',
       description: 'Number of items returned',
+    },
+    scannedCount: {
+      type: 'number',
+      description: 'Number of items evaluated by query/scan before the filter expression',
+    },
+    attributes: {
+      type: 'json',
+      description: 'Replaced (put) or deleted (delete) item when Return Values is ALL_OLD',
     },
     lastEvaluatedKey: {
       type: 'json',

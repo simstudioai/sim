@@ -78,6 +78,7 @@ export async function assumeRole(
   policyArns?: string | null,
   tags?: string | null,
   transitiveTagKeys?: string | null,
+  sourceIdentity?: string | null,
   signal?: AbortSignal
 ) {
   const command = new AssumeRoleCommand({
@@ -88,6 +89,7 @@ export async function assumeRole(
     ...(externalId ? { ExternalId: externalId } : {}),
     ...(serialNumber ? { SerialNumber: serialNumber } : {}),
     ...(tokenCode ? { TokenCode: tokenCode } : {}),
+    ...(sourceIdentity ? { SourceIdentity: sourceIdentity } : {}),
     ...(() => {
       const arns = parsePolicyArns(policyArns)
       return arns ? { PolicyArns: arns } : {}

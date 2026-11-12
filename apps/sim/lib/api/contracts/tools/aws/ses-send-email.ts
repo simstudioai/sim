@@ -6,6 +6,7 @@ import type {
 } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { validateAwsRegion } from '@/lib/core/security/input-validation'
+import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 
 const SendEmailSchema = z
   .object({
@@ -26,6 +27,9 @@ const SendEmailSchema = z
     bccAddresses: z.string().nullish(),
     replyToAddresses: z.string().nullish(),
     configurationSetName: z.string().nullish(),
+    fromName: z.string().nullish(),
+    emailTags: z.array(z.object({ name: z.string().min(1), value: z.string() })).nullish(),
+    attachments: RawFileInputArraySchema.nullish(),
   })
   .refine((data) => data.bodyText || data.bodyHtml, {
     message: 'At least one of bodyText or bodyHtml is required',

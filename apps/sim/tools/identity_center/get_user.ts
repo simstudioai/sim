@@ -70,6 +70,11 @@ export const getUserTool: InternalToolConfig<
         userName: data.userName ?? '',
         displayName: data.displayName ?? null,
         email: data.email ?? null,
+        givenName: data.givenName ?? null,
+        familyName: data.familyName ?? null,
+        userStatus: data.userStatus ?? null,
+        title: data.title ?? null,
+        externalIds: data.externalIds ?? [],
       },
     }
   },
@@ -79,5 +84,32 @@ export const getUserTool: InternalToolConfig<
     userName: { type: 'string', description: 'Username in the Identity Store' },
     displayName: { type: 'string', description: 'Display name of the user', optional: true },
     email: { type: 'string', description: 'Email address of the user', optional: true },
+    givenName: {
+      type: 'string',
+      description: 'Given (first) name, or null when the Identity Store omits it',
+      optional: true,
+    },
+    familyName: {
+      type: 'string',
+      description: 'Family (last) name, or null when the Identity Store omits it',
+      optional: true,
+    },
+    userStatus: {
+      type: 'string',
+      description: 'Account status (ENABLED or DISABLED)',
+      optional: true,
+    },
+    title: { type: 'string', description: 'Job title of the user', optional: true },
+    externalIds: {
+      type: 'array',
+      description: 'External identity provider IDs linked to the user',
+      items: {
+        type: 'object',
+        properties: {
+          issuer: { type: 'string', description: 'Identity provider that issued the ID' },
+          id: { type: 'string', description: 'Identifier at the issuer' },
+        },
+      },
+    },
   },
 }

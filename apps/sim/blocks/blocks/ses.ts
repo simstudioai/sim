@@ -1,7 +1,7 @@
 import { SESIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 
 export const SESBlock: BlockConfig = {
   type: 'ses',
@@ -325,6 +325,67 @@ export const SESBlock: BlockConfig = {
       mode: 'advanced',
     },
     {
+      id: 'templateReplyToAddresses',
+      title: 'Reply-To Addresses',
+      type: 'short-input',
+      placeholder: 'replyto@example.com',
+      condition: { field: 'operation', value: ['send_templated_email', 'send_bulk_email'] },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'fromName',
+      title: 'From Name',
+      type: 'short-input',
+      placeholder: 'Acme Support',
+      condition: {
+        field: 'operation',
+        value: ['send_email', 'send_templated_email', 'send_bulk_email'],
+      },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'attachmentFiles',
+      title: 'Attachments',
+      type: 'file-upload',
+      canonicalParamId: 'attachments',
+      placeholder: 'Upload files to attach',
+      condition: { field: 'operation', value: ['send_email', 'send_templated_email'] },
+      mode: 'basic',
+      multiple: true,
+      required: false,
+    },
+    {
+      id: 'attachments',
+      title: 'Attachments',
+      type: 'short-input',
+      canonicalParamId: 'attachments',
+      placeholder: 'Reference files from previous blocks',
+      condition: { field: 'operation', value: ['send_email', 'send_templated_email'] },
+      mode: 'advanced',
+      required: false,
+    },
+    {
+      id: 'emailTags',
+      title: 'Email Tags (JSON)',
+      type: 'code',
+      language: 'json',
+      placeholder: '[{"name": "campaign", "value": "welcome"}]',
+      condition: {
+        field: 'operation',
+        value: ['send_email', 'send_templated_email', 'send_bulk_email'],
+      },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate an Amazon SES message tag list as a JSON array of objects, each with a "name" and a "value". Names and values may contain only letters, digits, underscores, hyphens, periods, and @. Return ONLY the JSON array.',
+        generationType: 'json-array',
+      },
+    },
+    {
       id: 'defaultTemplateData',
       title: 'Default Template Data (JSON)',
       type: 'code',
@@ -632,7 +693,27 @@ export const SESBlock: BlockConfig = {
         }
       },
       params: (params) => {
-        const { operation, pageSize, ...rest } = params
+        const { operation, pageSize, attachments, ...rest } = params
+
+        const parseEmailTags = (value: unknown) => {
+          if (value === undefined || value === null || value === '') return undefined
+          if (typeof value !== 'string') return value
+          if (!value.trim()) return undefined
+          try {
+            return JSON.parse(value)
+          } catch {
+            throw new Error('Email tags must be a valid JSON array of {"name", "value"} objects')
+          }
+        }
+
+        const sendAttachments = normalizeFileInput(attachments)
+
+        const applySendOptions = (target: Record<string, unknown>, replyToAddresses: unknown) => {
+          if (rest.fromName) target.fromName = rest.fromName
+          if (replyToAddresses) target.replyToAddresses = replyToAddresses
+          const emailTags = parseEmailTags(rest.emailTags)
+          if (emailTags !== undefined) target.emailTags = emailTags
+        }
 
         const connectionConfig = {
           region: rest.region,
@@ -705,8 +786,9 @@ export const SESBlock: BlockConfig = {
             if (rest.bodyText) result.bodyText = rest.bodyText
             if (rest.ccAddresses) result.ccAddresses = rest.ccAddresses
             if (rest.bccAddresses) result.bccAddresses = rest.bccAddresses
-            if (rest.replyToAddresses) result.replyToAddresses = rest.replyToAddresses
             if (rest.configurationSetName) result.configurationSetName = rest.configurationSetName
+            applySendOptions(result, rest.replyToAddresses)
+            if (sendAttachments) result.attachments = sendAttachments
             break
           case 'send_templated_email':
             result.fromAddress = rest.fromAddress
@@ -716,6 +798,8 @@ export const SESBlock: BlockConfig = {
             if (rest.ccAddresses) result.ccAddresses = rest.ccAddresses
             if (rest.bccAddresses) result.bccAddresses = rest.bccAddresses
             if (rest.configurationSetName) result.configurationSetName = rest.configurationSetName
+            applySendOptions(result, rest.templateReplyToAddresses)
+            if (sendAttachments) result.attachments = sendAttachments
             break
           case 'send_bulk_email':
             result.fromAddress = rest.fromAddress
@@ -723,6 +807,7 @@ export const SESBlock: BlockConfig = {
             result.destinations = rest.destinations
             if (rest.defaultTemplateData) result.defaultTemplateData = rest.defaultTemplateData
             if (rest.configurationSetName) result.configurationSetName = rest.configurationSetName
+            applySendOptions(result, rest.templateReplyToAddresses)
             break
           case 'list_identities':
             if (pageSize != null) {
@@ -783,6 +868,16 @@ export const SESBlock: BlockConfig = {
     ccAddresses: { type: 'string', description: 'Comma-separated CC email addresses' },
     bccAddresses: { type: 'string', description: 'Comma-separated BCC email addresses' },
     replyToAddresses: { type: 'string', description: 'Comma-separated reply-to addresses' },
+    templateReplyToAddresses: {
+      type: 'string',
+      description: 'Comma-separated reply-to addresses for templated and bulk sends',
+    },
+    fromName: { type: 'string', description: 'Friendly sender name shown with the From address' },
+    attachments: { type: 'array', description: 'Files to attach to the email (canonical param)' },
+    emailTags: {
+      type: 'json',
+      description: 'Message tags as a JSON array of {name, value} objects',
+    },
     defaultTemplateData: {
       type: 'string',
       description: 'Default JSON template data for bulk sends',
@@ -947,6 +1042,17 @@ export const SESBlock: BlockConfig = {
     sentLast24Hours: {
       type: 'number',
       description: 'Emails sent in the last 24 hours (get_account)',
+      condition: { field: 'operation', value: 'get_account' },
+    },
+    productionAccessEnabled: {
+      type: 'boolean',
+      description:
+        'Whether the account has production access, false in the SES sandbox (get_account)',
+      condition: { field: 'operation', value: 'get_account' },
+    },
+    enforcementStatus: {
+      type: 'string',
+      description: 'Account sending status: HEALTHY, PROBATION, or SHUTDOWN (get_account)',
       condition: { field: 'operation', value: 'get_account' },
     },
     templateName: {

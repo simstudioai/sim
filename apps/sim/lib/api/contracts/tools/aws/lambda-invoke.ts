@@ -25,6 +25,7 @@ const InvokeSchema = z.object({
     .min(1, 'qualifier cannot be empty')
     .max(128, 'qualifier cannot exceed 128 characters')
     .optional(),
+  tenantId: z.string().min(1).max(256, 'tenantId cannot exceed 256 characters').optional(),
 })
 
 const InvokeResponseSchema = z.object({

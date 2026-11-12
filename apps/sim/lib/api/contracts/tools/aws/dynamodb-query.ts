@@ -25,6 +25,8 @@ const QuerySchema = z.object({
   limit: z.number().positive().optional(),
   exclusiveStartKey: z.record(z.string(), z.unknown()).optional(),
   scanIndexForward: z.boolean().optional(),
+  projectionExpression: z.string().optional(),
+  consistentRead: z.boolean().optional(),
 })
 
 const QueryResponseSchema = z.object({
@@ -32,6 +34,7 @@ const QueryResponseSchema = z.object({
   // untyped-response: DynamoDB Items are arbitrary user attribute-value records
   items: z.array(z.record(z.string(), z.unknown())),
   count: z.number(),
+  scannedCount: z.number().nullable(),
   // untyped-response: DynamoDB LastEvaluatedKey mirrors the table's primary key shape
   lastEvaluatedKey: z.record(z.string(), z.unknown()).optional(),
 })

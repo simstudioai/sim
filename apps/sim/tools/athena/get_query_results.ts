@@ -84,7 +84,7 @@ export const getQueryResultsTool: InternalToolConfig<
   outputs: {
     columns: {
       type: 'array',
-      description: 'Column metadata (name and type)',
+      description: 'Column metadata (name, type, label, precision, scale, nullable, caseSensitive)',
     },
     rows: {
       type: 'array',
@@ -97,7 +97,8 @@ export const getQueryResultsTool: InternalToolConfig<
     },
     updateCount: {
       type: 'number',
-      description: 'Number of rows affected (for INSERT/UPDATE statements)',
+      description:
+        'Number of rows inserted or updated by a CREATE TABLE AS SELECT, INSERT INTO, or UPDATE statement',
       optional: true,
     },
   },

@@ -85,6 +85,19 @@ export const queryTool: InternalToolConfig<DynamoDBQueryParams, DynamoDBQueryRes
       description:
         'Sort order for the sort key: true for ascending (default), false for descending',
     },
+    projectionExpression: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Attributes to retrieve (e.g., "pk, sk, #name, email")',
+    },
+    consistentRead: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Use a strongly consistent read (default: false). Not supported on global secondary indexes',
+    },
   },
 
   operation: {
@@ -105,6 +118,8 @@ export const queryTool: InternalToolConfig<DynamoDBQueryParams, DynamoDBQueryRes
       ...(params.limit && { limit: params.limit }),
       ...(params.exclusiveStartKey && { exclusiveStartKey: params.exclusiveStartKey }),
       ...(params.scanIndexForward !== undefined && { scanIndexForward: params.scanIndexForward }),
+      ...(params.projectionExpression && { projectionExpression: params.projectionExpression }),
+      ...(params.consistentRead !== undefined && { consistentRead: params.consistentRead }),
     }),
   },
 
@@ -121,6 +136,7 @@ export const queryTool: InternalToolConfig<DynamoDBQueryParams, DynamoDBQueryRes
         message: data.message || 'Query executed successfully',
         items: data.items || [],
         count: data.count || 0,
+        scannedCount: data.scannedCount ?? null,
         ...(data.lastEvaluatedKey && { lastEvaluatedKey: data.lastEvaluatedKey }),
       },
       error: undefined,
@@ -131,6 +147,11 @@ export const queryTool: InternalToolConfig<DynamoDBQueryParams, DynamoDBQueryRes
     message: { type: 'string', description: 'Operation status message' },
     items: { type: 'array', description: 'Array of items returned' },
     count: { type: 'number', description: 'Number of items returned' },
+    scannedCount: {
+      type: 'number',
+      description: 'Number of items evaluated before the filter expression was applied',
+      optional: true,
+    },
     lastEvaluatedKey: {
       type: 'json',
       description:

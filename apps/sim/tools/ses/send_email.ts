@@ -82,6 +82,25 @@ export const sendEmailTool: InternalToolConfig<SESSendEmailParams, SESSendEmailR
       visibility: 'user-or-llm',
       description: 'SES configuration set name for tracking',
     },
+    fromName: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Friendly sender name shown with the From address (e.g., Acme Support)',
+    },
+    emailTags: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Message tags for filtering sending events, as a JSON array of {"name", "value"} objects (letters, digits, _, -, . and @ only)',
+    },
+    attachments: {
+      type: 'file[]',
+      required: false,
+      visibility: 'user-only',
+      description: 'Files to attach to the email (up to 28MB in total)',
+    },
   },
 
   operation: {
@@ -98,6 +117,9 @@ export const sendEmailTool: InternalToolConfig<SESSendEmailParams, SESSendEmailR
       bccAddresses: params.bccAddresses,
       replyToAddresses: params.replyToAddresses,
       configurationSetName: params.configurationSetName,
+      fromName: params.fromName,
+      emailTags: params.emailTags,
+      attachments: params.attachments,
     }),
   },
 

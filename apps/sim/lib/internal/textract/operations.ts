@@ -12,6 +12,7 @@ import {
   StartDocumentTextDetectionCommand,
   StartExpenseAnalysisCommand,
   TextractClient,
+  type Warning,
 } from '@aws-sdk/client-textract'
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
@@ -46,6 +47,7 @@ interface TextractDocumentResult {
   JobStatus?: string
   StatusMessage?: string
   NextToken?: string
+  Warnings?: Warning[]
   Blocks?: unknown[]
   DocumentMetadata?: { Pages?: number }
   AnalyzeDocumentModelVersion?: string
@@ -56,6 +58,7 @@ interface TextractExpenseResult {
   JobStatus?: string
   StatusMessage?: string
   NextToken?: string
+  Warnings?: Warning[]
   ExpenseDocuments?: ExpenseDocument[]
   DocumentMetadata?: { Pages?: number }
   AnalyzeExpenseModelVersion?: string
@@ -76,6 +79,26 @@ function validateModelInputProvenance(input: unknown, headers: Headers): NextRes
     { success: false, error: provenance.error },
     { status: provenance.status }
   )
+}
+
+function mergeWarnings(accumulated: Warning[] = [], page: Warning[] = []): Warning[] {
+  const seen = new Set(accumulated.map((warning) => JSON.stringify(warning)))
+  return [...accumulated, ...page.filter((warning) => !seen.has(JSON.stringify(warning)))]
+}
+
+function asyncJobOutput(result: {
+  JobStatus?: string
+  StatusMessage?: string
+  Warnings?: Warning[]
+}) {
+  return {
+    jobStatus: result.JobStatus ?? null,
+    statusMessage: result.StatusMessage ?? null,
+    warnings: (result.Warnings ?? []).map((warning) => ({
+      errorCode: warning.ErrorCode ?? null,
+      pages: warning.Pages ?? [],
+    })),
+  }
 }
 
 function createTextractClient(input: {
@@ -170,6 +193,7 @@ export async function executeTextractParse(
             ...accumulated,
             ...page,
             Blocks: [...(accumulated.Blocks ?? []), ...(page.Blocks ?? [])],
+            Warnings: mergeWarnings(accumulated.Warnings, page.Warnings),
           }),
           signal
         )
@@ -186,6 +210,7 @@ export async function executeTextractParse(
             documentMetadata: { pages: result.DocumentMetadata?.Pages ?? 0 },
             modelVersion:
               result.AnalyzeDocumentModelVersion ?? result.DetectDocumentTextModelVersion,
+            ...asyncJobOutput(result),
           },
         })
       } finally {
@@ -307,6 +332,7 @@ export async function executeTextractAnalyzeExpense(
               ...(accumulated.ExpenseDocuments ?? []),
               ...(page.ExpenseDocuments ?? []),
             ],
+            Warnings: mergeWarnings(accumulated.Warnings, page.Warnings),
           }),
           signal
         )
@@ -317,6 +343,7 @@ export async function executeTextractAnalyzeExpense(
             expenseDocuments: normalizeExpenseDocuments(result.ExpenseDocuments ?? []),
             documentMetadata: { pages: result.DocumentMetadata?.Pages ?? 0 },
             modelVersion: result.AnalyzeExpenseModelVersion,
+            ...asyncJobOutput(result),
           },
         })
       } finally {
