@@ -268,6 +268,7 @@ jobs:
       DOCS_GENERATORS_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/generators/report.json
       DOCS_COMPATIBILITY_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/compatibility.json
       DOCS_HEADER_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/docs-headers.json
+      GITLAB_EXPORT_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/gitlab-export.json
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
@@ -292,6 +293,8 @@ jobs:
       - name: Verify native header edge cases
         if: ${{ !cancelled() && steps.generators.outcome != 'skipped' }}
         run: bun run --cwd apps/docs test:headers:e2e
+      - name: Verify GitLab CSV export over HTTPS
+        run: python3 apps/docs/scripts/test-gitlab-export-e2e.py
       - name: Bound the generated content cache
         if: always()
         run: bash .github/actions/docs-content-cache/prune.sh content
