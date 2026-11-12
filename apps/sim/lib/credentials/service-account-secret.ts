@@ -578,19 +578,21 @@ async function buildTokenServiceAccountSecret(
   const apiToken = descriptor.fields.find((field) => field.id === 'apiToken')?.preserveWhitespace
     ? fields.apiToken
     : fields.apiToken?.trim()
-  const domain = fields.domain?.trim()
-  const requiresDomain = descriptor.fields.some((field) => field.id === 'domain')
-  const providerWorkspaceId = fields.providerWorkspaceId?.trim()
-  const requiresWorkspace = descriptor.fields.some((field) => field.id === 'providerWorkspaceId')
+  const domainField = descriptor.fields.find((field) => field.id === 'domain')
+  const domain = fields.domain?.trim() || domainField?.defaultValue
+  const requiresDomain = Boolean(domainField)
+  const workspaceField = descriptor.fields.find((field) => field.id === 'providerWorkspaceId')
+  const providerWorkspaceId = fields.providerWorkspaceId?.trim() || workspaceField?.defaultValue
+  const requiresWorkspace = Boolean(workspaceField)
   if (
     !apiToken ||
     !apiToken.trim() ||
     (requiresDomain && !domain) ||
     (requiresWorkspace && !providerWorkspaceId)
   ) {
-    const required = descriptor.fields.map((field) => field.id).join(' and ')
+    const requiredFields = descriptor.fields.filter((field) => field.defaultValue === undefined)
     throw new ServiceAccountSecretError(
-      `${required} ${descriptor.fields.length > 1 ? 'are' : 'is'} required for ${descriptor.serviceLabel} service account credentials`
+      `${requiredFields.map((field) => field.id).join(' and ')} ${requiredFields.length > 1 ? 'are' : 'is'} required for ${descriptor.serviceLabel} service account credentials`
     )
   }
   const validation = await validator({ apiToken, domain, providerWorkspaceId })
@@ -634,8 +636,9 @@ async function buildTokenClientCredentialSecret(
   }
   const clientId = fields.clientId?.trim()
   const clientSecret = fields.clientSecret?.trim()
-  const domain = fields.domain?.trim()
-  const requiresDomain = descriptor.fields.some((field) => field.id === 'domain')
+  const domainField = descriptor.fields.find((field) => field.id === 'domain')
+  const domain = fields.domain?.trim() || domainField?.defaultValue
+  const requiresDomain = Boolean(domainField)
   if (!clientId || !clientSecret || (requiresDomain && !domain)) {
     throw new ServiceAccountSecretError(
       `clientId, clientSecret${requiresDomain ? ', and domain are' : ' are'} required for ${descriptor.serviceLabel} client credentials`

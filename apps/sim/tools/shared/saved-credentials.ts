@@ -302,6 +302,7 @@ export const LANGSMITH_CREDENTIAL_OAUTH = tokenCredentialOAuth('langsmith', {
 })
 export const LAUNCHDARKLY_CREDENTIAL_OAUTH = tokenCredentialOAuth('launchdarkly', {
   apiKey: 'accessToken',
+  instance: 'domain',
 })
 export const LEMLIST_CREDENTIAL_OAUTH = tokenCredentialOAuth('lemlist', { apiKey: 'accessToken' })
 export const LINQ_CREDENTIAL_OAUTH = tokenCredentialOAuth('linq', { apiKey: 'accessToken' })

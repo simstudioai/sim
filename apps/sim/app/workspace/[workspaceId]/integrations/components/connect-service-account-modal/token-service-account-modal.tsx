@@ -115,11 +115,22 @@ function TokenServiceAccountModalForm({
         ? CLIENT_CREDENTIALS_AUTH_METHOD
         : 'token')
   const usesClientCredentials = authMethod === CLIENT_CREDENTIALS_AUTH_METHOD
+  const tokenField = descriptor.fields.find((field) => field.id === 'apiToken')
+  const domainField = descriptor.fields.find((field) => field.id === 'domain')
+  const workspaceField = descriptor.fields.find((field) => field.id === 'providerWorkspaceId')
+  /**
+   * A new connection starts on a field's default (the region or host it had before the field
+   * existed). A reconnect starts blank, which keeps the stored value: the server carries it
+   * forward, since the stored one is never returned to the client.
+   */
+  const initialValue = (field: TokenServiceAccountField | undefined) =>
+    credentialId ? '' : (field?.defaultValue ?? '')
+
   const [apiToken, setApiToken] = useState('')
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
-  const [domain, setDomain] = useState('')
-  const [providerWorkspaceId, setProviderWorkspaceId] = useState('')
+  const [domain, setDomain] = useState(() => initialValue(domainField))
+  const [providerWorkspaceId, setProviderWorkspaceId] = useState(() => initialValue(workspaceField))
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
   const [description, setDescription] = useState(initialDescription ?? '')
   const [error, setError] = useState<string | null>(null)
@@ -127,24 +138,64 @@ function TokenServiceAccountModalForm({
   const createCredential = useCreateScopedCredential()
   const updateCredential = useUpdateScopedCredential()
 
-  const tokenField = descriptor.fields.find((field) => field.id === 'apiToken')
-  const domainField = descriptor.fields.find((field) => field.id === 'domain')
-  const workspaceField = descriptor.fields.find((field) => field.id === 'providerWorkspaceId')
-
   const trimmedToken = apiToken.trim()
   const normalizedDomain = domainField?.url ? domain.trim() : normalizeDomainInput(domain)
+  const trimmedWorkspaceId = providerWorkspaceId.trim()
+  const isRequired = (field: TokenServiceAccountField) => field.defaultValue === undefined
   const isPending =
     createCredential.isPending || updateCredential.isPending || submitPending === true
   const isDisabled =
     !authMethod ||
     (usesClientCredentials ? !clientId.trim() || !clientSecret.trim() : !trimmedToken) ||
-    (Boolean(domainField) && !normalizedDomain) ||
-    (Boolean(workspaceField) && !providerWorkspaceId.trim()) ||
+    Boolean(domainField && isRequired(domainField) && !normalizedDomain) ||
+    Boolean(workspaceField && isRequired(workspaceField) && !trimmedWorkspaceId) ||
     isPending
 
   const hintFor = (field: TokenServiceAccountField, value: string): string | undefined => {
     if (!field.hintPattern || !field.hintMessage || value.length === 0) return undefined
     return field.hintPattern.test(value) ? undefined : field.hintMessage
+  }
+
+  const renderConnectionField = (
+    field: TokenServiceAccountField,
+    value: string,
+    setValue: (value: string) => void,
+    formatError?: string
+  ) => {
+    const onChange = (next: string) => {
+      setValue(next)
+      if (error) setError(null)
+    }
+    const placeholder =
+      credentialId && !isRequired(field)
+        ? `Keep the current ${field.label.toLowerCase()}`
+        : field.placeholder
+    if (field.options) {
+      return (
+        <ChipModalField
+          type='dropdown'
+          title={field.label}
+          value={value || undefined}
+          onChange={onChange}
+          options={field.options}
+          placeholder={placeholder}
+          align='start'
+          required={isRequired(field)}
+        />
+      )
+    }
+    return (
+      <ChipModalField
+        type='input'
+        title={field.label}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        autoComplete='off'
+        required={isRequired(field)}
+        error={formatError}
+      />
+    )
   }
 
   const handleSubmit = async () => {
@@ -159,8 +210,10 @@ function TokenServiceAccountModalForm({
               clientSecret: clientSecret.trim(),
             }
           : { apiToken: tokenField?.preserveWhitespace ? apiToken : trimmedToken }),
-        ...(workspaceField ? { providerWorkspaceId: providerWorkspaceId.trim() } : {}),
-        ...(domainField ? { domain: normalizedDomain } : {}),
+        ...(workspaceField && trimmedWorkspaceId
+          ? { providerWorkspaceId: trimmedWorkspaceId }
+          : {}),
+        ...(domainField && normalizedDomain ? { domain: normalizedDomain } : {}),
       }
       if (onSubmitCredentials) {
         const savedId = await onSubmitCredentials({
@@ -275,32 +328,15 @@ function TokenServiceAccountModalForm({
           </ChipModalField>
         )}
 
-        {workspaceField && (
-          <ChipModalField
-            type='input'
-            title={workspaceField.label}
-            value={providerWorkspaceId}
-            onChange={setProviderWorkspaceId}
-            placeholder={workspaceField.placeholder}
-            required
-            autoComplete='off'
-          />
-        )}
-        {domainField && (
-          <ChipModalField
-            type='input'
-            title={domainField.label}
-            value={domain}
-            onChange={(value) => {
-              setDomain(value)
-              if (error) setError(null)
-            }}
-            placeholder={domainField.placeholder}
-            autoComplete='off'
-            required
-            error={hintFor(domainField, normalizedDomain)}
-          />
-        )}
+        {workspaceField &&
+          renderConnectionField(workspaceField, providerWorkspaceId, setProviderWorkspaceId)}
+        {domainField &&
+          renderConnectionField(
+            domainField,
+            domain,
+            setDomain,
+            hintFor(domainField, normalizedDomain)
+          )}
 
         <ChipModalField
           type='input'

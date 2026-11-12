@@ -25,6 +25,7 @@ import { getTokenClientCredentialMinter } from '@/lib/credentials/token-service-
 import {
   type CLIENT_CREDENTIALS_AUTH_METHOD,
   getTokenServiceAccountDescriptor,
+  getTokenServiceAccountFieldDefault,
   isTokenServiceAccountProviderId,
   SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/token-service-accounts/descriptors'
@@ -1039,7 +1040,11 @@ export async function resolveServiceAccountToken(
       credentialId,
       'Token service account secret not found'
     )
-    const secret = parseTokenServiceAccountSecret(stored.decrypted, providerId)
+    const parsed = parseTokenServiceAccountSecret(stored.decrypted, providerId)
+    // A credential saved before its provider gained a defaulted region or host stores none, and
+    // resolves to that default: the host it has always used.
+    const domain = parsed.domain || getTokenServiceAccountFieldDefault(providerId, 'domain')
+    const secret = domain === undefined ? parsed : { ...parsed, domain }
     if ('authMethod' in secret) {
       return resolveTokenClientCredentialToken(credentialId, secret, stored, options)
     }
@@ -1047,7 +1052,9 @@ export async function resolveServiceAccountToken(
     return {
       accessToken: secret.apiToken,
       domain: secret.domain,
-      providerWorkspaceId: secret.providerWorkspaceId,
+      providerWorkspaceId:
+        secret.providerWorkspaceId ||
+        getTokenServiceAccountFieldDefault(providerId, 'providerWorkspaceId'),
       ...(descriptorAuthStyle === 'x-api-token' ? { authStyle: descriptorAuthStyle } : {}),
     }
   }

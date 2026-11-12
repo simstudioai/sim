@@ -30,6 +30,7 @@ import { normalizeGitLabHost } from '@/tools/gitlab/utils'
 import { gongAuthorization } from '@/tools/gong/utils'
 import { GRANOLA_API_BASE, granolaHeaders } from '@/tools/granola/utils'
 import { buildJotformHeaders, buildJotformUrl, JOTFORM_REGION_HOSTS } from '@/tools/jotform/utils'
+import { LAUNCHDARKLY_INSTANCES, launchDarklyApiBase } from '@/tools/launchdarkly/utils'
 import {
   getLogfireBaseUrl,
   LOGFIRE_READ_TOKEN_INFO_PATH,
@@ -923,11 +924,16 @@ export const validateLangsmithServiceAccount = tokenCheckValidator({
   }),
 })
 
-/** LaunchDarkly's caller-identity endpoint describes the calling token, so it answers 200 for any valid token and 401 otherwise. */
+/**
+ * LaunchDarkly's caller-identity endpoint describes the calling token, so it answers 200 for any
+ * valid token and 401 otherwise, on the instance (commercial, EU, or federal) the token was
+ * created in.
+ */
 export const validateLaunchdarklyServiceAccount = tokenCheckValidator({
   serviceLabel: 'LaunchDarkly',
-  request: ({ apiToken }) => ({
-    url: 'https://app.launchdarkly.com/api/v2/caller-identity',
+  domain: allowedDomain(LAUNCHDARKLY_INSTANCES),
+  request: ({ apiToken, domain }) => ({
+    url: `${launchDarklyApiBase(domain)}/caller-identity`,
     headers: { Authorization: apiToken, Accept: 'application/json' },
   }),
 })

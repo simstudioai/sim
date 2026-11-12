@@ -119,7 +119,9 @@ function providerField(
     id: field.id,
     label: field.label,
     placeholder: field.placeholder,
-    required: !('optional' in field && field.optional),
+    required:
+      !('optional' in field && field.optional) &&
+      !('defaultValue' in field && field.defaultValue !== undefined),
     secret: field.secret,
     multiline: 'multiline' in field && field.multiline === true,
     ...('requiredForAuthMethods' in field && field.requiredForAuthMethods

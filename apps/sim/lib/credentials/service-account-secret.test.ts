@@ -831,3 +831,57 @@ describe('a ServiceNow login', () => {
     expect(secureFetch).not.toHaveBeenCalled()
   })
 })
+
+describe('a token provider whose region or host defaults to the one it always used', () => {
+  const fetchMock = vi.fn<typeof fetch>()
+
+  beforeEach(() => {
+    mockEncryptSecret.mockImplementation(async (value: string) => ({ encrypted: value }))
+    fetchMock.mockReset().mockResolvedValue(Response.json({ accountId: 'acct-1' }))
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  const requestedUrl = () => new Request(fetchMock.mock.calls[0][0], fetchMock.mock.calls[0][1]).url
+
+  it.each([
+    [
+      'launchdarkly-service-account',
+      undefined,
+      'https://app.launchdarkly.com/api/v2/caller-identity',
+      'us',
+    ],
+    [
+      'launchdarkly-service-account',
+      'eu',
+      'https://app.eu.launchdarkly.com/api/v2/caller-identity',
+      'eu',
+    ],
+    [
+      'launchdarkly-service-account',
+      'Federal',
+      'https://app.launchdarkly.us/api/v2/caller-identity',
+      'federal',
+    ],
+  ])('%s with %s is checked at %s and stored as %s', async (providerId, domain, url, stored) => {
+    const result = await verifyAndBuildServiceAccountSecret(providerId, {
+      apiToken: 'token-1',
+      ...(domain === undefined ? {} : { domain }),
+    })
+
+    expect(requestedUrl()).toBe(url)
+    expect(JSON.parse(result.encryptedServiceAccountKey)).toMatchObject({
+      apiToken: 'token-1',
+      domain: stored,
+    })
+  })
+
+  it.each([['launchdarkly-service-account', 'app.launchdarkly.example.com']])(
+    'refuses %s with an unlisted region or host %s without sending the token',
+    async (providerId, domain) => {
+      await expect(
+        verifyAndBuildServiceAccountSecret(providerId, { apiToken: 'token-1', domain })
+      ).rejects.toMatchObject({ code: 'invalid_credentials' })
+      expect(fetchMock).not.toHaveBeenCalled()
+    }
+  )
+})

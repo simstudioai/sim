@@ -12,6 +12,11 @@
  * `@/lib/credentials/token-service-accounts/server`.
  */
 
+import {
+  DEFAULT_LAUNCHDARKLY_INSTANCE,
+  LAUNCHDARKLY_INSTANCE_OPTIONS,
+} from '@/tools/launchdarkly/utils'
+
 /** Discriminator stored inside every encrypted token service-account secret blob. */
 export const TOKEN_SERVICE_ACCOUNT_SECRET_TYPE = 'token_service_account' as const
 
@@ -35,6 +40,20 @@ export interface TokenServiceAccountField {
   /** Soft-format hint shown while the current value doesn't match `hintPattern`. */
   hintPattern?: RegExp
   hintMessage?: string
+  /** Fixed value set (a region or instance), rendered by the connect modal as a dropdown. */
+  options?: ReadonlyArray<TokenServiceAccountFieldOption>
+  /**
+   * For a non-secret connection field (a region, instance, or host): the value the connection
+   * takes when none is given. It is also what a credential saved before the field existed
+   * resolves to, so adding the field leaves existing credentials, and API callers that omit it,
+   * on the host they used before. A field with a default is not required.
+   */
+  defaultValue?: string
+}
+
+export interface TokenServiceAccountFieldOption {
+  value: string
+  label: string
 }
 
 export interface TokenServiceAccountDescriptor {
@@ -1152,8 +1171,22 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         placeholder: 'Paste your LaunchDarkly access token',
         secret: true,
       },
+      {
+        id: 'domain',
+        label: 'Instance',
+        placeholder: 'Select an instance',
+        secret: false,
+        options: LAUNCHDARKLY_INSTANCE_OPTIONS,
+        defaultValue: DEFAULT_LAUNCHDARKLY_INSTANCE,
+        hintMessage:
+          'us (default), eu, or federal: the LaunchDarkly instance the token was created in.',
+      },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/launchdarkly',
+    helpText:
+      'Choose EU or Federal if your account signs in at app.eu.launchdarkly.com or app.launchdarkly.us; a token only works on the instance that issued it.',
+    invalidCredentialsHelp:
+      'LaunchDarkly rejected this token. Check that it is active and that the instance matches the one your account signs in to.',
   },
   [LINQ_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: LINQ_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -2508,7 +2541,9 @@ export const TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS: Record<
       [
         'clientId',
         'clientSecret',
-        ...descriptor.fields.flatMap((field) => (field.id === 'apiToken' ? [] : [field.id])),
+        ...descriptor.fields.flatMap((field) =>
+          field.id === 'apiToken' || field.defaultValue !== undefined ? [] : [field.id]
+        ),
       ],
     ])
 )
@@ -2516,15 +2551,30 @@ export const TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS: Record<
 /**
  * Required contract fields per token service-account provider, consumed by the
  * `createCredentialBodySchema` superRefine so validation errors name the exact
- * missing field. Derived from each descriptor's field list.
+ * missing field. Derived from each descriptor's field list; a field with a
+ * `defaultValue` is optional.
  */
 export const TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS: Record<string, TokenServiceAccountFieldId[]> =
   Object.fromEntries(
     Object.values(TOKEN_SERVICE_ACCOUNT_DESCRIPTORS).map((descriptor) => [
       descriptor.providerId,
-      descriptor.fields.map((field) => field.id),
+      descriptor.fields
+        .filter((field) => field.defaultValue === undefined)
+        .map((field) => field.id),
     ])
   )
+
+/**
+ * The value a token credential's connection field (`domain` or `providerWorkspaceId`) takes when
+ * none was given or stored: the descriptor's `defaultValue`, or `undefined` when it has none.
+ */
+export function getTokenServiceAccountFieldDefault(
+  providerId: string | null | undefined,
+  fieldId: Exclude<TokenServiceAccountFieldId, 'apiToken'>
+): string | undefined {
+  return getTokenServiceAccountDescriptor(providerId)?.fields.find((field) => field.id === fieldId)
+    ?.defaultValue
+}
 
 export function isTokenServiceAccountProviderId(
   value: string | null | undefined
