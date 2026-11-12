@@ -1,4 +1,5 @@
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import type {
   GoogleCalendarApiEventResponse,
   GoogleCalendarEventDetails,
@@ -122,6 +123,10 @@ function parseReminderOverrides(
     } catch {
       throw new Error('Reminders must be a JSON array like [{"method":"popup","minutes":10}]')
     }
+  }
+
+  if (isRecordLike(parsed) && Array.isArray(parsed.overrides)) {
+    parsed = parsed.overrides
   }
 
   if (!Array.isArray(parsed)) {

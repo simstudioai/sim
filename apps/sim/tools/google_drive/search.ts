@@ -59,7 +59,7 @@ export const searchTool: ToolConfig<GoogleDriveSearchParams, GoogleDriveSearchRe
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated sort keys: createdTime, folder, modifiedByMeTime, modifiedTime, name, name_natural, quotaBytesUsed, recency, sharedWithMeTime, starred, viewedByMeTime. Append " desc" to reverse (e.g., "modifiedTime desc")',
+        'Comma-separated sort keys: createdTime, folder, modifiedByMeTime, modifiedTime, name, name_natural, quotaBytesUsed, recency, sharedWithMeTime, starred, viewedByMeTime. Append " desc" to reverse (e.g., "modifiedTime desc"). Ignored for fullText queries, which Drive always orders by relevance',
     },
     driveId: {
       type: 'string',
@@ -84,7 +84,7 @@ export const searchTool: ToolConfig<GoogleDriveSearchParams, GoogleDriveSearchRe
       url.searchParams.append('supportsAllDrives', 'true')
       url.searchParams.append('includeItemsFromAllDrives', 'true')
       const orderBy = params.orderBy?.trim()
-      if (orderBy) {
+      if (orderBy && !/\bfullText\b/.test(params.query ?? '')) {
         url.searchParams.append('orderBy', orderBy)
       }
 

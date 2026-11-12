@@ -3479,6 +3479,19 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       type: 'json',
       description: 'Page properties from Get Page (pageBackgroundFill, colorScheme)',
     },
+    layoutProperties: {
+      type: 'json',
+      description:
+        'Layout properties from Get Page, for layout pages (masterObjectId, name, displayName)',
+    },
+    notesProperties: {
+      type: 'json',
+      description: 'Notes properties from Get Page, for notes pages (speakerNotesObjectId)',
+    },
+    masterProperties: {
+      type: 'json',
+      description: 'Master properties from Get Page, for master pages (displayName)',
+    },
     pageText: { type: 'string', description: 'Text on the page from Get Page' },
     speakerNotes: { type: 'string', description: 'Speaker notes of the slide from Get Page' },
     deleted: { type: 'boolean', description: 'Whether object was deleted' },
