@@ -90,7 +90,7 @@ function MicrosoftAppAccountForm({
     onClose: () => onOpenChange(false),
   })
   const [selectedAuthType, setSelectedAuthType] = useState<MicrosoftAuthType | null>(null)
-  const [cloud, setCloud] = useState<MicrosoftCloudId>('global')
+  const [selectedCloud, setSelectedCloud] = useState<MicrosoftCloudId | null>(null)
   const [tenantId, setTenantId] = useState('')
   const [clientId, setClientId] = useState('')
   const [environmentUrl, setEnvironmentUrl] = useState('')
@@ -108,6 +108,8 @@ function MicrosoftAppAccountForm({
       ? 'federated'
       : 'client_secret'
   const authType: MicrosoftAuthType = selectedAuthType ?? defaultAuthType
+  // A reconnect also opens on the credential's stored cloud.
+  const cloud: MicrosoftCloudId = selectedCloud ?? keyless.reconnectCloud ?? 'global'
   const disabled =
     isPending ||
     !tenantId.trim() ||
@@ -172,7 +174,7 @@ function MicrosoftAppAccountForm({
           title='Cloud'
           value={cloud}
           onChange={(value) => {
-            setCloud(value as MicrosoftCloudId)
+            setSelectedCloud(value as MicrosoftCloudId)
             clearError()
           }}
           options={CLOUD_OPTIONS}

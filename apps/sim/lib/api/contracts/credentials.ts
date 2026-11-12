@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { MICROSOFT_CLOUD_IDS } from '@/lib/credentials/microsoft-clouds'
 import {
   ATLASSIAN_PRODUCTS,
   getMissingServiceAccountFields,
@@ -576,6 +577,8 @@ export const createWorkspaceCredentialContract = defineRouteContract({
  */
 /** The reconnected credential's stored auth mode, so the dialog reopens on it. */
 const reconnectAuthTypeSchema = z.enum(WORKLOAD_IDENTITY_AUTH_TYPE_LIST).optional()
+/** A reconnected Microsoft app credential's national cloud, absent for the global cloud. */
+const reconnectCloudSchema = z.enum(MICROSOFT_CLOUD_IDS).optional()
 
 /** A reconnected keyless Google credential's domain-wide delegation, so the dialog keeps it. */
 const reconnectDelegationSchema = z
@@ -626,12 +629,14 @@ export const prepareWorkloadIdentityContract = defineRouteContract({
         available: z.literal(false),
         reconnectAuthType: reconnectAuthTypeSchema,
         reconnectDelegation: reconnectDelegationSchema,
+        reconnectCloud: reconnectCloudSchema,
       }),
       z.object({
         available: z.literal(true),
         ...workloadIdentitySubjectGrantShape,
         reconnectAuthType: reconnectAuthTypeSchema,
         reconnectDelegation: reconnectDelegationSchema,
+        reconnectCloud: reconnectCloudSchema,
       }),
     ]),
   },

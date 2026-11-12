@@ -157,12 +157,52 @@ describe('running an Azure Data Explorer tool', () => {
 
       const response = await run({ clusterUri: CLUSTER }, authorized)
 
-      expect(response.status).toBe(403)
+      expect(response.status).toBe(400)
       await expect(response.json()).resolves.toMatchObject({
         success: false,
-        error: expect.stringMatching(/Microsoft app credential/),
+        error: expect.stringMatching(/different Microsoft cloud/),
       })
       expect(entra).not.toHaveBeenCalled()
+      expect(secureFetch).not.toHaveBeenCalled()
+    })
+
+    it('refuses a credential that belongs to another workspace than the run, before decrypting', async () => {
+      storeAppCredential()
+
+      const response = await executeAzureDataExplorerTool({
+        toolId: 'azure_data_explorer_query',
+        input: { endpoint: 'query', database: 'Samples', csl: 'print 1', clusterUri: CLUSTER },
+        headers: new Headers(),
+        requestId: 'request-1',
+        context: {
+          workflowId: 'wf-1',
+          workspaceId: 'ws-2',
+          userId: 'user-1',
+          authorizedServiceAccountCredential: authorized,
+        },
+      })
+
+      expect(response.status).toBe(403)
+      expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
+      expect(entra).not.toHaveBeenCalled()
+      expect(secureFetch).not.toHaveBeenCalled()
+    })
+
+    it('asks for a reconnect when Entra rejects the app, without echoing Entra’s detail', async () => {
+      storeAppCredential()
+      entra.mockResolvedValueOnce(
+        jsonResponse(
+          { error: 'invalid_client', error_description: 'AADSTS7000215: Invalid client secret' },
+          { status: 401 }
+        )
+      )
+
+      const response = await run({ clusterUri: CLUSTER }, authorized)
+
+      expect(response.status).toBe(403)
+      const body = await response.json()
+      expect(body.error).toMatch(/reconnect/)
+      expect(body.error).not.toMatch(/AADSTS/)
       expect(secureFetch).not.toHaveBeenCalled()
     })
 

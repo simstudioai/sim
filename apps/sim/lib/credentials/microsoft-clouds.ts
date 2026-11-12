@@ -42,7 +42,10 @@ export const MICROSOFT_CLOUDS: Record<MicrosoftCloudId, MicrosoftCloud> = {
   },
   china: {
     label: 'China (operated by 21Vianet)',
-    loginOrigin: 'https://login.chinacloudapi.cn',
+    // Microsoft Graph's deployment table lists login.chinacloudapi.cn; the Entra national-cloud
+    // table, the identity platform's own reference, lists this one, which legacy inline Azure
+    // Data Explorer sign-ins already use.
+    loginOrigin: 'https://login.partner.microsoftonline.cn',
     graphOrigin: 'https://microsoftgraph.chinacloudapi.cn',
   },
 }

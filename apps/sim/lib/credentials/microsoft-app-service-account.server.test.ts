@@ -412,7 +412,7 @@ describe('saving a Microsoft app credential', () => {
         cloud: 'china',
       })
 
-      const chinaTokenUrl = `https://login.chinacloudapi.cn/${TENANT}/oauth2/v2.0/token`
+      const chinaTokenUrl = `https://login.partner.microsoftonline.cn/${TENANT}/oauth2/v2.0/token`
       expect(tokens[0]?.url).toBe(chinaTokenUrl)
       await expect(
         jwtVerify(tokens[0]?.form.client_assertion ?? '', createPublicKey(TEST_CERTIFICATE), {
@@ -571,7 +571,7 @@ describe('getting a Microsoft app token for a run', () => {
 
     await expect(
       resolveMicrosoftAppCredentialToken('cred-powerbi-china', 'microsoft-powerbi')
-    ).rejects.toMatchObject({ code: 'invalid_credentials', status: 400 })
+    ).rejects.toMatchObject({ code: 'cloud_mismatch', status: 400 })
     expect(fetch).not.toHaveBeenCalled()
   })
 
@@ -582,6 +582,7 @@ describe('getting a Microsoft app token for a run', () => {
       clouds,
       serviceLabel: 'Azure Data Explorer',
     })
+    const RUN_SCOPE = { workspaceId: 'ws-1' }
 
     it('hands the executor the credential ID, not a token, when it authorizes the service', async () => {
       fakeMicrosoft(fetch)
@@ -592,6 +593,34 @@ describe('getting a Microsoft app token for a run', () => {
       ).resolves.toEqual({ accessToken: 'cred-adx' })
       expect(fetch).not.toHaveBeenCalled()
     })
+
+    it('authorizes the service without decrypting the stored secret', async () => {
+      storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-adx-nokey')
+      encryptionMockFns.mockDecryptSecret
+        .mockReset()
+        .mockRejectedValue(new Error('key unavailable'))
+
+      await expect(
+        resolveMicrosoftAppCredentialToken('cred-adx-nokey', 'azure-data-explorer')
+      ).resolves.toEqual({ accessToken: 'cred-adx-nokey' })
+    })
+
+    it.each([
+      ['another workspace', { workspaceId: 'ws-2' }],
+      ['no owner scope', {}],
+    ])(
+      'refuses a credential for a run in %s, without decrypting or minting',
+      async (_label, scope) => {
+        fakeMicrosoft(fetch)
+        storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-adx-scope')
+
+        await expect(
+          resolveMicrosoftAppResourceToken('cred-adx-scope', scope, adx(CLUSTER, ['global']))
+        ).rejects.toThrow(/unavailable/)
+        expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
+        expect(fetch).not.toHaveBeenCalled()
+      }
+    )
 
     it('refuses to authorize an unavailable credential for it', async () => {
       resetDbChainMock()
@@ -608,7 +637,7 @@ describe('getting a Microsoft app token for a run', () => {
       for (const resource of [CLUSTER, other, CLUSTER]) {
         storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-adx')
         await expect(
-          resolveMicrosoftAppResourceToken('cred-adx-mint', adx(resource, ['global']))
+          resolveMicrosoftAppResourceToken('cred-adx-mint', RUN_SCOPE, adx(resource, ['global']))
         ).resolves.toBe(`at:${resource}/.default`)
       }
       expect(tokens.map(({ url, form }) => [url, form.scope])).toEqual([
@@ -625,10 +654,25 @@ describe('getting a Microsoft app token for a run', () => {
       )
       const cluster = 'https://mycluster.chinaeast2.kusto.chinacloudapi.cn'
 
-      await resolveMicrosoftAppResourceToken('cred-adx-china', adx(cluster, ['china']))
+      await resolveMicrosoftAppResourceToken('cred-adx-china', RUN_SCOPE, adx(cluster, ['china']))
       expect(tokens.map(({ url, form }) => [url, form.scope])).toEqual([
-        [`https://login.chinacloudapi.cn/${TENANT}/oauth2/v2.0/token`, `${cluster}/.default`],
+        [
+          `https://login.partner.microsoftonline.cn/${TENANT}/oauth2/v2.0/token`,
+          `${cluster}/.default`,
+        ],
       ])
+    })
+
+    it('does not serve a cached cluster token to a call whose cluster is in no cloud of the credential', async () => {
+      const tokens = fakeMicrosoft(fetch)
+      storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-adx-mixed')
+      await resolveMicrosoftAppResourceToken('cred-adx-mixed', RUN_SCOPE, adx(CLUSTER, ['global']))
+      storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-adx-mixed')
+
+      await expect(
+        resolveMicrosoftAppResourceToken('cred-adx-mixed', RUN_SCOPE, adx(CLUSTER, []))
+      ).rejects.toMatchObject({ code: 'cloud_mismatch' })
+      expect(tokens).toHaveLength(1)
     })
 
     it('refuses a resource outside the credential’s cloud without minting', async () => {
@@ -638,9 +682,10 @@ describe('getting a Microsoft app token for a run', () => {
       await expect(
         resolveMicrosoftAppResourceToken(
           'cred-adx-gov',
+          RUN_SCOPE,
           adx('https://mycluster.usgovvirginia.kusto.usgovcloudapi.net', ['usgov', 'usgov_dod'])
         )
-      ).rejects.toMatchObject({ code: 'invalid_credentials', status: 400 })
+      ).rejects.toMatchObject({ code: 'cloud_mismatch', status: 400 })
       expect(fetch).not.toHaveBeenCalled()
     })
 
@@ -652,7 +697,7 @@ describe('getting a Microsoft app token for a run', () => {
       'help.westus.kusto.windows.net',
     ])('refuses the audience %s before reading the credential', async (resource) => {
       await expect(
-        resolveMicrosoftAppResourceToken('cred-adx-bad', adx(resource, ['global']))
+        resolveMicrosoftAppResourceToken('cred-adx-bad', RUN_SCOPE, adx(resource, ['global']))
       ).rejects.toMatchObject({ code: 'invalid_credentials' })
       expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
       expect(fetch).not.toHaveBeenCalled()
@@ -667,6 +712,19 @@ describe('getting a Microsoft app token for a run', () => {
       resolveMicrosoftAppCredentialToken('cred-graph-only', 'microsoft-dataverse')
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
     expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('serves a cached token without decrypting the stored secret again', async () => {
+    const tokens = fakeMicrosoft(fetch)
+    storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-hit')
+    await resolveMicrosoftAppCredentialToken('cred-hit', 'microsoft-ad')
+    storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-hit')
+    encryptionMockFns.mockDecryptSecret.mockReset().mockRejectedValue(new Error('key unavailable'))
+
+    await expect(resolveMicrosoftAppCredentialToken('cred-hit', 'sharepoint')).resolves.toEqual({
+      accessToken: 'at:https://graph.microsoft.com/.default',
+    })
+    expect(tokens).toHaveLength(1)
   })
 
   it('reuses a minted Graph token until the stored secret changes', async () => {
@@ -695,7 +753,7 @@ describe('getting a Microsoft app token for a run', () => {
 
       await expect(
         resolveMicrosoftAppCredentialToken(`cred-usgov-${service}`, service)
-      ).rejects.toMatchObject({ code: 'invalid_credentials', status: 400 })
+      ).rejects.toMatchObject({ code: 'cloud_mismatch', status: 400 })
       expect(fetch).not.toHaveBeenCalled()
     }
   )

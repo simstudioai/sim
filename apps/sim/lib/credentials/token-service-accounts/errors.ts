@@ -27,6 +27,11 @@ export type TokenServiceAccountValidationCode =
    */
   | 'unsupported_use'
   /**
+   * The credential signs in to a different cloud instance than the one this service calls: a
+   * US Government or China Microsoft app credential picked for a tool that calls the global cloud.
+   */
+  | 'cloud_mismatch'
+  /**
    * The provider refused this grant for the account the credential names, although the client
    * itself may be valid: Shopify answers `shop_not_permitted` when the app and the store are not
    * in the same Shopify organization.

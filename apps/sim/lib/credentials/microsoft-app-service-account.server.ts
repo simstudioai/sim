@@ -5,6 +5,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { backoffWithJitter } from '@sim/utils/retry'
+import { compareStrings } from '@sim/utils/string'
 import { eq } from 'drizzle-orm'
 import { SignJWT } from 'jose'
 import { LRUCache } from 'lru-cache'
@@ -35,15 +36,18 @@ import {
 } from '@/lib/credentials/workload-identity/subject'
 import { normalizeMicrosoftDataverseEnvironmentUrl } from '@/lib/oauth/microsoft-dataverse'
 import { MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
+import { AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 
 /**
  * Saved Microsoft Entra app-only credentials (OAuth 2.0 client credentials).
  *
  * One app registration serves every Microsoft service that runs without a
- * signed-in user: Microsoft Graph for Entra ID, SharePoint, and Intune, and the
- * credential's own Dataverse environment for Dataverse and Dynamics 365. The
- * app's application permissions and the environment's application user decide
- * what it can do; Sim stores no permission list of its own.
+ * signed-in user: Microsoft Graph for Entra ID, SharePoint, and Intune, the
+ * Power BI REST API, the credential's own Dataverse environment for Dataverse
+ * and Dynamics 365, and the Azure Data Explorer cluster each call names. The
+ * app's application permissions, role assignments, and the environment's
+ * application user decide what it can do; Sim stores no permission list of its
+ * own. Each audience gets its own token.
  *
  * A credential signs in to one Microsoft cloud (`cloud`, absent for the global
  * cloud); a national cloud has its own Entra and Graph endpoints, listed in
@@ -505,6 +509,16 @@ export function storedMicrosoftAppAuthType(
   }
 }
 
+/** The stored national cloud, for a reconnect to reopen on; absent for a global credential. */
+export function storedMicrosoftAppCloud(decrypted: string): MicrosoftCloudId | undefined {
+  try {
+    const parsed = storedSecretSchema.safeParse(JSON.parse(decrypted))
+    return parsed.success ? parsed.data.config.cloud : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function readStoredSubject(storedSecret: Record<string, unknown> | null | undefined) {
   const parsed = storedSecretSchema.safeParse(storedSecret)
   return parsed.success && parsed.data.config.authType === 'federated'
@@ -681,19 +695,42 @@ interface MicrosoftAppResource {
   instanceUrl?: string
 }
 
-/** Refuses a credential whose cloud is not the one a service's tools call. */
-function requireCloud(config: MicrosoftAppConfig, cloud: MicrosoftCloudId, serviceLabel: string) {
-  if ((config.cloud ?? 'global') === cloud) return
-  throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+/**
+ * Where a token is for. `key` names the audience before the secret is decrypted, so a cached
+ * token is served without decrypting; it must decide `select`'s outcome for one stored-secret
+ * version. `select` checks the decrypted config and returns the resource on a cache miss.
+ */
+interface MicrosoftAppAudience {
+  key: string
+  select: (config: MicrosoftAppConfig) => MicrosoftAppResource
+}
+
+/** Refuses a credential whose cloud is not one a service's resource lives in. */
+function requireCloud(
+  config: MicrosoftAppConfig,
+  clouds: readonly MicrosoftCloudId[],
+  serviceLabel: string
+) {
+  const cloud = config.cloud ?? 'global'
+  if (clouds.includes(cloud)) return
+  throw new TokenServiceAccountValidationError('cloud_mismatch', 400, {
     step: 'microsoft_app_cloud',
-    reason: `${serviceLabel} tools call the ${MICROSOFT_CLOUDS[cloud].label} cloud; this credential signs in to ${MICROSOFT_CLOUDS[config.cloud ?? 'global'].label}`,
+    reason: `${serviceLabel} does not run in the ${MICROSOFT_CLOUDS[cloud].label} cloud this credential signs in to`,
   })
 }
 
-function globalGraph(config: MicrosoftAppConfig): MicrosoftAppResource {
-  requireCloud(config, 'global', 'Microsoft Graph')
-  return { resource: MICROSOFT_CLOUDS.global.graphOrigin }
+/** A fixed-audience service whose tools call the global cloud. */
+function globalAudience(resource: string, serviceLabel: string): MicrosoftAppAudience {
+  return {
+    key: resource,
+    select: (config) => {
+      requireCloud(config, ['global'], serviceLabel)
+      return { resource }
+    },
+  }
 }
+
+const GLOBAL_GRAPH = globalAudience(MICROSOFT_CLOUDS.global.graphOrigin, 'Microsoft Graph')
 
 /**
  * The Power BI REST API's token audience in the global cloud. A service principal needs no Entra
@@ -704,30 +741,29 @@ function globalGraph(config: MicrosoftAppConfig): MicrosoftAppResource {
 const POWERBI_RESOURCE = 'https://analysis.windows.net/powerbi/api'
 
 /**
- * The Microsoft services that may use this credential, and the resource each one's token is for.
- * Each service's `serviceAccountProviderId` in `oauth.ts` offers the credential in its picker;
- * this table is what the resolver accepts. The resource comes from the service and the stored
- * credential, never from caller params.
+ * The fixed-audience Microsoft services that may use this credential, and the resource each
+ * one's token is for. Each service's `serviceAccountProviderId` in `oauth.ts` offers the
+ * credential in its picker; the resolver accepts these and the operation-minted Azure Data
+ * Explorer service. The resource comes from the service and the stored credential, never from
+ * caller params.
  */
-const MICROSOFT_APP_SERVICE_RESOURCES: Record<
-  string,
-  (config: MicrosoftAppConfig) => MicrosoftAppResource
-> = {
-  'microsoft-ad': globalGraph,
-  sharepoint: globalGraph,
-  'microsoft-intune': globalGraph,
-  'microsoft-powerbi': (config) => {
-    requireCloud(config, 'global', 'Power BI')
-    return { resource: POWERBI_RESOURCE }
-  },
-  'microsoft-dataverse': (config) => {
-    if (!config.environmentUrl) {
-      throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
-        step: 'microsoft_app_environment',
-        reason: 'credential has no Dataverse environment; reconnect it with one',
-      })
-    }
-    return { resource: config.environmentUrl, instanceUrl: config.environmentUrl }
+const MICROSOFT_APP_SERVICE_AUDIENCES: Record<string, MicrosoftAppAudience> = {
+  'microsoft-ad': GLOBAL_GRAPH,
+  sharepoint: GLOBAL_GRAPH,
+  'microsoft-intune': GLOBAL_GRAPH,
+  'microsoft-powerbi': globalAudience(POWERBI_RESOURCE, 'Power BI'),
+  'microsoft-dataverse': {
+    // The environment is part of the stored secret, so one secret version has one environment.
+    key: 'dataverse',
+    select: (config) => {
+      if (!config.environmentUrl) {
+        throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+          step: 'microsoft_app_environment',
+          reason: 'credential has no Dataverse environment; reconnect it with one',
+        })
+      }
+      return { resource: config.environmentUrl, instanceUrl: config.environmentUrl }
+    },
   },
 }
 
@@ -739,16 +775,24 @@ const MICROSOFT_APP_SERVICE_RESOURCES: Record<
 const tokenCache = new LRUCache<string, MicrosoftAppCredentialToken>({ max: TOKEN_CACHE_MAX })
 
 interface StoredMicrosoftAppCredential {
-  config: MicrosoftAppConfig
+  encryptedKey: string
   /** Distinguishes stored-secret versions, so a reconnect never reuses the old app's token. */
   secretVersion: string
   owner: WorkloadIdentityOwner
 }
 
-/** Reads and decrypts an active Microsoft app credential, refusing any other row. */
+/**
+ * Reads an active Microsoft app credential without decrypting it, refusing any other row. With
+ * `scope`, the row must also belong to that workspace or organization: an operation that resolves
+ * the credential after the executor authorized it re-checks it against the run's own owner.
+ */
 async function loadMicrosoftAppCredential(
-  credentialId: string
+  credentialId: string,
+  scope?: WorkloadIdentityOwner
 ): Promise<StoredMicrosoftAppCredential> {
+  const unavailable = () =>
+    new MicrosoftAppCredentialError('Microsoft app credential is unavailable')
+  if (scope && !scope.workspaceId && !scope.organizationId) throw unavailable()
   const [row] = await db
     .select({
       workspaceId: credential.workspaceId,
@@ -761,18 +805,27 @@ async function loadMicrosoftAppCredential(
     .from(credential)
     .where(eq(credential.id, credentialId))
     .limit(1)
+  const ownerMatches =
+    !scope ||
+    (row &&
+      ((!!scope.workspaceId &&
+        row.workspaceId === scope.workspaceId &&
+        row.organizationId === null) ||
+        (!!scope.organizationId &&
+          row.organizationId === scope.organizationId &&
+          row.workspaceId === null)))
   if (
     !row ||
+    !ownerMatches ||
     row.type !== 'service_account' ||
     row.providerId !== MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID ||
     row.revokedAt !== null ||
     !row.encryptedServiceAccountKey
   ) {
-    throw new MicrosoftAppCredentialError('Microsoft app credential is unavailable')
+    throw unavailable()
   }
-  const { decrypted } = await decryptSecret(row.encryptedServiceAccountKey)
   return {
-    config: storedSecretSchema.parse(JSON.parse(decrypted)).config,
+    encryptedKey: row.encryptedServiceAccountKey,
     secretVersion: row.encryptedServiceAccountKey.slice(0, 32),
     owner: row.workspaceId
       ? { workspaceId: row.workspaceId }
@@ -780,23 +833,26 @@ async function loadMicrosoftAppCredential(
   }
 }
 
-/** Mints (or reuses) the credential's token for one resource. */
+/** Mints (or reuses) the credential's token for one audience, decrypting only on a cache miss. */
 async function mintMicrosoftAppToken(
   credentialId: string,
   stored: StoredMicrosoftAppCredential,
-  { resource, instanceUrl }: MicrosoftAppResource,
+  audience: MicrosoftAppAudience,
   signal?: AbortSignal
 ): Promise<MicrosoftAppCredentialToken> {
-  const cacheKey = `${credentialId}:${stored.secretVersion}:${resource}`
+  const cacheKey = `${credentialId}:${stored.secretVersion}:${audience.key}`
   const cached = tokenCache.get(cacheKey)
   if (cached) return cached
   signal?.throwIfAborted()
 
   // Concurrent block runs share one mint, so it is not tied to any one caller's signal.
   return coalesceLocally(`microsoft-app:${cacheKey}`, async () => {
+    const { decrypted } = await decryptSecret(stored.encryptedKey)
+    const { config } = storedSecretSchema.parse(JSON.parse(decrypted))
+    const { resource, instanceUrl } = audience.select(config)
     let token: EntraToken
     try {
-      token = await requestRunEntraToken(stored.config, resource, stored.owner)
+      token = await requestRunEntraToken(config, resource, stored.owner)
     } catch (error) {
       if (!(error instanceof MicrosoftAppCredentialError)) throw error
       // Report in the shared service-account codes: an outage is not a bad credential, and a
@@ -821,19 +877,13 @@ async function mintMicrosoftAppToken(
 }
 
 /**
- * Services whose tool operation chooses the resource per call and mints its token with
- * {@link resolveMicrosoftAppResourceToken}: an Azure Data Explorer cluster. Authorizing one of
- * them yields the credential ID (as for AWS), never a token, because no audience is known yet.
- */
-const OPERATION_MINTED_SERVICES: ReadonlySet<string> = new Set(['azure-data-explorer'])
-
-/**
  * Resolves an executor-authorized Microsoft app credential (the executor
  * already checked the caller may use it) to a token for the service the tool
  * belongs to. The resource is decided by the tool's service, never by caller
  * params: Graph for Entra ID, SharePoint, and Intune, the Power BI REST API for
- * Power BI, the stored environment for Dataverse. An operation-minted service
- * gets the credential ID back for its operation to resolve. Any other service is
+ * Power BI, the stored environment for Dataverse. Azure Data Explorer, whose
+ * operation chooses the cluster per call, gets the credential ID back (as AWS
+ * does) for {@link resolveMicrosoftAppResourceToken}. Any other service is
  * refused, so a Microsoft block that needs a signed-in user can never receive an
  * app-only token.
  */
@@ -842,32 +892,34 @@ export async function resolveMicrosoftAppCredentialToken(
   service: string | undefined,
   signal?: AbortSignal
 ): Promise<MicrosoftAppCredentialToken> {
-  const operationMinted = service !== undefined && OPERATION_MINTED_SERVICES.has(service)
-  const selectResource =
-    service && Object.hasOwn(MICROSOFT_APP_SERVICE_RESOURCES, service)
-      ? MICROSOFT_APP_SERVICE_RESOURCES[service]
+  const operationMinted = service === AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH.provider
+  const audience =
+    service && Object.hasOwn(MICROSOFT_APP_SERVICE_AUDIENCES, service)
+      ? MICROSOFT_APP_SERVICE_AUDIENCES[service]
       : undefined
-  if (!selectResource && !operationMinted) {
+  if (!audience && !operationMinted) {
     throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
       step: 'microsoft_app_service',
       reason: 'this Microsoft service needs a signed-in user, not an app-only credential',
     })
   }
   const stored = await loadMicrosoftAppCredential(credentialId)
-  if (!selectResource) return { accessToken: credentialId }
-  return mintMicrosoftAppToken(credentialId, stored, selectResource(stored.config), signal)
+  if (!audience) return { accessToken: credentialId }
+  return mintMicrosoftAppToken(credentialId, stored, audience, signal)
 }
 
 /**
  * Resolves an executor-authorized Microsoft app credential to a token for a resource the calling
  * operation chose per call and validated against its own host allowlist: an Azure Data Explorer
- * cluster, whose token audience is the cluster's `https://<host>` with no port or path. `clouds`
- * names the Microsoft clouds that resource lives in; a credential signed in to any other cloud is
- * refused, because its tokens would never be accepted there.
+ * cluster, whose token audience is the cluster's `https://<host>` with no port or path. The
+ * credential must belong to `scope`, the run's own workspace or organization. `clouds` names the
+ * Microsoft clouds that resource lives in; a credential signed in to any other cloud is refused,
+ * because its tokens would never be accepted there.
  * @see https://learn.microsoft.com/en-us/kusto/api/rest/authenticate-with-msal
  */
 export async function resolveMicrosoftAppResourceToken(
   credentialId: string,
+  scope: WorkloadIdentityOwner,
   audience: { resource: string; clouds: readonly MicrosoftCloudId[]; serviceLabel: string },
   signal?: AbortSignal
 ): Promise<string> {
@@ -878,18 +930,18 @@ export async function resolveMicrosoftAppResourceToken(
       reason: 'the token audience must be an https origin with no port or path',
     })
   }
-  const stored = await loadMicrosoftAppCredential(credentialId)
-  const cloud = stored.config.cloud ?? 'global'
-  if (!audience.clouds.includes(cloud)) {
-    throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
-      step: 'microsoft_app_cloud',
-      reason: `this ${audience.serviceLabel} resource is not in the ${MICROSOFT_CLOUDS[cloud].label} cloud this credential signs in to`,
-    })
-  }
+  const stored = await loadMicrosoftAppCredential(credentialId, scope)
   const token = await mintMicrosoftAppToken(
     credentialId,
     stored,
-    { resource: audience.resource },
+    {
+      // A cached token stands for a passed cloud check, so the clouds are part of the key.
+      key: `${audience.resource}|${[...audience.clouds].sort(compareStrings).join(',')}`,
+      select: (config) => {
+        requireCloud(config, audience.clouds, `This ${audience.serviceLabel} resource`)
+        return { resource: audience.resource }
+      },
+    },
     signal
   )
   return token.accessToken

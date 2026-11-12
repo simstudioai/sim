@@ -1,36 +1,19 @@
 import { isPrivateIpHost } from '@sim/security/ssrf'
 import { z } from 'zod'
-import type { MicrosoftCloudId } from '@/lib/credentials/microsoft-clouds'
+import { MICROSOFT_CLOUDS, type MicrosoftCloudId } from '@/lib/credentials/microsoft-clouds'
 
 /**
- * Cluster host suffixes per Azure cloud. `authority` signs in an inline client secret;
- * `credentialClouds` are the Microsoft app credential clouds whose tokens the cluster accepts.
+ * Cluster host suffixes per Azure cloud, and the Microsoft app credential clouds whose tokens the
+ * cluster accepts. The first of those clouds' Entra endpoint signs in an inline client secret.
  */
 const KUSTO_CLOUDS: readonly {
   hostSuffix: string
-  authority: string
-  credentialClouds: readonly MicrosoftCloudId[]
+  credentialClouds: readonly [MicrosoftCloudId, ...MicrosoftCloudId[]]
 }[] = [
-  {
-    hostSuffix: 'kusto.windows.net',
-    authority: 'https://login.microsoftonline.com',
-    credentialClouds: ['global'],
-  },
-  {
-    hostSuffix: 'kusto.fabric.microsoft.com',
-    authority: 'https://login.microsoftonline.com',
-    credentialClouds: ['global'],
-  },
-  {
-    hostSuffix: 'kusto.usgovcloudapi.net',
-    authority: 'https://login.microsoftonline.us',
-    credentialClouds: ['usgov', 'usgov_dod'],
-  },
-  {
-    hostSuffix: 'kusto.chinacloudapi.cn',
-    authority: 'https://login.partner.microsoftonline.cn',
-    credentialClouds: ['china'],
-  },
+  { hostSuffix: 'kusto.windows.net', credentialClouds: ['global'] },
+  { hostSuffix: 'kusto.fabric.microsoft.com', credentialClouds: ['global'] },
+  { hostSuffix: 'kusto.usgovcloudapi.net', credentialClouds: ['usgov', 'usgov_dod'] },
+  { hostSuffix: 'kusto.chinacloudapi.cn', credentialClouds: ['china'] },
 ]
 
 const ALLOWED_CLUSTER_HOSTS = KUSTO_CLOUDS.map((cloud) => cloud.hostSuffix).join(', ')
@@ -53,7 +36,7 @@ export function resolveEntraAuthority(clusterHost: string): string {
   if (!cloud) {
     throw new Error(`No Microsoft Entra authority is configured for cluster host ${clusterHost}`)
   }
-  return cloud.authority
+  return MICROSOFT_CLOUDS[cloud.credentialClouds[0]].loginOrigin
 }
 
 export function checkAzureDataExplorerClusterUri(

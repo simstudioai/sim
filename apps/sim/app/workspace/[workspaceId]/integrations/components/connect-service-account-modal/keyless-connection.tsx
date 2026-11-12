@@ -75,6 +75,8 @@ export function useKeylessSetup<P extends WorkloadIdentityProvider>({
     reconnectAuthType,
     /** A reconnected keyless Google credential's domain-wide delegation; a reconnect keeps it. */
     reconnectDelegation: setup.data?.reconnectDelegation,
+    /** A reconnected Microsoft app credential's national cloud; a reconnect reopens on it. */
+    reconnectCloud: setup.data?.reconnectCloud,
     isReconnect: Boolean(credentialId),
     subjectChoice,
     setSubjectChoice,

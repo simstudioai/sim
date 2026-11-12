@@ -4,9 +4,9 @@ import { getValidationErrorMessage } from '@/lib/api/server'
 import { DEFAULT_MAX_JSON_BODY_BYTES } from '@/lib/api/server/validation'
 import {
   AzureDataExplorerOperationError,
+  requestAzureDataExplorer,
   requestAzureDataExplorerAsApp,
 } from '@/lib/internal/azure-data-explorer/client'
-import { executeAzureDataExplorerOperation } from '@/lib/internal/azure-data-explorer/operations'
 import {
   azureDataExplorerInputSchema,
   azureDataExplorerRequestSchema,
@@ -52,8 +52,8 @@ type PreparedOperation =
 /**
  * Parses the input for the identity the request runs as. The executor sets
  * `authorizedServiceAccountCredential` only after authorizing a saved Microsoft app credential,
- * never from tool input; with one, the request runs as that credential and any inline sign-in
- * fields are dropped unread. Without one, the inline client secret is required, as always.
+ * never from tool input; with one, the request runs as that credential, re-checked against the
+ * run's own workspace or organization, and any inline sign-in fields are dropped unread. Without one, the inline client secret is required, as always.
  */
 function prepareOperation(request: InternalToolOperationCall): PreparedOperation {
   const authorized = request.context.authorizedServiceAccountCredential
@@ -67,7 +67,13 @@ function prepareOperation(request: InternalToolOperationCall): PreparedOperation
       run: () =>
         requestAzureDataExplorerAsApp(
           parsed.data,
-          authorized.credentialId,
+          {
+            credentialId: authorized.credentialId,
+            scope: {
+              workspaceId: request.context.workspaceId,
+              organizationId: request.context.organizationId,
+            },
+          },
           request.requestId,
           request.signal
         ),
@@ -79,7 +85,7 @@ function prepareOperation(request: InternalToolOperationCall): PreparedOperation
   }
   return {
     ok: true,
-    run: () => executeAzureDataExplorerOperation(parsed.data, request.requestId, request.signal),
+    run: () => requestAzureDataExplorer(parsed.data, request.requestId, request.signal),
   }
 }
 
