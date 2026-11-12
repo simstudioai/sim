@@ -97,8 +97,6 @@ def export(client, project):
                    or not all(char.isalnum() or char in "_.-" for char in part)
                    for part in project_path.split("/"))):
         raise ExportError("GitLab returned an invalid project path.")
-    if record.get("repository_access_level") == "disabled":
-        raise ExportError("The project's repository is disabled.")
     users, emails, seen_members = {}, {}, set()
     today = datetime.now(timezone.utc).date()
     page = 1

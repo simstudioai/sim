@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
@@ -34,7 +35,7 @@ class GitLabFixture(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlsplit(self.path)
         scenario, endpoint = parsed.path.lstrip("/").split("/api/v4/", 1)
-        self.calls.append((scenario, endpoint, parse_qs(parsed.query)))
+        self.calls.append((scenario, endpoint, parse_qs(parsed.query), time.monotonic()))
         if self.headers.get("PRIVATE-TOKEN") != TOKEN:
             self.reply(401, {"message": "Missing token"})
             return
@@ -46,7 +47,8 @@ class GitLabFixture(BaseHTTPRequestHandler):
                 self.reply(302, {}, {"Location": "/redirect/api/v4/trap"})
             else:
                 self.reply(200, {"id": 91, "path_with_namespace": "engineering/platform",
-                                 "repository_access_level": "enabled"})
+                                 "repository_access_level": "disabled" if scenario == "issues-only" else "enabled",
+                                 "issues_access_level": "enabled", "wiki_access_level": "enabled"})
         elif endpoint == "projects/91/members/all":
             page = parse_qs(parsed.query).get("page", ["1"])[0]
             if scenario == "page-failure" and page == "2":
@@ -114,6 +116,7 @@ def run():
             try:
                 for scenario, expected_error in [
                     ("success", None), ("numeric-project", None), ("missing-pagination", None),
+                    ("issues-only", None), ("paced", None),
                     ("hidden-email", "email"), ("duplicate-email", "email"),
                     ("wrong-identity", "identity"), ("denied", "403"),
                     ("page-failure", "500"), ("pagination-loop", "pagination"),
@@ -128,7 +131,7 @@ def run():
                                f"https://127.0.0.1:{server.server_port}/{scenario}",
                                "--project", "91" if scenario == "numeric-project" else "engineering/platform",
                                "--output-dir", str(output),
-                               "--requests-per-minute", "600000"]
+                               "--requests-per-minute", "120" if scenario == "paced" else "600000"]
                     result = subprocess.run(command, capture_output=True, text=True, timeout=20,
                                             env={**os.environ, "GITLAB_EXPORT_TOKEN": TOKEN,
                                                  "SSL_CERT_FILE": str(cert)})
@@ -169,8 +172,16 @@ process.stdout.write(JSON.stringify({
                             "subjects": sorted("u:" + row[1] for row in expected),
                             "otherProject": [],
                         }, parsed.stdout
+                        if scenario == "paced":
+                            arrivals = [arrived for case, _, _, arrived in GitLabFixture.calls if case == scenario]
+                            # The first request's transit time can consume one pacing interval.
+                            minimum_span = (len(arrivals) - 2) * 0.5
+                            assert arrivals[-1] - arrivals[0] >= minimum_span, "Requests exceeded the configured rate"
+                            report["pacing"] = {"requests": len(arrivals), "requestsPerMinute": 120,
+                                                "observedSeconds": arrivals[-1] - arrivals[0],
+                                                "minimumSeconds": minimum_span}
                     report["checks"].append({"name": scenario, "passed": True})
-                assert not any(endpoint == "trap" for _, endpoint, _ in GitLabFixture.calls)
+                assert not any(endpoint == "trap" for _, endpoint, _, _ in GitLabFixture.calls)
                 report["passed"] = True
             finally:
                 server.shutdown()
