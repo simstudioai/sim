@@ -5,6 +5,7 @@ import type {
   MicrosoftPlannerToolParams,
 } from '@/tools/microsoft_planner/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('MicrosoftPlannerGetPlanDetails')
 
@@ -44,7 +45,7 @@ export const getPlanDetailsTool: ToolConfig<
       if (!planId) {
         throw new Error('Plan ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/planner/plans/${planId}/details`
+      return `https://graph.microsoft.com/v1.0/planner/plans/${safeUrlPathSegment(planId, 'planId')}/details`
     },
     method: 'GET',
     headers: (params) => {

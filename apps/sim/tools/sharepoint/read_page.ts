@@ -1,22 +1,62 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type {
+  GraphApiPageFields,
   GraphApiResponse,
+  SharepointPage,
   SharepointPageContent,
   SharepointReadPageResponse,
   SharepointToolParams,
 } from '@/tools/sharepoint/types'
 import {
-  assertGraphNextPageUrl,
+  assertGraphNextPageUrlForCollection,
   cleanODataMetadata,
   escapeODataString,
   extractTextFromCanvasLayout,
   getGraphNextPageUrl,
+  graphPathSegment,
   optionalTrim,
 } from '@/tools/sharepoint/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { OutputProperty, ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SharePointReadPage')
+
+const PAGE_SELECT =
+  'id,name,title,webUrl,pageLayout,description,createdDateTime,lastModifiedDateTime,publishingState,createdBy,lastModifiedBy'
+
+const PAGE_AUDIT_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
+  publishingState: {
+    type: 'object',
+    description: 'Publishing state (level such as draft, checkout, or published; versionId)',
+    optional: true,
+  },
+  createdBy: {
+    type: 'object',
+    description: 'Identity set of the creator (e.g. user.displayName, user.email)',
+    optional: true,
+  },
+  lastModifiedBy: {
+    type: 'object',
+    description: 'Identity set of the last modifier (e.g. user.displayName, user.email)',
+    optional: true,
+  },
+}
+
+function toPage(page: GraphApiPageFields): SharepointPage {
+  return {
+    id: page.id,
+    name: page.name,
+    title: page.title || page.name,
+    webUrl: page.webUrl,
+    pageLayout: page.pageLayout,
+    description: page.description ?? null,
+    createdDateTime: page.createdDateTime,
+    lastModifiedDateTime: page.lastModifiedDateTime,
+    publishingState: page.publishingState ?? null,
+    createdBy: page.createdBy ?? null,
+    lastModifiedBy: page.lastModifiedBy ?? null,
+  }
+}
 
 export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageResponse> = {
   id: 'sharepoint_read_page',
@@ -80,26 +120,26 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
   request: {
     url: (params) => {
       if (params.nextPageUrl) {
-        return assertGraphNextPageUrl(params.nextPageUrl)
+        return assertGraphNextPageUrlForCollection(params.nextPageUrl, [
+          'microsoft.graph.sitePage',
+          'pages',
+        ])
       }
 
       const siteId = optionalTrim(params.siteId) || optionalTrim(params.siteSelector) || 'root'
       const pageId = optionalTrim(params.pageId)
-      const encodedSiteId = encodeURIComponent(siteId)
+      const encodedSiteId = graphPathSegment(siteId, 'siteId')
 
       let baseUrl: string
       if (pageId) {
-        baseUrl = `https://graph.microsoft.com/v1.0/sites/${encodedSiteId}/pages/${encodeURIComponent(pageId)}/microsoft.graph.sitePage`
+        baseUrl = `https://graph.microsoft.com/v1.0/sites/${encodedSiteId}/pages/${graphPathSegment(pageId, 'pageId')}/microsoft.graph.sitePage`
       } else {
         baseUrl = `https://graph.microsoft.com/v1.0/sites/${encodedSiteId}/pages/microsoft.graph.sitePage`
       }
 
       const url = new URL(baseUrl)
 
-      url.searchParams.append(
-        '$select',
-        'id,name,title,webUrl,pageLayout,description,createdDateTime,lastModifiedDateTime'
-      )
+      url.searchParams.append('$select', PAGE_SELECT)
 
       if (params.pageName && !pageId) {
         const pageName = params.pageName.trim()
@@ -163,16 +203,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
       return {
         success: true,
         output: {
-          page: {
-            id: pageData.id!,
-            name: pageData.name!,
-            title: pageData.title || pageData.name!,
-            webUrl: pageData.webUrl!,
-            pageLayout: pageData.pageLayout,
-            description: pageData.description ?? null,
-            createdDateTime: pageData.createdDateTime,
-            lastModifiedDateTime: pageData.lastModifiedDateTime,
-          },
+          page: toPage(pageData),
           content: contentData,
         },
       }
@@ -207,7 +238,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
     if (params?.pageName) {
       const pageData = data.value[0]
       const siteId = optionalTrim(params?.siteId) || optionalTrim(params?.siteSelector) || 'root'
-      const contentUrl = `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/pages/${encodeURIComponent(pageData.id)}/microsoft.graph.sitePage?$expand=canvasLayout`
+      const contentUrl = `https://graph.microsoft.com/v1.0/sites/${graphPathSegment(siteId, 'siteId')}/pages/${graphPathSegment(pageData.id, 'pageId')}/microsoft.graph.sitePage?$expand=canvasLayout`
 
       logger.info('Making API call to get page content for searched page', {
         pageId: pageData.id,
@@ -239,16 +270,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
       return {
         success: true,
         output: {
-          page: {
-            id: pageData.id,
-            name: pageData.name,
-            title: pageData.title || pageData.name,
-            webUrl: pageData.webUrl,
-            pageLayout: pageData.pageLayout,
-            description: pageData.description ?? null,
-            createdDateTime: pageData.createdDateTime,
-            lastModifiedDateTime: pageData.lastModifiedDateTime,
-          },
+          page: toPage(pageData),
           content: contentData,
         },
       }
@@ -263,9 +285,9 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
       siteId,
     })
 
-    const encodedSiteId = encodeURIComponent(siteId)
+    const encodedSiteId = graphPathSegment(siteId, 'siteId')
     for (const pageInfo of data.value) {
-      const contentUrl = `https://graph.microsoft.com/v1.0/sites/${encodedSiteId}/pages/${encodeURIComponent(pageInfo.id)}/microsoft.graph.sitePage?$expand=canvasLayout`
+      const contentUrl = `https://graph.microsoft.com/v1.0/sites/${encodedSiteId}/pages/${graphPathSegment(pageInfo.id, 'pageId')}/microsoft.graph.sitePage?$expand=canvasLayout`
 
       try {
         const contentResponse = await fetch(contentUrl, {
@@ -291,16 +313,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
         }
 
         pagesWithContent.push({
-          page: {
-            id: pageInfo.id,
-            name: pageInfo.name,
-            title: pageInfo.title || pageInfo.name,
-            webUrl: pageInfo.webUrl,
-            pageLayout: pageInfo.pageLayout,
-            description: pageInfo.description ?? null,
-            createdDateTime: pageInfo.createdDateTime,
-            lastModifiedDateTime: pageInfo.lastModifiedDateTime,
-          },
+          page: toPage(pageInfo),
           content: contentData,
         })
       } catch (error) {
@@ -311,16 +324,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
         })
 
         pagesWithContent.push({
-          page: {
-            id: pageInfo.id,
-            name: pageInfo.name,
-            title: pageInfo.title || pageInfo.name,
-            webUrl: pageInfo.webUrl,
-            pageLayout: pageInfo.pageLayout,
-            description: pageInfo.description ?? null,
-            createdDateTime: pageInfo.createdDateTime,
-            lastModifiedDateTime: pageInfo.lastModifiedDateTime,
-          },
+          page: toPage(pageInfo),
           content: { content: 'Failed to fetch content', canvasLayout: null },
         })
       }
@@ -356,6 +360,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
         description: { type: 'string', description: 'The description of the page', optional: true },
         createdDateTime: { type: 'string', description: 'When the page was created' },
         lastModifiedDateTime: { type: 'string', description: 'When the page was last modified' },
+        ...PAGE_AUDIT_OUTPUT_PROPERTIES,
       },
     },
     pages: {
@@ -382,6 +387,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
                 type: 'string',
                 description: 'When the page was last modified',
               },
+              ...PAGE_AUDIT_OUTPUT_PROPERTIES,
             },
           },
           content: {

@@ -6,6 +6,7 @@ import type {
   PlannerBucket,
 } from '@/tools/microsoft_planner/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('MicrosoftPlannerUpdateBucket')
 
@@ -57,7 +58,7 @@ export const updateBucketTool: ToolConfig<
       if (!bucketId) {
         throw new Error('Bucket ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/planner/buckets/${bucketId}`
+      return `https://graph.microsoft.com/v1.0/planner/buckets/${safeUrlPathSegment(bucketId, 'bucketId')}`
     },
     method: 'PATCH',
     headers: (params) => {

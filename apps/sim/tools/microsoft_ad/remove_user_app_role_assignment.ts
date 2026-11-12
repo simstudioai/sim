@@ -3,6 +3,7 @@ import type {
   MicrosoftAdRemoveUserAppRoleAssignmentResponse,
 } from '@/tools/microsoft_ad/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const removeUserAppRoleAssignmentTool: ToolConfig<
   MicrosoftAdRemoveUserAppRoleAssignmentParams,
@@ -45,7 +46,7 @@ export const removeUserAppRoleAssignmentTool: ToolConfig<
       const appRoleAssignmentId = params.appRoleAssignmentId?.trim()
       if (!userId) throw new Error('User ID is required')
       if (!appRoleAssignmentId) throw new Error('App role assignment ID is required')
-      return `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userId)}/appRoleAssignments/${encodeURIComponent(appRoleAssignmentId)}`
+      return `https://graph.microsoft.com/v1.0/users/${safeUrlPathSegment(userId, 'userId')}/appRoleAssignments/${safeUrlPathSegment(appRoleAssignmentId, 'appRoleAssignmentId')}`
     },
     method: 'DELETE',
     headers: (params) => ({

@@ -86,14 +86,16 @@ describe('Outlook operations', () => {
     mockProcessFilesToUserFiles.mockReturnValue([])
   })
 
-  it('preserves reply envelopes and encodes reply message IDs', async () => {
+  it('sends a reply body only once, since Graph rejects comment plus message.body', async () => {
     await executeOutlookSend({ ...MAIL_INPUT, replyToMessageId: 'message/1' }, MAIL_CONTEXT)
 
     const [path, init] = mocks.empty.mock.calls[0]
     expect(path).toBe('/me/messages/message%2F1/reply')
-    expect(JSON.parse(init.body)).toMatchObject({
-      comment: 'Message body',
-      message: { subject: 'Hello' },
+    const body = JSON.parse(init.body)
+    expect(body).not.toHaveProperty('comment')
+    expect(body.message).toMatchObject({
+      subject: 'Hello',
+      body: { contentType: 'html', content: 'Message body' },
     })
   })
 

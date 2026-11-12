@@ -14,17 +14,23 @@ export interface SharepointSite {
 export interface SharepointPage {
   '@odata.type'?: string
   id?: string
-  name: string
-  title: string
+  name?: string
+  title?: string
   description?: string | null
   webUrl?: string
   pageLayout?: string
   createdDateTime?: string
   lastModifiedDateTime?: string
-  publishingState?: {
-    level: string
-  }
+  publishingState?: SharepointPublishingState | null
+  createdBy?: SharepointIdentitySet | null
+  lastModifiedBy?: SharepointIdentitySet | null
   canvasLayout?: CanvasLayout
+}
+
+interface SharepointPublishingState {
+  level: string
+  versionId?: string
+  checkedOutBy?: SharepointIdentitySet
 }
 
 export interface SharepointPageContent {
@@ -46,9 +52,19 @@ interface SharepointColumn {
   [key: string]: unknown
 }
 
-interface SharepointListItem {
+interface SharepointIdentitySet {
+  user?: { id?: string; displayName?: string; email?: string }
+  [key: string]: unknown
+}
+
+export interface SharepointListItem {
   id: string
   fields?: Record<string, unknown>
+  webUrl?: string | null
+  createdDateTime?: string | null
+  lastModifiedDateTime?: string | null
+  createdBy?: SharepointIdentitySet | null
+  lastModifiedBy?: SharepointIdentitySet | null
 }
 
 export interface SharepointList {
@@ -137,6 +153,10 @@ export interface SharepointToolParams {
   listTitle?: string
   includeColumns?: boolean
   includeItems?: boolean
+  filter?: string
+  top?: number
+  selectFields?: string
+  searchQuery?: string
   // Create List
   listDisplayName?: string
   listDescription?: string
@@ -152,7 +172,15 @@ export interface SharepointToolParams {
   driveItemId?: string
 }
 
-export interface GraphApiResponse {
+export interface GraphApiResponse extends GraphApiPageFields {
+  canvasLayout?: CanvasLayout
+  value?: GraphApiPageItem[]
+  error?: {
+    message: string
+  }
+}
+
+export interface GraphApiPageFields {
   id?: string
   name?: string
   title?: string
@@ -161,22 +189,14 @@ export interface GraphApiResponse {
   pageLayout?: string
   createdDateTime?: string
   lastModifiedDateTime?: string
-  canvasLayout?: CanvasLayout
-  value?: GraphApiPageItem[]
-  error?: {
-    message: string
-  }
+  publishingState?: SharepointPublishingState
+  createdBy?: SharepointIdentitySet
+  lastModifiedBy?: SharepointIdentitySet
 }
 
-interface GraphApiPageItem {
+interface GraphApiPageItem extends GraphApiPageFields {
   id: string
   name: string
-  title?: string
-  description?: string | null
-  webUrl?: string
-  pageLayout?: string
-  createdDateTime?: string
-  lastModifiedDateTime?: string
 }
 
 export interface CanvasLayout {
@@ -273,10 +293,7 @@ export interface SharepointDeleteListItemResponse extends ToolResponse {
 
 export interface SharepointGetListItemResponse extends ToolResponse {
   output: {
-    item: {
-      id: string
-      fields?: Record<string, unknown>
-    }
+    item: SharepointListItem
   }
 }
 
@@ -318,6 +335,8 @@ export interface SharepointDriveItem {
     driveId?: string
     path?: string
   } | null
+  createdBy?: SharepointIdentitySet | null
+  lastModifiedBy?: SharepointIdentitySet | null
 }
 
 export interface SharepointDownloadFileResponse extends ToolResponse {

@@ -1,4 +1,5 @@
 import type { OutlookSendParams, OutlookSendResponse } from '@/tools/outlook/types'
+import { normalizeOutlookImportance } from '@/tools/outlook/utils'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const outlookSendTool: InternalToolConfig<OutlookSendParams, OutlookSendResponse> = {
@@ -13,6 +14,7 @@ export const outlookSendTool: InternalToolConfig<OutlookSendParams, OutlookSendR
       { name: 'to', label: 'To', target: true },
       { name: 'cc', label: 'Cc', target: true },
       { name: 'bcc', label: 'Bcc', target: true },
+      { name: 'replyTo', label: 'Reply-To', target: true },
       { name: 'replyToMessageId', label: 'Reply to message', target: true },
       { name: 'subject', label: 'Subject', editable: true },
       { name: 'body', label: 'Message', format: 'multiline', editable: true },
@@ -73,6 +75,18 @@ export const outlookSendTool: InternalToolConfig<OutlookSendParams, OutlookSendR
       visibility: 'user-or-llm',
       description: 'BCC recipients (comma-separated)',
     },
+    replyTo: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Reply-To addresses that replies should go to (comma-separated)',
+    },
+    importance: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Message importance: low, normal, or high',
+    },
     attachments: {
       type: 'file[]',
       required: false,
@@ -92,6 +106,8 @@ export const outlookSendTool: InternalToolConfig<OutlookSendParams, OutlookSendR
         cc: params.cc || null,
         bcc: params.bcc || null,
         replyToMessageId: params.replyToMessageId || null,
+        replyTo: params.replyTo || null,
+        importance: normalizeOutlookImportance(params.importance),
         attachments: params.attachments || null,
       }
     },

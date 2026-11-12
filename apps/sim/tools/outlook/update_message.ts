@@ -3,6 +3,7 @@ import type {
   OutlookUpdateMessageResponse,
 } from '@/tools/outlook/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface OutlookMessageUpdateApi {
   id: string
@@ -83,7 +84,8 @@ export const outlookUpdateMessageTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://graph.microsoft.com/v1.0/me/messages/${params.messageId.trim()}`,
+    url: (params) =>
+      `https://graph.microsoft.com/v1.0/me/messages/${safeUrlPathSegment(params.messageId, 'messageId', { allowSeparators: true })}`,
     method: 'PATCH',
     headers: (params) => {
       if (!params.accessToken) {

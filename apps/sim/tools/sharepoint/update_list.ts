@@ -2,7 +2,7 @@ import type {
   SharepointToolParams,
   SharepointUpdateListItemResponse,
 } from '@/tools/sharepoint/types'
-import { optionalTrim, sanitizeListItemFields } from '@/tools/sharepoint/utils'
+import { graphPathSegment, optionalTrim, sanitizeListItemFields } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateListItemTool: ToolConfig<
@@ -68,8 +68,8 @@ export const updateListItemTool: ToolConfig<
       if (!listId) {
         throw new Error('listId must be provided')
       }
-      const listSegment = encodeURIComponent(listId)
-      return `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/lists/${listSegment}/items/${encodeURIComponent(itemId)}/fields`
+      const listSegment = graphPathSegment(listId, 'listId')
+      return `https://graph.microsoft.com/v1.0/sites/${graphPathSegment(siteId, 'siteId')}/lists/${listSegment}/items/${graphPathSegment(itemId, 'itemId')}/fields`
     },
     method: 'PATCH',
     headers: (params) => ({

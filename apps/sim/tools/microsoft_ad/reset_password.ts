@@ -3,6 +3,7 @@ import type {
   MicrosoftAdResetPasswordResponse,
 } from '@/tools/microsoft_ad/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 /**
  * Microsoft Graph exposes a user's password authentication method under a fixed, publicly
@@ -58,7 +59,7 @@ export const resetPasswordTool: ToolConfig<
     url: (params) => {
       const userId = params.userId?.trim()
       if (!userId) throw new Error('User ID is required')
-      return `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userId)}/authentication/methods/${PASSWORD_METHOD_ROUTE_SEGMENT}/resetPassword`
+      return `https://graph.microsoft.com/v1.0/users/${safeUrlPathSegment(userId, 'userId')}/authentication/methods/${PASSWORD_METHOD_ROUTE_SEGMENT}/resetPassword`
     },
     method: 'POST',
     headers: (params) => ({

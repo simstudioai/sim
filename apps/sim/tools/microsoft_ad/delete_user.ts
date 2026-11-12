@@ -3,6 +3,7 @@ import type {
   MicrosoftAdDeleteUserResponse,
 } from '@/tools/microsoft_ad/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const deleteUserTool: ToolConfig<
   MicrosoftAdDeleteUserParams,
@@ -36,7 +37,7 @@ export const deleteUserTool: ToolConfig<
     url: (params) => {
       const userId = params.userId?.trim()
       if (!userId) throw new Error('User ID is required')
-      return `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userId)}`
+      return `https://graph.microsoft.com/v1.0/users/${safeUrlPathSegment(userId, 'userId')}`
     },
     method: 'DELETE',
     headers: (params) => ({

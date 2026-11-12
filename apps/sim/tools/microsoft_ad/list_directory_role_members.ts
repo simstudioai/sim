@@ -3,7 +3,9 @@ import type {
   MicrosoftAdListDirectoryRoleMembersResponse,
 } from '@/tools/microsoft_ad/types'
 import { MEMBER_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
+import { mapDirectoryObjectMember } from '@/tools/microsoft_ad/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listDirectoryRoleMembersTool: ToolConfig<
   MicrosoftAdListDirectoryRoleMembersParams,
@@ -37,7 +39,7 @@ export const listDirectoryRoleMembersTool: ToolConfig<
     url: (params) => {
       const directoryRoleId = params.directoryRoleId?.trim()
       if (!directoryRoleId) throw new Error('Directory role ID is required')
-      return `https://graph.microsoft.com/v1.0/directoryRoles/${encodeURIComponent(directoryRoleId)}/members?$select=id,displayName,mail`
+      return `https://graph.microsoft.com/v1.0/directoryRoles/${safeUrlPathSegment(directoryRoleId, 'directoryRoleId')}/members?$select=id,displayName,mail,userPrincipalName`
     },
     method: 'GET',
     headers: (params) => ({
@@ -46,12 +48,7 @@ export const listDirectoryRoleMembersTool: ToolConfig<
   },
   transformResponse: async (response: Response) => {
     const data = await response.json()
-    const members = (data.value ?? []).map((member: Record<string, unknown>) => ({
-      id: member.id ?? null,
-      displayName: member.displayName ?? null,
-      mail: member.mail ?? null,
-      odataType: (member['@odata.type'] as string) ?? null,
-    }))
+    const members = (data.value ?? []).map(mapDirectoryObjectMember)
     return {
       success: true,
       output: {

@@ -1,11 +1,11 @@
 import type {
   CleanedOutlookMessage,
-  OutlookMessage,
   OutlookMessagesResponse,
   OutlookSearchParams,
   OutlookSearchResponse,
 } from '@/tools/outlook/types'
 import { OUTLOOK_MESSAGE_OUTPUT_PROPERTIES } from '@/tools/outlook/types'
+import { cleanOutlookMessage } from '@/tools/outlook/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const outlookSearchTool: ToolConfig<OutlookSearchParams, OutlookSearchResponse> = {
@@ -86,38 +86,7 @@ export const outlookSearchTool: ToolConfig<OutlookSearchParams, OutlookSearchRes
       }
     }
 
-    const cleanedMessages: CleanedOutlookMessage[] = messages.map((message: OutlookMessage) => ({
-      id: message.id,
-      subject: message.subject,
-      bodyPreview: message.bodyPreview,
-      body: {
-        contentType: message.body?.contentType,
-        content: message.body?.content,
-      },
-      sender: {
-        name: message.sender?.emailAddress?.name,
-        address: message.sender?.emailAddress?.address,
-      },
-      from: {
-        name: message.from?.emailAddress?.name,
-        address: message.from?.emailAddress?.address,
-      },
-      toRecipients:
-        message.toRecipients?.map((recipient) => ({
-          name: recipient.emailAddress?.name,
-          address: recipient.emailAddress?.address,
-        })) || [],
-      ccRecipients:
-        message.ccRecipients?.map((recipient) => ({
-          name: recipient.emailAddress?.name,
-          address: recipient.emailAddress?.address,
-        })) || [],
-      receivedDateTime: message.receivedDateTime,
-      sentDateTime: message.sentDateTime,
-      hasAttachments: message.hasAttachments,
-      isRead: message.isRead,
-      importance: message.importance,
-    }))
+    const cleanedMessages: CleanedOutlookMessage[] = messages.map(cleanOutlookMessage)
 
     return {
       success: true,

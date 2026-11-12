@@ -3,7 +3,12 @@ import type {
   OneDriveSearchResponse,
   OneDriveToolParams,
 } from '@/tools/onedrive/types'
-import { escapeODataStringLiteral } from '@/tools/onedrive/utils'
+import {
+  DRIVE_ITEM_SELECT,
+  escapeODataStringLiteral,
+  ONEDRIVE_FILE_OUTPUT_PROPERTIES,
+  toOneDriveFile,
+} from '@/tools/onedrive/utils'
 import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -33,11 +38,18 @@ export const searchTool: ToolConfig<OneDriveToolParams, OneDriveSearchResponse> 
       description:
         'Search text matched against file name, metadata, and content. Not required when paginating with pageToken',
     },
+    orderBy: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'OData $orderby expression to sort results (e.g., "name", "lastModifiedDateTime desc")',
+    },
     pageSize: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of results to return (e.g., 10, 50, 100)',
+      description: 'Maximum number of results per page (e.g., 10, 50, 100)',
     },
     pageToken: {
       type: 'string',
@@ -63,10 +75,11 @@ export const searchTool: ToolConfig<OneDriveToolParams, OneDriveSearchResponse> 
       const url = new URL(
         `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(escapeODataStringLiteral(query))}')`
       )
-      url.searchParams.append(
-        '$select',
-        'id,name,file,folder,webUrl,size,createdDateTime,lastModifiedDateTime,parentReference,@microsoft.graph.downloadUrl'
-      )
+      url.searchParams.append('$select', DRIVE_ITEM_SELECT)
+      const orderBy = params.orderBy?.trim()
+      if (orderBy) {
+        url.searchParams.append('$orderby', orderBy)
+      }
       if (params.pageSize) {
         url.searchParams.append('$top', Number(params.pageSize).toString())
       }
@@ -84,17 +97,7 @@ export const searchTool: ToolConfig<OneDriveToolParams, OneDriveSearchResponse> 
     return {
       success: true,
       output: {
-        files: (data.value || []).map((item: MicrosoftGraphDriveItem) => ({
-          id: item.id,
-          name: item.name,
-          mimeType: item.file?.mimeType || (item.folder ? 'application/folder' : 'unknown'),
-          webViewLink: item.webUrl,
-          webContentLink: item['@microsoft.graph.downloadUrl'],
-          size: item.size?.toString() || '0',
-          createdTime: item.createdDateTime,
-          modifiedTime: item.lastModifiedDateTime,
-          parents: item.parentReference ? [item.parentReference.id] : [],
-        })),
+        files: (data.value || []).map((item: MicrosoftGraphDriveItem) => toOneDriveFile(item)),
         nextPageToken: getGraphNextPageUrl(data),
       },
     }
@@ -105,6 +108,7 @@ export const searchTool: ToolConfig<OneDriveToolParams, OneDriveSearchResponse> 
     files: {
       type: 'array',
       description: 'Array of file and folder objects matching the search query',
+      items: { type: 'object', properties: ONEDRIVE_FILE_OUTPUT_PROPERTIES },
     },
     nextPageToken: {
       type: 'string',

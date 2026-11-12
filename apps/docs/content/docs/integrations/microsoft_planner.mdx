@@ -57,6 +57,33 @@ Read tasks from Microsoft Planner - get all user tasks or all tasks from a speci
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether tasks were retrieved successfully |
 | `tasks` | array | Array of task objects with filtered properties |
+|   ↳ `id` | string | Task ID |
+|   ↳ `title` | string | Task title |
+|   ↳ `planId` | string | Parent plan ID |
+|   ↳ `bucketId` | string | Bucket ID |
+|   ↳ `percentComplete` | number | Completion percentage; 100 means completed |
+|   ↳ `priority` | number | Priority from 0 \(highest\) to 10 \(lowest\); Planner uses 1 urgent, 3 important, 5 medium, 9 low |
+|   ↳ `dueDateTime` | string | Due date \(ISO 8601\) |
+|   ↳ `createdDateTime` | string | Creation time \(ISO 8601\) |
+|   ↳ `completedDateTime` | string | Completion time \(ISO 8601\) |
+|   ↳ `hasDescription` | boolean | Whether the task details have a description |
+|   ↳ `assignments` | array | User IDs the task is assigned to |
+|   ↳ `etag` | string | Task ETag for Update Task and Delete Task \(not for Update Task Details\) |
+|   ↳ `startDateTime` | string | Start date \(ISO 8601\) |
+|   ↳ `orderHint` | string | Order hint |
+|   ↳ `assigneePriority` | string | Order hint for the assignee view |
+|   ↳ `appliedCategories` | array | Applied category labels, such as category1 |
+|   ↳ `previewType` | string | Preview type shown on the task card |
+|   ↳ `checklistItemCount` | number | Number of checklist items |
+|   ↳ `activeChecklistItemCount` | number | Number of unchecked checklist items |
+|   ↳ `referenceCount` | number | Number of external references |
+|   ↳ `conversationThreadId` | string | Group conversation thread ID for the task |
+|   ↳ `createdBy` | string | User ID of the task creator |
+|   ↳ `completedBy` | string | User ID of the user who completed the task |
+|   ↳ `assignees` | array | Assignment details per assignee |
+|     ↳ `userId` | string | Assignee user ID |
+|     ↳ `assignedDateTime` | string | When the user was assigned |
+|     ↳ `assignedBy` | string | User ID of who made the assignment |
 | `metadata` | object | Metadata including planId, userId, and planUrl |
 |   ↳ `planId` | string | Plan ID |
 |   ↳ `userId` | string | User ID |

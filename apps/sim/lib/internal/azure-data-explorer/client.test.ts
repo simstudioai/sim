@@ -121,4 +121,57 @@ describe('requestAzureDataExplorer', () => {
     expect(output.records).toHaveLength(10_000)
     expect(output).toMatchObject({ rowCount: 10_000, totalRowCount: 10_050, truncated: true })
   })
+
+  it('truncates rows whose rows-plus-records projection would exceed the tool response cap', async () => {
+    secureFetch.mockReset()
+    const response = queryResponse()
+    const wide = 'x'.repeat(2048)
+    response.Tables[1].Rows = Array.from({ length: 3000 }, () => [wide])
+    secureFetch
+      .mockResolvedValueOnce(jsonResponse({ access_token: 'token-1', expires_in: 3600 }))
+      .mockResolvedValueOnce(jsonResponse(response))
+
+    const output = await requestAzureDataExplorer(
+      { ...BASE_INPUT, clientSecret: 'unique-4' },
+      'request-4'
+    )
+
+    expect(output.truncated).toBe(true)
+    expect(output.totalRowCount).toBe(3000)
+    expect(output.rowCount).toBeLessThan(3000)
+    expect(Buffer.byteLength(JSON.stringify({ success: true, output }))).toBeLessThan(
+      10 * 1024 * 1024
+    )
+  })
+
+  it('returns every QueryResult table a batch produces', async () => {
+    secureFetch.mockReset()
+    const response = queryResponse()
+    response.Tables.splice(2, 0, {
+      TableName: 'Table_2',
+      Columns: [{ ColumnName: 'Second', DataType: 'String', ColumnType: 'string' }],
+      Rows: [['second result']],
+    })
+    response.Tables[4].Rows = [
+      [0, 'QueryProperties'],
+      [1, 'QueryResult'],
+      [2, 'QueryResult'],
+      [3, 'QueryStatus'],
+    ]
+    secureFetch
+      .mockResolvedValueOnce(jsonResponse({ access_token: 'token-1', expires_in: 3600 }))
+      .mockResolvedValueOnce(jsonResponse(response))
+
+    const output = await requestAzureDataExplorer(
+      { ...BASE_INPUT, clientSecret: 'unique-5' },
+      'request-5'
+    )
+
+    expect(output.records).toEqual([{ Test: 'Hello, World!' }])
+    expect(output.additionalResults).toHaveLength(1)
+    expect(output.additionalResults?.[0]).toMatchObject({
+      tableName: 'Table_2',
+      records: [{ Second: 'second result' }],
+    })
+  })
 })

@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { toStringOrNull } from '@sim/utils/coerce'
+import { isRecordLike, toRecord, toRecordOrNull } from '@sim/utils/object'
 import {
   AttachmentDownloadBudget,
   readAttachmentJson,
@@ -39,6 +41,146 @@ export interface TeamsMention {
           applicationIdentityType: 'bot'
         }
       }
+}
+
+interface TeamsIdentity {
+  id: string | null
+  displayName: string | null
+}
+
+interface TeamsMessageFrom {
+  user: (TeamsIdentity & { userIdentityType: string | null }) | null
+  application: (TeamsIdentity & { applicationIdentityType: string | null }) | null
+  device: TeamsIdentity | null
+}
+
+interface TeamsMessageMentionOutput {
+  id: number | null
+  mentionText: string | null
+  mentioned: Record<string, unknown> | null
+}
+
+interface TeamsMessageReactionOutput {
+  reactionType: string | null
+  displayName: string | null
+  createdDateTime: string | null
+  userId: string | null
+  userDisplayName: string | null
+}
+
+/** Documented chatMessage fields beyond id/body/sender name/timestamp. */
+export interface TeamsMessageDetails {
+  from: TeamsMessageFrom | null
+  senderId: string | null
+  senderType: 'user' | 'application' | 'device' | null
+  replyToId: string | null
+  subject: string | null
+  summary: string | null
+  importance: string | null
+  webUrl: string | null
+  contentType: string | null
+  lastModifiedDateTime: string | null
+  lastEditedDateTime: string | null
+  deletedDateTime: string | null
+  mentions: TeamsMessageMentionOutput[]
+  reactions: TeamsMessageReactionOutput[]
+}
+
+function toIdentity(value: unknown): TeamsIdentity | null {
+  if (!isRecordLike(value)) return null
+  return { id: toStringOrNull(value.id), displayName: toStringOrNull(value.displayName) }
+}
+
+function toMessageFrom(value: unknown): TeamsMessageFrom | null {
+  if (!isRecordLike(value)) return null
+  const user = toIdentity(value.user)
+  const application = toIdentity(value.application)
+  return {
+    user: user
+      ? { ...user, userIdentityType: toStringOrNull(toRecord(value.user).userIdentityType) }
+      : null,
+    application: application
+      ? {
+          ...application,
+          applicationIdentityType: toStringOrNull(
+            toRecord(value.application).applicationIdentityType
+          ),
+        }
+      : null,
+    device: toIdentity(value.device),
+  }
+}
+
+function senderTypeOf(from: TeamsMessageFrom | null): TeamsMessageDetails['senderType'] {
+  if (from?.user) return 'user'
+  if (from?.application) return 'application'
+  if (from?.device) return 'device'
+  return null
+}
+
+/** Extract sender identity (user or bot), threading, mentions, reactions, and edit times. */
+export function extractMessageDetails(message: unknown): TeamsMessageDetails {
+  const data = toRecord(message)
+  const from = toMessageFrom(data.from)
+  const sender = from?.user ?? from?.application ?? from?.device ?? null
+  const mentions = Array.isArray(data.mentions) ? data.mentions : []
+  const reactions = Array.isArray(data.reactions) ? data.reactions : []
+  return {
+    from,
+    senderId: sender?.id ?? null,
+    senderType: senderTypeOf(from),
+    replyToId: toStringOrNull(data.replyToId),
+    subject: toStringOrNull(data.subject),
+    summary: toStringOrNull(data.summary),
+    importance: toStringOrNull(data.importance),
+    webUrl: toStringOrNull(data.webUrl),
+    contentType: toStringOrNull(toRecord(data.body).contentType),
+    lastModifiedDateTime: toStringOrNull(data.lastModifiedDateTime),
+    lastEditedDateTime: toStringOrNull(data.lastEditedDateTime),
+    deletedDateTime: toStringOrNull(data.deletedDateTime),
+    mentions: mentions.filter(isRecordLike).map((mention) => ({
+      id: typeof mention.id === 'number' ? mention.id : null,
+      mentionText: toStringOrNull(mention.mentionText),
+      mentioned: toRecordOrNull(mention.mentioned),
+    })),
+    reactions: reactions.filter(isRecordLike).map((reaction) => {
+      const user = toRecord(toRecord(reaction.user).user)
+      return {
+        reactionType: toStringOrNull(reaction.reactionType),
+        displayName: toStringOrNull(reaction.displayName),
+        createdDateTime: toStringOrNull(reaction.createdDateTime),
+        userId: toStringOrNull(user.id),
+        userDisplayName: toStringOrNull(user.displayName),
+      }
+    }),
+  }
+}
+
+/** The `$skiptoken` carried by a Graph `@odata.nextLink`, or null on the last page. */
+export function extractNextPageToken(nextLink: unknown): string | null {
+  if (typeof nextLink !== 'string' || !nextLink) return null
+  try {
+    const url = new URL(nextLink)
+    if (url.origin !== 'https://graph.microsoft.com') return null
+    return url.searchParams.get('$skiptoken') ?? url.searchParams.get('$skipToken')
+  } catch {
+    return null
+  }
+}
+
+/** Clamp an optional page size to Graph's documented 1-50 range for message and chat lists. */
+export function resolvePageSize(top: unknown): number {
+  const parsed = typeof top === 'string' && top.trim() ? Number(top.trim()) : top
+  if (typeof parsed !== 'number' || !Number.isFinite(parsed)) return 50
+  return Math.min(50, Math.max(1, Math.floor(parsed)))
+}
+
+/** A Graph itemBody, plain text unless HTML is requested. */
+export function buildMessageBody(
+  content: string,
+  contentType?: string
+): { contentType: 'text' | 'html'; content: string } {
+  return { contentType: contentType === 'html' ? 'html' : 'text', content }
 }
 
 /**

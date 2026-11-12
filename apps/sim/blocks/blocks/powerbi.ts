@@ -355,7 +355,8 @@ export const PowerBIBlock: BlockConfig = {
     },
     reports: {
       type: 'json',
-      description: 'Reports with ID, name, report type, URLs, and optional semantic model ID',
+      description:
+        'Reports with ID, name, report type, URLs, optional semantic model ID, format, isOwnedByMe, and app IDs when available',
       condition: { field: 'operation', value: 'powerbi_list_reports' },
     },
     reportCount: {
@@ -365,7 +366,8 @@ export const PowerBIBlock: BlockConfig = {
     },
     report: {
       type: 'json',
-      description: 'Report details including ID, name, report type, URLs, and semantic model ID',
+      description:
+        'Report details including ID, name, report type, URLs, semantic model ID, format, isOwnedByMe, and app IDs when available',
       condition: { field: 'operation', value: 'powerbi_get_report' },
     },
     datasets: {

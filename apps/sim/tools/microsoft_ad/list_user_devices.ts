@@ -6,6 +6,7 @@ import { DEVICE_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
 import { mapDevice } from '@/tools/microsoft_ad/utils'
 import { assertGraphNextPageUrlForCollection, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const RELATIONSHIP_PATHS: Record<string, string> = {
   registered: 'registeredDevices',
@@ -74,7 +75,7 @@ export const listUserDevicesTool: ToolConfig<
       if (params.nextLink) return assertGraphNextPageUrlForCollection(params.nextLink, [path])
       const userId = params.userId?.trim()
       if (!userId) throw new Error('User ID is required')
-      const base = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userId)}/${path}`
+      const base = `https://graph.microsoft.com/v1.0/users/${safeUrlPathSegment(userId, 'userId')}/${path}`
       return params.top ? `${base}?$top=${params.top}` : base
     },
     method: 'GET',

@@ -4,7 +4,7 @@ import type {
   SharepointPage,
   SharepointToolParams,
 } from '@/tools/sharepoint/types'
-import { escapeHtml, optionalTrim } from '@/tools/sharepoint/utils'
+import { escapeHtml, graphPathSegment, optionalTrim } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SharePointCreatePage')
@@ -62,7 +62,7 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
   request: {
     url: (params) => {
       const siteId = optionalTrim(params.siteId) || optionalTrim(params.siteSelector) || 'root'
-      return `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/pages`
+      return `https://graph.microsoft.com/v1.0/sites/${graphPathSegment(siteId, 'siteId')}/pages`
     },
     method: 'POST',
     headers: (params) => ({

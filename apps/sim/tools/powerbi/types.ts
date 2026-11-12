@@ -54,6 +54,10 @@ export interface PowerBIReport {
   webUrl: string | null
   embedUrl: string | null
   description: string | null
+  format: string | null
+  isOwnedByMe: boolean | null
+  appId: string | null
+  originalReportId: string | null
 }
 
 export interface PowerBIDataset {
@@ -168,6 +172,26 @@ export const POWERBI_REPORT_OUTPUT_PROPERTIES = {
   webUrl: { ...nullableString, description: 'Report URL in Power BI' },
   embedUrl: { ...nullableString, description: 'Report embed URL' },
   description: { ...nullableString, description: 'Report description, when available' },
+  format: {
+    ...nullableString,
+    optional: true,
+    description: 'Report definition format (PBIR, PBIRLegacy, or RDL), when available',
+  },
+  isOwnedByMe: {
+    ...nullableBoolean,
+    optional: true,
+    description: 'Whether the caller can modify or copy the report, when available',
+  },
+  appId: {
+    ...nullableString,
+    optional: true,
+    description: 'App ID, present only when the report belongs to an app',
+  },
+  originalReportId: {
+    ...nullableString,
+    optional: true,
+    description: 'Source report ID when the workspace is published as an app',
+  },
 } satisfies Record<string, OutputProperty>
 
 export const POWERBI_DATASET_OUTPUT_PROPERTIES = {

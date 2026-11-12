@@ -1,4 +1,5 @@
 import type { OutlookDraftParams, OutlookDraftResponse } from '@/tools/outlook/types'
+import { normalizeOutlookImportance } from '@/tools/outlook/utils'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const outlookDraftTool: InternalToolConfig<OutlookDraftParams, OutlookDraftResponse> = {
@@ -13,6 +14,7 @@ export const outlookDraftTool: InternalToolConfig<OutlookDraftParams, OutlookDra
       { name: 'to', label: 'To', target: true },
       { name: 'cc', label: 'Cc', target: true },
       { name: 'bcc', label: 'Bcc', target: true },
+      { name: 'replyTo', label: 'Reply-To', target: true },
       { name: 'subject', label: 'Subject', editable: true },
       { name: 'body', label: 'Message', format: 'multiline', editable: true },
     ],
@@ -66,6 +68,18 @@ export const outlookDraftTool: InternalToolConfig<OutlookDraftParams, OutlookDra
       visibility: 'user-or-llm',
       description: 'BCC recipients (comma-separated)',
     },
+    replyTo: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Reply-To addresses that replies should go to (comma-separated)',
+    },
+    importance: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Message importance: low, normal, or high',
+    },
     attachments: {
       type: 'file[]',
       required: false,
@@ -84,6 +98,8 @@ export const outlookDraftTool: InternalToolConfig<OutlookDraftParams, OutlookDra
         contentType: params.contentType || 'text',
         cc: params.cc || null,
         bcc: params.bcc || null,
+        replyTo: params.replyTo || null,
+        importance: normalizeOutlookImportance(params.importance),
         attachments: params.attachments || null,
       }
     },

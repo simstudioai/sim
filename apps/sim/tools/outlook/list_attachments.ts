@@ -5,6 +5,7 @@ import type {
 } from '@/tools/outlook/types'
 import { OUTLOOK_ATTACHMENT_METADATA_OUTPUT_PROPERTIES } from '@/tools/outlook/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface OutlookAttachmentApi {
   '@odata.type'?: string
@@ -47,7 +48,7 @@ export const outlookListAttachmentsTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://graph.microsoft.com/v1.0/me/messages/${params.messageId.trim()}/attachments?$select=id,name,contentType,size,isInline,lastModifiedDateTime`,
+      `https://graph.microsoft.com/v1.0/me/messages/${safeUrlPathSegment(params.messageId, 'messageId', { allowSeparators: true })}/attachments?$select=id,name,contentType,size,isInline,lastModifiedDateTime`,
     method: 'GET',
     headers: (params) => {
       if (!params.accessToken) {

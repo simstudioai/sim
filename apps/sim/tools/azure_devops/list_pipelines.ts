@@ -28,7 +28,7 @@ export const listPipelinesTool: ToolConfig<ListPipelinesParams, ListPipelinesRes
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Field to sort results by (e.g. "name")',
+      description: 'Sort expression (defaults to "name asc")',
     },
     top: {
       type: 'number',
@@ -94,6 +94,7 @@ export const listPipelinesTool: ToolConfig<ListPipelinesParams, ListPipelinesRes
         metadata: {
           count: data.count ?? pipelines.length,
           pipelines,
+          continuationToken: response.headers.get('x-ms-continuationtoken'),
         },
       },
     }
@@ -106,6 +107,13 @@ export const listPipelinesTool: ToolConfig<ListPipelinesParams, ListPipelinesRes
       description: 'Pipelines metadata',
       properties: {
         count: { type: 'number', description: 'Total number of pipelines returned' },
+        continuationToken: {
+          type: 'string',
+          description:
+            'Token for the next page (from the x-ms-continuationtoken header); pass it back as continuationToken. Null on the last page.',
+          optional: true,
+          nullable: true,
+        },
         pipelines: {
           type: 'array',
           description: 'Array of pipeline objects',
