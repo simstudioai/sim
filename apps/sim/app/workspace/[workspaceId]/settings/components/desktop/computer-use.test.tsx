@@ -8,6 +8,7 @@ import type {
 import { toast } from '@sim/emcn'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
+import { nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
@@ -30,7 +31,10 @@ vi.mock('@/ee/access-control/hooks/permission-groups', () => ({
       ? { isSuccess: true, data: { config: permission.config } }
       : { isSuccess: false, data: undefined },
 }))
-vi.mock('next/navigation', () => ({ useParams: () => ({ workspaceId: 'ws-1' }) }))
+vi.mock(
+  'next/navigation',
+  async () => (await import('@sim/testing/mocks/next-navigation.mock')).nextNavigationMock
+)
 vi.mock('@/lib/desktop', () => libDesktopMock)
 
 const initialPermissions = [
@@ -46,6 +50,7 @@ let container: HTMLDivElement
 beforeEach(() => {
   permission.config = null
   permission.ready = true
+  nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'ws-1' })
   permissions = [...initialPermissions]
   activity = null
   listeners = new Set()
@@ -98,6 +103,7 @@ it('withholds the device controls until the permission read succeeds', async () 
   await act(async () => renderSettings())
   expect(appRow('com.example.First')).toBeUndefined()
   expect(container.querySelector('[role="switch"]')).toBeNull()
+  expect(native.listAppPermissions).not.toHaveBeenCalled()
 })
 
 function appRow(bundleId: string) {

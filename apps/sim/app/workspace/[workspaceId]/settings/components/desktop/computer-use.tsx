@@ -11,11 +11,18 @@ import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/componen
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
 import { useComputerUseStatus } from '@/hooks/use-computer-use-status'
 
+/** The activity stays visible so an in-flight action can be stopped; the device controls need the permission group's consent. */
 export function ComputerUseSettings() {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const permission = useUserPermissionConfig(workspaceId)
+  const allowed =
+    permission.isSuccess &&
+    (permission.data.config === null ||
+      !CAPABILITY_RULES['computer_use.use'].deniedBy(permission.data.config))
   return (
     <>
       <ComputerUseActivity />
-      <ComputerUseSettingsControls />
+      {allowed && <ComputerUseSettingsControls />}
     </>
   )
 }
@@ -23,8 +30,6 @@ export function ComputerUseSettings() {
 function ComputerUseSettingsControls() {
   const requestVersion = useRef(0)
   const bridge = getDesktopBridge()?.computerUse
-  const { workspaceId } = useParams<{ workspaceId: string }>()
-  const permission = useUserPermissionConfig(workspaceId)
   const { status, setStatus, refresh, error } = useComputerUseStatus()
   const [apps, setApps] = useState<ComputerUseAppPermission[]>([])
   const [pending, setPending] = useState(false)
@@ -44,14 +49,7 @@ function ComputerUseSettingsControls() {
       requestVersion.current += 1
     }
   }, [refreshApps, status?.activeAction])
-  if (
-    !bridge ||
-    !permission.isSuccess ||
-    (permission.data.config !== null &&
-      CAPABILITY_RULES['computer_use.use'].deniedBy(permission.data.config)) ||
-    status?.supported === false
-  )
-    return null
+  if (!bridge || status?.supported === false) return null
   const update = async (action: () => Promise<void>) => {
     setPending(true)
     try {
