@@ -267,6 +267,22 @@ describe('New Relic saved User key verification', () => {
       validateNewRelicServiceAccount({ apiToken: 'NRAK-unknown', domain: 'us' })
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
   })
+
+  it.each([
+    ['us', 'https://api.newrelic.com/graphql'],
+    ['EU', 'https://api.eu.newrelic.com/graphql'],
+    ['jp', 'https://api.jp.newrelic.com/graphql'],
+  ])('checks a %s key at its data center (%s) and stores the region', async (domain, url) => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(jsonResponse({ data: { actor: { user: { id: 1 } } } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await validateNewRelicServiceAccount({ apiToken: 'NRAK-valid', domain })
+
+    expect(new Request(fetchMock.mock.calls[0][0], fetchMock.mock.calls[0][1]).url).toBe(url)
+    expect(result.normalizedDomain).toBe(domain.toLowerCase())
+  })
 })
 
 describe('Ashby saved API key verification', () => {

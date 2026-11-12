@@ -19,8 +19,23 @@ interface GraphQLResponse<TData> {
   errors?: GraphQLError[]
 }
 
-export const getNerdGraphEndpoint = (region?: NewRelicRegion): string =>
-  region === 'eu' ? 'https://api.eu.newrelic.com/graphql' : 'https://api.newrelic.com/graphql'
+/**
+ * NerdGraph endpoint of each New Relic data center; a User API key only works in its own.
+ * See https://docs.newrelic.com/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/
+ */
+const NERDGRAPH_ENDPOINTS: Record<NewRelicRegion, string> = {
+  us: 'https://api.newrelic.com/graphql',
+  eu: 'https://api.eu.newrelic.com/graphql',
+  jp: 'https://api.jp.newrelic.com/graphql',
+}
+
+export const NEW_RELIC_REGIONS: ReadonlySet<string> = new Set(Object.keys(NERDGRAPH_ENDPOINTS))
+
+/** Anything but a known region resolves to the US endpoint, as workflows saved before regions expect. */
+export const getNerdGraphEndpoint = (region?: string): string =>
+  region && NEW_RELIC_REGIONS.has(region)
+    ? NERDGRAPH_ENDPOINTS[region as NewRelicRegion]
+    : NERDGRAPH_ENDPOINTS.us
 
 export const newRelicHeaders = (apiKey: string): Record<string, string> => ({
   'API-Key': apiKey,

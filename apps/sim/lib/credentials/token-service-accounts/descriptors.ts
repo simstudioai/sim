@@ -2122,11 +2122,22 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     connectNoun: 'API key',
     fields: [
       { id: 'apiToken', label: 'User API key', placeholder: 'NRAK-...', secret: true },
-      { id: 'domain', label: 'Region', placeholder: 'us or eu', secret: false },
+      {
+        id: 'domain',
+        label: 'Region',
+        placeholder: 'Select a data center',
+        secret: false,
+        options: [
+          { value: 'us', label: 'US' },
+          { value: 'eu', label: 'EU' },
+          { value: 'jp', label: 'JP' },
+        ],
+        hintMessage: 'us, eu, or jp: the data center your New Relic account is in.',
+      },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/new_relic',
     helpText:
-      'Create a User API key (NRAK-...) in New Relic under API keys. Enter us, or eu if your account is in the EU data center.',
+      'Create a User API key (NRAK-...) in New Relic under API keys, and choose the data center your account is in (US, EU, or JP).',
     invalidCredentialsHelp:
       "New Relic rejected this key. Check that it is a User API key (NRAK-...), not a license or browser key, and that the region matches your account's data center.",
   },

@@ -80,6 +80,7 @@ export const NewRelicBlock: BlockConfig = {
       options: [
         { label: 'US', id: 'us' },
         { label: 'EU', id: 'eu' },
+        { label: 'JP', id: 'jp' },
       ],
       value: () => 'us',
     },

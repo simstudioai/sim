@@ -39,7 +39,7 @@ import {
 } from '@/tools/logfire/utils'
 import type { MailgunRegion } from '@/tools/mailgun/types'
 import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
-import { getNerdGraphEndpoint, newRelicHeaders } from '@/tools/new_relic/utils'
+import { getNerdGraphEndpoint, NEW_RELIC_REGIONS, newRelicHeaders } from '@/tools/new_relic/utils'
 import { oktaHeaders } from '@/tools/okta/utils'
 import { planeApiUrl, planeHeaders } from '@/tools/plane/utils'
 import {
@@ -1090,16 +1090,16 @@ const NERDGRAPH_RETRYABLE_ERROR_CLASSES: ReadonlySet<unknown> = new Set([
 
 /**
  * A New Relic User API key is bound to its data center, so it is checked against the
- * NerdGraph host of the region typed with it (`us` or `eu`, stored lower-cased because
- * the tools send anything but `eu` to the US host). An unknown key, or one from the other
+ * NerdGraph host of the region typed with it (`us`, `eu`, or `jp`, stored lower-cased because
+ * the tools send anything else to the US host). An unknown key, or one from the other
  * region, gets 401, or a 200 whose `errors` carry `BAD_API_KEY`, so only a resolved user
  * proves the key. Only an error in a server class means NerdGraph failed to answer.
  */
 export const validateNewRelicServiceAccount = tokenCheckValidator({
   serviceLabel: 'New Relic',
-  domain: allowedDomain(US_OR_EU),
+  domain: allowedDomain(NEW_RELIC_REGIONS),
   request: ({ apiToken, domain }) => ({
-    url: getNerdGraphEndpoint(domain as 'us' | 'eu'),
+    url: getNerdGraphEndpoint(domain),
     method: 'POST',
     headers: { ...newRelicHeaders(apiToken), Accept: 'application/json' },
     body: JSON.stringify({ query: '{ actor { user { id } } }' }),

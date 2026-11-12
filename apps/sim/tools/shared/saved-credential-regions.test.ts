@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import * as langsmithTools from '@/tools/langsmith'
 import * as launchDarklyTools from '@/tools/launchdarkly'
+import * as newRelicTools from '@/tools/new_relic'
 import { prepareToolRequestUrl } from '@/tools/request-transport'
 import type { ToolConfig } from '@/tools/types'
 
@@ -17,6 +18,12 @@ const FAMILIES: {
   tools: Record<string, ToolConfig>
   defaultHost: string
   regions: [domain: string, host: string][]
+  /**
+   * Whether a region the tools don't know is refused. Tools whose region was already an inline
+   * block field before saved credentials existed keep sending an unknown value to the default
+   * host, as legacy workflows always did; the credential check refuses one before it is saved.
+   */
+  refusesUnknownRegion: boolean
 }[] = [
   {
     service: 'LaunchDarkly',
@@ -27,6 +34,7 @@ const FAMILIES: {
       ['eu', 'app.eu.launchdarkly.com'],
       ['federal', 'app.launchdarkly.us'],
     ],
+    refusesUnknownRegion: true,
   },
   {
     service: 'LangSmith',
@@ -39,6 +47,18 @@ const FAMILIES: {
       ['aws-us', 'aws.api.smith.langchain.com'],
       ['azure-us', 'azure.api.smith.langchain.com'],
     ],
+    refusesUnknownRegion: true,
+  },
+  {
+    service: 'New Relic',
+    tools: newRelicTools,
+    defaultHost: 'api.newrelic.com',
+    regions: [
+      ['us', 'api.newrelic.com'],
+      ['eu', 'api.eu.newrelic.com'],
+      ['jp', 'api.jp.newrelic.com'],
+    ],
+    refusesUnknownRegion: false,
   },
 ]
 
@@ -79,11 +99,11 @@ function requestHost(tool: ToolConfig, credential?: Record<string, string>): str
   return new URL(prepareToolRequestUrl(tool, params)).host
 }
 
-const cases = FAMILIES.flatMap(({ service, tools, defaultHost, regions }) =>
-  Object.values(tools).map((tool) => ({ service, tool, defaultHost, regions }))
+const cases = FAMILIES.flatMap((family) =>
+  Object.values(family.tools).map((tool) => ({ ...family, tool }))
 )
 
-describe.each(cases)('$tool.id', ({ tool, defaultHost, regions }) => {
+describe.each(cases)('$tool.id', ({ tool, defaultHost, regions, refusesUnknownRegion }) => {
   it.each(regions)('sends a run with a saved %s credential to %s', (domain, host) => {
     expect(requestHost(tool, { accessToken: 'saved-token', domain })).toBe(host)
   })
@@ -92,9 +112,15 @@ describe.each(cases)('$tool.id', ({ tool, defaultHost, regions }) => {
     expect(requestHost(tool)).toBe(defaultHost)
   })
 
-  it('refuses a region it does not know instead of guessing a host', () => {
+  it.runIf(refusesUnknownRegion)('refuses a region it does not know instead of guessing', () => {
     expect(() =>
       requestHost(tool, { accessToken: 'saved-token', domain: 'evil.example.com' })
     ).toThrow()
+  })
+
+  it.skipIf(refusesUnknownRegion)('never sends an unknown region off the vendor', () => {
+    expect(requestHost(tool, { accessToken: 'saved-token', domain: 'evil.example.com' })).toBe(
+      defaultHost
+    )
   })
 })
