@@ -28,6 +28,19 @@
  * the keystroke refusal that read it.
  */
 
+/** What a snapshot recorded about an element, so a later action can confirm it is the same one. */
+interface SnapshotRefLocator {
+  url: string
+  tag: string
+  role: string
+  name: string
+  attributes: Record<string, string>
+  ancestor: string
+  context: string
+  /** Hash of the element's DOM text, to tell revealed content from replaced content. */
+  textHash: number
+}
+
 declare global {
   interface Window {
     __simAgentElements?: Element[]
@@ -43,6 +56,13 @@ declare global {
       observedRoots: WeakSet<ParentNode>
     }>
     __simAgentNextElementId?: number
+    /** Every ref this document issued, resolvable while its element keeps that identity. */
+    __simAgentIssuedRefs?: Map<
+      number,
+      { element: WeakRef<Element>; locator: SnapshotRefLocator; namespace: number }
+    >
+    /** The ref each element was last issued, so an unchanged element keeps it. */
+    __simAgentRefOfElement?: WeakMap<Element, number>
     /** Elements an earlier snapshot of this document listed; a later snapshot marks the rest `new`. */
     __simAgentShownElements?: WeakSet<Element>
     /** Installed by {@link installPageHelpers} before every page function; cached per call. */
@@ -210,7 +230,8 @@ export function installPageHelpers(): void {
 export function collectSnapshot(
   startingElementId = 0,
   elementId: number | null = null,
-  markNew = true
+  markNew = true,
+  refNamespace = 0
 ): unknown {
   const resolver = window.__simAgentResolveElement
   const scopedRoot =
@@ -308,15 +329,7 @@ export function collectSnapshot(
 
   const registry: Element[] = []
   const refLineIndexes: Record<number, number> = {}
-  const locators: Array<{
-    url: string
-    tag: string
-    role: string
-    name: string
-    attributes: Record<string, string>
-    ancestor: string
-    context: string
-  }> = []
+  const locators: SnapshotRefLocator[] = []
   window.__simAgentElements = registry
   const previouslyShown = window.__simAgentShownElements
   const shown = previouslyShown ?? new WeakSet<Element>()
@@ -588,10 +601,23 @@ export function collectSnapshot(
     return ''
   }
 
+  // An unchanged element keeps its ref, and a ref stays resolvable after a
+  // later snapshot leaves it out; a changed element gets a new ref.
+  const issuedRefs = window.__simAgentIssuedRefs ?? new Map()
+  window.__simAgentIssuedRefs = issuedRefs
+  const refOfElement = window.__simAgentRefOfElement ?? new WeakMap()
+  window.__simAgentRefOfElement = refOfElement
+  const issuedRefCap = 5000
+  const textHashOf = (el: Element): number => {
+    const text = el.textContent || ''
+    let hash = 0
+    for (let index = 0; index < text.length; index++) {
+      hash = (hash * 31 + text.charCodeAt(index)) | 0
+    }
+    return hash
+  }
   const registerElement = (el: Element, role: string, name: string): number => {
-    const id = nextElementId++
-    registry[id] = el
-    locators[id] = {
+    const locator = {
       url: pageUrlFor(el),
       tag: el.tagName.toUpperCase(),
       role,
@@ -599,7 +625,32 @@ export function collectSnapshot(
       attributes: locatorAttributes(el),
       ancestor: ancestorSignature(el),
       context: contextSignature(el),
+      textHash: textHashOf(el),
     }
+    const priorId = refOfElement.get(el)
+    const prior = priorId === undefined ? undefined : issuedRefs.get(priorId)
+    const unchanged =
+      prior !== undefined &&
+      prior.namespace === refNamespace &&
+      prior.locator.tag === locator.tag &&
+      prior.locator.role === locator.role &&
+      prior.locator.name === locator.name &&
+      prior.locator.ancestor === locator.ancestor &&
+      prior.locator.context === locator.context &&
+      Object.keys({ ...prior.locator.attributes, ...locator.attributes }).every(
+        (key) => prior.locator.attributes[key] === locator.attributes[key]
+      )
+    const id =
+      unchanged && priorId !== undefined && registry[priorId] === undefined
+        ? priorId
+        : nextElementId++
+    refOfElement.set(el, id)
+    registry[id] = el
+    locators[id] = locator
+    issuedRefs.delete(id)
+    issuedRefs.set(id, { element: new WeakRef(el), locator, namespace: refNamespace })
+    const oldest = issuedRefs.keys().next()
+    if (issuedRefs.size > issuedRefCap && !oldest.done) issuedRefs.delete(oldest.value)
     refCount++
     window.__simAgentNextElementId = nextElementId
     return id
@@ -691,7 +742,8 @@ export function collectSnapshot(
       160
     )
     if (!text) return
-    const id = registerElement(el, roleFor(el), text)
+    // The resolver recomputes nameFor, which differs from the shown text for aria-labelled or long leaves.
+    const id = registerElement(el, roleFor(el), nameFor(el))
     textLineCount++
     const marker = isNew(el) ? ' new' : ''
     const lineIndex = lines.length
@@ -850,11 +902,15 @@ export function collectSnapshot(
    * real stale ref, never permission to click something nearby.
    */
   window.__simAgentResolveElement = (id: number, allowRecovery = true) => {
-    if (scopedRoot && !scopedRoot.isConnected) {
+    // A ref from an earlier snapshot resolves only to its own live node: no
+    // lookalike recovery, and the latest snapshot's scope does not apply to it.
+    const inLatestSnapshot = locators[id] !== undefined
+    if (inLatestSnapshot && scopedRoot && !scopedRoot.isConnected) {
       window.__simAgentStaleReason = 'the scoped snapshot root left the DOM'
       return null
     }
-    const locator = locators[id]
+    const issued = issuedRefs.get(id)
+    const locator = issued?.locator
     if (!locator) {
       window.__simAgentStaleReason = `id ${id} is not in the current snapshot's registry`
       return null
@@ -897,7 +953,26 @@ export function collectSnapshot(
       ) {
         return false
       }
-      if (nameFor(candidate) !== locator.name) return false
+      // A mounted control whose own menu opened (often by the hover or click
+      // being validated) appends that menu to its name: either hidden content
+      // was revealed (its DOM text is unchanged) or it declares a popup. A
+      // recycled row changes its DOM text with neither.
+      const name = nameFor(candidate)
+      const opensPopup =
+        textHashOf(candidate) === locator.textHash ||
+        ['aria-haspopup', 'aria-expanded', 'aria-controls'].some(
+          (attribute) => (candidate.getAttribute(attribute) || 'false') !== 'false'
+        ) ||
+        candidate.querySelector(
+          '[role="menu"], [role="menubar"], [role="listbox"], [role="tooltip"], [role="dialog"], [role="tree"]'
+        ) !== null
+      const nameGrewInPlace =
+        connected &&
+        opensPopup &&
+        locator.name.length > 0 &&
+        name.startsWith(locator.name) &&
+        (locator.name.length >= 120 || /\s/.test(name.charAt(locator.name.length)))
+      if (name !== locator.name && !nameGrewInPlace) return false
       const candidateAttributes = locatorAttributes(candidate)
       const attributes = connected ? connectedIdentityAttributes : stableAttributes
       const genericName =
@@ -976,7 +1051,7 @@ export function collectSnapshot(
       return true
     }
 
-    const current = registry[id]
+    const current = registry[id] ?? issued?.element.deref()
     if (current?.isConnected) {
       if (!identityMatches(current, true)) {
         window.__simAgentStaleReason = `the node is still mounted but its identity drifted (now <${String(current.tagName || '').toLowerCase()}> role=${roleFor(current) || 'none'} name="${nameFor(current).slice(0, 60)}")`
@@ -988,7 +1063,7 @@ export function collectSnapshot(
       }
     }
 
-    if (!allowRecovery) {
+    if (!allowRecovery || !inLatestSnapshot) {
       window.__simAgentStaleReason = 'the original snapshot node is detached or hidden'
       return null
     }
@@ -1866,6 +1941,33 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
       coveredByRelatedPopup = true
     }
   }
+  // Top-page typing goes through keyboard focus, so a non-modal overlay does not block it; a modal
+  // or dialog cover still refuses, and framed fields keep the check for their mapped point.
+  const topPageField = view === window && window.top === window
+  const insideModal = (node: Element | null): boolean => {
+    for (let current = node; current; current = composedParent(current)) {
+      const role = current.getAttribute('role')
+      if (
+        current.getAttribute('aria-modal') === 'true' ||
+        role === 'dialog' ||
+        role === 'alertdialog' ||
+        tagFor(current) === 'DIALOG'
+      ) {
+        return true
+      }
+    }
+    return false
+  }
+  let coveredBy: string | undefined
+  if (
+    !chosenPoint &&
+    topPageField &&
+    blockedPoints.length > 0 &&
+    !blockedPoints.some((point) => insideModal(point.hit))
+  ) {
+    chosenPoint = { x: blockedPoints[0].x, y: blockedPoints[0].y }
+    coveredBy = blockerLabel(firstBlocker)
+  }
   if (!chosenPoint) {
     return {
       error: 'obstructed',
@@ -1876,6 +1978,7 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
 
   return {
     focused: true,
+    ...(coveredBy ? { coveredBy } : {}),
     kind:
       editableTag === 'INPUT'
         ? 'input'

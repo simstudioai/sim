@@ -2,6 +2,34 @@ import { describe, expect, it, vi } from 'vitest'
 import { withPostActionObservation } from '@/main/browser-agent/post-action-observation'
 
 describe('post-action observation', () => {
+  it('shows the page after a wait without being asked, since a wait exists to see what changed', async () => {
+    const result = await withPostActionObservation(
+      'browser_wait_for',
+      { timeoutMs: 500 },
+      async (params) => {
+        expect(params).toEqual({ timeoutMs: 500 })
+        return { found: false }
+      },
+      async (query) => {
+        expect(query).toBeUndefined()
+        return { outline: '- heading "Order confirmed"' }
+      },
+      vi.fn()
+    )
+    expect(result).toMatchObject({
+      found: false,
+      observation: { ok: true, result: { outline: '- heading "Order confirmed"' } },
+    })
+  })
+
+  it('rejects an explicit null observe on a wait instead of treating it as omitted', async () => {
+    const action = vi.fn(async () => ({ found: true }))
+    await expect(
+      withPostActionObservation('browser_wait_for', { observe: null }, action, vi.fn(), vi.fn())
+    ).rejects.toThrow('observe must be')
+    expect(action).not.toHaveBeenCalled()
+  })
+
   it('observes after the action, preserving partial form results and replacing refs', async () => {
     const order: string[] = []
     const result = await withPostActionObservation(

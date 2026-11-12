@@ -334,8 +334,8 @@ describe('combobox typing surfaces', () => {
     expect(input.value).toBe('Mondu')
   })
 
-  it('refuses mixed or unrelated blockers instead of treating them as suggestions', () => {
-    const { option } = composeField()
+  it('does not treat mixed or unrelated blockers as suggestions, and types through keyboard focus', () => {
+    const { input, option } = composeField()
     const overlay = visible(document.createElement('div'))
     overlay.setAttribute('aria-label', 'Unrelated overlay')
     document.body.append(overlay)
@@ -344,11 +344,53 @@ describe('combobox typing surfaces', () => {
       value: (x: number) => (x > 70 ? overlay : option),
     })
 
-    expect(focusElementForTyping(0)).toEqual({
-      error: 'obstructed',
-      blocker: 'Mondu',
-      blockerControls: [],
+    expect(focusElementForTyping(0)).toMatchObject({
+      focused: true,
+      coveredBy: 'Mondu',
+      coveredByRelatedPopup: false,
     })
+    expect(document.activeElement).toBe(input)
+  })
+
+  it('types into a top-page field a promo card covers, naming the cover', () => {
+    document.body.innerHTML =
+      '<input type="search" aria-label="Search" /><div>Shop for your home</div>'
+    const input = visible(document.querySelector('input') as HTMLInputElement)
+    const card = visible(document.querySelector('div') as HTMLDivElement)
+    register(input)
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => card })
+
+    expect(focusElementForTyping(0)).toMatchObject({
+      focused: true,
+      coveredBy: 'Shop for your home',
+    })
+    expect(typeIntoElement(0, 'cooking pot', false)).toMatchObject({ dispatched: true })
+    expect(input.value).toBe('cooking pot')
+  })
+
+  it('still refuses a top-page field a modal dialog covers', () => {
+    document.body.innerHTML =
+      '<input type="text" aria-label="Search" /><div role="dialog" aria-modal="true"><p>Sign in</p></div>'
+    const input = visible(document.querySelector('input') as HTMLInputElement)
+    const cover = visible(document.querySelector('p') as HTMLParagraphElement)
+    register(input)
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => cover })
+
+    expect(focusElementForTyping(0)).toMatchObject({ error: 'obstructed' })
+  })
+
+  it('still refuses a covered field inside a frame', () => {
+    const frame = document.createElement('iframe')
+    document.body.append(frame)
+    const inner = frame.contentDocument as Document
+    inner.body.innerHTML = '<input type="text" /><div>Cover</div>'
+    const field = visible(inner.querySelector('input') as HTMLInputElement)
+    const cover = visible(inner.querySelector('div') as HTMLDivElement)
+    field.scrollIntoView = () => {}
+    register(field)
+    Object.defineProperty(inner, 'elementFromPoint', { configurable: true, value: () => cover })
+
+    expect(focusElementForTyping(0)).toMatchObject({ error: 'obstructed', blocker: 'Cover' })
   })
 
   it('refuses ambiguous composite fields and descendant passwords', () => {
@@ -673,15 +715,118 @@ describe('collectSnapshot', () => {
     expect(clickElement(ref)).toMatchObject({ error: 'stale' })
   })
 
-  it('never recycles numeric refs across snapshots', () => {
+  it('keeps a connected ref whose name grew when its own submenu opened', () => {
+    document.body.innerHTML =
+      '<div role="button" tabindex="0" aria-haspopup="menu">Products ▾<ul></ul></div>'
+    const menu = visible(document.querySelector('[role="button"]') as HTMLDivElement)
+    const ref = refFor(outlineOf(collectSnapshot()), 'Products ▾')
+
+    ;(menu.querySelector('ul') as HTMLUListElement).innerHTML =
+      ' <li>Starter</li> <li>Business</li>'
+
+    expect(clickElement(ref)).toMatchObject({ dispatched: true })
+  })
+
+  it('acts on a text line whose accessible name differs from its rendered text', () => {
+    document.body.innerHTML = '<p><span aria-label="Details">i</span></p>'
+    visible(document.querySelector('span') as HTMLSpanElement)
+    const ref = refFor(outlineOf(collectSnapshot()), 'i')
+
+    expect(clickElement(ref)).toMatchObject({ dispatched: true })
+  })
+
+  it('acts on a text line longer than the identity name budget', () => {
+    const text = 'Terms of service '.repeat(10).trim()
+    document.body.innerHTML = `<p>${text}</p>`
+    visible(document.querySelector('p') as HTMLParagraphElement)
+    const ref = refFor(outlineOf(collectSnapshot()), text.slice(0, 160))
+
+    expect(clickElement(ref)).toMatchObject({ dispatched: true })
+  })
+
+  it('invalidates a recycled row whose new name merely extends the old one', () => {
+    document.body.innerHTML = '<div role="listitem">Alice</div>'
+    const row = visible(document.querySelector('[role="listitem"]') as HTMLDivElement)
+    const ref = refFor(outlineOf(collectSnapshot()), 'Alice')
+
+    row.textContent = 'Alice Smith'
+
+    expect(clickElement(ref)).toMatchObject({ error: 'stale' })
+  })
+
+  it('gives a row control a new ref when its row now shows a different record', () => {
+    document.body.innerHTML = '<div role="row"><span>Order 1</span><button>Delete</button></div>'
+    for (const el of Array.from(document.querySelectorAll('span, button'))) visible(el)
+    const first = refFor(outlineOf(collectSnapshot()), 'Delete')
+    ;(document.querySelector('span') as HTMLSpanElement).textContent = 'Order 2'
+
+    expect(refFor(outlineOf(collectSnapshot()), 'Delete')).not.toBe(first)
+  })
+
+  it('invalidates a connected ref whose name changed to a longer, different word', () => {
+    document.body.innerHTML = '<div role="listitem">Item 1</div>'
+    const row = visible(document.querySelector('[role="listitem"]') as HTMLDivElement)
+    const ref = refFor(outlineOf(collectSnapshot()), 'Item 1')
+
+    row.textContent = 'Item 12'
+
+    expect(clickElement(ref)).toMatchObject({ error: 'stale' })
+  })
+
+  it('keeps an unchanged element on the same ref across snapshots', () => {
+    document.body.innerHTML = '<button>Pins</button><button>Files</button>'
+    for (const button of Array.from(document.querySelectorAll('button'))) visible(button)
+    const first = outlineOf(collectSnapshot())
+    const second = outlineOf(collectSnapshot())
+
+    expect(refFor(second, 'Pins')).toBe(refFor(first, 'Pins'))
+    expect(refFor(second, 'Files')).toBe(refFor(first, 'Files'))
+    expect(clickElement(refFor(first, 'Pins'))).toMatchObject({ dispatched: true })
+  })
+
+  it('acts on a ref from an earlier snapshot that a later scoped snapshot left out', () => {
+    document.body.innerHTML = '<button>Pins</button><section><button>Files</button></section>'
+    for (const button of Array.from(document.querySelectorAll('button'))) visible(button)
+    const pins = refFor(outlineOf(collectSnapshot()), 'Pins')
+    const section = refFor(outlineOf(collectSnapshot()), 'Files')
+    collectSnapshot(100, section)
+
+    expect(clickElement(pins)).toMatchObject({ dispatched: true })
+  })
+
+  it('refuses a ref from an earlier snapshot once its element left the DOM', () => {
+    document.body.innerHTML = '<button>Pins</button><button>Files</button>'
+    for (const button of Array.from(document.querySelectorAll('button'))) visible(button)
+    const pins = refFor(outlineOf(collectSnapshot()), 'Pins')
+    ;(document.querySelector('button') as HTMLButtonElement).remove()
+    collectSnapshot()
+
+    expect(clickElement(pins)).toMatchObject({ error: 'stale' })
+  })
+
+  it('never gives a ref to a different element across snapshots', () => {
     document.body.innerHTML = '<button>Pins</button>'
-    visible(document.querySelector('button') as HTMLButtonElement)
+    const original = visible(document.querySelector('button') as HTMLButtonElement)
     const firstRef = refFor(outlineOf(collectSnapshot()), 'Pins')
-    const secondRef = refFor(outlineOf(collectSnapshot()), 'Pins')
+    original.replaceWith(visible(document.createElement('button')))
+    ;(document.querySelector('button') as HTMLButtonElement).textContent = 'Files'
+    const secondRef = refFor(outlineOf(collectSnapshot()), 'Files')
 
     expect(secondRef).toBeGreaterThan(firstRef)
     expect(clickElement(firstRef)).toMatchObject({ error: 'stale' })
     expect(clickElement(secondRef)).toMatchObject({ dispatched: true })
+  })
+
+  it('gives a recycled row a new ref when its identity changed in place', () => {
+    document.body.innerHTML = '<div role="listitem" data-key="channel-1">eng-bugs</div>'
+    const row = visible(document.querySelector('[role="listitem"]') as HTMLDivElement)
+    const firstRef = refFor(outlineOf(collectSnapshot()), 'eng-bugs')
+    row.textContent = 'random'
+    row.dataset.key = 'channel-2'
+    const secondRef = refFor(outlineOf(collectSnapshot()), 'random')
+
+    expect(secondRef).not.toBe(firstRef)
+    expect(clickElement(firstRef)).toMatchObject({ error: 'stale' })
   })
 })
 

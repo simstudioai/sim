@@ -88,6 +88,7 @@ import {
 } from '@/main/browser-agent/page-prompts'
 import { isPanelVisible, panelWindow } from '@/main/browser-agent/panel'
 import {
+  observeRequest,
   withFailedPostActionObservation,
   withPostActionObservation,
 } from '@/main/browser-agent/post-action-observation'
@@ -143,6 +144,24 @@ function isBrowserWaitElementState(value: string): value is BrowserWaitElementSt
 }
 
 type PageExecutionTarget = WebContents | WebFrameMain
+
+/**
+ * Refs remembered per page or frame. Above the page's own 5000-ref store by
+ * one snapshot's 300 refs, and refreshed by the same snapshots, so the driver
+ * never forgets a ref the page can still hand back.
+ */
+const ISSUED_REFS_PER_TARGET = 5300
+
+/** Whether two targets are the same page or frame; Electron may hand out separate wrappers for one frame. */
+function samePageTarget(
+  left: PageExecutionTarget | undefined,
+  right: PageExecutionTarget
+): boolean {
+  if (left === right) return true
+  return (
+    left !== undefined && 'routingId' in left && 'routingId' in right && sameWebFrame(left, right)
+  )
+}
 
 type BrowserActionOutcome = { status: 'pending' } | { status: 'acknowledged'; result: unknown }
 
@@ -326,6 +345,10 @@ interface DriverScopeState {
   snapshotTargets: Map<number, PageExecutionTarget>
   /** Monotonic ref floor shared by every frame in this browser scope. */
   nextElementRefId: number
+  /** Every ref this scope issued and its frame: a later snapshot may reuse it there, and an action may still name it. */
+  issuedRefTargets: Map<number, PageExecutionTarget>
+  /** The same refs per page or frame, oldest first, so each page's history stays bounded. */
+  issuedRefsByTarget: Map<PageExecutionTarget, Set<number>>
   /** Invalidates captures that finish after a tab/navigation/timeout race. */
   snapshotCaptureEpoch: number
   /** Cancels a timed-out multi-step action before any later native dispatch. */
@@ -367,6 +390,8 @@ function createDriverScopeState(): DriverScopeState {
     snapshotTabId: null,
     snapshotTargets: new Map(),
     nextElementRefId: 0,
+    issuedRefTargets: new Map(),
+    issuedRefsByTarget: new Map(),
     snapshotCaptureEpoch: 0,
     toolExecutionEpoch: 0,
   }
@@ -1766,9 +1791,44 @@ function requireSnapshotForElementAction(): void {
   )
 }
 
+function rememberIssuedRef(
+  state: DriverScopeState,
+  ref: number,
+  target: PageExecutionTarget
+): void {
+  const previous = state.issuedRefTargets.get(ref)
+  if (previous && previous !== target) state.issuedRefsByTarget.get(previous)?.delete(ref)
+  state.issuedRefTargets.set(ref, target)
+  const refs = state.issuedRefsByTarget.get(target) ?? new Set<number>()
+  state.issuedRefsByTarget.set(target, refs)
+  refs.delete(ref)
+  refs.add(ref)
+  const oldest = refs.values().next()
+  if (refs.size > ISSUED_REFS_PER_TARGET && !oldest.done) {
+    refs.delete(oldest.value)
+    state.issuedRefTargets.delete(oldest.value)
+  }
+}
+
+/**
+ * The frame that owns a ref: the latest snapshot's, or for a ref an earlier
+ * snapshot issued, its frame while that frame still belongs to the tab the
+ * latest snapshot covered. The page then confirms the element itself.
+ */
+function elementTarget(elementId: number): PageExecutionTarget | undefined {
+  const state = driverScopeState()
+  const latest = state.snapshotTargets.get(elementId)
+  if (latest) return latest
+  const issued = state.issuedRefTargets.get(elementId)
+  const contents = session.automationTab()?.view.webContents
+  if (!issued || !contents || contents.isDestroyed()) return undefined
+  if (!('routingId' in issued)) return issued === contents ? contents : undefined
+  return liveFrameInTab(contents, issued)
+}
+
 function pageTargetForElement(elementId: number): PageExecutionTarget {
   requireSnapshotForElementAction()
-  const target = driverScopeState().snapshotTargets.get(elementId)
+  const target = elementTarget(elementId)
   if (!target || ('isDestroyed' in target && target.isDestroyed())) {
     throw new ToolError(
       'That element id is not present in the current snapshot. Call browser_snapshot and use a visible ref from that result.'
@@ -1865,7 +1925,7 @@ function assertElementActionCurrent(
   assertActiveContents(contents)
   const state = driverScopeState()
   const active = session.automationTab()
-  if (state.snapshotTabId !== active?.id || state.snapshotTargets.get(elementId) !== target) {
+  if (state.snapshotTabId !== active?.id || !samePageTarget(elementTarget(elementId), target)) {
     throw new ToolError(
       'The page changed before input could be dispatched. Take a fresh browser_snapshot and try again.'
     )
@@ -1875,6 +1935,13 @@ function assertElementActionCurrent(
 function focusedPageTarget(contents: WebContents): PageExecutionTarget {
   const focused = contents.focusedFrame
   return focused && focused !== contents.mainFrame && !focused.isDestroyed() ? focused : contents
+}
+
+/** The tab's current wrapper for a frame, if the frame is still live in that tab. */
+function liveFrameInTab(contents: WebContents, frame: WebFrameMain): WebFrameMain | undefined {
+  return contents.mainFrame.framesInSubtree.find(
+    (candidate) => !candidate.isDestroyed() && sameWebFrame(candidate, frame)
+  )
 }
 
 function sameWebFrame(left: WebFrameMain, right: WebFrameMain): boolean {
@@ -1899,11 +1966,7 @@ function assertFocusedTargetUnchanged(
   expectedFrameNavigationEpoch?: number
 ): void {
   const focused = focusedPageTarget(contents)
-  const unchanged =
-    target === contents
-      ? focused === contents
-      : focused !== contents && sameWebFrame(focused as WebFrameMain, target as WebFrameMain)
-  if (!unchanged) {
+  if (!samePageTarget(focused, target)) {
     throw new ToolError(
       'Focus moved to a different page or frame before the keystroke. No retry was attempted; inspect the page first.'
     )
@@ -1915,7 +1978,7 @@ function assertFocusedTargetUnchanged(
       frame.detached ||
       (expectedFrameNavigationEpoch !== undefined &&
         frameNavigationEpoch(contents, frame) !== expectedFrameNavigationEpoch) ||
-      !contents.mainFrame.framesInSubtree.some((candidate) => sameWebFrame(candidate, frame))
+      !liveFrameInTab(contents, frame)
     ) {
       throw new ToolError(
         'The focused frame navigated or was replaced before the keystroke. Inspect the page before continuing.'
@@ -2338,7 +2401,8 @@ async function readWholePageText(
 
 function validateSnapshotRefs(
   snapshot: Record<string, unknown>,
-  startingElementId: number
+  startingElementId: number,
+  issuedHere: (ref: number) => boolean
 ): { refs: number[]; nextElementId: number; lineIndexes: Map<number, number> } | null {
   if (typeof snapshot.outline !== 'string' || snapshot.outline.length > 500_000) return null
   if (!Array.isArray(snapshot.refIds) || snapshot.refIds.length > 300) return null
@@ -2362,7 +2426,7 @@ function validateSnapshotRefs(
     if (
       typeof value !== 'number' ||
       !Number.isSafeInteger(value) ||
-      value < startingElementId ||
+      (value < startingElementId && !issuedHere(value)) ||
       value >= nextElementId ||
       unique.has(value)
     ) {
@@ -2436,7 +2500,7 @@ async function captureSnapshot(
     await execInPage(
       contents,
       collectSnapshot,
-      [mainStartingElementId, elementId ?? null, markNew],
+      [mainStartingElementId, elementId ?? null, markNew, state.generation],
       false,
       notAfter
     )
@@ -2451,7 +2515,9 @@ async function captureSnapshot(
   ) {
     throw new ToolError('The page returned an incomplete snapshot. Try browser_snapshot again.')
   }
-  const mainRefs = validateSnapshotRefs(mainSnapshot, mainStartingElementId)
+  const mainRefs = validateSnapshotRefs(mainSnapshot, mainStartingElementId, (ref) =>
+    samePageTarget(state.issuedRefTargets.get(ref), contents)
+  )
   if (!mainRefs) {
     throw new ToolError('The page returned invalid element ids. Try browser_snapshot again.')
   }
@@ -2493,7 +2559,7 @@ async function captureSnapshot(
       const frameSnapshot = await execInPage(
         frame,
         collectSnapshot,
-        [frameStartingElementId, null, markNew],
+        [frameStartingElementId, null, markNew, state.generation],
         false,
         notAfter
       )
@@ -2512,7 +2578,9 @@ async function captureSnapshot(
         unreadableCrossOriginFrames++
         continue
       }
-      const frameRefs = validateSnapshotRefs(frameSnapshot, frameStartingElementId)
+      const frameRefs = validateSnapshotRefs(frameSnapshot, frameStartingElementId, (ref) =>
+        samePageTarget(state.issuedRefTargets.get(ref), frame)
+      )
       if (!frameRefs) {
         unreadableCrossOriginFrames++
         continue
@@ -2565,6 +2633,12 @@ async function captureSnapshot(
         (targetLineIndexes.get(elementId) ?? Number.POSITIVE_INFINITY) < visibleOutlineLines.length
     )
   )
+  for (const [target, refs] of state.issuedRefsByTarget) {
+    if (!('isDestroyed' in target && target.isDestroyed())) continue
+    for (const ref of refs) state.issuedRefTargets.delete(ref)
+    state.issuedRefsByTarget.delete(target)
+  }
+  for (const [ref, target] of targets) rememberIssuedRef(state, ref, target)
   state.snapshotTabId = capturedTabId
   return {
     ...omit(mainSnapshot, ['refIds', 'refLineIndexes', 'nextElementId']),
@@ -4042,6 +4116,11 @@ async function executeToolInner(
           },
         }
         const notes: string[] = []
+        if (typeof initialSurface.coveredBy === 'string') {
+          notes.push(
+            `The field is covered by ${initialSurface.coveredBy}, so the text went in through keyboard focus.`
+          )
+        }
         if (submitNote) notes.push(submitNote)
         if (!combinedObservation.effectObserved) {
           notes.push(
@@ -5347,7 +5426,9 @@ export async function executeTool(
                   actionOutcome = outcome
                 }
               )
-              if (params.observe !== undefined) actionOutcome = { status: 'acknowledged', result }
+              if (observeRequest(tool, params) !== undefined) {
+                actionOutcome = { status: 'acknowledged', result }
+              }
               return result
             },
             (query) =>
@@ -5372,7 +5453,7 @@ export async function executeTool(
                     tool === 'browser_snapshot' ||
                     tool === 'browser_open_url' ||
                     tool === 'browser_find' ||
-                    params.observe !== undefined
+                    observeRequest(tool, params) !== undefined
                   ) {
                     invalidateSnapshot(state)
                   }
@@ -5382,7 +5463,7 @@ export async function executeTool(
             observedResult = await guardedExecution
           } catch (error) {
             if (!actionOutcome) {
-              if (params.observe !== undefined) cancelPendingSnapshotCapture(state)
+              if (observeRequest(tool, params) !== undefined) cancelPendingSnapshotCapture(state)
               throw error
             }
             invalidateSnapshot(state)
