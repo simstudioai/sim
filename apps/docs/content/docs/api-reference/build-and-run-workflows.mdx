@@ -259,7 +259,7 @@ Run failures are reported in the result, not as HTTP errors: branch on `status` 
 
 ## 10. Debug a failed run [#debugging]
 
-A synchronous execute response names the failing block in `error.blockId`, `error.blockName`, and `error.blockType`. The polled run resource cannot attribute a block; read the run's trace spans instead:
+Both the execute response and the polled run resource name the failing block in `error.blockId`, `error.blockName`, and `error.blockType`. The run resource reads these from the run's trace, so they are absent when the trace is unavailable or hidden by your organization's permission groups, when no failed block in the trace recorded the run error, and for a timeout, cancellation, usage-limit, or invalid-input failure. Read the trace spans for the full picture:
 
 <Tabs items={['curl', 'CLI']}>
   <Tab value="curl">

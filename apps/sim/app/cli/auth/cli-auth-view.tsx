@@ -101,7 +101,7 @@ export function CliAuthView() {
    */
   const keyLifetime =
     request.expiresInDays === null
-      ? ''
+      ? ' that never expires'
       : ` that expires in ${request.expiresInDays} ${request.expiresInDays === 1 ? 'day' : 'days'}`
   const keyDescription = `${request.access === 'read' ? 'a read-only' : 'a'} personal key tied to your account${keyLifetime}`
 

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { v2ExecutionErrorSchema } from '@/lib/api/contracts/v2/workflows'
 import { HttpError } from '@/lib/core/utils/http-error'
+import { findFailedTraceBlock } from '@/lib/logs/execution/trace-spans/trace-spans'
+import type { TraceSpan } from '@/lib/logs/types'
 import type { ExecutionResult } from '@/executor/types'
 import {
   buildBlockExecutionError,
@@ -272,6 +274,65 @@ describe('classifyRecordedExecutionError', () => {
       code: 'BLOCK_EXECUTION_FAILED',
       ...timeoutBlock,
     })
+  })
+
+  /** A recorded trace holding one failed block span, as a polled run reads it back. */
+  const traceWithFailure = (failed: Partial<TraceSpan>): TraceSpan[] => [
+    {
+      id: 'workflow-execution',
+      name: 'Workflow Execution',
+      type: 'workflow',
+      duration: 1,
+      startTime: '2024-01-01T10:00:00.000Z',
+      endTime: '2024-01-01T10:00:01.000Z',
+      status: 'error',
+      children: [
+        {
+          id: 'failed-span',
+          name: 'Failed',
+          type: 'function',
+          duration: 1,
+          startTime: '2024-01-01T10:00:00.000Z',
+          endTime: '2024-01-01T10:00:01.000Z',
+          status: 'error',
+          ...failed,
+        },
+      ],
+    },
+  ]
+  const classifyFromTrace = (runError: string, failed: Partial<TraceSpan>) =>
+    classifyRecordedExecutionError(
+      runError,
+      findFailedTraceBlock(traceWithFailure(failed), runError)
+    )
+
+  it('attributes a loop failure, recorded without a name prefix, to the loop', () => {
+    const runError = 'ForEach loop resolution failed: items is not an array'
+    expect(
+      classifyFromTrace(runError, {
+        blockId: 'loop-1',
+        name: 'Each lead',
+        type: 'loop',
+        output: { error: runError },
+      })
+    ).toEqual({
+      message: runError,
+      code: 'BLOCK_EXECUTION_FAILED',
+      blockId: 'loop-1',
+      blockName: 'Each lead',
+      blockType: 'loop',
+    })
+  })
+
+  it('does not attribute a run error to a failed block that did not record it', () => {
+    expect(
+      classifyFromTrace('Service unavailable', {
+        blockId: 'block-1',
+        name: 'Lookup',
+        type: 'api',
+        output: { error: 'upstream returned 500' },
+      })
+    ).toEqual({ message: 'Service unavailable', code: 'EXECUTION_FAILED' })
   })
 
   it('reports EXECUTION_FAILED when the trace names no block', () => {

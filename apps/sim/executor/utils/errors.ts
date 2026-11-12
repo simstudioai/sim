@@ -376,11 +376,12 @@ export function classifyExecutionError(
 
 /**
  * Classifies a run's persisted error message, attributing it to the failing
- * block its recorded trace names. A message headed by that block's name is the
- * block's own failure and is classified with the block attached, whatever the
- * name says. A message that does not name it stays unattributed when its text
- * classifies as run-level (a timeout, cancellation, usage limit, or invalid
- * input), and without a block this reports what the message alone supports.
+ * block its recorded trace names as the owner of that message (see
+ * `findFailedTraceBlock`). A message headed by that block's name is the block's
+ * own failure and is classified with the block attached, whatever the name says.
+ * A message that does not name it stays unattributed when its text classifies as
+ * run-level (a timeout, cancellation, usage limit, or invalid input), and without
+ * a block this reports what the message alone supports.
  */
 export function classifyRecordedExecutionError(
   message: string,

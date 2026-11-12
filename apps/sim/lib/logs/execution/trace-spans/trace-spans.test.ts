@@ -1546,14 +1546,11 @@ describe('findFailedTraceBlock', () => {
     expect(findFailedTraceBlock(concurrentFailures(), 'Agent B: timeout')?.blockId).toBe('b')
   })
 
-  it('falls back to the failure that ended first when the error names no block', () => {
-    expect(findFailedTraceBlock(concurrentFailures(), 'upstream returned 500')?.blockId).toBe('a')
-  })
-
   it('names no block when concurrent failures cannot be told apart', () => {
+    const output = { error: 'upstream returned 500' }
     const spans = root([
-      span({ blockId: 'a', name: 'Agent A', status: 'error' }),
-      span({ blockId: 'b', name: 'Agent B', status: 'error' }),
+      span({ blockId: 'a', name: 'Agent A', status: 'error', output }),
+      span({ blockId: 'b', name: 'Agent B', status: 'error', output }),
     ])
 
     expect(findFailedTraceBlock(spans, 'upstream returned 500')).toBeNull()

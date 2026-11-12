@@ -1550,8 +1550,9 @@ export const v2ExecutionErrorSchema = z
      * The synchronous execute and resume responses attribute the block at
      * execution time. The polled run resource keeps only the error *string*, so
      * it reads the block back from the run's recorded trace: the unhandled
-     * failure the stored error names, else the one that ended first, and none
-     * when concurrent failures cannot be told apart. When that trace is unavailable (not
+     * failure that recorded the stored error (named by it, or with the same
+     * text), the one that ended first among several, and none when they cannot
+     * be told apart or no failed block recorded it. When that trace is unavailable (not
      * recorded, compacted, or withheld by the viewer's permission group) the
      * three fields are absent and a block-level failure reports
      * `EXECUTION_FAILED`. A failure its message classifies as run-level
@@ -1562,7 +1563,7 @@ export const v2ExecutionErrorSchema = z
       .string()
       .optional()
       .describe(
-        'Identifier of the failing block, when attributable. Get workflow run reads it from the run trace, so it is absent there when the trace is unavailable or hidden by organization permission groups, and for a timeout, cancellation, usage-limit, or invalid-input failure.'
+        'Identifier of the failing block, when attributable. Get workflow run reads it from the run trace, so it is absent there when the trace is unavailable or hidden by organization permission groups, when no failed block in the trace recorded the run error, and for a timeout, cancellation, usage-limit, or invalid-input failure.'
       ),
     blockName: z
       .string()
