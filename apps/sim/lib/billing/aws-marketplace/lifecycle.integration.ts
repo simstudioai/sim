@@ -781,57 +781,70 @@ describe('linking a claimed license', () => {
     expect((await readLicense(license.licenseArn))?.organizationId).toBe(otherOrganizationId)
   })
 
-  it('refuses an organization paying Stripe for a self-serve plan, but not one on Enterprise', async () => {
-    async function organizationOnPlan(plan: string) {
+  it('refuses an organization with a live Stripe self-serve subscription, but not Enterprise or an abandoned checkout', async () => {
+    async function organizationWith(sub: { plan: string; status: string; bound: boolean }) {
       const planOwnerId = await createUser()
       const id = await createOrganization([{ userId: planOwnerId, role: 'owner' }])
       await db.insert(subscription).values({
         id: generateId(),
-        plan,
+        plan: sub.plan,
         referenceId: id,
-        status: 'active',
-        stripeSubscriptionId: `sub_${generateId()}`,
-        metadata: { plan, referenceId: id, seats: 10, monthlyPrice: 100 },
+        status: sub.status,
+        stripeSubscriptionId: sub.bound ? `sub_${generateId()}` : null,
+        metadata: { plan: sub.plan, referenceId: id, seats: 10, monthlyPrice: 100 },
       })
       return { id, planOwnerId }
     }
-    const onTeam = await organizationOnPlan('team_6000')
-    const onEnterprise = await organizationOnPlan('enterprise')
-    const refused = await createClaimedLicense()
-    const linked = await createClaimedLicense()
-    entitlementsByLicense.set(refused.licenseArn, [currentEntitlement()])
-    entitlementsByLicense.set(linked.licenseArn, [currentEntitlement()])
+    async function linkTo(organization: { id: string; planOwnerId: string }) {
+      const license = await createClaimedLicense()
+      entitlementsByLicense.set(license.licenseArn, [currentEntitlement()])
+      const refusal = await linkAwsMarketplaceLicense
+        .execute({
+          principal: createSessionPrincipal({ userId: organization.planOwnerId }),
+          input: {
+            ...CONTACT,
+            organizationId: organization.id,
+            licenseId: license.id,
+            claimToken: license.token,
+          },
+        })
+        .then(
+          () => null,
+          (error: unknown) => error
+        )
+      return { license, refusal }
+    }
 
-    const error = await rejection(
-      linkAwsMarketplaceLicense.execute({
-        principal: createSessionPrincipal({ userId: onTeam.planOwnerId }),
-        input: {
-          ...CONTACT,
-          organizationId: onTeam.id,
-          licenseId: refused.id,
-          claimToken: refused.token,
-        },
-      })
+    const trial = await linkTo(
+      await organizationWith({ plan: 'team_6000', status: 'trialing', bound: true })
     )
-    await linkAwsMarketplaceLicense.execute({
-      principal: createSessionPrincipal({ userId: onEnterprise.planOwnerId }),
-      input: {
-        ...CONTACT,
-        organizationId: onEnterprise.id,
-        licenseId: linked.id,
-        claimToken: linked.token,
-      },
+    const onEnterprise = await organizationWith({
+      plan: 'enterprise',
+      status: 'active',
+      bound: true,
     })
+    const enterprise = await linkTo(onEnterprise)
+    const abandoned = await organizationWith({
+      plan: 'team_6000',
+      status: 'incomplete',
+      bound: false,
+    })
+    const afterAbandoned = await linkTo(abandoned)
 
-    expect(error).toMatchObject({
+    expect(trial.refusal).toMatchObject({
       code: 'conflict',
       message: expect.stringMatching(/already pays/),
     })
-    expect(await readLicense(refused.licenseArn)).toMatchObject({
+    expect(await readLicense(trial.license.licenseArn)).toMatchObject({
       organizationId: null,
-      claimTokenHash: hashClaimToken(refused.token),
+      claimTokenHash: hashClaimToken(trial.license.token),
     })
-    expect((await readLicense(linked.licenseArn))?.organizationId).toBe(onEnterprise.id)
+    expect(enterprise.refusal).toBeNull()
+    expect(afterAbandoned.refusal).toBeNull()
+    expect((await readLicense(enterprise.license.licenseArn))?.organizationId).toBe(onEnterprise.id)
+    expect((await readLicense(afterAbandoned.license.licenseArn))?.organizationId).toBe(
+      abandoned.id
+    )
   })
 
   it('links under a newer active read without overwriting it with its own older one', async () => {

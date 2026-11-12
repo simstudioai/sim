@@ -8,7 +8,20 @@ import {
   user,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lt, ne, or } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  ne,
+  notInArray,
+  or,
+} from 'drizzle-orm'
 import type { EntitlementSummary } from '@/lib/billing/aws-marketplace/entitlements'
 import {
   AWS_MARKETPLACE_BUYER_NOTICE_EVENT,
@@ -21,7 +34,7 @@ import type {
   AwsMarketplaceProduct,
   AwsMarketplaceProducts,
 } from '@/lib/billing/aws-marketplace/products'
-import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
+import { TERMINAL_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import type { DbTransaction } from '@/lib/db/types'
 
@@ -732,8 +745,9 @@ export async function linkLicenseForTeam(
 }
 
 /**
- * Whether the organization pays for a self-serve plan through Stripe. Enterprise is provisioned by
- * the team, who pause its collection for a Marketplace customer.
+ * Whether the organization has a live Stripe subscription to a self-serve plan: any it is bound to
+ * that has not finished, since a trial or a payment still pending turns into a charge. Enterprise
+ * is provisioned by the team, who pause its collection for a Marketplace customer.
  */
 export async function paysForSelfServePlan(
   tx: DbTransaction,
@@ -745,7 +759,8 @@ export async function paysForSelfServePlan(
     .where(
       and(
         eq(subscription.referenceId, organizationId),
-        inArray(subscription.status, [...ENTITLED_SUBSCRIPTION_STATUSES]),
+        isNotNull(subscription.stripeSubscriptionId),
+        notInArray(subscription.status, [...TERMINAL_SUBSCRIPTION_STATUSES]),
         ne(subscription.plan, 'enterprise')
       )
     )
