@@ -163,7 +163,7 @@ function toNonJsonError(
  */
 function toApiError(url: string, response: Response, raw: string): SimApiError {
   const { status } = response
-  const headerRequestId = response.headers.get('x-request-id')?.trim() || null
+  const headerRequestId = responseRequestId(response)
   const failure = (message: string) =>
     new SimApiError(message, status, null, undefined, 1, headerRequestId)
 
@@ -225,6 +225,11 @@ function transportErrorMessage(error: unknown): string {
   return messages.join(': ') || 'Unknown network error'
 }
 
+/** The server's id for a response (`x-request-id`), or null when it sent none. */
+function responseRequestId(response: Response): string | null {
+  return response.headers.get('x-request-id')?.trim() || null
+}
+
 async function readResponseText(response: Response): Promise<string> {
   try {
     return await response.text()
@@ -232,7 +237,10 @@ async function readResponseText(response: Response): Promise<string> {
     throw new SimApiError(
       `Unable to read the response: ${transportErrorMessage(error)}`,
       response.status,
-      'RESPONSE_READ_FAILED'
+      'RESPONSE_READ_FAILED',
+      undefined,
+      1,
+      responseRequestId(response)
     )
   }
 }
@@ -594,7 +602,13 @@ export class SimClient {
     try {
       return JSON.parse(raw) as T
     } catch {
-      throw toNonJsonError(url, response.status, response.headers.get('content-type'), raw)
+      throw toNonJsonError(
+        url,
+        response.status,
+        response.headers.get('content-type'),
+        raw,
+        responseRequestId(response)
+      )
     }
   }
 
@@ -709,6 +723,7 @@ export class SimClient {
    * sentence — the redirect is the finding either way.
    */
   private toRedirectError(url: string, path: string, response: Response): SimApiError {
+    const requestId = responseRequestId(response)
     const location = response.headers.get('location')?.trim()
     let target: URL | null = null
     if (location) {
@@ -722,19 +737,31 @@ export class SimClient {
     if (!target) {
       return new SimApiError(
         `${url} answered HTTP ${response.status} with no usable redirect target. Check the endpoint for profile "${this.profile.name}".`,
-        response.status
+        response.status,
+        null,
+        undefined,
+        1,
+        requestId
       )
     }
     const suggested = redirectEndpoint(this.profile.endpoint, path, target)
     if (!suggested) {
       return new SimApiError(
         `${url} redirected to ${target.href}. The CLI does not follow redirects, because a redirect can drop the request body and turn a write into a silent no-op.`,
-        response.status
+        response.status,
+        null,
+        undefined,
+        1,
+        requestId
       )
     }
     return new SimApiError(
       `Endpoint redirected to ${suggested}. Run: sim configure --profile ${this.profile.name} --set-endpoint ${suggested}`,
-      response.status
+      response.status,
+      null,
+      undefined,
+      1,
+      requestId
     )
   }
 }
