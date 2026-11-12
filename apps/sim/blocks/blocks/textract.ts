@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { TextractIcon } from '@/components/icons'
 import {
   AuthMode,
@@ -251,7 +252,7 @@ function parsesAsJsonObject(text: string): boolean {
   if (!text.startsWith('{')) return false
   try {
     const parsed: unknown = JSON.parse(text)
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+    return isRecordLike(parsed)
   } catch {
     return false
   }
