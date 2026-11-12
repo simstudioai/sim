@@ -1424,6 +1424,25 @@ describe('reconcileAwsMarketplaceLicenses', () => {
 })
 
 describe('license events across listings', () => {
+  it('records a usage listing license seen first by event as pending until AWS reports platform', async () => {
+    const licenseArn = uniqueArn()
+    entitlementsByLicense.set(licenseArn, [
+      currentEntitlement({ ProductCode: USAGE_PRODUCT, Dimension: 'llm_credits' }),
+    ])
+    const deleted = deliverOnce([licenseUpdated(licenseArn, undefined, undefined, USAGE_PRODUCT)])
+
+    expect(await reconcileAwsMarketplaceLicenses()).toMatchObject({ applied: 1, discarded: 0 })
+    expect(deleted).toEqual(['r-0'])
+    expect(await readLicense(licenseArn)).toMatchObject({
+      productCode: USAGE_PRODUCT,
+      status: 'pending',
+      dimension: null,
+    })
+    expect(await emailsTo(TEAM)).toEqual([
+      expect.objectContaining({ text: expect.stringMatching(/Unconfirmed/) }),
+    ])
+  })
+
   it("applies a usage listing's event under its own plan: a lapsed platform ends access", async () => {
     const { licenseArn } = await insertLicense({ productCode: USAGE_PRODUCT, status: 'active' })
     entitlementsByLicense.set(licenseArn, [

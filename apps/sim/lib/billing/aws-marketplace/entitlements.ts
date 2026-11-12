@@ -16,12 +16,14 @@ export interface EntitlementSummary {
    * no expiry or one in the future.
    */
   active: boolean
+  /** AWS returned an entitlement of any dimension: the license exists and names its account. */
+  licenseSeen: boolean
   /**
-   * Entitlements AWS returned for the dimension that grants access (any dimension, for a plan with
-   * none), current or lapsed: whether AWS has answered about access at all. A usage dimension alone
-   * is no answer. Zero is ambiguous, see the license's status.
+   * AWS returned an entitlement, current or lapsed, for the dimension that grants access (any
+   * dimension, for a plan with none). A usage dimension alone is not an answer about access, and
+   * no answer is ambiguous: see the license's status.
    */
-  entitlementCount: number
+  accessReported: boolean
   dimension: string | null
   quantity: number | null
   expiresAt: Date | null
@@ -58,7 +60,8 @@ function summarizeEntitlements(
   const chosen = current[0] ?? lapsed[0]
   return {
     active: current.length > 0,
-    entitlementCount: entitlements.length,
+    licenseSeen: allEntitlements.length > 0,
+    accessReported: entitlements.length > 0,
     dimension: chosen?.Dimension ?? null,
     quantity: chosen?.Value?.IntegerValue ?? null,
     expiresAt: chosen?.ExpirationDate ?? null,

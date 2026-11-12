@@ -54,21 +54,21 @@ export function isNewerRead(license: AwsMarketplaceLicenseRecord, verifiedAt: Da
 }
 
 /**
- * No entitlements after AWS has said the license ended, or on a license that was already confirmed
- * once, is a lapse. Otherwise AWS may simply not have finished, so the license stays pending.
+ * No answer about access after AWS has said the license ended, or on a license that was already
+ * confirmed once, is a lapse. Otherwise AWS may simply not have finished, so the license stays pending.
  */
 function statusFromRead(
   prior: AwsMarketplaceLicenseStatus | null,
   { summary, ended }: LicenseVerification
 ): AwsMarketplaceLicenseStatus {
   if (summary.active) return 'active'
-  if (summary.entitlementCount > 0 || ended) return 'inactive'
+  if (summary.accessReported || ended) return 'inactive'
   return prior === null || prior === 'pending' ? 'pending' : 'inactive'
 }
 
 /**
- * The columns a read writes. With no entitlements the last-known dimension, quantity, and expiry
- * stay as they were, and only the status can change. An inactive license has nothing to claim.
+ * The columns a read writes. With no answer about access the last-known dimension, quantity, and
+ * expiry stay as they were, and only the status can change. An inactive license has nothing to claim.
  */
 function verificationFields(
   prior: AwsMarketplaceLicenseStatus | null,
@@ -81,7 +81,7 @@ function verificationFields(
     lastVerifiedAt: verifiedAt,
     lastVerificationAttemptAt: verifiedAt,
     updatedAt: new Date(),
-    ...(summary.entitlementCount > 0 && {
+    ...(summary.accessReported && {
       dimension: summary.dimension,
       quantity: summary.quantity,
       expiresAt: summary.expiresAt,
@@ -277,7 +277,7 @@ export async function recordLicenseVerification(input: {
   const stamp = licenseEventReceivedAt ? { licenseEventReceivedAt } : {}
   return db.transaction(async (tx) => {
     const accountId = verification.summary.customerAwsAccountId ?? input.fallbackAccountId
-    if (accountId && verification.summary.entitlementCount > 0) {
+    if (accountId && verification.summary.licenseSeen) {
       const [created] = await tx
         .insert(awsMarketplaceLicense)
         .values({

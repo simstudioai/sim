@@ -66,7 +66,7 @@ describe('verifyLicense', () => {
     const summary = await read(
       entitlement({ ExpirationDate: new Date('2026-05-31T23:59:59.000Z') })
     )
-    expect(summary).toMatchObject({ active: false, entitlementCount: 1, quantity: 25 })
+    expect(summary).toMatchObject({ active: false, accessReported: true, quantity: 25 })
   })
 
   it('reads an entitlement with a future expiry, or none at all, as active', async () => {
@@ -106,7 +106,12 @@ describe('verifyLicense', () => {
 
   it('reads a usage entitlement alone as no answer about access, not as access', async () => {
     const summary = await readAs(USAGE, entitlement({ Dimension: 'llm_credits' }))
-    expect(summary).toMatchObject({ active: false, entitlementCount: 0, dimension: null })
+    expect(summary).toMatchObject({
+      active: false,
+      licenseSeen: true,
+      accessReported: false,
+      dimension: null,
+    })
   })
 
   it('reads a lapsed platform as inactive even while usage is current', async () => {
@@ -115,7 +120,7 @@ describe('verifyLicense', () => {
       entitlement({ Dimension: 'llm_credits' }),
       entitlement({ Dimension: 'platform', ExpirationDate: new Date('2026-01-01T00:00:00.000Z') })
     )
-    expect(summary).toMatchObject({ active: false, entitlementCount: 1, dimension: 'platform' })
+    expect(summary).toMatchObject({ active: false, accessReported: true, dimension: 'platform' })
   })
 
   it('reads a current platform as active and describes it, not the usage dimension', async () => {
@@ -139,7 +144,7 @@ describe('verifyLicense', () => {
 
     const summary = await verifyLicense(CONTRACT, LICENSE)
 
-    expect(summary).toMatchObject({ entitlementCount: 2, dimension: 'one' })
+    expect(summary).toMatchObject({ accessReported: true, dimension: 'one' })
     expect(mockSend.mock.calls.map(([command]) => command.input.NextToken)).toEqual([
       undefined,
       't1',

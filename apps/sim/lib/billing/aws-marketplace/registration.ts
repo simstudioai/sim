@@ -37,7 +37,7 @@ async function readEntitlements(
   let verifiedAt = new Date()
   let summary = await verifyLicense(product, licenseArn)
   for (const delayMs of NO_ENTITLEMENT_RETRY_DELAYS_MS) {
-    if (summary.entitlementCount > 0) break
+    if (summary.accessReported) break
     await sleep(delayMs)
     verifiedAt = new Date()
     summary = await verifyLicense(product, licenseArn)
