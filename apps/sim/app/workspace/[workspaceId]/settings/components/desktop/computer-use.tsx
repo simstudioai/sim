@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ComputerUseAppPermission } from '@sim/desktop-bridge'
 import { Chip, ChipSwitch, Label, toast } from '@sim/emcn'
+import { useParams } from 'next/navigation'
 import { ComputerUseActivity } from '@/components/computer-use/activity'
 import { getDesktopBridge } from '@/lib/desktop'
 import { CAPABILITY_RULES } from '@/lib/permission-groups/capabilities'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
 import { useComputerUseStatus } from '@/hooks/use-computer-use-status'
-import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 export function ComputerUseSettings() {
   return (
@@ -22,7 +23,8 @@ export function ComputerUseSettings() {
 function ComputerUseSettingsControls() {
   const requestVersion = useRef(0)
   const bridge = getDesktopBridge()?.computerUse
-  const { config: permissionConfig, isPermissionReady } = usePermissionConfig()
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const permission = useUserPermissionConfig(workspaceId)
   const { status, setStatus, refresh, error } = useComputerUseStatus()
   const [apps, setApps] = useState<ComputerUseAppPermission[]>([])
   const [pending, setPending] = useState(false)
@@ -44,8 +46,9 @@ function ComputerUseSettingsControls() {
   }, [refreshApps, status?.activeAction])
   if (
     !bridge ||
-    !isPermissionReady ||
-    CAPABILITY_RULES['computer_use.use'].deniedBy(permissionConfig) ||
+    !permission.isSuccess ||
+    (permission.data.config !== null &&
+      CAPABILITY_RULES['computer_use.use'].deniedBy(permission.data.config)) ||
     status?.supported === false
   )
     return null

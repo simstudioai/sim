@@ -20,10 +20,17 @@ const native = vi.hoisted(() => ({
   cancel: vi.fn<() => Promise<void>>(),
   onActivity: vi.fn<(listener: (activity: ComputerUseActivity | null) => void) => () => void>(),
 }))
-const permission = vi.hoisted(() => ({ config: {} as Record<string, unknown>, ready: true }))
-vi.mock('@/hooks/use-permission-config', () => ({
-  usePermissionConfig: () => ({ config: permission.config, isPermissionReady: permission.ready }),
+const permission = vi.hoisted(() => ({
+  config: null as Record<string, unknown> | null,
+  ready: true,
 }))
+vi.mock('@/ee/access-control/hooks/permission-groups', () => ({
+  useUserPermissionConfig: () =>
+    permission.ready
+      ? { isSuccess: true, data: { config: permission.config } }
+      : { isSuccess: false, data: undefined },
+}))
+vi.mock('next/navigation', () => ({ useParams: () => ({ workspaceId: 'ws-1' }) }))
 vi.mock('@/lib/desktop', () => libDesktopMock)
 
 const initialPermissions = [
@@ -37,7 +44,7 @@ let root: Root
 let container: HTMLDivElement
 
 beforeEach(() => {
-  permission.config = { ...DEFAULT_PERMISSION_GROUP_CONFIG }
+  permission.config = null
   permission.ready = true
   permissions = [...initialPermissions]
   activity = null

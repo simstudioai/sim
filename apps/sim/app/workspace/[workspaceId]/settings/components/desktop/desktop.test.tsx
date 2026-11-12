@@ -8,9 +8,15 @@ import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const permission = vi.hoisted(() => ({ config: {} as Record<string, unknown> }))
-vi.mock('@/hooks/use-permission-config', () => ({
-  usePermissionConfig: () => ({ config: permission.config }),
+const permission = vi.hoisted(() => ({
+  config: null as Record<string, unknown> | null,
+  ready: true,
+}))
+vi.mock('@/ee/access-control/hooks/permission-groups', () => ({
+  useUserPermissionConfig: () =>
+    permission.ready
+      ? { isSuccess: true, data: { config: permission.config } }
+      : { isSuccess: false, data: undefined },
 }))
 vi.mock('@sim/emcn', () => ({
   ...emcnMock,
